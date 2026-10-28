@@ -369,3 +369,7 @@ Settlers7R.exe
 
 # Rebuildable local TokenSave index (source only, never game data).
 .tokensave/
+
+# Private local workspace: runtimes, copied games, diagnostics and deliverables.
+/work/
+/outputs/

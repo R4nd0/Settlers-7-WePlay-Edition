@@ -1,6 +1,46 @@
 # Local S7 development handoff
 
-Updated 2026-10-27. Baseline implementation commit: `b94c978`.
+Updated 2026-10-28. Baseline implementation commit: `b94c978`.
+
+## Active workspace and latest user evidence
+
+The user relocated this workspace to
+`Z:/Users/Elfredo/Documents/Claude/Projects/7S_Patcher` and changed origin to
+`https://github.com/R4nd0/7S_Patcher.git`. Work from this repository root.
+Private `work/` and deliverable `outputs/` now live below it and are ignored;
+never index copied game data. The repository retains the full existing Git
+history. See `7S_Patcher.code-workspace` for the relative editor workspace.
+
+The user supplied the PC2 host report for run 20261027-115514. It has two
+successful Login/Register exchanges, a confirmed join, one accepted host-record
+leave and a later leave owner/space rejection; it continues to answer searches
+afterward (511 search replies total). No session expiry or server error is
+reported. There are no per-event timestamps or source roles in that deployed
+service, so the report cannot attribute the leaves to physical PCs or establish
+their timing relative to the desync. Do not confuse this with a service timeout.
+
+The user explicitly reports a Desync on PC1 after about five minutes. A narrow
+fixed-format read of the corresponding game log independently finds
+`Desync detected in turn: 2154`. The user corrected the CPU report: severe
+load affected PC1 (the GUEST), including after returning to the lobby, not PC2.
+The reverse guest game subsequently exited with code 0; no crash code was seen.
+
+An isolated loopback copy was then started at
+`work/installer-lan-v3-turn-offset-realtest`. Its observed affinity was 0x55,
+four allowed logical CPUs on eight physical/sixteen logical CPUs, Normal
+priority and 68 threads. Five two-second samples used 0.364..0.832 CPU-core
+equivalents (9.1..20.8% of its allowed four CPUs), with Responding=true.
+This bounded initial main-menu sample did not show whole-process saturation.
+The user subsequently reported visible stuttering in that main menu as well;
+do not claim the fresh menu is consistently smooth or infer a CPU cause yet.
+No priority, CPU policy, simulation check or adapter was changed in this test.
+
+The isolated launcher/game were recorded as 65008/15204 in
+`work/cpu-baseline-owned-launch.json`. All processes rooted in the old
+workspace were absent at the migration inventory. Those PID records are
+historical, not evidence of live processes. Next development work should
+measure CPU/network-update timing during the stutter and investigate the
+confirmed simulation divergence; no fix for either has yet been verified.
 
 ## Verified
 
@@ -18,8 +58,8 @@ commands were delayed about 30 seconds. The corrected build now keeps the
 guest horizon at five turns in real LAN observations; the user confirms
 responsive inputs and ten additional minutes of play without errors.
 Both real-PC host directions now join and start successfully. The reverse
-sustained test subsequently reported a connection loss or other error;
-exact messages and host evidence are pending. Stability remains a blocker.
+sustained test then produced the confirmed desync described above. The host
+report is received; its cause remains unknown. Stability remains a blocker.
 The one-PC two-client laboratory now completes
 native admission and the service success report, and the user confirmed both
 players visibly occupy the same lobby. The user subsequently confirmed both
@@ -29,7 +69,7 @@ direction (A hosts, B joins) also reached a running match, confirmed by the user
 Longer synchronization remains unverified. The successful lab used service
 work/server-pair-activity and adapter work/native-pair-core-resume. Those owned
 lab games and service are now stopped. The prepared real LAN host is
-work/installer-network-pump-realtest-v2, now running as the reverse-test guest.
+work/installer-network-pump-realtest-v2, now stopped after the reverse test.
 
 The historical baseline passed 354 adapter checks, 38 network-guard checks
 and 18 original-byte comparisons, plus configuration validation. The
@@ -38,17 +78,17 @@ RPC codec previously passed 20,288 isolated assertions. Its UI archive verifies
 all 284 entries and parses.
 These are separate results, not evidence of a playable LAN match.
 
-## Current step: investigate the failure during sustained reverse LAN play
+## Current step: investigate confirmed desync and CPU/menu stutter
 
-### Latest: reverse play reported a failure; preserve both running games
+### Earlier post-failure observation before the completed workspace move
 
-After successful reverse join/start, the user selected "Verbindungsabbruch
-oder andere Fehlermeldung" in the ten-minute test question. Exact messages
-on PC1 and PC2, and approximate elapsed match time, have been requested but
-not returned. Do not label this a confirmed checksum desync or attribute a
-cause yet. Both games and starters must remain open; do not restart or deploy.
+After successful reverse join/start, the user initially selected
+"Verbindungsabbruch oder andere Fehlermeldung". The subsequent exact message,
+native log proof and PC2 host report are now recorded above. All local test
+processes were stopped before migration; preserve the evidence and do not
+reuse historical PIDs as active process identities.
 
-PC1 is still the exact owned game36300/launcher42824, with no launcher stderr.
+At that observation PC1 was the exact owned game36300/launcher42824, with no launcher stderr.
 Its latest fixed native labels retain connected login, real join completion,
 the unknown-latency horizon correction and natural-core resume observation.
 The bounded post-failure observer reports command_turn=UINT_MAX throughout,
@@ -57,7 +97,7 @@ advance64 and owner/manager/echo32 per two seconds. This is a reset/nonplaying
 turn value with the update loop still alive, not evidence that the latency
 fix regressed in an active match. No live identifiers or game calls are read.
 
-The active host/coordinator is PC2, so PC1 has no current service log. Its
+The host/coordinator in that run was PC2, so PC1 had no current service log. Its
 latest local host log belongs to the previous intentionally closed game and
 must not be attributed to this failure; it now contains the expected shutdown
 leave/migration sequence after the earlier pre-shutdown observation.
@@ -80,12 +120,10 @@ evidence. ZIP outputs/S7-LAN-Verbindungsbericht-2026-10-27.zip has3 entries,
 3863 bytes; CRC/extracted bytes match. SHA256:
 67f442acf92d46ca8144d75a4d31f7eb0fee315283ca8c856dd77cf627decad9.
 
-The current second user question asks PC2 to extract the CMD AND entire
-S7-Verbindungsbericht folder into its current installed test root, run the
-CMD there while games remain open, and return all output. No patch install
-or restart is needed. Await the exact message and this current-host report
-before choosing the next protocol/transport change. The private timed-log
-service remains undeployed and native/service/content IDs are unchanged.
+The user completed the PC2 report request; no diagnostic-output question is
+pending. The private timed-log service remains undeployed and native/service/
+content IDs are unchanged. Investigate simulation divergence and the reported
+PC1 stutter before choosing a protocol/transport change.
 
 ### Latest: corrected guest horizon verified in a real two-PC LAN match
 
@@ -1639,16 +1677,19 @@ change is required for the next create-record service/UI test.
 
 ## Local workspace (not portable paths)
 
-The containing output directory holds `S7-Local.code-workspace` and the separate
-`S7-Local-Test` bundle. User launcher: `Test-Lokale-Anmeldung.cmd` inside that
-bundle. The launcher creates fresh local service/configuration state each run.
-Its active keepalive peer has a 20-minute hard limit and a two-minute idle limit.
-Do not assume an old game process still has a usable service session.
+The active repository/workspace root is
+`Z:/Users/Elfredo/Documents/Claude/Projects/7S_Patcher`.
+The `outputs/` directory contains the user-facing ZIP packages and legacy
+`S7-Local-Test` copy. The current LAN test copy is
+`work/installer-network-pump-realtest-v2`; the isolated CPU baseline copy is
+`work/installer-lan-v3-turn-offset-realtest`. Launchers are relative/portable.
+Do not assume a historical launcher PID or expired configuration is active.
 
-The chat workspace's `work/` contains the private static analysis scripts,
-bounded observers, SDK and compiler outputs. It is outside this repository.
-Latest adapter with live startup verification: `work/native-startup-build`.
-Previous menu-only bridge build: `work/native-menu-build`.
+Private `work/` contains the static analysis scripts, bounded observers, SDK,
+compiler outputs, copied games and diagnostic evidence. It is within the
+workspace but excluded from Git and TokenSave. Current adapter:
+`work/native-turn-offset-default/uplay_r1_loader.dll`, deployed service:
+`work/server-lan-catalogue-route/S7Patcher.dll`. Hashes are documented above.
 The original installation is `C:/Spiele/thesettlers7` and must remain unchanged.
 
 ## TokenSave

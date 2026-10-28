@@ -1,5 +1,14 @@
 # S7 local development
 
+## Active workspace
+
+Work from `Z:/Users/Elfredo/Documents/Claude/Projects/7S_Patcher`.
+The repository is the workspace root; private intermediate files, copied games
+and runtimes belong under `work/`, and user-facing packages under `outputs/`.
+Both directories are ignored. Do not commit their contents or index game data.
+The origin remote is `https://github.com/R4nd0/7S_Patcher.git`.
+The previous Documents/Codex workspace has been relocated; do not recreate it.
+
 Read `docs/DEVELOPMENT-HANDOFF.md` for verified progress and the current blocker.
 Read `docs/NATIVE-LOCAL-START.md` before changing the native adapter.
 

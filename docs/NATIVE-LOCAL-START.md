@@ -37,7 +37,9 @@ with an unknown latency ring; PC1 retains its original one-turn host horizon.
 The user confirms responsive guest inputs and ten additional error-free minutes
 with PC1 hosting. With roles reversed, the user confirms join/start and the
 observer on PC1 as guest retains five-turn actual/target horizons at turns
-209..309. The reverse sustained gameplay test remains pending.
+209..309. The reverse sustained test subsequently produced a desync on PC1,
+confirmed in the game log at turn2154, plus reported PC1 menu stutter. The
+received host report shows no service expiry/error. Cause and fix remain open.
 See DEVELOPMENT-HANDOFF.md for hashes, counters, tests and the pending step.
 
 ## Components and boundaries

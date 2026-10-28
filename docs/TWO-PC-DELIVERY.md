@@ -5,7 +5,7 @@ own Ubisoft Connect History Edition installation. Either PC must be able to
 create a match and the other must be able to join. Avoid synchronization faults;
 do not equate a working lobby or reliable packet delivery with deterministic play.
 
-## Current real LAN status (2026-10-27)
+## Current real LAN status (2026-10-28)
 
 Both separate PCs have joined the same lobby and loaded a running match.
 The corrected native adapter keeps the guest command horizon at five turns
@@ -16,9 +16,11 @@ intentional shutdown for the reverse-host test. An earlier peer-left/waiting-
 for-player failure has no verified cause. Reverse real-PC hosting now also
 joins and starts successfully, confirmed by the user. PC1 as guest keeps its
 actual and target horizon at five turns during command turns 209..309. The
-ten-minute gameplay test in that direction subsequently reported a connection
-loss or other error. Exact messages and the PC2 host log are pending. This
-keeps sustained stability unaccepted; successful join/start is still valid.
+ten-minute gameplay test in that direction subsequently produced a desync on
+PC1, independently recorded in game turn2154. The received PC2 host report
+contains no service expiry/error; it cannot establish the mismatch cause.
+PC1 also stuttered in the menu. Sustained stability remains unaccepted;
+successful join/start is still valid.
 Neither checksum equality nor freedom from desynchronization is established.
 See DEVELOPMENT-HANDOFF.md for current builds, hashes and observations.
 
