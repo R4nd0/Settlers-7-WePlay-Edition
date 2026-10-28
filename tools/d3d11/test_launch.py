@@ -9,6 +9,9 @@ class LaunchTests(unittest.TestCase):
         allowed = patch.object(launch,'GAMEPLAY_QUALIFIED',True)
         allowed.start()
         self.addCleanup(allowed.stop)
+        headroom=patch.object(launch.memory_guard,'require_host_headroom')
+        headroom.start()
+        self.addCleanup(headroom.stop)
 
     def test_unqualified_start_is_blocked_before_any_file_or_process_work(self):
         with patch.object(launch,'GAMEPLAY_QUALIFIED',False), \
@@ -18,6 +21,15 @@ class LaunchTests(unittest.TestCase):
                 launch.run(Mock(preflight=False),Path('missing-copy'))
             launch.require_qualified(True)
             package.assert_not_called()
+            spawn.assert_not_called()
+
+    def test_low_host_memory_is_rejected_before_spawning_any_game(self):
+        root=Path('work/fixture').resolve()
+        proxy=launch.GuardedSubprocess(root,root/'memory.json',False)
+        with patch.object(launch.memory_guard,'require_host_headroom',side_effect=RuntimeError('low headroom')), \
+             patch.object(launch.subprocess,'Popen') as spawn:
+            with self.assertRaises(RuntimeError):
+                proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin')
             spawn.assert_not_called()
 
     def test_service_is_not_instrumented_and_only_exact_game_child_gets_probe(self):

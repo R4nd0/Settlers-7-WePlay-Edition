@@ -109,6 +109,23 @@ reserving 64 MiB of virtual space, three full scans had a median of 3.44 ms
 and maximum of 29.11 ms; 20 cached reads had a median of 0.002 ms. These are
 fixture measurements, not game overhead or smoothness measurements.
 
+Host memory is checked as well as the game's address space. The sentinel reads
+available physical RAM and system-wide remaining commit through
+[GetPerformanceInfo](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-getperformanceinfo),
+converting page counts with the reported page size. It does not mistake the
+64-bit helper's own virtual address space or its per-process commit allowance
+for the game's or system's available memory. Before any future qualified game
+spawn, both available physical RAM and remaining system commit must be at least
+4096 MiB. This is a conservative experiment policy, not the game's official
+minimum RAM specification or a guarantee against subsequent memory pressure.
+The check is repeated immediately before creating the game child.
+
+During play, host-pressure warning thresholds are 1536 MiB available physical
+RAM or 2048 MiB remaining commit; critical classification uses 768/1024 MiB.
+These share the existing three-sample warning/recovery behavior and bounded
+polling schedule. Summaries retain minimum host headroom. No process is closed
+to make room, and CPU/GPU stalls without memory pressure remain separate issues.
+
 ## Reproduce the copy and preflight only
 
 Obtain the author's original package from the
@@ -158,17 +175,36 @@ is bypassed and no multiplayer/simulation-sync result is claimed.
 python -B -m unittest discover -s tools/d3d11 -p 'test_*.py' -v
 ```
 
-23 automated tests cover isolated copying, corruption/link rejection, settings
+28 automated tests cover isolated copying, corruption/link rejection, settings
 encoding/preservation, unsupported values, AA separation, restartable fallback,
 foreign intermediate refusal, owned-child monitoring, unqualified-start refusal,
 fragmentation thresholds, persistent warning/recovery, scan caching/time budgets
 and avoidance of per-poll disk writes. They do not establish in-game stability.
+The host regressions cover memory pressure with a healthy game address space,
+separate RAM/commit startup refusal before Popen, page-to-byte conversion and
+sticky host-pressure recovery. The actual Windows API read succeeded without
+starting a game; low-memory cases were injected in tests rather than consuming
+the user's RAM.
 The pinned archive/DLL and original EXE/LAA flag were checked directly.
 
 Next qualification must use a controlled foreground run with trustworthy frame
 intervals and CPU/GPU/host-memory evidence, then real map loading and longer
 gameplay. Re-enable no backend on the strength of a menu screenshot or a zero
 exit code. Optional post-processing and FSR remain later work.
+
+The next comparison is DXVK on this same isolated copy, at medium native
+settings, with an explicit discrete GPU and the existing 60 Hz cap. The shared
+profile installer verifies the entire inventory before changing files; the
+first inventory pass was stopped before profile creation to avoid disk
+contention with the main chat's two-client test. No new DXVK game was started,
+and no new menu/map result is claimed. A private bounded pilot is prepared under
+work/d3d11-review; the public gameplay gate remains closed.
+
+The pinned [DXVK 3.1.1 configuration](https://github.com/doitsujin/dxvk/blob/v3.1.1/dxvk.conf)
+documents automatic pipeline lifetime tracking for 32-bit applications, which
+frees pipeline libraries more aggressively. Keep it at its default for the next
+comparison. Its D3D9 available-texture-memory reporting option does not raise
+the game's address-space ceiling; it is not used as a memory-safety guarantee.
 
 The author's [redistribution terms](https://dege.freeweb.hu/dgVoodoo2/ReadmeGeneral/)
 permit unmodified components with a specific game/mod, require the original ZIP

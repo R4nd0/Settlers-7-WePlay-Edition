@@ -5,6 +5,7 @@ Only aggregates are stored: no game memory, paths, identities or packet data.
 """
 import ctypes as C
 from ctypes import wintypes as W
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -31,13 +32,63 @@ class Region(C.Structure):
                 ('protect',W.DWORD),('kind',W.DWORD)]
 
 
-def pressure(sample):
+class HostCounters(C.Structure):
+    _fields_ = [('cb',W.DWORD)] + [(name,C.c_size_t) for name in
+        ('commit_total','commit_limit','commit_peak','physical_total','physical_available',
+         'system_cache','kernel_total','kernel_paged','kernel_nonpaged','page_size')] + [
+        (name,W.DWORD) for name in ('handle_count','process_count','thread_count')]
+
+
+@lru_cache(maxsize=1)
+def host_api():
+    api = C.WinDLL('psapi',use_last_error=True).GetPerformanceInfo
+    api.argtypes = [C.POINTER(HostCounters),W.DWORD]
+    api.restype = W.BOOL
+    return api
+
+
+def host_memory():
+    value = HostCounters(); value.cb = C.sizeof(value)
+    if not host_api()(C.byref(value),value.cb) or not value.page_size:
+        raise OSError('Systemspeicherzaehler nicht verfuegbar.')
+    if value.commit_total > value.commit_limit or value.physical_available > value.physical_total:
+        raise OSError('Systemspeicherzaehler widerspruechlich.')
+    return {'host_physical_free':value.physical_available*value.page_size,
+            'host_commit_free':(value.commit_limit-value.commit_total)*value.page_size}
+
+
+class HostMemoryError(RuntimeError):
+    pass
+
+
+def require_host_headroom(sample=None):
+    sample = host_memory() if sample is None else sample
+    if min(sample['host_physical_free'],sample['host_commit_free']) < 4096*MIB:
+        raise HostMemoryError('Zu wenig freier Systemspeicher fuer den Grafikversuch; '
+                           'mindestens 4 GiB freier RAM und Commit-Spielraum erforderlich.')
+
+
+def process_pressure(sample):
     private, free, largest = (sample[k] for k in ('private', 'free', 'largest'))
     if private >= 3328*MIB or free <= 256*MIB or largest <= 16*MIB:
         return 2
     if private >= 2816*MIB or free <= 768*MIB or largest <= 64*MIB:
         return 1
     return 0
+
+
+def host_pressure(sample):
+    physical = sample.get('host_physical_free',LIMIT)
+    commit = sample.get('host_commit_free',LIMIT)
+    if physical <= 768*MIB or commit <= 1024*MIB:
+        return 2
+    if physical <= 1536*MIB or commit <= 2048*MIB:
+        return 1
+    return 0
+
+
+def pressure(sample):
+    return max(process_pressure(sample),host_pressure(sample))
 
 
 def save(path, value):
@@ -98,7 +149,7 @@ class Probe:
         if self.address_sample is None or time.monotonic()-self.last_scan >= ADDRESS_SCAN_SECONDS:
             self.address_sample = self.address_space()
             self.last_scan = time.monotonic()
-        return {'private':counters.private,**self.address_sample}
+        return {'private':counters.private,**self.address_sample,**host_memory()}
 
     def address_space(self):
         deadline = time.monotonic()+0.05
@@ -123,7 +174,7 @@ class Probe:
 
 
 def notify(level):
-    text = ('Der 32-Bit-Speicher wird knapp. Bitte jetzt speichern und das Spiel neu starten. '
+    text = ('Der verfuegbare Speicher wird knapp. Bitte jetzt speichern und das Spiel neu starten. '
             'Der naechste Start verwendet besonders sparsame Grafikwerte. '
             'Das Spiel wird nicht automatisch beendet; ein Speicherfehler ist weiterhin moeglich.')
     if level == 3:
@@ -139,7 +190,8 @@ class Sentinel:
         self.summary = {'format':'s7-memory-summary-v1','recovery_required':sticky,
                         'max_pressure':0,'samples':0,'peak_private_mib':0,
                         'min_free_mib':4096,'min_largest_mib':4096,'monitor_failed':False,
-                        'peak_probe_ms':0}
+                        'peak_probe_ms':0,'min_host_physical_free_mib':None,
+                        'min_host_commit_free_mib':None}
         self.streak = 0
         self.warned = False
         self.thread = None
@@ -162,6 +214,11 @@ class Sentinel:
         self.summary['peak_private_mib'] = max(self.summary['peak_private_mib'],sample['private']//MIB)
         for target, key in [('min_free_mib','free'),('min_largest_mib','largest')]:
             self.summary[target] = min(self.summary[target],sample[key]//MIB)
+        for key in ('host_physical_free','host_commit_free'):
+            if key in sample:
+                target = 'min_'+key+'_mib'
+                previous = self.summary[target]
+                self.summary[target] = sample[key]//MIB if previous is None else min(previous,sample[key]//MIB)
         self.summary['max_pressure'] = max(self.summary['max_pressure'],level)
         self.streak = self.streak+1 if level else 0
         if self.streak >= 3 and not self.warned:

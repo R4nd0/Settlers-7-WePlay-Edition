@@ -101,6 +101,7 @@ class GuardedSubprocess:
         is_game = isinstance(command, list) and command == [str(executable)]
         if is_game:
             require_qualified(False)
+            memory_guard.require_host_headroom()
         if is_game and (args or Path(kwargs.get('cwd', '')).resolve() != executable.parent):
             raise ValueError('Unerwarteter Spielstart fuer die Speicherpruefung.')
         child = subprocess.Popen(command, *args, **kwargs)
@@ -140,6 +141,8 @@ def run(args,root):
     require_qualified(args.preflight)
     if Path(sys.executable).resolve() != content.plain(root / 'Runtime/python/python.exe'):
         raise ValueError('Bitte den Python-Starthelfer dieser Testkopie verwenden.')
+    if not args.preflight:
+        memory_guard.require_host_headroom()
     prepare.package(args.archive)
     receipt_path = content.plain(root / 'd3d11-experiment.json')
     if receipt_path.stat().st_size > 4096:
@@ -273,6 +276,8 @@ if __name__ == '__main__':
         if isinstance(error, QualificationError):
             print('Spielstart gesperrt: D3D11-Speicherfehler und D3D9-Menuehaenger '
                   'sind noch offen. Nur --preflight ist verfuegbar.',flush=True)
+        elif isinstance(error,memory_guard.HostMemoryError):
+            print(str(error),flush=True)
         else:
             print('Startpruefung fehlgeschlagen. Kein weiterer Spielstart.',flush=True)
         raise SystemExit(2)
