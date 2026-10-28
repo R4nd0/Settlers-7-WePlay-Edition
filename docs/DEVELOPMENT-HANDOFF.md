@@ -2,6 +2,26 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Optional-menu network function test
+
+A real two-client laboratory run of source `373fe12` with the fixed networking
+and optional `-vSynch -noMapInMainMenu` arguments reached a shared public
+Turminsel lobby, successful guest admission/readiness, and a running match in
+both windows. A 90-second trace advances both clients from turn 31 to 894 with
+host horizon 1 and guest horizon 5. This is not checksum equality or a desync
+fix. No successful construction command is claimed; the tested placement was
+rejected as a locked area. See [LOCAL-PAIR-LAB.md](LOCAL-PAIR-LAB.md) for pins,
+precise boundaries and cleanup status.
+
+The guest window subsequently received independent user input; Root paused
+automation and asked whether to keep playing or close both test games. The user
+requested closure. Both games and all three controllers completed with code 0;
+host inspection found no remaining S7, the exact owned service was stopped,
+and both temporary runtime INIs were absent. The graphics chat received explicit
+slot release for its authorized water-quality comparison. Root must not start
+parallel game or CPU-heavy tests. No combined package has been released on the
+basis of this short test.
+
 ## Latest network reliability milestone and coordination
 
 Two reproduced message-loss cases (Register ACK reordering and a full response

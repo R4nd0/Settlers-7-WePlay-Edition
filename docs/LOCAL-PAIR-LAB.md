@@ -45,15 +45,16 @@ Under the current repository's ignored `work/` directory:
   identities/saves; `lab-manifest.json` checks EXE, adapter and Interface archive.
 - `prepare_local_pair.py`: already-run private preparation script. It refuses
   existing target folders; do not rerun over these copies.
-- `desync-pair-20261028/launch_pair.py server|A|B`: current private process
-  controller (`check` validates without launching). Start server
+- `nomap-pair-20261028/launch_pair.py server|A|B`: current private process
+  controller (`check` validates without launching). A/B additionally take the
+  explicit `--simple-menu` switch for the optional paired test. Start server
   first, wait for its ready line, then A and B. It writes loopback runtime
   configuration, locks each slot and records its owned PID/exit status. It starts
   no Ubisoft launcher. Service lifetime is one hour; registered-peer limits
   still apply. Stop the exact owned service when finished.
-- `desync-pair-20261028/ready.json`, runtime INI files and raw logs remain private
-  and untracked. `operate_local_pair.py` and `pair-ready.json` describe an older
-  controller, not the current run.
+- `nomap-pair-20261028/ready.json`, runtime INI files and raw logs remain private
+  and untracked. `desync-pair-20261028` retains the earlier measurements;
+  `operate_local_pair.py` and `pair-ready.json` are also historical controllers.
 
 The current fixed EXE data suffixes are `\Claude\Projects\7S_Patcher\work\A`
 and `\Claude\Projects\7S_Patcher\work\B`, relative to the actual Windows My
@@ -63,7 +64,56 @@ rejected. Historical profile folders from the former Codex workspace may only
 supply selected Options settings; identities, Profiles.xml and saves are not
 copied into the new profiles.
 
-## Current run: 2026-10-28
+## Current functional run: simple menu plus VSync, 2026-10-28
+
+The current source (`373fe12`, including the networking fixes) was built as a
+separate two-core lab adapter with a matching linker map. Its full DLL SHA256 is
+`0c3470745a302477c5db4e2661023479fadc04118aaa2e2ec976ee6684e7c1b6`;
+the matching map is
+`4490f271018ed86f863e9f26a4198ec8ce3750974511f2c7de203e49743c5178`.
+The lab service SHA256 is
+`e5f14d615464aff694d7c7543273b68d29036a672ac460587c33ca7cfdd551cd`.
+No lab binaries belong in the normal installer.
+
+The private launcher uses the current shared graphics argument helper and a
+validated boolean to select exactly `-vSynch -noMapInMainMenu`. Neither copied
+game uses a rendering wrapper. The original installation was not changed, and
+profile contents were not inspected during deployment. Only the closed copies'
+adapters/manifests were updated, with backups. Checks passed: 1,085 lab
+bootstrap, 71 original/EXE derivation, 18 connect, 24 CPU and three
+strict-argument checks.
+
+Observed directly through the game UI: A opened a public Turminsel lobby, B
+found and joined it, both names were visible in the same lobby, B became ready,
+and A started the match. Both games loaded the map and displayed gameplay.
+The guest camera zoom and build selection were usable. One attempted building
+placement was rejected as a locked area, so no successful guest construction
+command or command-latency result is claimed.
+
+An initial 180-second numeric trace covers the menus/lobby/loading transition.
+A subsequent 90-second trace contains 91 paired samples: observed game turns
+advance from 31 to 894 on both clients, with host horizon 1 and guest horizon 5.
+Individual paired reads differ by up to four turns; the snapshots are sequential
+rather than atomic. These observations establish neither equality nor mismatch
+of simulation checksums. Private memory
+peaked at approximately 1,368 MiB per process. No FP-change diagnostic label
+was observed within the bounded window; this cannot exclude unobserved changes.
+
+This is a one-PC smoke test of initial lobby admission and match startup with
+the optional menu mode. It establishes no long-session/endgame, reverse-host,
+two-PC, three-player or desync-free qualification. Initial camera placement and
+all reward/castle preview compatibility were not exhaustively tested. The mode
+remains experimental and disabled by default.
+
+When Computer Use detected independent user input in the guest window, Root
+stopped app input and asked whether to leave the test running or close it. The
+user requested regular closure of both games. Both game exit records and all
+three controllers then completed with code 0; host process inspection found no
+S7 game. The exact owned service was stopped after process/start/path checks,
+and both temporary runtime INIs were absent. The graphics chat was explicitly
+given the free test slot for its separately authorized water-quality comparison.
+
+## Earlier menu-only run: 2026-10-28
 
 Both newly derived games reached the main menu with distinct visible names,
 Lab A and Lab B. Separate profile folders were created under `work/A` and
