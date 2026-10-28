@@ -6,6 +6,7 @@ starter. Existing output is never overwritten or automatically deleted.
 """
 import argparse
 import importlib.util
+import hashlib
 import json
 import shutil
 import sys
@@ -21,10 +22,18 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
+DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
+DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
-    'lan_discovery.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
+    'lan_discovery.py', 'lan_autoconnect.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
     'player_settings.py', 'Configure-LAN-Firewall.ps1'))
+
+
+def lan_tools(manifest):
+    # RC1 used an external picker. Its unchanged package remains valid.
+    return tuple(item for item in LAN_LOBBY_TOOLS if item[0]!='installer/lan_autoconnect.py' or
+                 'tools/installer/lan_autoconnect.py' in manifest['files'])
 
 
 def write_json(path, value):
@@ -49,6 +58,8 @@ def package_manifest(root):
         raise ValueError('Unbekannte Bildschirmauswahl-Version.')
     if type(manifest.get('automatic_lan', False)) is not bool:
         raise ValueError('Unbekannte LAN-Lobby-Version.')
+    if type(manifest.get('desktop_launcher',False)) is not bool:
+        raise ValueError('Unbekannte Desktop-Starter-Version.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
@@ -60,8 +71,14 @@ def package_manifest(root):
             ('tools/' + original).lower() not in expected for original, _ in DISPLAY_TOOLS)):
         raise ValueError('Die Bildschirmauswahl im Installationspaket ist unvollstaendig.')
     if manifest.get('automatic_lan', False) and (not manifest.get('graphics_choice', False) or any(
-            ('tools/' + original).lower() not in expected for original, _ in LAN_LOBBY_TOOLS)):
+            ('tools/' + original).lower() not in expected for original, _ in lan_tools(manifest))):
         raise ValueError('Die automatische LAN-Lobby im Installationspaket ist unvollstaendig.')
+    if manifest.get('desktop_launcher',False) and (not all(manifest.get(key,False) for key in
+            ('graphics_choice','display_selection','automatic_lan')) or any(
+            ('tools/'+name).lower() not in expected for name in (*DESKTOP_PACKAGE_TOOLS,*(original for original,_ in DESKTOP_TOOLS)))
+            or 'payload/graphics/s7graphicsprobe.exe' not in expected
+            or 'tools/installer/lan_autoconnect.py' not in expected):
+        raise ValueError('Der Desktop-Starter im Installationspaket ist unvollstaendig.')
     return manifest
 
 
@@ -78,14 +95,59 @@ def source_base(root):
     return base
 
 
-def prepare(package, source, destination, emit=print):
+def _rollback_copies(records):
+    """Remove only this copy operation's unchanged files, never unknown data."""
+    for path,identity,digest in reversed(records):
+        try:
+            path=content.plain(path);info=path.stat()
+            if (info.st_dev,info.st_ino)==identity and content.digest(path)==digest:
+                path.unlink()
+        except (OSError,ValueError):
+            pass  # A changed/unreadable file is retained for recovery.
+
+
+def _copy_sources(files,base,destination,emit,progress):
+    total=sum(path.stat().st_size for path in files);copied=0;owned=[]
+    try:
+        for index,path in enumerate(files,1):
+            content.plain(path)
+            target=content.plain(destination/'Base'/path.relative_to(base))
+            target.parent.mkdir(parents=True,exist_ok=True)
+            hasher=hashlib.sha256();identity=None
+            try:
+                with path.open('rb') as src,target.open('xb') as dst:
+                    info=target.stat();identity=(info.st_dev,info.st_ino)
+                    if progress is None:shutil.copyfileobj(src,dst,1024*1024)
+                    else:
+                        while chunk:=src.read(1024*1024):
+                            dst.write(chunk);hasher.update(chunk);copied+=len(chunk)
+                            progress('copy',copied,total)
+            except BaseException:
+                if progress and identity is not None:_rollback_copies([(target,identity,hasher.hexdigest())])
+                raise
+            if progress:
+                owned.append((target,identity,hasher.hexdigest()))
+                progress('copy_check',index,len(files))
+            if content.digest(target)!=content.digest(path):
+                raise ValueError('Spieldatei hat sich waehrend des Kopierens geaendert.')
+            emit(f'Spieldateien kopiert: {index}/{len(files)}')
+        # The last cancellable boundary precedes patching/renderer transactions.
+        if progress:progress('patch',0,0)
+    except BaseException:
+        if progress:_rollback_copies(owned)
+        raise
+
+
+def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True):
     package, source, destination = map(content.plain, (package, source, destination))
     for protected in (source, package):
         if destination.is_relative_to(protected) or protected.is_relative_to(destination):
             raise ValueError('Der neue Testordner muss getrennt von Spiel und Installer liegen.')
     if destination.exists() or not destination.parent.is_dir():
         raise ValueError('Bitte einen neuen Testordner in einem vorhandenen Ordner angeben.')
+    if progress: progress('package',0,0)
     manifest = package_manifest(package)
+    if progress: progress('source',0,0)
     base = source_base(source)
     emit('Pruefe die Spieldateien. Das kann etwas dauern ...')
     # Validate every source path before creating output; no links/hardlinks used.
@@ -103,16 +165,7 @@ def prepare(package, source, destination, emit=print):
     destination.mkdir()
     incomplete = destination / 'INSTALLATION-INCOMPLETE.txt'
     incomplete.write_text('Vorbereitung nicht abgeschlossen. Diesen Ordner nicht starten.\n', encoding='utf-8')
-    for index, path in enumerate(files, 1):
-        content.plain(path)
-        target = destination / 'Base' / path.relative_to(base)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        # Copy bytes (not hard links) and verify against the still-present source.
-        with path.open('rb') as src, target.open('xb') as dst:
-            shutil.copyfileobj(src, dst, 1024 * 1024)
-        if content.digest(target) != content.digest(path):
-            raise ValueError('Spieldatei hat sich waehrend des Kopierens geaendert.')
-        emit(f'Spieldateien kopiert: {index}/{len(files)}')
+    _copy_sources(files,base,destination,emit,progress)
     # Reuse the existing hash-locked patcher; patch the copied archive only.
     tools = package / 'Tools'
     sys.path.insert(0, str(tools / 'lan'))
@@ -153,8 +206,11 @@ def prepare(package, source, destination, emit=print):
     if manifest.get('display_selection', False):
         for original, target in DISPLAY_TOOLS:
             shutil.copyfile(tools / original, destination / 'Launcher' / target)
+    if manifest.get('desktop_launcher',False):
+        for original,target in DESKTOP_TOOLS:
+            shutil.copyfile(tools/original,destination/'Launcher'/target)
     if manifest.get('automatic_lan', False):
-        for original, target in LAN_LOBBY_TOOLS:
+        for original, target in lan_tools(manifest):
             shutil.copyfile(tools / original, destination / 'Launcher' / target)
     shutil.copyfile(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
@@ -163,6 +219,7 @@ def prepare(package, source, destination, emit=print):
     if bundle['files']['Base/Bin/Settlers7R.exe'] != EXPECTED_EXE:
         raise ValueError('Spielprogramm hat sich waehrend der Vorbereitung geaendert.')
     # Detect modified payloads during copying, before publishing any starter.
+    if progress: progress('verify',0,0)
     package_manifest(package)
     if content.digest(destination / 'Base/Bin/uplay_r1_loader.dll') != manifest['files']['payload/uplay_r1_loader.dll']:
         raise ValueError('Adapterkopie stimmt nicht ueberein.')
@@ -177,13 +234,19 @@ def prepare(package, source, destination, emit=print):
         launcher_tools += list(GRAPHICS_TOOLS)
     if manifest.get('display_selection', False):
         launcher_tools += list(DISPLAY_TOOLS)
+    if manifest.get('desktop_launcher',False):
+        launcher_tools += list(DESKTOP_TOOLS)
     if manifest.get('automatic_lan', False):
-        launcher_tools += list(LAN_LOBBY_TOOLS)
+        launcher_tools += list(lan_tools(manifest))
     for original, target in launcher_tools:
         if content.digest(tools / original) != content.digest(destination / 'Launcher' / target):
             raise ValueError('Starterkopie stimmt nicht ueberein.')
     write_json(destination / 'local-bundle.json', bundle)
     write_json(destination / 'compatibility.json', content.create(destination))
+    if not publish_starters:
+        incomplete.unlink()
+        emit('Spielkopie ist fuer den gemeinsamen Starter vorbereitet.')
+        return destination
     (destination / 'LIESMICH.txt').write_text(
         'S7 lokale Testkopie\n\nStart-S7-Test.cmd startet den lokalen Test.\n'
         'Test-LAN-Verbindung.cmd bietet Host/Mitspieler fuer den Sitzungstest.\n'

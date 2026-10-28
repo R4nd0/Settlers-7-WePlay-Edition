@@ -146,6 +146,31 @@ def prepare(source, output, specification, profile):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 install.package_manifest(self.package)
 
+    def test_desktop_capability_requires_its_full_helper_contract_and_copies_it(self):
+        helpers=(*install.GRAPHICS_TOOLS,*install.DISPLAY_TOOLS,*install.LAN_LOBBY_TOOLS,*install.DESKTOP_TOOLS)
+        for original,_ in helpers:
+            if original!='lan/prepare.py':self.write(self.package,'Tools/'+original,('# fixture '+original).encode())
+        for original in install.DESKTOP_PACKAGE_TOOLS:self.write(self.package,'Tools/'+original,b'# package fixture')
+        self.write(self.package,'Payload/Graphics/S7GraphicsProbe.exe',b'probe fixture')
+        self.manifest();self.data.update(graphics_choice=True,display_selection=True,automatic_lan=True,desktop_launcher=True)
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        self.prepare()
+        for original,target in (*install.DESKTOP_TOOLS,*install.LAN_LOBBY_TOOLS):
+            self.assertEqual((self.destination/'Launcher'/target).read_bytes(),(self.package/'Tools'/original).read_bytes())
+        missing=self.package/'Tools/installer/lan_autoconnect.py';missing.unlink()
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Desktop-Starter'):install.package_manifest(self.package)
+
+    def test_older_automatic_lan_picker_package_remains_valid(self):
+        for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS):
+            if original not in ('lan/prepare.py','installer/lan_autoconnect.py'):
+                self.write(self.package,'Tools/'+original,('# old fixture '+original).encode())
+        self.manifest();self.data.update(graphics_choice=True,automatic_lan=True)
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        self.prepare();content.verify(self.destination)
+        self.assertFalse((self.destination/'Launcher/lan_autoconnect.py').exists())
+
     def test_install_applies_packaged_join_menu_delta_before_fingerprinting(self):
         self.write(self.package, 'Tools/installer/update_join_menu.py', b'''def build_archive(original, recipe):
     assert original == b'invented patched archive'

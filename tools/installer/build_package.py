@@ -12,7 +12,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
@@ -31,7 +31,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -43,6 +43,10 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         raise ValueError('Service fingerprint does not match the tested LAN build')
     if (dxvk_dll is None) != (dxvk_license is None):
         raise ValueError('DXVK DLL and original license must be supplied together')
+    if graphics_probe is not None:
+        graphics_probe=content.plain(graphics_probe)
+        if dxvk_dll is None or not graphics_probe.is_file():raise ValueError('Desktop graphics payload missing')
+        check_output_location(repo,output,(graphics_probe.parent,))
     if dxvk_dll is not None:
         import graphics_profile
         from graphics_distribution import LICENSE_SHA256
@@ -76,6 +80,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         profile = output / 'Payload/Graphics'; profile.mkdir()
         shutil.copyfile(dxvk_dll, profile / 'd3d9.dll')
         shutil.copyfile(dxvk_license, profile / 'LICENSE')
+        if graphics_probe is not None:shutil.copyfile(graphics_probe,profile/'S7GraphicsProbe.exe')
     names = ['installer/install.py', 'installer/start.py', 'installer/launch_lan.py', 'installer/compatibility.py',
              'offline-ui/launch_local.py', 'offline-ui/patch-spec.json', 'lan/bba.py', 'lan/prepare.py',
              'installer/update_join_menu.py', 'offline-ui/join-menu-update.json']
@@ -85,6 +90,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names += [original for original, _ in LAN_LOBBY_TOOLS]
     if dxvk_dll is not None:
         names += ['installer/graphics_distribution.py']
+    if graphics_probe is not None:
+        names += list(DESKTOP_PACKAGE_TOOLS)+[original for original,_ in DESKTOP_TOOLS]
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
@@ -95,6 +102,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'graphics_choice': True,
         'display_selection': True,
         'automatic_lan': True,
+        'desktop_launcher': graphics_probe is not None,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')
@@ -153,6 +161,7 @@ if __name__ == '__main__':
     for name in ('adapter', 'service', 'dotnet', 'python-zip', 'output'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--dxvk-dll'); parser.add_argument('--dxvk-license')
+    parser.add_argument('--graphics-probe')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
-                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license))
+                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe))

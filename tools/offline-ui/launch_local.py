@@ -42,10 +42,17 @@ def graphics_game_arguments(root):
     return _graphics_module().game_arguments(root)
 
 
-def wait_for_graphics_game(root, game, *, enabled=True):
+def saved_graphics_environment(root):
+    return _graphics_module().saved_launch_environment(root)
+
+
+def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
     """Keep the owned window controller alive until this game's exit."""
     controller = None
+    observer = None
     try:
+        if monitor is not None:
+            observer = monitor(game)
         if enabled:
             try:
                 controller = _graphics_module().start_window_mode(root, game)
@@ -53,8 +60,12 @@ def wait_for_graphics_game(root, game, *, enabled=True):
                 print('Borderless fullscreen unavailable. The game remains windowed.', flush=True)
         return game.wait()
     finally:
-        if controller is not None:
-            controller.close()
+        try:
+            if controller is not None:
+                controller.close()
+        finally:
+            if observer is not None:
+                observer.close()
 
 
 def plain_path(path, root):
@@ -233,8 +244,9 @@ def run(args):
         try:
             game_environment = None
             game_arguments = ()
-            if args.launch_game and getattr(args, 'choose_graphics', True):
-                game_environment = choose_graphics_environment(root)
+            if args.launch_game and (getattr(args, 'saved_graphics', False) or getattr(args, 'choose_graphics', True)):
+                game_environment = (saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
+                                    else choose_graphics_environment(root))
                 if game_environment is None:
                     print('Spielstart abgebrochen.', flush=True)
                     return 0
@@ -262,8 +274,11 @@ def run(args):
                 game_options = {'cwd': root / 'Base/Bin'}
                 if game_environment is not None:
                     game_options['env'] = game_environment
+                if getattr(args, 'before_game', None) is not None:
+                    args.before_game()
                 game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe"), *game_arguments], **game_options)
-                code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True))
+                code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True),
+                                             monitor=getattr(args, 'game_monitor', None))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:
                     stream.write(str(code) + "\n")
                 if code:

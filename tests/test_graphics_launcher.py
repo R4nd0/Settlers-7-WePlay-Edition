@@ -129,6 +129,26 @@ class GraphicsLauncherTests(unittest.TestCase):
         child.assert_not_called()
         remote.assert_not_called()
 
+    def test_saved_desktop_graphics_skip_dialog_but_keep_arguments_and_owned_monitor(self):
+        self.args.saved_graphics=True
+        order=[];observer=Mock()
+        self.args.before_game=lambda:order.append('preflight')
+        self.args.game_monitor=Mock(side_effect=lambda child:(order.append('monitor') or observer))
+        self.game.wait.side_effect=lambda:(order.append('wait') or 0)
+        selected={'S7_DESKTOP':'saved'}
+        with patch.object(launch_local,'choose_graphics_environment') as dialog, \
+                patch.object(launch_local,'saved_graphics_environment',return_value=selected), \
+                patch.object(launch_local,'graphics_game_arguments',return_value=('-vSynch','-width','1280')), \
+                patch.object(launch_local,'service_ready',return_value=({},9111)), \
+                patch.object(launch_local,'write_configuration',return_value=self.runtime), \
+                patch.object(launch_local.subprocess,'Popen',side_effect=[self.service,self.game]) as child:
+            self.assertEqual(launch_local.run(self.args),0)
+        dialog.assert_not_called()
+        self.assertEqual(order,['preflight','monitor','wait'])
+        self.assertIs(child.call_args_list[1].kwargs['env'],selected)
+        self.assertEqual(child.call_args_list[1].args[0][1:],['-vSynch','-width','1280'])
+        self.args.game_monitor.assert_called_once_with(self.game);observer.close.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

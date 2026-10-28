@@ -1,0 +1,9 @@
+Settlers-7-WePlay-Edition: parody direction v2
+Created with built-in image generation using the user-supplied original cover and monk portrait as references.
+Motto: The community fixes what Ubisoft left behind.
+Assets: transparent wordmark, transparent monk mascot icon, Windows ICO (16 through 256px), portrait parody cover.
+Prompt specifications:
+Cover: parody original blue theatrical curtain, gold fantasy title, exaggerated medieval cartoon ensemble; smug monk reconnects a cable with community workers, baffled noble with broken key, delighted merchant with controllers; exact title and motto.
+Logo: transparent gold-orange whimsical The Settlers 7 / WePlay Edition wordmark, medieval skyline with two workers reconnecting a cable; ivory subtitle; no publisher logo.
+Icon: transparent cartoon bald monk inspired by supplied portrait; raised eyebrow and smug smile, cream/brown robes, proudly holding gold network connector; no text or frame.
+ICO is a format/size export. Raster sources, no vector masters. v1 is retained. No game or launcher source changed.

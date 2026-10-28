@@ -120,6 +120,38 @@ def _renderer(root, inherited):
     return 'native', environment
 
 
+def saved_launch_environment(root, inherited=None):
+    """Prepare saved choices without displaying UI; the caller holds the lock."""
+    root = graphics._preflight(root)
+    selected = _load_choice(root)
+    mode, environment = _renderer(root, inherited)
+    if mode == 'dxvk':
+        environment = graphics.launch_environment(root, environment, device_name=selected['choice'])
+    elif selected['choice'] is not None:
+        raise ValueError('Die gespeicherte Grafikkarte passt nicht zum Standardrenderer.')
+    if selected.get('display') is not None:
+        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
+    if graphics._plain(root / 'LocalData/graphics-quality.json').exists():
+        import quality_settings
+        quality_settings.prepare(root)
+    return environment
+
+
+def save_choice(root, value):
+    """The desktop frontend uses the same validator and profile checks as the GUI."""
+    root = graphics._preflight(root)
+    selected = validate_choice(value)
+    mode, _ = _renderer(root, {})
+    if mode == 'native' and selected['choice'] is not None:
+        raise ValueError('Der Standardrenderer waehlt die Grafikkarte automatisch.')
+    if selected.get('display') is not None:
+        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
+    _load_choice(root)  # Unknown/damaged preferences are never overwritten.
+    data = graphics._plain(root / 'LocalData'); data.mkdir(exist_ok=True)
+    graphics.atomic_write(graphics._plain(root / CHOICE_FILE), graphics.encoded(selected), data)
+    return selected
+
+
 def choose_launch_environment(root, inherited=None):
     """Show one hidden-host GUI per call. Return child env, or None on cancel.
 

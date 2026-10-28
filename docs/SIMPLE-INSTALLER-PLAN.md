@@ -1,12 +1,14 @@
 # Einfacher Installer und gemeinsamer Starter
 
 Plan vom 28.10.2026, auf Basis des Grafik-RC `2e19e20`.
-Status: geplant; der ausgelieferte RC wurde dadurch nicht verändert.
+Status: als RC2 umgesetzt. Der bisherige Grafik-RC bleibt unverändert.
+Build und Bedienung: [RC2-START.md](RC2-START.md), [RC2-BUILD.md](RC2-BUILD.md).
+Die abschließenden Testbelege werden in [RC2-QA.md](RC2-QA.md) festgehalten.
 
 ## Ziel für Spieler
 
-Eine Datei `S7-Setup.exe` installieren, anschließend eine Verknüpfung
-`Siedler 7` verwenden. Die Installation erledigt Kopie, Patch, Grafikprofil,
+Eine Datei `Setup.exe` installieren, anschließend die Verknüpfung
+`Settlers 7 WePlay Edition` verwenden. Die Installation erledigt Kopie, Patch, Grafikprofil,
 Laufzeitdateien und Verknüpfungen in einem Ablauf. Alle späteren Funktionen
 sind im gemeinsamen Starter erreichbar. Deutsch und Englisch sind enthalten.
 
@@ -47,10 +49,9 @@ Spielstart erneut als Pflichtdialoge. Der Starter verwaltet seine eigenen
 Hilfsprozesse und kann während des Spiels in den Hintergrund gehen.
 
 - Spielen: Voraussetzungen prüfen und die vorbereitete Kopie starten.
-- LAN spielen: Namen beim ersten Mal festlegen, Lobbys im selben Fenster
-  anzeigen, erstellen oder auswählen. Die eigentliche Partie wird zunächst
-  weiterhin im Mehrspielermenü des Spiels erstellt bzw. betreten; automatisches
-  Überspringen dieses Engine-Schritts gehört nicht zur ersten Lieferung.
+- LAN spielen: Namen festlegen und starten. Der gemeinsame LAN-Dienst wird
+  automatisch verbunden; IP-, Netzwerk- und externe Raumauswahl entfallen.
+  Die Partie wird genau einmal im Mehrspielermenü des Spiels gewählt.
 - Einstellungen: Grafikmodus, Grafikkarte, Zielbildschirm, Auflösung,
   Fenster/randlos und unterstützte Qualitätsoptionen an einem Ort anbieten.
   Gültige, konservative Vorgaben wählen. Entfernte Bildschirme und geänderte
@@ -137,7 +138,7 @@ fremde oder nachträglich hinzugefügte Dateien werden nicht pauschal entfernt.
    Installationszustände einführen; vorhandene Prüfungen weiterverwenden.
 2. Durchgehenden Ablauf Setup → automatische Vorbereitung → ein Starter
    bauen. Moderne Grafik und kompatibler Rückweg werden im Ablauf integriert.
-3. Grafikeinstellungen, LAN-Auswahl und bedarfsweise private Netzwerkfreigabe
+3. Grafikeinstellungen, automatischen LAN-Aufbau und bedarfsweise private Netzwerkfreigabe
    in diese Oberfläche übernehmen; gespeicherte Werte beim nächsten Start nutzen.
 4. Reparatur, unterbrochene Installation/Updates und Deinstallation vervollständigen.
 5. Eine neue RC-Setup-EXE erst nach den folgenden Bedien- und Fehlerprüfungen abgeben.

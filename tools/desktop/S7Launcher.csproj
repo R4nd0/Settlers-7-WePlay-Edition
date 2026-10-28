@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>S7Launcher</AssemblyName>
+    <Version>2.0.0-rc2</Version>
+    <Product>Settlers-7-WePlay-Edition</Product>
+    <Description>Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>../../assets/branding/weplay.ico</ApplicationIcon>
+    <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
+    <AppHostRelativeDotNet>DesktopRuntime</AppHostRelativeDotNet>
+  </PropertyGroup>
+  <ItemGroup><EmbeddedResource Include="Strings.*.json" WithCulture="false" /></ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../assets/branding/weplay-logo.png" LogicalName="WePlay.Logo.png" />
+    <EmbeddedResource Include="../../assets/branding/weplay.ico" LogicalName="WePlay.Icon.ico" />
+  </ItemGroup>
+</Project>

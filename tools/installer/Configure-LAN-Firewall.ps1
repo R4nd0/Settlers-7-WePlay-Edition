@@ -46,3 +46,11 @@ foreach ($index in 0..($programs.Count - 1)) {
     }
 }
 Write-Host $(if ($Remove) { 'Private S7-LAN-Freigaben entfernt.' } else { 'Private S7-LAN-Freigaben fuer diese Kopie eingerichtet.' })
+$marker = Join-Path $root 'LocalData\desktop-firewall.json'
+if ($Remove) {
+    if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker }
+} else {
+    $folder = Join-Path $root 'LocalData'
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    @{format='s7-private-firewall-v1';key=$key} | ConvertTo-Json -Compress | Set-Content -LiteralPath $marker -Encoding UTF8
+}
