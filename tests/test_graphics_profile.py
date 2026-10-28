@@ -311,6 +311,7 @@ class GraphicsProfileTests(unittest.TestCase):
         before_environment = dict(os.environ)
         inherited = {'PATH': 'fixture path', 'dxvk_config_file': 'foreign',
                      'DXVK_FILTER_DEVICE_NAME': 'inherited GPU', 'DXVK_CONFIG': 'foreign',
+                     'DxVk_CoNfIg': 'd3d9.floatEmulation = False; d3d9.maxFrameRate = 0',
                      'DXVK_STATE_CACHE_PATH': 'foreign'}
         original_inherited = dict(inherited)
         inventory = content.verify(self.root)
@@ -322,7 +323,9 @@ class GraphicsProfileTests(unittest.TestCase):
         self.assertEqual(inherited, original_inherited)
         self.assertEqual(environment['PATH'], 'fixture path')
         self.assertNotIn('DXVK_FILTER_DEVICE_NAME', environment)
-        self.assertNotIn('DXVK_CONFIG', environment)
+        self.assertEqual(environment['DXVK_CONFIG'], 'd3d9.floatEmulation = Strict')
+        self.assertEqual(selected['DXVK_CONFIG'], 'd3d9.floatEmulation = Strict')
+        self.assertEqual([key for key in environment if key.upper() == 'DXVK_CONFIG'], ['DXVK_CONFIG'])
         self.assertNotIn('dxvk_config_file', environment)
         self.assertEqual(selected['DXVK_FILTER_DEVICE_NAME'], 'Fixture GPU')
         self.assertEqual(Path(environment['DXVK_CONFIG_FILE']), self.root / graphics.CONF)

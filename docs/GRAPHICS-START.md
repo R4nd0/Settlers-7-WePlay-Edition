@@ -87,6 +87,22 @@ compatibility ID and must not inherit a prior multiplayer/stability claim.
 Both LAN peers still need compatible installed files; per-PC GPU choice is
 separate from installing a graphics backend.
 
+The current source launcher also supplies the fixed child-only setting
+`d3d9.floatEmulation = Strict`. On PC1, a controlled Tanholm comparison showed
+black water with DXVK's automatic setting, visible blue water with Strict,
+and black water again after returning to Auto. Lowering WaterQuality alone
+did not help. This is a shader-compatibility workaround for the observed case;
+it does not replace textures or qualify other GPUs/maps, longer gameplay or
+performance. Upstream's
+[pinned configuration](https://github.com/doitsujin/dxvk/blob/v3.1.1/dxvk.conf)
+documents Strict as more accurate and potentially slower.
+
+This fixed value replaces inherited DXVK_CONFIG aliases only in the child's
+environment. The recorded DLL/configuration, compatibility ID, restore journal
+and parent environment are unchanged. Older packaged launchers do not gain
+the workaround merely by having the same DXVK DLL installed; the updated
+launcher source must be included. Previously delivered packages are unchanged.
+
 The upstream standalone release archive is
 [DXVK3.1.1](https://github.com/doitsujin/dxvk/releases/tag/v3.1.1), archive SHA256
 `40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608`;

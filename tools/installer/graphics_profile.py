@@ -36,6 +36,9 @@ FILES = (DLL, CONF, COMPAT)
 EXE_SHA256 = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 CONFIG = b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
+# PC1 Tanholm A/B/A: Auto renders black water; Strict restores the water path.
+# Keep this fixed and child-only; the owned on-disk profile remains reversible.
+SHADER_COMPATIBILITY = 'd3d9.floatEmulation = Strict'
 MAX_DLL = 32 * 1024 * 1024
 MAX_JSON = 4 * 1024 * 1024
 
@@ -347,6 +350,8 @@ def launch_environment(root, inherited=None, *, device_name=None):
     The caller must hold its launcher session lock until its game exits. Logs
     and caches stay in LocalData, outside Base/Server/Launcher fingerprints.
     GPU selection is per process/PC, not part of cross-PC content identity.
+    A fixed shader compatibility setting avoids black water on the tested GPU.
+    It is not a free-form environment or user-supplied configuration override.
     """
     root = _preflight(root)
     # Startup checks the owned profile and the three established launcher
@@ -368,6 +373,7 @@ def launch_environment(root, inherited=None, *, device_name=None):
         if name.upper() in owned:
             del result[name]
     result.update(DXVK_CONFIG_FILE=str(_plain(root / CONF)),
+                  DXVK_CONFIG=SHADER_COMPATIBILITY,
                   DXVK_LOG_PATH=str(_plain(folder / 'logs')),
                   DXVK_SHADER_CACHE_PATH=str(_plain(folder / 'cache')))
     if device_name is not None:

@@ -320,3 +320,61 @@ The author's [redistribution terms](https://dege.freeweb.hu/dgVoodoo2/ReadmeGene
 permit unmodified components with a specific game/mod, require the original ZIP
 for standalone hosting, and prohibit inclusion in general-purpose launchers.
 This repository contains no dgVoodoo binaries or copied game/shader assets.
+
+### Black-water isolation and shader workaround, 2026-10-28
+
+After an explicit test-slot release, fresh isolated DXVK 3.1.1 runs used the
+RX 9070 XT, 1920x1080 windowed mode, the same Tanholm map/starting camera and
+one normal King Konradin AI. All used medium native settings, standard AA,
+only optional shadows, the 60 Hz DXVK cap, `-vSynch` and `-noMapInMainMenu`.
+Game/engine/adapter fingerprints were unchanged. The existing four-core
+research adapter was retained, so these are not the main chat's network tests.
+
+| Trial | WaterQuality | DXVK float emulation | Observed river |
+| --- | ---: | --- | --- |
+| Medium baseline | 1 | Auto | Black |
+| Low-water comparison | 0 | Auto | Black |
+| Shader comparison | 1 | Strict | Blue water, visible shoreline/reflection |
+| Return to baseline | 1 | Auto | Black again |
+| Integrated source launcher | 1 | Strict | Blue water, visible shoreline/reflection |
+
+Only the fixed `d3d9.floatEmulation = Strict` child-environment override changed
+between the three medium A/B/A trials. Logs confirmed the effective Strict
+setting and its absence in the return-to-baseline run. This implicates shader
+floating-point compatibility in this observed defect; it does not establish
+the exact failing shader instruction or require replacement texture files.
+No vendor/depth-format spoofing or driver setting was changed. The pinned
+[upstream configuration](https://github.com/doitsujin/dxvk/blob/v3.1.1/dxvk.conf)
+describes Strict as a more accurate, potentially slower emulation mode.
+
+The low-water, Strict and final baseline runs respectively recorded 62, 83
+and 111 sentinel samples, with private-memory peaks of 1523, 1584 and 1517 MiB.
+None recorded pressure or monitor failure. These different-duration windows
+include loading and are not performance comparisons. The earlier medium
+baseline did record a monitor failure after 45 samples; its memory aggregates
+are incomplete and cannot support a safety claim. Its exact exception was not
+captured. A diagnostic-only error record was added for subsequent trials;
+no protection threshold or scan budget was relaxed, and no later exception was
+recorded in those three runs. The first startup-only attempt was slow/white,
+later responded, and was closed before a map observation; it is excluded from
+the water comparison.
+
+All of these owned games closed normally with exit zero. Allowlisted native
+graphics values were restored and checked after each run. Private evidence
+stays under work/d3d11-review. The shared source start helper now supplies the
+fixed Strict value after verifying the active owned profile and stripping all
+inherited DXVK_CONFIG aliases. It leaves the immutable installed profile and
+restore transaction unchanged. Existing packages have not been rebuilt.
+The final live run used that shared `launch_environment` function without a
+private shader override. Its effective-configuration log confirmed Strict and
+the same river visibly rendered correctly, including after dismissing the
+achievement popup. Its 131 sentinel samples recorded a 1526 MiB private peak,
+at least 1783 MiB free 32-bit address space, a largest free region of at least
+1719 MiB, no pressure and no monitor failure. These are short-run aggregates,
+not a guarantee against future memory failures. It exited zero, restored the
+previous graphics values, and a host process check found no remaining S7 or
+owned helper runtime. The 60 graphics profile/choice/launcher tests passed;
+their fixtures verify launch/rollback boundaries, not rendered image quality.
+This water workaround does not reopen the D3D11 gameplay gate, establish
+working LAN/checksum synchronization, qualify other maps/GPUs or prove that
+the previously reported system hangs are fixed. FSR remains unimplemented.
