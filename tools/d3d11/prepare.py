@@ -16,6 +16,8 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'installer'))
 import compatibility as content
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import menu_lock
 
 EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
 ARCHIVE = '9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a'
@@ -30,7 +32,7 @@ def configuration(template, adapter, fps=60, watermark=False):
         raise ValueError('Bildratenlimit muss zwischen 30 und 240 liegen.')
     # Keep application resolution, AA and filtering. No forced HDR or fake caps.
     values = {'OutputAPI': 'd3d11_fl11_0', 'Adapters': str(adapter),
-              'FPSLimit': str(fps), 'VRAM': '1024',
+              'FPSLimit': str(fps), 'VRAM': '512',
               'dgVoodooWatermark': str(watermark).lower()}
     for key, value in values.items():
         template, count = re.subn(r'(?m)^' + key + r'\s*=.*$',
@@ -72,6 +74,7 @@ def prepare(source, output, archive, adapter, fps=60):
     for name, digest in bundle['files'].items():
         if expected['files'].get(name.lower()) != digest:
             raise ValueError('Startmanifest und Dateiinventar stimmen nicht ueberein.')
+    locked_menu = menu_lock.build(content.plain(source / 'Base/BBA/Interface.bba').read_bytes())
     if any((source / 'Base/Bin' / name).exists() for name in
            ('d3d9.dll', 'dgVoodoo.conf', 'dxgi.dll', 'd3d11.dll', 'dxvk.conf')):
         raise ValueError('Quelle muss den unveraenderten D3D9-Grafikpfad verwenden.')
@@ -92,17 +95,20 @@ def prepare(source, output, archive, adapter, fps=60):
         shutil.copyfile(path, target)
     (output / 'Base/Bin/d3d9.dll').write_bytes(dll)
     (output / 'Base/Bin/dgVoodoo.conf').write_bytes(conf)
+    (output / 'Base/BBA/Interface.bba').write_bytes(locked_menu)
+    bundle['files']['Base/BBA/Interface.bba'] = hashlib.sha256(locked_menu).hexdigest()
     bundle['runtime_verified'] = bundle['lan_verified'] = False
     (output / 'local-bundle.json').write_text(json.dumps(bundle, indent=2), 'utf-8')
     # Validate every copied content file and add only the two intended files.
     actual = content.create(output)
-    additions = {'base/bin/d3d9.dll', 'base/bin/dgvoodoo.conf'}
+    additions = {'base/bin/d3d9.dll', 'base/bin/dgvoodoo.conf', 'base/bba/interface.bba'}
     if set(content.compare(expected, actual)) != additions:
         raise ValueError('Die Kopie weicht unerwartet von der Quelle ab; nicht starten.')
     (output / 'compatibility.json').write_text(json.dumps(actual, indent=2), 'utf-8')
     receipt = {'format': 's7-d3d11-experiment-v1', 'dgvoodoo_version': '2.87.6',
                'package_sha256': ARCHIVE, 'dll_sha256': DLL, 'source_url': URL,
                'backend': 'd3d11_fl11_0', 'adapter_ordinal': adapter, 'fps_limit': fps,
+               'menu_locked': True,
                'runtime_verified': False, 'lan_verified': False}
     (output / 'd3d11-experiment.json').write_text(json.dumps(receipt, indent=2), 'utf-8')
     return output

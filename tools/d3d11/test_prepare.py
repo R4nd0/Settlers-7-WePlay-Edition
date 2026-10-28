@@ -38,6 +38,7 @@ class PrepareTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.object(target, 'EXE', self.hash).start()
         patch.object(target, 'package', return_value=(b'wrapper', TEMPLATE)).start()
+        patch.object(target.menu_lock, 'build', return_value=b'locked-menu').start()
 
     def inventory(self):
         (self.source / 'compatibility.json').write_text(json.dumps(target.content.create(self.source)))
@@ -45,7 +46,7 @@ class PrepareTests(unittest.TestCase):
     def run_prepare(self):
         return target.prepare(self.source, self.output, self.root / 'package.zip', 2)
 
-    def test_new_copy_with_no_profiles_and_only_two_content_additions(self):
+    def test_new_copy_with_no_profiles_and_only_intended_content_changes(self):
         before = {p.relative_to(self.source): p.read_bytes()
                   for p in self.source.rglob('*') if p.is_file()}
         self.run_prepare()
@@ -56,7 +57,7 @@ class PrepareTests(unittest.TestCase):
         expected = target.content.load(self.source / 'compatibility.json')
         actual = target.content.verify(self.output)
         self.assertEqual(target.content.compare(expected, actual),
-                         ['base/bin/d3d9.dll', 'base/bin/dgvoodoo.conf'])
+                         ['base/bba/interface.bba', 'base/bin/d3d9.dll', 'base/bin/dgvoodoo.conf'])
         config = (self.output / 'Base/Bin/dgVoodoo.conf').read_text()
         self.assertIn('OutputAPI = d3d11_fl11_0', config)
         self.assertIn('Adapters = 2', config)
