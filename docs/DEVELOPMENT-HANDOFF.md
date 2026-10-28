@@ -11,6 +11,15 @@ Private `work/` and deliverable `outputs/` now live below it and are ignored;
 never index copied game data. The repository retains the full existing Git
 history. See `7S_Patcher.code-workspace` for the relative editor workspace.
 
+Latest CPU investigation and verified review fixes are recorded in
+[PERFORMANCE-DIAGNOSTICS.md](PERFORMANCE-DIAGNOSTICS.md). The isolated CPU copy
+now uses the two-physical-core candidate; the real LAN copy and PC2 have not
+received these review candidates. A controlled foreground on/off/on comparison
+found nearly identical final on/off rates and CPU use, plus one earlier691ms
+stall. It does not establish the affinity patch as the stutter/desync cause.
+The passive observer now measures CPU, frame intervals and typed turn counters
+without operating the game. The desync and rapid-reconnection crash remain open.
+
 The user supplied the PC2 host report for run 20261027-115514. It has two
 successful Login/Register exchanges, a confirmed join, one accepted host-record
 leave and a later leave owner/space rejection; it continues to answer searches

@@ -4,6 +4,8 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<OutputType>Exe</OutputType>
 		<GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+		<!-- Private runtimes, copied games and review builds are not project inputs. -->
+		<DefaultItemExcludes>$(DefaultItemExcludes);work/**;outputs/**</DefaultItemExcludes>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

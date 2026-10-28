@@ -1,6 +1,7 @@
 // Exercise the actual patch writer/validator against owned synthetic memory.
 // No game file is loaded and no native game function is ever called.
 #include "offline_bootstrap.cpp"
+#include <algorithm>
 #include <cstdio>
 void ReportLocalStatus(const char*) { SetLastError(12345); }
 namespace {
@@ -111,6 +112,8 @@ void TickFakeManager() {
 }
 #endif
 int network_getter_calls = 0;
+void* owner_update_self = nullptr;
+DWORD owner_update_thread = 0;
 int search_space_calls = 0;
 int search_space_mode = 0;
 char search_space_copy[129]{};
@@ -127,9 +130,28 @@ void __fastcall FakeSetSearchSpace(void* self, void*, const NativeSmallString* i
     if (search_space_mode == 2) output->inline_data[0] = '?';
 }
 void* __cdecl FakeNetworkGetter() { ++network_getter_calls; return pump_network; }
-void __fastcall FakeOwnerUpdate(void*, void*) {
+void __fastcall FakeOwnerUpdate(void* self, void*) {
     pump_trace.push_back('O');
+    owner_update_self = self;
+    owner_update_thread = GetCurrentThreadId();
     if (pump_mode == 8) *Native<unsigned char**>(0x1379E14) = nullptr;
+    if (pump_mode == 19) SetLastError(6789);
+}
+struct ForeignOwnerUpdate {
+    void* owner;
+    DWORD thread = 0;
+    DWORD error = 0;
+    unsigned int calls = 0;
+};
+DWORD WINAPI RunForeignOwnerUpdates(void* argument) {
+    auto* run = static_cast<ForeignOwnerUpdate*>(argument);
+    run->thread = GetCurrentThreadId();
+    for (unsigned int i = 0; i < run->calls; ++i) {
+        SetLastError(22222);
+        UpdateLocalGame(run->owner, nullptr);
+        run->error = GetLastError();
+    }
+    return 0;
 }
 void __fastcall FakeMasterUpdate(void*, void*) {
     pump_trace.push_back('M');
@@ -517,6 +539,27 @@ int main() {
     check(FakeJump(0xC956C0, reinterpret_cast<const void*>(&FakeOwnerUpdate)));
     check(FakeJump(0xED3BA0, reinterpret_cast<const void*>(&FakeMasterUpdate)));
     check(FakeJump(0xCBC710, reinterpret_cast<const void*>(&FakeCoreUpdate)));
+    // Exercise the actual shared virtual-slot wrapper from a real foreign
+    // Windows thread. Every original callback must run there, while the
+    // bridge's non-atomic main-thread state and connect machinery stay idle.
+    const auto foreign_owner_before = owner_update_count;
+    const auto foreign_getter_before = network_getter_calls;
+    natural_updates_seen = false;
+    pump_mode = 19; pump_trace.clear();
+    ForeignOwnerUpdate foreign_owner{owner, 0, 0, 10000};
+    HANDLE foreign_thread = CreateThread(nullptr, 0, RunForeignOwnerUpdates, &foreign_owner, 0, nullptr);
+    check(foreign_thread != nullptr);
+    if (foreign_thread) {
+        check(WaitForSingleObject(foreign_thread, 10000) == WAIT_OBJECT_0);
+        check(CloseHandle(foreign_thread) != FALSE);
+        check(foreign_owner.thread != bootstrap_thread && owner_update_thread == foreign_owner.thread);
+        check(owner_update_self == owner && pump_trace.size() == foreign_owner.calls);
+        check(std::all_of(pump_trace.begin(), pump_trace.end(), [](char value) { return value == 'O'; }));
+        check(foreign_owner.error == 6789);
+        check(owner_update_count == foreign_owner_before && !natural_updates_seen);
+        check(network_getter_calls == foreign_getter_before && !pump_active);
+    }
+    pump_mode = 0; pump_trace.clear();
     auto trace_is = [&](const char* expected) {
         return pump_trace.size() == strlen(expected) &&
             (pump_trace.empty() || memcmp(pump_trace.data(), expected, pump_trace.size()) == 0);

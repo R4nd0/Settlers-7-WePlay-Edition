@@ -5,7 +5,8 @@
 #include <algorithm>
 #include <cstring>
 
-DWORD_PTR SelectLocalCpuMask(std::vector<LocalCpuCore> cores, DWORD_PTR allowed) {
+DWORD_PTR SelectLocalCpuMask(std::vector<LocalCpuCore> cores, DWORD_PTR allowed, unsigned maximum) {
+    if (maximum != 2 && maximum != 4) return 0;
     DWORD_PTR seen = 0;
     for (const auto& core : cores) {
         if (!core.mask || (seen & core.mask)) return 0;
@@ -21,13 +22,14 @@ DWORD_PTR SelectLocalCpuMask(std::vector<LocalCpuCore> cores, DWORD_PTR allowed)
         DWORD_PTR eligible = core.mask & allowed;
         if (eligible) {
             selected |= eligible & (~eligible + 1); // One logical CPU per core.
-            if (++count == 4) break;
+            if (++count == maximum) break;
         }
     }
     return selected;
 }
 
-bool ApplyLocalCpuAffinity() {
+bool ApplyLocalCpuAffinity(unsigned maximum) {
+    if (maximum != 2 && maximum != 4) return false;
     HANDLE process = GetCurrentProcess();
     DWORD_PTR previous = 0, system = 0;
     if (!GetProcessAffinityMask(process, &previous, &system)) return false;
@@ -55,7 +57,7 @@ bool ApplyLocalCpuAffinity() {
         }
         offset += item->Size;
     }
-    DWORD_PTR selected = SelectLocalCpuMask(cores, previous & system);
+    DWORD_PTR selected = SelectLocalCpuMask(cores, previous & system, maximum);
     if (!selected || !SetProcessAffinityMask(process, selected)) return false;
     DWORD_PTR old_thread = SetThreadAffinityMask(GetCurrentThread(), selected);
     DWORD_PTR actual = 0, ignored = 0;

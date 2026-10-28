@@ -258,14 +258,20 @@ namespace S7Patcher.Source
                     try
                     {
                         Task<UdpReceiveResult> receive = null;
+                        using PeriodicTimer maintenance = options.LocalLoginProbe
+                            ? new(TimeSpan.FromMilliseconds(100)) : null;
+                        Task<bool> tick = null;
                         while (!stop.IsCancellationRequested)
                         {
                             receive ??= udp.ReceiveAsync(stop.Token).AsTask();
                             if (options.LocalLoginProbe)
                             {
-                                // One pending receive only. A bounded timer services
-                                // retransmits even when the client sends nothing.
-                                await Task.WhenAny(receive, Task.Delay(100, stop.Token));
+                                // Retain one receive and one timer wait. Replacing a
+                                // Delay on every datagram leaves losing timers alive
+                                // during bursts. Due work still runs on every receive.
+                                tick ??= maintenance.WaitForNextTickAsync(stop.Token).AsTask();
+                                await Task.WhenAny(receive, tick);
+                                if (tick.IsCompleted) { await tick; tick = null; }
                                 foreach (var entry in loginSessions)
                                     foreach (byte[] outgoing in entry.Value.TakeDue(Environment.TickCount64, emit))
                                     {
@@ -273,6 +279,7 @@ namespace S7Patcher.Source
                                         emit(new() { Event = "local-login-data-sent", DatagramLength = outgoing.Length,
                                             AuthenticationImplemented = false, UdpProtocolImplemented = false });
                                     }
+                                ReclaimClosedLoginSessions(loginSessions, peers);
                                 if (!receive.IsCompleted) continue;
                             }
                             UdpReceiveResult packet = await receive;
@@ -440,6 +447,25 @@ namespace S7Patcher.Source
                 emit(new() { Event = "configuration-server-stopped", DatagramsReceived = Interlocked.Read(ref datagrams),
                     DatagramBytes = Interlocked.Read(ref datagramBytes) });
             }
+        }
+
+        // Only sessions which already expired/closed through their existing policy
+        // release transport slots. A SYN, changed CONNECT tuple or invalid DATA
+        // never evicts an active context. Run on the UDP owner after all due sends.
+        internal static int ReclaimClosedLoginSessions(
+            Dictionary<IPEndPoint, PrudpLocalLoginSession> loginSessions,
+            Dictionary<IPEndPoint, PrudpProbePeer> peers)
+        {
+            List<IPEndPoint> closed = null;
+            foreach (var entry in loginSessions)
+                if (entry.Value.Closed) (closed ??= new()).Add(entry.Key);
+            if (closed == null) return 0;
+            foreach (IPEndPoint endpoint in closed)
+            {
+                loginSessions.Remove(endpoint);
+                if (peers.Remove(endpoint, out PrudpProbePeer peer)) peer.Dispose();
+            }
+            return closed.Count;
         }
 
         private static string ExportPublicBlob(ECDsa key)

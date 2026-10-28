@@ -276,10 +276,75 @@ internal static class LocalLoginSessionChecks
         return passed;
     }
 
+    private static int RunPeerReclamationChecks()
+    {
+        int passed = 0;
+        void Check(bool ok, string why) { if (!ok) throw new Exception(why); passed++; }
+        Dictionary<IPEndPoint, PrudpLocalLoginSession> logins = new();
+        Dictionary<IPEndPoint, PrudpProbePeer> peers = new();
+        Check(LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 0,
+            "Empty transport cleanup changed state");
+        using (Fixture active = new())
+        using (Fixture expired = new())
+        using (PrudpProbePeer halfOpen = new() { Cookie = 7, SourceVirtualPort = 0x3a })
+        {
+            IPEndPoint liveEndpoint = new(IPAddress.Loopback, 40001), deadEndpoint = new(IPAddress.Loopback, 40002);
+            IPEndPoint pendingEndpoint = new(IPAddress.Loopback, 40003);
+            logins.Add(liveEndpoint, active.Session); peers.Add(liveEndpoint, active.Peer);
+            logins.Add(deadEndpoint, expired.Session); peers.Add(deadEndpoint, expired.Peer);
+            peers.Add(pendingEndpoint, halfOpen);
+            byte[] livePing = active.Peer.Connect.CreatePingAck(1);
+            Check(LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 0
+                && logins.Count == 2 && peers.Count == 3, "Live or half-open context evicted");
+            byte[] invalid = active.Data(6, 0, Request(false)); invalid[4] ^= 1; Sum(invalid);
+            active.Session.ProcessData(invalid, active.Events.Add, 100);
+            Check(!active.Session.Closed && LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 0,
+                "Invalid DATA evicted active transport");
+            expired.Session.TakeDue(100 + PrudpLocalLoginSession.LifetimeMilliseconds, expired.Events.Add);
+            Check(expired.Session.Closed, "Cleanup expiry fixture remained open");
+            Check(LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 1
+                && !logins.ContainsKey(deadEndpoint) && !peers.ContainsKey(deadEndpoint),
+                "Expired session retained endpoint/CONNECT context");
+            Check(logins.Count == 1 && ReferenceEquals(logins[liveEndpoint], active.Session)
+                && peers.Count == 2 && ReferenceEquals(peers[pendingEndpoint], halfOpen)
+                && active.Peer.Connect.CreatePingAck(1).SequenceEqual(livePing),
+                "Cleanup changed another peer's active cryptographic context");
+            byte[] erased = expired.Peer.Connect.CreatePingAck(1);
+            Check(erased[0] == 0 && erased[1] == 0 && erased[3] == 0,
+                "Reclaimed CONNECT response storage was not cleared");
+            Check(LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 0,
+                "Repeated cleanup reclaimed an active peer");
+            logins.Clear(); peers.Clear();
+        }
+        // More reconnects than the server's eight slots must not accumulate old
+        // sessions. Reuse the same endpoint with a new independently keyed peer.
+        IPEndPoint endpoint = new(IPAddress.Loopback, 40000);
+        for (int cycle = 0; cycle < 12; ++cycle)
+        {
+            using Fixture fixture = new();
+            logins.Add(endpoint, fixture.Session); peers.Add(endpoint, fixture.Peer);
+            fixture.Register();
+            Check(fixture.Events.Count(e => e.Event == "local-login-response-queued") == 2
+                && fixture.Session.PendingCount == 0, "Fresh reconnect failed Login/Register");
+            fixture.Session.TakeDue(100 + PrudpLocalLoginSession.LifetimeMilliseconds, fixture.Events.Add);
+            Check(fixture.Session.Closed && LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 1
+                && logins.Count == 0 && peers.Count == 0, "Reconnects exhausted permanent peer slots");
+        }
+        // Handle a session already detached from its peer dictionary without
+        // touching any unrelated entries or requiring an untrusted new packet.
+        using (Fixture detached = new())
+        {
+            detached.Session.Dispose(); logins.Add(endpoint, detached.Session);
+            Check(LocalConfigurationServer.ReclaimClosedLoginSessions(logins, peers) == 1 && logins.Count == 0,
+                "Detached closed session could not be reclaimed");
+        }
+        return passed;
+    }
+
     internal static int Run()
     {
         if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP: native BCrypt local-login session checks require Windows."); return 0; }
-        int passed = RunLanLifetimeChecks() + RunTransportRoleChecks();
+        int passed = RunLanLifetimeChecks() + RunTransportRoleChecks() + RunPeerReclamationChecks();
         void Check(bool value, string label) { if (!value) throw new Exception(label); passed++; }
         // A busy browser may send RPCs instead of PINGs. Advancing receive
         // timestamps must extend only successfully handled registered activity.
@@ -812,6 +877,54 @@ internal static class LocalLoginSessionChecks
         return passed;
     }
 
+    private static async Task<int> RunMaintenanceBurstChecksAsync()
+    {
+        int passed = 0;
+        void Check(bool ok, string why) { if (!ok) throw new Exception(why); passed++; }
+        TaskCompletionSource<ConfigServerEvent> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using CancellationTokenSource stop = new();
+        int observed = 0;
+        long peakTimers = 0;
+        Task service = LocalConfigurationServer.RunAsync(new()
+            { HttpPort = 0, UdpPort = 0, LocalLoginProbe = true, Seconds = 20 }, record =>
+            {
+                if (record.Event == "configuration-server-ready") ready.TrySetResult(record);
+                if (record.Event != "udp-datagram-observed") return;
+                // The production emitter serializes callbacks. Measure actual
+                // process timers, not an implementation-specific fake counter.
+                peakTimers = Math.Max(peakTimers, System.Threading.Timer.ActiveCount);
+                Interlocked.Increment(ref observed);
+            }, stop.Token);
+        ConfigServerEvent info = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        long baselineTimers = System.Threading.Timer.ActiveCount;
+        using UdpClient client = new(AddressFamily.InterNetwork);
+        client.Connect(IPAddress.Loopback, info.UdpPort!.Value);
+        try
+        {
+            for (int wave = 1; wave <= 8; ++wave)
+            {
+                // Bounded waves avoid socket-buffer drops. Invalid datagrams
+                // exercise receive scheduling but cannot create/authenticate peers.
+                for (int packet = 0; packet < 64; ++packet) await client.SendAsync(new byte[] { 0 });
+                using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(3));
+                while (Volatile.Read(ref observed) < wave * 64) await Task.Delay(1, deadline.Token);
+                passed++;
+            }
+            Check(Volatile.Read(ref observed) == 512, "Burst starved incoming datagram processing");
+            Check(Interlocked.Read(ref peakTimers) <= baselineTimers + 8,
+                "Receive bursts accumulated abandoned retransmission timers");
+        }
+        finally
+        {
+            // No datagram is needed to wake the pending receive/timer on stop.
+            stop.Cancel(); await service.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        passed++;
+        using (UdpClient rebound = new(AddressFamily.InterNetwork))
+        { rebound.Client.ExclusiveAddressUse = true; rebound.Client.Bind(new IPEndPoint(IPAddress.Loopback, info.UdpPort!.Value)); passed++; }
+        return passed;
+    }
+
     internal static async Task<int> RunNetworkAsync()
     {
         if (!OperatingSystem.IsWindows()) return 0;
@@ -905,6 +1018,7 @@ internal static class LocalLoginSessionChecks
         { rebound.Server.ExclusiveAddressUse = true; rebound.Start(); passed++; }
         using (UdpClient rebound = new(AddressFamily.InterNetwork))
         { rebound.Client.ExclusiveAddressUse = true; rebound.Client.Bind(new IPEndPoint(IPAddress.Loopback, info.UdpPort!.Value)); passed++; }
+        passed += await RunMaintenanceBurstChecksAsync();
         return passed;
     }
 }

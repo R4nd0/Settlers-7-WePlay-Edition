@@ -187,6 +187,13 @@ void __fastcall UpdateLocalGame(void* self, void*) {
     // Preserve the original update/callback delivery before requesting a local
     // connection. Readiness comes from real native objects and our config,
     // not UbiServices. The requested/pending fields prevent duplicate jobs.
+    // This is a shared native virtual slot, not just our platform pump. A
+    // foreign caller retains its original update, but must not touch bridge
+    // counters, main-thread state or initiate a local connection from a worker.
+    if (GetCurrentThreadId() != bootstrap_thread) {
+        Native<GameLogin>(0xC956C0)(self);
+        return;
+    }
     if (!pump_active) natural_updates_seen = true;
     ++owner_update_count;
     static bool entered = false;
@@ -1017,7 +1024,11 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
         return false;
     }
     if (!ApplyLocalCpuAffinity()) Stop(PatchFailure);
+#if S7_MAX_PHYSICAL_CORES == 2
+    ReportLocalStatus("local-cpu-two-physical-cores-no-smt");
+#else
     ReportLocalStatus("local-cpu-four-physical-cores-no-smt");
+#endif
     InterlockedExchange(&initialization, 2);
     SetError(None);
     return true;

@@ -6,6 +6,11 @@ videos or the intro click gate, using the local platform adapter. Do not replace
 installed game's loader with it or describe it as a finished offline/LAN patch.
 The original installation used for development remains unchanged.
 
+For PC1 performance diagnosis, `native/build.ps1 -MaximumPhysicalCores 2`
+selects a two-physical-core limit; existing builds default to four. Current
+measurements, passive observer usage, review fixes and limits of the on/off
+comparison are in [PERFORMANCE-DIAGNOSTICS.md](PERFORMANCE-DIAGNOSTICS.md).
+
 ## Original-executable network-pump candidate
 
 `native/build.ps1 -LocalNetworkPump -OutputDirectory <new-folder>` enables the

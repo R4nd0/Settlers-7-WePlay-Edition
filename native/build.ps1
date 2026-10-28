@@ -1,4 +1,5 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump,
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -15,6 +16,7 @@ foreach ($line in $compilerEnvironment) {
     if ($position -gt 0) { [Environment]::SetEnvironmentVariable($line.Substring(0,$position), $line.Substring($position+1), 'Process') }
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS')
+$common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
 if ($LocalNetworkPump) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
 function Compile-Native([string[]]$Arguments) {
