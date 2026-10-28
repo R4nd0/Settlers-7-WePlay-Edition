@@ -21,14 +21,25 @@ import uuid
 EXE_HASH = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
 
 
-def choose_graphics_environment(root):
+def _graphics_module():
     # Source/package layout has installer/ beside offline-ui/; installed
-    # launchers keep the shared selector beside this file.
-    source_tools = Path(__file__).resolve().parent.parent / 'installer'
+    # launchers keep the selector beside this file. Embedded/isolated Python
+    # does not automatically add the script folder to its module search path.
+    folder = Path(__file__).resolve().parent
+    sys.path.insert(0, str(folder))
+    source_tools = folder.parent / 'installer'
     if source_tools.is_dir():
         sys.path.insert(0, str(source_tools))
-    from graphics_choice import choose_launch_environment
-    return choose_launch_environment(root)
+    import graphics_choice
+    return graphics_choice
+
+
+def choose_graphics_environment(root):
+    return _graphics_module().choose_launch_environment(root)
+
+
+def graphics_game_arguments(root):
+    return _graphics_module().game_arguments(root)
 
 
 def plain_path(path, root):
@@ -206,11 +217,13 @@ def run(args):
         runtime = None
         try:
             game_environment = None
+            game_arguments = ()
             if args.launch_game and getattr(args, 'choose_graphics', True):
                 game_environment = choose_graphics_environment(root)
                 if game_environment is None:
                     print('Spielstart abgebrochen.', flush=True)
                     return 0
+                game_arguments = graphics_game_arguments(root)
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
             log = data / (run_id + "-server.jsonl")
             errors = data / (run_id + "-server-errors.txt")
@@ -234,7 +247,7 @@ def run(args):
                 game_options = {'cwd': root / 'Base/Bin'}
                 if game_environment is not None:
                     game_options['env'] = game_environment
-                game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe")], **game_options)
+                game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe"), *game_arguments], **game_options)
                 code = game.wait()
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:
                     stream.write(str(code) + "\n")

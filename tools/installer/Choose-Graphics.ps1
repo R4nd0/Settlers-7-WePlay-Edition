@@ -44,9 +44,10 @@ function Resolve-PreferredChoice {
 }
 
 function ConvertTo-ChoiceJson {
-    param($Choice)
+    param($Choice, $SimpleMenu = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
-    return (@{format = 's7-graphics-choice-v1'; choice = $Choice} | ConvertTo-Json -Compress)
+    if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
+    return (@{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu} | ConvertTo-Json -Compress)
 }
 
 try {
@@ -57,6 +58,15 @@ try {
     $previous = $inputText | ConvertFrom-Json
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
+    $fields = @($previous.PSObject.Properties.Name)
+    if ($fields.Count -lt 2 -or $fields.Count -gt 3 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu') }).Count -gt 0 -or
+        'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
+    $simpleMenuEnabled = $false
+    if ('simple_menu' -cin $fields) {
+        if ($previous.simple_menu -isnot [bool]) { throw 'Invalid previous simple menu choice.' }
+        $simpleMenuEnabled = $previous.simple_menu
+    }
 
     $enumerationFailed = $false
     try {
@@ -76,8 +86,8 @@ try {
     Add-Type -AssemblyName System.Drawing
     [Windows.Forms.Application]::EnableVisualStyles()
     $form = New-Object Windows.Forms.Form
-    $form.Text = 'Grafikkarte fuer Siedler 7'
-    $form.ClientSize = New-Object Drawing.Size(590, 370)
+    $form.Text = 'Graphics for The Settlers 7'
+    $form.ClientSize = New-Object Drawing.Size(590, 490)
     $form.StartPosition = 'CenterScreen'
     $form.FormBorderStyle = 'FixedDialog'
     $form.MaximizeBox = $false
@@ -88,16 +98,16 @@ try {
     $description = New-Object Windows.Forms.Label
     $description.SetBounds(18, 16, 550, 64)
     if ($filterAvailable) {
-        $description.Text = 'Waehle die Grafikkarte fuer Siedler 7. Deine Auswahl wird auf diesem PC gespeichert und beim naechsten Start wieder angezeigt.'
+        $description.Text = 'Choose a graphics card for The Settlers 7. Your choice is saved on this PC and shown again at the next launch.'
     } else {
-        $description.Text = 'Standardgrafik: Windows und das Spiel uebernehmen die Grafikkartenwahl. Fuer die direkte Auswahl muss ein passendes Grafikprofil aktiviert sein.'
+        $description.Text = 'Standard graphics: Windows and the game select the GPU. Direct GPU selection requires a compatible graphics profile.'
     }
     [void]$form.Controls.Add($description)
 
     $combo = New-Object Windows.Forms.ComboBox
     $combo.SetBounds(18, 88, 550, 28)
     $combo.DropDownStyle = 'DropDownList'
-    [void]$combo.Items.Add('Automatisch')
+    [void]$combo.Items.Add('Automatic')
     foreach ($model in $models) { [void]$combo.Items.Add($model) }
     $combo.SelectedIndex = 0
     if ($null -ne $preferred) { $combo.SelectedItem = $preferred }
@@ -106,7 +116,7 @@ try {
 
     $detected = New-Object Windows.Forms.Label
     $detected.SetBounds(18, 130, 550, 24)
-    $detected.Text = 'Erkannte Modelle (gleiche Namen erscheinen einmal):'
+    $detected.Text = 'Detected models (duplicate names are grouped):'
     [void]$form.Controls.Add($detected)
     $names = New-Object Windows.Forms.TextBox
     $names.SetBounds(18, 156, 550, 82)
@@ -114,27 +124,37 @@ try {
     $names.ReadOnly = $true
     $names.ScrollBars = 'Vertical'
     $names.TabStop = $false
-    $names.Text = if ($models.Count) { $models -join [Environment]::NewLine } else { 'Keine Modellnamen verfuegbar.' }
+    $names.Text = if ($models.Count) { $models -join [Environment]::NewLine } else { 'No model names available.' }
     [void]$form.Controls.Add($names)
 
     $hint = New-Object Windows.Forms.Label
     $hint.SetBounds(18, 250, 550, 58)
     if ($enumerationFailed) {
-        $hint.Text = 'Die Modelle konnten nicht ausgelesen werden. Automatisch bleibt verfuegbar.'
+        $hint.Text = 'The graphics adapters could not be listed. Automatic selection is still available.'
     } elseif ($filterAvailable -and $null -ne $previous.choice -and $null -eq $preferred) {
-        $hint.Text = 'Die zuletzt gewaehlte Karte wurde nicht gefunden. Automatisch ist ausgewaehlt. Gleichnamige Karten lassen sich hier nicht einzeln unterscheiden.'
+        $hint.Text = 'The previous GPU was not found. Automatic is selected. GPUs with identical names cannot be selected individually.'
     } else {
-        $hint.Text = 'Wenn mehrere Karten denselben Modellnamen haben, gilt die Auswahl fuer diese Modellgruppe.'
+        $hint.Text = 'If multiple GPUs share the same model name, your choice applies to that model group.'
     }
     [void]$form.Controls.Add($hint)
 
+    $simpleMenu = New-Object Windows.Forms.CheckBox
+    $simpleMenu.SetBounds(18, 314, 550, 30)
+    $simpleMenu.Text = 'Simple main menu + VSync (lower CPU usage, experimental)'
+    $simpleMenu.Checked = $simpleMenuEnabled
+    [void]$form.Controls.Add($simpleMenu)
+    $menuHint = New-Object Windows.Forms.Label
+    $menuHint.SetBounds(18, 350, 550, 86)
+    $menuHint.Text = 'Disables the menu landscape and some castle/content previews. VSync follows the display refresh rate. Experimental: longer matches and LAN with this option are not yet verified.'
+    [void]$form.Controls.Add($menuHint)
+
     $start = New-Object Windows.Forms.Button
-    $start.SetBounds(352, 324, 104, 30)
+    $start.SetBounds(352, 444, 104, 30)
     $start.Text = 'Start'
     $start.DialogResult = [Windows.Forms.DialogResult]::OK
     $cancel = New-Object Windows.Forms.Button
-    $cancel.SetBounds(464, 324, 104, 30)
-    $cancel.Text = 'Abbrechen'
+    $cancel.SetBounds(464, 444, 104, 30)
+    $cancel.Text = 'Cancel'
     $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
     [void]$form.Controls.Add($start)
     [void]$form.Controls.Add($cancel)
@@ -145,11 +165,12 @@ try {
     if ($answer -eq [Windows.Forms.DialogResult]::OK -and $filterAvailable -and $combo.SelectedIndex -gt 0) {
         $choice = [string]$combo.SelectedItem
     }
+    $selectedSimpleMenu = [bool]$simpleMenu.Checked
     $form.Dispose()
     if ($answer -ne [Windows.Forms.DialogResult]::OK) { exit 10 }
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu))
     exit 0
 } catch {
-    [Console]::Error.WriteLine('Der Grafikauswahldialog konnte nicht angezeigt werden.')
+    [Console]::Error.WriteLine('The graphics dialog could not be displayed.')
     exit 2
 }

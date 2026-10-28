@@ -68,11 +68,13 @@ def run(args):
         service = runtime = None
         try:
             game_environment = None
+            game_arguments = ()
             if not args.check_only and getattr(args, 'choose_graphics', True):
                 game_environment = launch_local.choose_graphics_environment(root)
                 if game_environment is None:
                     print('Spielstart abgebrochen.', flush=True)
                     return 0
+                game_arguments = launch_local.graphics_game_arguments(root)
             run_id = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8]
             address = local if args.role == 'host' else peer
             if args.role == 'host':
@@ -100,7 +102,7 @@ def run(args):
             game_options = {'cwd': root / 'Base/Bin'}
             if game_environment is not None:
                 game_options['env'] = game_environment
-            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe')], **game_options)
+            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], **game_options)
             code = game.wait()
             with (data / (run_id + '-game-exit.txt')).open('x', encoding='ascii') as output:
                 output.write(str(code) + '\n')

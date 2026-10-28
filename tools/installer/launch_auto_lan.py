@@ -81,6 +81,7 @@ def run(args):
         environment = launch_local.choose_graphics_environment(root)
         if environment is None:
             return 0
+        game_arguments = launch_local.graphics_game_arguments(root)
         interface = interfaces[choice['network']]
         coordinator = interface.address if choice['action'] == 'create' else choice['endpoint'].host
         # The coordinator has its own lifetime; a player leaving a match must
@@ -103,7 +104,7 @@ def run(args):
                 address=coordinator, lan_group=interface.address, display_name=choice['display_name'])
             print('LAN bereit. Im Spiel Mehrspieler oeffnen und eine Partie erstellen oder beitreten.', flush=True)
             print('Entwicklermodus ist im LAN gesperrt. Bitte das Starterfenster geoeffnet lassen.', flush=True)
-            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe')], cwd=root / 'Base/Bin', env=environment)
+            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], cwd=root / 'Base/Bin', env=environment)
             code = game.wait()
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)

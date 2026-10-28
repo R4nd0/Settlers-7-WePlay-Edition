@@ -192,6 +192,49 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertEqual(json.loads(outside.read_bytes())['choice'], None)
         path.unlink()
 
+    def test_simple_menu_defaults_legacy_toggle_and_fixed_arguments(self):
+        self.assertEqual(choice.game_arguments(self.root), ())
+        self.assertFalse((self.root / 'LocalData').exists())
+        self.choose(self.result())  # Legacy v1 record, no new field.
+        self.assertEqual(choice.game_arguments(self.root), ())
+        before = content.verify(self.root)
+        for enabled, expected in [(True, ('-vSynch', '-noMapInMainMenu')), (False, ())]:
+            raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'simple_menu': enabled})
+            self.choose(self.result(raw=raw))
+            self.assertEqual(choice.game_arguments(self.root), expected)
+            self.assertIs(self.saved()['simple_menu'], enabled)
+            self.assertEqual(content.verify(self.root), before)
+
+    def test_simple_menu_rejects_coerced_bools_and_extra_argv(self):
+        for value in (None, 0, 1, 'true', 'false', [], {}, '-developerMode'):
+            with self.subTest(value=value):
+                raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'simple_menu': value})
+                with self.assertRaises(ValueError): self.choose(self.result(raw=raw))
+                self.assertFalse((self.root / choice.CHOICE_FILE).exists())
+        with self.assertRaises(ValueError):
+            choice.validate_choice({'format': choice.FORMAT, 'choice': None,
+                                    'simple_menu': True, 'arguments': ['-developerMode']})
+
+    def test_saved_bad_menu_bool_is_not_ignored_and_environment_cannot_enable_it(self):
+        with patch.dict(os.environ, {'S7_SIMPLE_MENU': 'true', 'S7_GAME_ARGS': '-noMapInMainMenu'}):
+            self.assertEqual(choice.game_arguments(self.root), ())
+        path = self.root / choice.CHOICE_FILE; path.parent.mkdir()
+        raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'simple_menu': 1})
+        path.write_bytes(raw)
+        with patch.object(subprocess, 'run') as runner:
+            with self.assertRaises(ValueError): choice.choose_launch_environment(self.root, {})
+            with self.assertRaises(ValueError): choice.game_arguments(self.root)
+        runner.assert_not_called()
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_cancel_preserves_previously_selected_simple_menu(self):
+        raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'simple_menu': True})
+        self.choose(self.result(raw=raw))
+        previous = (self.root / choice.CHOICE_FILE).read_bytes()
+        environment, _ = self.choose(self.result(code=choice.CANCELLED))
+        self.assertIsNone(environment)
+        self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), previous)
+
 
 class PowerShellChoiceFixtureTests(unittest.TestCase):
     def test_actual_pure_functions_without_ui_or_cim(self):
@@ -206,6 +249,8 @@ if ($parseErrors.Count) { throw 'PowerShell syntax failure.' }
 $functions = $ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]}, $true)
 foreach ($function in $functions) { . ([scriptblock]::Create($function.Extent.Text)) }
 $models = @(Normalize-ModelNames @(' NVIDIA Fixture ', 'Intel Fixture', 'AMD Fixture', 'nvidia fixture', 'Other Vendor', "bad`nname", 13, '', ('x' * 257)))
+$invalidMenuRejected = $false
+try { [void](ConvertTo-ChoiceJson $null 'false') } catch { $invalidMenuRejected = $true }
 $output = @{
     models = $models
     selected = Resolve-PreferredChoice 'nvidia fixture' $models $true
@@ -213,6 +258,8 @@ $output = @{
     native = Resolve-PreferredChoice 'AMD Fixture' $models $false
     automatic = ConvertTo-ChoiceJson $null
     record = ConvertTo-ChoiceJson 'Other Vendor'
+    simpleMenu = ConvertTo-ChoiceJson $null $true
+    invalidMenuRejected = $invalidMenuRejected
     invalidControl = Test-ModelName "bad`tname"
     tooManyBytes = Test-ModelName (([char]0x00e9).ToString() * 129)
 }
@@ -229,8 +276,10 @@ $output | ConvertTo-Json -Compress
         self.assertEqual(value['selected'], 'NVIDIA Fixture')
         self.assertIsNone(value['stale'])
         self.assertIsNone(value['native'])
-        self.assertEqual(json.loads(value['automatic']), {'format': choice.FORMAT, 'choice': None})
+        self.assertEqual(json.loads(value['automatic']), {'format': choice.FORMAT, 'choice': None, 'simple_menu': False})
         self.assertEqual(json.loads(value['record'])['choice'], 'Other Vendor')
+        self.assertIs(json.loads(value['simpleMenu'])['simple_menu'], True)
+        self.assertTrue(value['invalidMenuRejected'])
         self.assertFalse(value['invalidControl'])
         self.assertFalse(value['tooManyBytes'])
 

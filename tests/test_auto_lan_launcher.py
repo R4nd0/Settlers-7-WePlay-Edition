@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 import sys
 import subprocess
@@ -59,9 +60,14 @@ class AutomaticLauncherTests(unittest.TestCase):
         membership.close.side_effect = lambda: order.append('leave')
         game = Mock(); game.wait.return_value = 0
         runtime = self.root / 'LocalData/s7-local-runtime.ini'
+        runtime.parent.mkdir()
+        (runtime.parent / 'graphics-choice.json').write_text(json.dumps({
+            'format': 's7-graphics-choice-v1', 'choice': None, 'simple_menu': True}))
         def write(*args, **kwargs):
             order.append('config'); runtime.write_bytes(b'fixture'); return runtime
         def spawn(*args, **kwargs):
+            self.assertEqual(args[0], [str(self.root / 'Base/Bin/Settlers7R.exe'),
+                                      '-vSynch', '-noMapInMainMenu'])
             order.append('game'); return game
         with patch.object(launcher, 'choose', return_value=choice), \
                 patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \

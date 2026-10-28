@@ -4,12 +4,12 @@
 $request = ConvertFrom-Json ([Console]::In.ReadToEnd())
 $cards = @($request.cards)
 $prefs = $request.settings
-if ($cards.Count -lt 1 -or $cards.Count -gt 32) { throw 'Keine Grafikkarten gefunden' }
+if ($cards.Count -lt 1 -or $cards.Count -gt 32) { throw 'No graphics adapters found.' }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 $form = New-Object Windows.Forms.Form
-$form.Text = 'Grafik für Siedler 7'
+$form.Text = 'Graphics for The Settlers 7'
 $form.ClientSize = New-Object Drawing.Size(700,665)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
@@ -22,7 +22,7 @@ function Add-Label([string]$text,[int]$x,[int]$y,[int]$width=300) {
     $label.SetBounds($x,$y,$width,25)
     [void]$form.Controls.Add($label)
 }
-Add-Label 'Grafik-Startprüfung: Spielstart bis zur Fehlerklärung gesperrt' 20 15 660
+Add-Label 'Graphics check: game launch is blocked pending investigation' 20 15 660
 $gpu=New-Object Windows.Forms.ComboBox
 $gpu.DropDownStyle='DropDownList'
 $gpu.SetBounds(20,48,660,30)
@@ -33,16 +33,16 @@ $gpu.Enabled=$false
 [void]$form.Controls.Add($gpu)
 $combos=@{}
 $choices=@(
-    @('ShaderQuality','Beleuchtungsqualität',@('Niedrig','Mittel')),
-    @('TextureQuality','Texturen',@('Niedrig','Mittel')),
-    @('ObjectQuality','Objektdetails',@('Niedrig','Mittel')),
-    @('DistanceCulling','Weitsicht',@('Nah','Normal')),
-    @('ShadowQuality','Schattendetails',@('Niedrig','Mittel')),
-    @('WaterQuality','Wasser',@('Niedrig','Mittel')),
-    @('ClutterQuality','Bodendetails',@('Niedrig','Mittel')),
-    @('AA','Kantenglättung',@('Aus','Standard')),
-    @('Filtering','Texturfilter',@('Spielstandard','2× anisotrop','4× anisotrop','8× anisotrop','16× anisotrop')),
-    @('FPS','Bildratenlimit',@('30','60','90','120','144','165','240'))
+    @('ShaderQuality','Lighting quality',@('Low','Medium')),
+    @('TextureQuality','Texture quality',@('Low','Medium')),
+    @('ObjectQuality','Object detail',@('Low','Medium')),
+    @('DistanceCulling','View distance',@('Near','Normal')),
+    @('ShadowQuality','Shadow detail',@('Low','Medium')),
+    @('WaterQuality','Water quality',@('Low','Medium')),
+    @('ClutterQuality','Ground detail',@('Low','Medium')),
+    @('AA','Anti-aliasing',@('Off','Standard')),
+    @('Filtering','Texture filtering',@('Game default','2x anisotropic','4x anisotropic','8x anisotropic','16x anisotropic')),
+    @('FPS','Frame rate limit',@('30','60','90','120','144','165','240'))
 )
 $aaValues=@('off','standard','msaa2','msaa4','msaa8')
 $filterValues=@('appdriven','2','4','8','16')
@@ -68,10 +68,10 @@ for($i=0;$i -lt $choices.Count;$i++){
     $combos[$key]=$box
     [void]$form.Controls.Add($box)
 }
-Add-Label 'Bildeffekte' 20 450 650
+Add-Label 'Image effects' 20 450 650
 $effects=@{}
-$effectLabels=@(@('Shadows','Schatten'),@('SSAO','Umgebungsschatten'),
-    @('SunShafts','Sonnenstrahlen'),@('Parallax','Materialtiefe'),@('DepthOfField','Tiefenunschärfe'))
+$effectLabels=@(@('Shadows','Shadows'),@('SSAO','Ambient occlusion'),
+    @('SunShafts','Sun shafts'),@('Parallax','Parallax mapping'),@('DepthOfField','Depth of field'))
 for($i=0;$i -lt $effectLabels.Count;$i++){
     $key=$effectLabels[$i][0]
     $check=New-Object Windows.Forms.CheckBox
@@ -83,15 +83,15 @@ for($i=0;$i -lt $effectLabels.Count;$i++){
     $effects[$key]=$check
     [void]$form.Controls.Add($check)
 }
-Add-Label 'D3D11: Speicherfehler. D3D9: Menühänger gemeldet. FSR fehlt.' 20 548 680
-if($request.recovery){Add-Label 'Vorsorglicher Sparmodus nach dem vorherigen Lauf ist aktiv.' 20 575 680}
-else{Add-Label 'GPU-Wahl, Filter und FPS-Limit sind im D3D9-Rückfallweg nicht steuerbar.' 20 575 680}
+Add-Label 'D3D11: memory errors. D3D9: menu stalls unresolved. FSR unavailable.' 20 548 680
+if($request.recovery){Add-Label 'Conservative recovery settings are active after the previous run.' 20 575 680}
+else{Add-Label 'GPU selection, filtering and FPS limits cannot be forced in the native fallback.' 20 575 680}
 $start=New-Object Windows.Forms.Button
-$start.Text='Übernehmen und prüfen'
+$start.Text='Apply and check'
 $start.SetBounds(350,615,205,32)
 $start.DialogResult=[Windows.Forms.DialogResult]::OK
 $cancel=New-Object Windows.Forms.Button
-$cancel.Text='Abbrechen'
+$cancel.Text='Cancel'
 $cancel.SetBounds(565,615,115,32)
 $cancel.DialogResult=[Windows.Forms.DialogResult]::Cancel
 $form.AcceptButton=$start

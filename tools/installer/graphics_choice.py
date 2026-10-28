@@ -23,15 +23,21 @@ CANCELLED = 10
 
 def validate_choice(value):
     """Validate the complete minimal record; never accept IDs or extra fields."""
-    if (not isinstance(value, dict) or set(value) != {'format', 'choice'}
+    if (not isinstance(value, dict) or set(value) not in (
+            {'format', 'choice'}, {'format', 'choice', 'simple_menu'})
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
+    if 'simple_menu' in value and type(value['simple_menu']) is not bool:
+        raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     name = value['choice']
     if name is not None and (not isinstance(name, str) or not name.strip()
             or name != name.strip() or any(unicodedata.category(c).startswith('C') for c in name)
             or len(name.encode('utf-8')) > 256):
         raise ValueError('Die gespeicherte Grafikauswahl ist ungueltig.')
-    return {'format': FORMAT, 'choice': name}
+    result = {'format': FORMAT, 'choice': name}
+    if 'simple_menu' in value:
+        result['simple_menu'] = value['simple_menu']
+    return result
 
 
 def _record(raw):
@@ -45,6 +51,18 @@ def _load_choice(root):
     if not path.exists():
         return {'format': FORMAT, 'choice': None}
     return _record(graphics._read(path, MAX_RECORD))
+
+
+def game_arguments(root):
+    """Only fixed flags from the validated local bool, under the session lock.
+
+    The measured low-CPU combination includes VSync. Native VSync follows the
+    display refresh and is not a configurable 60 FPS cap. Never consume an
+    arbitrary argv list, model name, string bool or inherited environment flag.
+    Missing/legacy preferences keep the original argument list unchanged.
+    """
+    selected = _load_choice(graphics._plain(root))
+    return ('-vSynch', '-noMapInMainMenu') if selected.get('simple_menu', False) else ()
 
 
 def _renderer(root, inherited):

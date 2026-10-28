@@ -3,6 +3,8 @@
 The shared local and LAN launchers show the graphics dialog before starting
 the service or game. Cancelling starts neither. Check-only runs do not show
 it. The existing launcher session lock is held through selection and gameplay.
+The shared dialog and the separate full-quality research dialog now use English
+labels, choices, hints and buttons. Hardware model names are retained verbatim.
 
 `graphics_choice.py` invokes `Choose-Graphics.ps1` in a hidden PowerShell host.
 The visible WinForms dialog lists names from `Win32_VideoController.Name`
@@ -14,6 +16,45 @@ Only `LocalData/graphics-choice.json` stores the choice. Selecting different
 models on two PCs changes neither game files nor their compatibility ID.
 The game receives a new child environment; the service and global environment
 are unchanged. Source/package and installed-copy layouts use the same selector.
+
+## Optional simple-menu test
+
+The English graphics dialog includes **Simple main menu + VSync (lower CPU
+usage, experimental)**. It is unchecked for fresh and legacy preferences.
+An explicitly saved choice is preselected next time; Cancel neither changes
+that record nor starts a service/game.
+
+The existing `s7-graphics-choice-v1` record accepts an optional `simple_menu`
+JSON boolean. Records without it mean false. Integers, strings, nulls, unknown
+fields, duplicate JSON keys and arbitrary argument lists are rejected. Under
+the existing launcher session lock, the validated flag yields only the fixed
+game arguments `-vSynch -noMapInMainMenu`, or no extra arguments when false.
+Inherited environment variables cannot enable this option. GPU model strings
+are never placed in the game command line. Services/coordinators receive no
+menu arguments, and local preferences do not alter the compatibility ID.
+
+VSync is coupled explicitly because the measured low-CPU mode included it.
+Native VSync follows the display refresh; it is not an arbitrary 60 FPS cap.
+The dialog warns that the menu landscape and some castle/content previews are
+disabled, and that longer matches and LAN with this option remain unverified.
+This is not a new release default or a desync/gameplay-stability fix.
+
+Two isolated native 1280x720 trials with the same four-core adapter, medium
+quality and VSync measured median foreground CPU use of 1.5849 cores with the
+menu world (120 foreground intervals) and 0.0890 without it (35 foreground
+intervals, another 85 background). Peak private bytes were 1081 and 290 MiB.
+The shorter foreground subset and absence of on/off/on replication limit the
+comparison. Counter-only sessions took no screenshots and measured screen-loop
+completions, not displayed FPS. Details and DXVK's still-black water are in
+[the graphics research notes](../tools/d3d11/README.md).
+
+Automated checks cover legacy/default/true/false records, strict booleans,
+cancellation, content-ID preservation, and exact argument routing in local,
+manual-LAN and automatic-LAN launchers. The actual English native/DXVK/full
+dialogs were rendered with fixture data for layout review without game starts.
+These checks do not replace a real lobby/party test with the option enabled.
+Existing delivered r3 packages and installed test copies have not been updated
+with this experimental option; package qualification is a separate step.
 
 ## Backend support
 

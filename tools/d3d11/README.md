@@ -5,10 +5,13 @@ upgrade. **The starter currently refuses every game start.** `--preflight` can
 validate the copy and service without starting a game or writing the shared
 Documents/Options.ini. There is no command-line override for the qualification
 gate. No renderer from this experiment belongs in the LAN release yet.
+The research graphics dialog uses English throughout; its quality indices,
+allowlisted values and launch-blocking policy are unchanged by the translation.
 
 The D3D11 wrapper repeatedly failed a real map load with Out of memory. The
-native D3D9 fallback has not passed gameplay qualification either: the user
-reported another menu hang and system overload after stopping the live checks.
+native D3D9 fallback has not passed gameplay qualification either. Separate
+native-menu measurements reproduced stalls; the user clarified that a later
+reported system block could not be assigned unambiguously to a particular run.
 Reducing graphics quality and adding a warning do not establish that either
 problem is fixed. The separate shared DXVK investigation is described in
 [GRAPHICS-START.md](../../docs/GRAPHICS-START.md); it is not deployed by this tool.
@@ -192,13 +195,120 @@ intervals and CPU/GPU/host-memory evidence, then real map loading and longer
 gameplay. Re-enable no backend on the strength of a menu screenshot or a zero
 exit code. Optional post-processing and FSR remain later work.
 
-The next comparison is DXVK on this same isolated copy, at medium native
-settings, with an explicit discrete GPU and the existing 60 Hz cap. The shared
-profile installer verifies the entire inventory before changing files; the
-first inventory pass was stopped before profile creation to avoid disk
-contention with the main chat's two-client test. No new DXVK game was started,
-and no new menu/map result is claimed. A private bounded pilot is prepared under
-work/d3d11-review; the public gameplay gate remains closed.
+### Subsequent isolated DXVK comparison
+
+After the main chat released the shared test slot, the pinned DXVK 3.1.1 profile
+was installed into this same isolated copy. The shared profile installer passed
+its full inventory checks. The separate pilot selected the discrete GPU by name,
+retained the existing 60 Hz cap and used medium native settings, standard game
+AA and only shadows among the optional effects. No game executable or adapter
+was replaced and the public gameplay gate was not bypassed or reopened.
+
+The menu was visibly rendered and the same **Schlacht um Tanholm** map loaded
+fully with one AI, where the earlier D3D11 trials had failed. Native geometry,
+buildings and the game HUD were visible. The water surfaces appeared black;
+this remains an unresolved rendering defect. A successful map load does not
+qualify the image or longer gameplay. The physical GPU appeared in DXVK's
+selected-device section; only finding a device in its enumeration was not
+treated as selection evidence.
+
+Across 248 sentinel samples, peak private memory was 1605 MiB, minimum free
+32-bit address space was 1781 MiB and the largest free region stayed at least
+1741 MiB. Minimum host available RAM was 2503 MiB and remaining system commit
+17350 MiB. No pressure threshold or monitor failure was recorded; the longest
+measured probe was 45.307 ms. The own launcher later recorded game exit 0.
+These aggregate values include startup/background/shutdown; they are not an
+all-foreground benchmark and provide no displayed-FPS or zero-stutter claim.
+A separate 20-second passive probe had 20 samples, 11 foreground, and median
+process use of 1.058 core equivalents. Its networking command-turn counter
+remained zero; no simulation-progress or working multiplayer claim follows
+from the rendered map/HUD.
+
+The user initially reported a further game/PC hang, then clarified that the
+most recent blocking main-menu window may have belonged to the other chat's
+test. **The system block cannot be attributed to this DXVK run from that report.**
+It also cannot be excluded solely from these memory counters. Keep the native
+main-menu and DXVK map observations separate; capture failures and game hangs
+are not interchangeable evidence. The live interaction was stopped with the
+physical Escape key; no further UI action was taken afterward.
+
+DXVK logged no shader compilation error and no error-level record for this
+run, only its built-in limiter warning. That does not establish shader
+correctness. Black river-shaped surfaces are consistent with a water rendering
+path issue; missing source texture files are not established. Compare water
+quality alone first in a future controlled restart, then investigate one shader
+or depth-compatibility setting at a time. No such fix was applied in this run.
+The pilot's finally block restored its allowlisted native graphics settings
+when the current values still matched the test profile. Private observations
+remain under work/d3d11-review and are not distributed or committed.
+
+### Native VSync and menu-world isolation
+
+Following the user's explicit cross-chat coordination request, graphics/CPU
+tests were serialized with the main chat. No other S7 instance or heavy build
+was scheduled during these measurements. The graphics copy retained its known
+older four-physical-core adapter and process mask 0x55. It did not receive the
+new network adapters or service builds.
+
+Static inspection of the exact game/engine images verified the presence-only
+`-vSynch` startup parameter through the native D3D9 presentation-parameter
+construction: false selects IMMEDIATE, true selects ONE. Use `-vSynch` without
+an additional `1`. Microsoft's
+[D3DPRESENT documentation](https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dpresent)
+defines ONE relative to the adapter refresh; this is not an arbitrary 60 FPS
+limit. The host reported 144 Hz on the discrete display path and 59 Hz on the
+integrated path. Native arbitrary-GPU selection remains unverified.
+
+Two fresh native runs used 1280x720, identical medium quality/effects and
+`-vSynch`, with no wrappers. Each had a 60-second warmup followed by 120
+one-second passive intervals. The second added only `-noMapInMainMenu`.
+No screenshots were taken; foreground activation used window metadata and
+accessibility text only. Thus the scene mode was requested by the startup
+parameters and traced in original scripts, rather than visually verified in
+these sessions. The screen-loop counter is not displayed FPS.
+
+| Native startup mode | Foreground intervals | Median CPU (cores) | Median screen-loop completions/s | Peak private memory (MiB) |
+| --- | ---: | ---: | ---: | ---: |
+| VSync, normal menu world | 120/120 | 1.5849 | 144.029 | 1081 |
+| VSync, no menu world | 35/120 | 0.0890 | 143.756 | 290 |
+
+The other 85 no-menu-world intervals were background: median CPU 0.0876 cores
+and screen-loop rate 143.927/s. Foreground and background were not pooled for
+the table. Neither run contained a zero-loop interval in its recorded window
+or triggered memory-pressure thresholds. VSync is consistent with a 144 Hz
+producer limit on this host, while CPU remained high with the menu world.
+The shorter foreground subset and lack of a matched on/off/on replication
+limit the comparison. These short windows do not rule out the reported longer
+hangs or establish their cause. Do not compare their CPU numbers directly to
+the main chat's two-core-adapter baseline as an identical A/B experiment.
+
+The initial VSync observer attempt rejected its own overlarge code-byte read
+before collecting any loop samples. Verification was corrected to use chunks
+of at most four bytes, preserving file hashes, image sizes, loaded-module paths
+and ASLR-adjusted runtime-byte guards. Only the subsequent 120 valid intervals
+are reported. No game function was called and no game memory was written.
+
+The original boot script explicitly sets its menu-map flag false when
+`Opts.noMapInMainMenu` is present. This is a promising **menu resource-saving
+option**, not a general game or LAN fix. Original customization scripts warn
+that castle previews and some privilege/item views require the running menu
+world. Their behavior and lobby admission must be checked before exposing this
+as a supported option. These trials changed no release default; the later
+shared-source integration is described below.
+
+The subsequent shared-source integration exposes this exact fixed combination
+as an optional **Simple main menu + VSync** test checkbox, default off for new
+and legacy preferences, with English warnings. It uses only a validated local
+JSON boolean and fixed game arguments, preserving content IDs and cancellation.
+See [GRAPHICS-START.md](../../docs/GRAPHICS-START.md). It does not reopen this
+research launcher's gameplay gate, update delivered packages, or establish
+working multiplayer/long-gameplay with the new option.
+
+Both owned games exited normally with code zero. After each run, the
+allowlisted native graphics settings were verified against the pre-test backup;
+after the final close, no S7 process remained. The original installation and
+system display/driver settings were unchanged. The public gameplay gate stays
+closed, the black-water issue remains open, and longer gameplay is unqualified.
 
 The pinned [DXVK 3.1.1 configuration](https://github.com/doitsujin/dxvk/blob/v3.1.1/dxvk.conf)
 documents automatic pipeline lifetime tracking for 32-bit applications, which
