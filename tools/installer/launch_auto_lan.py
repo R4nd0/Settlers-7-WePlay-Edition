@@ -17,7 +17,8 @@ from lan_control import Membership
 from lan_discovery import LanDiscovery
 from lan_interfaces import enumerate_interfaces
 from lobby_directory import GAME_SERVICE_PORT
-from lobby_picker import choose
+import lan_autoconnect
+import player_settings
 
 
 @contextmanager
@@ -38,7 +39,7 @@ def session_lock(root):
             lock.seek(0); msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-def start_hub(root, interface, expected, name, directory):
+def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
     room_id = uuid.uuid4().hex
     log_path = root / 'LocalData' / ('lobby-hub-' + room_id + '.txt')
     with log_path.open('xb') as log:
@@ -50,8 +51,9 @@ def start_hub(root, interface, expected, name, directory):
     try:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
+            lan_autoconnect.checkpoint(cancel_check)
             if process.poll() is not None:
-                raise RuntimeError('LAN-Lobby konnte nicht starten. Eine vorhandene Lobby bitte aus der Liste oeffnen.')
+                raise RuntimeError('Der LAN-Dienst konnte nicht starten. Bitte erneut versuchen.')
             rooms = directory.list_rooms(timeout=.3)
             if any(room.room_id == room_id and room.endpoint.host == interface.address for room in rooms):
                 return process
@@ -62,50 +64,77 @@ def start_hub(root, interface, expected, name, directory):
         raise
 
 
-def run(args):
+def run(args, *, picker=None):
     root = compatibility.plain(args.bundle)
     if (root / 'INSTALLATION-INCOMPLETE.txt').exists():
         raise ValueError('Die Installation ist noch nicht abgeschlossen.')
+    progress, cancel = getattr(args, 'progress', None), getattr(args, 'cancel_check', None)
+    lan_autoconnect.checkpoint(cancel)
     print('Pruefe Spiel und Patch. Auf langsamen Laufwerken kann das einige Minuten dauern ...', flush=True)
-    expected = compatibility.verify(root)['content_id']
-    launch_local.verify_bundle(root)
-    interfaces = enumerate_interfaces()
     if args.check_only:
+        compatibility.verify(root)
+        launch_local.verify_bundle(root)
+        enumerate_interfaces()
         print('Dateistand und aktive LAN-Verbindung geprueft. Kein Spiel gestartet.', flush=True)
         return 0
     with session_lock(root) as data:
+        # Profile installation and other launchers use this same copy lock.
+        # Verify once while owning it, so a profile/content change cannot land
+        # between the full-file check and admission/startup.
+        expected = compatibility.verify(root)['content_id']
+        launch_local.verify_bundle(root)
+        lan_autoconnect.checkpoint(cancel)
+        interfaces = enumerate_interfaces()
         directory = LanDiscovery(interfaces)
-        choice = choose(root, directory, interfaces, expected)
-        if choice is None:
+        # Explicit injection remains available to diagnostics. The shipped
+        # desktop/CLI path never opens a room picker before the game browser.
+        choice = picker(root, directory, interfaces, expected) if picker is not None else None
+        if picker is not None and choice is None:
             return 0
-        environment = launch_local.choose_graphics_environment(root)
+        name = (choice['display_name'] if choice is not None else
+                player_settings.player_name(getattr(args, 'player_name', None) or player_settings.load(root)))
+        environment = (launch_local.saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
+                       else launch_local.choose_graphics_environment(root))
         if environment is None:
             return 0
         game_arguments = launch_local.graphics_game_arguments(root)
-        interface = interfaces[choice['network']]
-        coordinator = interface.address if choice['action'] == 'create' else choice['endpoint'].host
+        player_settings.save(root, name)
+        if choice is None:
+            interface = interfaces[0]  # Active private default route first.
+            room = lan_autoconnect.connect(directory, expected,
+                lambda: start_hub(root, interface, expected, 'WePlay LAN', directory, cancel_check=cancel),
+                cancel_check=cancel, progress=progress)
+            interface, coordinator = room.local_interface, room.endpoint.host
+        else:
+            interface = interfaces[choice['network']]
+            coordinator = interface.address if choice['action'] == 'create' else choice['endpoint'].host
         # The coordinator has its own lifetime; a player leaving a match must
         # not terminate another player's directory or invalidate their leases.
-        if choice['action'] == 'create':
+        if choice is not None and choice['action'] == 'create':
             own_rooms = [room for room in directory.list_rooms(timeout=.3)
                          if room.endpoint.host == interface.address]
             if own_rooms:
                 if len(own_rooms) != 1 or not own_rooms[0].compatible(expected):
                     raise ValueError('Die vorhandene eigene LAN-Lobby verwendet einen anderen Patchstand.')
             else:
-                start_hub(root, interface, expected, 'LAN von ' + choice['display_name'], directory)
+                start_hub(root, interface, expected, 'WePlay LAN', directory, cancel_check=cancel)
         membership = Membership(root, interface.address, coordinator, expected)
         runtime = None
         try:
+            lan_autoconnect.checkpoint(cancel, progress, 'lan_connect')
             membership.start()
+            lan_autoconnect.checkpoint(cancel)
             configuration = launch_lan.remote_configuration(coordinator, interface.address)
             launch_lan.check_content(configuration, expected)
             runtime = launch_local.write_configuration(data, configuration, GAME_SERVICE_PORT, True,
-                address=coordinator, lan_group=interface.address, display_name=choice['display_name'])
+                address=coordinator, lan_group=interface.address, display_name=name)
+            lan_autoconnect.checkpoint(cancel, progress, 'lan_ready')
             print('LAN bereit. Im Spiel Mehrspieler oeffnen und eine Partie erstellen oder beitreten.', flush=True)
             print('Entwicklermodus ist im LAN gesperrt. Bitte das Starterfenster geoeffnet lassen.', flush=True)
+            if getattr(args, 'before_game', None) is not None:
+                args.before_game()
             game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], cwd=root / 'Base/Bin', env=environment)
-            code = launch_local.wait_for_graphics_game(root, game)
+            code = launch_local.wait_for_graphics_game(root, game, monitor=getattr(args, 'game_monitor', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
             return 0 if code == 0 else 1
@@ -121,6 +150,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundle', required=True)
     parser.add_argument('--check-only', action='store_true')
+    parser.add_argument('--player-name', help='Lokaler Anzeigename (optional, sonst gespeicherter Name).')
     args = parser.parse_args()
     try:
         return run(args)

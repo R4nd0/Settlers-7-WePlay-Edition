@@ -2,6 +2,35 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## WePlay automatic-launch integration, 2026-10-28
+
+The project remote is now
+`https://github.com/R4nd0/Settlers-7-WePlay-Edition.git`. The target's initial
+commit and the upstream/source history are both retained by a normal merge.
+The MIT notice retains Eisenmonoxid and R4nd0. README/CREDITS contain the user's
+explicit warm acknowledgement of Eisenmonoxid's S7Patcher and S7Packer.
+
+Root owns automatic LAN policy/launcher; the graphics chat owns the WinForms
+desktop, installation, graphics integration, branding assets and final Setup
+qualification. The desktop request is `lan-play` with only `player_name`;
+there is no external IP/network/group selection before S7's session browser.
+The launcher uses saved graphics and emits `lan_search`, `lan_connect` and
+`lan_ready` through the supplied progress callback. Its cancellation callback
+has no arguments. Explicit picker injection remains for diagnostics only.
+
+Twenty new policy checks and nine launcher checks pass. They cover stable
+idle election, active priority, stale/restarted HTTP content classification,
+renderer alternatives, full/conflicting groups, NIC2 source binding, ongoing
+worker cancellation, cleanup after admission, saved settings and the copy lock
+during full verification. Independent review found the stale-content case;
+the fixed path and regression are included. The full content check occurs once
+under the copy's session lock. These are automated checks, not evidence of a
+new multi-PC/endgame run or a fix for the confirmed desync.
+
+The graphics chat retains the live test slot for the combined Setup/GUI run.
+Root must not start parallel game/UI/load experiments. Package and actual-start
+evidence will be recorded by that owner before the final source publication.
+
 ## Graphics RC for other devices, 2026-10-28
 
 `outputs/S7-RC-Grafik-2026-10-28.zip` combines the pinned r3 adapter/service with

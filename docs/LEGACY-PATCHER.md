@@ -16,8 +16,8 @@ per-PC names and a bounded multi-member directory. `Start-S7-LAN.cmd` opens
 the picker; the game's normal multiplayer screen creates/joins the match.
 Developer mode is always disabled in LAN. Included privilege, campaign and
 reward unlocks are independent of that mode. See
-[automatic LAN and verification limits](docs/AUTOMATIC-LAN.md) and
-[per-PC graphics selection](docs/GRAPHICS-START.md). The new directory has
+[automatic LAN and verification limits](AUTOMATIC-LAN.md) and
+[per-PC graphics selection](GRAPHICS-START.md). The new directory has
 socket/native fixture coverage; three real game clients and a fix for the
 confirmed reverse-host desync remain unverified.
 
@@ -31,11 +31,11 @@ stays at five turns and the user confirms responsive commands through ten
 additional minutes of play without errors with PC1 hosting. Longer stability,
 an earlier connection loss and a reported failure during sustained play with
 PC2 hosting remain unresolved. See
-[two-PC delivery and synchronization acceptance](docs/TWO-PC-DELIVERY.md).
+[two-PC delivery and synchronization acceptance](TWO-PC-DELIVERY.md).
 
-The inspected Ubisoft Connect build contains a native LAN Join function that returns success without joining a peer. The experimental bridge uses the game's native session transport through its local matchmaking service instead. See [LAN research](docs/LAN-RESEARCH.md) and the [current development handoff](docs/DEVELOPMENT-HANDOFF.md).
+The inspected Ubisoft Connect build contains a native LAN Join function that returns success without joining a peer. The experimental bridge uses the game's native session transport through its local matchmaking service instead. See [LAN research](LAN-RESEARCH.md) and the [current development handoff](DEVELOPMENT-HANDOFF.md).
 
-The separate [native local-start prototype](docs/NATIVE-LOCAL-START.md) reaches the main menu using its own platform adapter, without startup videos or the intro click gate. Its opt-in local-connect test completes encrypted Login/Register and real search/create/join exchanges. Longer sessions, complete network isolation and simulation synchronization remain unqualified.
+The separate [native local-start prototype](NATIVE-LOCAL-START.md) reaches the main menu using its own platform adapter, without startup videos or the intro click gate. Its opt-in local-connect test completes encrypted Login/Register and real search/create/join exchanges. Longer sessions, complete network isolation and simulation synchronization remain unqualified.
 
 Build this fork with the .NET 10 SDK (`dotnet build -c Debug`). The original patching workflow below remains available; these explicit diagnostic commands return before that workflow starts.
 
@@ -61,19 +61,19 @@ This separate mode serves only the bootstrap configuration at `http://127.0.0.1:
 
 The server creates a fresh ECDSA P-256 key in memory for each run and advertises its CNG `ECS1` public blob together with one loopback PRUDP URL. Its private key is never exported or saved. The advertised UDP port is actually bound. By default, received datagrams are counted by length and receive no protocol response. Request headers, query values, UDP contents and remote endpoints are not logged. Account authentication, a complete PRUDP session and matchmaking remain unimplemented.
 
-Add the optional boolean switch `--handshake-metadata` to passively classify structurally valid SYN/CONNECT/DATA packets. UDP events then add only `packet_type` (`syn`, `connect`, `data` or `unrecognized`) and, for recognized packets, `bytes_consumed` and `checksum_matches_zero_seed`. The latter compares the packet checksum with an **unverified zero-seed hypothesis**; even a match does not authenticate a peer or establish that the stream's actual seed is zero. Unrecognized packets omit the checksum result. Routing identifiers, signatures, cookies, keys and payloads are never logged, and the mode sends no replies. A declared packet may consume only part of a datagram; trailing bytes are not classified or included in that packet's checksum. DATA payloads remain opaque: classification does not establish encryption, successful decryption, client acceptance or a login. See the [DATA metadata findings](docs/DATA-METADATA-PROTOCOL.md).
+Add the optional boolean switch `--handshake-metadata` to passively classify structurally valid SYN/CONNECT/DATA packets. UDP events then add only `packet_type` (`syn`, `connect`, `data` or `unrecognized`) and, for recognized packets, `bytes_consumed` and `checksum_matches_zero_seed`. The latter compares the packet checksum with an **unverified zero-seed hypothesis**; even a match does not authenticate a peer or establish that the stream's actual seed is zero. Unrecognized packets omit the checksum result. Routing identifiers, signatures, cookies, keys and payloads are never logged, and the mode sends no replies. A declared packet may consume only part of a datagram; trailing bytes are not classified or included in that packet's checksum. DATA payloads remain opaque: classification does not establish encryption, successful decryption, client acceptance or a login. See the [DATA metadata findings](DATA-METADATA-PROTOCOL.md).
 
 The separate opt-in `--syn-probe` implies handshake metadata and adds a deliberately limited SYN-ACK experiment. It responds only to a loopback SYN with flags exactly `0x20` or `0x60`, stream 3, destination virtual port `0x31`, no payload or trailing frame, and a checksum matching seed zero. Its 18-byte ACK swaps virtual ports, echoes the sequence and uses a random nonzero cookie retained only in memory for up to eight senders; retries keep that sender's cookie. Reply logs contain only a fixed event, byte length and incomplete-capability flags. It never replies to CONNECT or acknowledges a login. This mode does not establish a full handshake, authentication or multiplayer, and is off by default.
 
-The opt-in `--connect-probe` includes the SYN probe and can additionally answer an **empty-payload CONNECT** from the same endpoint and virtual port after a SYN reply. It requires the issued server cookie, flags `0xb0` or `0xf0`, a nonzero client session, a valid 72-byte ECK1 P-256 public key, full packet consumption and a checksum matching seed zero. Its 158-byte reply uses a separate ECDH key signed by the current configuration key, echoes the client's sequence and places the client's connection cookie in the reply header. Exact retries receive the same session, key and signature. Changed connection tuples, nonempty payloads, DATA and login requests receive no reply. Keys and connection state remain in memory and are disposed when the service stops. This is a transport experiment with [documented static evidence](docs/CONNECT-ACK-PROTOCOL.md), not a working authenticated session or offline multiplayer server.
+The opt-in `--connect-probe` includes the SYN probe and can additionally answer an **empty-payload CONNECT** from the same endpoint and virtual port after a SYN reply. It requires the issued server cookie, flags `0xb0` or `0xf0`, a nonzero client session, a valid 72-byte ECK1 P-256 public key, full packet consumption and a checksum matching seed zero. Its 158-byte reply uses a separate ECDH key signed by the current configuration key, echoes the client's sequence and places the client's connection cookie in the reply header. Exact retries receive the same session, key and signature. Changed connection tuples, nonempty payloads, DATA and login requests receive no reply. Keys and connection state remain in memory and are disposed when the service stops. This is a transport experiment with [documented static evidence](CONNECT-ACK-PROTOCOL.md), not a working authenticated session or offline multiplayer server.
 
-`--data-ack-probe` additionally acknowledges strictly validated DATA packets from that established context, after a CONNECT ACK has actually been sent. It requires matching routing, client session, server cookie and checksum, a complete single frame, and flags exactly `0x20`, `0x30`, `0x60` or `0x70`. Its empty 15-byte ACK uses the client's cookie and unchanged server session, and echoes the current DATA sequence and part byte. Repeated requests receive the same ACK. It does not acknowledge ACKs, inspect payloads or produce application replies. See the [native DATA ACK evidence](docs/DATA-ACK-PROTOCOL.md).
+`--data-ack-probe` additionally acknowledges strictly validated DATA packets from that established context, after a CONNECT ACK has actually been sent. It requires matching routing, client session, server cookie and checksum, a complete single frame, and flags exactly `0x20`, `0x30`, `0x60` or `0x70`. Its empty 15-byte ACK uses the client's cookie and unchanged server session, and echoes the current DATA sequence and part byte. Repeated requests receive the same ACK. It does not acknowledge ACKs, inspect payloads or produce application replies. See the [native DATA ACK evidence](DATA-ACK-PROTOCOL.md).
 
 In metadata-enabled modes, DATA observations also report only booleans for a known peer, successfully sent CONNECT ACK and routing/session/header-cookie matches. The cookie and session values themselves are never logged. A context match or transport ACK does not establish authentication.
 
-The additional `--data-crypto-probe` implies the ACK experiment and checks the [derived DATA transformation](docs/DATA-CRYPTO-PROTOCOL.md) for packets passing the same narrow context gates. It derives the connection key, validates AES-CBC padding, decodes the flat/Zlib envelope with a conservative 64 KiB expansion cap, and checks the encrypted sequence copy. Only fixed outcome categories, sizes and booleans are emitted. Plaintext, IVs and keys are never logged or saved; owned temporary buffers are cleared after each check. Empty bodies are reported as bypassed, not decrypted. This mode performs no RPC parsing, reassembly or application response. The default, SYN, CONNECT and ACK-only modes do not decrypt DATA.
+The additional `--data-crypto-probe` implies the ACK experiment and checks the [derived DATA transformation](DATA-CRYPTO-PROTOCOL.md) for packets passing the same narrow context gates. It derives the connection key, validates AES-CBC padding, decodes the flat/Zlib envelope with a conservative 64 KiB expansion cap, and checks the encrypted sequence copy. Only fixed outcome categories, sizes and booleans are emitted. Plaintext, IVs and keys are never logged or saved; owned temporary buffers are cleared after each check. Empty bodies are reported as bypassed, not decrypted. This mode performs no RPC parsing, reassembly or application response. The default, SYN, CONNECT and ACK-only modes do not decrypt DATA.
 
-`--local-login-probe` additionally enables experimental [Login/Register handling](docs/LOCAL-LOGIN-PROBE.md). It assembles bounded reliable messages, validates known request structures without decoding tokens, and sends encrypted responses with temporary local identities. Those identities are not Ubisoft account identities and are discarded at shutdown. Reliable responses have finite retries; matching ACKs remove them. No lobby, matchmaking, game synchronization or fully offline bootstrap is implemented. Client acceptance of these new application responses still requires a controlled live test.
+`--local-login-probe` additionally enables experimental [Login/Register handling](LOCAL-LOGIN-PROBE.md). It assembles bounded reliable messages, validates known request structures without decoding tokens, and sends encrypted responses with temporary local identities. Those identities are not Ubisoft account identities and are discarded at shutdown. Reliable responses have finite retries; matching ACKs remove them. No lobby, matchmaking, game synchronization or fully offline bootstrap is implemented. Client acceptance of these new application responses still requires a controlled live test.
 
 Metadata modes also passively classify complete supported PING/DISCONNECT packets. Their payloads are not interpreted and controls receive no reply; packet length alone never identifies a control type.
 
@@ -97,7 +97,7 @@ The tests use invented archive data and temporary files. To include the known lo
 
 The config-server harness uses real loopback sockets, imports the advertised public key with Windows CNG when available, checks passive modes send no UDP answers and logs contain no test secrets, and verifies cancellation, bounded lifetimes, released ports and absence of file changes. Invented SYN/CONNECT fixtures check optional metadata and its absence by default. SYN-probe tests check exact reply fields, fixed checksum vectors, stable retry cookies, sender limits and rejected packets. CONNECT tests verify the signed ECK1 blob against the actual HTTP trust anchor using Windows CNG, exercise ECDH public-key import, preserve exact retry bytes and reject unsupported payloads, changed connection tuples and invalid curve points. The separate decoder harness checks lengths, truncated inputs, declared packet boundaries and optional checksum verification without networking. Neither harness starts a game.
 
-The BBA format/crypto implementation follows MIT-licensed [S7Packer](https://github.com/Eisenmonoxid/S7Packer); its [license](tools/lan/LICENSE.S7Packer.txt) is included. [Lua research notes](tools/lan/research-notes.txt) describe the deltas and their limitations.
+The BBA format/crypto implementation follows MIT-licensed [S7Packer](https://github.com/Eisenmonoxid/S7Packer); its [license](../tools/lan/LICENSE.S7Packer.txt) is included. [Lua research notes](../tools/lan/research-notes.txt) describe the deltas and their limitations.
 
 ---
 ## Usage
@@ -109,7 +109,7 @@ The BBA format/crypto implementation follows MIT-licensed [S7Packer](https://git
 
 In case your History Edition is from `Steam`, the executable will have to be extracted with the tool `Steamless` before using the S7Patcher!
 
-*Find the Settlers7R.exe here:* 
+*Find the Settlers7R.exe here:*
 ```
 <Settlers7>\Data\Base\_Dbg\Bin\Release\Settlers7R.exe -> Original Release (Gold Edition)
 <Settlers7>\Data\Base\Bin\Settlers7R.exe -> History Edition
@@ -129,7 +129,7 @@ In case your History Edition is from `Steam`, the executable will have to be ext
 ## Development Mode Options
 Using the following key combinations, you can enable/disable a few special features of the Development Mode:
 - `CTRL + G`: Toggle the ingame UI.
-- `CTRL + C`: Switch between the free view camera mode and the default camera mode. Control the free view camera using WASD or the arrow keys, 
+- `CTRL + C`: Switch between the free view camera mode and the default camera mode. Control the free view camera using WASD or the arrow keys,
 the right mouse button and Q and E.
 - `CTRL + SHIFT + T`: Toggle terrain rendering.
 - `CTRL + SHIFT + W`: Toggle water and lava rendering.
@@ -147,7 +147,7 @@ It is also possible to play the campaign and scenario maps in skirmish mode (dro
 ---
 ## Recommendation
 To gain better performance in the game, the S7Patcher can limit the game to your physical processors, since it does not work well with `Simultaneous Multithreading/HyperThreading`. For the best performance, choose three or four
-physical cores of your CPU when patching.   
+physical cores of your CPU when patching.
 For further information on this topic, see [here](https://en.wikipedia.org/wiki/Affinity_mask) or [here](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setprocessaffinitymask).
 
 Utilizing [DXVK](https://github.com/doitsujin/dxvk/releases/latest) can also be beneficial for performance and enables you to tweak some settings in the [configuration file](https://github.com/doitsujin/dxvk/wiki/Configuration) (like enabling VSync).
@@ -155,9 +155,9 @@ Utilizing [DXVK](https://github.com/doitsujin/dxvk/releases/latest) can also be 
 ---
 ## Command Line Arguments
 Use the command line argument `-debug` when launching the Patcher to enable some additional options when patching, such as restoring the functionality
-of the LUA functions `UI.WriteToLog(_string)` and `UI.WriteToConsole(_string)` (only Gold Edition, not History Editions). This can be helpful 
+of the LUA functions `UI.WriteToLog(_string)` and `UI.WriteToConsole(_string)` (only Gold Edition, not History Editions). This can be helpful
 when working with LUA scripts.
 
 ---
 ## Unpacking Archive Files
-The archive files `.bba` can be packed/unpacked using [the S7Packer](https://github.com/Eisenmonoxid/S7Packer). 
+The archive files `.bba` can be packed/unpacked using [the S7Packer](https://github.com/Eisenmonoxid/S7Packer).

@@ -1,9 +1,43 @@
 # Automatic LAN directory
 
-`Start-S7-LAN.cmd` checks the prepared copy and opens a LAN picker. Players
-enter their display name, select a discovered lobby or create one, then choose
-their graphics device. No IP-address entry is required. The ordinary game's
-multiplayer screen still creates and joins the actual match.
+The **WePlay** desktop launcher offers **LAN play** with a saved display name
+and saved graphics settings. It finds or starts the shared local coordination
+service automatically. There is no external group/network/room picker and no
+IP-address entry. The ordinary game's multiplayer screen is the only place
+where players create or select their actual match. The older
+`Start-S7-LAN.cmd` entrypoint uses the same automatic connection, with a graphics
+dialog if no saved desktop choice is requested.
+
+## Automatic connection policy
+
+`lan_autoconnect.discover_preferred` is the source-independent selection
+boundary used by the desktop and the launcher. It searches only active private
+interfaces through the existing nonce/source/TTL-checked LAN provider. It then
+confirms each discovered service with a source-bound, time-limited status read.
+An old cached beacon cannot hide a changed live content ID or invent a second
+group after a service restart. At most32 candidates and four concurrent
+650ms status reads are permitted; there is no address sweep.
+
+An already active coordinator wins over idle candidates. Idle simultaneous
+starts use numerical host-address order, independent of display names, reply
+order and each computer's adapter names. Before admission, two consecutive
+searches must agree, with at most four settling passes. If local startup loses
+a fixed-port race, it can reuse the winner only after the same live checks.
+An unused hub retains its existing one-minute idle expiry; a departing player
+never kills another player's coordinator.
+
+A full group, incompatible build, unreachable announced service, changing
+view or multiple already active groups produces a localized actionable error.
+These cases never silently start a disconnected new group. The desktop may
+align only known, verified native/DXVK renderer variants before the launcher's
+full exact-file verification. Admission still requires the final exact ID.
+Cancellation points surround discovery, startup and admission; cancellation
+after admission leaves the lease and does not start the game.
+
+This is bounded local coordination, not consensus across a network partition.
+The coordinator computer must stay reachable; migration of a live match remains
+unsupported. The directory can admit up to eight addresses; each map's actual
+player-slot limit still applies.
 
 The new directory is experimental. The earlier two-PC build joined and started
 in both host directions, but a reverse-host sustained match desynchronized.
@@ -105,7 +139,7 @@ checks pass. The service passes116 focused lobby/capacity,8,796 full service,
 and lease-generation defects and fail their new regressions; native mutants
 also exercise the developer guard, FP diagnostics and reward predicate.
 
-The package installs successfully from the original HE installation into a
+The earlier package installed successfully from the original HE installation into a
 fresh separate copy. Its helper/form starts and its scripts parse; supported
 computer-use tooling does not expose the PowerShell-hosted form for visual
 automation, so no visual picker usability result is claimed.
