@@ -275,6 +275,28 @@ class MembershipShutdownReviewTests(unittest.TestCase):
 
 
 class HttpDeadlineReviewTests(unittest.TestCase):
+    @staticmethod
+    def fixture_headers(connection, stop):
+        request = b''
+        while not stop.is_set() and len(request) < 4096:
+            chunk = connection.recv(1024)
+            if not chunk:
+                return False  # EOF cannot make progress; never spin on b''.
+            request += chunk
+            if b'\r\n\r\n' in request:
+                return True
+        return False
+
+    def test_fixture_eof_and_stop_before_headers_end_without_spinning(self):
+        stop = threading.Event()
+        connection = Mock()
+        connection.recv.side_effect = [b'GET / HTTP/1.1\r\n', b'']
+        self.assertFalse(self.fixture_headers(connection, stop))
+        self.assertEqual(connection.recv.call_count, 2)
+        stop.set(); connection.reset_mock()
+        self.assertFalse(self.fixture_headers(connection, stop))
+        connection.recv.assert_not_called()
+
     def slow_response(self, *, headers):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.bind(('127.0.0.1', 0)); listener.listen(1); listener.settimeout(2)
@@ -287,9 +309,8 @@ class HttpDeadlineReviewTests(unittest.TestCase):
                 connection, _ = listener.accept()
                 with connection:
                     connection.settimeout(1)
-                    request = b''
-                    while b'\r\n\r\n' not in request and len(request) < 4096:
-                        request += connection.recv(1024)
+                    if not self.fixture_headers(connection, stop):
+                        return
                     entered.set()
                     if headers:
                         connection.sendall(b'HTTP/1.1 200 OK\r\nX-Fixture: ')
