@@ -166,12 +166,15 @@ namespace S7Patcher.Source
             foreach (var member in entry.Pending.Values)
                 if (!Add(member)) { snapshot.Dispose(); return null; }
             if (extra != null && !Add(extra)) { snapshot.Dispose(); return null; }
-            // Keep the existing conservative reservation accounting. A success
-            // report alone does not prove the host's slot metadata was updated.
+            // Host slot updates are delivered in their reliable transport order.
+            // Confirmed members already occupy slots in that live host report;
+            // subtract only joins which have not yet completed. Independently
+            // cap all human members/reservations by the map's actual slot count.
             int reservedProfiles = snapshot.PendingProfiles.Count + snapshot.ConfirmedProfiles.Count;
-            if (reservedProfiles > 0 && Slots(metadata, "settlers_free_slots", out long free))
+            if (reservedProfiles > 0 && Slots(metadata, "settlers_free_slots", out long free)
+                && Slots(metadata, "settlers_max_slots", out long maximum))
                 BinaryPrimitives.WriteInt64LittleEndian(metadata.Attributes[JoinKey("settlers_free_slots")].AsSpan(1),
-                    Math.Max(0, free - reservedProfiles));
+                    Math.Max(0, Math.Min(free - snapshot.PendingProfiles.Count, maximum - 1 - reservedProfiles)));
             return snapshot;
 
             bool Add(PendingMember member)
@@ -234,9 +237,11 @@ namespace S7Patcher.Source
                 if (!replay)
                 {
                     reason = "local-join-no-free-slot";
+                    int unconfirmed = 0;
+                    foreach (var member in selected.Pending.Values) if (!member.Confirmed) ++unconfirmed;
                     if (!Slots(selected.Metadata, "settlers_max_slots", out long max) || max < 2
                         || !Slots(selected.Metadata, "settlers_free_slots", out long free)
-                        || free <= selected.Pending.Count || selected.Pending.Count + 1 >= max) return false;
+                        || free <= unconfirmed || selected.Pending.Count + 1 >= max) return false;
                     candidate = new(peer, metadata, body); peer = null; metadata = null;
                 }
                 reason = "local-join-response-limit";

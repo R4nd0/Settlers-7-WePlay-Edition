@@ -41,29 +41,7 @@ bool ReadConfiguration(std::wstring& root, std::map<std::string, std::string>& f
     if (valid) valid = ReadFile(input, bytes, info.nFileSizeLow, &received, nullptr) && received == info.nFileSizeLow;
     CloseHandle(input);
     if (!valid) return false;
-    std::string text(bytes, received);
-    for (unsigned char c : text) if (c != '\n' && c != '\r' && (c < 32 || c > 126)) return false;
-    size_t start = 0;
-    while (start < text.size()) {
-        size_t end = text.find('\n', start);
-        if (end == std::string::npos) return false;
-        std::string line = text.substr(start, end - start); start = end + 1;
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        size_t equals = line.find('=');
-        if (equals == std::string::npos || equals == 0 || equals + 1 == line.size()) return false;
-        if (!fields.emplace(line.substr(0, equals), line.substr(equals + 1)).second) return false;
-    }
-    bool valid_probe = fields.count("connect_probe") == 0 || fields.at("connect_probe") == "0" || fields.at("connect_probe") == "1";
-    bool lan = fields.count("lan_local") && fields.count("lan_peer");
-    bool valid_address = lan
-        ? ValidLanPair(fields.at("lan_local").c_str(), fields.at("lan_peer").c_str())
-            && (fields["address"] == fields.at("lan_local") || fields["address"] == fields.at("lan_peer"))
-            && fields.count("connect_probe") && fields.at("connect_probe") == "1"
-        : fields["address"] == "127.0.0.1";
-    return valid_probe && valid_address && fields.size() == 7 + fields.count("connect_probe") + (lan ? 2 : 0)
-        && fields["format"] == "s7-local-runtime-v1"
-        && fields.count("udp_port") && fields.count("public_key") && fields.count("profile_id")
-        && fields.count("display_name") && fields.count("ticket");
+    return ParseLocalRuntimeConfiguration(bytes, received, fields);
 }
 }
 
@@ -97,17 +75,23 @@ bool InitializeOfflineBootstrap() {
         if (port.empty() || port.size() > 5 || port[0] == '0') return false;
         unsigned value = 0;
         for (char c : port) { if (c < '0' || c > '9') return false; value = value * 10 + c - '0'; }
-        if (!value || value > 65535 || fields.at("ticket") != "local-s7:" + fields.at("profile_id")
-            || fields.at("display_name") != "LocalPlayer") return false;
+        if (!value || value > 65535 || fields.at("ticket") != "local-s7:" + fields.at("profile_id")) return false;
         if (!InitializeLocalPlatform((root + L"\\saves").c_str(), fields.at("profile_id").c_str(),
             fields.at("display_name").c_str(), fields.at("ticket").c_str())) return false;
         OfflineBootstrapConfig config{static_cast<unsigned short>(value), fields.at("public_key").c_str(), fields.at("ticket").c_str()};
         config.local_connect_probe = fields.count("connect_probe") && fields.at("connect_probe") == "1";
         config.server_address = fields.at("address").c_str();
+        config.lan_game = fields.count("lan_local") != 0;
         if (!InitializeOfflineBootstrap(config)) { ReportLocalStatus(GetOfflineBootstrapError()); return false; }
-        if (fields.count("lan_local") && !ConfigureLanNetworkGuard(fields.at("lan_local").c_str(), fields.at("lan_peer").c_str()))
-        { ReportLocalStatus("lan-network-configuration-rejected"); return false; }
-        if (fields.count("lan_local")) ReportLocalStatus("explicit-two-peer-lan-enabled");
+        if (fields.count("lan_group")) {
+            if (!ConfigureLanGroupNetworkGuard(fields.at("lan_local").c_str(), fields.at("address").c_str(), root.c_str()))
+            { ReportLocalStatus("lan-group-configuration-rejected"); return false; }
+            ReportLocalStatus("bounded-lan-group-enabled");
+        } else if (fields.count("lan_local")) {
+            if (!ConfigureLanNetworkGuard(fields.at("lan_local").c_str(), fields.at("lan_peer").c_str()))
+            { ReportLocalStatus("lan-network-configuration-rejected"); return false; }
+            ReportLocalStatus("explicit-two-peer-lan-enabled");
+        }
         initialized = true;
         ReportLocalStatus(config.local_connect_probe ? "native-bootstrap-installed-local-connect-probe" : "native-bootstrap-installed-login-trigger-unverified");
         return true;

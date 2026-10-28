@@ -67,6 +67,12 @@ def run(args):
             raise RuntimeError('Diese Testkopie laeuft bereits.') from None
         service = runtime = None
         try:
+            game_environment = None
+            if not args.check_only and getattr(args, 'choose_graphics', True):
+                game_environment = launch_local.choose_graphics_environment(root)
+                if game_environment is None:
+                    print('Spielstart abgebrochen.', flush=True)
+                    return 0
             run_id = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8]
             address = local if args.role == 'host' else peer
             if args.role == 'host':
@@ -91,7 +97,10 @@ def run(args):
             if service is not None and service.poll() is not None:
                 raise RuntimeError('Der LAN-Dienst wurde beendet.')
             print('LAN-Sitzungstest: Beitritt und Spielstart sind noch in Entwicklung.', flush=True)
-            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe')], cwd=root / 'Base/Bin')
+            game_options = {'cwd': root / 'Base/Bin'}
+            if game_environment is not None:
+                game_options['env'] = game_environment
+            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe')], **game_options)
             code = game.wait()
             with (data / (run_id + '-game-exit.txt')).open('x', encoding='ascii') as output:
                 output.write(str(code) + '\n')

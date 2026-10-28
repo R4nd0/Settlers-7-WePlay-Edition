@@ -8,12 +8,14 @@
 #include <atomic>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include "lan_membership_file.h"
 #include <winhttp.h>
 #include <shellapi.h>
 #include <cstring>
 #include <vector>
 #include <cstddef>
 #include <intrin.h>
+#include <process.h>
 #ifdef S7_GUARD_TEST_DIAGNOSTICS
 #include <cstdio>
 #endif
@@ -25,9 +27,32 @@
 namespace {
 std::atomic<unsigned long> lan_local{0}, lan_peer{0};
 std::atomic<bool> lan_configured{false};
+std::atomic<bool> lan_group{false};
+SRWLOCK membership_lock = SRWLOCK_INIT;
+lan_membership::Snapshot membership;
+std::wstring membership_root;
+DWORD membership_thread = 0;
+SRWLOCK membership_lifecycle = SRWLOCK_INIT;
+HANDLE membership_stop_event = nullptr, membership_worker = nullptr;
+std::atomic<bool> membership_stopping{true};
+#ifdef S7_GUARD_TESTING
+std::atomic<HANDLE> membership_test_entered{nullptr}, membership_test_release{nullptr};
+std::atomic<DWORD> membership_join_timeout{5000};
+std::atomic<unsigned long> membership_reads{0};
+void MembershipReadGate() {
+    HANDLE entered = membership_test_entered.load(), release = membership_test_release.load();
+    if (entered && release) { SetEvent(entered); WaitForSingleObject(release, INFINITE); }
+}
+#endif
 bool AllowedV4(unsigned long network_order) {
-    return (ntohl(network_order) >> 24) == 127 || (lan_configured.load(std::memory_order_acquire)
-        && (network_order == lan_local.load() || network_order == lan_peer.load()));
+    if ((ntohl(network_order) >> 24) == 127) return true;
+    if (!lan_configured.load(std::memory_order_acquire)) return false;
+    if (network_order == lan_local.load() || network_order == lan_peer.load()) return true;
+    if (!lan_group.load(std::memory_order_acquire)) return false;
+    AcquireSRWLockShared(&membership_lock);
+    const bool allowed = !membership_stopping.load() && lan_membership::Contains(membership, ntohl(network_order), GetTickCount64());
+    ReleaseSRWLockShared(&membership_lock);
+    return allowed;
 }
 unsigned long LocalBindAddress() {
 #ifdef S7_LOCAL_PAIR_LAB
@@ -45,6 +70,100 @@ bool ConfigureLanNetworkGuard(const char* local, const char* peer) {
     lan_local.store(htonl(left)); lan_peer.store(htonl(right));
     lan_configured.store(true, std::memory_order_release); return true;
 }
+
+bool ConfigureLanGroupNetworkGuard(const char* local, const char* coordinator, const wchar_t* root) {
+    uint32_t local_ip = 0, server_ip = 0;
+    if (lan_configured.load() || !ParsePrivateLanAddress(local, local_ip) || !coordinator) return false;
+    if (strcmp(coordinator, "127.0.0.1") == 0) server_ip = 0x7f000001;
+    else if (!ParsePrivateLanAddress(coordinator, server_ip)) return false;
+    try {
+        if (!lan_membership::ValidRoot(root)) return false;
+        membership_root = root;
+    } catch (...) { return false; }
+    membership_thread = GetCurrentThreadId();
+    lan_local.store(htonl(local_ip)); lan_peer.store(htonl(server_ip));
+    lan_group.store(true, std::memory_order_release);
+    lan_configured.store(true, std::memory_order_release);
+    return true;
+}
+
+namespace {
+unsigned __stdcall MembershipWorker(void*) {
+    while (!membership_stopping.load(std::memory_order_acquire)) {
+        lan_membership::Snapshot next;
+        try {
+            void (*gate)() = nullptr;
+#ifdef S7_GUARD_TESTING
+            gate = MembershipReadGate;
+#endif
+            if (!lan_membership::Read(membership_root, ntohl(lan_local.load()), ntohl(lan_peer.load()), GetTickCount64(), next, gate)) next = {};
+        } catch (...) { next = {}; }
+        AcquireSRWLockExclusive(&membership_lock);
+        if (!membership_stopping.load()) membership = next;
+        ReleaseSRWLockExclusive(&membership_lock);
+#ifdef S7_GUARD_TESTING
+        ++membership_reads;
+#endif
+        if (WaitForSingleObject(membership_stop_event, 500) != WAIT_TIMEOUT) break;
+    }
+    return 0;
+}
+}
+bool StartLanGroupNetworkGuard() {
+    if (!lan_group.load(std::memory_order_acquire)) return true;
+    if (GetCurrentThreadId() != membership_thread) return false;
+    AcquireSRWLockExclusive(&membership_lifecycle);
+    if (membership_worker) {
+        const bool running = !membership_stopping.load() && WaitForSingleObject(membership_worker, 0) == WAIT_TIMEOUT;
+        ReleaseSRWLockExclusive(&membership_lifecycle); return running;
+    }
+    // IAT/callsite replacements already require this adapter to remain loaded.
+    // Pin it explicitly so a slow cancelled filesystem call cannot outlive DLL
+    // storage even when the bounded Stop join has timed out.
+    HMODULE module = nullptr;
+    const bool pinned = GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+        reinterpret_cast<LPCWSTR>(&StartLanGroupNetworkGuard), &module) != 0;
+    if (pinned) membership_stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!membership_stop_event) { ReleaseSRWLockExclusive(&membership_lifecycle); return false; }
+    membership_stopping.store(false, std::memory_order_release);
+    membership_worker = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, 0, MembershipWorker, nullptr, 0, nullptr));
+    if (!membership_worker) {
+        membership_stopping.store(true); CloseHandle(membership_stop_event); membership_stop_event = nullptr;
+    }
+    const bool okay = membership_worker != nullptr;
+    ReleaseSRWLockExclusive(&membership_lifecycle); return okay;
+}
+bool StopLanGroupNetworkGuard() {
+    if (!lan_group.load(std::memory_order_acquire)) return true;
+    AcquireSRWLockExclusive(&membership_lifecycle);
+    AcquireSRWLockExclusive(&membership_lock);
+    membership_stopping.store(true, std::memory_order_release);
+    membership = {};
+    ReleaseSRWLockExclusive(&membership_lock);
+    bool stopped = true;
+    if (membership_worker) {
+        SetEvent(membership_stop_event);
+        CancelSynchronousIo(membership_worker);
+        DWORD timeout = 5000;
+#ifdef S7_GUARD_TESTING
+        timeout = membership_join_timeout.load();
+#endif
+        stopped = WaitForSingleObject(membership_worker, timeout) == WAIT_OBJECT_0;
+        if (stopped) {
+            CloseHandle(membership_worker); membership_worker = nullptr;
+            CloseHandle(membership_stop_event); membership_stop_event = nullptr;
+        }
+    }
+    ReleaseSRWLockExclusive(&membership_lifecycle);
+    return stopped;
+}
+#ifdef S7_GUARD_TESTING
+void SetLanGroupTestReadGate(HANDLE entered, HANDLE release, DWORD join_timeout) {
+    membership_test_entered.store(entered); membership_test_release.store(release);
+    membership_join_timeout.store(join_timeout);
+}
+unsigned long LanGroupTestReadCount() { return membership_reads.load(); }
+#endif
 
 bool IsOfflineEndpointAllowed(const sockaddr* address, int length) {
     if (!address || length < static_cast<int>(sizeof(address->sa_family))) return false;
@@ -81,7 +200,7 @@ void LanObserve(uint32_t bits) {
     for (const auto& label : labels) if (fresh & label.bit) ReportLocalStatus(label.label);
 }
 void LanSendResult(const sockaddr* address, int size, bool allowed, bool bound, int result, int error) {
-    if (lan_configured.load(std::memory_order_acquire) && address && size >= sizeof(sockaddr_in)
+    if (lan_configured.load(std::memory_order_acquire) && !lan_group.load() && address && size >= sizeof(sockaddr_in)
         && address->sa_family == AF_INET) {
         const auto* target = reinterpret_cast<const sockaddr_in*>(address);
         LanObserve(transport_observation::Send(ntohl(target->sin_addr.s_addr), ntohs(target->sin_port),
@@ -188,6 +307,197 @@ bool PeerAllowed(SOCKET socket) {
     return getpeername(socket, reinterpret_cast<sockaddr*>(&peer), &size) == 0
         && IsOfflineEndpointAllowed(reinterpret_cast<sockaddr*>(&peer), size);
 }
+// Verified HE path E7E457 -> E7E188: event-based WSARecvFrom (no callback),
+// followed by WSAGetOverlappedResult even for immediate success. Payload/source
+// consumption follows successful GetResult only. We retain metadata, never own
+// or replace kernel buffers/OVERLAPPED and never infer cancellation on close.
+struct ReceiveOperation {
+    SOCKET socket = INVALID_SOCKET;
+    LPWSAOVERLAPPED overlapped = nullptr;
+    std::array<WSABUF, 16> buffers{};
+    DWORD count = 0, capacity = 0;
+    sockaddr* source = nullptr;
+    int* source_size = nullptr;
+    int source_capacity = 0;
+    uint64_t generation = 0;
+    bool active = false, pending = false, consumed = false, receiving = true, submitted = false;
+};
+SRWLOCK receive_lock = SRWLOCK_INIT;
+std::array<ReceiveOperation, 64> receives;
+uint64_t receive_generation = 0;
+bool ReceiveArguments(ReceiveOperation& operation, SOCKET socket, LPWSABUF buffers, DWORD count,
+                      sockaddr* source, int* source_size, LPWSAOVERLAPPED overlapped) {
+    if (!buffers || !count || count > operation.buffers.size() || !source || !source_size
+        || *source_size < static_cast<int>(sizeof(sockaddr_in)) || *source_size > static_cast<int>(sizeof(sockaddr_storage))) return false;
+    operation.socket = socket; operation.overlapped = overlapped;
+    operation.source = source; operation.source_size = source_size; operation.source_capacity = *source_size;
+    for (DWORD i = 0; i < count; ++i) {
+        if (!buffers[i].buf || buffers[i].len > 65536 - operation.capacity) return false;
+        operation.buffers[i] = buffers[i]; operation.capacity += buffers[i].len;
+    }
+    operation.count = count;
+    return operation.capacity != 0;
+}
+bool TrackReceive(ReceiveOperation& operation) {
+    AcquireSRWLockExclusive(&receive_lock);
+    ReceiveOperation* available = nullptr;
+    for (auto& item : receives) {
+        if (item.active && item.overlapped == operation.overlapped) {
+            // Native send completion E83AF0 does not call GetResult. The same
+            // persistent request is rearmed after its event/Immediate result,
+            // without resetting OVERLAPPED.Internal (E7E4D0/E8430B). Inspect
+            // only the live pointer supplied to this new call, never old
+            // pointers while scanning for an evictable slot. Receives still
+            // require their separate GetResult source/expiry gate.
+            const bool completed_send = !item.receiving && item.submitted && item.socket == operation.socket
+                && HasOverlappedIoCompleted(operation.overlapped);
+            if ((item.pending || !item.consumed) && !completed_send) {
+                ReleaseSRWLockExclusive(&receive_lock); return false;
+            }
+            available = &item; break;
+        }
+        if (!available && (!item.active || item.consumed)) available = &item;
+    }
+    if (available) {
+        operation.active = true; operation.pending = true;
+        operation.generation = ++receive_generation;
+        *available = operation;
+    }
+    ReleaseSRWLockExclusive(&receive_lock);
+    return available != nullptr;
+}
+bool FindReceive(SOCKET socket, LPWSAOVERLAPPED overlapped, ReceiveOperation& operation) {
+    bool found = false;
+    AcquireSRWLockShared(&receive_lock);
+    for (const auto& item : receives) if (item.active && (socket == INVALID_SOCKET || item.socket == socket) && item.overlapped == overlapped) {
+        operation = item; found = true; break;
+    }
+    ReleaseSRWLockShared(&receive_lock);
+    return found;
+}
+void FinishReceive(const ReceiveOperation& operation, bool erase, bool consumed = false) {
+    AcquireSRWLockExclusive(&receive_lock);
+    for (auto& item : receives) if (item.active && item.generation == operation.generation) {
+        if (erase) item = {};
+        else { item.pending = false; item.consumed = consumed; item.submitted = true; }
+        break;
+    }
+    ReleaseSRWLockExclusive(&receive_lock);
+}
+void MarkPendingSubmitted(const ReceiveOperation& operation) {
+    AcquireSRWLockExclusive(&receive_lock);
+    for (auto& item : receives) if (item.active && item.generation == operation.generation) {
+        item.submitted = true; break;
+    }
+    ReleaseSRWLockExclusive(&receive_lock);
+}
+bool ReceiveSourceAllowed(const ReceiveOperation& operation, DWORD transferred) {
+    return transferred <= operation.capacity && operation.source_size && *operation.source_size <= operation.source_capacity
+        && IsOfflineEndpointAllowed(operation.source, *operation.source_size);
+}
+void EraseReceivedBytes(const ReceiveOperation& operation) {
+    for (DWORD i = 0; i < operation.count; ++i) if (operation.buffers[i].len)
+        SecureZeroMemory(operation.buffers[i].buf, operation.buffers[i].len);
+    SecureZeroMemory(operation.source, static_cast<size_t>(operation.source_capacity));
+    *operation.source_size = 0;
+}
+int WSAAPI GuardWSARecvFrom(SOCKET socket, LPWSABUF buffers, DWORD count, LPDWORD received, LPDWORD flags,
+                          sockaddr* source, int* source_size, LPWSAOVERLAPPED overlapped,
+                          LPWSAOVERLAPPED_COMPLETION_ROUTINE completion) {
+    if (!lan_group.load(std::memory_order_acquire))
+        return ::WSARecvFrom(socket, buffers, count, received, flags, source, source_size, overlapped, completion);
+    // Completion routines would publish results outside the verified result API.
+    if (completion) { WSASetLastError(WSAEOPNOTSUPP); return SOCKET_ERROR; }
+    ReceiveOperation operation;
+    if (!received || !flags || !ReceiveArguments(operation, socket, buffers, count, source, source_size, overlapped)) {
+        WSASetLastError(WSAEFAULT); return SOCKET_ERROR;
+    }
+    if (overlapped && !TrackReceive(operation)) { WSASetLastError(WSAENOBUFS); return SOCKET_ERROR; }
+    const int result = ::WSARecvFrom(socket, buffers, count, received, flags, source, source_size, overlapped, completion);
+    const int error = WSAGetLastError();
+    if (result == 0) {
+        if (overlapped) FinishReceive(operation, false);
+        if (!ReceiveSourceAllowed(operation, *received)) {
+            EraseReceivedBytes(operation); *received = 0;
+            if (overlapped) FinishReceive(operation, false, true);
+            return DenySocket();
+        }
+    } else if (overlapped && error != WSA_IO_PENDING) FinishReceive(operation, true);
+    WSASetLastError(error); return result;
+}
+BOOL WSAAPI GuardWSAGetOverlappedResult(SOCKET socket, LPWSAOVERLAPPED overlapped, LPDWORD transferred, BOOL wait, LPDWORD flags) {
+    ReceiveOperation operation;
+    const bool group = lan_group.load(std::memory_order_acquire);
+    const bool tracked = group && FindReceive(INVALID_SOCKET, overlapped, operation);
+    // Only requests submitted through our receive/send boundary are known.
+    if (group && (!tracked || operation.socket != socket)) { WSASetLastError(WSAEINVAL); return FALSE; }
+    const BOOL result = ::WSAGetOverlappedResult(socket, overlapped, transferred, wait, flags);
+    const int error = WSAGetLastError();
+    if (tracked) {
+        if (result) {
+            if (operation.receiving && (!transferred || !ReceiveSourceAllowed(operation, *transferred))) {
+                EraseReceivedBytes(operation);
+                if (transferred) *transferred = 0;
+                FinishReceive(operation, false, true);
+                WSASetLastError(WSAEACCES); return FALSE;
+            }
+            FinishReceive(operation, false, true);
+        } else if (error != WSA_IO_INCOMPLETE && error != WSA_IO_PENDING) FinishReceive(operation, true);
+    }
+    WSASetLastError(error); return result;
+}
+int WSAAPI GuardCloseSocket(SOCKET socket) {
+    const int result = ::closesocket(socket), error = WSAGetLastError();
+    if (result == 0 && lan_group.load(std::memory_order_acquire)) {
+        AcquireSRWLockExclusive(&receive_lock);
+        for (auto& item : receives) if (item.active && item.socket == socket) item = {};
+        ReleaseSRWLockExclusive(&receive_lock);
+        // Only our pointer metadata was discarded. Original kernel operations
+        // and the game's cancellation/destruction contract remain unchanged.
+    }
+    WSASetLastError(error); return result;
+}
+int WSAAPI GuardRecvFrom(SOCKET socket, char* buffer, int length, int flags, sockaddr* address, int* size) {
+    if (!lan_group.load(std::memory_order_acquire)) {
+#ifdef S7_LOCAL_PAIR_LAB
+        return LabRecvFrom(socket, buffer, length, flags, address, size);
+#elif defined(S7_LOCAL_NETWORK_PUMP)
+        return LanRecvFrom(socket, buffer, length, flags, address, size);
+#else
+        return ::recvfrom(socket, buffer, length, flags, address, size);
+#endif
+    }
+    sockaddr_storage source{}; int source_size = sizeof(source);
+    if (address && (!size || *size < static_cast<int>(sizeof(sockaddr_in)))) {
+        WSASetLastError(WSAEFAULT); return SOCKET_ERROR;
+    }
+    const int result = ::recvfrom(socket, buffer, length, flags, reinterpret_cast<sockaddr*>(&source), &source_size);
+    const int error = WSAGetLastError();
+    if (result >= 0) {
+        if (!IsOfflineEndpointAllowed(reinterpret_cast<sockaddr*>(&source), source_size)) {
+            if (buffer && result > 0) SecureZeroMemory(buffer, static_cast<size_t>(result));
+            return DenySocket();
+        }
+        if (address) {
+            if (*size < source_size) { if (buffer && result > 0) SecureZeroMemory(buffer, static_cast<size_t>(result)); WSASetLastError(WSAEFAULT); return SOCKET_ERROR; }
+            memcpy(address, &source, source_size); *size = source_size;
+        }
+    }
+    WSASetLastError(error); return result;
+}
+int WSAAPI GuardRecv(SOCKET socket, char* buffer, int length, int flags) {
+    if (!lan_group.load(std::memory_order_acquire)) return ::recv(socket, buffer, length, flags);
+    int type = 0, size = sizeof(type);
+    if (::getsockopt(socket, SOL_SOCKET, SO_TYPE, reinterpret_cast<char*>(&type), &size) != 0) return SOCKET_ERROR;
+    if (type == SOCK_DGRAM) return GuardRecvFrom(socket, buffer, length, flags, nullptr, nullptr);
+    if (!PeerAllowed(socket)) return DenySocket();
+    const int result = ::recv(socket, buffer, length, flags), error = WSAGetLastError();
+    if (result >= 0 && !PeerAllowed(socket)) {
+        if (buffer && result > 0) SecureZeroMemory(buffer, static_cast<size_t>(result));
+        return DenySocket();
+    }
+    WSASetLastError(error); return result;
+}
 int WSAAPI GuardConnect(SOCKET socket, const sockaddr* address, int length) {
     return IsOfflineEndpointAllowed(address, length) && BindLocalSender(socket, address)
         ? ::connect(socket, address, length) : DenySocket();
@@ -215,22 +525,29 @@ int WSAAPI GuardSendTo(SOCKET socket, const char* buffer, int length, int flags,
 }
 int WSAAPI GuardWSASendTo(SOCKET socket, LPWSABUF buffers, DWORD count, LPDWORD sent, DWORD flags,
     const sockaddr* address, int size, LPWSAOVERLAPPED overlapped, LPWSAOVERLAPPED_COMPLETION_ROUTINE completion) {
-#if defined(S7_LOCAL_PAIR_LAB) || defined(S7_LOCAL_NETWORK_PUMP)
+    const bool tracked = overlapped && lan_group.load(std::memory_order_acquire);
+    ReceiveOperation operation;
+    if (tracked) {
+        if (completion) { WSASetLastError(WSAEOPNOTSUPP); return SOCKET_ERROR; }
+        operation.socket = socket; operation.overlapped = overlapped; operation.receiving = false;
+        if (!TrackReceive(operation)) { WSASetLastError(WSAENOBUFS); return SOCKET_ERROR; }
+    }
     bool allowed = address ? IsOfflineEndpointAllowed(address, size) : PeerAllowed(socket);
     bool bound = allowed && (!address || BindLocalSender(socket, address));
     int result = allowed && bound ? ::WSASendTo(socket, buffers, count, sent, flags, address, size, overlapped, completion) : DenySocket();
     int error = WSAGetLastError();
+    if (tracked) {
+        if (result == 0) FinishReceive(operation, false, true);
+        else if (error != WSA_IO_PENDING) FinishReceive(operation, true);
+        else MarkPendingSubmitted(operation);
+    }
 #ifdef S7_LOCAL_PAIR_LAB
     LabSendResult(address, size, allowed, bound, result, error);
 #endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     LanSendResult(address, size, allowed, bound, result, error);
 #endif
-    return result;
-#else
-    return (address ? IsOfflineEndpointAllowed(address, size) && BindLocalSender(socket, address) : PeerAllowed(socket))
-        ? ::WSASendTo(socket, buffers, count, sent, flags, address, size, overlapped, completion) : DenySocket();
-#endif
+    WSASetLastError(error); return result;
 }
 int WSAAPI GuardBind(SOCKET socket, const sockaddr* address, int length) {
     if (!address) return DenySocket();
@@ -357,11 +674,9 @@ HINSTANCE WINAPI GuardShellW(HWND, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, INT) { Se
 struct Binding { const char* dll; const char* name; void* replacement; };
 #define BIND(dll, name, replacement) {dll, name, reinterpret_cast<void*>(replacement)}
 const Binding bindings[] = {
-#ifdef S7_LOCAL_PAIR_LAB
-    BIND("WS2_32.dll", "recvfrom", LabRecvFrom),
-#elif defined(S7_LOCAL_NETWORK_PUMP)
-    BIND("WS2_32.dll", "recvfrom", LanRecvFrom),
-#endif
+    BIND("WS2_32.dll", "recvfrom", GuardRecvFrom), BIND("WS2_32.dll", "recv", GuardRecv),
+    BIND("WS2_32.dll", "WSARecvFrom", GuardWSARecvFrom), BIND("WS2_32.dll", "WSAGetOverlappedResult", GuardWSAGetOverlappedResult),
+    BIND("WS2_32.dll", "closesocket", GuardCloseSocket),
     BIND("WS2_32.dll", "connect", GuardConnect), BIND("WS2_32.dll", "send", GuardSend),
     BIND("WS2_32.dll", "sendto", GuardSendTo), BIND("WS2_32.dll", "WSASendTo", GuardWSASendTo),
     BIND("WS2_32.dll", "bind", GuardBind), BIND("WS2_32.dll", "accept", GuardAccept),
@@ -439,6 +754,21 @@ bool Exchange(const Patch& patch, bool install) {
     return matched;
 }
 }
+
+#ifdef S7_GUARD_TESTING
+// Deterministic status-boundary fixture: no kernel work is submitted or changed.
+bool MarkLanGroupTestSendPending(SOCKET socket, LPWSAOVERLAPPED overlapped) {
+    bool changed = false;
+    AcquireSRWLockExclusive(&receive_lock);
+    for (auto& item : receives) if (item.active && !item.receiving && item.submitted
+        && item.socket == socket && item.overlapped == overlapped && HasOverlappedIoCompleted(overlapped)) {
+        item.pending = true; item.consumed = false; item.submitted = true;
+        changed = true; break;
+    }
+    ReleaseSRWLockExclusive(&receive_lock);
+    return changed;
+}
+#endif
 
 bool InstallOfflineNetworkGuard() {
     static bool installed = false;

@@ -1,5 +1,8 @@
 # Passive performance and simulation diagnostics
 
+The later sustained menu investigation, repeated hangs, renderer comparison
+and shared graphics choice are documented in [GRAPHICS-START.md](GRAPHICS-START.md).
+
 ## Scope
 
 `tools/installer/observe_game.py` observes one explicitly selected, owned History
@@ -16,6 +19,9 @@ sample; it is not a guessed menu/lobby state. No simulation checksum comparison
 is performed. Identities, accounts, payloads and full logistics queues are not
 read. Reading the complete native logistics task list would itself scale with
 queue size and is unsuitable for frequent passive sampling.
+
+Logical process I/O and page-fault deltas are also recorded. These include
+cached/device I/O and soft faults and must not be labelled physical disk reads.
 
 Example from the repository root, substituting the verified current game PID:
 
@@ -44,6 +50,10 @@ remain private. Summary records separate swapchains without exporting their
 addresses. Missing CSV, event overflow and collector privilege warnings are
 reported explicitly. Do not treat missing frames as zero FPS or use an
 overflowed capture as a complete stutter measurement.
+
+`etw_events_lost` also detects the distinct ETW loss warning, even without a
+present-buffer overflow message. `capture_complete` is false for event loss,
+overflow, truncated logs, unsuccessful collection or missing frame CSV.
 
 `cpu_frame_rate_hz` is the producer rate derived from PresentMon `FrameTime`,
 not monitor refresh or displayed FPS. CPU frame intervals include waiting and
@@ -122,3 +132,18 @@ service cases eventually crashed in the client; the fixed service did allow
 reconnection first. The common crash cause is unresolved. Those shortened
 lifetime builds must never be shipped or confused with the normal service.
 The new review service/native candidates are not yet a qualified LAN package.
+
+The automatic-LAN revision adds two further confirmed registry/lifecycle fixes:
+confirmed guests are not subtracted twice from the host's ordered free-slot
+report, and lease generations are held across synchronous context use/send
+start, without retaining a lock over `await`. Focused regressions fail when
+either old defect is restored. These are lobby/control fixes, not a proven
+cause of the simulation desync.
+
+Dynamic peer-file reads run on a bounded-lifetime native helper rather than
+the game update thread. This avoids introducing filesystem stalls into that
+thread on the workspace's slow HDD. The helper never calls game/SDK functions.
+FP control-word/MXCSR observations are limited to20minutes/120,000 bridge
+pumps and fixed deduplicated labels, without changing numerical state. The
+automatic-LAN test candidate uses the two-physical-core build for this next
+diagnostic stage; this is not evidence that two cores fix the original problem.

@@ -10,7 +10,8 @@ namespace S7Patcher.Source
         internal static LocalNetworkPolicy Loopback { get; } = new(IPAddress.Loopback, null);
         internal IPAddress BindAddress { get; }
         internal IPAddress PeerAddress { get; }
-        internal bool IsLan => PeerAddress != null;
+        internal LocalLobbyAdmission Lobby { get; private set; }
+        internal bool IsLan => PeerAddress != null || Lobby != null;
         private LocalNetworkPolicy(IPAddress local, IPAddress peer) { BindAddress = local; PeerAddress = peer; }
 
         internal static bool TryCreate(string local, string peer, out LocalNetworkPolicy policy)
@@ -19,6 +20,19 @@ namespace S7Patcher.Source
             if (!TryPrivateAddress(local, out var left) || !TryPrivateAddress(peer, out var right) || left.Equals(right)) return false;
             policy = new(left, right); return true;
         }
+
+        internal static bool TryCreateLobby(string local, string contentId, out LocalNetworkPolicy policy,
+            Func<long> clock = null)
+        {
+            policy = null;
+            if (!TryPrivateAddress(local, out var address) || !LocalLobbyAdmission.ValidContentId(contentId)) return false;
+            policy = new(address, null);
+            policy.Lobby = new LocalLobbyAdmission(address, contentId, clock);
+            return true;
+        }
+
+        internal bool AllowsControl(IPAddress address) => Lobby == null ? Allows(address)
+            : address != null && TryPrivateAddress(address.ToString(), out _);
 
         internal static bool TryPrivateAddress(string text, out IPAddress address)
         {
@@ -33,7 +47,8 @@ namespace S7Patcher.Source
         }
 
         internal bool Allows(IPAddress address) => address != null && address.AddressFamily == AddressFamily.InterNetwork
-            && (IPAddress.IsLoopback(address) || BindAddress.Equals(address) || (PeerAddress?.Equals(address) ?? false));
+            && (Lobby != null ? Lobby.Generation(address) != 0
+                : IPAddress.IsLoopback(address) || BindAddress.Equals(address) || (PeerAddress?.Equals(address) ?? false));
         internal bool IsServerAddress(IPAddress address) => BindAddress.Equals(address);
     }
 }

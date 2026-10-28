@@ -14,10 +14,21 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 import uuid
 
 EXE_HASH = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
+
+
+def choose_graphics_environment(root):
+    # Source/package layout has installer/ beside offline-ui/; installed
+    # launchers keep the shared selector beside this file.
+    source_tools = Path(__file__).resolve().parent.parent / 'installer'
+    if source_tools.is_dir():
+        sys.path.insert(0, str(source_tools))
+    from graphics_choice import choose_launch_environment
+    return choose_launch_environment(root)
 
 
 def plain_path(path, root):
@@ -79,8 +90,14 @@ def lan_pair(local, peer):
     return local, peer
 
 
-def write_configuration(data, configuration, udp_port, connect_probe=False, *, address="127.0.0.1", lan=None):
-    if lan is not None:
+def write_configuration(data, configuration, udp_port, connect_probe=False, *, address="127.0.0.1", lan=None,
+                        lan_group=None, display_name=None):
+    if lan_group is not None:
+        if lan is not None or not connect_probe:
+            raise ValueError("Unvereinbare LAN-Konfiguration.")
+        from lobby_directory import private_address
+        private_address(lan_group); private_address(address)
+    elif lan is not None:
         lan = lan_pair(*lan)
         if address not in lan or not connect_probe:
             raise ValueError("LAN-Serveradresse passt nicht zu den beiden PCs.")
@@ -96,21 +113,36 @@ def write_configuration(data, configuration, udp_port, connect_probe=False, *, a
         raise ValueError("Der lokale Dienst verwendet ein unbekanntes Schluesselformat.")
     if configuration.get("prudp_urls") != [f"prudp:/address={address};port={udp_port}"]:
         raise ValueError("Die lokale Serveradresse stimmt nicht ueberein.")
+    # Installed copies include the shared settings helper. Historical copies
+    # without that helper retain their old default name.
+    source_tools = Path(__file__).resolve().parent.parent / 'installer'
+    if source_tools.is_dir():
+        sys.path.insert(0, str(source_tools))
+    try:
+        import player_settings
+    except ModuleNotFoundError as error:
+        if error.name != 'player_settings' or display_name is not None:
+            raise
+        name = 'LocalPlayer'
+    else:
+        name = player_settings.load(data.parent) if display_name is None else player_settings.player_name(display_name)
     profile = local_identity(data)
     content = (f"format=s7-local-runtime-v1\naddress={address}\n"
                f"udp_port={udp_port}\npublic_key={public}\nprofile_id={profile}\n"
-               f"display_name=LocalPlayer\nticket=local-s7:{profile}\n")
+               f"display_name={name}\nticket=local-s7:{profile}\n")
     if connect_probe:
         content += "connect_probe=1\n"
     if lan is not None:
         content += f"lan_local={lan[0]}\nlan_peer={lan[1]}\n"
+    if lan_group is not None:
+        content += f"lan_group=1\nlan_local={lan_group}\n"
     destination = data / "s7-local-runtime.ini"
     plain_path(destination, data)
     if destination.exists() and not destination.read_bytes().startswith(b"format=s7-local-runtime-v1\n"):
         raise ValueError("Eine unbekannte Konfigurationsdatei wird nicht ueberschrieben.")
     temporary = data / ("runtime-" + uuid.uuid4().hex + ".tmp")
     try:
-        with temporary.open("x", encoding="ascii", newline="\n") as stream:
+        with temporary.open("x", encoding="utf-8", newline="\n") as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
@@ -173,6 +205,12 @@ def run(args):
         service = None
         runtime = None
         try:
+            game_environment = None
+            if args.launch_game and getattr(args, 'choose_graphics', True):
+                game_environment = choose_graphics_environment(root)
+                if game_environment is None:
+                    print('Spielstart abgebrochen.', flush=True)
+                    return 0
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
             log = data / (run_id + "-server.jsonl")
             errors = data / (run_id + "-server-errors.txt")
@@ -193,7 +231,10 @@ def run(args):
                     print("Startpruefung bestanden. Kein Spiel gestartet.", flush=True)
                     return 0
                 print("Starte die getrennte Testversion. Lokaler Server und LAN sind noch unvollstaendig.", flush=True)
-                game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe")], cwd=root / "Base/Bin")
+                game_options = {'cwd': root / 'Base/Bin'}
+                if game_environment is not None:
+                    game_options['env'] = game_environment
+                game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe")], **game_options)
                 code = game.wait()
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:
                     stream.write(str(code) + "\n")

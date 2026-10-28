@@ -17,6 +17,13 @@ import compatibility as content
 FORMAT = 's7-patch-package-v1'
 EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
+GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
+    ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
+    ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
+LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
+    'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
+    'lan_discovery.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
+    'player_settings.py', 'Configure-LAN-Firewall.ps1'))
 
 
 def write_json(path, value):
@@ -35,10 +42,20 @@ def package_manifest(root):
         raise ValueError('Unbekanntes Installationspaket.')
     if type(manifest.get('join_menu_update', False)) is not bool:
         raise ValueError('Unbekannte Menuepatch-Version.')
+    if type(manifest.get('graphics_choice', False)) is not bool:
+        raise ValueError('Unbekannte Grafikauswahl-Version.')
+    if type(manifest.get('automatic_lan', False)) is not bool:
+        raise ValueError('Unbekannte LAN-Lobby-Version.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('graphics_choice', False) and any(
+            ('tools/' + original).lower() not in expected for original, _ in GRAPHICS_TOOLS):
+        raise ValueError('Die Grafikauswahl im Installationspaket ist unvollstaendig.')
+    if manifest.get('automatic_lan', False) and (not manifest.get('graphics_choice', False) or any(
+            ('tools/' + original).lower() not in expected for original, _ in LAN_LOBBY_TOOLS)):
+        raise ValueError('Die automatische LAN-Lobby im Installationspaket ist unvollstaendig.')
     return manifest
 
 
@@ -124,6 +141,12 @@ def prepare(package, source, destination, emit=print):
     for original, target in [('offline-ui/launch_local.py', 'launch_local.py'), ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py')]:
         shutil.copyfile(tools / original, destination / 'Launcher' / target)
     shutil.copyfile(tools / 'installer/start.py', destination / 'Launcher/start.py')
+    if manifest.get('graphics_choice', False):
+        for original, target in GRAPHICS_TOOLS:
+            shutil.copyfile(tools / original, destination / 'Launcher' / target)
+    if manifest.get('automatic_lan', False):
+        for original, target in LAN_LOBBY_TOOLS:
+            shutil.copyfile(tools / original, destination / 'Launcher' / target)
     shutil.copyfile(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
               'files': {name: content.digest(destination / name) for name in
@@ -139,8 +162,13 @@ def prepare(package, source, destination, emit=print):
             raise ValueError('Dienstkopie stimmt nicht ueberein.')
     if content.inventory(destination, ('Runtime',)) != content.inventory(package, ('Runtime',)):
         raise ValueError('Laufzeitkopie stimmt nicht ueberein.')
-    for original, target in [('offline-ui/launch_local.py', 'launch_local.py'),
-                             ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py'), ('installer/start.py', 'start.py')]:
+    launcher_tools = [('offline-ui/launch_local.py', 'launch_local.py'),
+                      ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py'), ('installer/start.py', 'start.py')]
+    if manifest.get('graphics_choice', False):
+        launcher_tools += list(GRAPHICS_TOOLS)
+    if manifest.get('automatic_lan', False):
+        launcher_tools += list(LAN_LOBBY_TOOLS)
+    for original, target in launcher_tools:
         if content.digest(tools / original) != content.digest(destination / 'Launcher' / target):
             raise ValueError('Starterkopie stimmt nicht ueberein.')
     write_json(destination / 'local-bundle.json', bundle)
@@ -159,8 +187,20 @@ def prepare(package, source, destination, emit=print):
         stream.write('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Launcher\\compatibility.py" --bundle "%~dp0."\npause\n')
     with (destination / 'Test-LAN-Verbindung.cmd').open('x', encoding='ascii') as stream:
         stream.write('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Launcher\\launch_lan.py" --bundle "%~dp0."\npause\n')
+    if manifest.get('automatic_lan', False):
+        with (destination / 'Start-S7-LAN.cmd').open('x', encoding='ascii') as stream:
+            stream.write('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Launcher\\launch_auto_lan.py" --bundle "%~dp0."\nif errorlevel 1 pause\n')
+        with (destination / 'LAN-Netzwerk-freigeben.cmd').open('x', encoding='ascii') as stream:
+            stream.write('@echo off\npowershell.exe -NoLogo -NoProfile -File "%~dp0Launcher\\Configure-LAN-Firewall.ps1" -Bundle "%~dp0."\npause\n')
+        with (destination / 'LIESMICH.txt').open('a', encoding='utf-8') as stream:
+            stream.write('\nAutomatische LAN-Lobby: Start-S7-LAN.cmd. Spielernamen eingeben und Lobby auswaehlen oder erstellen.\n'
+                'Keine IP-Eingabe erforderlich. Bei mehreren Netzwerken das gemeinsame Heimnetz auswaehlen.\n'
+                'Falls die Lobby oder Mitspieler nicht erreichbar sind: LAN-Netzwerk-freigeben.cmd einmal starten.\n'
+                'Das richtet nach Windows-Bestaetigung nur private Freigaben fuer diese Kopie im lokalen Subnetz ein.\n'
+                'Der Lobbyrechner muss erreichbar bleiben; sein Spiel darf beendet werden, waehrend andere spielen.\n'
+                'Im LAN ist der Entwicklermodus immer deaktiviert.\n')
     incomplete.unlink()
-    emit('Testkopie ist vorbereitet. Start: Test-LAN-Verbindung.cmd.')
+    emit('Testkopie ist vorbereitet. Start: ' + ('Start-S7-LAN.cmd.' if manifest.get('automatic_lan') else 'Test-LAN-Verbindung.cmd.'))
     return destination
 
 

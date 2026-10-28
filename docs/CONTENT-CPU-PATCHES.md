@@ -2,6 +2,33 @@
 
 2026-10-26, supported Ubisoft HE executable only; original files stay unchanged.
 
+## Current LAN revision (2026-10-28)
+
+The earlier deployment described below enabled the HE developer getter. That
+behavior is superseded: the getter edit now requires an explicit local
+developer flag and is always skipped for a LAN game. Original bytes are still
+validated. Runtime LAN configuration sets this guard for both pair and group
+mode, and the current launchers never request developer mode.
+
+Reward ownership is a separate path from the privilege predicate. After a
+verified offer/identifier lookup, the six-byte backend branch at770915 now
+jumps to its existing unlocked epilogue at770906. Both source bytes and all nine
+target epilogue bytes are guarded along with the complete original EXE hash.
+This preserves missing/disabled-offer handling and avoids an unverified SDK
+reward/store success stub. The seven existing offers come from the game's
+static reward configuration; no new SDK query is introduced. Campaign
+progress, titles and online achievements are not fabricated.
+
+The native writer now tests six-byte raw guards and rejects oversized edits.
+Executable predicate tests and a locked-result mutant verify the independent
+reward path. The LAN developer guard has its own executable mutation tests.
+These establish patch behavior; they are not live evidence that every asset
+or gameplay reward works.
+
+The automatic-LAN test-package candidate uses the two-physical-core build for
+PC1 diagnosis. The build system also retains the existing four-core option;
+neither setting changes system-wide SMT or other applications' affinity.
+
 ## Upstream definitions checked
 
 The embedded `Definitions/Definitions.bin` (gzip EMX version 1) has three

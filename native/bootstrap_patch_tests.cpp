@@ -3,7 +3,8 @@
 #include "offline_bootstrap.cpp"
 #include <algorithm>
 #include <cstdio>
-void ReportLocalStatus(const char*) { SetLastError(12345); }
+std::vector<const char*> diagnostic_events;
+void ReportLocalStatus(const char* event) { diagnostic_events.push_back(event); SetLastError(12345); }
 namespace {
 #ifdef S7_LOCAL_NETWORK_PUMP
 void* turn_setter_self = nullptr;
@@ -85,6 +86,13 @@ std::vector<char> pump_trace;
 unsigned char* pump_network = nullptr;
 unsigned char* pump_owner = nullptr;
 int pump_mode = 0;
+void ChangeTestFpControl() {
+    unsigned short changed = 0;
+    __asm fnstcw changed
+    changed ^= 0x400; // Change x87 rounding only; no exception masks.
+    __asm fldcw changed
+    _mm_setcsr(_mm_getcsr() ^ 0x2000u); // Independent SSE rounding.
+}
 #ifdef S7_LOCAL_NETWORK_PUMP
 NativeResult* __fastcall FakeCoreBoundary(void*, void*, NativeResult* result, unsigned int phase) {
     pump_trace.push_back(phase == 1 ? 'P' : phase == 2 ? 'Q' : '!');
@@ -153,6 +161,15 @@ DWORD WINAPI RunForeignOwnerUpdates(void* argument) {
     }
     return 0;
 }
+DWORD WINAPI RunForeignDesyncObservations(void* argument) {
+    auto* count = static_cast<unsigned int*>(argument);
+    for (unsigned int i = 0; i < 10000; ++i) {
+        unsigned int events = 99;
+        if (!desync_diagnostics.Begin(bootstrap_thread, GetCurrentThreadId(), i,
+                ReadDesyncFpControl(), events) && events == 0) ++*count;
+    }
+    return 0;
+}
 void __fastcall FakeMasterUpdate(void*, void*) {
     pump_trace.push_back('M');
     PumpOfflineBootstrap(); // Recursive bridge entry must be ignored.
@@ -174,6 +191,7 @@ NativeResult* __fastcall FakeCoreUpdate(void*, void*, NativeResult* result, unsi
     if (pump_mode == 5) *Native<unsigned char**>(0x1379E14) = nullptr;
     if (pump_mode == 6) *reinterpret_cast<void**>(pump_network + 0xa18) = nullptr;
     if (pump_mode == 7) *reinterpret_cast<void**>(pump_network + 0x2c) = nullptr;
+    if (pump_mode == 20) ChangeTestFpControl();
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (pump_mode == 10) TickFakeManager();
 #endif
@@ -194,6 +212,37 @@ bool FakeJump(uintptr_t address, const void* target) {
 int main() {
     int failures = 0, checks = 0;
     auto check = [&](bool result) { ++checks; if (!result) { ++failures; std::printf("Failed check %d\n", checks); } };
+    {
+        DesyncDiagnostics state;
+        const DesyncFpControl normal{0x23f, 0x1f80};
+        unsigned int events = 0;
+        check(!state.Begin(1, 2, 100, normal, events) && !state.started && events == 0);
+        check(state.Begin(1, 1, 100, normal, events) && events == DesyncDiagnostics::Started);
+        check(state.Observe(DesyncPhase::Core, normal, normal) == 0);
+        const DesyncFpControl changed{0x63f, 0x3f80};
+        check(state.Observe(DesyncPhase::Core, normal, changed) == 3);
+        check(state.Observe(DesyncPhase::Core, normal, changed) == 0);
+        check(state.Observe(DesyncPhase::Master, normal, changed) == 3);
+        check(state.Begin(1, 1, 1100, changed, events) && events ==
+            (DesyncDiagnostics::EntryX87Changed | DesyncDiagnostics::EntrySseChanged | DesyncDiagnostics::PumpGap));
+        check(state.Begin(1, 1, 1200, changed, events) && events == 0);
+        check(!state.Begin(1, 1, 100 + DesyncDiagnostics::DurationMs, normal, events) && events == DesyncDiagnostics::Finished);
+        check(state.Observe(DesyncPhase::Echo, normal, changed) == 0 && state.observations[4] == 0);
+        check(!state.Begin(1, 1, 100, normal, events) && events == 0); // Never re-arm.
+        state = {};
+        check(state.Begin(1, 1, 100, {0x33f, 0x1f80}, events) &&
+            events == (DesyncDiagnostics::Started | DesyncDiagnostics::EntryNot53Bit));
+        state.pumps = DesyncDiagnostics::MaximumPumps;
+        check(!state.Begin(1, 1, 101, normal, events) && events == DesyncDiagnostics::Finished);
+        state = {}; check(state.Begin(1, 1, 100, normal, events));
+        check(!state.Begin(1, 1, 99, normal, events) && events == DesyncDiagnostics::Finished);
+        const auto original = _mm_getcsr();
+        const auto before = ReadDesyncFpControl();
+        _mm_setcsr(original | 0x01u); // Sticky arithmetic status is not control drift.
+        const auto after = ReadDesyncFpControl();
+        _mm_setcsr(original);
+        check(before.x87 == after.x87 && before.sse == after.sse);
+    }
     const char* lab_digests[] = {
         "722cb6e616851f20fae90b29c8af65df8aa94f353b0739e44c24721cfb574e13",
         "78c7a4b87e2f8dceb95eaaac9ab8cdd559ce482fc800129345e952b711974a8a"};
@@ -352,10 +401,12 @@ int main() {
             && lab_join_arguments[3] == 44 && lab_join_arguments[4] == 55 && lab_join_arguments[5] == 66);
     }
 #endif
-    local_connect_probe = true;
+    local_connect_probe = true; developer_mode = true;
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
+    selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+    memcpy(Native<void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue));
     for (const auto* patch : selected) {
         auto* at = PatchAddress(*patch);
         const size_t length = patch->pointer_slot ? 4 : (patch->raw_length ? patch->raw_length : 5);
@@ -382,6 +433,40 @@ int main() {
         if (patch->pointer_slot) { memcpy(&actual, at, 4); check(actual == OriginalPointer(*patch)); }
         else check(memcmp(at, patch->original, length) == 0);
     }
+    // Execute the real six-byte reward branch and original false epilogue in
+    // owned synthetic x86 memory. Only a tiny prologue is supplied; no game,
+    // SDK, profile, reward catalogue or native constructor is called.
+    const Patch* reward_patch = nullptr;
+    for (const auto& patch : Patches) if (patch.va == 0x770915) reward_patch = &patch;
+    check(reward_patch != nullptr);
+    Patch oversized_reward = *reward_patch;
+    oversized_reward.raw_length = 7;
+    check(!WritePatch(oversized_reward, false) && !WritePatch(oversized_reward, true));
+    auto* reward_tail = Native<unsigned char*>(0x770906);
+    DWORD reward_protection = 0, reward_ignored = 0;
+    check(VirtualProtect(reward_tail, 21, PAGE_EXECUTE_READWRITE, &reward_protection) != FALSE);
+    const unsigned char reward_prologue[] = {0x55,0x8b,0xec,0x53,0x56,0x57};
+    memcpy(reward_tail + 9, reward_prologue, sizeof(reward_prologue));
+    check(WritePatch(*reward_patch, false));
+    check(FlushInstructionCache(GetCurrentProcess(), reward_tail, 21) != FALSE);
+    using RewardPredicate = bool (__stdcall*)(unsigned int, const void*);
+    auto reward_locked = reinterpret_cast<RewardPredicate>(reward_tail + 9);
+    for (unsigned int type : {0u, 1u, 2u}) {
+        SetLastError(8765);
+        check(!reward_locked(type, nullptr) && GetLastError() == 8765);
+    }
+    check(WritePatch(*reward_patch, true));
+    // Guard the whole six-byte instruction AND the separate branch target.
+    auto* reward_site = PatchAddress(*reward_patch);
+    reward_site[5] ^= 1;
+    check(!Install() && error_code == ChangedCallsite);
+    reward_site[5] ^= 1;
+    reward_tail[8] ^= 1;
+    check(!Install() && error_code == ChangedCallsite);
+    reward_tail[8] ^= 1;
+    check(VirtualProtect(reward_tail, 21, reward_protection, &reward_ignored) != FALSE);
+    for (const auto& patch : Patches)
+        check(memcmp(PatchAddress(patch), patch.original, patch.raw_length ? patch.raw_length : 5) == 0);
     // Change the last pointer guard: the preflight must fail before any earlier
     // CALL is rewritten, regardless of which optional patches were selected.
     const Patch& last = *selected.back();
@@ -397,10 +482,49 @@ int main() {
     check(Install());
     memcpy(&bad, at, 4); check(bad == 0);
     for (const auto& patch : Patches) check(WritePatch(patch, true));
+    check(WritePatch(DevelopmentPatch, true));
+    // Developer mode is optional locally and forbidden in LAN, including a
+    // contradictory caller request. All ordinary content patches still apply.
+    // Execute the real guarded SETcc bytes in a tiny owned x86 predicate;
+    // ECX supplies the synthetic original engine boolean, without any game.
+    auto* development_predicate = PatchAddress(DevelopmentPatch) - 4;
+    VirtualProtect(development_predicate, 8, PAGE_EXECUTE_READWRITE, &old);
+    const unsigned char predicate[] = {0x33,0xc0,0x85,0xc9,0x0f,0x95,0xc0,0xc3};
+    memcpy(development_predicate, predicate, sizeof(predicate));
+    check(FlushInstructionCache(GetCurrentProcess(), development_predicate, sizeof(predicate)) != FALSE);
+    VirtualProtect(development_predicate, 8, PAGE_EXECUTE_READ, &ignored);
+    using DevelopmentPredicate = unsigned int (__fastcall*)(unsigned int);
+    auto read_developer = reinterpret_cast<DevelopmentPredicate>(development_predicate);
+    for (bool lan : {false, true}) for (bool requested : {false, true}) {
+        lan_game = lan; developer_mode = requested;
+        check(Install());
+        check(memcmp(PatchAddress(DevelopmentPatch), requested && !lan
+            ? DevelopmentModeBytes : DevelopmentPatch.original, 3) == 0);
+        check(read_developer(0) == (requested && !lan ? 1u : 0u));
+        check(read_developer(1) == (requested && !lan ? 0u : 1u));
+        for (const auto& patch : Patches) check(WritePatch(patch, true));
+        check(WritePatch(DevelopmentPatch, true));
+    }
+    lan_game = true; developer_mode = true;
+    check(WritePatch(DevelopmentPatch, false));
+    check(!Install() && error_code == ChangedCallsite); // Guard even when skipped.
+    for (const auto& patch : Patches)
+        check(memcmp(PatchAddress(patch), patch.original, 5) == 0);
+    check(WritePatch(DevelopmentPatch, true));
+    lan_game = false; developer_mode = false;
     // Pump gating must not call any game function on the disabled path, a
     // foreign thread, recursion, a resumed natural tick or incomplete objects.
     initialization = 2;
     bootstrap_thread = GetCurrentThreadId();
+    desync_diagnostics = {};
+    unsigned int foreign_observations = 0;
+    HANDLE diagnostic_thread = CreateThread(nullptr, 0, RunForeignDesyncObservations, &foreign_observations, 0, nullptr);
+    check(diagnostic_thread != nullptr);
+    if (diagnostic_thread) {
+        check(WaitForSingleObject(diagnostic_thread, 10000) == WAIT_OBJECT_0);
+        check(CloseHandle(diagnostic_thread) != FALSE);
+        check(foreign_observations == 10000 && !desync_diagnostics.started && desync_diagnostics.pumps == 0);
+    }
     PumpOfflineBootstrap(); check(!pump_active);
     local_connect_probe = true;
     bootstrap_thread = 0;
@@ -589,6 +713,25 @@ int main() {
     *reinterpret_cast<void**>(implementation + 4) = implementation;
 #endif
     check(LocalUpdateCore(network) == core);
+    // A supplied core callback leaks both FP control modes. The observer must
+    // attribute it once, preserve the callback's state, and never "fix" it.
+    unsigned short original_x87 = 0;
+    __asm fnstcw original_x87
+    const auto original_sse = _mm_getcsr();
+    const auto original_controls = ReadDesyncFpControl();
+    desync_diagnostics = {}; diagnostic_events.clear(); pump_mode = 20;
+    PumpOfflineBootstrap();
+    const auto leaked_controls = ReadDesyncFpControl();
+    check(original_controls.x87 != leaked_controls.x87 && original_controls.sse != leaked_controls.sse);
+    check(desync_diagnostics.changes[static_cast<unsigned int>(DesyncPhase::Core)] == 3);
+    check(desync_diagnostics.changes[static_cast<unsigned int>(DesyncPhase::Master)] == 0);
+    check(std::count_if(diagnostic_events.begin(), diagnostic_events.end(), [](const char* value) {
+        return strcmp(value, "local-desync-fp-core-x87-changed") == 0; }) == 1);
+    check(std::count_if(diagnostic_events.begin(), diagnostic_events.end(), [](const char* value) {
+        return strcmp(value, "local-desync-fp-core-sse-changed") == 0; }) == 1);
+    __asm fldcw original_x87
+    _mm_setcsr(original_sse);
+    desync_diagnostics = {}; diagnostic_events.clear(); pump_mode = 0; pump_trace.clear();
     udp_port = 10001;
     check(!LocalSessionSearchReady(network)); // No successful native startup.
     network[0x5c + 0x4c4] = 1;

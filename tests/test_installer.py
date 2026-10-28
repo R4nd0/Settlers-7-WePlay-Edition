@@ -74,6 +74,52 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_graphics_choice_package_copies_all_runtime_helpers(self):
+        for original, _ in install.GRAPHICS_TOOLS:
+            # prepare.py is the archive fixture; preserve its behavior.
+            if original != 'lan/prepare.py':
+                self.write(self.package, 'Tools/' + original,
+                           ('# fixture for ' + original).encode())
+        self.manifest()
+        self.data['graphics_choice'] = True
+        (self.package / 'package.json').write_text(json.dumps(self.data))
+        self.prepare()
+        for original, target in install.GRAPHICS_TOOLS:
+            self.assertEqual((self.destination / 'Launcher' / target).read_bytes(),
+                             (self.package / 'Tools' / original).read_bytes())
+        content.verify(self.destination)
+
+    def test_graphics_choice_requires_boolean_and_complete_payload(self):
+        for value in ('yes', True):
+            self.data['graphics_choice'] = value
+            (self.package / 'package.json').write_text(json.dumps(self.data))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                install.package_manifest(self.package)
+
+    def test_automatic_lan_installs_complete_ui_and_keeps_local_settings_outside_content(self):
+        for original, _ in (*install.GRAPHICS_TOOLS, *install.LAN_LOBBY_TOOLS):
+            if original != 'lan/prepare.py':
+                self.write(self.package, 'Tools/' + original, ('# fixture for ' + original).encode())
+        self.manifest(); self.data.update(graphics_choice=True, automatic_lan=True)
+        (self.package / 'package.json').write_text(json.dumps(self.data))
+        self.prepare()
+        for original, target in install.LAN_LOBBY_TOOLS:
+            self.assertEqual((self.destination / 'Launcher' / target).read_bytes(),
+                             (self.package / 'Tools' / original).read_bytes())
+        self.assertTrue((self.destination / 'Start-S7-LAN.cmd').is_file())
+        self.assertTrue((self.destination / 'LAN-Netzwerk-freigeben.cmd').is_file())
+        self.assertFalse((self.destination / 'LocalData').exists())
+        first = content.verify(self.destination)['content_id']
+        self.write(self.destination, 'LocalData/player-settings.json', b'invented local settings')
+        self.assertEqual(content.verify(self.destination)['content_id'], first)
+
+    def test_automatic_lan_requires_complete_payload_and_graphics_ui(self):
+        for value in ('yes', True):
+            self.data['automatic_lan'] = value
+            (self.package / 'package.json').write_text(json.dumps(self.data))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                install.package_manifest(self.package)
+
     def test_install_applies_packaged_join_menu_delta_before_fingerprinting(self):
         self.write(self.package, 'Tools/installer/update_join_menu.py', b'''def build_archive(original, recipe):
     assert original == b'invented patched archive'

@@ -13,6 +13,7 @@
 #include "local_connect_policy.h"
 #include "cpu_affinity.h"
 #include "local_pair_lab.h"
+#include "desync_diagnostics.h"
 
 // The proven native dispatch bridge can be tested against the original HE
 // executable without enabling lab hashes, profiles or loopback slot addresses.
@@ -44,10 +45,51 @@ uintptr_t image_base = 0;
 unsigned short udp_port = 0;
 char server_address[16] = "127.0.0.1";
 bool local_connect_probe = false;
+bool lan_game = false;
+bool developer_mode = false;
 DWORD bootstrap_thread = 0;
 bool pump_active = false;
 bool natural_updates_seen = false;
 unsigned int owner_update_count = 0;
+DesyncDiagnostics desync_diagnostics;
+
+void ReportDesyncEvent(const char* event) {
+    const DWORD saved = GetLastError();
+    ReportLocalStatus(event);
+    SetLastError(saved);
+}
+void ReportDesyncWindow(unsigned int events) {
+    if (events & DesyncDiagnostics::Started) ReportDesyncEvent("local-desync-fp-window-started");
+    if (events & DesyncDiagnostics::Finished) ReportDesyncEvent("local-desync-fp-window-finished");
+    if (events & DesyncDiagnostics::EntryX87Changed) ReportDesyncEvent("local-desync-fp-entry-x87-changed");
+    if (events & DesyncDiagnostics::EntrySseChanged) ReportDesyncEvent("local-desync-fp-entry-sse-changed");
+    if (events & DesyncDiagnostics::EntryNot53Bit) ReportDesyncEvent("local-desync-fp-entry-not-53bit");
+    if (events & DesyncDiagnostics::PumpGap) ReportDesyncEvent("local-desync-pump-gap-at-least-one-second");
+}
+struct DesyncCallbackObservation {
+    const bool enabled;
+    const DesyncPhase phase;
+    DesyncFpControl before{};
+    DesyncCallbackObservation(bool active, DesyncPhase value) : enabled(active), phase(value) {
+        if (enabled) before = ReadDesyncFpControl();
+    }
+    ~DesyncCallbackObservation() {
+        if (!enabled) return;
+        const auto flags = desync_diagnostics.Observe(phase, before, ReadDesyncFpControl());
+        static const char* const x87[] = {
+            "local-desync-fp-begin-x87-changed", "local-desync-fp-master-x87-changed",
+            "local-desync-fp-end-x87-changed", "local-desync-fp-core-x87-changed",
+            "local-desync-fp-echo-x87-changed", "local-desync-fp-manager-x87-changed",
+            "local-desync-fp-owner-x87-changed"};
+        static const char* const sse[] = {
+            "local-desync-fp-begin-sse-changed", "local-desync-fp-master-sse-changed",
+            "local-desync-fp-end-sse-changed", "local-desync-fp-core-sse-changed",
+            "local-desync-fp-echo-sse-changed", "local-desync-fp-manager-sse-changed",
+            "local-desync-fp-owner-sse-changed"};
+        if (flags & 1) ReportDesyncEvent(x87[static_cast<unsigned int>(phase)]);
+        if (flags & 2) ReportDesyncEvent(sse[static_cast<unsigned int>(phase)]);
+    }
+};
 #ifdef S7_LOCAL_NETWORK_PUMP
 unsigned int manager_update_count = 0;
 unsigned int echo_update_count = 0;
@@ -137,7 +179,7 @@ bool __fastcall LoginLocalFacade(void* self, void*, void* context,
 
 struct Patch {
     uintptr_t va;
-    unsigned char original[5];
+    unsigned char original[6];
     const void* replacement;
     bool pointer_slot = false;
     unsigned char raw_length = 0;
@@ -778,16 +820,25 @@ NativeResult* __stdcall ObserveLabJoinRequest(NativeResult* result, void* peer, 
 // ED0300 returns a *locked* boolean for a known privilege descriptor. Both
 // callers retain their original lookup/existence checks and cdecl cleanup.
 bool __cdecl LocalContentLocked(const void*) { return false; }
-// Exact upstream HE_UBI default delta: file 13D9FC, 95 -> 94. Guard the whole
-// SETcc instruction, and keep the on-disk executable pristine for validation.
+// 7708D0 is the game's reward-is-locked query, separate from ED0300's
+// privilege descriptors. Its original type/identifier lookup and missing or
+// disabled-item handling remain before 770915. Only a known offered item reaches
+// this branch. Reuse the ORIGINAL false epilogue, including its RET 8 cleanup;
+// no SDK response, reward list, purchase callback or developer flag is invented.
+const unsigned char RewardUnlockedBytes[] = {0xe9,0xec,0xff,0xff,0xff,0x90};
+const unsigned char RewardUnlockedEpilogue[] = {0x5f,0x5e,0x32,0xc0,0x5b,0x5d,0xc2,0x08,0x00};
+// Optional local developer mode, separate from content entitlement. LAN keeps
+// the original engine/Lua predicate even when a caller requests developer mode.
+// Guard the whole original SETcc instruction in either mode.
 const unsigned char DevelopmentModeBytes[] = {0x0f,0x94,0xc0};
+const Patch DevelopmentPatch = {0x53E5FB, {0x0f,0x95,0xc0}, DevelopmentModeBytes, false, 3};
 const Patch Patches[] = {
     {0xD3C62D, {0xe8,0x1e,0x6f,0x10,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
     {0xD4A083, {0xe8,0xc8,0x94,0x0f,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
     {0xD49CFD, {0xe8,0x8e,0x9f,0x0f,0x00}, reinterpret_cast<const void*>(&LoginLocalFacade)},
     {0xED02EE, {0xe8,0x0d,0x00,0x00,0x00}, reinterpret_cast<const void*>(&LocalContentLocked)},
     {0xED05DF, {0xe8,0x1c,0xfd,0xff,0xff}, reinterpret_cast<const void*>(&LocalContentLocked)},
-    {0x53E5FB, {0x0f,0x95,0xc0}, DevelopmentModeBytes, false, 3}
+    {0x770915, {0xff,0x35,0x1c,0x7b,0x31,0x01}, RewardUnlockedBytes, false, 6}
 };
 // Explicit opt-in substitutes complete connect operations at known callers,
 // instead of making a UbiServices session-readiness predicate return true.
@@ -972,8 +1023,15 @@ bool WritePatch(const Patch& patch, bool restore) {
 }
 
 bool Install() {
+    if (memcmp(Native<const void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue)) != 0) {
+        SetError(ChangedCallsite); return false;
+    }
+    if (memcmp(PatchAddress(DevelopmentPatch), DevelopmentPatch.original, DevelopmentPatch.raw_length) != 0) {
+        SetError(ChangedCallsite); return false;
+    }
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
+    if (developer_mode && !lan_game) selected.push_back(&DevelopmentPatch);
     if (local_connect_probe) for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     for (const auto* patch : selected) {
         const bool matches = patch->pointer_slot
@@ -1018,11 +1076,14 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
     strcpy_s(server_address, config.server_address);
     udp_port = config.udp_port;
     local_connect_probe = config.local_connect_probe;
+    lan_game = config.lan_game;
+    developer_mode = config.developer_mode;
     bootstrap_thread = GetCurrentThreadId();
     if (!Install()) {
         SecureZeroMemory(local_ticket, sizeof(local_ticket));
         return false;
     }
+    if (lan_game) ReportLocalStatus("local-lan-developer-mode-disabled");
     if (!ApplyLocalCpuAffinity()) Stop(PatchFailure);
 #if S7_MAX_PHYSICAL_CORES == 2
     ReportLocalStatus("local-cpu-two-physical-cores-no-smt");
@@ -1051,6 +1112,11 @@ void PumpOfflineBootstrap() {
     auto* network = *Native<unsigned char**>(0x1379E14);
     auto* owner = LocalUpdateOwner(network);
     if (!owner || !Native<NetworkGetter>(0xE82240)()) return;
+    unsigned int diagnostic_events = 0;
+    const bool observe_callbacks = !desync_diagnostics.finished &&
+        desync_diagnostics.Begin(bootstrap_thread, GetCurrentThreadId(),
+            GetTickCount64(), ReadDesyncFpControl(), diagnostic_events);
+    ReportDesyncWindow(diagnostic_events);
     static bool reported = false;
     if (!reported) { reported = true; ReportLocalStatus("local-connect-platform-pump-active"); }
     const unsigned int before = owner_update_count;
@@ -1078,7 +1144,8 @@ void PumpOfflineBootstrap() {
         // in the local bridge; never alter that policy or native result flags.
         const bool supply_boundaries = network[0x30] && network[0x5c + 0x4c7];
         if (supply_boundaries) {
-            LabCoreBoundary(core, 1);
+            { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Begin);
+              LabCoreBoundary(core, 1); }
             if (LocalUpdateOwner(network) != owner || LocalUpdateCore(network) != core) return;
         }
 #endif
@@ -1087,18 +1154,21 @@ void PumpOfflineBootstrap() {
         // Preserve ED7950's master-update then core-update ordering. These
         // dispatch real queued startup/network events. The intervening Ubisoft
         // profile/statistics/update calls are not required for this local pump.
-        Native<GameLogin>(0xED3BA0)(network);
+        { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Master);
+          Native<GameLogin>(0xED3BA0)(network); }
         // The master update may destroy or replace native objects in callbacks.
         if (LocalUpdateOwner(network) != owner || LocalUpdateCore(network) != core) return;
 #ifdef S7_LOCAL_NETWORK_PUMP
         if (supply_boundaries && network[0x30] && network[0x5c + 0x4c7]) {
-            LabCoreBoundary(core, 2);
+            { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::End);
+              LabCoreBoundary(core, 2); }
             if (LocalUpdateOwner(network) != owner || LocalUpdateCore(network) != core) return;
         }
 #endif
         using CoreUpdate = NativeResult* (__thiscall*)(void*, NativeResult*, unsigned int);
         NativeResult result{};
-        Native<CoreUpdate>(0xCBC710)(core, &result, 3);
+        { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Core);
+          Native<CoreUpdate>(0xCBC710)(core, &result, 3); }
         if (LocalUpdateCore(network) != core) return;
 #ifdef S7_LOCAL_NETWORK_PUMP
         // The master/core may already have dispatched this virtual update.
@@ -1114,7 +1184,8 @@ void PumpOfflineBootstrap() {
             static bool echo_reported = false;
             if (!echo_reported) { echo_reported = true; ReportLocalStatus("lab-native-echo-pump-active"); }
             NativeResult echo_result{};
-            UpdateLabEcho(&echo_result, 3, -1);
+            { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Echo);
+              UpdateLabEcho(&echo_result, 3, -1); }
             if (LocalUpdateOwner(network) != owner || LocalUpdateCore(network) != core) return;
         }
         if (manager && LocalLabManager(network) == manager && manager_update_count == manager_before) {
@@ -1123,7 +1194,8 @@ void PumpOfflineBootstrap() {
                 manager_reported = true;
                 ReportLocalStatus("lab-native-manager-pump-active");
             }
-            UpdateLabManager(manager, nullptr);
+            { DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Manager);
+              UpdateLabManager(manager, nullptr); }
             if (LocalUpdateOwner(network) != owner || LocalUpdateCore(network) != core ||
                 LocalLabManager(network) != manager) return;
         }
@@ -1131,8 +1203,10 @@ void PumpOfflineBootstrap() {
     }
     // A core callback may already have reached the patched owner update slot.
     // Only supply the old fallback tick when the core did not deliver one.
-    if (LocalUpdateOwner(network) == owner && owner_update_count == before)
+    if (LocalUpdateOwner(network) == owner && owner_update_count == before) {
+        DesyncCallbackObservation observation(observe_callbacks, DesyncPhase::Owner);
         UpdateLocalGame(owner, nullptr);
+    }
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (core && LocalUpdateOwner(network) == owner && LocalUpdateCore(network) == core)
         RememberLabCoreFrame(core);

@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Source/LocalNetworkPolicy.cs" Link="LocalNetworkPolicy.cs" />
+    <Compile Include="../../Source/LocalLobbyAdmission.cs" Link="LocalLobbyAdmission.cs" />
     <Compile Include="../../Source/LocalLoginRpcEngine.cs" Link="LocalLoginRpcEngine.cs" />
     <Compile Include="../../Source/LoginRpcCodec.cs" Link="LoginRpcCodec.cs" />
     <Compile Include="../../Source/LoginRpcArgumentShape.cs" Link="LoginRpcArgumentShape.cs" />

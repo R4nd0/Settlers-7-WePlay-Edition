@@ -11,6 +11,16 @@ A simple application for the game "The Settlers 7 - Paths to a Kingdom".
 
 **Experimental two-PC LAN join and match start now work; this is not yet a stable replacement-server release.**
 
+The new automatic-LAN candidate adds discovery without IP entry, editable
+per-PC names and a bounded multi-member directory. `Start-S7-LAN.cmd` opens
+the picker; the game's normal multiplayer screen creates/joins the match.
+Developer mode is always disabled in LAN. Included privilege, campaign and
+reward unlocks are independent of that mode. See
+[automatic LAN and verification limits](docs/AUTOMATIC-LAN.md) and
+[per-PC graphics selection](docs/GRAPHICS-START.md). The new directory has
+socket/native fixture coverage; three real game clients and a fix for the
+confirmed reverse-host desync remain unverified.
+
 A portable **preparation installer** is now available in `tools/installer/`.
 It makes a separate copy from each PC's own supported installation, includes
 its runtimes, and checks game/patch/content fingerprints before local startup.

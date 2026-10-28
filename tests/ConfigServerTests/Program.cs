@@ -8,6 +8,12 @@ using System.Text;
 using System.Text.Json;
 using S7Patcher.Source;
 
+if (args.Length == 1 && args[0] == "--lobby-only")
+{
+    Console.WriteLine($"PASS: {await LocalLobbyChecks.RunAsync() + LocalSessionCapacityChecks.Run()} isolated LAN lobby/capacity checks.");
+    return;
+}
+
 // Isolated synthetic encoder verification: no listeners or production CLI calls.
 if (args.Length == 1 && args[0] == "--encoder-only")
 {
@@ -346,6 +352,7 @@ passed += LocalNetworkPolicyChecks.Run();
 passed += LocalSessionJoinShapeChecks.Run();
 passed += LocalSessionJoinChecks.Run();
 passed += LocalJoinSuccessChecks.Run();
+passed += LocalSessionCapacityChecks.Run();
 passed += LocalJoinFailureChecks.Run();
 passed += LocalStormRouteChecks.Run();
 passed += LocalPairRouteChecks.Run();

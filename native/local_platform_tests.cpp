@@ -13,6 +13,9 @@ static bool allow_bootstrap = true;
 static int guard_calls = 0;
 static int bootstrap_calls = 0;
 static int pump_calls = 0;
+static int membership_start_calls = 0, membership_stop_calls = 0;
+bool StartLanGroupNetworkGuard() { ++membership_start_calls; return true; }
+bool StopLanGroupNetworkGuard() { ++membership_stop_calls; return true; }
 bool InstallOfflineNetworkGuard() { ++guard_calls; return allow_guard; }
 bool InitializeOfflineBootstrap() { ++bootstrap_calls; return allow_bootstrap; }
 void PumpOfflineBootstrap() {
@@ -42,9 +45,10 @@ int wmain(int argc, wchar_t** argv) {
     const wchar_t* root = argv[1];
     constexpr char Id[] = "5b093c02-3bbc-4669-91b0-1f5303e40773";
     constexpr char Ticket[] = "local-s7:5b093c02-3bbc-4669-91b0-1f5303e40773";
+    constexpr char Name[] = "J\xc3\xb6rg";
     unsigned char operation[16]{};
     Check(UPLAY_Update() == 0, "update before start");
-    Check(pump_calls == 0, "no native pump before startup");
+    Check(pump_calls == 0 && membership_start_calls == 0, "no native pump or membership worker before startup");
     Check(UPLAY_Start(1, 0) == 1, "wrong app rejected");
     Check(UPLAY_Start(11788, 1) == 1, "wrong flags rejected");
     Check(guard_calls == 0 && bootstrap_calls == 0, "invalid start has no bootstrap");
@@ -57,17 +61,21 @@ int wmain(int argc, wchar_t** argv) {
     Check(!InitializeLocalPlatform(L"relative", Id, "LocalPlayer", Ticket), "relative storage rejected");
     Check(!InitializeLocalPlatform(root, "not-a-uuid", "LocalPlayer", Ticket), "bad uuid rejected");
     Check(!InitializeLocalPlatform(root, Id, "", Ticket), "empty name rejected");
+    Check(!InitializeLocalPlatform(root, Id, "abcdefghijklmnopqrstuvwxyz", Ticket), "long name rejected");
+    Check(!InitializeLocalPlatform(root, Id, "A\nB", Ticket), "control name rejected");
+    Check(!InitializeLocalPlatform(root, Id, "A\xc0\xaf", Ticket), "invalid UTF8 name rejected");
     Check(!InitializeLocalPlatform(root, Id, "LocalPlayer", ""), "empty local ticket rejected");
-    Check(InitializeLocalPlatform(root, Id, "LocalPlayer", Ticket), "configure owned storage");
-    Check(InitializeLocalPlatform(root, Id, "LocalPlayer", Ticket), "configuration idempotent");
+    Check(InitializeLocalPlatform(root, Id, Name, Ticket), "configure owned storage and variable UTF8 name");
+    Check(InitializeLocalPlatform(root, Id, Name, Ticket), "configuration idempotent");
     Check(!InitializeLocalPlatform(root, Id, "ChangedName", Ticket), "configuration change rejected");
+    const int membership_before_start = membership_start_calls;
     Check(UPLAY_Start(11788, 0) == 0 && UPLAY_Update() == 1, "valid startup is zero");
-    Check(pump_calls == 1, "native pump runs outside platform lock");
+    Check(pump_calls == 1 && membership_start_calls == membership_before_start + 1, "worker starts once outside update; pump runs outside platform lock");
     int old_calls = bootstrap_calls;
     Check(UPLAY_Start(11788, 0) == 0 && bootstrap_calls == old_calls, "start idempotent");
     Check(UPLAY_USER_IsInOfflineMode() == 1, "local offline capability");
     Check(strcmp(UPLAY_USER_GetAccountIdUtf8(), Id) == 0, "configured local identity");
-    Check(strcmp(UPLAY_USER_GetNameUtf8(), "LocalPlayer") == 0, "configured local name");
+    Check(strcmp(UPLAY_USER_GetNameUtf8(), Name) == 0, "configured UTF8 name returned byte exactly");
     Check(strcmp(UPLAY_USER_GetTicketUtf8(), Ticket) == 0, "explicit local marker");
     Check(strcmp(UPLAY_USER_GetEmailUtf8(), "") == 0, "no cloud email");
     memset(operation, 0x6a, sizeof(operation));
@@ -140,6 +148,7 @@ int wmain(int argc, wchar_t** argv) {
 
     Check(UPLAY_SAVE_Open(7, 1, &handle, operation) == 1, "pending operation before quit");
     UPLAY_Quit();
+    Check(membership_stop_calls == 1, "platform quit stops membership worker outside platform lock");
     Check(UPLAY_Update() == 0 && UPLAY_HasOverlappedOperationCompleted(operation) == 0 && UPLAY_SAVE_Close(handle) == 0,
           "quit clears handles and completions");
     std::printf("%s %d local platform checks\n", failures ? "FAIL" : "PASS", checks);

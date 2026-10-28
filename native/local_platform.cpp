@@ -13,6 +13,8 @@
 bool InstallOfflineNetworkGuard();
 bool InitializeOfflineBootstrap();
 void PumpOfflineBootstrap();
+bool StartLanGroupNetworkGuard();
+bool StopLanGroupNetworkGuard();
 
 namespace {
 constexpr uint32_t ExpectedApplication = 11788;
@@ -55,7 +57,7 @@ extern "C" int __cdecl UPLAY_Start(uint32_t application_id, uint32_t flags) {
     ReportLocalStatus("local-platform-start-requested");
     // Bootstrap calls InitializeLocalPlatform, so do not hold state_lock here.
     // The network guard is a prerequisite, including on repeated Start calls.
-    if (!InstallOfflineNetworkGuard() || !InitializeOfflineBootstrap()) {
+    if (!InstallOfflineNetworkGuard() || !InitializeOfflineBootstrap() || !StartLanGroupNetworkGuard()) {
         ReportLocalStatus("local-platform-start-failed");
         StateLock lock;
         last_error = "Local network guard or bootstrap failed.";
@@ -70,6 +72,8 @@ extern "C" int __cdecl UPLAY_Start(uint32_t application_id, uint32_t flags) {
 }
 
 extern "C" void __cdecl UPLAY_Quit() {
+    // No game callbacks occur in the reader. Never hold the platform lock while joining it.
+    StopLanGroupNetworkGuard();
     StateLock lock;
     started = false;
     ClearStorageState();
@@ -294,7 +298,7 @@ bool InitializeLocalPlatform(const wchar_t* storage_root, const char* profile_id
     StateLock lock;
     if (!storage_root || !ValidUuid(profile_id)) return false;
     size_t name_size = 0, ticket_size = 0;
-    if (!Printable(display_name, sizeof(local_name), name_size) || !name_size ||
+    if (!ValidLocalDisplayName(display_name, name_size) ||
         !Printable(ticket, sizeof(local_ticket), ticket_size) || !ticket_size) return false;
     // Absolute local DOS paths only. Root supplies bundle/LocalData/saves;
     // disallow device/UNC roots and alternate data streams.

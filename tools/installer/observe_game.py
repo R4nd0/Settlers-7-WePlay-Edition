@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import statistics
@@ -150,10 +151,12 @@ def collector_diagnostics(path):
     encoding = 'utf-16' if data.startswith((b'\xff\xfe', b'\xfe\xff')) else (
         'utf-16-le' if data[1::2].count(0) > len(data) // 4 else 'utf-8')
     raw = data.decode(encoding, errors='replace').lower()
+    losses = [int(x) for x in re.findall(r'\b([0-9]{1,18}) etw events were lost\.', raw)]
     return {'recording_started': 'started recording.' in raw,
             'recording_stopped': 'stopped recording.' in raw,
             'privilege_warning': 'requires elevated privilege' in raw,
             'event_overflow_warning': 'overflowed present events detected' in raw,
+            'etw_events_lost': sum(losses),
             'log_truncated': Path(path).stat().st_size > 65536}
 
 
@@ -172,6 +175,11 @@ class Memory(c.Structure):
         (name, c.c_size_t) for name in ('peak_working', 'working', 'peak_paged', 'paged',
                                       'peak_nonpaged', 'nonpaged', 'pagefile',
                                       'peak_pagefile', 'private')]
+
+
+class IoCounters(c.Structure):
+    _fields_ = [(name, c.c_ulonglong) for name in
+        ('read_ops', 'write_ops', 'other_ops', 'read_bytes', 'write_bytes', 'other_bytes')]
 
 
 class Windows:
@@ -199,6 +207,7 @@ class Windows:
             'GetProcessIdOfThread': ([w.HANDLE], w.DWORD),
             'GetExitCodeProcess': ([w.HANDLE, c.POINTER(w.DWORD)], w.BOOL),
             'GetPriorityClass': ([w.HANDLE], w.DWORD),
+            'GetProcessIoCounters': ([w.HANDLE, c.POINTER(IoCounters)], w.BOOL),
         }
         for name, (args, result) in signatures.items():
             fn = getattr(self.k, name); fn.argtypes = args; fn.restype = result
@@ -371,6 +380,9 @@ class OwnedGame:
         mem = Memory(); mem.size = c.sizeof(mem)
         if not api.p.GetProcessMemoryInfo(self.handle, c.byref(mem), mem.size):
             raise RuntimeError('Prozessspeicherstatistik nicht lesbar.')
+        io = IoCounters()
+        if not api.k.GetProcessIoCounters(self.handle, c.byref(io)):
+            raise RuntimeError('Prozess-I/O-Zaehler nicht lesbar.')
         foreground = w.DWORD()
         api.u.GetWindowThreadProcessId(api.u.GetForegroundWindow(), c.byref(foreground))
         threads = []; inaccessible = 0
@@ -400,6 +412,9 @@ class OwnedGame:
             native = None  # Startup/shutdown and probe-off are not guessed UI states.
         return {'cpu_seconds': api.times(self.handle)[1], 'working_bytes': mem.working,
                 'private_bytes': mem.private, 'process_affinity': hex(mask.value),
+                'page_fault_count': mem.page_faults,
+                'logical_io': {name: getattr(io, name) for name in
+                               ('read_ops', 'write_ops', 'read_bytes', 'write_bytes')},
                 'priority_class': api.k.GetPriorityClass(self.handle),
                 'foreground': foreground.value == self.pid, 'thread_count': len(entries),
                 'inaccessible_threads': inaccessible, 'threads': threads, 'native': native}
@@ -410,6 +425,13 @@ def interval_record(previous, current, seconds):
     result['elapsed_seconds'] = round(seconds, 6)
     result['state'] = state_label(previous['native'], current['native'])
     result['cpu_core_equivalents'] = round(max(0, current['cpu_seconds']-previous['cpu_seconds']) / seconds, 4)
+    if 'page_fault_count' in previous and 'page_fault_count' in current:
+        # Includes soft faults; this is not a physical disk-read counter.
+        result['page_fault_delta'] = counter_delta(previous['page_fault_count'], current['page_fault_count'])
+    if 'logical_io' in previous and 'logical_io' in current:
+        # Windows process I/O may be cached or target devices, not just disks.
+        result['logical_io_deltas'] = {name: (current['logical_io'][name] - previous['logical_io'][name]) & 0xffffffffffffffff
+            for name in ('read_ops', 'write_ops', 'read_bytes', 'write_bytes')}
     before = {(x['tid'], x['created_100ns']): x for x in previous['threads']}
     result['threads'] = [{**x, 'cpu_core_equivalents': round(max(0, x['cpu_seconds'] -
         before[(x['tid'], x['created_100ns'])]['cpu_seconds']) / seconds, 4)
@@ -500,8 +522,13 @@ def observe(root, pid, output, seconds=30, interval=1, presentmon=None, quiet=Fa
                     capture.terminate(); capture.wait(timeout=5)  # Only our own collector, never the game.
                 log.close(); log = None
                 frames = summarize_frames(output / 'frames.csv', pid)
+                diagnostics = collector_diagnostics(output / 'presentmon.log')
                 emit({'event': 'passive-frame-summary', 'collector_exit_code': capture.returncode,
-                      **collector_diagnostics(output / 'presentmon.log'), **frames})
+                      **diagnostics, **frames,
+                      'capture_complete': capture.returncode == 0 and diagnostics['recording_started']
+                          and diagnostics['recording_stopped'] and not diagnostics['event_overflow_warning']
+                          and diagnostics['etw_events_lost'] == 0 and not diagnostics['log_truncated']
+                          and frames['status'] == 'frames-observed'})
     finally:
         if capture and capture.poll() is None:
             capture.terminate(); capture.wait(timeout=5)

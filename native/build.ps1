@@ -29,8 +29,9 @@ function Compile-Native([string[]]$Arguments) {
 Push-Location $nativeOutput
 try {
     Compile-Native @((Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'local_platform_tests.cpp'), '/Fe:local_platform_tests.exe')
-    Compile-Native @('/LD', (Join-Path $nativeSource 'network_guard.cpp'), (Join-Path $nativeSource 'network_guard_test_exports.cpp'), '/Fe:network_guard_test.dll', '/link','ws2_32.lib','winhttp.lib','shell32.lib')
+    Compile-Native @('/LD', '/DS7_GUARD_TESTING', (Join-Path $nativeSource 'network_guard.cpp'), (Join-Path $nativeSource 'network_guard_test_exports.cpp'), '/Fe:network_guard_test.dll', '/link','ws2_32.lib','winhttp.lib','shell32.lib')
     Compile-Native @((Join-Path $nativeSource 'network_guard_tests.cpp'), '/Fe:network_guard_tests.exe', '/link','network_guard_test.lib','ws2_32.lib','winhttp.lib','shell32.lib')
+    Compile-Native @((Join-Path $nativeSource 'lan_membership_tests.cpp'), '/Fe:lan_membership_tests.exe', '/link','network_guard_test.lib','ws2_32.lib')
     Compile-Native @((Join-Path $nativeSource 'adapter_rejection_test.cpp'), '/Fe:adapter_rejection_test.exe', '/link','ws2_32.lib')
     Compile-Native @((Join-Path $nativeSource 'local_connect_tests.cpp'), '/Fe:local_connect_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')

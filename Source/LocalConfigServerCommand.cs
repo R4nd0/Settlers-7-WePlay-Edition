@@ -44,7 +44,7 @@ namespace S7Patcher.Source
                 LocalConfigurationServer.RunAsync(options, Emit, stop.Token).GetAwaiter().GetResult();
             }
             catch (Exception exception) when (exception is SocketException || exception is IOException
-                || exception is CryptographicException || exception is UnauthorizedAccessException)
+                || exception is CryptographicException || exception is UnauthorizedAccessException || exception is ArgumentException)
             {
                 // Exception text can contain endpoint details. Report only a fixed category.
                 Emit(new() { Event = "configuration-server-error", Reason = "local-bind-key-or-io-failure" });
@@ -60,7 +60,7 @@ namespace S7Patcher.Source
         internal static bool ValidContentId(string value) => value?.Length == 64
             && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
-        private static bool TryParse(string[] args, out LocalConfigServerOptions options)
+        internal static bool TryParse(string[] args, out LocalConfigServerOptions options)
         {
             options = new();
             if (args.Length == 0 || args[0] != "--local-config-server")
@@ -71,6 +71,7 @@ namespace S7Patcher.Source
             {
                 string name = args[index];
                 if (!seen.Add(name)) return false;
+                if (name == "--lan-lobby") { options.LanLobby = true; continue; }
                 if (name == "--handshake-metadata")
                 {
                     options.HandshakeMetadata = true;
@@ -129,9 +130,16 @@ namespace S7Patcher.Source
             }
             if (lanAddress != null || lanPeer != null || options.ContentId != null)
             {
-                if (!options.LocalCatalogueProbe || !ValidContentId(options.ContentId) || !LocalNetworkPolicy.TryCreate(lanAddress, lanPeer, out var policy)) return false;
+                if (!options.LocalCatalogueProbe || !ValidContentId(options.ContentId)) return false;
+                LocalNetworkPolicy policy;
+                if (options.LanLobby)
+                {
+                    if (lanPeer != null || !LocalNetworkPolicy.TryCreateLobby(lanAddress, options.ContentId, out policy)) return false;
+                }
+                else if (!LocalNetworkPolicy.TryCreate(lanAddress, lanPeer, out policy)) return false;
                 options.Network = policy;
             }
+            else if (options.LanLobby) return false;
             return !(options.LocalSessionDisplayProbe && options.LocalCatalogueProbe);
         }
     }
@@ -152,6 +160,7 @@ namespace S7Patcher.Source
         public bool LocalKeepAliveProbe { get; set; }
         public bool LocalSessionDisplayProbe { get; set; }
         public bool LocalCatalogueProbe { get; set; }
+        public bool LanLobby { get; set; }
     }
 
     internal static class LocalConfigurationServer
@@ -181,6 +190,10 @@ namespace S7Patcher.Source
             LocalNetworkPolicy network = options.Network ?? throw new ArgumentException("Missing network policy");
             if (network.IsLan && (!options.LocalCatalogueProbe || !LocalConfigServerCommand.ValidContentId(options.ContentId)))
                 throw new ArgumentException("LAN catalogue requires a verified content ID");
+            if (network.Lobby != null && !System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(x => x.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up)
+                .SelectMany(x => x.GetIPProperties().UnicastAddresses).Any(x => x.Address.Equals(network.BindAddress)))
+                throw new ArgumentException("LAN lobby requires an active local IPv4 interface");
             bool dataAckProbe = options.DataAckProbe || options.DataCryptoProbe || options.LocalLoginProbe;
             bool connectProbe = options.ConnectProbe || dataAckProbe;
             using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -196,6 +209,7 @@ namespace S7Patcher.Source
             // Sender endpoints and cookies are process-local, bounded and never logged.
             Dictionary<IPEndPoint, PrudpProbePeer> peers = new();
             Dictionary<IPEndPoint, PrudpLocalLoginSession> loginSessions = new();
+            Dictionary<IPEndPoint, ulong> admissionGenerations = new();
             using LocalSessionRegistry sessions = new(options.LocalSessionDisplayProbe, options.LocalCatalogueProbe);
             try
             {
@@ -212,10 +226,12 @@ namespace S7Patcher.Source
                 }, ConfigServerJsonContext.Default.LocalServerConfiguration);
                 emit(new()
                 {
-                    Event = "configuration-server-ready", Address = network.BindAddress.ToString(), HttpPort = httpPort, UdpPort = udpPort,
+                    Event = "configuration-server-ready", Address = network.Lobby == null ? network.BindAddress.ToString() : null, HttpPort = httpPort, UdpPort = udpPort,
                     ConfigurationPath = ConfigurationPath, AuthenticationImplemented = false, UdpProtocolImplemented = false,
                     SigningKeyPersistence = "memory-only",
-                    Message = network.IsLan
+                    Message = network.Lobby != null
+                        ? "Bounded local LAN lobby coordinator. Admission is source-address scoped; native session joining remains separately validated."
+                        : network.IsLan
                         ? "Two-peer LAN catalogue experiment: explicit addresses only. Game joining and match synchronization remain unverified."
                         : options.LocalCatalogueProbe
                         ? "Public catalogue candidate: real other-owner sessions and GetSession. Explicit local filtering policy; no joined clients or LAN."
@@ -238,7 +254,7 @@ namespace S7Patcher.Source
                         : "Configuration endpoint only. UDP datagrams are counted; no authentication or game protocol is implemented."
                 });
 
-                Task httpTask = AcceptRequestsAsync(http, response, network, emit, stop.Token);
+                Task httpTask = AcceptRequestsAsync(http, response, network, emit, stop.Token, () => sessions.Count);
                 Task udpTask = ObserveDatagramsAsync();
                 try
                 {
@@ -272,18 +288,27 @@ namespace S7Patcher.Source
                                 tick ??= maintenance.WaitForNextTickAsync(stop.Token).AsTask();
                                 await Task.WhenAny(receive, tick);
                                 if (tick.IsCompleted) { await tick; tick = null; }
-                                foreach (var entry in loginSessions)
-                                    foreach (byte[] outgoing in entry.Value.TakeDue(Environment.TickCount64, emit))
+                                if (network.Lobby != null)
+                                    ReclaimUnadmittedContexts(network.Lobby, admissionGenerations, loginSessions, peers);
+                                foreach (var entry in loginSessions.ToArray())
+                                {
+                                    IReadOnlyList<byte[]> due = [];
+                                    if (!UseCurrentLobbyContext(network.Lobby, entry.Key, admissionGenerations, loginSessions, peers,
+                                        () => due = entry.Value.TakeDue(Environment.TickCount64, emit))) continue;
+                                    foreach (byte[] outgoing in due)
                                     {
-                                        await udp.SendAsync(outgoing, entry.Key, stop.Token);
+                                        if (!await SendCurrentAsync(outgoing, entry.Key)) continue;
                                         emit(new() { Event = "local-login-data-sent", DatagramLength = outgoing.Length,
                                             AuthenticationImplemented = false, UdpProtocolImplemented = false });
                                     }
+                                }
                                 ReclaimClosedLoginSessions(loginSessions, peers);
                                 if (!receive.IsCompleted) continue;
                             }
                             UdpReceiveResult packet = await receive;
                             receive = null;
+                            if (network.Lobby != null)
+                                ReclaimUnadmittedContexts(network.Lobby, admissionGenerations, loginSessions, peers);
                             if (!network.Allows(packet.RemoteEndPoint.Address)) continue;
                             // Default: lengths only. Optional decoding never logs content,
                             // routing fields, crypto material or the remote endpoint.
@@ -337,9 +362,19 @@ namespace S7Patcher.Source
                             if ((options.SynProbe || connectProbe) && network.Allows(packet.RemoteEndPoint.Address)
                                 && PrudpSynProbeCodec.TryReadRequest(packet.Buffer, out PrudpHandshakeMetadata syn))
                             {
-                                if (!peers.TryGetValue(packet.RemoteEndPoint, out PrudpProbePeer peer))
+                                byte[] reply = null;
+                                ulong admission = network.Lobby?.Generation(packet.RemoteEndPoint.Address) ?? 0;
+                                void PrepareSyn()
                                 {
-                                    if (peers.Count >= 8) continue;
+                                    if (network.Lobby != null)
+                                        ReclaimUnadmittedContexts(network.Lobby, admissionGenerations, loginSessions, peers);
+                                    if (!peers.TryGetValue(packet.RemoteEndPoint, out PrudpProbePeer peer))
+                                    {
+                                    // Lobby slots are addresses, not ephemeral UDP
+                                    // ports. Two contexts per address permit a
+                                    // bounded reconnect without starving others.
+                                    if (peers.Count >= (network.Lobby == null ? 8 : 16)
+                                        || network.Lobby != null && peers.Keys.Count(x => x.Address.Equals(packet.RemoteEndPoint.Address)) >= 2) return;
                                     byte[] random = new byte[4];
                                     uint cookie;
                                     do
@@ -349,50 +384,68 @@ namespace S7Patcher.Source
                                     } while (cookie == 0);
                                     peer = new() { Cookie = cookie, SourceVirtualPort = syn.SourceVirtualPort };
                                     peers.Add(packet.RemoteEndPoint, peer);
+                                    if (network.Lobby != null) admissionGenerations[packet.RemoteEndPoint] = admission;
+                                    }
+                                    if (connectProbe && peer.SourceVirtualPort != syn.SourceVirtualPort) return;
+                                    reply = PrudpSynProbeCodec.CreateReply(syn, peer.Cookie);
+                                    peer.SynReplySent = true;
                                 }
-                                if (connectProbe && peer.SourceVirtualPort != syn.SourceVirtualPort) continue;
-                                byte[] reply = PrudpSynProbeCodec.CreateReply(syn, peer.Cookie);
-                                await udp.SendAsync(reply, packet.RemoteEndPoint, stop.Token);
-                                peer.SynReplySent = true;
+                                if (network.Lobby == null) PrepareSyn();
+                                else if (!network.Lobby.TryUseGeneration(packet.RemoteEndPoint.Address, admission, PrepareSyn)) continue;
+                                if (reply == null || !await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
                                 emit(new() { Event = "syn-probe-reply-sent", DatagramLength = reply.Length,
                                     AuthenticationImplemented = false, UdpProtocolImplemented = false });
                             }
                             else if (connectProbe && network.Allows(packet.RemoteEndPoint.Address)
                                 && packet.Buffer.Length >= 3 && (packet.Buffer[2] & 7) == 1)
                             {
-                                if (!peers.TryGetValue(packet.RemoteEndPoint, out PrudpProbePeer peer) || !peer.SynReplySent)
+                                byte[] reply = null;
+                                if (!UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
                                 {
+                                    if (!peers.TryGetValue(packet.RemoteEndPoint, out PrudpProbePeer peer) || !peer.SynReplySent)
+                                    {
                                     emit(new() { Event = "connect-probe-request-rejected", Reason = "missing-syn-context" });
-                                    continue;
+                                    return;
                                 }
                                 if (!PrudpConnectProbe.TryReadRequest(packet.Buffer, peer.Cookie, peer.SourceVirtualPort,
                                     out PrudpHandshakeMetadata connect, out string rejectionReason))
                                 {
                                     emit(new() { Event = "connect-probe-request-rejected", Reason = rejectionReason });
-                                    continue;
+                                    return;
                                 }
                                 peer.Connect ??= new PrudpConnectProbe(packet.Buffer, connect, key);
-                                if (!peer.Connect.TryGetReply(packet.Buffer, connect, out byte[] reply))
+                                if (!peer.Connect.TryGetReply(packet.Buffer, connect, out reply))
                                 {
+                                    reply = null;
                                     emit(new() { Event = "connect-probe-request-rejected", Reason = "changed-connect-context" });
-                                    continue;
+                                    return;
                                 }
-                                await udp.SendAsync(reply, packet.RemoteEndPoint, stop.Token);
                                 peer.ConnectReplySent = true;
                                 if (options.LocalLoginProbe && !loginSessions.ContainsKey(packet.RemoteEndPoint))
-                                    loginSessions.Add(packet.RemoteEndPoint, new(peer, packet.RemoteEndPoint,
-                                        "prudp:/address=" + network.BindAddress + ";port=" + udpPort.ToString(CultureInfo.InvariantCulture)
-                                        + ";sid=1;stream=3;type=2", Environment.TickCount64, options.LocalKeepAliveProbe, sessions, network));
+                                {
+                                    try
+                                    {
+                                        loginSessions.Add(packet.RemoteEndPoint, new(peer, packet.RemoteEndPoint,
+                                            "prudp:/address=" + network.BindAddress + ";port=" + udpPort.ToString(CultureInfo.InvariantCulture)
+                                            + ";sid=1;stream=3;type=2", Environment.TickCount64, options.LocalKeepAliveProbe, sessions, network));
+                                    }
+                                    catch (ArgumentException) when (network.Lobby != null && !network.Allows(packet.RemoteEndPoint.Address))
+                                    { reply = null; return; } // Lease expired during constructor checks.
+                                }
+                                })) continue;
+                                if (reply == null || !await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
                                 emit(new() { Event = "connect-probe-reply-sent", DatagramLength = reply.Length,
                                     AuthenticationImplemented = false, UdpProtocolImplemented = false });
                             }
                             else if (options.LocalKeepAliveProbe && network.Allows(packet.RemoteEndPoint.Address)
                                 && packet.Buffer.Length >= 3 && (packet.Buffer[2] & 7) == 4)
                             {
-                                if (loginSessions.TryGetValue(packet.RemoteEndPoint, out var session)
-                                    && session.TryReplyToPing(packet.Buffer, Environment.TickCount64, emit, out byte[] reply))
+                                byte[] reply = null;
+                                if (UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
+                                    { if (loginSessions.TryGetValue(packet.RemoteEndPoint, out var session))
+                                        session.TryReplyToPing(packet.Buffer, Environment.TickCount64, emit, out reply); }) && reply != null)
                                 {
-                                    await udp.SendAsync(reply, packet.RemoteEndPoint, stop.Token);
+                                    if (!await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
                                     emit(new() { Event = "local-ping-ack-sent", DatagramLength = reply.Length,
                                         AuthenticationImplemented = false, UdpProtocolImplemented = false });
                                 }
@@ -404,23 +457,28 @@ namespace S7Patcher.Source
                                 loginSessions.TryGetValue(packet.RemoteEndPoint, out PrudpLocalLoginSession loginSession);
                                 if (loginSession != null && (packet.Buffer[2] & 0xf8) is 0x08 or 0x48)
                                 {
-                                    emit(new() { Event = "local-login-ack-observed",
-                                        Reason = loginSession.TryAcknowledge(packet.Buffer) ? "response-acknowledged" : "ack-not-matched" });
+                                    UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
+                                        emit(new() { Event = "local-login-ack-observed",
+                                            Reason = loginSession.TryAcknowledge(packet.Buffer) ? "response-acknowledged" : "ack-not-matched" }));
                                     continue;
                                 }
-                                if (!PrudpDataAckProbeCodec.TryCreateReply(packet.Buffer, peer, out byte[] reply, out string rejectionReason))
+                                byte[] reply = null; string rejectionReason = null;
+                                if (!UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
+                                    PrudpDataAckProbeCodec.TryCreateReply(packet.Buffer, peer, out reply, out rejectionReason))) continue;
+                                if (reply == null)
                                 {
                                     emit(new() { Event = "data-ack-probe-request-rejected", Reason = rejectionReason });
                                     continue;
                                 }
-                                await udp.SendAsync(reply, packet.RemoteEndPoint, stop.Token);
+                                if (!await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
                                 emit(new() { Event = "data-ack-probe-reply-sent", DatagramLength = reply.Length,
                                     AuthenticationImplemented = false, UdpProtocolImplemented = false });
                                 if (options.DataCryptoProbe || options.LocalLoginProbe)
                                 {
-                                    PrudpDataCryptoResult crypto = loginSession != null
-                                        ? loginSession.ProcessData(packet.Buffer, emit, Environment.TickCount64)
-                                        : PrudpDataCryptoProbe.Inspect(packet.Buffer, peer);
+                                    PrudpDataCryptoResult crypto = default;
+                                    if (!UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
+                                        crypto = loginSession != null ? loginSession.ProcessData(packet.Buffer, emit, Environment.TickCount64)
+                                            : PrudpDataCryptoProbe.Inspect(packet.Buffer, peer))) continue;
                                     emit(new() { Event = "data-crypto-probe-observed", Reason = crypto.Outcome,
                                         SerializedPayloadLength = crypto.SerializedPayloadLength,
                                         DecryptedEnvelopeLength = crypto.DecryptedEnvelopeLength,
@@ -434,6 +492,17 @@ namespace S7Patcher.Source
                     catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
                     catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
                     catch (SocketException) when (stop.IsCancellationRequested) { }
+
+                    async ValueTask<bool> SendCurrentAsync(byte[] outgoing, IPEndPoint endpoint)
+                    {
+                        ValueTask<int> sending = default;
+                        // Start the send while the generation is held; never
+                        // retain that lock across await or send old queued data
+                        // after a Leave/Re-Admit replaced its context.
+                        if (!UseCurrentLobbyContext(network.Lobby, endpoint, admissionGenerations, loginSessions, peers,
+                            () => sending = udp.SendAsync(outgoing, endpoint, stop.Token))) return false;
+                        await sending; return true;
+                    }
                 }
             }
             finally
@@ -468,6 +537,34 @@ namespace S7Patcher.Source
             return closed.Count;
         }
 
+        internal static int ReclaimUnadmittedContexts(LocalLobbyAdmission lobby,
+            Dictionary<IPEndPoint, ulong> generations,
+            Dictionary<IPEndPoint, PrudpLocalLoginSession> loginSessions,
+            Dictionary<IPEndPoint, PrudpProbePeer> peers)
+        {
+            int removed = 0;
+            foreach (var endpoint in generations.Keys.ToArray())
+            {
+                if (!peers.ContainsKey(endpoint)) { generations.Remove(endpoint); continue; }
+                if (generations[endpoint] != 0 && lobby.Generation(endpoint.Address) == generations[endpoint]) continue;
+                if (loginSessions.Remove(endpoint, out var session)) session.Dispose();
+                if (peers.Remove(endpoint, out var peer)) peer.Dispose();
+                generations.Remove(endpoint); ++removed;
+            }
+            return removed;
+        }
+
+        internal static bool UseCurrentLobbyContext(LocalLobbyAdmission lobby, IPEndPoint endpoint,
+            Dictionary<IPEndPoint, ulong> generations, Dictionary<IPEndPoint, PrudpLocalLoginSession> loginSessions,
+            Dictionary<IPEndPoint, PrudpProbePeer> peers, Action operation)
+        {
+            if (lobby == null) { operation(); return true; }
+            if (generations.TryGetValue(endpoint, out ulong generation)
+                && lobby.TryUseGeneration(endpoint.Address, generation, operation)) return true;
+            ReclaimUnadmittedContexts(lobby, generations, loginSessions, peers);
+            return false;
+        }
+
         private static string ExportPublicBlob(ECDsa key)
         {
             ECParameters parameters = key.ExportParameters(false);
@@ -481,7 +578,7 @@ namespace S7Patcher.Source
             return Convert.ToBase64String(blob);
         }
 
-        private static async Task AcceptRequestsAsync(TcpListener listener, byte[] configuration, LocalNetworkPolicy network, Action<ConfigServerEvent> emit, CancellationToken stop)
+        private static async Task AcceptRequestsAsync(TcpListener listener, byte[] configuration, LocalNetworkPolicy network, Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount)
         {
             using SemaphoreSlim slots = new(ConcurrentRequestLimit);
             List<Task> requests = [];
@@ -499,7 +596,7 @@ namespace S7Patcher.Source
                     TcpClient client;
                     try { client = await listener.AcceptTcpClientAsync(stop); }
                     catch { slots.Release(); throw; }
-                    if (client.Client.RemoteEndPoint is not IPEndPoint remote || !network.Allows(remote.Address))
+                    if (client.Client.RemoteEndPoint is not IPEndPoint remote || !network.AllowsControl(remote.Address))
                     { client.Dispose(); slots.Release(); continue; }
                     requests.Add(ServeAndReleaseAsync(client));
                 }
@@ -514,12 +611,13 @@ namespace S7Patcher.Source
 
             async Task ServeAndReleaseAsync(TcpClient client)
             {
-                try { await ServeRequestAsync(client, configuration, emit, stop); }
+                try { await ServeRequestAsync(client, configuration, network, emit, stop, sessionCount); }
                 finally { slots.Release(); }
             }
         }
 
-        private static async Task ServeRequestAsync(TcpClient client, byte[] configuration, Action<ConfigServerEvent> emit, CancellationToken stop)
+        internal static async Task ServeRequestAsync(TcpClient client, byte[] configuration, LocalNetworkPolicy network,
+            Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount)
         {
             using (client)
             using (CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(stop))
@@ -533,6 +631,7 @@ namespace S7Patcher.Source
                     byte[] firstLine = new byte[FirstLineLimit + 1];
                     int firstLength = 0;
                     bool firstDone = false;
+                    using MemoryStream header = new();
                     uint ending = 0;
                     bool headerComplete = false;
                     while (count < HeaderLimit)
@@ -540,6 +639,7 @@ namespace S7Patcher.Source
                         if (await stream.ReadAsync(one.AsMemory(), deadline.Token) == 0)
                             throw new IOException("Incomplete request");
                         byte current = one[0];
+                        header.WriteByte(current);
                         count++;
                         if (!firstDone)
                         {
@@ -555,18 +655,50 @@ namespace S7Patcher.Source
                     }
                     // Only the request line is interpreted. Header values and body bytes are never retained or logged.
                     int status = 400;
+                    byte[] body = [];
                     if (!headerComplete) status = 431;
                     else if (firstDone && firstLength <= FirstLineLimit)
                     {
                         string[] pieces = Encoding.ASCII.GetString(firstLine, 0, firstLength).TrimEnd('\r', '\n').Split(' ');
                         if (pieces.Length == 3 && (pieces[2] == "HTTP/1.1" || pieces[2] == "HTTP/1.0"))
                         {
-                            if (pieces[0] != "GET") status = 405;
-                            else status = pieces[1].Split('?', 2)[0] == ConfigurationPath ? 200 : 404;
+                            string path = pieces[1].Split('?', 2)[0];
+                            var remote = (IPEndPoint)client.Client.RemoteEndPoint;
+                            if (network.Lobby != null && path.StartsWith(LocalLobbyAdmission.Prefix, StringComparison.Ordinal))
+                            {
+                                byte[] requestBody = [];
+                                bool framing = true, sawLength = false;
+                                int bodyLength = 0;
+                                foreach (string line in Encoding.ASCII.GetString(header.ToArray()).Split('\n').Skip(1))
+                                {
+                                    string trimmed = line.TrimEnd('\r');
+                                    if (trimmed.Length == 0) continue;
+                                    int colon = trimmed.IndexOf(':');
+                                    if (colon <= 0 || char.IsWhiteSpace(trimmed[0])) { framing = false; break; }
+                                    string name = trimmed[..colon], value = trimmed[(colon + 1)..].Trim();
+                                    if (name.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) { framing = false; break; }
+                                    if (!name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)) continue;
+                                    if (sawLength || !int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out bodyLength))
+                                    { framing = false; break; }
+                                    sawLength = true;
+                                }
+                                if (!framing || pieces[0] == "POST" && !sawLength) status = 400;
+                                else if (bodyLength > LocalLobbyAdmission.BodyLimit) status = 413;
+                                else
+                                {
+                                    requestBody = new byte[bodyLength];
+                                    await stream.ReadExactlyAsync(requestBody, deadline.Token); count += bodyLength;
+                                    (status, body) = network.Lobby.Handle(remote.Address, pieces[0], path, requestBody, sessionCount());
+                                }
+                            }
+                            else if (pieces[0] != "GET") status = 405;
+                            else if (path != ConfigurationPath) status = 404;
+                            else if (!network.Allows(remote.Address) && !(network.Lobby?.IsCoordinator(remote.Address) ?? false)) status = 403;
+                            else { status = 200; body = configuration; }
                         }
                     }
-                    byte[] body = status == 200 ? configuration : [];
-                    string reason = status switch { 200 => "OK", 404 => "Not Found", 405 => "Method Not Allowed", 431 => "Request Header Fields Too Large", _ => "Bad Request" };
+                    string reason = status switch { 200 => "OK", 403 => "Forbidden", 404 => "Not Found", 405 => "Method Not Allowed",
+                        409 => "Conflict", 413 => "Payload Too Large", 429 => "Too Many Requests", 431 => "Request Header Fields Too Large", 503 => "Service Unavailable", _ => "Bad Request" };
                     string headers = "HTTP/1.1 " + status.ToString(CultureInfo.InvariantCulture) + " " + reason + "\r\n"
                         + "Content-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\n"
                         + (status == 405 ? "Allow: GET\r\n" : "")

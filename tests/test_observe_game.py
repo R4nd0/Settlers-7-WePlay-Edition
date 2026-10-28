@@ -65,6 +65,30 @@ class ObserverTests(unittest.TestCase):
                           '--restart_as_admin', '--process_name', '--hotkey'):
             self.assertNotIn(forbidden, args)
 
+    def test_logical_io_and_page_fault_deltas_do_not_claim_physical_reads(self):
+        before = {'cpu_seconds': 1, 'native': None, 'threads': [], 'page_fault_count': 0xffffffff,
+                  'logical_io': dict(read_ops=10, write_ops=20, read_bytes=100, write_bytes=200)}
+        after = {**before, 'page_fault_count': 2,
+                 'logical_io': dict(read_ops=12, write_ops=21, read_bytes=500, write_bytes=220)}
+        record = observer.interval_record(before, after, 1)
+        self.assertEqual(record['page_fault_delta'], 3)
+        self.assertEqual(record['logical_io_deltas'],
+                         dict(read_ops=2, write_ops=1, read_bytes=400, write_bytes=20))
+        self.assertNotIn('disk', json.dumps(record))
+        self.assertEqual(observer.c.sizeof(observer.IoCounters), 48)
+
+    def test_io_counters_preserve_high_bits_and_sdk_field_offsets(self):
+        names = ('read_ops', 'write_ops', 'other_ops', 'read_bytes', 'write_bytes', 'other_bytes')
+        self.assertEqual([getattr(observer.IoCounters, name).offset for name in names],
+                         [0, 8, 16, 24, 32, 40])
+        before = {'cpu_seconds': 0, 'native': None, 'threads': [],
+                  'logical_io': dict(read_ops=2**64-2, write_ops=0, read_bytes=7, write_bytes=0)}
+        after = {**before, 'logical_io': dict(read_ops=3, write_ops=0,
+                                             read_bytes=2**32+19, write_bytes=0)}
+        deltas = observer.interval_record(before, after, 1)['logical_io_deltas']
+        self.assertEqual(deltas['read_ops'], 5)
+        self.assertEqual(deltas['read_bytes'], 2**32+12)
+
     def test_missing_csv_is_not_reported_as_zero_fps(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as temp:
             result = observer.summarize_frames(Path(temp) / 'missing.csv', 55)
@@ -91,6 +115,16 @@ class ObserverTests(unittest.TestCase):
         self.assertEqual(observer.ADAPTERS[control], (0x3cfd6, 0x3d068, 0x3d06c, 0x3d070))
         self.assertEqual(observer.ADAPTER_IMAGES[control], 0x43000)
         self.assertEqual(observer.ADAPTER_IMAGES[candidate], 0x44000)
+
+    def test_etw_event_loss_is_reported_even_without_present_overflow_message(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as temp:
+            path = Path(temp) / 'collector.log'
+            path.write_text('Started recording.\nwarning: 2019250 ETW events were lost.\n'
+                            'warning: 12585 ETW events were lost.\nStopped recording.\n')
+            result = observer.collector_diagnostics(path)
+            self.assertEqual(result['etw_events_lost'], 2031835)
+            self.assertFalse(result['event_overflow_warning'])
+            self.assertTrue(result['recording_stopped'])
 
     def test_collector_fixed_flags_support_windows_utf16(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as temp:

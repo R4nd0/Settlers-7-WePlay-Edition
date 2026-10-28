@@ -110,6 +110,17 @@ int main() {
     DWORD returned = 0;
     Check(WSAIoctl(client, SIO_GET_EXTENSION_FUNCTION_POINTER, nullptr, 0, nullptr, 0, &returned, nullptr, nullptr) == SOCKET_ERROR
           && WSAGetLastError() == WSAEOPNOTSUPP, "unwrapped extension pointers denied");
+    WSAOVERLAPPED receive_operation{}; receive_operation.hEvent = WSACreateEvent();
+    sockaddr_storage receive_source{}; int receive_source_size = sizeof(receive_source);
+    WSABUF receive_buffer{sizeof(buffer), buffer}; DWORD receive_flags = 0, received = 0;
+    Check(WSARecvFrom(server, &receive_buffer, 1, &received, &receive_flags, reinterpret_cast<sockaddr*>(&receive_source),
+        &receive_source_size, &receive_operation, nullptr) == SOCKET_ERROR && WSAGetLastError() == WSA_IO_PENDING,
+        "legacy overlapped receive still pending");
+    Check(sendto(client, "old", 3, 0, reinterpret_cast<sockaddr*>(&bound), sizeof(bound)) == 3
+        && WaitForSingleObject(receive_operation.hEvent, 1500) == WAIT_OBJECT_0
+        && WSAGetOverlappedResult(server, &receive_operation, &received, FALSE, &receive_flags) && received == 3
+        && memcmp(buffer, "old", 3) == 0, "legacy async receive result unchanged");
+    WSACloseEvent(receive_operation.hEvent);
     closesocket(client); closesocket(server);
     SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     SOCKET tcp = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);

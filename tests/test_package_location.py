@@ -1,0 +1,27 @@
+"""Protect sources/inputs while permitting relocated-workspace outputs."""
+from pathlib import Path
+import sys
+import unittest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
+import build_package
+
+
+class PackageLocationTests(unittest.TestCase):
+    def test_private_workspace_outputs_and_external_output_are_allowed(self):
+        repo = Path('/workspace/project').absolute()
+        inputs = (repo / 'work/service', repo / 'work/runtime', repo / 'work/downloads', repo / 'work/adapter')
+        for path in (repo / 'outputs/package-v4', repo / 'work/new-package', repo.parent / 'package'):
+            with self.subTest(path=path):
+                build_package.check_output_location(repo, path, inputs)
+
+    def test_sources_ancestors_and_both_input_overlap_directions_are_rejected(self):
+        repo = Path('/workspace/project').absolute()
+        inputs = (repo / 'work/service',)
+        for path in (repo, repo.parent, repo / 'tools/package', repo / 'Source/package',
+                     repo / 'work/service', repo / 'work/service/package', repo / 'work'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                build_package.check_output_location(repo, path, inputs)
+
+
+if __name__ == '__main__':
+    unittest.main()

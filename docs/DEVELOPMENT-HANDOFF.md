@@ -2,6 +2,41 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Current automatic-LAN implementation
+
+The current source adds an automatic LAN picker, per-PC display names, bounded
+group admission and a provider interface for a later community directory.
+See [AUTOMATIC-LAN.md](AUTOMATIC-LAN.md) for contracts and honest qualification
+limits. LAN always preserves the original disabled developer-mode getter;
+included content/reward unlocks are implemented independently of that getter.
+The earlier confirmed reverse-host desync is still unresolved. New bounded FP
+diagnostics preserve the original numerical state and simulation checks.
+
+The latest review also found a genuine four-player slot-accounting defect:
+confirmed guests were subtracted again from updated host free-slot counts.
+The correction distinguishes pending reservations from confirmed membership
+while retaining the absolute map cap. Host updates reach the registry only
+through the existing ordered, duplicate-rejecting reliable assembler.
+
+Real private-interface discovery and source-bound HTTP admit/renew/leave passed
+without a game process. The delivered embedded runtime/hub/job and UTF-8 group
+configuration also pass in a fresh separate copy, including wrong-EXE rejection
+and four consecutive final coordinator restarts. No new real-PC match or
+visible UTF-8 game-name rendering is asserted.
+
+Final candidate package:
+`outputs/S7-AutoLAN-Testpaket-2026-10-28-r2.zip` (49,935,221 bytes, ZIP CRC tested).
+It contains no game files or LocalData. Fresh test copy:
+`work/auto-lan-v4-realtest-20261028`. The first internal package is superseded;
+use r2 only. Fixed isolated-Python startup and send-request reuse after the
+final native call-pattern review; see AUTOMATIC-LAN.md.
+
+Pinned adapter: `work/lan-group-native-review-r2/uplay_r1_loader.dll`,
+SHA256 `6c76f17cafccae5885590b77be064f603f8db7400933e620c758c6f21c188b64`.
+Pinned service: `work/lan-lobby-server-review/service/S7Patcher.dll`,
+SHA256 `1409f3f784886923957a5861b4b1f048de49d60a57f759e9c14df3f4ba2f4ed5`.
+The adapter uses two physical cores; native baseline/pump guards remain active.
+
 ## Active workspace and latest user evidence
 
 The user relocated this workspace to
@@ -19,6 +54,15 @@ found nearly identical final on/off rates and CPU use, plus one earlier691ms
 stall. It does not establish the affinity patch as the stutter/desync cause.
 The passive observer now measures CPU, frame intervals and typed turn counters
 without operating the game. The desync and rapid-reconnection crash remain open.
+
+The subsequent eight-minute native-menu run reproduced118 intervals over50ms
+and six over1s (all480 samples foreground). A private QPC adapter excluded its
+network pump as the source of reproduced1.8s frames (989us maximum whole call).
+With an explicitly selected discrete GPU and DXVK's60Hz cap, another eight
+minutes held CPU at0.733..0.781 core-equivalent window medians, and the user
+confirmed smoothness. Vulkan frame CSV was missing with ETW loss, so exact
+FPS/stutter counts are not established. See [GRAPHICS-START.md](GRAPHICS-START.md)
+for the shared per-PC selection/profile interface, evidence and backend limits.
 
 The user supplied the PC2 host report for run 20261027-115514. It has two
 successful Login/Register exchanges, a confirmed join, one accepted host-record

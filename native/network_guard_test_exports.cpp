@@ -23,3 +23,18 @@ extern "C" __declspec(dllexport) bool __cdecl S7TestEndpoint(const sockaddr* add
 extern "C" __declspec(dllexport) bool __cdecl S7TestConfigureLan(const char* local, const char* peer) {
     return ConfigureLanNetworkGuard(local, peer);
 }
+extern "C" __declspec(dllexport) bool __cdecl S7TestConfigureGroup(const char* local, const char* coordinator, const wchar_t* root) {
+    return ConfigureLanGroupNetworkGuard(local, coordinator, root);
+}
+extern "C" __declspec(dllexport) bool __cdecl S7TestStartGroup() { return StartLanGroupNetworkGuard(); }
+extern "C" __declspec(dllexport) bool __cdecl S7TestStopGroup() { return StopLanGroupNetworkGuard(); }
+#ifdef S7_GUARD_TESTING
+void SetLanGroupTestReadGate(HANDLE, HANDLE, DWORD);
+unsigned long LanGroupTestReadCount();
+bool MarkLanGroupTestSendPending(SOCKET, LPWSAOVERLAPPED);
+extern "C" __declspec(dllexport) void __cdecl S7TestReadGate(HANDLE entered, HANDLE release, DWORD timeout) { SetLanGroupTestReadGate(entered, release, timeout); }
+extern "C" __declspec(dllexport) unsigned long __cdecl S7TestReadCount() { return LanGroupTestReadCount(); }
+extern "C" __declspec(dllexport) bool __cdecl S7TestMarkSendPending(SOCKET socket, LPWSAOVERLAPPED overlapped) {
+    return MarkLanGroupTestSendPending(socket, overlapped);
+}
+#endif
