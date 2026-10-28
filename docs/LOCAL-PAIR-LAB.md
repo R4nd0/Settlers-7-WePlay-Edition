@@ -64,7 +64,46 @@ rejected. Historical profile folders from the former Codex workspace may only
 supply selected Options settings; identities, Profiles.xml and saves are not
 copied into the new profiles.
 
-## Current functional run: simple menu plus VSync, 2026-10-28
+## Reverse-host run with AI players, 2026-10-28
+
+Using the same pinned adapter/service below, B hosted a fresh public Turminsel
+lobby and A joined as guest. Two normal-difficulty AI players, Bischof Matheusz
+and Ramirez, filled the remaining slots. The launcher again used the explicit
+simple-menu/VSync combination with native D3D9, 1280x720 and two physical cores.
+
+The passive observer completed 601 paired samples over 600 seconds, including
+the initial loading transition. At the end A was at turn 5123 and B at 5122.
+After turn 100 every observed A horizon was 5; B retained 1. Initial A startup
+values included 1 and 2 before settling. Individual sequential samples differed
+by up to six turns; they are not atomic snapshots or simulation checksums.
+Private memory peaked at 1423.7 MiB for A and 1431.2 MiB for B. The bounded
+native diagnostics emitted no FP-change label during the trace.
+
+The real UI showed active AI play and completed construction: a guest farmhouse
+and a host residence. Root enabled the host tavern's three-gold/one-tool trade;
+a later host view showed gold 1 and tools 23 versus initial 10/20. Independent
+user input was detected in both windows; Root then stopped gameplay input and
+continued only the passive observation. No measured command-latency or exact
+attribution of all user actions is claimed.
+
+Both clients continued beyond the earlier reported turn-2154 failure point.
+This bounded one-PC scenario does not establish the cause of that two-PC
+desync, checksum equality, network-loss tolerance, three real clients or large
+endgame transport-network stability. The 600-second trace includes loading;
+it is not a claim of ten full simulation minutes or an all-hardware CPU result.
+
+After the user requested closure, both games and all three owned controllers
+completed with code 0. Host inspection found no remaining S7 game, the exact
+owned service was stopped after process/start/path verification, and both
+temporary runtime INIs were absent. The graphics chat received the explicit
+free slot for its newly requested display-options qualification. Root performs
+no parallel live or CPU-heavy work while that slot is in use.
+
+Private evidence: `work/nomap-pair-20261028/reverse-ai-observation-01.jsonl` and
+`reverse-observer-manifest.json`. Game identities, raw logs and images remain
+private. No package or installed production copy was changed by this run.
+
+## Initial functional smoke run: simple menu plus VSync, 2026-10-28
 
 The current source (`373fe12`, including the networking fixes) was built as a
 separate two-core lab adapter with a matching linker map. Its full DLL SHA256 is

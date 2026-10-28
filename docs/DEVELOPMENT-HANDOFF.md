@@ -2,6 +2,23 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Latest reverse-host/AI observation
+
+The local NoMap/VSync reverse run used B as host, A as guest and two normal AI
+players on Turminsel. A 600-second observer trace (601 paired samples, including
+loading) ended at A turn 5123/B turn 5122. From turn 100 A's observed horizon
+remained 5 and B's 1. Active AI play, guest farmhouse construction and host
+residence/trading activity were observed. Both continued beyond the previous
+turn-2154 failure point. This does not prove a fix for the two-PC desync or
+checksum equality. See [LOCAL-PAIR-LAB.md](LOCAL-PAIR-LAB.md) for exact limits.
+
+Independent user input caused Root to pause gameplay control. After the user
+requested closure, both games and all three controllers exited 0, host inspection
+found no remaining S7, the exact owned service was stopped and both temporary
+runtime INIs were absent. The graphics chat has the free slot for display-options
+qualification. Root must not run parallel games/UI/load tests. No new combined
+package or production-copy update was made during this reverse run.
+
 ## Optional-menu network function test
 
 A real two-client laboratory run of source `373fe12` with the fixed networking
