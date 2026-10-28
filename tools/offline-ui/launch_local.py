@@ -42,6 +42,21 @@ def graphics_game_arguments(root):
     return _graphics_module().game_arguments(root)
 
 
+def wait_for_graphics_game(root, game, *, enabled=True):
+    """Keep the owned window controller alive until this game's exit."""
+    controller = None
+    try:
+        if enabled:
+            try:
+                controller = _graphics_module().start_window_mode(root, game)
+            except (OSError, ValueError, RuntimeError):
+                print('Borderless fullscreen unavailable. The game remains windowed.', flush=True)
+        return game.wait()
+    finally:
+        if controller is not None:
+            controller.close()
+
+
 def plain_path(path, root):
     """Reject links/junctions all the way to the explicit owned bundle root."""
     if not path.is_relative_to(root):
@@ -248,7 +263,7 @@ def run(args):
                 if game_environment is not None:
                     game_options['env'] = game_environment
                 game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe"), *game_arguments], **game_options)
-                code = game.wait()
+                code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:
                     stream.write(str(code) + "\n")
                 if code:

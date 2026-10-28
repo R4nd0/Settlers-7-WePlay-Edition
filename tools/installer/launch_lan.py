@@ -103,7 +103,7 @@ def run(args):
             if game_environment is not None:
                 game_options['env'] = game_environment
             game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], **game_options)
-            code = game.wait()
+            code = launch_local.wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True))
             with (data / (run_id + '-game-exit.txt')).open('x', encoding='ascii') as output:
                 output.write(str(code) + '\n')
             return 0 if code == 0 else 1

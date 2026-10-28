@@ -20,6 +20,7 @@ EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
+DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
     'lan_discovery.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
@@ -44,6 +45,8 @@ def package_manifest(root):
         raise ValueError('Unbekannte Menuepatch-Version.')
     if type(manifest.get('graphics_choice', False)) is not bool:
         raise ValueError('Unbekannte Grafikauswahl-Version.')
+    if type(manifest.get('display_selection', False)) is not bool:
+        raise ValueError('Unbekannte Bildschirmauswahl-Version.')
     if type(manifest.get('automatic_lan', False)) is not bool:
         raise ValueError('Unbekannte LAN-Lobby-Version.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
@@ -53,6 +56,9 @@ def package_manifest(root):
     if manifest.get('graphics_choice', False) and any(
             ('tools/' + original).lower() not in expected for original, _ in GRAPHICS_TOOLS):
         raise ValueError('Die Grafikauswahl im Installationspaket ist unvollstaendig.')
+    if manifest.get('display_selection', False) and (not manifest.get('graphics_choice', False) or any(
+            ('tools/' + original).lower() not in expected for original, _ in DISPLAY_TOOLS)):
+        raise ValueError('Die Bildschirmauswahl im Installationspaket ist unvollstaendig.')
     if manifest.get('automatic_lan', False) and (not manifest.get('graphics_choice', False) or any(
             ('tools/' + original).lower() not in expected for original, _ in LAN_LOBBY_TOOLS)):
         raise ValueError('Die automatische LAN-Lobby im Installationspaket ist unvollstaendig.')
@@ -144,6 +150,9 @@ def prepare(package, source, destination, emit=print):
     if manifest.get('graphics_choice', False):
         for original, target in GRAPHICS_TOOLS:
             shutil.copyfile(tools / original, destination / 'Launcher' / target)
+    if manifest.get('display_selection', False):
+        for original, target in DISPLAY_TOOLS:
+            shutil.copyfile(tools / original, destination / 'Launcher' / target)
     if manifest.get('automatic_lan', False):
         for original, target in LAN_LOBBY_TOOLS:
             shutil.copyfile(tools / original, destination / 'Launcher' / target)
@@ -166,6 +175,8 @@ def prepare(package, source, destination, emit=print):
                       ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py'), ('installer/start.py', 'start.py')]
     if manifest.get('graphics_choice', False):
         launcher_tools += list(GRAPHICS_TOOLS)
+    if manifest.get('display_selection', False):
+        launcher_tools += list(DISPLAY_TOOLS)
     if manifest.get('automatic_lan', False):
         launcher_tools += list(LAN_LOBBY_TOOLS)
     for original, target in launcher_tools:

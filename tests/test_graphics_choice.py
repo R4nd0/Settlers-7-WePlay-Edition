@@ -16,7 +16,16 @@ import test_graphics_profile as fixtures
 
 
 class GraphicsChoiceTests(unittest.TestCase):
-    setUp = fixtures.GraphicsProfileTests.setUp
+    def setUp(self):
+        fixtures.GraphicsProfileTests.setUp(self)
+        enumeration = patch.object(choice.display, 'enumerate_displays', return_value=[{
+            'device': r'\\.\DISPLAY1', 'adapter': 'Fixture GPU', 'primary': True,
+            'x': 0, 'y': 0, 'width': 1920, 'height': 1080, 'resolutions': [[1280,720],[1920,1080]]}])
+        self.displays = enumeration.start()
+        self.addCleanup(enumeration.stop)
+        preparation = patch.object(choice.display, 'prepare_windowed')
+        self.prepare_display = preparation.start()
+        self.addCleanup(preparation.stop)
     snapshot = fixtures.GraphicsProfileTests.snapshot
     install = fixtures.GraphicsProfileTests.install
     state_dir = fixtures.GraphicsProfileTests.state_dir
@@ -48,7 +57,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertEqual(command[-2:], ['-RendererMode', 'native'])
         self.assertEqual(runner.call_args.kwargs['creationflags'], subprocess.CREATE_NO_WINDOW)
         self.assertNotIn('shell', runner.call_args.kwargs)
-        self.assertEqual(json.loads(runner.call_args.kwargs['input']), self.saved())
+        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous'], self.saved())
         _, second = self.choose(self.result(), inherited)
         second.assert_called_once()
 
@@ -66,7 +75,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertEqual(dict(os.environ), old_environment)
         environment, runner = self.choose(self.result())
         self.assertNotIn('DXVK_FILTER_DEVICE_NAME', environment)
-        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['choice'], 'Fixture GPU')
+        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous']['choice'], 'Fixture GPU')
 
     def test_cancellation_writes_nothing_and_returns_no_launch_environment(self):
         before = self.snapshot()
@@ -91,7 +100,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         environment, runner = self.choose(self.result())
         self.assertNotIn('DXVK_FILTER_DEVICE_NAME', environment)
         self.assertIsNone(self.saved()['choice'])
-        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['choice'], 'Old graphics model')
+        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous']['choice'], 'Old graphics model')
         self.assertFalse(any('Old graphics model' in argument for argument in runner.call_args.args[0]))
 
     def test_record_schema_strings_and_unicode_bounds(self):
@@ -235,6 +244,92 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertIsNone(environment)
         self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), previous)
 
+    def display_record(self, **changes):
+        value = {'device': r'\\.\DISPLAY1', 'width': 1280, 'height': 720, 'mode': 'windowed'}
+        return {'format': choice.FORMAT, 'choice': None, 'simple_menu': True,
+                'display': dict(value, **changes)}
+
+    def test_display_choice_persists_and_builds_only_fixed_game_arguments(self):
+        before = content.verify(self.root)
+        record = self.display_record()
+        self.choose(self.result(raw=graphics.encoded(record)))
+        self.assertEqual(self.saved(), record)
+        self.assertEqual(choice.game_arguments(self.root), ('-vSynch','-noMapInMainMenu',
+            '-width','1280','-height','720','-screenNumber','0','-x','320','-y','180'))
+        self.prepare_display.assert_called_once()
+        self.assertEqual(content.verify(self.root), before)
+
+    def test_unavailable_display_resolution_or_gpu_is_never_saved(self):
+        for changes in ({'device':r'\\.\DISPLAY2'}, {'width':1600,'height':900}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.choose(self.result(raw=graphics.encoded(self.display_record(**changes))))
+            self.assertFalse((self.root / choice.CHOICE_FILE).exists())
+        self.install()
+        record = self.display_record(); record['choice'] = 'Other GPU'
+        with self.assertRaises(ValueError): self.choose(self.result(raw=graphics.encoded(record)))
+        self.assertFalse((self.root / choice.CHOICE_FILE).exists())
+
+    def test_display_hotplug_before_game_arguments_aborts_and_preserves_preferences(self):
+        record = self.display_record()
+        self.choose(self.result(raw=graphics.encoded(record)))
+        self.displays.return_value = []
+        with self.assertRaises(ValueError): choice.game_arguments(self.root)
+        self.assertEqual(self.saved(), record)
+
+    def test_display_removed_while_dialog_open_does_not_overwrite_previous_choice(self):
+        self.choose(self.result())
+        before = (self.root / choice.CHOICE_FILE).read_bytes()
+        screens = self.displays.return_value
+        self.displays.side_effect = [screens, []]
+        with self.assertRaises(ValueError):
+            self.choose(self.result(raw=graphics.encoded(self.display_record())))
+        self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), before)
+
+    def test_legacy_arguments_never_query_displays(self):
+        self.choose(self.result(raw=graphics.encoded({'format':choice.FORMAT,'choice':None,'simple_menu':True})))
+        self.displays.reset_mock()
+        self.assertEqual(choice.game_arguments(self.root), ('-vSynch','-noMapInMainMenu'))
+        self.displays.assert_not_called()
+        self.prepare_display.assert_not_called()
+
+    def test_borderless_uses_desktop_resolution_and_clears_saved_fullscreen(self):
+        self.choose(self.result(raw=graphics.encoded(self.display_record(mode='borderless',width=1920,height=1080))))
+        arguments = choice.game_arguments(self.root)
+        self.assertEqual(arguments, ('-vSynch','-noMapInMainMenu','-width','1920','-height','1080',
+            '-screenNumber','0','-x','0','-y','0'))
+        self.prepare_display.assert_called_once()
+
+    def test_legacy_and_windowed_never_start_window_controller(self):
+        import window_mode
+        with patch.object(window_mode,'start') as start:
+            self.assertIsNone(choice.start_window_mode(self.root, object()))
+            self.choose(self.result(raw=graphics.encoded(self.display_record())))
+            self.displays.reset_mock()
+            self.assertIsNone(choice.start_window_mode(self.root, object()))
+            self.displays.assert_not_called()
+            start.assert_not_called()
+
+    def test_explicit_display_rejects_an_existing_game_before_options_preparation(self):
+        self.choose(self.result(raw=graphics.encoded(self.display_record())))
+        with patch.object(graphics,'ensure_closed',side_effect=ValueError('existing game')):
+            with self.assertRaises(ValueError): choice.game_arguments(self.root)
+        self.prepare_display.assert_not_called()
+
+    def test_display_enumeration_failure_and_cancel_leave_legacy_usable(self):
+        self.displays.side_effect = RuntimeError('fixture enumeration unavailable')
+        environment, runner = self.choose(self.result(), {})
+        self.assertEqual(environment, {})
+        self.assertEqual(json.loads(runner.call_args.kwargs['input'])['displays'], [])
+        before = (self.root / choice.CHOICE_FILE).read_bytes()
+        self.choose(self.result(code=choice.CANCELLED))
+        self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), before)
+
+    def test_display_record_rejects_injection_and_coerced_numbers(self):
+        for changes in ({'width':True}, {'height':'720'}, {'mode':'windowed -developerMode'},
+                        {'device':'-developerMode'}, {'mode':None}, {'width':7680,'height':4320}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                choice.validate_choice(self.display_record(**changes))
+
 
 class PowerShellChoiceFixtureTests(unittest.TestCase):
     def test_actual_pure_functions_without_ui_or_cim(self):
@@ -259,6 +354,9 @@ $output = @{
     automatic = ConvertTo-ChoiceJson $null
     record = ConvertTo-ChoiceJson 'Other Vendor'
     simpleMenu = ConvertTo-ChoiceJson $null $true
+    displayRecord = ConvertTo-ChoiceJson $null $true @{device='\\.\DISPLAY1';width=1280;height=720;mode='windowed'}
+    badDisplayBoolean = Test-DisplayChoice @{device='\\.\DISPLAY1';width=$true;height=720;mode='windowed'}
+    badDisplayMode = Test-DisplayChoice @{device='\\.\DISPLAY1';width=1280;height=720;mode=@('windowed')}
     invalidMenuRejected = $invalidMenuRejected
     invalidControl = Test-ModelName "bad`tname"
     tooManyBytes = Test-ModelName (([char]0x00e9).ToString() * 129)
@@ -279,6 +377,10 @@ $output | ConvertTo-Json -Compress
         self.assertEqual(json.loads(value['automatic']), {'format': choice.FORMAT, 'choice': None, 'simple_menu': False})
         self.assertEqual(json.loads(value['record'])['choice'], 'Other Vendor')
         self.assertIs(json.loads(value['simpleMenu'])['simple_menu'], True)
+        self.assertEqual(json.loads(value['displayRecord'])['display'],
+                         {'device':r'\\.\DISPLAY1','width':1280,'height':720,'mode':'windowed'})
+        self.assertFalse(value['badDisplayBoolean'])
+        self.assertFalse(value['badDisplayMode'])
         self.assertTrue(value['invalidMenuRejected'])
         self.assertFalse(value['invalidControl'])
         self.assertFalse(value['tooManyBytes'])

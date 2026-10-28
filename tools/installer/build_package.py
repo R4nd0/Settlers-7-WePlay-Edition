@@ -7,10 +7,12 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import sys
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
@@ -29,7 +31,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -39,6 +41,16 @@ def build(adapter, service, dotnet, python_zip, output):
         raise ValueError('Adapter or Python distribution fingerprint mismatch')
     if content.digest(service / 'S7Patcher.dll') != SERVICE_SHA256:
         raise ValueError('Service fingerprint does not match the tested LAN build')
+    if (dxvk_dll is None) != (dxvk_license is None):
+        raise ValueError('DXVK DLL and original license must be supplied together')
+    if dxvk_dll is not None:
+        import graphics_profile
+        from graphics_distribution import LICENSE_SHA256
+        dxvk_dll, dxvk_license = map(content.plain, (dxvk_dll, dxvk_license))
+        check_output_location(repo, output, (dxvk_dll.parent, dxvk_license.parent))
+        if (content.digest(dxvk_dll) != graphics_profile.DXVK_SHA256
+                or content.digest(dxvk_license) != LICENSE_SHA256):
+            raise ValueError('DXVK distribution fingerprint mismatch')
     version = '10.0.13'
     for path in (dotnet / 'dotnet.exe', dotnet / 'host/fxr' / version / 'hostfxr.dll',
                  dotnet / 'shared/Microsoft.NETCore.App' / version / 'System.Private.CoreLib.dll'):
@@ -60,12 +72,19 @@ def build(adapter, service, dotnet, python_zip, output):
     for name in ('S7Patcher.dll', 'S7Patcher.deps.json', 'S7Patcher.runtimeconfig.json'):
         shutil.copyfile(service / name, server / name)
     shutil.copyfile(adapter, output / 'Payload/uplay_r1_loader.dll')
+    if dxvk_dll is not None:
+        profile = output / 'Payload/Graphics'; profile.mkdir()
+        shutil.copyfile(dxvk_dll, profile / 'd3d9.dll')
+        shutil.copyfile(dxvk_license, profile / 'LICENSE')
     names = ['installer/install.py', 'installer/start.py', 'installer/launch_lan.py', 'installer/compatibility.py',
              'offline-ui/launch_local.py', 'offline-ui/patch-spec.json', 'lan/bba.py', 'lan/prepare.py',
              'installer/update_join_menu.py', 'offline-ui/join-menu-update.json']
     names += ['installer/graphics_profile.py', 'installer/graphics_choice.py',
               'installer/Choose-Graphics.ps1']
+    names += [original for original, _ in DISPLAY_TOOLS]
     names += [original for original, _ in LAN_LOBBY_TOOLS]
+    if dxvk_dll is not None:
+        names += ['installer/graphics_distribution.py']
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
@@ -74,6 +93,7 @@ def build(adapter, service, dotnet, python_zip, output):
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
         'join_menu_update': True,
         'graphics_choice': True,
+        'display_selection': True,
         'automatic_lan': True,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
@@ -116,6 +136,15 @@ def build(adapter, service, dotnet, python_zip, output):
         'License: Runtime/python/LICENSE.txt\n\n'
         '.NET 10.0.13 Windows x64 runtime from the development SDK runtime.\n'
         'Licenses: Runtime/dotnet/LICENSE.txt and ThirdPartyNotices.txt\n', encoding='utf-8')
+    if dxvk_dll is not None:
+        shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
+        for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):
+            (output / name).write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\graphics_distribution.py" '
+                + action + ' --package "%~dp0."\npause\n', encoding='ascii')
+        with (output / 'RUNTIME-SOURCES.txt').open('a', encoding='utf-8') as stream:
+            stream.write('\nOriginal DXVK 3.1.1 x32/d3d9.dll (optional, D3D9 to Vulkan)\n'
+                'https://github.com/doitsujin/dxvk/releases/tag/v3.1.1\n'
+                'SHA256 ' + graphics_profile.DXVK_SHA256 + '\nLicense: Payload/Graphics/LICENSE\n')
     return output
 
 
@@ -123,5 +152,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('adapter', 'service', 'dotnet', 'python-zip', 'output'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--dxvk-dll'); parser.add_argument('--dxvk-license')
     args = parser.parse_args()
-    print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output))
+    print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
+                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license))

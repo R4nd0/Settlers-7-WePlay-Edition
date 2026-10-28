@@ -96,6 +96,32 @@ def prepare(source, output, specification, profile):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 install.package_manifest(self.package)
 
+    def test_display_selection_installs_its_helper_without_requiring_it_in_old_packages(self):
+        for original, _ in (*install.GRAPHICS_TOOLS, *install.DISPLAY_TOOLS):
+            if original != 'lan/prepare.py':
+                self.write(self.package, 'Tools/' + original, ('# fixture ' + original).encode())
+        self.manifest(); self.data.update(graphics_choice=True, display_selection=True)
+        (self.package / 'package.json').write_text(json.dumps(self.data))
+        self.prepare()
+        for original, target in install.DISPLAY_TOOLS:
+            self.assertEqual((self.destination / 'Launcher' / target).read_bytes(),
+                             (self.package / 'Tools' / original).read_bytes())
+        content.verify(self.destination)
+
+    def test_display_selection_rejects_coerced_bool_missing_ui_and_missing_helper(self):
+        for value in ('true', 1, True):
+            self.data['display_selection'] = value
+            (self.package / 'package.json').write_text(json.dumps(self.data))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                install.package_manifest(self.package)
+        for original, _ in install.GRAPHICS_TOOLS:
+            if original != 'lan/prepare.py':
+                self.write(self.package, 'Tools/' + original, ('# fixture ' + original).encode())
+        self.manifest(); self.data.update(graphics_choice=True, display_selection=True)
+        (self.package / 'package.json').write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError, 'Bildschirmauswahl'):
+            install.package_manifest(self.package)
+
     def test_automatic_lan_installs_complete_ui_and_keeps_local_settings_outside_content(self):
         for original, _ in (*install.GRAPHICS_TOOLS, *install.LAN_LOBBY_TOOLS):
             if original != 'lan/prepare.py':

@@ -2,6 +2,35 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Graphics RC for other devices, 2026-10-28
+
+`outputs/S7-RC-Grafik-2026-10-28.zip` combines the pinned r3 adapter/service with
+the current English GPU/display selector, corrected windowed arguments,
+borderless placement, optional simple menu and the child-only Strict water
+workaround. It bundles the original pinned DXVK 3.1.1 x32 DLL/license as an
+optional profile, with package-level activation and restore commands. See
+[RC-GRAPHICS.md](RC-GRAPHICS.md) for the recipient instructions and
+[GRAPHICS-START.md](GRAPHICS-START.md) for implementation and observed limits.
+Both PCs must use the same package and renderer profile. Previous r3 artifacts
+and existing installed copies were not changed.
+
+Verification: 110 unique automated checks passed; the built ZIP matched all
+264 payload/runtime/tool manifest entries and passed CRC. A fresh private
+installation from the original game files completed, the packaged activation
+enabled the pinned profile, and its child environment supplied
+`d3d9.floatEmulation = Strict`. The packaged restore completed and restored the
+exact original compatibility manifest. Packaging checks started no game or
+service. Final source commit/check status is recorded in `RC-VERSION.json`
+inside the ZIP; its adjacent `.zip.sha256` covers the final artifact.
+
+The earlier PC1 borderless main-display capture was 2560x1440 at 0/0 with
+unchanged desktop topology. Screen 2 was confirmed by the user after Computer
+Use stopped before its final capture. Both controllers reported one placement,
+no failure and normal game exit 0; temporary test settings were restored and
+host inspection found no remaining S7. These are short graphics observations,
+not a new combined RC gameplay/LAN qualification. The known desync remains
+unresolved; the game is still 32-bit and this package includes no D3D11 port/FSR.
+
 ## Latest reverse-host/AI observation
 
 The local NoMap/VSync reverse run used B as host, A as guest and two normal AI

@@ -45,7 +45,7 @@ menu world (120 foreground intervals) and 0.0890 without it (35 foreground
 intervals, another 85 background). Peak private bytes were 1081 and 290 MiB.
 The shorter foreground subset and absence of on/off/on replication limit the
 comparison. Counter-only sessions took no screenshots and measured screen-loop
-completions, not displayed FPS. Details and DXVK's still-black water are in
+completions, not displayed FPS. Details and the later black-water workaround are in
 [the graphics research notes](../tools/d3d11/README.md).
 
 Automated checks cover legacy/default/true/false records, strict booleans,
@@ -53,8 +53,84 @@ cancellation, content-ID preservation, and exact argument routing in local,
 manual-LAN and automatic-LAN launchers. The actual English native/DXVK/full
 dialogs were rendered with fixture data for layout review without game starts.
 These checks do not replace a real lobby/party test with the option enabled.
-Existing delivered r3 packages and installed test copies have not been updated
-with this experimental option; package qualification is a separate step.
+Earlier delivered r3 packages and installed test copies have not been updated
+with this experimental option; the new graphics RC is described below.
+
+## Display controls in the external menu
+
+The shared English dialog now includes **Target display**, **Window mode**
+(Windowed/Fullscreen (borderless)), and **Resolution**. **Use current game display settings**
+keeps legacy behavior and is selected for older preferences. Unchecking it
+enables an explicit selection, saved locally for the next launch. Cancel
+persists nothing and starts no children.
+
+The optional `display` record contains only a public GDI display name, numeric
+width/height and one of the two fixed mode words. Windows supplies current
+attached displays and their advertised 32-bit resolutions. Dimensions/pixel
+count are bounded to at most 4K pixel area to limit render-target pressure in
+the 32-bit game; this does not guarantee sufficient memory. No desktop display
+mode, registry value or game archive is written by the selector. Fixed native
+startup flags carry resolution and target position to the game. Both explicit
+modes omit `-fullScreen`: the exact game's boolean parser always enables that
+option when present, even with a following `false`. When needed, startup clears only
+`Quality/FullScreen` in the shared game Options.ini. It preserves encoding,
+comments and unrelated settings; duplicate/unknown values, running games and
+concurrent file changes prevent a write. The setting remains the user's game
+default. Legacy/current-game-settings selection does not read or change it.
+Only the game receives these flags; existing launchers already isolate its
+argument list from services and coordinators.
+
+The old engine's primary/secondary adapter restriction limits the selector to
+the first two attached displays in its primary-first GDI list. These are display
+choices, separate from physical GPU filtering. A concrete DXVK GPU must match
+the selected display's reported adapter; otherwise choose Automatic or the
+connected GPU. Removed displays and unsupported resolutions are rejected again
+immediately before launch. Missing display information permits keeping the
+current game settings.
+
+Borderless uses the selected display's current desktop resolution; its resolution
+field is read-only. It does not upscale a smaller render target. The launcher
+checks the original game hash, original Popen handle, PID and exact executable
+path, then removes the frame and positions only that child's eligible top-level
+game window. Startup dialogs and minimized windows are excluded. A background
+worker checks ownership immediately before each change and makes no repeated
+placement writes when the frame/bounds already match. It uses per-monitor DPI
+coordinates, does not activate the window, and stops on child exit, target
+removal/movement/resolution change or an API error. Failure leaves the game
+running and prints a short message. Local, manual-LAN and automatic-LAN starters
+close the controller after waiting for their own game. No desktop display mode
+or primary-display setting is changed by this feature.
+
+Classic exclusive fullscreen is deliberately absent from explicit selection:
+on PC1/DXVK 3.1.1, requesting the physical primary DISPLAY3 at 1920x1080 instead
+changed DISPLAY1 to primary and rendered there. The desktop restored after
+normal exit, but that run failed target selection. In contrast, windowed
+1280x720 visibly rendered on both physical displays, at captured window origins
+647/360 and 3207/360. A separate 1920x1080 run started with saved FullScreen=1;
+the source preparation cleared it and DXVK reported Windowed:true at 1920x1080.
+That run exited 0 with temporary settings restored; no final screenshot was
+captured for it. These short menu trials are not long-match or native-backend
+qualification.
+
+The source controller subsequently placed a real DXVK 2560x1440 window at 0/0
+without a frame on DISPLAY3; the captured menu covered exactly that display.
+The desktop stayed DISPLAY3 primary at 0/0 and DISPLAY1 secondary at 2560/0,
+both 2560x1440. The user confirmed borderless output on screen 2 after stopping
+Computer Use before its final capture. Both controllers recorded one placement,
+no failure, regular game exit 0 and restored temporary quality/preferences.
+The private memory observers reported no pressure or monitor failure in these
+short runs (peak private memory 439/441 MiB). The second display's visual result
+is user-reported, not a captured observation by the agent.
+
+New preparation packages mark `display_selection: true` and include the display
+helpers. Older packages without that optional capability remain accepted by
+the installer. The new graphics RC can bundle the pinned upstream DLL/license
+and package-level activation/restore commands. Activation verifies the package,
+upstream hashes and matching newly installed launcher helpers before invoking
+the existing locked/journaled profile transaction. It downloads nothing and
+refuses older prepared copies instead of modifying their launcher files.
+The current RC instructions are in [RC-GRAPHICS.md](RC-GRAPHICS.md). Previously
+delivered r3 packages and existing copied launchers remain unchanged.
 
 ## Backend support
 

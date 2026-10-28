@@ -105,7 +105,7 @@ def run(args):
             print('LAN bereit. Im Spiel Mehrspieler oeffnen und eine Partie erstellen oder beitreten.', flush=True)
             print('Entwicklermodus ist im LAN gesperrt. Bitte das Starterfenster geoeffnet lassen.', flush=True)
             game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], cwd=root / 'Base/Bin', env=environment)
-            code = game.wait()
+            code = launch_local.wait_for_graphics_game(root, game)
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
             return 0 if code == 0 else 1

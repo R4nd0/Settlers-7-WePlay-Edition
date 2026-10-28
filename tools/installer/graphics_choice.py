@@ -14,6 +14,7 @@ import unicodedata
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import graphics_profile as graphics
 import compatibility as content
+import display_settings as display
 
 FORMAT = 's7-graphics-choice-v1'
 CHOICE_FILE = 'LocalData/graphics-choice.json'
@@ -22,9 +23,9 @@ CANCELLED = 10
 
 
 def validate_choice(value):
-    """Validate the complete minimal record; never accept IDs or extra fields."""
-    if (not isinstance(value, dict) or set(value) not in (
-            {'format', 'choice'}, {'format', 'choice', 'simple_menu'})
+    """Validate local choices; never accept hardware IDs or free-form argv."""
+    if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
+            or not set(value) <= {'format', 'choice', 'simple_menu', 'display'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
@@ -37,6 +38,8 @@ def validate_choice(value):
     result = {'format': FORMAT, 'choice': name}
     if 'simple_menu' in value:
         result['simple_menu'] = value['simple_menu']
+    if 'display' in value:
+        result['display'] = display.validate(value['display'])
     return result
 
 
@@ -59,10 +62,32 @@ def game_arguments(root):
     The measured low-CPU combination includes VSync. Native VSync follows the
     display refresh and is not a configurable 60 FPS cap. Never consume an
     arbitrary argv list, model name, string bool or inherited environment flag.
-    Missing/legacy preferences keep the original argument list unchanged.
+    Display flags contain only validated numeric values and fixed mode words.
+    Missing/legacy preferences keep the original argument list unchanged and
+    do not enumerate displays or write shared Options.ini settings.
     """
     selected = _load_choice(graphics._plain(root))
-    return ('-vSynch', '-noMapInMainMenu') if selected.get('simple_menu', False) else ()
+    arguments = ('-vSynch', '-noMapInMainMenu') if selected.get('simple_menu', False) else ()
+    if selected.get('display') is not None:
+        mode, _ = _renderer(graphics._plain(root), {})
+        displays = display.enumerate_displays()
+        display.resolve(selected['display'], displays, renderer=mode, gpu=selected['choice'])
+        arguments += display.game_arguments(selected['display'], displays)
+        # Do not race another S7 copy with shared Options.ini preparation.
+        graphics.ensure_closed()
+        display.prepare_windowed()
+    return arguments
+
+
+def start_window_mode(root, game):
+    """Attach only to the launcher's owned child; legacy/windowed are no-ops."""
+    root = graphics._plain(root)
+    selected = _load_choice(root).get('display')
+    if selected is None or selected['mode'] != 'borderless':
+        return None
+    import window_mode
+    _, screen = display.resolve(selected, display.enumerate_displays())
+    return window_mode.start(root, game, screen)
 
 
 def _renderer(root, inherited):
@@ -101,19 +126,23 @@ def choose_launch_environment(root, inherited=None):
     Call this while holding the launcher's existing session_lock, before
     starting the game (and preferably before starting its local service).
     Only LocalData/graphics-choice.json may be written here. The PowerShell
-    dialog receives no paths, identities or credentials; stdout is a minimal
-    format/choice record. No global os.environ values are changed.
+    dialog receives previous choices and public display metadata, without
+    account data or filesystem paths. No global os.environ values are changed.
     """
     root = graphics._preflight(root)
     mode, environment = _renderer(root, inherited)
     previous = _load_choice(root)
+    try:
+        displays = display.enumerate_displays()
+    except (OSError, RuntimeError, ValueError):
+        displays = []  # GPU/legacy selection remains usable without display data.
     script = graphics._plain(Path(__file__).with_name('Choose-Graphics.ps1'))
     if not script.is_file():
         raise ValueError('Der grafische Auswahldialog fehlt.')
     result = subprocess.run(
         ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-STA',
          '-WindowStyle', 'Hidden', '-File', str(script), '-RendererMode', mode],
-        input=graphics.encoded(previous), capture_output=True,
+        input=graphics.encoded({'previous': previous, 'displays': displays[:2]}), capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode == CANCELLED:
         return None
@@ -127,6 +156,9 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Das Grafikprofil wurde waehrend des Dialogs veraendert.')
     if mode == 'dxvk':
         environment = graphics.launch_environment(root, environment, device_name=selected['choice'])
+    if selected.get('display') is not None:
+        display.resolve(selected['display'], display.enumerate_displays(),
+                        renderer=mode, gpu=selected['choice'])
     data = graphics._plain(root / 'LocalData')
     data.mkdir(exist_ok=True)
     target = graphics._plain(root / CHOICE_FILE)
