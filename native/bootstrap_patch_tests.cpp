@@ -244,8 +244,8 @@ int main() {
         check(before.x87 == after.x87 && before.sse == after.sse);
     }
     const char* lab_digests[] = {
-        "722cb6e616851f20fae90b29c8af65df8aa94f353b0739e44c24721cfb574e13",
-        "78c7a4b87e2f8dceb95eaaac9ab8cdd559ce482fc800129345e952b711974a8a"};
+        "6dd278274aa885ff402a277f6d2f3ba05600e1ff841462e038f44bf233ce992f",
+        "dbc108237301f329fed5372f79915c82acd9085f58d32adefa4efe434208ef72"};
     unsigned char digest[32]{};
     check(!AcceptExecutableDigest(digest));
 #ifdef S7_LOCAL_PAIR_LAB

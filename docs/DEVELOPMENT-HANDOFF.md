@@ -2,6 +2,32 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Latest local desync investigation: 2026-10-28
+
+The local A/B laboratory now derives profiles under this workspace's `work/A`
+and `work/B`, including all nine guarded string-length operands for the longer
+suffix. Original game files and normal-build executable acceptance remain
+unchanged. Both isolated games reached their menus with distinct names and
+two-physical-core affinity. See [LOCAL-PAIR-LAB.md](LOCAL-PAIR-LAB.md) for current
+helpers, verified counts and observations.
+
+The passive 90-second run contains two simultaneous stalls (two zero-progress
+samples each): both clients stopped advancing their screen loop and all observed
+network counters while consuming approximately one CPU core apiece. The core
+counter did not advance independently of owner/echo updates during these stalls;
+this run does not support blaming duplicate-update suppression for them. Other
+intervals normally progressed. No FP-change diagnostic label was observed in
+the bounded window; neither simulation checksums nor displayed FPS were measured.
+
+Computer Use capture failed after opening Create Session with `FrameArrived
+timed out`, including after window reselection and a helper reset. Persistent
+game failure is not established: later passive counters still advanced. No
+capture-call timeline was recorded, so its relationship to the temporary stalls
+is unknown. No new match/desync test was completed. Both owned games exited
+normally and the owned service was stopped. The confirmed turn-2154 desync
+remains open; do not change simulation timing, FP state or suppress checksum
+errors on this evidence.
+
 ## Current automatic-LAN implementation
 
 The current source adds an automatic LAN picker, per-PC display names, bounded

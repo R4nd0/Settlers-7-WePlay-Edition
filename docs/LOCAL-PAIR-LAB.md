@@ -1,15 +1,22 @@
 # Two real clients on one development PC
 
 This is a development laboratory, not the LAN installer. It was exercised on
-2026-10-26 after the user authorized local game operation without further manual
-restart requests. The original installation is unchanged.
+2026-10-26 and prepared again on 2026-10-28 after the user authorized local game
+operation without further manual restart requests. The original installation
+is unchanged.
 
 ## Isolation
 
 `tools/local-pair/lab_executable.py` derives two fixed, fully fingerprinted EXEs
-from the supported original. It changes only two equal-length, NUL-guarded data
-strings: the singleton mutex and the My Documents profile suffix. It does not
-change executable instructions, timing or protocol code. The normal adapter
+from the supported original. It changes only two fully guarded data slots:
+the singleton mutex and the My Documents profile suffix. The latter has a
+36-byte slot (33 original characters plus three NULs); the current 34-character
+work suffix and two NULs fit without moving or changing the adjacent `\\DLC`
+literal. All three callers use fixed copy lengths, so nine individually guarded
+immediate operands change their allocation from 34 to 35 bytes and copy/end
+lengths from 33 to 34 bytes. Instruction opcodes and control flow stay unchanged.
+Both complete EXE fingerprints and adjacent bytes are checked. This changes no
+simulation, timing or protocol behavior. The normal adapter
 rejects both resulting hashes. The separately compiled laboratory adapter
 rejects the original and every unknown hash, retaining PE, callsite, ABI and
 thread checks.
@@ -32,26 +39,69 @@ Do not use laboratory binaries in production bundles or PC 2 update packages.
 
 ## Local artifacts
 
-Under the task's `rec/work` directory:
+Under the current repository's ignored `work/` directory:
 
 - `pair-A` and `pair-B`: independent Base copies, not links; fresh LocalData
   identities/saves; `lab-manifest.json` checks EXE, adapter and Interface archive.
 - `prepare_local_pair.py`: already-run private preparation script. It refuses
   existing target folders; do not rerun over these copies.
-- `operate_local_pair.py server|A|B`: private process controller. Start server
+- `desync-pair-20261028/launch_pair.py server|A|B`: current private process
+  controller (`check` validates without launching). Start server
   first, wait for its ready line, then A and B. It writes loopback runtime
   configuration, locks each slot and records its owned PID/exit status. It starts
   no Ubisoft launcher. Service lifetime is one hour; registered-peer limits
   still apply. Stop the exact owned service when finished.
-- `pair-ready.json`, runtime INI files and raw logs remain private and untracked.
+- `desync-pair-20261028/ready.json`, runtime INI files and raw logs remain private
+  and untracked. `operate_local_pair.py` and `pair-ready.json` describe an older
+  controller, not the current run.
 
-The fixed EXE data suffixes are `\Codex\2026-10-25\rec\work\S7LabA` and
-`S7LabB`, relative to the actual Windows My Documents folder. On this machine
-that folder is on Z:, not C:. Both profile directories were prepared separately;
-only Options.ini was initially copied, not an existing player profile or saves.
-The real games created separate Profiles.xml and replay files there.
+The current fixed EXE data suffixes are `\Claude\Projects\7S_Patcher\work\A`
+and `\Claude\Projects\7S_Patcher\work\B`, relative to the actual Windows My
+Documents folder. On this machine that folder is on Z:, so both remain in the
+current repository's ignored work directory. Old laboratory EXE hashes are
+rejected. Historical profile folders from the former Codex workspace may only
+supply selected Options settings; identities, Profiles.xml and saves are not
+copied into the new profiles.
 
-## Observations, separate from tests
+## Current run: 2026-10-28
+
+Both newly derived games reached the main menu with distinct visible names,
+Lab A and Lab B. Separate profile folders were created under `work/A` and
+`work/B`; only filenames were inspected. Each process used two allowed physical
+cores (mask `0x5`), native D3D9 and a 1280x720 window. The real configuration
+service used the separate LocalPairLab build.
+
+A passive, hash-pinned observer collected 91 paired samples over 90 seconds.
+It read only typed numeric fields/counters, process resource counters and fixed
+FP diagnostic labels; no peer/profile identities or packet bodies were read.
+Median owner updates were 15 Hz in both games. Median process CPU use was
+0.469 and 0.586 core-equivalents; observed maxima were 1.61 and 1.86. These are
+short two-client menu observations, not proof of acceptable long-run CPU use.
+
+At elapsed seconds 8/9 and 59/60, both clients had zero progress in the core,
+owner, manager, echo and screen-loop counters while each consumed roughly one
+CPU core. Thus this run also contains real engine stalls; it is incorrect to
+describe the entire run as smooth. The progressing-core/skipped-owner signature
+was not present in these stalls. Their cause remains unproven. Screen-loop
+completion counts are not displayed FPS or simulation checksums.
+
+After A opened the session browser, clicking Create Session was followed by
+Computer Use capture failures: `FrameArrived timed out: timed out waiting on
+channel`. Reselecting the windows and resetting the JavaScript helper did not
+restore capture. Later numeric samples still progressed, so persistent game
+failure is not established. Capture-call timestamps were not recorded alongside
+the samples; the temporary stalls cannot be causally attributed to capture.
+No map, lobby join or match was completed in this run. No observed FP-change
+label appeared within the bounded diagnostic window; that does not exclude an
+FP issue outside the observed calls/window. Both games were closed regularly
+with exit code 0; the exact owned service was then stopped.
+
+Verification: 71 original/derived EXE checks, 82 network checks, 92 platform
+checks, 1,051 bootstrap checks and 18 private observer boundary tests passed.
+The original executable remained unchanged. This fixes the laboratory profile
+migration, not the previously reported two-PC desync.
+
+## Historical observations, separate from tests
 
 1. Two actual games authenticated concurrently. A created a public Turminsel
    lobby and B displayed it. A shared loopback address initially caused host
@@ -213,7 +263,7 @@ This establishes initial match startup in both one-PC host directions; it does
 not establish checksum equality, long-run stability, same-process leave/recreate
 behavior or a working two-PC LAN build.
 
-## Verification
+## Historical verification (2026-10-26)
 
 Laboratory build: 876 bootstrap checks (including both exact hashes, per-byte
 digest mutation rejection, native ABI/result preservation, pump order,
