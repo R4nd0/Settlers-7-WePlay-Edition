@@ -104,7 +104,15 @@ namespace S7Patcher.Source
         // Production passes its monotonic receive time. Clock-free codec fixtures
         // can omit it; they then exercise no activity extension.
         internal PrudpDataCryptoResult ProcessData(ReadOnlySpan<byte> packet, Action<ConfigServerEvent> emit, long? now = null)
+            => ProcessData(packet, emit, out _, now);
+
+        // A transport ACK is safe only after verified plaintext was retained, or
+        // its reliable sequence was already accepted. A refused future fragment
+        // must remain eligible for retransmission at the client.
+        internal PrudpDataCryptoResult ProcessData(ReadOnlySpan<byte> packet, Action<ConfigServerEvent> emit,
+            out bool acknowledge, long? now = null)
         {
+            acknowledge = false;
             if (closed || (now.HasValue && ExpireIfDue(now.Value, emit)))
                 return new() { Outcome = "local-login-session-closed" };
             if (!PrudpDataAckProbeCodec.TryReadRequest(packet, peer, out _, out _)
@@ -118,7 +126,30 @@ namespace S7Patcher.Source
             if (result.SequenceMatches != true) return result;
             if (queued != ReliableEnqueueResult.Accepted)
                 Emit(emit, new() { Event = "local-login-fragment-observed", Reason = queued.ToString() });
-            while (assembler.TryTakeMessage(out byte[] message))
+            if (queued is ReliableEnqueueResult.BufferLimitRequiresReset or ReliableEnqueueResult.RequiresReset)
+            {
+                Emit(emit, new() { Event = "local-login-session-expired", Reason = "receive-buffer-limit" });
+                Dispose(); return result;
+            }
+            acknowledge = queued is ReliableEnqueueResult.Accepted or ReliableEnqueueResult.OldOrDuplicate;
+            DrainMessages(emit, now);
+            if (!closed)
+                Emit(emit, new() { Event = "local-login-assembly-observed", Reason = assembler.LastDropReason.ToString(),
+                    BufferedFragments = assembler.BufferedFragmentCount, AssemblingFragments = assembler.FragmentsInCurrentMessage });
+            else acknowledge = false;
+            return result;
+        }
+
+        private void DrainMessages(Action<ConfigServerEvent> emit, long? now)
+        {
+            // Retain temporarily blocked RPCs in the existing 32-fragment/64-KiB
+            // assembler. Do not consume a final fragment and silently lose an RPC
+            // merely because Register's ACK or an earlier response ACK is delayed.
+            // TakeDue resumes this same ordered drain after ACKs, within 100 ms in
+            // the service loop. Existing response timeout/idle expiry owns cleanup.
+            while (!closed && pending.Count < ReliableResponseQueue.MaximumResponses
+                && (responseCount != 2 || !keepAlive || registrationAcknowledged)
+                && assembler.TryTakeMessage(out byte[] message))
             {
                 byte[] response = null;
                 try
@@ -206,10 +237,6 @@ namespace S7Patcher.Source
                     if (response != null) CryptographicOperations.ZeroMemory(response);
                 }
             }
-            if (!closed)
-                Emit(emit, new() { Event = "local-login-assembly-observed", Reason = assembler.LastDropReason.ToString(),
-                    BufferedFragments = assembler.BufferedFragmentCount, AssemblingFragments = assembler.FragmentsInCurrentMessage });
-            return result;
         }
 
         private bool TryReplyToSessionRequest(ReadOnlySpan<byte> message, out byte[] response, out string reason)
@@ -270,6 +297,8 @@ namespace S7Patcher.Source
             List<byte[]> due = new();
             if (closed) return due;
             if (ExpireIfDue(now, emit)) return due;
+            DrainMessages(emit, now);
+            if (closed) return due;
             var packets = pending.TakeDue(now, out bool timedOut);
             if (timedOut)
             {

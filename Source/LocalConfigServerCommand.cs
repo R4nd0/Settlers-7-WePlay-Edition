@@ -470,15 +470,14 @@ namespace S7Patcher.Source
                                     emit(new() { Event = "data-ack-probe-request-rejected", Reason = rejectionReason });
                                     continue;
                                 }
-                                if (!await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
-                                emit(new() { Event = "data-ack-probe-reply-sent", DatagramLength = reply.Length,
-                                    AuthenticationImplemented = false, UdpProtocolImplemented = false });
+                                bool acknowledge = true;
                                 if (options.DataCryptoProbe || options.LocalLoginProbe)
                                 {
                                     PrudpDataCryptoResult crypto = default;
                                     if (!UseCurrentLobbyContext(network.Lobby, packet.RemoteEndPoint, admissionGenerations, loginSessions, peers, () =>
-                                        crypto = loginSession != null ? loginSession.ProcessData(packet.Buffer, emit, Environment.TickCount64)
+                                        crypto = loginSession != null ? loginSession.ProcessData(packet.Buffer, emit, out acknowledge, Environment.TickCount64)
                                             : PrudpDataCryptoProbe.Inspect(packet.Buffer, peer))) continue;
+                                    if (options.LocalLoginProbe && loginSession == null) acknowledge = false;
                                     emit(new() { Event = "data-crypto-probe-observed", Reason = crypto.Outcome,
                                         SerializedPayloadLength = crypto.SerializedPayloadLength,
                                         DecryptedEnvelopeLength = crypto.DecryptedEnvelopeLength,
@@ -486,6 +485,14 @@ namespace S7Patcher.Source
                                         Compressed = crypto.Compressed, SequenceMatches = crypto.SequenceMatches,
                                         AuthenticationImplemented = false, UdpProtocolImplemented = false });
                                 }
+                                if (!acknowledge)
+                                {
+                                    emit(new() { Event = "data-ack-probe-request-rejected", Reason = "reliable-data-not-retained" });
+                                    continue;
+                                }
+                                if (!await SendCurrentAsync(reply, packet.RemoteEndPoint)) continue;
+                                emit(new() { Event = "data-ack-probe-reply-sent", DatagramLength = reply.Length,
+                                    AuthenticationImplemented = false, UdpProtocolImplemented = false });
                             }
                         }
                     }

@@ -2,6 +2,29 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Latest network reliability milestone and coordination
+
+Two reproduced message-loss cases (Register ACK reordering and a full response
+queue) and a reproduced nested-callback connect thread-guard bypass are fixed.
+See [NETWORK-RELIABILITY.md](NETWORK-RELIABILITY.md) for triggers, bounds, tests
+and exact candidate pins. The confirmed turn-2154 desync remains unproven as a
+consequence of either defect and has not been qualified as fixed.
+
+The user explicitly requested avoiding duplicate graphics work. Further GPU,
+CPU-hang, frame-limiting and live graphics tests now belong exclusively to
+`D3D11-Port und Grafik prüfen` (01a181c0-2544-7582-aec9-afbc3ec6e810). This chat
+continues networking/thread ownership only and has no live test game/service.
+
+A final old-adapter single-client run recorded 121 samples over 120 seconds.
+The 51 foreground intervals had median screen-loop rate 175.9847 Hz, process
+CPU 1.48466 core-equivalents, bootstrap CPU 0.625 and residual CPU 0.87461.
+These are approximate independent counter observations, not displayed FPS.
+There were no zero screen-loop intervals inside that window, but the user
+subsequently reported another freeze with a blocked PC. Its exact run/timing
+cannot be uniquely attributed; do not use the short measurement to contradict
+the report or claim smoothness. The thread-CPU observer and statically verified
+existing `-vSynch` presentation-only path were handed to the graphics chat.
+
 ## Latest local desync investigation: 2026-10-28
 
 The local A/B laboratory now derives profiles under this workspace's `work/A`
@@ -50,17 +73,17 @@ configuration also pass in a fresh separate copy, including wrong-EXE rejection
 and four consecutive final coordinator restarts. No new real-PC match or
 visible UTF-8 game-name rendering is asserted.
 
-Final candidate package:
-`outputs/S7-AutoLAN-Testpaket-2026-10-28-r2.zip` (49,935,221 bytes, ZIP CRC tested).
-It contains no game files or LocalData. Fresh test copy:
-`work/auto-lan-v4-realtest-20261028`. The first internal package is superseded;
-use r2 only. Fixed isolated-Python startup and send-request reuse after the
-final native call-pattern review; see AUTOMATIC-LAN.md.
+Current candidate package:
+`outputs/S7-AutoLAN-Testpaket-2026-10-28-r3.zip` (49,935,645 bytes, ZIP CRC tested).
+It contains no game files or LocalData. The historical r2 fresh test copy is
+`work/auto-lan-v4-realtest-20261028`; it was not updated to r3. Revision 3 adds
+the bounded RPC backpressure and connect-thread fixes above. It retains r2's
+isolated-Python startup and send-request reuse corrections.
 
-Pinned adapter: `work/lan-group-native-review-r2/uplay_r1_loader.dll`,
-SHA256 `6c76f17cafccae5885590b77be064f603f8db7400933e620c758c6f21c188b64`.
-Pinned service: `work/lan-lobby-server-review/service/S7Patcher.dll`,
-SHA256 `1409f3f784886923957a5861b4b1f048de49d60a57f759e9c14df3f4ba2f4ed5`.
+Pinned adapter: `work/native-lifecycle-review/network-pump/uplay_r1_loader.dll`,
+SHA256 `14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16`.
+Pinned service: `work/service-order-review-20261028/service/S7Patcher.dll`,
+SHA256 `6b5c3c3b5cc2e3c9884f92da9a58b071e619ddd5c4fcf2fdc97d0669f00084c7`.
 The adapter uses two physical cores; native baseline/pump guards remain active.
 
 ## Active workspace and latest user evidence

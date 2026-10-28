@@ -191,6 +191,124 @@ internal static class LocalLoginSessionChecks
         public void Dispose() { Session.Dispose(); Peer.Dispose(); CryptographicOperations.ZeroMemory(Key); }
     }
 
+    private static int RunReliableBackpressureChecks()
+    {
+        int passed = 0;
+        void Check(bool ok, string label) { if (!ok) throw new Exception(label); ++passed; }
+        ReliableMessageAssembler Assembler(Fixture fixture) => (ReliableMessageAssembler)typeof(PrudpLocalLoginSession)
+            .GetField("assembler", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.Session)!;
+        byte[][] Stored(Fixture fixture)
+        {
+            var queue = (System.Collections.IDictionary)typeof(ReliableMessageAssembler)
+                .GetField("pending", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Assembler(fixture))!;
+            return queue.Values.Cast<object>().Select(item => (byte[])item.GetType()
+                .GetProperty("Plaintext", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(item)!).ToArray();
+        }
+        void FillResponseWindow(Fixture fixture)
+        {
+            fixture.Register();
+            for (ushort sequence = 8; sequence < 10; ++sequence)
+                fixture.Session.ProcessData(fixture.Data(sequence, 0, LocalSessionSearchChecks.Request(sequence)), fixture.Events.Add);
+            Check(fixture.Session.PendingCount == 2, "Backpressure response-window fixture");
+        }
+        // The client has received Register's reply, but its ACK is reordered
+        // behind its next RPC. The RPC is retained until that ACK arrives.
+        using (Fixture fixture = new(keepAlive: true))
+        {
+            var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            fixture.Login(); session.TakeDue(100, emit); Check(session.TryAcknowledge(Ack(ServerCookie, 1)), "Login ACK fixture");
+            session.ProcessData(fixture.Data(7, 0, Request(true)), emit);
+            Check(session.TakeDue(100, emit).Count == 1, "Register reply was sent");
+            byte[] search = fixture.Data(8, 0, LocalSessionSearchChecks.Request(800));
+            session.ProcessData(search, emit, out bool acknowledge, 150);
+            Check(acknowledge && Assembler(fixture).BufferedFragmentCount == 1
+                && session.PendingCount == 1, "Search before Register ACK was lost or answered early");
+            session.ProcessData(search, emit, out acknowledge, 160);
+            Check(acknowledge && Assembler(fixture).BufferedFragmentCount == 1, "In-progress duplicate was requeued");
+            Check(session.TryAcknowledge(Ack(ServerCookie, 2)), "Reordered Register ACK rejected");
+            byte[] response = session.TakeDue(200, emit).Single();
+            VerifySearchResponse(response, fixture.Key, 800, fixture.ServerSession); ++passed;
+            Check(session.TryAcknowledge(Ack(ServerCookie, 3)), "Deferred search ACK rejected");
+            session.ProcessData(search, emit, out acknowledge, 210);
+            Check(acknowledge && session.PendingCount == 0 && session.TakeDue(210, emit).Count == 0,
+                "Completed duplicate replayed its RPC");
+        }
+        // Two pending responses stop message consumption, while out-of-order
+        // future messages remain in the same bounded, owned assembler storage.
+        using (Fixture fixture = new(keepAlive: true))
+        {
+            FillResponseWindow(fixture); var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            foreach (ushort sequence in new ushort[] { 12, 11, 10, 11 })
+            {
+                session.ProcessData(fixture.Data(sequence, 0, LocalSessionSearchChecks.Request(sequence)), emit, out bool acknowledge, 200);
+                Check(acknowledge, "Retained future/duplicate request must be acknowledged");
+            }
+            Check(Assembler(fixture).BufferedFragmentCount == 3 && session.PendingCount == 2,
+                "Backpressure grew response window or discarded requests");
+            byte[][] stored = Stored(fixture);
+            Check(session.TakeDue(200, emit).Count == 2 && session.TryAcknowledge(Ack(ServerCookie, 3))
+                && session.TryAcknowledge(Ack(ServerCookie, 4)), "Initial response ACK fixture");
+            var next = session.TakeDue(210, emit);
+            Check(next.Count == 2 && Assembler(fixture).BufferedFragmentCount == 1, "Deferred drain did not respect two-response limit");
+            VerifySearchResponse(next[0], fixture.Key, 10, fixture.ServerSession);
+            VerifySearchResponse(next[1], fixture.Key, 11, fixture.ServerSession); passed += 2;
+            Check(session.TryAcknowledge(Ack(ServerCookie, 5)) && session.TryAcknowledge(Ack(ServerCookie, 6)), "Deferred response ACKs");
+            VerifySearchResponse(session.TakeDue(220, emit).Single(), fixture.Key, 12, fixture.ServerSession); ++passed;
+            Check(session.TryAcknowledge(Ack(ServerCookie, 7)) && stored.All(bytes => bytes.All(value => value == 0))
+                && Assembler(fixture).BufferedFragmentCount == 0, "Ordered drain retained plaintext or duplicated requests");
+        }
+        // Refused future sequences are not acknowledged. Their unchanged packet
+        // can be retried after the receive window advances; bad crypto cannot ACK.
+        using (Fixture fixture = new(keepAlive: true))
+        {
+            FillResponseWindow(fixture); var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            byte[] inside = fixture.Data(41, 0, LocalSessionSearchChecks.Request());
+            session.ProcessData(inside, emit, out bool acknowledge, 200);
+            Check(acknowledge && Assembler(fixture).BufferedFragmentCount == 1, "Last receive-window slot rejected");
+            byte[] outside = fixture.Data(42, 0, LocalSessionSearchChecks.Request());
+            session.ProcessData(outside, emit, out acknowledge, 200);
+            Check(!acknowledge && Assembler(fixture).BufferedFragmentCount == 1, "Outside-window packet acknowledged or stored");
+            byte[] bad = (byte[])inside.Clone(); BinaryPrimitives.WriteUInt16LittleEndian(bad.AsSpan(8), 42); Sum(bad);
+            session.ProcessData(bad, emit, out acknowledge, 200);
+            Check(!acknowledge, "Invalid encrypted duplicate was acknowledged");
+            Check(session.TakeDue(200, emit).Count == 2 && session.TryAcknowledge(Ack(ServerCookie, 3))
+                && session.TryAcknowledge(Ack(ServerCookie, 4)), "Receive-window response ACK fixture");
+            session.ProcessData(fixture.Data(10, 0, LocalSessionSearchChecks.Request()), emit, out acknowledge, 210);
+            Check(acknowledge && Assembler(fixture).NextExpectedSequence == 11, "Receive window did not advance through next request");
+            session.ProcessData(outside, emit, out acknowledge, 220);
+            Check(acknowledge && Assembler(fixture).BufferedFragmentCount == 2, "Unacknowledged outside-window retry was not recoverable");
+            byte[][] stored = Stored(fixture);
+            session.Dispose();
+            Check(stored.All(bytes => bytes.All(value => value == 0)), "Disposal retained deferred plaintext");
+            session.ProcessData(inside, emit, out acknowledge, 300);
+            Check(!acknowledge, "Closed session acknowledged a request");
+        }
+        // Aggregate plaintext remains capped at 64 KiB. An overflow closes the
+        // context and clears earlier acknowledged storage; it never guesses a
+        // new stream boundary or ACKs the unretained fragment.
+        using (Fixture fixture = new(keepAlive: true))
+        {
+            FillResponseWindow(fixture); var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            session.ProcessData(fixture.Data(10, 1, new byte[40000]), emit, out bool acknowledge, 200);
+            Check(acknowledge && Assembler(fixture).BufferedByteCount == 40000, "Large deferred fragment fixture");
+            byte[][] stored = Stored(fixture);
+            session.ProcessData(fixture.Data(11, 0, new byte[30000]), emit, out acknowledge, 200);
+            Check(!acknowledge && session.Closed && session.PendingCount == 0 && Assembler(fixture).BufferedByteCount == 0
+                && stored.All(bytes => bytes.All(value => value == 0)), "Overflow did not fail closed and clear bounded storage");
+        }
+        using (Fixture fixture = new(keepAlive: true))
+        {
+            FillResponseWindow(fixture); var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            session.ProcessData(fixture.Data(10, 0, LocalSessionSearchChecks.Request()), emit, out bool acknowledge, 200);
+            byte[][] stored = Stored(fixture);
+            Check(acknowledge && stored.Length == 1, "Deferred timeout fixture");
+            for (int attempt = 0; attempt < 4; ++attempt) Check(session.TakeDue(200 + attempt * 1000, emit).Count == 2, "Deferred data changed response retry schedule");
+            Check(session.TakeDue(4200, emit).Count == 0 && session.Closed && stored.All(bytes => bytes.All(value => value == 0)),
+                "Missing ACK left deferred messages alive beyond transport timeout");
+        }
+        return passed;
+    }
+
     private static int RunLanLifetimeChecks()
     {
         int passed = 0;
@@ -344,7 +462,7 @@ internal static class LocalLoginSessionChecks
     internal static int Run()
     {
         if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP: native BCrypt local-login session checks require Windows."); return 0; }
-        int passed = RunLanLifetimeChecks() + RunTransportRoleChecks() + RunPeerReclamationChecks();
+        int passed = RunLanLifetimeChecks() + RunTransportRoleChecks() + RunPeerReclamationChecks() + RunReliableBackpressureChecks();
         void Check(bool value, string label) { if (!value) throw new Exception(label); passed++; }
         // A busy browser may send RPCs instead of PINGs. Advancing receive
         // timestamps must extend only successfully handled registered activity.
@@ -977,8 +1095,17 @@ internal static class LocalLoginSessionChecks
             response = firstReceived.Length == 15 ? secondReceived : firstReceived;
             Check(firstReceived.Length == 15 || secondReceived.Length == 15, "Register transport ACK missing");
             decoded = DecodeResponse(response, key, 0x456789ac, true, serverSession, info.UdpPort.Value, publicPort); CryptographicOperations.ZeroMemory(decoded); passed++;
+            // Real socket regression: the next RPC arrives before Register's ACK.
+            // Only its transport ACK may precede completion of registration.
+            await client.SendAsync(Data(cookie, key, 9, 0, LocalSessionSearchChecks.Request(0x12345677)));
+            Check((await Receive()).Length == 15, "Deferred search transport ACK missing");
+            await Silence(100);
             await client.SendAsync(Ack(cookie, BinaryPrimitives.ReadUInt16LittleEndian(response.AsSpan(8))));
             await Wait(() => events.Count(item => item.Event == "local-login-ack-observed" && item.Reason == "response-acknowledged") == 2);
+            response = await Receive();
+            VerifySearchResponse(response, key, 0x12345677, serverSession); passed++;
+            await client.SendAsync(Ack(cookie, BinaryPrimitives.ReadUInt16LittleEndian(response.AsSpan(8))));
+            await Wait(() => events.Count(item => item.Event == "local-login-ack-observed" && item.Reason == "response-acknowledged") == 3);
             byte[] ping = new byte[14]; ping[0] = 0x3a; ping[1] = 0x31; ping[2] = 4; ping[3] = ClientSession;
             BinaryPrimitives.WriteUInt32LittleEndian(ping.AsSpan(4), cookie); Sum(ping); await client.SendAsync(ping);
             await Wait(() => events.Any(item => item.Event == "udp-datagram-observed" && item.PacketType == "ping"));
@@ -992,17 +1119,38 @@ internal static class LocalLoginSessionChecks
             await Wait(() => events.Any(item => item.Event == "local-ping-ack-sent"));
             await client.SendAsync(Ping(cookie, 8)); await Silence(150);
             await client.SendAsync(Ping(cookie ^ 1)); await Silence(150);
-            byte[] searchPacket = Data(cookie, key, 9, 0, LocalSessionSearchChecks.Request());
+            byte[] searchPacket = Data(cookie, key, 10, 0, LocalSessionSearchChecks.Request());
             await client.SendAsync(searchPacket);
             firstReceived = await Receive(); secondReceived = await Receive();
             response = firstReceived.Length == 15 ? secondReceived : firstReceived;
             Check(firstReceived.Length == 15 || secondReceived.Length == 15, "Search DATA ACK missing");
             VerifySearchResponse(response, key, 0x12345678, serverSession); passed++;
             await client.SendAsync(Ack(cookie, BinaryPrimitives.ReadUInt16LittleEndian(response.AsSpan(8))));
-            await Wait(() => events.Count(item => item.Event == "local-login-ack-observed" && item.Reason == "response-acknowledged") == 3);
+            await Wait(() => events.Count(item => item.Event == "local-login-ack-observed" && item.Reason == "response-acknowledged") == 4);
             await client.SendAsync(searchPacket); Check((await Receive()).Length == 15, "Duplicate search DATA not acknowledged");
             await Silence(1200);
-            Check(events.Count(item => item.Event == "local-session-search-response-queued") == 1, "Duplicate search created another response");
+            Check(events.Count(item => item.Event == "local-session-search-response-queued") == 2, "Duplicate search created another response");
+            // Three requests with only two response slots. A later ACK must drain
+            // the third exactly once, without requiring the already ACKed input.
+            ushort[] outstanding = new ushort[2];
+            for (int index = 0; index < 2; ++index)
+            {
+                await client.SendAsync(Data(cookie, key, (ushort)(11 + index), 0, LocalSessionSearchChecks.Request((uint)(601 + index))));
+                firstReceived = await Receive(); secondReceived = await Receive();
+                response = firstReceived.Length == 15 ? secondReceived : firstReceived;
+                Check(firstReceived.Length == 15 || secondReceived.Length == 15, "Pipelined RPC transport ACK missing");
+                VerifySearchResponse(response, key, (uint)(601 + index), serverSession); passed++;
+                outstanding[index] = BinaryPrimitives.ReadUInt16LittleEndian(response.AsSpan(8));
+            }
+            await client.SendAsync(Data(cookie, key, 13, 0, LocalSessionSearchChecks.Request(603)));
+            Check((await Receive()).Length == 15, "Third pipeline request was not retained/ACKed");
+            await Silence(100);
+            await client.SendAsync(Ack(cookie, outstanding[0]));
+            response = await Receive(); VerifySearchResponse(response, key, 603, serverSession); passed++;
+            await client.SendAsync(Ack(cookie, outstanding[1]));
+            await client.SendAsync(Ack(cookie, BinaryPrimitives.ReadUInt16LittleEndian(response.AsSpan(8))));
+            await Wait(() => events.Count(item => item.Event == "local-login-ack-observed" && item.Reason == "response-acknowledged") == 7);
+            Check(events.Count(item => item.Event == "local-session-search-response-queued") == 5, "Socket backpressure lost or duplicated an RPC");
             Check(events.Count(item => item.Event == "local-login-response-queued") == 2, "Network RPC duplication or missing registration");
             string json = string.Join("\n", events.Select(item => JsonSerializer.Serialize(item, ConfigServerJsonContext.Default.ConfigServerEvent)));
             Check(!json.Contains("test-secret") && !json.Contains(PublicUrl) && !json.Contains(Convert.ToHexString(key))

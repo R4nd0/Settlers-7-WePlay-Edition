@@ -13,8 +13,8 @@ import compatibility as content
 from install import write_json, FORMAT, LAN_LOBBY_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
-ADAPTER_SHA256 = '6c76f17cafccae5885590b77be064f603f8db7400933e620c758c6f21c188b64'
-SERVICE_SHA256 = '1409f3f784886923957a5861b4b1f048de49d60a57f759e9c14df3f4ba2f4ed5'
+ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
+SERVICE_SHA256 = '6b5c3c3b5cc2e3c9884f92da9a58b071e619ddd5c4fcf2fdc97d0669f00084c7'
 ARCHIVE_SHA256 = '2b1ad77ab1afda98e9d9aab8bbc91279607e1bbbac506d2b52de675550de08ad'
 
 
@@ -79,7 +79,7 @@ def build(adapter, service, dotnet, python_zip, output):
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')
     (output / 'LIESMICH.txt').write_text(
-        'S7 automatische LAN-Lobby: Testpaket v4\n\n'
+        'S7 automatische LAN-Lobby: Testpaket v4, Netzwerkrevision 3\n\n'
         'Paket vollstaendig entpacken und Installieren.cmd starten.\n'
         'Den eigenen S7-History-Installationsordner und einen neuen Testordner eingeben.\n'
         'Den Ziel-Unterordner vorher nicht anlegen. Alle bisherigen Korrekturen sind enthalten.\n'
@@ -87,6 +87,7 @@ def build(adapter, service, dotnet, python_zip, output):
         'Python und .NET sind enthalten; keine Systeminstallation oder Administratorrechte erforderlich.\n\n'
         'Enthalten: bekannte Zusatzinhalte, volle Kampagnenauswahl und fuer diesen Test maximal zwei physische CPU-Kerne ohne SMT.\n'
         'Der Entwicklermodus ist im LAN verbindlich deaktiviert.\n'
+        'Revision 3 behebt verlorene Lobby-Anfragen bei verspaeteten Bestaetigungen und schuetzt verschachtelte Anmeldeaufrufe vor Fremdthreads.\n'
         'Kampagnenauswahl und CPU-Zuordnung sind im Spiel bestaetigt; weitere Belohnungen noch nicht vollstaendig geprueft.\n'
         'Neue automatische LAN-Verbindung fuer weitere Spieltests, noch keine stabile Freigabe.\n'
         'Das gleiche Paket ist fuer beide PCs vorgesehen. Lokale Spielerkennungen entstehen auf jedem PC neu.\n'

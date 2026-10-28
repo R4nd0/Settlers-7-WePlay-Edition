@@ -98,7 +98,7 @@ simulation or establish multi-PC endgame stability. The native FP diagnostics
 only observe bounded control-state changes; they never normalize floating-point
 state, remove simulation checks or conceal a desync.
 
-Current candidate:184 Python tests (one skipped symlink-privilege case),517
+Revision 2 verification:184 Python tests (one skipped symlink-privilege case),517
 native LAN,78 legacy guard,92 platform,1,049 bootstrap,18 connection and24 CPU
 checks pass. The service passes116 focused lobby/capacity,8,796 full service,
 38 login-network and477 login-RPC checks. Error mutants restore the slot-count
@@ -127,3 +127,9 @@ normal coordinator restart cycles pass. Earlier cold-start attempts aborted
 after service readiness without a classified cause; an independently bounded
 direct diagnostic and the final normal retries passed, so startup under heavy
 load is not qualified as reliable. No game was started for these checks.
+
+Revision 3 preserves these changes and fixes reproduced RPC loss under delayed
+ACKs/backpressure and nested native connect-thread entry. Updated checks,
+candidate artifacts and unqualified gameplay boundaries are documented in
+[NETWORK-RELIABILITY.md](NETWORK-RELIABILITY.md). Graphics and CPU-hang live
+investigation is coordinated exclusively in the separate graphics chat.

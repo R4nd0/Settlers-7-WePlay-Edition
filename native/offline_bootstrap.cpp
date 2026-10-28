@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <vector>
+#include <atomic>
 #include <intrin.h>
 #include "offline_bootstrap.h"
 #include "runtime_config.h"
@@ -47,7 +48,12 @@ char server_address[16] = "127.0.0.1";
 bool local_connect_probe = false;
 bool lan_game = false;
 bool developer_mode = false;
-DWORD bootstrap_thread = 0;
+// Every patched connect entry can be reached again from an original callback,
+// including a callback forwarded on a foreign Windows thread. Publish only this
+// lock-free owner-thread token before consulting any ordinary bridge/game state.
+std::atomic<DWORD> bootstrap_thread{0};
+static_assert(std::atomic<DWORD>::is_always_lock_free && sizeof(bootstrap_thread) == 4,
+    "the bootstrap owner token must remain a lock-free four-byte value");
 bool pump_active = false;
 bool natural_updates_seen = false;
 unsigned int owner_update_count = 0;
@@ -187,6 +193,14 @@ struct Patch {
 
 struct NativeResult { int32_t code; uint32_t detail; };
 using GameLogin = void (__thiscall*)(void*);
+NativeResult* RejectForeignLocalConnect(NativeResult* output) {
+    if (!output) Stop(NativeGameObjectMismatch);
+    // Established unavailable error, never a completed native operation. The
+    // five installed callers supply stack-local output. Write only the supplied
+    // result, never an additional owner+278 result or requested/pending flags.
+    output->code = LocalConnectUnavailable; output->detail = 0;
+    return output;
+}
 unsigned char* CheckedGame(void* game) {
     auto* bytes = static_cast<unsigned char*>(game);
     if (!bytes || *reinterpret_cast<uintptr_t*>(bytes) != image_base + 0x109C9D8 - PreferredBase)
@@ -197,6 +211,8 @@ unsigned char* CheckedGame(void* game) {
     return bytes;
 }
 NativeResult* __fastcall ConnectLocalGame(void* self, void*, NativeResult* output) {
+    if (GetCurrentThreadId() != bootstrap_thread.load(std::memory_order_acquire))
+        return RejectForeignLocalConnect(output);
     auto* game = CheckedGame(self);
     if (!output) Stop(NativeGameObjectMismatch);
     const bool ready = initialization == 2 && local_connect_probe && udp_port != 0;
@@ -211,6 +227,8 @@ NativeResult* __fastcall ConnectLocalGame(void* self, void*, NativeResult* outpu
     return output;
 }
 NativeResult* __fastcall RequestLocalGame(void* self, void*, NativeResult* output) {
+    if (GetCurrentThreadId() != bootstrap_thread.load(std::memory_order_acquire))
+        return RejectForeignLocalConnect(output);
     if (!self || !output) Stop(NativeGameObjectMismatch);
     auto* owner = static_cast<unsigned char*>(self);
     auto* game = CheckedGame(owner + 0x50);

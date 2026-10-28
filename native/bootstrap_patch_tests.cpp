@@ -138,12 +138,32 @@ void __fastcall FakeSetSearchSpace(void* self, void*, const NativeSmallString* i
     if (search_space_mode == 2) output->inline_data[0] = '?';
 }
 void* __cdecl FakeNetworkGetter() { ++network_getter_calls; return pump_network; }
+unsigned int nested_connect_jobs = 0;
+DWORD nested_connect_thread = 0;
+NativeResult nested_connect_result{};
+void __fastcall FakeNestedConnectJob(void*, void*) {
+    ++nested_connect_jobs;
+    nested_connect_thread = GetCurrentThreadId();
+}
 void __fastcall FakeOwnerUpdate(void* self, void*) {
     pump_trace.push_back('O');
     owner_update_self = self;
     owner_update_thread = GetCurrentThreadId();
     if (pump_mode == 8) *Native<unsigned char**>(0x1379E14) = nullptr;
     if (pump_mode == 19) SetLastError(6789);
+    auto* owner = static_cast<unsigned char*>(self);
+    if (pump_mode == 21 && !owner[0x24] && owner[0x248]) {
+        // Original C956E0..C956FA reaches patched C956F5 even when the outer
+        // UpdateLocalGame wrapper forwarded this update on a foreign thread.
+        RequestLocalGame(owner, nullptr, &nested_connect_result);
+        owner[0x248] = 0; // Preserve that original callback's own work.
+    }
+    if (pump_mode == 22) {
+        auto* game = owner + 0x50;
+        // Original C958A2..C958CF after its unchanged retry timer is due.
+        if (game[0x28] && !game[0x38] && !game[0x48])
+            ConnectLocalGame(game, nullptr, &nested_connect_result);
+    }
 }
 struct ForeignOwnerUpdate {
     void* owner;
@@ -159,6 +179,17 @@ DWORD WINAPI RunForeignOwnerUpdates(void* argument) {
         UpdateLocalGame(run->owner, nullptr);
         run->error = GetLastError();
     }
+    return 0;
+}
+DWORD WINAPI RunForeignPoisonedConnect(void*) {
+    // Both entries must reject before reading self or any other bridge state.
+    auto* poisoned = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
+    NativeResult output{123, 456};
+    if (ConnectLocalGame(poisoned, nullptr, &output) != &output ||
+        output.code != LocalConnectUnavailable || output.detail != 0) return 1;
+    output = {123, 456};
+    if (RequestLocalGame(poisoned, nullptr, &output) != &output ||
+        output.code != LocalConnectUnavailable || output.detail != 0) return 1;
     return 0;
 }
 DWORD WINAPI RunForeignDesyncObservations(void* argument) {
@@ -683,6 +714,55 @@ int main() {
         check(owner_update_count == foreign_owner_before && !natural_updates_seen);
         check(network_getter_calls == foreign_getter_before && !pump_active);
     }
+    check(FakeJump(0xD49B80, reinterpret_cast<const void*>(&FakeNestedConnectJob)));
+    const auto saved_udp_port = udp_port;
+    udp_port = 9101;
+    for (int mode : {21, 22}) {
+        pump_mode = mode; pump_trace.clear();
+        owner[0x24] = 0; owner[0x248] = 1;
+        owner[0x78] = mode == 22 ? 1 : 0;
+        owner[0x88] = 0; owner[0x98] = 0;
+        nested_connect_jobs = 0; nested_connect_thread = 0;
+        nested_connect_result = {123, 456};
+        auto* stored = reinterpret_cast<NativeResult*>(owner + 0x278);
+        *stored = {321, 654};
+        const auto count_before = owner_update_count;
+        const auto getters_before = network_getter_calls;
+        const auto labels_before = diagnostic_events.size();
+        ForeignOwnerUpdate nested{owner, 0, 0, 1};
+        HANDLE nested_thread = CreateThread(nullptr, 0, RunForeignOwnerUpdates, &nested, 0, nullptr);
+        check(nested_thread != nullptr);
+        if (nested_thread) {
+            check(WaitForSingleObject(nested_thread, 10000) == WAIT_OBJECT_0);
+            check(CloseHandle(nested_thread) != FALSE);
+            check(nested.thread != bootstrap_thread && owner_update_thread == nested.thread);
+            check(pump_trace.size() == 1 && pump_trace[0] == 'O');
+            check(nested_connect_result.code == LocalConnectUnavailable && nested_connect_result.detail == 0);
+            check(stored->code == 321 && stored->detail == 654);
+            check(owner[0x78] == (mode == 22 ? 1 : 0) && owner[0x98] == 0);
+            check(nested_connect_jobs == 0 && nested_connect_thread == 0);
+            check(owner_update_count == count_before && network_getter_calls == getters_before);
+            check(diagnostic_events.size() == labels_before);
+            check(mode != 21 || owner[0x248] == 0); // Original callback was not dropped.
+        }
+        // The ordinary next owner tick starts the genuine job on its owner
+        // thread, without synthetic readiness or a new cross-thread queue.
+        UpdateLocalGame(owner, nullptr);
+        check(nested_connect_jobs == 1 && nested_connect_thread == bootstrap_thread);
+        check(owner[0x78] == 1 && owner[0x98] == 1 && owner_update_count == count_before + 1);
+        if (mode == 22) check(nested_connect_result.code == 2 && nested_connect_result.detail == 0);
+    }
+    HANDLE poisoned_thread = CreateThread(nullptr, 0, RunForeignPoisonedConnect, nullptr, 0, nullptr);
+    check(poisoned_thread != nullptr);
+    if (poisoned_thread) {
+        check(WaitForSingleObject(poisoned_thread, 10000) == WAIT_OBJECT_0);
+        DWORD exit_code = 99;
+        check(GetExitCodeThread(poisoned_thread, &exit_code) != FALSE && exit_code == 0);
+        check(CloseHandle(poisoned_thread) != FALSE);
+    }
+    udp_port = saved_udp_port;
+    owner[0x78] = 1; owner[0x88] = 1; owner[0x98] = 0;
+    natural_updates_seen = false;
     pump_mode = 0; pump_trace.clear();
     auto trace_is = [&](const char* expected) {
         return pump_trace.size() == strlen(expected) &&
