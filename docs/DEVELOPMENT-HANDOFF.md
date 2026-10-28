@@ -18,12 +18,15 @@ The launcher uses saved graphics and emits `lan_search`, `lan_connect` and
 `lan_ready` through the supplied progress callback. Its cancellation callback
 has no arguments. Explicit picker injection remains for diagnostics only.
 
-Twenty new policy checks and nine launcher checks pass. They cover stable
+Twenty-one new policy checks and nine launcher checks pass. They cover stable
 idle election, active priority, stale/restarted HTTP content classification,
 renderer alternatives, full/conflicting groups, NIC2 source binding, ongoing
 worker cancellation, cleanup after admission, saved settings and the copy lock
 during full verification. Independent review found the stale-content case;
-the fixed path and regression are included. The full content check occurs once
+the fixed path and regression are included. Idle election includes other
+renderer variants before content filtering, so simultaneous first starts with
+different variants cannot each elect themselves. An incompatible winner stops
+admission; relaunch lets the desktop align to the visible service. The full content check occurs once
 under the copy's session lock. These are automated checks, not evidence of a
 new multi-PC/endgame run or a fix for the confirmed desync.
 

@@ -27,6 +27,10 @@ two-PC joins and match starts have worked with either computer hosting. A guest
 command-delay bug has been corrected. A reverse-host desync remains under
 investigation; three or more real clients and large endgame networks still need
 qualification. Automatic discovery and the launcher do not fix simulation bugs.
+For a first LAN start with different graphics profiles, start one PC first,
+then the others; known renderer differences are aligned automatically. With
+simultaneous first starts, an incompatible winning service may require retrying
+LAN start. No disconnected second group is silently created to hide a mismatch.
 
 - [Getting started with the desktop launcher](docs/RC2-START.md)
 - [Automatic LAN, limits and verification](docs/AUTOMATIC-LAN.md)

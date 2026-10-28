@@ -20,7 +20,11 @@ group after a service restart. At most32 candidates and four concurrent
 
 An already active coordinator wins over idle candidates. Idle simultaneous
 starts use numerical host-address order, independent of display names, reply
-order and each computer's adapter names. Before admission, two consecutive
+order and each computer's adapter names. This order also applies across idle
+renderer variants; an incompatible winner stops admission rather than letting
+each variant silently choose its own hub. In that rare simultaneous first-start
+case, start LAN again so the desktop can align to the now visible winner.
+Before admission, two consecutive
 searches must agree, with at most four settling passes. If local startup loses
 a fixed-port race, it can reuse the winner only after the same live checks.
 An unused hub retains its existing one-minute idle expiry; a departing player

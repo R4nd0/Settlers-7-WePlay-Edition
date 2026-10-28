@@ -86,6 +86,16 @@ class DiscoveryPolicyTests(unittest.TestCase):
         self.assertEqual(selected.endpoint.host, restarted.endpoint.host)
         self.assertEqual(selected.content_id, B)
 
+    def test_different_idle_profiles_cannot_each_elect_themselves(self):
+        low, high = room('192.168.1.9', expected=B), room('192.168.1.20', key=2)
+        with self.assertRaises(auto.LanConnectionError) as error:
+            self.discover([high, low])
+        self.assertEqual(error.exception.code, 'lan_version')
+        self.assertEqual(self.discover([high, low], acceptable_content_ids=(B,)), low)
+        with patch.object(auto, 'request', side_effect=lambda host, *_, **__: status(B if host == low.endpoint.host else A)):
+            chosen = auto.discover_preferred(self.directory([high, low]), B)
+        self.assertEqual(chosen.endpoint.host, low.endpoint.host)
+
     def test_restarted_beacon_generations_probe_one_endpoint_and_use_newer_record(self):
         old = room('192.168.1.20')
         new = replace(old, room_id='f' * 32, expires_at=105)

@@ -121,7 +121,13 @@ arbitrary endpoint URLs, account data or native game calls are involved.
     if len(active_hosts) > 1:
         raise LanConnectionError('lan_multiple',
             'Mehrere getrennte WePlay-Gruppen sind aktiv. Nach den Partien WePlay auf allen PCs neu starten.')
-    preferred = min(active or compatible, key=lambda item: order(item.room))
+    # All starters must elect from the same idle view, even across renderer
+    # variants. Filtering idle hosts to each caller's own ID would let two
+    # simultaneous first starts elect themselves into disconnected groups.
+    preferred = min(active or candidates, key=lambda item: order(item.room))
+    if preferred.room.content_id not in allowed:
+        raise LanConnectionError('lan_version',
+            'Die ausgewaehlte LAN-Gruppe verwendet einen anderen Spiel- oder Grafikstand. Bitte WePlay erneut starten.')
     if preferred.members >= MAX_MEMBERS and preferred.room.endpoint.host != preferred.room.local_interface.address:
         raise LanConnectionError('lan_full', 'Die LAN-Gruppe ist voll. Bitte warten, bis ein Platz frei wird.')
     return preferred.room
