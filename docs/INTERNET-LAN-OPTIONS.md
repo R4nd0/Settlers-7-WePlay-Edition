@@ -1,4 +1,4 @@
-# Internet play with ZeroTier and free alternatives
+# Internet play with integrated peer to peer networking
 
 Research date: 2026-10-29. This is an implementation handoff for WePlay. The
 user requested research and notification of the networking chat, including free
@@ -7,10 +7,16 @@ Internet mode are outside this research milestone.
 
 ## Recommendation
 
-Start with **externally installed ZeroTier One and a private RFC1918 IPv4
-network** for a small friends group. Its free Personal plan currently covers
+The user clarified that the solution should be serverless and directly
+integrable. **Evaluate a bundled EasyTier helper first** for that requirement;
+the next section distinguishes direct-only operation from public bootstrap and
+relay infrastructure. This is an integration candidate, not a tested WePlay
+transport.
+
+For the earlier separate-client approach, **externally installed ZeroTier One
+and a private RFC1918 IPv4 network** remain an option. Its free Personal plan covers
 10 devices and one network for personal, non-commercial use. This is the
-shortest candidate path through the existing address guards. It still requires
+short candidate path through the existing address guards. It still requires
 adapter selection and a real Internet test; installing ZeroTier alone does not
 establish working WePlay multiplayer. [ZeroTier pricing](https://www.zerotier.com/pricing/)
 
@@ -23,11 +29,79 @@ The known simulation desync remains a separate defect. Changing the tunnel
 does not demonstrate a fix. See [DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)
 and [NETWORK-RELIABILITY.md](NETWORK-RELIABILITY.md).
 
+## GitHub candidates for an integrated serverless mode
+
+**Serverless has two materially different meanings.** With no dedicated server
+operated by WePlay, public bootstrap/STUN nodes and fallback relays may still be
+used. With no external infrastructure at all, players need a reachable entry
+point and a way to exchange its address. Arbitrary restrictive NAT/firewall
+combinations cannot be promised to connect directly. ICE explicitly uses STUN
+and TURN to obtain candidate paths, including relay paths.
+[ICE standard](https://www.rfc-editor.org/rfc/rfc8445.html).
+
+| Project | Integration choice | Infrastructure condition |
+| --- | --- | --- |
+| [EasyTier](https://github.com/EasyTier/EasyTier) | Windows-capable mesh VPN, LGPL 3.0; first evaluate its core executable bundled and controlled by our launcher | Connect to a reachable player for direct bootstrap, or use community shared nodes for discovery/NAT traversal and relay fallback. No mandatory WePlay-operated server or Central account. |
+| [EasyTierGame](https://github.com/EasyTier/EasytierGame) | Existing Windows game launcher bundling EasyTier; useful process/configuration reference | Inherits the underlying network's dependencies. Its WinIPBroadcast helper also shows why game discovery must be tested separately. |
+| [libjuice](https://github.com/paullouisageneau/libjuice) | C library, Windows support, MPL 2.0; ICE-based UDP connectivity for a custom embedded transport | Requires candidate/signaling exchange; STUN and optional TURN help with NAT. Not a VPN or a replacement for all existing sockets. |
+| [rustp2p](https://github.com/rustp2p/rustp2p) | Rust library with QUIC streams/datagrams, discovery and NAT primitives; more custom bridging work | Needs reachable bootstrap peers and configured STUN where required; reachable peers can relay. Production certificate verification must replace the documented testing default. |
+| [n2n](https://github.com/ntop/n2n) | Peer VPN with Windows build support | A publicly reachable supernode is explicitly required for discovery and fallback relay, so it does not meet the strict infrastructure-free requirement. |
+
+Sources: [EasyTier README](https://github.com/EasyTier/EasyTier/blob/main/README.md),
+[EasyTierGame README](https://github.com/EasyTier/EasytierGame/blob/main/README.md),
+[libjuice API and scope](https://github.com/paullouisageneau/libjuice/blob/master/README.md),
+[rustp2p architecture and defaults](https://github.com/rustp2p/rustp2p/blob/master/README.md),
+[n2n topology](https://github.com/ntop/n2n/blob/dev/README.md).
+
+### Proposed EasyTier integration
+
+WePlay would own a pinned `easytier-core` helper's start, readiness, cancellation
+and cleanup. Players would use a shared invitation instead of a separate VPN
+GUI. Generate a strong group secret; keep it out of command-line diagnostics,
+logs and published artifacts. Use a locally protected configuration file and
+restrict management RPC to loopback. Do not enable exit-node, subnet-export or
+remote web-management features for game connectivity. Explicit private IPv4
+addresses and a dedicated adapter name are configurable. Current documentation
+also describes a `p2p-only` flag, which restricts communication to established
+direct peers; verify flags against the pinned release before implementing them.
+[Configuration reference](https://easytier.cn/en/guide/network/configurations.html).
+
+Offer two explicit connectivity policies: direct bootstrap to a reachable player
+with no public shared node, or public-assisted connection with a disclosed
+bootstrap/relay dependency. Direct-only mode must report an unreachable peer
+instead of quietly falling back to a relay. A player-hosted coordinator is
+still needed by WePlay itself; bundling a P2P tunnel does not remove it.
+[Decentralized setup](https://easytier.cn/en/guide/network/decentralized-networking.html).
+
+The bundled helper approach retains normal Windows sockets for the game,
+Python and .NET. Windows release packages include driver/DLL dependencies;
+admin rights for a virtual adapter remain a deployment requirement. Record
+exact artifact hashes, architectures, LGPL source/notices and the separate
+driver licenses before redistribution. Current stable releases and current
+`main` documentation need not expose identical interfaces.
+[Windows packaging](https://github.com/EasyTier/EasyTier/blob/main/README.md),
+[Release examined](https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4).
+
+A library-only design with libjuice or rustp2p needs bridges for discovery,
+TCP control, service UDP and native game UDP, as well as authenticated group
+membership and payload encryption. In particular, ICE connectivity by itself
+does not encrypt application payloads. This is more invasive than bundling a
+VPN core. An EasyTier FFI tree exists, but neither its existence nor an embedded
+device component establishes stable Windows support or equivalent broadcast
+behavior for this game. Prove those properties before choosing a DLL approach.
+[Native FFI tree](https://github.com/EasyTier/EasyTier/tree/main/easytier-contrib/easytier-ffi).
+
+The existing adapter-selection, RFC1918, firewall and native exact-peer guards
+below still apply. Verify directed broadcast over the chosen EasyTier release;
+if unsuitable, implement a bounded unicast directory using validated overlay
+peers. Do not install a global broadcast repeater or disable the firewall as a
+substitute. No candidate has been run against S7 in this research milestone.
+
 ## Free alternatives and project fit
 
 | Option | Current free offer | Fit for WePlay |
 | --- | --- | --- |
-| ZeroTier One with Central Personal | 10 devices, one network, personal non-commercial use; hosted management API excluded | Best first candidate: configurable private IPv4 addresses and Ethernet broadcast support. Add explicit overlay selection. |
+| ZeroTier One with Central Personal | 10 devices, one network, personal non-commercial use; hosted management API excluded | Separate-client option: configurable private IPv4 addresses and Ethernet broadcast support. Add explicit overlay selection. |
 | Radmin VPN | Vendor states completely free, no ads or paid features, no gamer-count limit; Windows | Good external gaming tool. Current RFC1918 guards reject its 26/8 network. Needs deliberate overlay support across layers. |
 | SoftEther VPN | Apache 2.0, free personal and commercial use | Good candidate for an independently operated Ethernet network. Requires VPN Server plus clients and server administration; hosting resources may cost money. |
 | Tailscale Personal | Six users, unlimited user devices | Good IP connectivity, but a different fit: its layer 3 model does not supply the Ethernet LAN semantics assumed by current discovery. Standard 100.64/10 addresses also fail current guards. Plan unicast discovery and overlay-aware validation first. |
@@ -206,6 +280,8 @@ a separate service constraint.
    operation of the second PC requires access or an operator; current local
    test-copy authorization does not grant remote access.
 
-The useful first milestone is a free, explicitly selected ZeroTier network
-working across two actual Internet connections. Radmin support and a SoftEther
-deployment remain viable follow-up choices, not prerequisites for that test.
+For the original separate-client approach, the first milestone is an explicitly
+selected ZeroTier network working across two actual Internet connections. For
+the clarified integrated/serverless requirement, first qualify the bundled
+EasyTier topology described above, keeping direct-only and public-assisted
+results separate. Radmin and SoftEther are optional alternatives.
