@@ -66,3 +66,17 @@ The installer remains unsigned and includes no original game data.
 
 [Player guide](LAN-PLAYERS.md) · [Deutsch](LAN-SPIELER.md) ·
 [Earlier installer verification](RC2-QA.md)
+
+## Published installer
+
+[RC2.1 release](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2.1)
+contains Setup.exe and its checksum. Size: 93,533,764 bytes. SHA-256:
+`c9d9ef16a7b5414d7518f14d86ed49fa0d602d2718c51ed3fb5bc00f38ec79da`.
+GitHub reports the identical uploaded asset digest. Embedded source provenance:
+`cf8e2fabdff167061e011909649d58942dc6b129`.
+
+The exact final Setup.exe was installed again successfully (exit0). The already
+updated prepared copy still reports installed=true, needs_repair=false and
+update_available=false. No additional copy was required after this final
+application-only reinstall. The older RC2 release is labeled superseded and
+points to RC2.1. No EasyTier/Internet integration modules are in this package.
