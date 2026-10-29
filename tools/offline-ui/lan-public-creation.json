@@ -1,0 +1,46 @@
+{
+  "format": "s7-lan-public-creation-v1",
+  "source_archive_sha256": "2b1ad77ab1afda98e9d9aab8bbc91279607e1bbbac506d2b52de675550de08ad",
+  "patched_archive_sha256": "6966c878749f668de12b13126d971958bf1ba8e5952e5d7f2b224819dcd877eb",
+  "files": [
+    {
+      "path": "Script/local/menu/panel/menu/play/multiplayer/sessionCreation.lua",
+      "source_sha256": "79a3b7a6ead65adbb14f3c30165662257743cb30f851f900c09636c5c00e8201",
+      "patched_sha256": "b8b31b97c569894d945c6b423932af5dea47d08d812714ea96b064da935b6126",
+      "edits": [
+        {
+          "offset": 9587,
+          "before_hex": "6c6f63616c2066756e6374696f6e20682829",
+          "after_utf8": "local function s7PublicSession()\nlocal group=e[\"mapSetupOptionsGroup\"]\nlocal id=e[\"privateSessionOptionUID\"]\nif group and id then\ngroup[\"setSelectedItem\"](id,false)\nl[\"ui\"][\"disable\"](group[\"getWidget\"](id))\nend\nl[\"Network\"][\"SetIsPrivate\"](false)\nreturn false\nend\nlocal function h()"
+        },
+        {
+          "offset": 10086,
+          "before_hex": "6c6f63616c206f3d66616c73650a6966206c5b6e283834295d5b6e283935295d28293d3d66616c7365207468656e0a6f3d655b6e283931295d5b6e283932295d28655b6e283936295d29656e64",
+          "after_utf8": "local o=s7PublicSession()"
+        },
+        {
+          "offset": 11932,
+          "before_hex": "655b6e283931295d5b6e28313638295d28655b6e283936295d2c7472756529656e64",
+          "after_utf8": "s7PublicSession()end"
+        },
+        {
+          "offset": 12710,
+          "before_hex": "6c5b6e283834295d5b6e283937295d28655b6e283931295d5b6e283932295d28655b6e283936295d2929",
+          "after_utf8": "s7PublicSession()"
+        }
+      ]
+    },
+    {
+      "path": "Script/local/menu/panel/menu/play/multiplayer/hostLobby.lua",
+      "source_sha256": "7700d17bd66071e2b845ba2878a0d775308ddd7ea44c08907001c4b4913323de",
+      "patched_sha256": "c19e199ea3222b43176d2c69f0a438688819efa01e13528733cb8f8b1a82a8d6",
+      "edits": [
+        {
+          "offset": 47607,
+          "before_hex": "655b6c28343533295d3d6e5b6c28343533295d",
+          "after_utf8": "e[\"privateSession\"]=false;"
+        }
+      ]
+    }
+  ]
+}

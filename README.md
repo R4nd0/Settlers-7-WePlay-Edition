@@ -8,20 +8,21 @@ A community LAN project for **The Settlers 7 History Edition** on Windows,
 built on Eisenmonoxid's S7Patcher. Each player supplies their own supported game
 installation. WePlay prepares a separate copy and keeps the original intact.
 
-**[Download RC2 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc2/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2)
+**[Download RC2.1 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc2.1/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2.1)
 
 One installer, automatic game detection, one English/German launcher for local
-play, LAN and graphics. The destination-change repair error is corrected.
+play, LAN and graphics. The destination-change repair error is corrected; Private game is now locked
+off in LAN creation. Everyone must update their prepared copy to RC2.1.
 This is an experimental RC; see the release notes for the remaining live-test
 and multiplayer limits.
 
 ## Play together
 
-1. Install the same current RC2 on every PC connected to the same trusted LAN.
+1. Install the same current RC2.1 on every PC connected to the same trusted LAN.
 2. For the first test, select Modern graphics (DXVK) on every supported PC.
 3. On one PC, enter a name under LAN play and click Start LAN play. Wait for S7.
 4. Start LAN play on the other PCs. Allow private LAN access where required.
-5. In S7 Multiplayer, one player creates the match with **Private game unchecked**,
+5. In S7 Multiplayer, one player creates the match with **Private game automatically locked off**,
    and the others join it there.
    This is the only match selection; there are no IP addresses or extra rooms.
 
@@ -45,6 +46,7 @@ simultaneous first starts, an incompatible winning service may require retrying
 LAN start. No disconnected second group is silently created to hide a mismatch.
 
 - [Getting started with the desktop launcher](docs/RC2-START.md)
+- [RC2.1 checkbox verification](docs/RC2.1-QA.md)
 - [Automatic LAN, limits and verification](docs/AUTOMATIC-LAN.md)
 - [Graphics choices and hardware checks](docs/GRAPHICS-START.md)
 - [Two-PC verification](docs/TWO-PC-DELIVERY.md)

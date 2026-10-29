@@ -52,6 +52,8 @@ def package_manifest(root):
         raise ValueError('Unbekanntes Installationspaket.')
     if type(manifest.get('join_menu_update', False)) is not bool:
         raise ValueError('Unbekannte Menuepatch-Version.')
+    if type(manifest.get('lan_public_creation',False)) is not bool:
+        raise ValueError('Unbekannte LAN-Spielerstellung-Version.')
     if type(manifest.get('graphics_choice', False)) is not bool:
         raise ValueError('Unbekannte Grafikauswahl-Version.')
     if type(manifest.get('display_selection', False)) is not bool:
@@ -64,6 +66,10 @@ def package_manifest(root):
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('lan_public_creation',False) and (not manifest.get('join_menu_update',False) or
+            not manifest.get('automatic_lan',False) or any(name not in expected for name in
+            ('tools/installer/lan_public_game.py','tools/offline-ui/lan-public-creation.json'))):
+        raise ValueError('Die LAN-Spielerstellung im Paket ist unvollstaendig.')
     if manifest.get('graphics_choice', False) and any(
             ('tools/' + original).lower() not in expected for original, _ in GRAPHICS_TOOLS):
         raise ValueError('Die Grafikauswahl im Installationspaket ist unvollstaendig.')
@@ -191,6 +197,13 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         (destination / 'Base/BBA/Interface.bba').write_bytes(patched)
     else:
         shutil.copyfile(staged, destination / 'Base/BBA/Interface.bba')
+    if manifest.get('lan_public_creation',False):
+        target=destination/'Base/BBA/Interface.bba'
+        public_spec=importlib.util.spec_from_file_location('s7_installer_public_creation',tools/'installer/lan_public_game.py')
+        public_menu=importlib.util.module_from_spec(public_spec)
+        public_spec.loader.exec_module(public_menu)
+        recipe=json.loads((tools/'offline-ui/lan-public-creation.json').read_text(encoding='utf-8'))
+        target.write_bytes(public_menu.build_archive(target.read_bytes(),recipe))
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     shutil.copyfile(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')

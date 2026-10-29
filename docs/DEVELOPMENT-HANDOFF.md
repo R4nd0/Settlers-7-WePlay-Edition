@@ -2,6 +2,21 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## RC2.1 LAN-private creation fix, 2026-10-29
+
+The user explicitly requested forced-off/disabled Private game and an updated
+installer. The hash-locked delta in lan_public_game.py and its JSON recipe
+changes only sessionCreation.lua and hostLobby.lua. The actual WePlay local
+service path uses the legacy LAN flag false, so the rule covers all supported
+WePlay multiplayer creation rather than incorrectly checking only that flag.
+Original game files and service privacy/admission checks remain unchanged.
+The actual creation screen was captured with the supported UI tool and confirmed
+by the user: checkbox unchecked and disabled. The owned test game exited0.
+287 Python checks passed with one optional original-game test skipped; the new
+real-menu/Lua 5.1 integration was enabled. Real Setup update and full preparation
+also exited0 and retained preferences. See RC2.1-QA.md for scope and hashes.
+All players must update their prepared copy; RC2/RC2.1 fingerprints differ.
+
 ## RC2 destination tracking correction, 2026-10-29
 
 The real user-selected destination change exposed a pre-release metadata bug:

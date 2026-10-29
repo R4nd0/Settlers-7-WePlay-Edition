@@ -43,7 +43,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
     guide=REPO/'docs/RC2-START.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
-    release={'format':'s7-desktop-release-v1','release':'RC2','network_revision':3,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC2.1','network_revision':3,'game_bits':32,
              'project':'Settlers-7-WePlay-Edition',
              'source_repository':'https://github.com/R4nd0/Settlers-7-WePlay-Edition',
              'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip(),

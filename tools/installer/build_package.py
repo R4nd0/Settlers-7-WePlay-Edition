@@ -17,7 +17,7 @@ from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
 SERVICE_SHA256 = '6b5c3c3b5cc2e3c9884f92da9a58b071e619ddd5c4fcf2fdc97d0669f00084c7'
-ARCHIVE_SHA256 = '2b1ad77ab1afda98e9d9aab8bbc91279607e1bbbac506d2b52de675550de08ad'
+ARCHIVE_SHA256 = '6966c878749f668de12b13126d971958bf1ba8e5952e5d7f2b224819dcd877eb'
 
 
 def check_output_location(repo, output, inputs):
@@ -88,6 +88,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
               'installer/Choose-Graphics.ps1']
     names += [original for original, _ in DISPLAY_TOOLS]
     names += [original for original, _ in LAN_LOBBY_TOOLS]
+    names += ['installer/lan_public_game.py','offline-ui/lan-public-creation.json']
     if dxvk_dll is not None:
         names += ['installer/graphics_distribution.py']
     if graphics_probe is not None:
@@ -99,6 +100,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     write_json(output / 'package.json', {'format': FORMAT,
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
         'join_menu_update': True,
+        'lan_public_creation': True,
         'graphics_choice': True,
         'display_selection': True,
         'automatic_lan': True,

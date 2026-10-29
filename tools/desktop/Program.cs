@@ -176,7 +176,7 @@ internal static class Shortcuts
                 // A same-named unrelated shortcut is kept.
                 if (File.Exists(path) && !string.Equals((string)link.TargetPath, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) continue;
                 link.TargetPath = Environment.ProcessPath!; link.WorkingDirectory = Program.AppRoot;
-                link.IconLocation = Environment.ProcessPath!; link.Description = "Settlers 7: WePlay Edition · RC2"; link.Save();
+                link.IconLocation = Environment.ProcessPath!; link.Description = "Settlers 7: WePlay Edition · RC2.1"; link.Save();
                 System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link);
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException){ }

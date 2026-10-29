@@ -137,7 +137,8 @@ class Desktop:
         mapped=[*install.GRAPHICS_TOOLS,*install.DISPLAY_TOOLS,*install.DESKTOP_TOOLS,*install.LAN_LOBBY_TOOLS,
                 ('offline-ui/launch_local.py',''),('installer/compatibility.py',''),
                 ('installer/start.py',''),('installer/launch_lan.py',''),('installer/install.py',''),
-                ('offline-ui/patch-spec.json',''),('offline-ui/join-menu-update.json','')]
+                ('offline-ui/patch-spec.json',''),('offline-ui/join-menu-update.json',''),
+                ('installer/lan_public_game.py',''),('offline-ui/lan-public-creation.json','')]
         names={('tools/'+name).lower() for name,_ in mapped}
         records={name:digest for name,digest in value['files'].items() if name in names or
                  name.startswith(('runtime/','payload/server/')) or name in
@@ -542,7 +543,7 @@ class Desktop:
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
         summary={key:raw[key] for key in fields if key in raw and
                  (raw[key] is None or type(raw[key]) in (bool,int) and 0<=raw[key]<=2**63-1)}
-        return {'format':'s7-desktop-diagnostics-v1','release':'RC2','game_bits':32,'renderer':mode,
+        return {'format':'s7-desktop-diagnostics-v1','release':'RC2.1','game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
                 'memory_summary':summary,
                 'known_lan_desync_resolved':False}

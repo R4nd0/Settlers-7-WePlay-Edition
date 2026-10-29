@@ -188,6 +188,32 @@ def prepare(source, output, specification, profile):
         manifest = json.loads((self.destination / 'local-bundle.json').read_text())
         self.assertEqual(manifest['files']['Base/BBA/Interface.bba'], self.data['patched_archive_sha256'])
 
+    def test_public_lan_creation_delta_runs_after_join_delta_and_is_fingerprinted(self):
+        for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS):
+            if original!='lan/prepare.py':self.write(self.package,'Tools/'+original,b'# fixture helper')
+        self.write(self.package,'Tools/installer/update_join_menu.py',b'''def build_archive(original, recipe):
+    assert original == b'invented patched archive'
+    return b'invented join menu'
+''')
+        self.write(self.package,'Tools/installer/lan_public_game.py',b'''def build_archive(original, recipe):
+    assert original == b'invented join menu'
+    assert recipe == {'fixture': True}
+    return b'invented public creation'
+''')
+        self.write(self.package,'Tools/offline-ui/join-menu-update.json',b'{}')
+        self.write(self.package,'Tools/offline-ui/lan-public-creation.json',b'{"fixture":true}')
+        self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,join_menu_update=True,lan_public_creation=True,
+            patched_archive_sha256=hashlib.sha256(b'invented public creation').hexdigest())
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        self.prepare();content.verify(self.destination)
+        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'invented public creation')
+
+    def test_public_lan_creation_capability_rejects_coercion_and_missing_recipe(self):
+        for value in ('true',1,True):
+            self.data['lan_public_creation']=value
+            (self.package/'package.json').write_text(json.dumps(self.data))
+            with self.assertRaises(ValueError):install.package_manifest(self.package)
+
     def test_unknown_join_menu_version_rejected_before_copy(self):
         self.data['join_menu_update'] = 'yes'
         (self.package / 'package.json').write_text(json.dumps(self.data))

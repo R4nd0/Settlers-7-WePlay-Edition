@@ -1,6 +1,6 @@
 # Gemeinsam im LAN spielen
 
-[English](LAN-PLAYERS.md) · [Aktuellen RC2 herunterladen](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2)
+[English](LAN-PLAYERS.md) · [Aktuellen RC2.1 herunterladen](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2.1)
 
 Alle verwenden dieselbe aktuelle Setup.exe und ihre eigene unterstützte
 Settlers 7 History Edition. Keine IP-Eingabe, kein zusätzlicher Serverstarter
@@ -14,7 +14,7 @@ und keine zweite Lobbyauswahl im WePlay-Starter.
    können die Suche verhindern. Für dieses vertrauenswürdige Netz das
    Windows-Profil **Privat** auswählen; dafür gilt die WePlay-LAN-Freigabe.
    [Microsofts Anleitung zum Netzwerkprofil](https://support.microsoft.com/en-gb/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows).
-2. **Auf jedem PC denselben RC2 installieren.** Setup.exe starten, das
+2. **Auf jedem PC denselben RC2.1 installieren.** Setup.exe starten, das
    Originalspiel erkennen lassen und die getrennte Kopie fertig einrichten.
    Danach genügt die eine WePlay-Verknüpfung. Oben kann Deutsch oder Englisch
    ausgewählt werden.
@@ -31,7 +31,7 @@ und keine zweite Lobbyauswahl im WePlay-Starter.
 5. **Die anderen PCs genauso starten.** WePlay verbindet sie automatisch mit
    der vorhandenen Gruppe. Im Spiel erstellt ein Spieler unter **Mehrspieler**
    die eigentliche Partie; die anderen treten dort bei. Das ist die einzige
-   Partiewahl. Beim Erstellen **Privates Spiel nicht ankreuzen**: Private
+   Partiewahl. In RC2.1 bleibt **Private Sitzung automatisch aus und gesperrt**: Private
    Sitzungen werden ausgeblendet und sind über den aktuellen LAN-Ablauf nicht
    betretbar. Im Starter gibt es keine zusätzliche Raumliste.
 
@@ -83,7 +83,7 @@ verschiedenen Profilen nach der Meldung den LAN-Start erneut versuchen; dann
 kann der Starter das sichtbare Gruppenprofil abgleichen. Keine DLLs von Hand
 ersetzen und keine verschiedenen RC-Pakete mischen.
 
-Es gibt **einen aktuellen RC2-Download**. Kompatible Grafik im Installer ist
+Es gibt **einen aktuellen RC2.1-Download**. Kompatible Grafik im Installer ist
 ein Hardware-Rückweg, keine zweite alte RC-Veröffentlichung. Die gleichen
 Abgleichregeln gelten auch dort. Ein PC ohne Unterstützung für das benötigte
 Gruppenprofil kann dieser Gruppe in dieser Konfiguration nicht beitreten.

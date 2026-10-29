@@ -1,4 +1,4 @@
-# Settlers-7-WePlay-Edition – RC2
+# Settlers-7-WePlay-Edition – RC2.1
 
 Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.
 
@@ -40,11 +40,13 @@ Laufende Partien werden bei Speicherwarnungen nicht automatisch beendet.
 
 Ausführliche Spieleranleitung: [Deutsch](LAN-SPIELER.md) · [English](LAN-PLAYERS.md).
 
-Auf jedem Rechner denselben RC2 installieren. Im Starter „LAN spielen“ wählen,
+Auf jedem Rechner denselben RC2.1 installieren. Ältere RC2-Spielkopien zuerst
+über den Starter aktualisieren; die neue Menüversion muss auf allen PCs
+übereinstimmen. Im Starter „LAN spielen“ wählen,
 einen Namen eintragen und „LAN-Spiel starten“ anklicken. Die gemeinsame
 LAN-Verbindung wird automatisch eingerichtet. Eure Partie wählt ihr genau
-einmal im Mehrspielermenü des Spiels. Beim Erstellen bleibt **Privates Spiel
-ausgeschaltet**, damit die Partie sichtbar und betretbar ist. Das Windows-
+einmal im Mehrspielermenü des Spiels. Beim Erstellen bleibt **Private Sitzung automatisch
+ausgeschaltet und gesperrt**, damit die Partie sichtbar und betretbar ist. Das Windows-
 Netzwerkprofil **Privat** ist eine davon unabhängige Einstellung.
 Es müssen keine IP-Adressen eingegeben werden. Falls erforderlich richtet
 „Privaten LAN-Zugriff erlauben“ die Freigabe nach Windows-Bestätigung ein.

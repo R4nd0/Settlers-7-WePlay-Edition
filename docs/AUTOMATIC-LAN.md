@@ -10,6 +10,10 @@ where players create or select their actual match. The older
 `Start-S7-LAN.cmd` entrypoint uses the same automatic connection, with a graphics
 dialog if no saved desktop choice is requested.
 
+RC2.1 forces the multiplayer creation option Private session off and disables
+its checkbox. Existing private-session filtering and join refusal in the service
+remain intact. [Focused verification](RC2.1-QA.md).
+
 ## Automatic connection policy
 
 `lan_autoconnect.discover_preferred` is the source-independent selection
