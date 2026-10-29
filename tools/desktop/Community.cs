@@ -5,7 +5,7 @@ namespace S7Desktop;
 
 internal static class Community
 {
-    public const string DiscordCode = "nvcERcHpR";
+    public const string DiscordCode = "j2eQgVzssc";
     public const string DiscordUrl = "https://discord.gg/" + DiscordCode;
 
     public static void OpenDiscord()

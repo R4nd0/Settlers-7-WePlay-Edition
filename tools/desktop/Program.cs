@@ -745,7 +745,7 @@ internal sealed class MainForm : Form
                 if(!form.internetCopy.Enabled||!form.internetShare.Enabled||!form.discordLink.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
                     throw new Exception("Private Internet room controls failed");
                 string share=Community.InvitationMessage("weplay1.synthetic-pipe-fixture",language);
-                if(Community.InvitationCode(share)!="weplay1.synthetic-pipe-fixture"||!share.Contains(Community.DiscordUrl)||Community.DiscordCode!="nvcERcHpR")
+                if(Community.InvitationCode(share)!="weplay1.synthetic-pipe-fixture"||!share.Contains(Community.DiscordUrl)||Community.DiscordCode!="j2eQgVzssc")
                     throw new Exception("Discord sharing failed");
                 foreach(string invalid in new[]{Community.DiscordUrl,"https://example.invalid/#weplay1.secret","text\nweplay1.secret","weplay1.secret\nuntrusted"})
                 {try{Community.InvitationCode(invalid);throw new Exception("Unsafe invitation accepted");}catch(BackendError){}}

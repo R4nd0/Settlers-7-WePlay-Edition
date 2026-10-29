@@ -11,9 +11,11 @@ for Discord. No invitation is opened as a URL or sent automatically. The
 compiled DE/EN UI/private-pipe and share-format round-trip checks pass.
 The existing game/network payload remains unchanged from RC3.
 
-The public invite API confirmed guild 1565306702356815962 but reports the
-supplied nvcERcHpR invitation expires on 2026-11-28. The user was informed and
-asked for a permanent replacement. The code identifies Discord, not a shared
+The public invite API confirmed guild 1565306702356815962. The user replaced
+the expiring invitation with j2eQgVzssc, whose expires_at is null. The link opens
+ℹ️news; its channel ID must not be mistaken for #🎮multiplayer, which the user
+has now selected for the bot. Application ID and that channel ID are still
+needed; Developer Portal instructions are in DISCORD-INTEGRATION.md. The code identifies Discord, not a shared
 EasyTier room. No common VPN secret was introduced. Discord supports Rich
 Presence and a server bot, but a shared games list additionally needs explicit
 room announcements, verified match-state projection and a registered app/host.
