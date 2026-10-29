@@ -2,6 +2,31 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## Discord Gateway bot preparation, 2026-10-29
+
+The user supplied application 1565350833854353459, guild 1565306702356815962
+and target text channel 1565306705535959042 (#🎮multiplayer). Screenshot scopes
+bot/applications.commands and four permissions match the proposed setup.
+tools/discord now contains a guild/channel-scoped discord.py Gateway client,
+three commands (/spiele, /weplay-status, /weplay-hilfe), bounded public status
+projection, operator script and public-only settings. A private CPython 3.14
+Windows runtime with all eleven hash-pinned PyPI wheels is installed under
+ignored work/. No bot token is persisted or requested in chat; startup prompts
+locally without echo or consumes a privately supplied environment value.
+
+No privileged intents, raw interaction/error logging or channel auto-post on
+startup. Wrong application/guild/channel fail before command sync. Single-instance
+locking prevents accidental parallel copies. Command sync manages this dedicated
+app's three commands in the selected guild only. Missing/stale feed is explicitly
+unavailable rather than an empty list, and counts do not claim match progress.
+No live login, command registration or Discord message was performed without
+the user's private token. Server installation and live behavior are unverified.
+Launcher-to-bot public feed transport, global aggregation and verified open/
+running game-state projection are still missing; this is not a finished global
+games directory. See tools/discord/README.md for activation and exact limits.
+Sixteen offline bot tests, local --check and pip check pass; all eleven locked
+wheel hashes match the official PyPI release metadata. No live Discord claim.
+
 ## RC3.1 Discord community entry, 2026-10-29
 
 The user supplied the WePlay Discord server and requested launcher integration.
@@ -14,8 +39,8 @@ The existing game/network payload remains unchanged from RC3.
 The public invite API confirmed guild 1565306702356815962. The user replaced
 the expiring invitation with j2eQgVzssc, whose expires_at is null. The link opens
 ℹ️news; its channel ID must not be mistaken for #🎮multiplayer, which the user
-has now selected for the bot. Application ID and that channel ID are still
-needed; Developer Portal instructions are in DISCORD-INTEGRATION.md. The code identifies Discord, not a shared
+has now selected for the bot. Application ID and that channel ID were subsequently
+supplied; Developer Portal instructions are in DISCORD-INTEGRATION.md. The code identifies Discord, not a shared
 EasyTier room. No common VPN secret was introduced. Discord supports Rich
 Presence and a server bot, but a shared games list additionally needs explicit
 room announcements, verified match-state projection and a registered app/host.

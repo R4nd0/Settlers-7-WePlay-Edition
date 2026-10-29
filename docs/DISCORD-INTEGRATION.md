@@ -35,9 +35,13 @@ user's PC. This does not add a dedicated gameplay server.
 
 The user supplied the target channel ID `1565306705535959042` on 2026-10-29.
 It is recorded with the verified guild ID in `tools/discord/settings.example.json`.
-The application ID is still missing; this example is configuration preparation,
-not an active bot. The token will be read privately from
-`WEPLAY_DISCORD_BOT_TOKEN` on the bot host, never from the launcher or this file.
+The user subsequently supplied application ID `1565350833854353459`; all three
+IDs are recorded. The Gateway implementation and its private Windows Python
+runtime are prepared. Startup uses a hidden local console prompt or privately
+supplied `WEPLAY_DISCORD_BOT_TOKEN`, never the launcher or the settings file.
+See [operator instructions](../tools/discord/README.md). It has not logged in,
+registered commands or posted messages because no private token was supplied.
+The current launcher does not yet publish the optional public status feed.
 
 ## Developer Portal setup for the owner
 
@@ -62,10 +66,12 @@ not an active bot. The token will be read privately from
    **#🎮multiplayer** and select **Copy Channel ID**. That channel should be a
    normal text channel for the first implementation.
 
-Only the application's non-secret ID is still needed in chat:
+The supplied non-secret IDs are now complete:
 
 ```text
-Application ID: <from General Information>
+Application ID: 1565350833854353459
+Guild ID: 1565306702356815962
+Channel ID: 1565306705535959042
 ```
 
 The guild ID is already verified as `1565306702356815962`, and the target
@@ -99,14 +105,16 @@ Adding those fields needs a deliberate read-only projection of verified game
 state; no raw metadata, identities, IP addresses or packet contents should be
 sent to Discord. Existing admission/native guards remain authoritative.
 
-### Registration needed
+### Activation still needed
 
-No Discord application or bot was created by this change. The Developer Portal
-available to this chat is not signed in. Registration needs the server owner's
-Discord account, an application name/ID and target channel; installing a bot
-needs the guild's authorization. Bot credentials must be configured privately
-on its host. No token is requested in chat. The server link and clipboard sharing
-work without an application ID, bot or Discord account access by the launcher.
+The user created the Discord application and supplied the ID and a screenshot
+of the correct scopes/permissions. Server installation and live command behavior
+have not been independently verified. Activate with the installation link in
+the operator instructions, then start the bot and enter its token locally.
+No token is requested in chat. The bot implementation has offline routing,
+freshness, field whitelist, single-instance and secret-error checks. The server
+link/clipboard sharing work independently of bot activation. Automatic global
+room aggregation and verified open/running match state remain separate work.
 
 Official references:
 
