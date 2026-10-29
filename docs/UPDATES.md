@@ -112,8 +112,9 @@ gh release create v2.0.0-rc3.6 outputs/Your-Verified-Release/Setup.exe outputs/Y
 
 Publishing is an operator action; the implementation does not silently create
 or overwrite a release. Existing published assets remain intact. The signed
-RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 uses sequence 2;
-building/signing a local candidate does not publish it or update a user's PC.
+RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 is published as
+v2.0.0-rc3.5 (sequence 2). Building/signing a local candidate does not publish it
+or update a user's PC; publication remains a separate operator action.
 Maintainer signing tools may use PowerShell/CNG locally; they are not shipped
 and do not add a PowerShell prerequisite to RC3.5 player operations.
 

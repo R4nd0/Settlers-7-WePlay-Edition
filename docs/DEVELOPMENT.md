@@ -32,13 +32,13 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.5 candidate and RC3.4 baseline
+## RC3.5 release and RC3.4 baseline
 
-The RC3.5 candidate adds [bounded Windows API helpers](WINDOWS-HELPERS.md),
+RC3.5 adds [bounded Windows API helpers](WINDOWS-HELPERS.md),
 update sequence 2 and copied-game revision 6. Its native adapter, service and
 prepared UI archive below are unchanged. Normal player operations ship no
 PowerShell scripts and do not change execution/security policy. RC3.5 is locally
-built and tested; the published RC3.4 release remains intact.
+built and tested and published as v2.0.0-rc3.5; the RC3.4 release remains intact.
 
 RC3.5 verification passes 11 native update handoff tests (including a real isolated
 Inno installer), eight Windows API/environment checks, 19 updater-core checks,
@@ -57,7 +57,9 @@ SHA-256 `2fffd85d93933b7e31f9735d480aa14bfb6abec8e0e2953267016f4c64c99627`.
 Its matching signed `weplay-update.json` uses sequence 2 and tag v2.0.0-rc3.5.
 The shipped native helper validates that actual signed installer without an
 installed .NET runtime and without executing Setup. Neither RC3.5 asset has
-been published by this implementation task.
+been published by the implementation task alone; publication is a separate,
+explicitly authorized step. The current release assets are available at
+[v2.0.0-rc3.5](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.5).
 
 RC3.4 changes the prepared UI archive and copied-game network revision to 5.
 All players need matching prepared content. Its native adapter and service
