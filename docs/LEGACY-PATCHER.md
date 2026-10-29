@@ -33,7 +33,7 @@ an earlier connection loss and a reported failure during sustained play with
 PC2 hosting remain unresolved. See
 [two-PC delivery and synchronization acceptance](TWO-PC-DELIVERY.md).
 
-The inspected Ubisoft Connect build contains a native LAN Join function that returns success without joining a peer. The experimental bridge uses the game's native session transport through its local matchmaking service instead. See [LAN research](LAN-RESEARCH.md) and the [current development handoff](DEVELOPMENT-HANDOFF.md).
+The inspected Ubisoft Connect build contains a native LAN Join function that returns success without joining a peer. The experimental bridge uses the game's native session transport through its local matchmaking service instead. See [LAN research](LAN-RESEARCH.md) and the [current development status](DEVELOPMENT.md).
 
 The separate [native local-start prototype](NATIVE-LOCAL-START.md) reaches the main menu using its own platform adapter, without startup videos or the intro click gate. Its opt-in local-connect test completes encrypted Login/Register and real search/create/join exchanges. Longer sessions, complete network isolation and simulation synchronization remain unqualified.
 

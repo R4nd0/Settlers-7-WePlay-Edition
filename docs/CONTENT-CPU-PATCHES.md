@@ -89,4 +89,5 @@ Adapter SHA256: `17d86b1ebfe670a838ff89dbdddd8e477ef1abc128001eb301268930c9c3ed0
 Interface SHA256: `ebee0ff593cdb9c38442d03875041f8c1825c0fc3e2414291098e08f3517ced5`.
 
 Playable LAN, remote host/join and simulation synchronization remain separate
-outstanding requirements; see DEVELOPMENT-HANDOFF.md and TWO-PC-DELIVERY.md.
+outstanding requirements; see [current development status](DEVELOPMENT.md)
+and [two-PC observations](TWO-PC-DELIVERY.md).

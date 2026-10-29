@@ -28,7 +28,7 @@ For an independently operated, open-source solution, **SoftEther** provides
 Ethernet VPN support and automation, at the cost of running a server.
 
 The known simulation desync remains a separate defect. Changing the tunnel
-does not demonstrate a fix. See [DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)
+does not demonstrate a fix. See [current development status](DEVELOPMENT.md)
 and [NETWORK-RELIABILITY.md](NETWORK-RELIABILITY.md).
 
 ## GitHub candidates for an integrated serverless mode

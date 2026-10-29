@@ -27,8 +27,8 @@ between two real LAN PCs. Guest commands were delayed about 30 seconds, then
 PC1 displayed a peer-left notice while PC2 waited for a player. This remains
 an incomplete experimental bridge. Both real-PC hosting directions now join
 and start, but longer matches and simulation synchronization remain
-unqualified; see DEVELOPMENT-HANDOFF.md
-for current evidence and the controlled diagnostic step. No checksum equality
+unqualified; see [development status](DEVELOPMENT.md)
+for current verification boundaries. No checksum equality
 or absence of desynchronization is claimed.
 
 The latest candidate fixes a demonstrated runaway guest command horizon when
@@ -45,7 +45,7 @@ observer on PC1 as guest retains five-turn actual/target horizons at turns
 209..309. The reverse sustained test subsequently produced a desync on PC1,
 confirmed in the game log at turn2154, plus reported PC1 menu stutter. The
 received host report shows no service expiry/error. Cause and fix remain open.
-See DEVELOPMENT-HANDOFF.md for hashes, counters, tests and the pending step.
+See [development status](DEVELOPMENT.md) for current payload hashes and test evidence.
 
 ## Components and boundaries
 

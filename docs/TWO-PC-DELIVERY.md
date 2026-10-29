@@ -22,7 +22,7 @@ contains no service expiry/error; it cannot establish the mismatch cause.
 PC1 also stuttered in the menu. Sustained stability remains unaccepted;
 successful join/start is still valid.
 Neither checksum equality nor freedom from desynchronization is established.
-See DEVELOPMENT-HANDOFF.md for current builds, hashes and observations.
+See [development status](DEVELOPMENT.md) for current builds, hashes and observations.
 
 The complete package builder now pins the corrected adapter and the verified
 catalogue-route service. Its LAN starter permits only the explicitly chosen

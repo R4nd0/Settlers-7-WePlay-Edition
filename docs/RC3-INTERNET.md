@@ -91,7 +91,8 @@ the actual Windows UAC/Wintun lifecycle: one /24 adapter and eight own firewall
 rules were created and removed, private files were removed, and default routes
 and DNS were unchanged. That check used no public nodes and started no game.
 These checks do not establish an Internet match or a desync fix. Actual
-Internet gameplay with two PCs must be qualified separately before release.
+Internet gameplay with two PCs must be qualified separately before claiming
+Internet-match stability. RC3.4 remains an experimental preview release.
 
 The installer includes `Source/EasyTier-corresponding-source.zip`; the same ZIP
 is supplied alongside Setup.exe. It contains the patched source, Cargo.lock,

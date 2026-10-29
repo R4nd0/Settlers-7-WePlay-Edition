@@ -373,3 +373,24 @@ Settlers7R.exe
 # Private local workspace: runtimes, copied games, diagnostics and deliverables.
 /work/
 /outputs/
+
+# Local agent instructions, memory and editor workspace configuration.
+[Aa][Gg][Ee][Nn][Tt][Ss].md
+[Aa][Gg][Ee][Nn][Tt].md
+/.agent/
+/.agents/
+/.codex/
+/.vscode/
+*.code-workspace
+/docs/DEVELOPMENT-HANDOFF.md
+
+# Legacy/private image collection. Public launcher screenshots live in docs/screenshots/.
+/[Ii]mages/
+
+# Private credentials and signing material; public update-key.json stays tracked.
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.dpapi
