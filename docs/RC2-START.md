@@ -38,6 +38,8 @@ Laufende Partien werden bei Speicherwarnungen nicht automatisch beendet.
 
 ## Mit Freunden spielen
 
+Ausführliche Spieleranleitung: [Deutsch](LAN-SPIELER.md) · [English](LAN-PLAYERS.md).
+
 Auf jedem Rechner denselben RC2 installieren. Im Starter „LAN spielen“ wählen,
 einen Namen eintragen und „LAN-Spiel starten“ anklicken. Die gemeinsame
 LAN-Verbindung wird automatisch eingerichtet. Eure Partie wählt ihr genau

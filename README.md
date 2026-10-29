@@ -8,17 +8,28 @@ A community LAN project for **The Settlers 7 History Edition** on Windows,
 built on Eisenmonoxid's S7Patcher. Each player supplies their own supported game
 installation. WePlay prepares a separate copy and keeps the original intact.
 
+**[Download RC2 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc2/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc2)
+
+One installer, automatic game detection, one English/German launcher for local
+play, LAN and graphics. The destination-change repair error is corrected.
+This is an experimental RC; see the release notes for the remaining live-test
+and multiplayer limits.
+
 ## Play together
 
-1. Install WePlay and let it find your own S7 installation.
-2. Choose your player name and graphics settings in the WePlay launcher.
-3. Choose **Play on LAN**. WePlay finds the shared LAN automatically.
-4. In S7, open **Multiplayer** and create or join a match. This is the only
-   lobby selection; there are no IP addresses to type or extra rooms to choose.
+1. Install the same current RC2 on every PC connected to the same trusted LAN.
+2. For the first test, select Modern graphics (DXVK) on every supported PC.
+3. On one PC, enter a name under LAN play and click Start LAN play. Wait for S7.
+4. Start LAN play on the other PCs. Allow private LAN access where required.
+5. In S7 Multiplayer, one player creates the match and the others join it there.
+   This is the only match selection; there are no IP addresses or extra rooms.
 
-Automatic discovery requires the same private local network and Windows private
-firewall permission. Unknown game or patch versions are rejected instead of
-being mixed. Developer mode is disabled in LAN games.
+**Player guide: [English](docs/LAN-PLAYERS.md) · [Deutsch](docs/LAN-SPIELER.md)**
+
+Discovery finds a shared local service; the actual match is chosen inside S7.
+Native/Modern profile differences are guarded and known variants can be aligned
+before starting. Different renderers have not been established as the cause of
+the known desync. See the player guide for matching rules and troubleshooting.
 
 ## Current status
 

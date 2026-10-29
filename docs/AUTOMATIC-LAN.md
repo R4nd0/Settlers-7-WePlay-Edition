@@ -1,5 +1,7 @@
 # Automatic LAN directory
 
+Player instructions: [English](LAN-PLAYERS.md) · [Deutsch](LAN-SPIELER.md).
+
 The **WePlay** desktop launcher offers **LAN play** with a saved display name
 and saved graphics settings. It finds or starts the shared local coordination
 service automatically. There is no external group/network/room picker and no
@@ -112,8 +114,9 @@ coordinator migration is not implemented.
 
 ## Private firewall helper
 
-`LAN-Netzwerk-freigeben.cmd` is a separate, deliberate user action. Windows asks
-for elevation. It creates only inbound Private/LocalSubnet rules for the exact
+The desktop offers **Allow private LAN access** as a deliberate action. Windows
+asks for elevation. The old `LAN-Netzwerk-freigeben.cmd` is a development/legacy
+entrypoint, not a required step for desktop players. It creates only inbound Private/LocalSubnet rules for the exact
 prepared copy's game, Python and .NET executables. It enables no Public rule and
 changes no network category or global firewall setting. Running its PowerShell
 helper with `-Remove` removes only those uniquely named rules.

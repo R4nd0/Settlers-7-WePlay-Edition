@@ -82,3 +82,18 @@ retrying LAN start after the desktop aligns a known profile.
 
 See [RC2-START.md](RC2-START.md), [RC2-BUILD.md](RC2-BUILD.md) and
 [AUTOMATIC-LAN.md](AUTOMATIC-LAN.md) for usage, pinned build inputs and bounds.
+
+## Published installer
+
+The RC2 Setup contains source commit
+`e037b917252872087bced9f8cdf1522883eb7fd7`, including the destination tracking
+correction. Its SHA-256 is
+`93cb8491f864abcb1892b738ed0775073540e0e2f24907b325a3cdcbdbc673d2`
+and its size is 93,524,865 bytes. It contains application/runtime files only,
+with no prepared game, State or LocalData directory.
+
+A silent final-installer attempt while the user's launcher was open exited1
+at its application mutex check, before changing installed files. The log
+explicitly required closing the launcher. This is the expected safe update
+refusal, not an installation failure. Earlier fresh installation and update
+successes are recorded above. The user's current launcher remained running.
