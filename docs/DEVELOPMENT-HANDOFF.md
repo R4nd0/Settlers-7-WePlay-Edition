@@ -10,11 +10,29 @@ preparation notes below. RC3.2 implements Workers HTTP interactions, D1 reports
 and a minute Cron in tools/discord-worker. The owner has now authorized Wrangler;
 the Worker, D1 migration and minute Cron are deployed. The public origin is
 https://example.invalid/removed-personal-link. PUBLISHER_MASTER_KEY was
-generated privately and uploaded without a local copy. BOT_TOKEN is still
-missing, so health correctly returns 503/ready:false and no board can post.
+generated privately and uploaded without a local copy. The owner entered BOT_TOKEN
+through the hidden local prompt; it was verified against this application and
+uploaded directly as a Worker secret. Health now returns 200/ready:true.
 Unsigned interactions and unauthenticated publishers return 401 in production.
-The old local Gateway process was left running pending a verified HTTP cutover.
+Discord accepted and verified the HTTP interactions URL. The automatic board is
+message 1565391361295917167 in the configured channel. All three guild command
+names were read back. The old local Gateway bot was gracefully stopped through
+its own verified console; both Python processes exited. No private PC hosts the
+Discord service now. The owner ran /weplay-hilfe and confirmed its Launcher
+verbinden button. Launcher pairing is still pending; no populated live game
+listing or two-PC gameplay is claimed.
 Private deployment configuration stays in ignored work/discord-cloud/.
+
+Production activation exposed a workerd incompatibility: redirect:'error' throws
+before sending fetch. Discord calls now use manual redirects and reject all
+non-success replies without forwarding credentials. Current application and
+authenticated bot identity are checked separately; the optional application.bot
+field is not required. The expanded real workerd test exercises board HTTP calls
+and a hostile redirect against a wholly local outbound fixture. Node tests and
+workerd pass. The one-time fixed-target activation used the documented Discord
+PATCH /applications/@me and was removed from the deployed entry after success.
+Its non-secret result remains in weplay_activation for operator audit; this
+table is not used by the regular Worker. No admin HTTP route was introduced.
 
 Launcher pairing uses a private ephemeral Discord publisher code, the existing
 current-user-only pipe and Windows Credential Manager. No bot token is shipped.

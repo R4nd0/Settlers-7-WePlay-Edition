@@ -19,10 +19,13 @@ Community invite: https://discord.gg/j2eQgVzssc
 The bot is installed and the user confirmed its initial Gateway connection and
 three commands. RC3.2 implements the external replacement in
 [tools/discord-worker](../tools/discord-worker/README.md). Worker, database and
-minute Cron are now deployed. The publisher master secret is privately set;
-BOT_TOKEN and the Discord Interactions Endpoint cutover are still required.
+minute Cron are now deployed. Both Worker secrets are privately set and Discord
+has verified the HTTP Interactions Endpoint. The former local Gateway bot has
+been gracefully stopped. The automatic
+[board message](https://discord.com/channels/1565306702356815962/1565306705535959042/1565391361295917167)
+has been created in the configured channel; no synthetic games were published.
 The public [health endpoint](https://example.invalid/removed-personal-link)
-correctly reports not ready until the bot token is present. Unsigned interaction
+now returns 200/ready:true. Unsigned interaction
 requests and unauthenticated publisher checks return 401 in production.
 The old Gateway implementation remains available under tools/discord for
 migration; do not run two production directory writers.
@@ -107,8 +110,12 @@ grant authentication and report lifecycle with Discord egress blocked. Python
 tests cover projection, HTTPS boundaries, heartbeat/closure, private pairing and
 an actual temporary Windows Credential Manager round trip. Compiled DE/EN UI
 and a real .NET/Python private pipe pass. These are synthetic/local checks.
-The external deployment and rejection boundaries are verified; the production
-automatic board and two-PC Internet match have not yet been verified.
+The external deployment, rejection boundaries, Discord HTTP endpoint verification
+and real automatic empty board are verified. The expanded real workerd check
+also exercises Discord request construction and rejects redirects without
+forwarding credentials. The owner ran `/weplay-hilfe` after the cutover and
+confirmed the Launcher verbinden button. Paired-launcher live game publication
+and a two-PC Internet match have not yet been verified.
 
 Official references:
 

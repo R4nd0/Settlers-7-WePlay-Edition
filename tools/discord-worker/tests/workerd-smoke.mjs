@@ -5,14 +5,37 @@ import assert from 'node:assert/strict';
 const origin='https://weplay-multiplayer.testing.workers.dev';
 const keys=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']);
 const hex=x=>Buffer.from(x).toString('hex');
-const mf=new Miniflare(convertV4MiniflareOptions({cf:false,modules:true,scriptPath:resolve('tools/discord-worker/src/worker.mjs'),
+const outbound=[];let redirect=false;
+const app='1565350833854353459',guild='1565306702356815962',channel='1565306705535959042',message='1565350833854353777';
+const mf=new Miniflare(convertV4MiniflareOptions({cf:false,modules:[
+ {type:'ESModule',path:resolve('tools/discord-worker/tests/workerd-entry.mjs')},
+ {type:'ESModule',path:resolve('tools/discord-worker/src/worker.mjs')}],
  compatibilityDate:'2026-10-29',d1Databases:['DB'],
  bindings:{PUBLIC_ORIGIN:origin,APPLICATION_ID:'1565350833854353459',GUILD_ID:'1565306702356815962',CHANNEL_ID:'1565306705535959042',
- DISCORD_PUBLIC_KEY:hex(await crypto.subtle.exportKey('raw',keys.publicKey)),PUBLISHER_MASTER_KEY:Buffer.alloc(32,7).toString('base64url')},
- outboundService:()=>new Response('{}',{status:503})}));
+ DISCORD_PUBLIC_KEY:hex(await crypto.subtle.exportKey('raw',keys.publicKey)),PUBLISHER_MASTER_KEY:Buffer.alloc(32,7).toString('base64url'),
+ BOT_TOKEN:'synthetic_local_bot_token_not_real'},
+ outboundService:request=>{
+  const url=new URL(request.url);assert.equal(url.origin,'https://discord.com');
+  assert.equal(request.headers.get('Authorization'),'Bot synthetic_local_bot_token_not_real');outbound.push(url.pathname);
+  if(redirect)return new Response(null,{status:302,headers:{Location:'https://attacker.invalid/never-follow'}});
+  const path=url.pathname.replace('/api/v10','');let value;
+  if(path==='/applications/@me')value={id:app};
+  else if(path==='/users/@me')value={id:app,bot:true};
+  else if(path==='/channels/'+channel)value={guild_id:guild,type:0};
+  else if(path==='/channels/'+channel+'/messages' && request.method==='POST')value={id:message};
+  else throw new Error('Unexpected fixture request; external network is blocked');
+  return new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
+ }}));
 try{
  const db=await mf.getD1Database('DB');
  for(const sql of readFileSync('tools/discord-worker/migrations/0001_directory.sql','utf8').split(';'))if(sql.trim())await db.prepare(sql).run();
+ await mf.dispatchFetch(origin+'/__test_board',{method:'POST'});
+ assert.equal((await db.prepare('SELECT message_id FROM weplay_board').first()).message_id,message);
+ assert.equal(outbound.length,4,'real workerd must construct all four outbound Discord requests');
+ redirect=true;await db.prepare("UPDATE weplay_board SET digest='changed',lease_until=0").run();
+ await mf.dispatchFetch(origin+'/__test_board',{method:'POST'});
+ assert.equal(outbound.length,5,'a redirect must fail without forwarding the bot credential');
+ redirect=false;
  async function interaction(value){
   const raw=JSON.stringify(value),stamp=String(Math.floor(Date.now()/1000));
   const sig=hex(await crypto.subtle.sign('Ed25519',keys.privateKey,new TextEncoder().encode(stamp+raw)));
@@ -30,5 +53,5 @@ try{
  assert.equal((await mf.dispatchFetch(origin+'/v1/report',{method:'PUT',headers:{Authorization:'Bearer '+grant.key},body:JSON.stringify(report)})).status,200);
  assert.equal((await db.prepare('SELECT payload FROM weplay_reports').first()).payload,JSON.stringify(report.games));
  assert.equal((await mf.dispatchFetch(origin+'/v1/publisher')).status,401);
- console.log('PASS: real workerd/D1 signed ping, private pairing, grant authentication and public report lifecycle; outbound Discord blocked.');
+ console.log('PASS: real workerd/D1 signed ping, private pairing, reports and board HTTP construction; redirects blocked and all Discord traffic mocked.');
 }finally{await mf.dispose();}

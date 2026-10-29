@@ -10,8 +10,8 @@ server code `j2eQgVzssc`. **Copy for Discord** copies a private room invitation
 with joining instructions; paste/send it yourself to the intended players.
 The replacement Discord invitation has no expiry according to Discord's public
 API. RC3.2 adds the optional automatic public game listing through an external
-Cloudflare Worker. The Worker is deployed; private bot-token setup and the
-Discord HTTP cutover are still pending; see
+Cloudflare Worker. The external service is deployed and its Discord HTTP
+connection is verified; see
 [DISCORD-INTEGRATION.md](DISCORD-INTEGRATION.md). After activation use
 `/weplay-hilfe` in #🎮multiplayer, choose **Launcher verbinden**, and paste the
 private connection code into **Mit Discord verbinden** in the Internet tab.

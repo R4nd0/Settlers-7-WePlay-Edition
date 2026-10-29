@@ -149,15 +149,17 @@ test("The 16-active-publisher limit cannot be bypassed with an expired owner row
   assert.equal((await report(key,"POST")).status,409);
 });
 
-function fakeDiscord(t,env,{wrongApp=false,wrongChannel=false,foreign=false,missing=false,rate=false}={}){
+function fakeDiscord(t,env,{wrongApp=false,wrongBot=false,wrongChannel=false,foreign=false,missing=false,rate=false}={}){
   const calls=[];let message=null;
   t.mock.method(globalThis,"fetch",async(url,options)=>{
     calls.push({url,method:options.method||"GET",body:options.body});
     assert.equal(options.headers.Authorization,"Bot "+env.BOT_TOKEN);
+    assert.equal(options.redirect,"manual");
     const path=new URL(url).pathname.replace("/api/v10","");
     const result=(value,status=200)=>new Response(JSON.stringify(value),{status});
     if(rate)return result({retry_after:120},429);
-    if(path==="/oauth2/applications/@me")return result({id:wrongApp?"1":APP,bot:{id:APP}});
+    if(path==="/applications/@me")return result({id:wrongApp?"1":APP});
+    if(path==="/users/@me")return result({id:APP,bot:!wrongBot});
     if(path==="/channels/"+CHANNEL)return result({guild_id:wrongChannel?"1":GUILD,type:0});
     if(options.method==="POST" || options.method==="PATCH"){
       const value=JSON.parse(options.body);assert.deepEqual(value.allowed_mentions,{parse:[]});
@@ -188,6 +190,8 @@ test("Wrong bot application or guild cannot produce a channel message",async t=>
   const {env}=await setup(t);let calls=fakeDiscord(t,env,{wrongApp:true});await updateBoard(env,NOW);
   assert.equal(calls.filter(x=>x.method==="POST").length,0);
   calls=fakeDiscord(t,env,{wrongChannel:true});await updateBoard(env,NOW+31);
+  assert.equal(calls.filter(x=>x.method==="POST").length,0);
+  calls=fakeDiscord(t,env,{wrongBot:true});await updateBoard(env,NOW+62);
   assert.equal(calls.filter(x=>x.method==="POST").length,0);
 });
 

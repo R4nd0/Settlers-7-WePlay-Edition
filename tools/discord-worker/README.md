@@ -1,7 +1,12 @@
 # WePlay external Discord operator
 
 This Worker replaces the private-PC Gateway host. Worker, D1 and minute Cron
-are deployed; private BOT_TOKEN entry and Discord HTTP cutover are pending.
+are deployed; both private secrets are set and Discord has verified the HTTP
+cutover. The real automatic empty board has been created in #🎮multiplayer.
+The original local Gateway bot was gracefully stopped. Launcher pairing and
+actual public game reports still require validation; do not fabricate games.
+The owner confirmed that `/weplay-hilfe` responds with Launcher verbinden after
+the HTTP cutover.
 Only use Workers/D1 Free
 for this initial setup. Do not enable paid plans or create a duplicate app.
 
@@ -57,6 +62,11 @@ uploads. Never capture the secret value in a command argument or local file.
 7. Set the Discord app's **Interactions Endpoint URL** to
    `<PUBLIC_ORIGIN>/interactions`. Discord sends a signed verification PING.
    Save only after it passes. This switches interactions from Gateway to HTTP.
+   Discord also documents `PATCH /applications/@me` with
+   `interactions_endpoint_url` for the requesting bot. The same signature/PING
+   validation applies. This deployment used a fixed-target one-time scheduled
+   activation inside the Worker so the secret never had to leave Cloudflare;
+   the activation was removed from the regular deployed entry afterwards.
 8. Verify `/weplay-status`, `/weplay-hilfe` and `/spiele` in the exact target
    channel. Then gracefully stop the old local Gateway bot.
 9. Install RC3.2, privately pair the launcher and check an actual public lobby.
@@ -104,11 +114,20 @@ compromised, rotate deliberately and require fresh pairing.
 production SQL against isolated SQLite. All Discord HTTP calls are mocked.
 The isolated workerd/D1 smoke test also passed without real secrets or Discord
 outbound traffic. `wrangler deploy --dry-run` bundles successfully. None of these
-checks establishes a live deployment or Internet gameplay.
+local checks alone establishes Internet gameplay. The production deployment,
+Discord endpoint verification and real empty board are separately confirmed.
 
 With the workspace's private Wrangler toolchain installed as above, run the
 real runtime check from the repository root using
 `node tools/discord-worker/tests/workerd-smoke.mjs`. It creates only an isolated
-local D1 database, uses synthetic keys and blocks Discord outbound requests.
+local D1 database, uses synthetic keys and mocks all Discord outbound requests.
+The test-only entry module exercises actual workerd request construction and a
+hostile redirect; it is never the deployment entry. Workers requires
+`redirect:'manual'`; its runtime rejects `redirect:'error'` before network I/O.
+HTTP 3xx is a failure and never forwards the bot credential. Application and
+authenticated bot IDs are fetched separately because application.bot is optional.
+
+Official API references: [Discord app editing](https://docs.discord.com/developers/resources/application#edit-current-application),
+[Workers redirect behavior](https://developers.cloudflare.com/workers/runtime-apis/request/).
 
 See [integration and exact state semantics](../../docs/DISCORD-INTEGRATION.md).

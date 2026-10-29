@@ -109,7 +109,9 @@ export async function board(env,now) {
 
 async function discord(env,path,options={}) {
   if(typeof env.BOT_TOKEN!=="string" || env.BOT_TOKEN.length<20 || env.BOT_TOKEN.length>512)throw new Refusal(503);
-  const response=await fetch("https://discord.com/api/v10"+path,{...options,redirect:"error",signal:AbortSignal.timeout(8000),
+  // workerd supports manual redirects, but rejects the standard error mode.
+  // A redirect is returned as a failed response; credentials are never forwarded.
+  const response=await fetch("https://discord.com/api/v10"+path,{...options,redirect:"manual",signal:AbortSignal.timeout(8000),
     headers:{"Authorization":"Bot "+env.BOT_TOKEN,"Content-Type":"application/json","User-Agent":"WePlayDirectory/1.0"}});
   const raw=await response.text();if(raw.length>131072)throw new Refusal(503);
   let value;try{value=raw ? JSON.parse(raw) : {};}catch{throw new Refusal(503);}
@@ -125,15 +127,19 @@ export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
   try {
     const embed=await board(env,now);const digest=await hash(JSON.stringify(embed));
     if(lock.digest===digest && lock.message_id)return;
-    const app=await discord(env,"/oauth2/applications/@me");
-    if(app.id!==env.APPLICATION_ID || !id(app.bot?.id))throw new Refusal(503);
+    const app=await discord(env,"/applications/@me");
+    if(app.id!==env.APPLICATION_ID)throw new Refusal(503);
+    // The optional application.bot object may be absent in real API replies.
+    // Resolve the authenticated bot explicitly before trusting message ownership.
+    const bot=await discord(env,"/users/@me");
+    if(bot.bot!==true || !id(bot.id))throw new Refusal(503);
     const channel=await discord(env,"/channels/"+env.CHANNEL_ID);
     if(channel.guild_id!==env.GUILD_ID || channel.type!==0)throw new Refusal(503);
     let messageId=lock.message_id;
     if(messageId){
       try {
         const previous=await discord(env,"/channels/"+env.CHANNEL_ID+"/messages/"+messageId);
-        if(previous.author?.id!==app.bot.id || !previous.embeds?.[0]?.footer?.text?.startsWith(MARKER))throw new Refusal(503);
+        if(previous.author?.id!==bot.id || !previous.embeds?.[0]?.footer?.text?.startsWith(MARKER))throw new Refusal(503);
       } catch(error){if(error.missing)messageId=null;else throw error;}
     }
     const payload=JSON.stringify({content:"",embeds:[embed],allowed_mentions:{parse:[]}});
