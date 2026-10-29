@@ -18,9 +18,12 @@ Community invite: https://discord.gg/j2eQgVzssc
 
 The bot is installed and the user confirmed its initial Gateway connection and
 three commands. RC3.2 implements the external replacement in
-[tools/discord-worker](../tools/discord-worker/README.md). Cloudflare account
-login, deployment, private Worker secrets and the Discord Interactions Endpoint
-cutover are still required. Local passing tests do not mean it is already live.
+[tools/discord-worker](../tools/discord-worker/README.md). Worker, database and
+minute Cron are now deployed. The publisher master secret is privately set;
+BOT_TOKEN and the Discord Interactions Endpoint cutover are still required.
+The public [health endpoint](https://example.invalid/removed-personal-link)
+correctly reports not ready until the bot token is present. Unsigned interaction
+requests and unauthenticated publisher checks return 401 in production.
 The old Gateway implementation remains available under tools/discord for
 migration; do not run two production directory writers.
 
@@ -104,8 +107,8 @@ grant authentication and report lifecycle with Discord egress blocked. Python
 tests cover projection, HTTPS boundaries, heartbeat/closure, private pairing and
 an actual temporary Windows Credential Manager round trip. Compiled DE/EN UI
 and a real .NET/Python private pipe pass. These are synthetic/local checks.
-No external Worker deployment, production automatic board or two-PC Internet
-match has yet been verified.
+The external deployment and rejection boundaries are verified; the production
+automatic board and two-PC Internet match have not yet been verified.
 
 Official references:
 

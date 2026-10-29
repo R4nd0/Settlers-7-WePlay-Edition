@@ -7,10 +7,14 @@ Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 The user confirmed the installed Gateway bot and its three commands, then chose
 permanent external hosting without their PC. This supersedes the older Gateway
 preparation notes below. RC3.2 implements Workers HTTP interactions, D1 reports
-and a minute Cron in tools/discord-worker. Deployment is blocked on the owner's
-Cloudflare login/CLI authorization and private Worker secret entry. No public
-Worker or automatic production games board has been activated yet. The old
-local Gateway process was left running pending a verified HTTP cutover.
+and a minute Cron in tools/discord-worker. The owner has now authorized Wrangler;
+the Worker, D1 migration and minute Cron are deployed. The public origin is
+https://example.invalid/removed-personal-link. PUBLISHER_MASTER_KEY was
+generated privately and uploaded without a local copy. BOT_TOKEN is still
+missing, so health correctly returns 503/ready:false and no board can post.
+Unsigned interactions and unauthenticated publishers return 401 in production.
+The old local Gateway process was left running pending a verified HTTP cutover.
+Private deployment configuration stays in ignored work/discord-cloud/.
 
 Launcher pairing uses a private ephemeral Discord publisher code, the existing
 current-user-only pipe and Windows Credential Manager. No bot token is shipped.
@@ -37,7 +41,7 @@ Local deliverable: outputs/S7-WePlay-RC3.2-External-Discord-Preview/Setup.exe
 (104,620,776 bytes; SHA-256
 66279a7337363658acddc3fa966e6f4d5c2c3224e6a333152454734828b6d950).
 Its package inventory and final service pin match; no State/Instances/LocalData
-or private credentials are bundled. It is a deployment-pending local preview,
+or private credentials are bundled. It is an activation-pending local preview,
 not a published replacement for RC2.1. Worker has 14 passing tests; targeted
 Python runs pass 146 tests with five platform-specific skips. Native credential
 and private pipe checks ran on Windows separately. Earlier failed RC3.2 staging

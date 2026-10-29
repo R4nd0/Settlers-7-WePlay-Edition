@@ -1,7 +1,8 @@
 # WePlay external Discord operator
 
-This Worker replaces the private-PC Gateway host. Source and local tests are
-ready; deployment is pending Cloudflare account access. Only use Workers/D1 Free
+This Worker replaces the private-PC Gateway host. Worker, D1 and minute Cron
+are deployed; private BOT_TOKEN entry and Discord HTTP cutover are pending.
+Only use Workers/D1 Free
 for this initial setup. Do not enable paid plans or create a duplicate app.
 
 ## Public configuration
@@ -20,6 +21,22 @@ work/discord-worker-toolchain wrangler@4.155.0`) and set
 this workspace. Invoke its `.bin/wrangler.cmd` on Windows. Authenticate through
 Wrangler's normal OAuth flow with the owner's account; the owner completes
 login and authorization. A signed-in dashboard alone is not CLI authorization.
+For Wrangler 4.155.0 the minimal tested OAuth scope selection is `account:read
+workers_scripts:write d1:write` (plus Wrangler's required `offline_access`). The
+older `workers:write` scope did not authorize the scripts deployment API. Use
+`wrangler login --use-keyring --scopes account:read workers_scripts:write d1:write`.
+The official `--device --browser=false` flow avoids the short localhost callback
+timeout when the owner needs more time. The owner must approve the exact scope
+selection. No extra KV, routes, zone, user-details or billing-write access is
+needed for this Worker.
+
+On Windows `--use-keyring` needs `@napi-rs/keyring@1.3.0`. It can be installed
+under the private toolchain; setting `npm_config_prefix` to that directory lets
+Wrangler's global-package resolver find it without a machine-wide installation.
+OAuth data is stored in an encrypted Wrangler configuration with its key in
+Windows Credential Manager. Do not read that credential into a script or chat.
+Set `WRANGLER_WRITE_LOGS=false` and keep log sanitization enabled for secret
+uploads. Never capture the secret value in a command argument or local file.
 
 1. Create D1 `weplay-directory` with `wrangler d1 create weplay-directory` and
    record the returned database ID in the local configuration.
