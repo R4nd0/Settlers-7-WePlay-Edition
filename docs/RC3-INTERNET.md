@@ -1,4 +1,16 @@
-# WePlay RC3.3 Community Preview
+# WePlay RC3.4 Update Preview
+
+RC3.4 suppresses repeated achievement popups while preserving the achievement
+catalogue and rewards. The owner reported two three-hour play sessions without
+an observed desync; that report does not qualify every map/build/transport.
+Everyone in a room needs this same build because the prepared game archive changes.
+
+This launcher checks for new signed preview releases automatically at startup.
+When one is available it shows the version and an install button on the home
+page, plus a footer link. The Updates tab also offers a manual check and release
+notes. Installation closes the old launcher and restarts the new version; saves,
+settings and Discord pairing stay local. Old launchers need this bootstrap Setup
+once before they can recognize future updates. See [UPDATES.md](UPDATES.md).
 
 **Support WePlay** in the launcher footer opens the owner's PayPal page at
 https://example.invalid/removed-personal-link. The Help page explains that this is voluntary

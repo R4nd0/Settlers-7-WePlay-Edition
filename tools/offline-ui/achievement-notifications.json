@@ -1,0 +1,20 @@
+{
+  "format": "s7-achievement-notifications-v1",
+  "source_archive_sha256": "6966c878749f668de12b13126d971958bf1ba8e5952e5d7f2b224819dcd877eb",
+  "patched_archive_sha256": "38edae6dd347e9bc4afb9f3474285e8458f3d712dd058492f56bacc066ce15e4",
+  "files": [
+    {
+      "path": "Script/local/menu/panel/shared/achievement.lua",
+      "source_sha256": "d8fe509028de1a9a2abcef807d1cc8d4de83989857fda104d18d9b3ec23fd373",
+      "patched_sha256": "e390b6603c21bee57a3d7d57c1117c68af880cc67f7a7a2b172217fe98279044",
+      "edits": [
+        {
+          "offset": 45055,
+          "before_hex": "6c5b6e28333938295d3d66756e6374696f6e282e2e2e2972657475726e206f282e2e2e29656e64",
+          "after_utf8": "l[n(398)]=function(...)return {destroy=function()end,update=function()end,isCreated=function()return false end}end",
+          "reason": "Suppress automatic achievement popup creation with its verified closed-widget lifecycle; preserve catalogue and rewards"
+        }
+      ]
+    }
+  ]
+}

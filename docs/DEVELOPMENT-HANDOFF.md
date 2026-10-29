@@ -2,6 +2,67 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## User playtest report, 2026-10-29
+
+The owner reports two separate play sessions of three hours each with no observed
+desynchronization. This is a human playtest observation, not an automated test
+or proof that every previous desync cause is resolved. Exact build, transport,
+host direction and map were not specified in that report. Earlier failures below
+are retained as historical evidence. During these sessions achievement messages
+repeatedly appeared; the owner requested disabling them and an integrated update
+patcher for subsequent maintenance releases.
+
+## RC3.4 achievement popups and automatic update checks, 2026-10-29
+
+The shared achievement popup factory is now replaced by a hash-locked inert
+lifecycle object after the public-LAN archive transform. The achievement
+catalogue, rewards, progression, native adapter and simulation are unchanged.
+The Ubisoft booking hypothesis is not established. New archive SHA-256:
+38edae6dd347e9bc4afb9f3474285e8458f3d712dd058492f56bacc066ce15e4.
+The package flag achievement_notifications_disabled is optional for legacy
+packages; the copied-game fingerprint includes it only when true, preserving
+old backend-only update behavior. Network revision is now 5 because the game
+archive/content contract changes. All players need the same prepared version.
+
+The RC3.4 bootstrap launcher automatically checks for signed preview updates
+at startup without blocking game operations. An available version gets a visible
+home notice, install button and a footer link even during initial setup. Updates
+also has a manual check, release notes and prior failure status. Existing unsigned
+releases never produce a false update offer. Package-only update helpers do not
+enter the copied-game contract. The public RSA3072 verification key is shipped;
+the signing key is CurrentUser DPAPI-protected only in ignored work/updates/.
+
+Downloads use signed fixed-repository metadata, size/SHA256 bounds and replay
+protection. A verified independent PowerShell helper acknowledges readiness,
+holds the per-app update mutex and waits for exact GUI/backend process handles
+before running a fixed-argument installer and restarting. Game/service processes
+block application. State, saves and settings are not update payloads. Existing
+staged game preparation retains its old instance on failure. No automatic
+post-install health rollback or binary delta update is claimed. A first manual
+bootstrap install is required for old launchers to recognize future updates.
+
+Validation includes seven achievement checks with actual Lua 5.1 caller loops,
+18 update core/signing/security checks, five real Windows handoff lifecycle
+fixtures with harmless locally built executables, backend IPC/legacy tests and
+compiled DE/EN UI/private-pipe checks. The Windows fixtures caught and fixed a
+PowerShell 5 null-path coercion bug during status replacement. No real app,
+registry or production signing key was touched by those fixtures. No signed
+GitHub release has been published by this task. See ACHIEVEMENT-NOTIFICATIONS.md
+and UPDATES.md for exact evidence, limits and publishing instructions.
+
+Built deliverable: outputs/S7-WePlay-RC3.4-Update-Preview/Setup.exe,
+104,647,219 bytes, SHA-256
+2820e89224cba3472ec655d0a22bf629d428c7b3134731fd413ed2a0dd1c5c1f.
+Its matching weplay-update.json is signed for v2.0.0-rc3.4, sequence 1, but
+neither asset has been uploaded. The packaged launcher passes its compiled
+DE/EN UI and private-pipe checks. Its real public-feed check correctly returns
+no_signed_release because the existing releases contain no signed manifest.
+A complete installation/verification into the isolated
+work/rc34-install-verification-r2/App copy succeeds with the expected new archive
+hash and updates_supported true. Source executable/archive hashes are unchanged.
+No game was started for this check; this does not establish in-game behavior or
+qualify a new multiplayer playtest.
+
 ## RC3.3 voluntary community support, 2026-10-29
 
 The owner requested https://example.invalid/removed-personal-link as a donation link for

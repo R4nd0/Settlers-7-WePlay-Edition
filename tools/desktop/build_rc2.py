@@ -1,4 +1,4 @@
-"""Build the RC3.3 Community Preview from pinned inputs."""
+"""Build the RC3.4 Update Preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,12 +14,13 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,update_sequence=1):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
     if not output.is_relative_to(REPO/'outputs'):raise ValueError('Preview output must be inside outputs')
     if easytier_runtime is not None and easytier_source is None:raise ValueError('Corresponding EasyTier source is required')
+    if type(update_sequence) is not int or not 1<=update_sequence<=2147483647:raise ValueError('Invalid update sequence')
     if not compiler.is_file() or not probe.is_file():raise ValueError('Build tools missing')
     if not (desktop_publish/'S7Launcher.exe').is_file():raise ValueError('Desktop app publish is missing')
     stage.mkdir();output.mkdir(parents=True,exist_ok=True)
@@ -52,7 +53,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.3 Community Preview','network_revision':4,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC3.4 Update Preview','network_revision':5,'game_bits':32,
+             'version':'2.0.0-rc3.4','update_sequence':update_sequence,'update_channel':'preview',
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -106,7 +108,8 @@ if __name__=='__main__':
     for name in ('base-package','service','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
+    parser.add_argument('--update-sequence',type=int,default=1)
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,update_sequence=values.update_sequence)

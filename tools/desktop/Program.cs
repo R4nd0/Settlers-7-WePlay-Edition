@@ -15,6 +15,8 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(AppRoot.ToLowerInvariant())))[..24];
+        if(Mutex.TryOpenExisting("Local\\S7Launcher-Update-"+key,out var applyingUpdate))
+        {applyingUpdate.Dispose();return 1;}
         using var single = new Mutex(true, "Local\\S7Launcher-" + key, out bool first);
         using var updateGuard = new Mutex(false, "S7Launcher-Install");
         if (!first && !args.Contains("--self-test")) return 1;
@@ -99,9 +101,9 @@ internal sealed class BackendError(string code, string details) : Exception(deta
 internal static class Backend
 {
     public static string? Operation { get; private set; }
-    public static async Task<JsonElement> Run(string action, object data, Action<JsonElement> receive)
+    public static async Task<JsonElement> Run(string action, object data, Action<JsonElement> receive,bool trackOperation=true)
     {
-        string operation = Guid.NewGuid().ToString("N"); Operation = operation;
+        string operation = Guid.NewGuid().ToString("N"); if(trackOperation)Operation = operation;
         var start = new ProcessStartInfo(Path.Combine(Program.AppRoot,"Package","Runtime","python","python.exe"))
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
@@ -132,7 +134,7 @@ internal static class Backend
             if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new BackendError("operation_failed", stderr);
             return result;
         }
-        finally { if (Operation == operation) Operation = null; }
+        finally { if (trackOperation && Operation == operation) Operation = null; }
     }
     private static async Task<string> ReadBounded(StreamReader source, int limit)
     {
@@ -200,7 +202,17 @@ internal sealed record Item(string Key, string Label) { public override string T
 internal sealed class MainForm : Form
 {
     private readonly bool testing;
-    private bool busy, gameRunning, loading, forceSetup, recoverState, cancelRequested;
+    private bool busy, gameRunning, loading, forceSetup, recoverState, cancelRequested,updateExit;
+    private bool updatesSupported,updateChecking,remoteUpdateAvailable;
+    private long remoteUpdateSequence;
+    private string updateMessageKey="updateAutomatic",remoteUpdateVersion="";
+    private string? lastUpdateFailure;
+    private readonly Label updateLastOutcome=new() { AutoSize=true,MaximumSize=new Size(880,0),ForeColor=Color.Firebrick,Visible=false };
+    private readonly Label updateNotice=new() { AutoSize=true,MaximumSize=new Size(880,0) };
+    private readonly Label homeUpdateNotice=new() { AutoSize=true,MaximumSize=new Size(880,0) };
+    private readonly TextBox updateNotes=new() { Multiline=true,ReadOnly=true,Dock=DockStyle.Top,Height=150,ScrollBars=ScrollBars.Vertical };
+    private Button updateCheck=null!,updateInstall=null!,homeUpdateInstall=null!;
+    private LinkLabel globalUpdateLink=null!;
     private JsonElement snapshot;
     private readonly List<JsonElement> screens = [];
     private string lastError = "";
@@ -242,7 +254,7 @@ internal sealed class MainForm : Form
     private readonly Dictionary<Control,string> accessibleFields = [];
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Top, Height = 120, ScrollBars = ScrollBars.Vertical };
     private readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Visible = false };
-    private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!;
+    private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
 
     public MainForm(bool initialSetup = false, bool test = false)
     {
@@ -263,8 +275,8 @@ internal sealed class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=3,RowCount=2 };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=4,RowCount=2 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
             Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
@@ -274,8 +286,10 @@ internal sealed class MainForm : Form
             Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DonationUrl };
         Bind(donationLink,"donationOpen");donationLink.LinkClicked+=(_,_)=>
         {try{Community.OpenDonation();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
-        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,3);
-        footer.Controls.Add(status,0,1);footer.Controls.Add(donationLink,1,1);footer.Controls.Add(discordLink,2,1);
+        globalUpdateLink=new LinkLabel { AutoSize=true,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,Padding=new Padding(12,0,0,0),Visible=false };
+        globalUpdateLink.LinkClicked+=async (_,_)=>await Guard(InstallUpdate);
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,4);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(donationLink,2,1);footer.Controls.Add(discordLink,3,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
@@ -288,6 +302,7 @@ internal sealed class MainForm : Form
         Resize += (_,_) => { if (gameRunning && WindowState == FormWindowState.Minimized) { ShowInTaskbar = false; tray.Visible = true; } };
         FormClosing += (_,e) =>
         {
+            if(updateExit)return;
             if (gameRunning) { e.Cancel = true; WindowState = FormWindowState.Minimized; ShowInTaskbar = false; tray.Visible = true; }
             else if (busy) { e.Cancel = true; if (MessageBox.Show(this,Lang.T("closeBusy"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) Backend.Cancel(); }
         };
@@ -351,9 +366,13 @@ internal sealed class MainForm : Form
         internetPage = new TabPage(); Bind(internetPage,"internet"); internetPage.BackColor = Color.White;
         graphicsPage = new TabPage(); Bind(graphicsPage,"graphics"); graphicsPage.BackColor = Color.White;
         helpPage = new TabPage(); Bind(helpPage,"help"); helpPage.BackColor = Color.White;
-        tabs.TabPages.AddRange([homePage,lanPage,internetPage,graphicsPage,helpPage]);
+        updatesPage=new TabPage();Bind(updatesPage,"updates");updatesPage.BackColor=Color.White;
+        tabs.TabPages.AddRange([homePage,lanPage,internetPage,graphicsPage,helpPage,updatesPage]);
         var home = Stack(homePage); Add(home,homeTitle); Add(home,homeInfo);
         Add(home,Buttons(Button("playButton",()=>Play(false),true),Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;}),Button("internet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        Add(home,homeUpdateNotice);
+        homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
+        Add(home,Buttons(Button("updates",()=>{tabs.SelectedTab=updatesPage;return Task.CompletedTask;}),homeUpdateInstall));
         var lan = Stack(lanPage);
         var lanTitle=Label("lanTitle");lanTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(lan,lanTitle);
         Add(lan,Label("lanIntro"));Add(lan,Field("player",player));
@@ -430,6 +449,14 @@ internal sealed class MainForm : Form
         var donationAddress=new LinkLabel { AutoSize=true, Text=Community.DonationUrl,AccessibleDescription=Community.DonationUrl };
         donationAddress.LinkClicked+=async (_,_)=>await Guard(()=>{Community.OpenDonation();return Task.CompletedTask;});
         Add(h,donationAddress);Add(h,Buttons(Button("donationPayPal",()=>{Community.OpenDonation();return Task.CompletedTask;})));
+        var updateScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };updatesPage.Controls.Add(updateScroll);var u=Stack(updateScroll);
+        var updateTitle=Label("updatesTitle");updateTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(u,updateTitle);
+        Add(u,Label("updatesIntro"));Add(u,updateNotice);
+        Add(u,updateLastOutcome);
+        updateCheck=Button("updateCheck",()=>CheckUpdates(false));updateInstall=Button("updateInstall",InstallUpdate,true);
+        Add(u,Buttons(updateCheck,updateInstall));Add(u,Label("updateNotes"));Add(u,updateNotes);
+        Add(u,Label("updatesPreserve"));
+        accessibleFields[updateNotes]="updateNotes";
     }
 
     private void ApplyLanguage()
@@ -448,6 +475,7 @@ internal sealed class MainForm : Form
         homeTitle.Text=Lang.T(gameRunning?"running":"ready"); homeInfo.Text=Lang.T(gameRunning?"runningInfo":"playIntro");
         if(!busy) status.Text=Lang.T("ready");
         UpdateInternetControls();
+        RefreshUpdateControls();
     }
     private async Task Initialise()
     {
@@ -466,10 +494,13 @@ internal sealed class MainForm : Form
             if(error is BackendError failure&&failure.Code=="installation_invalid"){recoverState=true;Bind(installButton,"restartSetup");}
         }
         finally {SetBusy(false);}
+        if(!testing&&updatesSupported)_=CheckUpdates(true);
     }
     private void LoadSnapshot(JsonElement value,bool replaceFields=true)
     {
         snapshot=value.Clone();loading=true;
+        updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
+        lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
         if(replaceFields)
         {
@@ -540,6 +571,55 @@ internal sealed class MainForm : Form
         if(source.SelectedItem is not Item item)throw new BackendError("source_missing","");
         var result=await Backend.Run("install",new {source=item.Key,container=destination.Text},Receive);
         LoadSnapshot(result);if(!testing)Shortcuts.Create();ShowMain();
+    }
+    private void RefreshUpdateControls()
+    {
+        if(updateCheck==null)return;
+        updateCheck.Enabled=updatesSupported&&!busy&&!updateChecking;
+        updateInstall.Enabled=homeUpdateInstall.Enabled=updatesSupported&&remoteUpdateAvailable&&!busy&&!gameRunning&&!updateChecking;
+        updateInstall.Visible=homeUpdateInstall.Visible=remoteUpdateAvailable;
+        globalUpdateLink.Visible=remoteUpdateAvailable;
+        globalUpdateLink.Enabled=updateInstall.Enabled;
+        globalUpdateLink.Text=string.Format(Lang.T("updateGlobal"),remoteUpdateVersion);
+        updateLastOutcome.Visible=lastUpdateFailure!=null;
+        updateLastOutcome.Text=lastUpdateFailure==null?"":string.Format(Lang.T("updateLastFailure"),Lang.T(lastUpdateFailure));
+        string key=!updatesSupported?"update_unavailable":updateChecking?"updateChecking":updateMessageKey;
+        updateNotice.Text=homeUpdateNotice.Text=string.Format(Lang.T(key),remoteUpdateVersion);
+        homeUpdateNotice.ForeColor=remoteUpdateAvailable?Color.FromArgb(30,91,164):Color.DimGray;
+        FontStyle style=remoteUpdateAvailable?FontStyle.Bold:FontStyle.Regular;
+        if(homeUpdateNotice.Font.Style!=style)homeUpdateNotice.Font=remoteUpdateAvailable?new Font(Font,style):Font;
+    }
+    private void ShowUpdateResult(JsonElement value)
+    {
+        remoteUpdateAvailable=value.GetProperty("available").GetBoolean();
+        remoteUpdateSequence=remoteUpdateAvailable?value.GetProperty("sequence").GetInt64():0;
+        remoteUpdateVersion=remoteUpdateAvailable?value.GetProperty("version").GetString()??"":"";
+        updateMessageKey=remoteUpdateAvailable?"updateFound":value.GetProperty("reason").GetString()=="no_signed_release"?"updateNoRelease":"updateCurrent";
+        updateNotes.Text=value.GetProperty("notes").GetString()??"";RefreshUpdateControls();
+    }
+    private async Task CheckUpdates(bool automatic)
+    {
+        if(!updatesSupported||updateChecking)return;
+        updateChecking=true;updateNotice.Text=homeUpdateNotice.Text=Lang.T("updateChecking");RefreshUpdateControls();
+        try
+        {
+            var value=await Backend.Run("update-check",new {},_=>{},trackOperation:false);
+            if(IsDisposed)return;
+            ShowUpdateResult(value);
+        }
+        catch(Exception error)
+        {
+            if(IsDisposed)return;
+            updateMessageKey=error is BackendError backend?backend.Code:"update_download_failed";RefreshUpdateControls();
+            if(!automatic)throw;
+        }
+        finally {updateChecking=false;if(!IsDisposed)RefreshUpdateControls();}
+    }
+    private async Task InstallUpdate()
+    {
+        if(gameRunning||!remoteUpdateAvailable)throw new BackendError("update_busy","");
+        await Backend.Run("update-install",new {sequence=remoteUpdateSequence},Receive);
+        updateExit=true;Close();
     }
     private void UpdateResolutions()
     {
@@ -726,6 +806,7 @@ internal sealed class MainForm : Form
         if(value){status.Text=Lang.T("working");progress.Visible=true;progress.Style=ProgressBarStyle.Marquee;}
         else{cancelRequested=false;progress.Visible=false;DisplayEnabled();if(setup.Visible)installButton.Enabled=recoverState||source.SelectedIndex>=0;}
         UpdateInternetControls();
+        RefreshUpdateControls();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -771,7 +852,7 @@ internal sealed class MainForm : Form
                 if(Lang.Read(locale).Values.Any(text=>text.Contains("\u00c3")||text.Contains("\u00c2")||text.Contains("\ufffd")))
                     throw new Exception("Translation encoding damaged: "+locale);
             string fixture="""
-            {"installed":true,"displays":[{"device":"\\\\.\\DISPLAY1","adapter":"Fixture GPU","primary":true,"x":0,"y":0,"width":1920,"height":1080,"resolutions":[[1280,720],[1920,1080]]}],"data_default":"C:\\Fixture\\Instances","source":"C:\\Fixture\\Original","renderer_policy":"auto","probe":{"devices":["Fixture GPU"],"failure":null},"choice":{"format":"s7-graphics-choice-v1","choice":"Fixture GPU","simple_menu":true,"display":{"device":"\\\\.\\DISPLAY1","width":1920,"height":1080,"mode":"borderless"}},"quality":{"ShaderQuality":1,"TextureQuality":1,"ObjectQuality":1,"DistanceCulling":1,"ShadowQuality":1,"WaterQuality":1,"ClutterQuality":1,"Shadows":1,"SSAO":0,"DepthOfField":0,"SunShafts":0,"Parallax":0,"Antialiasing":1},"player_name":"Tester","renderer":"dxvk","current":"C:\\Fixture\\Game","update_available":false}
+            {"installed":true,"updates_supported":true,"displays":[{"device":"\\\\.\\DISPLAY1","adapter":"Fixture GPU","primary":true,"x":0,"y":0,"width":1920,"height":1080,"resolutions":[[1280,720],[1920,1080]]}],"data_default":"C:\\Fixture\\Instances","source":"C:\\Fixture\\Original","renderer_policy":"auto","probe":{"devices":["Fixture GPU"],"failure":null},"choice":{"format":"s7-graphics-choice-v1","choice":"Fixture GPU","simple_menu":true,"display":{"device":"\\\\.\\DISPLAY1","width":1920,"height":1080,"mode":"borderless"}},"quality":{"ShaderQuality":1,"TextureQuality":1,"ObjectQuality":1,"DistanceCulling":1,"ShadowQuality":1,"WaterQuality":1,"ClutterQuality":1,"Shadows":1,"SSAO":0,"DepthOfField":0,"SunShafts":0,"Parallax":0,"Antialiasing":1},"player_name":"Tester","renderer":"dxvk","current":"C:\\Fixture\\Game","update_available":false}
             """;
             using var json=JsonDocument.Parse(fixture);
             foreach(string language in new[]{"en","de"})
@@ -799,21 +880,28 @@ internal sealed class MainForm : Form
                 form.discordAvailable=true;form.discordConnected=true;form.discordPublish.Checked=true;form.UpdateInternetControls();
                 if(!form.discordPublish.Enabled||!form.discordDisconnect.Enabled||!form.discordConnect.Enabled)
                     throw new Exception("Connected Discord publisher controls failed");
-                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage})
+                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage,form.updatesPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
-                var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
+                form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
                 using(var supportImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
+                form.updatesSupported=true;
+                using(var offered=JsonDocument.Parse("""{"available":true,"version":"2.0.0-rc3.5","sequence":2,"notes":"UI fixture","reason":"available"}"""))form.ShowUpdateResult(offered.RootElement);
+                form.tabs.SelectedTab=form.homePage;Application.DoEvents();
+                if(!form.homeUpdateInstall.Visible||!form.homeUpdateInstall.Enabled||!form.homeUpdateNotice.Text.Contains("2.0.0-rc3.5"))throw new Exception("Update notice is not visible on the home page");
+                form.SetBusy(true);if(form.homeUpdateInstall.Enabled)throw new Exception("Update enabled during another operation");form.SetBusy(false);
+                using(var updateImage=new Bitmap(form.Width,form.Height))
+                {form.DrawToBitmap(updateImage,new Rectangle(0,0,form.Width,form.Height));updateImage.Save(Path.Combine(folder,language+"-update-found.png"));}
                 form.tabs.Visible=false;form.setup.Visible=true;form.source.Items.Add(new Item("C:\\Fixture\\Original","C:\\Fixture\\Original"));form.source.SelectedIndex=0;form.setupNotice.Text=Lang.T("found");Application.DoEvents();
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
                 form.Close();
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
-                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share","discord_publisher_opt_in"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share","discord_publisher_opt_in","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

@@ -140,12 +140,15 @@ class Desktop:
                 ('installer/start.py',''),('installer/launch_lan.py',''),('installer/install.py',''),
                 ('offline-ui/patch-spec.json',''),('offline-ui/join-menu-update.json',''),
                 ('installer/lan_public_game.py',''),('offline-ui/lan-public-creation.json','')]
+        mapped += [(name,'') for name in install.ACHIEVEMENT_PACKAGE_TOOLS]
         names={('tools/'+name).lower() for name,_ in mapped}
         records={name:digest for name,digest in value['files'].items() if name in names or
                  name.startswith(('runtime/','payload/server/')) or name in
                  ('payload/uplay_r1_loader.dll','payload/graphics/d3d9.dll','tools/license.txt')}
+        flags={key:value.get(key,False) for key in ('graphics_choice','display_selection','automatic_lan','desktop_launcher')}
+        if value.get('achievement_notifications_disabled',False):flags['achievement_notifications_disabled']=True
         return content.fingerprint({'files':records,'archive':value.get('patched_archive_sha256'),
-             'flags':{key:value.get(key,False) for key in ('graphics_choice','display_selection','automatic_lan','desktop_launcher')}})
+             'flags':flags})
 
     @contextmanager
     def lock(self):
@@ -228,6 +231,15 @@ class Desktop:
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
                 'current':None,'update_available':False,'needs_repair':False,
                 'internet_available':self.read(self.package/'package.json',{}).get('internet_easytier',False) is True}
+        result['updates_supported']=self.read(self.package/'package.json',{}).get('update_patcher',False) is True
+        result['update_last_error']=None
+        if result['updates_supported']:
+            try:
+                update_status=self.read(self.state/'Updates/status.json',{},limit=8192)
+                if isinstance(update_status,dict) and update_status.get('format')=='weplay-update-status-v1' and update_status.get('phase')=='failed':
+                    code=update_status.get('code','')
+                    result['update_last_error']=code if isinstance(code,str) and re.fullmatch('update_[a-z_]{1,48}',code) else 'update_install_failed'
+            except (OSError,ValueError,TypeError):result['update_last_error']='update_invalid'
         result['discord_available']=self.read(self.package/'package.json',{}).get('discord_directory',False) is True
         result['discord_connected']=False;result['discord_publish_enabled']=False
         if result['discord_available']:
@@ -444,6 +456,23 @@ class Desktop:
             store(url,key)
             self.write(self.state/'discord-directory.json',{'format':FORMAT,'origin':url,'publish_enabled':True})
         return {'connected':True}
+
+    def check_updates(self):
+        if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
+        from update_client import check
+        return check(self.app)
+
+    def install_update(self,data):
+        if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
+        if not isinstance(data,dict) or set(data)!={'sequence'} or type(data['sequence']) is not int or data['sequence']<1:
+            raise ValueError('request_invalid')
+        graphics.ensure_closed()
+        from update_client import process_info,prepare,start_handoff
+        parent=process_info(os.getppid())
+        if graphics._plain(parent['path'])!=self.app/'S7Launcher.exe':raise ValueError('update_parent_invalid')
+        prepared=prepare(self.app,parent['pid'],parent['started_ticks'],progress=self.progress,expected_sequence=data['sequence'])
+        started=start_handoff(self.app,prepared['job'])
+        return {'handoff':True,'version':started['version']}
 
     def disconnect_discord(self):
         if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
@@ -687,12 +716,15 @@ def dispatch(desktop,request):
     action,data=request['action'],request['data']
     if not isinstance(data,dict):raise ValueError('request_invalid')
     if action=='snapshot' and not data:return desktop.snapshot()
+    # Startup checks must not hold the game-operation lock during network I/O.
+    if action=='update-check' and not data:return desktop.check_updates()
     if action=='detect' and not data:
         desktop.progress('source')
         previous=desktop.installed()
         locations=([Path(previous['source'])] if previous else [])+game_detection.candidates()
         return {'sources':game_detection.detect(locations)}
     with desktop.lock():
+        if action=='update-install':return desktop.install_update(data)
         if action in ('install','repair') and set(data)<= {'source','container'}:
             previous=desktop.installed()
             source=data.get('source') or (previous['source'] if previous else None)
@@ -718,6 +750,7 @@ def dispatch(desktop,request):
 
 
 def error_code(error):
+    if re.fullmatch('update_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
@@ -727,7 +760,7 @@ def error_code(error):
         'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}
-    known.update(('discord_unavailable','discord_not_connected'))
+    known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid'))
     if text in known:return text
     if '4 GiB' in text:return 'memory_low'
     if 'laeuft' in text or 'running' in text or 'schliessen' in text:return 'game_running'
