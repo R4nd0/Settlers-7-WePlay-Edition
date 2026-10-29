@@ -228,6 +228,12 @@ class Desktop:
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
                 'current':None,'update_available':False,'needs_repair':False,
                 'internet_available':self.read(self.package/'package.json',{}).get('internet_easytier',False) is True}
+        result['discord_available']=self.read(self.package/'package.json',{}).get('discord_directory',False) is True
+        result['discord_connected']=False;result['discord_publish_enabled']=False
+        if result['discord_available']:
+            from discord_credentials import connected,public_settings
+            result['discord_connected']=connected(self.state)
+            if result['discord_connected']:result['discord_publish_enabled']=public_settings(self.state)['publish_enabled']
         if value:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
@@ -426,11 +432,43 @@ class Desktop:
                 selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
             self.record_ownership(root)
 
+    def connect_discord(self,data):
+        if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
+        if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
+        from internet_private_channel import PrivateChannel
+        from discord_credentials import parse,store,FORMAT
+        from discord_directory import check_connection
+        with PrivateChannel(data['channel']) as channel:
+            url,key=parse(channel.read())
+            check_connection(url,key)
+            store(url,key)
+            self.write(self.state/'discord-directory.json',{'format':FORMAT,'origin':url,'publish_enabled':True})
+        return {'connected':True}
+
+    def disconnect_discord(self):
+        if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
+        from discord_credentials import load,remove
+        value=load(self.state)
+        if value:remove(value[0])
+        graphics._plain(self.state/'discord-directory.json').unlink(missing_ok=True)
+        return {'connected':False}
+
     def internet_play(self,request,*,host):
         if not install.package_manifest(self.package).get('internet_easytier',False):
             raise ValueError('package_invalid')
         required={'player_name','channel','mode','direct_endpoint'} if host else {'player_name','channel'}
-        if not isinstance(request,dict) or set(request)!=required:raise ValueError('request_invalid')
+        if not isinstance(request,dict) or set(request) not in (required,required|{'publish_discord'}):raise ValueError('request_invalid')
+        publish=request.get('publish_discord',False)
+        if type(publish) is not bool:raise ValueError('request_invalid')
+        if publish:
+            from discord_credentials import connected
+            if not install.package_manifest(self.package).get('discord_directory',False) or not connected(self.state):
+                raise ValueError('discord_not_connected')
+        if 'publish_discord' in request and install.package_manifest(self.package).get('discord_directory',False):
+            from discord_credentials import public_settings
+            preferences=public_settings(self.state)
+            if preferences:
+                preferences['publish_enabled']=publish;self.write(self.state/'discord-directory.json',preferences)
         self.validate_lan({'player_name':request['player_name']})
         if host and (request['mode'] not in ('assisted','direct') or
                 (request['mode']=='direct')!=(request['direct_endpoint'] is not None)):
@@ -443,7 +481,7 @@ class Desktop:
             if not host:parse(invitation)
             elif request['mode']=='direct':endpoint(request['direct_endpoint'])
             options={'invitation':invitation,'mode':request.get('mode','assisted'),
-                     'direct_endpoint':request.get('direct_endpoint')}
+                     'direct_endpoint':request.get('direct_endpoint'),'publish_discord':publish}
             return self.play({'player_name':request['player_name']},internet=options,
                              invitation_ready=channel.invitation_ready)
 
@@ -511,9 +549,18 @@ class Desktop:
             code=launch_local.run(args)
         elif internet is not None:
             import launch_internet
+            def observe(interface,coordinator,expected):
+                if not internet.get('publish_discord',False):return None
+                from discord_directory import Reporter
+                try:
+                    return Reporter(self.state,interface,coordinator,expected,
+                        warn=lambda code:self.emit('warning',code=code)).start()
+                except (OSError,ValueError):
+                    self.emit('warning',code='discord_publish_failed');return None
             code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
                 player_name=request['player_name'],progress=self.progress,
-                cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,**internet),
+                cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,
+                public_observer=observe,**internet),
                 invitation_ready=invitation_ready,
                 policy_ready=lambda mode:self.emit('internet_policy',mode=mode),
                 network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
@@ -658,6 +705,8 @@ def dispatch(desktop,request):
         if action=='lan-list' and not data:return desktop.lan_list()
         if action=='lan-play':return desktop.play(data)
         if action in ('internet-create','internet-join'):return desktop.internet_play(data,host=action=='internet-create')
+        if action=='discord-connect':return desktop.connect_discord(data)
+        if action=='discord-disconnect' and not data:return desktop.disconnect_discord()
         if action=='probe' and not data:return desktop.probe(refresh=True)
         if action=='verify' and not data:return desktop.verify()
         if action=='cleanup' and not data:return desktop.clean_old()
@@ -669,6 +718,7 @@ def dispatch(desktop,request):
 
 
 def error_code(error):
+    if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
         return error.code
@@ -677,6 +727,7 @@ def error_code(error):
         'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}
+    known.update(('discord_unavailable','discord_not_connected'))
     if text in known:return text
     if '4 GiB' in text:return 'memory_low'
     if 'laeuft' in text or 'running' in text or 'schliessen' in text:return 'game_running'
@@ -703,7 +754,7 @@ def main():
             result=dispatch(desktop,request)
         emit('result',data=result);return 0
     except (OSError,ValueError,RuntimeError,TimeoutError,KeyError,TypeError) as error:
-        private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join')
+        private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join','discord-connect')
         emit('error',code=error_code(error),detail='' if private else str(error)[:512]);return 2
     finally:
         if desktop is not None and desktop.cancel.exists():desktop.cancel.unlink()

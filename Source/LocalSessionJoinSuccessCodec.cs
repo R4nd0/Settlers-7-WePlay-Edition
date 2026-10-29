@@ -41,7 +41,7 @@ namespace S7Patcher.Source
                         && entry.Pending.TryGetValue(owner, out var member) && member.Peer.Matches(peer))
                     {
                         reason = member.Confirmed ? "local-join-success-replayed" : "local-join-member-confirmed";
-                        member.Confirmed = true; return true;
+                        member.Confirmed = true; RefreshPublicGames(); return true;
                     }
             return false;
         }

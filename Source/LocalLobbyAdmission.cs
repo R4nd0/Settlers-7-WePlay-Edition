@@ -59,7 +59,7 @@ namespace S7Patcher.Source
         internal bool IsCoordinator(IPAddress address) => coordinator.Equals(address);
 
         internal (int Status, byte[] Body) Handle(IPAddress source, string method, string path,
-            ReadOnlySpan<byte> body, int sessionCount)
+            ReadOnlySpan<byte> body, int sessionCount, Func<IPAddress, byte[]> publicGames = null)
         {
             lock (gate)
             {
@@ -84,6 +84,20 @@ namespace S7Patcher.Source
                 }
                 rates[source] = rate with { Count = rate.Count + 1 };
                 if (rate.Count >= 12) return (429, []);
+                if (path == Prefix + "games")
+                {
+                    if (method != "GET") return (405, []);
+                    if (!member) return (403, []);
+                    if (publicGames == null) return (503, []);
+                    using MemoryStream output = new();
+                    using (Utf8JsonWriter writer = new(output))
+                    {
+                        writer.WriteStartObject();writer.WriteString("format", "s7-lobby-games-v1");
+                        writer.WriteString("content_id", ContentId);writer.WritePropertyName("games");
+                        writer.WriteRawValue(publicGames(source));writer.WriteEndObject();
+                    }
+                    return (200, output.ToArray());
+                }
                 if (path == Prefix + "status")
                     return method != "GET" ? (405, []) : (200, Encode(false, sessionCount));
                 if (path == Prefix + "peers")

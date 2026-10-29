@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weplay-multiplayer",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "APPLICATION_ID": "1565350833854353459",
+    "GUILD_ID": "1565306702356815962",
+    "CHANNEL_ID": "1565306705535959042",
+    "DISCORD_PUBLIC_KEY": "5e558a6305db7f442e0efdbe5ceeb48a77ba9e3daaf5633b214982f03f6872f1",
+    "PUBLIC_ORIGIN": "https://weplay-multiplayer.REPLACE-ACCOUNT.workers.dev"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "weplay-directory",
+    "database_id": "00000000-0000-0000-0000-000000000001",
+    "migrations_dir": "migrations"
+  }]
+}

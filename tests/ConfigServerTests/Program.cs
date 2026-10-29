@@ -13,6 +13,11 @@ if (args.Length == 1 && args[0] == "--lobby-only")
     Console.WriteLine($"PASS: {await LocalLobbyChecks.RunAsync() + LocalSessionCapacityChecks.Run()} isolated LAN lobby/capacity checks.");
     return;
 }
+if (args.Length == 1 && args[0] == "--public-games-only")
+{
+    Console.WriteLine($"PASS: {LocalSessionPublicChecks.Run()} public game projection checks.");
+    return;
+}
 
 // Isolated synthetic encoder verification: no listeners or production CLI calls.
 if (args.Length == 1 && args[0] == "--encoder-only")
@@ -348,6 +353,7 @@ Check(loginOutput.Contains("Experimental local Login/Register responses enabled"
 passed += LocalSessionSearchChecks.Run();
 passed += LocalSessionDisplayChecks.Run();
 passed += LocalSessionCatalogueChecks.Run();
+passed += LocalSessionPublicChecks.Run();
 passed += LocalNetworkPolicyChecks.Run();
 passed += LocalSessionJoinShapeChecks.Run();
 passed += LocalSessionJoinChecks.Run();

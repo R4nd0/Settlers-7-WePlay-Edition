@@ -1,6 +1,6 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3.1 · Internet & Discord",
+  "version": "RC3.2 · Discord-Spielanzeige",
   "setupTitle": "WePlay Edition einrichten",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Deine Original-Spieldateien bleiben unverändert. Wir erstellen eine getrennte Kopie und richten die Grafik automatisch ein.",
@@ -211,5 +211,18 @@
   "discordLinkCopied": "Discord-Einladungslink kopiert.",
   "discordRoomShare": "Für Discord kopieren",
   "discordRoomCopied": "Raumeinladung mit Anleitung kopiert. Füge sie selbst in Discord ein.",
-  "discordOpenFailed": "Discord konnte nicht geöffnet werden. Verwende den Einladungscode j2eQgVzssc auf discord.com."
+  "discordOpenFailed": "Discord konnte nicht geöffnet werden. Verwende den Einladungscode j2eQgVzssc auf discord.com.",
+  "discordPublish": "Meine öffentlichen Spiele automatisch in #🎮multiplayer anzeigen",
+  "discordConnect": "Mit Discord verbinden",
+  "discordDisconnect": "Discord-Verbindung trennen",
+  "discordConnected": "Discord verbunden. Gemeldet werden nur Titel, Plätze und Spielstart deiner eigenen öffentlichen Spiele.",
+  "discordNotConnected": "Für die automatische Anzeige: /weplay-hilfe in #🎮multiplayer öffnen und „Launcher verbinden“ wählen.",
+  "discordConnectInfo": "Wähle im Discord-Kanal #🎮multiplayer über /weplay-hilfe „Launcher verbinden“. Füge den privaten Verbindungscode hier ein. Das ist kein Bot-Token. Die öffentliche Anzeige kannst du vor jedem Start abschalten.",
+  "discord_connection_invalid": "Dieser Discord-Verbindungscode ist ungültig. Erstelle in Discord einen neuen Code.",
+  "discord_connection_failed": "Die Discord-Verbindung konnte nicht eingerichtet werden. Prüfe den Code und den externen Dienst.",
+  "discord_not_connected": "Verbinde WePlay zuerst über /weplay-hilfe mit Discord oder schalte die öffentliche Anzeige aus.",
+  "discord_publish_failed": "Die Discord-Anzeige kann gerade nicht aktualisiert werden. Dein Spiel läuft weiter; alte Meldungen verfallen automatisch.",
+  "discord_status_invalid": "Der lokale Spielstatus konnte nicht geprüft werden. Es werden keine ungeprüften Daten veröffentlicht.",
+  "discord_unavailable": "Diese WePlay-Version enthält noch keine automatische Discord-Anzeige. Aktualisiere den Starter.",
+  "discord_windows_required": "Die private Discord-Verbindung benötigt Windows."
 }

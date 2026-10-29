@@ -1,128 +1,116 @@
-# WePlay Discord integration
+# WePlay automatic Discord directory
 
-Implemented 2026-10-29: the launcher has a permanently visible community link,
-the suggested Discord server code in Help, a copyable server invite, and an
-explicit **Copy for Discord** action for a private game room. That action copies
-the room code and bilingual joining instructions; the player chooses where to
-paste/send it. It does not post messages automatically or open a URL containing
-the room secret. The private UI/backend pipe and normal log/error protections
-remain in place. Raw room codes still work unchanged.
+RC3.2 adds an optional external directory for the existing WePlay Discord app.
+The user selected permanent external operation on 2026-10-29. The intended host
+is Cloudflare Workers Free with D1 and a minute Cron trigger; no private PC is
+needed to operate the Discord app. EasyTier and the room creator still handle
+the actual game connection. An Internet room creator must remain connected while
+that room is used.
 
-Community: https://discord.gg/j2eQgVzssc
+Community invite: https://discord.gg/j2eQgVzssc
 
-The public Discord invite API returned guild `1565306702356815962`, named
-**Settlers 7: WePlay Edition**. The replacement invitation supplied by the user
-on 2026-10-29 has `expires_at: null` in the public Discord API. Its landing
-channel is `ℹ️news` (`1565306705535959041`), not the requested bot channel
-`#🎮multiplayer`; do not reuse that channel ID for bot output.
-A Discord server invite is not an EasyTier game
-invitation. No common VPN secret or fixed coordinator was silently introduced.
+| Public setting | Value |
+| --- | --- |
+| Application | `1565350833854353459` |
+| Guild | `1565306702356815962` |
+| Automatic board channel | `1565306705535959042` / #🎮multiplayer |
+| Community invite landing channel | `1565306705535959041` / ℹ️news |
 
-## Showing games in Discord
+The bot is installed and the user confirmed its initial Gateway connection and
+three commands. RC3.2 implements the external replacement in
+[tools/discord-worker](../tools/discord-worker/README.md). Cloudflare account
+login, deployment, private Worker secrets and the Discord Interactions Endpoint
+cutover are still required. Local passing tests do not mean it is already live.
+The old Gateway implementation remains available under tools/discord for
+migration; do not run two production directory writers.
 
-Discord supports two complementary surfaces:
+## Player flow
 
-| Surface | What players see | Required infrastructure |
-| --- | --- | --- |
-| Rich Presence | A player's current state, party size and optional game-join action in their profile | Registered application ID and running Discord client; native Social SDK integration can provide presence without account authentication |
-| Server bot, e.g. `#games` | One shared list of voluntarily advertised rooms; commands/buttons to show and remove entries | Registered app installed in the guild, chosen channel, and a trusted bot/directory process or hosted function |
+1. In #🎮multiplayer run `/weplay-hilfe` and choose **Launcher verbinden**.
+2. Copy the private connection code from Discord's ephemeral response into
+   **Mit Discord verbinden** in the launcher's Internet tab. This is a limited
+   publisher grant, never the bot token. A new code invalidates the old grant.
+3. Select whether to show your own public games before starting Internet play.
+   The connection action enables this preference initially; the checkbox can
+   disable it before launch. Private games are omitted in all cases.
+4. The launcher reports changes while the game is open, sends a heartbeat every
+   minute and withdraws its report on normal closure. Missing reports expire
+   after three minutes; the minute Cron removes them from the displayed board.
+   Discord errors/rate limits can delay the visible refresh further.
 
-The user selected a server bot in **#🎮multiplayer**. Initial transport will be
-an outbound Discord Gateway connection, so no public interaction endpoint,
-OAuth redirect URL, client secret or HTTP-signature public key is needed for
-this phase. The bot process still needs a running host; it can initially be the
-user's PC. This does not add a dedicated gameplay server.
+The launcher stores the grant in the current user's Windows Credential Manager.
+Its normal state file contains only service origin and the publishing preference.
+Connection codes and EasyTier invitations use the existing current-user-only
+private pipe; normal backend events contain neither. Disconnect removes this
+PC's grant and preference; a new Discord connection code revokes the old grant
+at the service. The game continues if publishing fails.
 
-The user supplied the target channel ID `1565306705535959042` on 2026-10-29.
-It is recorded with the verified guild ID in `tools/discord/settings.example.json`.
-The user subsequently supplied application ID `1565350833854353459`; all three
-IDs are recorded. The Gateway implementation and its private Windows Python
-runtime are prepared. Startup uses a hidden local console prompt or privately
-supplied `WEPLAY_DISCORD_BOT_TOKEN`, never the launcher or the settings file.
-See [operator instructions](../tools/discord/README.md). It has not logged in,
-registered commands or posted messages because no private token was supplied.
-The current launcher does not yet publish the optional public status feed.
+## What the board establishes
 
-## Developer Portal setup for the owner
+The source-bound, admission-protected `/public/lobby/v1/games` endpoint returns
+only the requesting owner's public native sessions and the content ID. Its
+immutable projection includes a short session ID, sanitized title, confirmed
+human player count, capacity, available places and one of three states:
 
-1. Create an application named **WePlay Multiplayer** at
-   https://discord.com/developers/applications. Copy its **Application ID**
-   from General Information.
-2. On **Bot**, use the application's bot user. Keep **Presence Intent**,
-   **Server Members Intent** and **Message Content Intent** off. Generate the
-   bot token if needed and keep it privately for the bot host, never in chat,
-   the launcher, screenshots or Git. Do not enable OAuth2 Code Grant.
-3. On **Installation**, enable **Guild Install**. User Install is unnecessary
-   for this server bot. Select **Discord Provided Link**. For Guild Install,
-   select scopes **bot** and **applications.commands**.
-4. Grant **View Channels**, **Send Messages**, **Embed Links** and
-   **Read Message History** (combined permission value `84992`). Administrator,
-   Manage Messages, voice and moderation permissions are unnecessary for this
-   design. It updates/deletes its own listing messages.
-5. Use the install link to add the bot to **Settlers 7: WePlay Edition**.
-   Ensure those four permissions are also allowed by the target channel's
-   permission overrides.
-6. In Discord, enable **Settings > Advanced > Developer Mode**, right-click
-   **#🎮multiplayer** and select **Copy Channel ID**. That channel should be a
-   normal text channel for the first implementation.
+- **Offen:** observed positive capacity with effective free places.
+- **Voll:** observed positive capacity with no effective free places.
+- **Gestartet / lädt:** the native host changed slot counts to `(0,0)` after a
+  positive capacity had been observed. The inspected, fingerprinted game's
+  hostLobby path makes this change immediately before `Network.StartGame()`.
 
-The supplied non-secret IDs are now complete:
+This last signal establishes a start/loading request, not completed loading,
+simulation progress, successful networking or a desync fix. A full lobby is not
+reported as started. Confirmed members and pending reservations are distinct.
+A process/lease alone is never treated as a running match.
 
-```text
-Application ID: 1565350833854353459
-Guild ID: 1565306702356815962
-Channel ID: 1565306705535959042
-```
+The external directory displays launcher reports; a publisher grant is not
+remote attestation of a modified launcher. No raw metadata, map data, account
+identity, peer IP, host address, VPN secret or private invitation is sent in the
+report or displayed by the bot. Sanitized game titles are public player-authored
+text; players should choose them accordingly. Cloudflare necessarily receives
+the HTTPS client's source address as the service provider. Application code
+does not store it; Worker application observability is disabled.
 
-The guild ID is already verified as `1565306702356815962`, and the target
-channel ID is supplied as `1565306705535959042`. The bot token is
-needed only as a private credential on the selected host. The application ID
-is not a token; Client Secret, user tokens and webhook URLs are not needed.
+## External operation
 
-Rich Presence is not a global room directory. Discord cannot discover our
-private EasyTier rooms on its own. A server bot needs explicit, authenticated
-room announcements from the creator and a short heartbeat/expiry policy.
-The bot token belongs only in the trusted bot process; never ship it in the
-launcher, repository, room invitation or a shared webhook URL.
+The Worker validates Discord's Ed25519 signature over the exact request bytes,
+then enforces application, guild and channel. Only signed member interactions
+can mint publisher grants. D1 stores HMAC owner identifiers and token hashes,
+not raw Discord user IDs or publisher keys. The bot token and publisher master
+key belong only in Cloudflare Worker secrets, never the launcher or Git.
+Reports are scoped to their grant, run and increasing sequence; closed runs
+cannot be revived by delayed updates. Each account has one active publisher
+run. Connecting a second PC replaces that account's previous grant.
 
-Proposed listing flow: creator opts into advertising, launcher reports a small
-public projection to an authenticated directory, the bot edits one room card,
-and a stale entry expires after 90 seconds without a 30-second heartbeat.
-Normal closure removes the entry immediately. Default private rooms remain
-unadvertised. Joining should resolve a short-lived opaque join reference rather
-than publishing an EasyTier network secret in public Rich Presence. Public room
-invitations require the creator's explicit choice to make them public.
+A single board message is created in the configured channel and edited only if
+its contents change. The service checks the app, guild, message author and board
+marker before writing. Mentions are disabled. D1 leases suppress concurrent
+creates, and Discord rate-limit responses postpone retries. `/spiele` displays
+the current directory; `/weplay-status` and `/weplay-hilfe` reply privately.
+The existing View Channels, Send Messages, Embed Links and Read Message History
+permissions suffice. No privileged intents or Manage Messages are required.
 
-### Data we can currently verify
+The initial bounds are 256 paired accounts, 16 concurrent publishers, eight
+sessions per publisher and 16 displayed game fields. The free provider quotas
+still apply; exceeding them can interrupt updates. No paid upgrade is required
+by this implementation. See the operator README for deployment and cutover.
 
-The existing bounded/source-bound lobby status endpoint exposes `members`,
-`active_members`, `max_members`, `sessions` and `content_id`. These are admitted
-clients/session records. An active lease or a running S7 process does **not**
-prove an ongoing match. There is currently no verified public projection for
-map names, open slots per game, joinability, match progress or a distinction
-between open and running matches. Do not label aggregate counts as those facts.
-Adding those fields needs a deliberate read-only projection of verified game
-state; no raw metadata, identities, IP addresses or packet contents should be
-sent to Discord. Existing admission/native guards remain authoritative.
+## Verified locally
 
-### Activation still needed
-
-The user created the Discord application and supplied the ID and a screenshot
-of the correct scopes/permissions. Server installation and live command behavior
-have not been independently verified. Activate with the installation link in
-the operator instructions, then start the bot and enter its token locally.
-No token is requested in chat. The bot implementation has offline routing,
-freshness, field whitelist, single-instance and secret-error checks. The server
-link/clipboard sharing work independently of bot activation. Automatic global
-room aggregation and verified open/running match state remain separate work.
+The service suite passed 8,868 checks, including 22 new projection/admission
+checks. Worker tests use real Ed25519 and SQLite with external calls mocked;
+a separate real workerd/D1 smoke test verified signed PING, private pairing,
+grant authentication and report lifecycle with Discord egress blocked. Python
+tests cover projection, HTTPS boundaries, heartbeat/closure, private pairing and
+an actual temporary Windows Credential Manager round trip. Compiled DE/EN UI
+and a real .NET/Python private pipe pass. These are synthetic/local checks.
+No external Worker deployment, production automatic board or two-PC Internet
+match has yet been verified.
 
 Official references:
 
-- [Discord bot setup and application registration](https://docs.discord.com/developers/quick-start/getting-started)
-- [Rich Presence](https://docs.discord.com/developers/discord-social-sdk/development-guides/setting-rich-presence)
-- [Game invitations](https://docs.discord.com/developers/discord-social-sdk/development-guides/managing-game-invites)
-- [Discord lobby API](https://docs.discord.com/developers/resources/lobby)
-
-Validation: compiled bilingual UI/private-pipe self-test, formatted invitation
-round-trip and malformed/unrelated invitation rejection. No real Discord message
-was sent. No live bot, Rich Presence or automatic listing is claimed.
+- [Discord HTTP interactions and signatures](https://docs.discord.com/developers/interactions/overview)
+- [Discord messages and embeds](https://docs.discord.com/developers/resources/message)
+- [Cloudflare Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
+- [Cloudflare Cron triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+- [D1 pricing and daily Free limits](https://developers.cloudflare.com/d1/platform/pricing/)

@@ -1,6 +1,6 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3.1 · Internet & Discord",
+  "version": "RC3.2 · Discord game listings",
   "setupTitle": "Set up WePlay Edition",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Your original game stays unchanged. We prepare a separate copy and set up graphics automatically.",
@@ -211,5 +211,18 @@
   "discordLinkCopied": "Discord invitation link copied.",
   "discordRoomShare": "Copy for Discord",
   "discordRoomCopied": "Room invitation and instructions copied. Paste it into Discord yourself.",
-  "discordOpenFailed": "Discord could not be opened. Use invitation code j2eQgVzssc on discord.com."
+  "discordOpenFailed": "Discord could not be opened. Use invitation code j2eQgVzssc on discord.com.",
+  "discordPublish": "Automatically show my public games in #🎮multiplayer",
+  "discordConnect": "Connect to Discord",
+  "discordDisconnect": "Disconnect Discord",
+  "discordConnected": "Discord connected. Only titles, slots and start signals for your own public games are reported.",
+  "discordNotConnected": "For automatic listings: use /weplay-hilfe in #🎮multiplayer and choose “Launcher verbinden”.",
+  "discordConnectInfo": "In Discord channel #🎮multiplayer, use /weplay-hilfe and choose “Launcher verbinden”. Paste the private connection code here. This is not a bot token. You can disable public listings before each launch.",
+  "discord_connection_invalid": "This Discord connection code is invalid. Create a new code in Discord.",
+  "discord_connection_failed": "Discord could not be connected. Check the code and the external service.",
+  "discord_not_connected": "Connect WePlay through /weplay-hilfe in Discord first, or disable public listings.",
+  "discord_publish_failed": "The Discord listing cannot be updated right now. Your game continues; old reports expire automatically.",
+  "discord_status_invalid": "The local game status could not be verified. Unverified data will not be published.",
+  "discord_unavailable": "This WePlay version does not include automatic Discord listings. Update the launcher.",
+  "discord_windows_required": "Private Discord connection storage requires Windows."
 }

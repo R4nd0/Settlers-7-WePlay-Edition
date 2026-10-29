@@ -125,12 +125,15 @@ def run(args, *, picker=None, network=None):
                 start_hub(root, interface, expected, 'WePlay LAN', directory, cancel_check=cancel)
         membership = Membership(root, interface.address, coordinator, expected)
         runtime = None
+        observer = None
         try:
             lan_autoconnect.checkpoint(cancel, progress, 'lan_connect')
             membership.start()
             lan_autoconnect.checkpoint(cancel)
             configuration = launch_lan.remote_configuration(coordinator, interface.address)
             launch_lan.check_content(configuration, expected)
+            if getattr(args,'public_observer',None) is not None:
+                observer=args.public_observer(interface,coordinator,expected)
             runtime = launch_local.write_configuration(data, configuration, GAME_SERVICE_PORT, True,
                 address=coordinator, lan_group=interface.address, display_name=name)
             lan_autoconnect.checkpoint(cancel, progress, 'lan_ready')
@@ -145,7 +148,9 @@ def run(args, *, picker=None, network=None):
             return 0 if code == 0 else 1
         finally:
             try:
-                membership.close()
+                try:
+                    if observer is not None:observer.close()
+                finally:membership.close()
             finally:
                 if runtime is not None and runtime.exists():
                     compatibility.plain(runtime).unlink()

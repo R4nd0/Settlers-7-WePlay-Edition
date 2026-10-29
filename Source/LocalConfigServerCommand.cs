@@ -254,7 +254,7 @@ namespace S7Patcher.Source
                         : "Configuration endpoint only. UDP datagrams are counted; no authentication or game protocol is implemented."
                 });
 
-                Task httpTask = AcceptRequestsAsync(http, response, network, emit, stop.Token, () => sessions.Count);
+                Task httpTask = AcceptRequestsAsync(http, response, network, emit, stop.Token, () => sessions.Count, sessions.PublicGamesFor);
                 Task udpTask = ObserveDatagramsAsync();
                 try
                 {
@@ -585,7 +585,7 @@ namespace S7Patcher.Source
             return Convert.ToBase64String(blob);
         }
 
-        private static async Task AcceptRequestsAsync(TcpListener listener, byte[] configuration, LocalNetworkPolicy network, Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount)
+        private static async Task AcceptRequestsAsync(TcpListener listener, byte[] configuration, LocalNetworkPolicy network, Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount, Func<IPAddress, byte[]> publicGames = null)
         {
             using SemaphoreSlim slots = new(ConcurrentRequestLimit);
             List<Task> requests = [];
@@ -618,13 +618,13 @@ namespace S7Patcher.Source
 
             async Task ServeAndReleaseAsync(TcpClient client)
             {
-                try { await ServeRequestAsync(client, configuration, network, emit, stop, sessionCount); }
+                try { await ServeRequestAsync(client, configuration, network, emit, stop, sessionCount, publicGames); }
                 finally { slots.Release(); }
             }
         }
 
         internal static async Task ServeRequestAsync(TcpClient client, byte[] configuration, LocalNetworkPolicy network,
-            Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount)
+            Action<ConfigServerEvent> emit, CancellationToken stop, Func<int> sessionCount, Func<IPAddress, byte[]> publicGames = null)
         {
             using (client)
             using (CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(stop))
@@ -695,7 +695,7 @@ namespace S7Patcher.Source
                                 {
                                     requestBody = new byte[bodyLength];
                                     await stream.ReadExactlyAsync(requestBody, deadline.Token); count += bodyLength;
-                                    (status, body) = network.Lobby.Handle(remote.Address, pieces[0], path, requestBody, sessionCount());
+                                    (status, body) = network.Lobby.Handle(remote.Address, pieces[0], path, requestBody, sessionCount(), publicGames);
                                 }
                             }
                             else if (pieces[0] != "GET") status = 405;

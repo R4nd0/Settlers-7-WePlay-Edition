@@ -1,4 +1,4 @@
-"""Build the RC3.1 Internet/Discord Preview from pinned inputs."""
+"""Build the RC3.2 Internet/Discord Preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -34,7 +34,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         shutil.copytree(dotnet/relative,runtime/relative)
     old=content.plain(base_package or REPO/'outputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
     install.package_manifest(old)
-    build_package.build(old/'Payload/uplay_r1_loader.dll',old/'Payload/Server',old/'Runtime/dotnet',
+    build_package.build(old/'Payload/uplay_r1_loader.dll',service or old/'Payload/Server',old/'Runtime/dotnet',
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
@@ -52,7 +52,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.1 Internet and Discord Preview','network_revision':3,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC3.2 External Discord Preview','network_revision':4,'game_bits':32,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -103,10 +103,10 @@ def refresh_stage(app,desktop_publish):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('stage','output','desktop-publish','dotnet','probe','compiler'):parser.add_argument('--'+name,required=True)
-    for name in ('base-package','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
+    for name in ('base-package','service','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
-        base_package=values.base_package,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
+        base_package=values.base_package,service=values.service,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
         easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source)

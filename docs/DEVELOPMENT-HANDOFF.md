@@ -2,6 +2,47 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## External Discord directory implementation, 2026-10-29
+
+The user confirmed the installed Gateway bot and its three commands, then chose
+permanent external hosting without their PC. This supersedes the older Gateway
+preparation notes below. RC3.2 implements Workers HTTP interactions, D1 reports
+and a minute Cron in tools/discord-worker. Deployment is blocked on the owner's
+Cloudflare login/CLI authorization and private Worker secret entry. No public
+Worker or automatic production games board has been activated yet. The old
+local Gateway process was left running pending a verified HTTP cutover.
+
+Launcher pairing uses a private ephemeral Discord publisher code, the existing
+current-user-only pipe and Windows Credential Manager. No bot token is shipped.
+Internet publishing is optional and failure does not block a game. The service
+provides immutable owner-only admission/content-bound public native rows; private
+sessions and arbitrary metadata are omitted. Positive capacity/free slots map to
+open/full. Inspected hostLobby code sets slots to (0,0) immediately before
+Network.StartGame; report this as started/loading, never simulation progress.
+No native adapter/game payload or Internet transport behavior was modified.
+
+The full service harness passed 8,868 checks, including 22 new projection checks.
+The final service was built with IncludeSourceRevisionInInformationalVersion=false;
+its SHA-256 is b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206
+and is pinned by build_package.py. RC3.2's builder supports an explicit --service
+override so old packages remain usable as immutable adapter/runtime inputs.
+Worker SQLite/Ed25519 tests, Wrangler dry-run and real workerd/D1 local pairing/
+report smoke passed with Discord egress blocked. A native temporary Windows
+credential round trip passed and deleted its own synthetic entry. Bilingual UI
+and real .NET/Python private pipe pass. No live listing or two-PC gameplay claim.
+See DISCORD-INTEGRATION.md and tools/discord-worker/README.md for cutover,
+initial capacity limits, data handling and remaining deployment verification.
+
+Local deliverable: outputs/S7-WePlay-RC3.2-External-Discord-Preview/Setup.exe
+(104,620,776 bytes; SHA-256
+66279a7337363658acddc3fa966e6f4d5c2c3224e6a333152454734828b6d950).
+Its package inventory and final service pin match; no State/Instances/LocalData
+or private credentials are bundled. It is a deployment-pending local preview,
+not a published replacement for RC2.1. Worker has 14 passing tests; targeted
+Python runs pass 146 tests with five platform-specific skips. Native credential
+and private pipe checks ran on Windows separately. Earlier failed RC3.2 staging
+is private work/ only; use work/rc32-discord-r2-stage as the completed stage.
+
 ## Discord Gateway bot preparation, 2026-10-29
 
 The user supplied application 1565350833854353459, guild 1565306702356815962

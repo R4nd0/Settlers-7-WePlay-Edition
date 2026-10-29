@@ -18,9 +18,9 @@ def request(host, local, path, *, expected=None, timeout=3):
     host, local = private_address(host), private_address(local)
     if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 10:
         raise ValueError('Ungueltige Lobby-Anfragedauer.')
-    if path not in ('status', 'admit', 'peers', 'leave'):
+    if path not in ('status', 'games', 'admit', 'peers', 'leave'):
         raise ValueError('Unbekannte Lobby-Anfrage.')
-    body = None if path in ('status', 'peers') else encode({
+    body = None if path in ('status', 'games', 'peers') else encode({
         'format': CONTROL_FORMAT, 'content_id': content_id(expected)})
     connection = http.client.HTTPConnection(host, HTTP_PORT, timeout=timeout, source_address=(local, 0))
     deadline = time.monotonic() + timeout
@@ -57,7 +57,7 @@ def request(host, local, path, *, expected=None, timeout=3):
                 raise ValueError('Unerwartete Abmeldeantwort.')
             return None
         value = json_record(data, 4096)
-        if value.get('format') != CONTROL_FORMAT or (expected is not None and value.get('content_id') != content_id(expected)):
+        if value.get('format') != ('s7-lobby-games-v1' if path == 'games' else CONTROL_FORMAT) or (expected is not None and value.get('content_id') != content_id(expected)):
             raise ValueError('Spiel- oder Patchstand der LAN-Lobby stimmt nicht ueberein.')
         return value
     finally:

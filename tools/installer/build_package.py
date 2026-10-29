@@ -12,11 +12,11 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
-SERVICE_SHA256 = '6b5c3c3b5cc2e3c9884f92da9a58b071e619ddd5c4fcf2fdc97d0669f00084c7'
+SERVICE_SHA256 = 'b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206'
 ARCHIVE_SHA256 = '6966c878749f668de12b13126d971958bf1ba8e5952e5d7f2b224819dcd877eb'
 
 
@@ -102,6 +102,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         names += ['installer/graphics_distribution.py']
     if graphics_probe is not None:
         names += list(DESKTOP_PACKAGE_TOOLS)+[original for original,_ in DESKTOP_TOOLS]
+        if easytier_runtime is not None:names += list(DISCORD_PACKAGE_TOOLS)
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
@@ -115,6 +116,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'automatic_lan': True,
         'internet_easytier': easytier_runtime is not None,
         'desktop_launcher': graphics_probe is not None,
+        'discord_directory': graphics_probe is not None and easytier_runtime is not None,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')

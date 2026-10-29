@@ -251,6 +251,7 @@ namespace S7Patcher.Source
                 if ((response = encode(snapshot)) == null) return false;
                 // Publish only after a bounded response has been serialized.
                 if (candidate != null) { selected.Pending.Add(owner, candidate); candidate = null; }
+                RefreshPublicGames();
                 reason = replay ? "local-join-reservation-replayed" : "local-join-reservation-created";
                 return true;
             }

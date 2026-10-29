@@ -24,6 +24,7 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
+DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
     'lan_discovery.py', 'lan_autoconnect.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
@@ -77,6 +78,8 @@ def package_manifest(root):
         raise ValueError('Unbekannte Desktop-Starter-Version.')
     if type(manifest.get('internet_easytier',False)) is not bool:
         raise ValueError('Unbekannte Internet-Transportversion.')
+    if type(manifest.get('discord_directory',False)) is not bool:
+        raise ValueError('Unbekannte Discord-Verzeichnisversion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
@@ -87,6 +90,9 @@ def package_manifest(root):
             raise ValueError('Die EasyTier-Integration im Paket ist unvollstaendig.')
         from easytier_runtime import verify_runtime
         verify_runtime(root)
+    if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
+            not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
+        raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
     if manifest.get('lan_public_creation',False) and (not manifest.get('join_menu_update',False) or
             not manifest.get('automatic_lan',False) or any(name not in expected for name in
             ('tools/installer/lan_public_game.py','tools/offline-ui/lan-public-creation.json'))):

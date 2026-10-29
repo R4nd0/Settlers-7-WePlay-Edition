@@ -5,7 +5,7 @@
 		<OutputType>Exe</OutputType>
 		<GenerateAssemblyInfo>True</GenerateAssemblyInfo>
 		<!-- Private runtimes, copied games and review builds are not project inputs. -->
-		<DefaultItemExcludes>$(DefaultItemExcludes);work/**;outputs/**</DefaultItemExcludes>
+		<DefaultItemExcludes>$(DefaultItemExcludes);work/**;outputs/**;**/obj/**;**/bin/**</DefaultItemExcludes>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -62,5 +62,6 @@
 	<ItemGroup>
 		<None Update="tools\lan\*.py;tools\lan\*.json;tools\lan\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Compile Remove="tests\**\*.cs" />
+		<Compile Remove="tools\**\*.cs" />
 	</ItemGroup>
 </Project>

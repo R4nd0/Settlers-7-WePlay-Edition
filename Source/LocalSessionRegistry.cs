@@ -76,6 +76,7 @@ namespace S7Patcher.Source
                 RemovePreview(owner);
                 metadata = null; host = null; // Registry now owns both.
                 id = nextId++;
+                RefreshPublicGames();
                 reason = "local-session-record-created";
                 return true;
             }
@@ -97,6 +98,7 @@ namespace S7Patcher.Source
                     using var projection = Snapshot(entry, replacement: merged);
                     if (projection == null) { merged.Dispose(); return false; }
                     entry.Metadata.Dispose(); entry.Metadata = merged;
+                    RefreshPublicGames();
                     reason = "local-session-metadata-updated";
                     return true;
                 }
@@ -119,14 +121,14 @@ namespace S7Patcher.Source
                 {
                     if (!entry.Pending.Remove(owner, out var pending)) continue;
                     reason = pending.Confirmed ? "local-session-confirmed-member-left" : "local-session-pending-member-left";
-                    pending.Dispose(); return true;
+                    pending.Dispose(); RefreshPublicGames(); return true;
                 }
                 if (DisplayProbe && (previews.ContainsKey(owner) || previews.Count < MaximumSessions))
                 {
                     RemovePreview(owner);
                     previews.Add(owner, new(entry.Id, entry.Space, entry.Metadata.Clone(), entry.Host.Clone()));
                 }
-                entry.Dispose(); entries.RemoveAt(i);
+                entry.Dispose(); entries.RemoveAt(i); RefreshPublicGames();
                 reason = "local-session-record-left";
                 return true;
             }
@@ -170,6 +172,7 @@ namespace S7Patcher.Source
                     entries[i].Dispose();
                     entries.RemoveAt(i);
                 }
+            RefreshPublicGames();
         }
 
         public void Dispose()
@@ -180,6 +183,7 @@ namespace S7Patcher.Source
             entries.Clear();
             foreach (var preview in previews.Values) preview.Dispose();
             previews.Clear();
+            RefreshPublicGames();
         }
 
         private void RemovePreview(object owner)
@@ -222,6 +226,7 @@ namespace S7Patcher.Source
             internal readonly uint Id = id;
             internal readonly byte[] Body = body, Space = space;
             internal LocalSessionMetadata Metadata = metadata;
+            internal int LastPublicCapacity;
             internal readonly LocalLoginRpcEngine.RegisteredPeer Host = host;
             internal readonly Dictionary<object, PendingMember> Pending = new(ReferenceEqualityComparer.Instance);
             public void Dispose()

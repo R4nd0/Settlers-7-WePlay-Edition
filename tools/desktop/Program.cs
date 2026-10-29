@@ -226,6 +226,10 @@ internal sealed class MainForm : Form
     private readonly Label internetPolicy = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private Button internetCopy = null!, internetShare = null!, internetEnd = null!, internetCreate = null!, internetJoinButton = null!;
     private LinkLabel discordLink = null!;
+    private readonly CheckBox discordPublish = new() { AutoSize=true };
+    private readonly Label discordNotice = new() { AutoSize=true, MaximumSize=new Size(850,0) };
+    private Button discordConnect = null!, discordDisconnect = null!;
+    private bool discordAvailable, discordConnected;
     private readonly List<Control> internetSetupControls = [];
     private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
     private bool internetOperation, internetAvailable;
@@ -356,12 +360,15 @@ internal sealed class MainForm : Form
         var net = Stack(internetScroll);
         var netTitle = Label("internetTitle"); netTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold); Add(net,netTitle);
         Add(net,Label("internetIntro")); Add(net,Field("player",internetPlayer));
+        Bind(discordPublish,"discordPublish");Add(net,discordPublish);
+        discordConnect=Button("discordConnect",ConnectDiscord);
+        discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
         void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
         AddSetup(Field("internetMode",internetMode)); Add(net,internetPolicy);
         internetEndpointField=Field("internetEndpoint",internetEndpoint);AddSetup(internetEndpointField);
         internetCreate=Button("internetCreate",()=>PlayInternet(true),true); AddSetup(Buttons(internetCreate));
-        AddSetup(Field("internetJoinCode",internetJoin));
-        internetJoinButton=Button("internetJoin",()=>PlayInternet(false)); AddSetup(Buttons(internetJoinButton));
+        internetJoinButton=Button("internetJoin",()=>PlayInternet(false));
+        AddSetup(Field("internetJoinCode",internetJoin,internetJoinButton));
         internetCopy = new Button { AutoSize=true, MinimumSize=new Size(150,38), Padding=new Padding(10,3,10,3) };
         Bind(internetCopy,"internetCopy"); internetCopy.Click += (_,_) =>
         {
@@ -383,6 +390,7 @@ internal sealed class MainForm : Form
             if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;internetEnd.Enabled=false;status.Text=Lang.T("cancelRequested");}
         };
         internetEndRow=Buttons(internetEnd);Add(net,internetEndRow); Add(net,Label("internetSafety"));
+        Add(net,Buttons(discordConnect,discordDisconnect));Add(net,discordNotice);
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
         var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
         Add(g,Label("rendererInfo")); Add(g,activeRenderer);
@@ -464,6 +472,9 @@ internal sealed class MainForm : Form
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
         internetAvailable=value.TryGetProperty("internet_available",out var available)&&available.GetBoolean();
+        discordAvailable=value.TryGetProperty("discord_available",out var directoryAvailable)&&directoryAvailable.GetBoolean();
+        discordConnected=value.TryGetProperty("discord_connected",out var connected)&&connected.GetBoolean();
+        if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
         activeRenderer.Text=Lang.T("activeRenderer")+": "+Lang.T(value.GetProperty("renderer").GetString()=="dxvk"?"modern":"native");
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
@@ -616,6 +627,30 @@ internal sealed class MainForm : Form
         if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&internetInvite.Text.Length>0;
         if(internetEndRow!=null)internetEndRow.Visible=internetOperation;
         internetInvite.Enabled=true;
+        discordPublish.Enabled=!busy&&discordConnected;discordPublish.Visible=discordAvailable;
+        if(discordConnect!=null)discordConnect.Enabled=!busy&&discordAvailable;
+        if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordConnected;
+        discordNotice.Text=Lang.T(discordConnected?"discordConnected":"discordNotConnected");
+    }
+    private async Task ConnectDiscord()
+    {
+        using var dialog=new Form { Text=Lang.T("discordConnect"),ClientSize=new Size(650,210),
+            StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false };
+        var explanation=new Label {Text=Lang.T("discordConnectInfo"),Left=18,Top=18,Width=610,Height=76};
+        var code=new TextBox {Left=18,Top=100,Width=610,MaxLength=2048,UseSystemPasswordChar=true};
+        var accept=new Button {Text=Lang.T("discordConnect"),Left=450,Top=150,Width=180,DialogResult=DialogResult.OK};
+        dialog.Controls.AddRange([explanation,code,accept]);dialog.AcceptButton=accept;
+        if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+        string secret=code.Text;code.Clear();using var channel=new InternetChannel();
+        Task pump=channel.Run(secret,_=>{});secret="";
+        try{await Backend.Run("discord-connect",new {channel=channel.Name},Receive);}
+        finally{channel.Dispose();try{await pump;}catch(Exception){}}
+        LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordConnected");
+    }
+    private async Task DisconnectDiscord()
+    {
+        await Backend.Run("discord-disconnect",new {},Receive);
+        LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordNotConnected");
     }
     private async Task PlayInternet(bool create)
     {
@@ -633,8 +668,8 @@ internal sealed class MainForm : Form
         });
         try
         {
-            if(create)await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint},Receive);
-            else await Backend.Run("internet-join",new {player_name=name,channel=channel.Name},Receive);
+            if(create)await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint,publish_discord=discordPublish.Checked},Receive);
+            else await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=discordPublish.Checked},Receive);
             channel.Dispose();await privateTask;
             gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
@@ -753,6 +788,9 @@ internal sealed class MainForm : Form
                 using(var roomImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(roomImage,new Rectangle(0,0,form.Width,form.Height));roomImage.Save(Path.Combine(folder,language+"-internet-room.png"));}
                 form.internetInvite.Clear();form.internetOperation=false;form.SetBusy(false);
+                form.discordAvailable=true;form.discordConnected=true;form.discordPublish.Checked=true;form.UpdateInternetControls();
+                if(!form.discordPublish.Enabled||!form.discordDisconnect.Enabled||!form.discordConnect.Enabled)
+                    throw new Exception("Connected Discord publisher controls failed");
                 foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
@@ -764,7 +802,7 @@ internal sealed class MainForm : Form
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
-                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share","discord_publisher_opt_in"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

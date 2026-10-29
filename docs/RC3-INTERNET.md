@@ -1,4 +1,4 @@
-# WePlay RC3.1 Internet and Discord Preview
+# WePlay RC3.2 Internet and external Discord Preview
 
 This preview adds integrated EasyTier Internet rooms to the existing local and
 LAN modes. It is a new build; the published RC2.1 installer is unchanged.
@@ -9,8 +9,14 @@ The launcher links to the WePlay Discord community and suggests the supplied
 server code `j2eQgVzssc`. **Copy for Discord** copies a private room invitation
 with joining instructions; paste/send it yourself to the intended players.
 The replacement Discord invitation has no expiry according to Discord's public
-API. A Discord games-list bot is a separate integration, not
-active in this build; see [DISCORD-INTEGRATION.md](DISCORD-INTEGRATION.md).
+API. RC3.2 adds the optional automatic public game listing through an external
+Cloudflare Worker. Its deployment and private setup are still pending; see
+[DISCORD-INTEGRATION.md](DISCORD-INTEGRATION.md). After activation use
+`/weplay-hilfe` in #🎮multiplayer, choose **Launcher verbinden**, and paste the
+private connection code into **Mit Discord verbinden** in the Internet tab.
+The public-display checkbox can be turned off before launch. The grant is kept
+in the current user's Windows Credential Manager. The bot runs externally and
+does not require an always-on private PC.
 
 ## Start an Internet room
 
