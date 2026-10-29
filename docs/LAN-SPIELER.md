@@ -31,11 +31,17 @@ und keine zweite Lobbyauswahl im WePlay-Starter.
 5. **Die anderen PCs genauso starten.** WePlay verbindet sie automatisch mit
    der vorhandenen Gruppe. Im Spiel erstellt ein Spieler unter **Mehrspieler**
    die eigentliche Partie; die anderen treten dort bei. Das ist die einzige
-   Partiewahl. Im Starter gibt es keine zusätzliche Raumliste.
+   Partiewahl. Beim Erstellen **Privates Spiel nicht ankreuzen**: Private
+   Sitzungen werden ausgeblendet und sind über den aktuellen LAN-Ablauf nicht
+   betretbar. Im Starter gibt es keine zusätzliche Raumliste.
 
 WePlay während der Partie geöffnet oder minimiert lassen. Der PC mit dem
 gemeinsamen LAN-Dienst bleibt eingeschaltet und erreichbar, bis alle fertig
 sind. S7 anschließend normal beenden; WePlay verwaltet die Hintergrunddienste.
+
+Die Spieloption **Privates Spiel** ist unabhängig vom Windows-Netzwerkprofil
+**Privat**: Die Spieloption bleibt aus, während das vertrauenswürdige Heimnetz
+in Windows das Profil Privat verwendet.
 
 ## Wie die Suche funktioniert
 

@@ -21,7 +21,8 @@ and multiplayer limits.
 2. For the first test, select Modern graphics (DXVK) on every supported PC.
 3. On one PC, enter a name under LAN play and click Start LAN play. Wait for S7.
 4. Start LAN play on the other PCs. Allow private LAN access where required.
-5. In S7 Multiplayer, one player creates the match and the others join it there.
+5. In S7 Multiplayer, one player creates the match with **Private game unchecked**,
+   and the others join it there.
    This is the only match selection; there are no IP addresses or extra rooms.
 
 **Player guide: [English](docs/LAN-PLAYERS.md) · [Deutsch](docs/LAN-SPIELER.md)**

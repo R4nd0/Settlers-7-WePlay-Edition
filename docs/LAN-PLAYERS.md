@@ -29,11 +29,17 @@ separate servers or choose a second lobby in the launcher.
 5. **Start the other PCs the same way.** They automatically find and connect
    to the existing WePlay group. In S7, one player creates the actual match
    under **Multiplayer**; the others join it there. This is the only match
-   selection. Do not look for another room list in the launcher.
+   selection. When creating the match, leave **Private game unchecked**.
+   Private sessions are hidden and cannot be joined through the current LAN
+   flow. Do not look for another room list in the launcher.
 
 Keep WePlay running or minimized while playing. Keep the PC running the shared
 LAN service powered on and connected until everyone finishes. Quit S7 normally
 when done; WePlay handles its background services.
+
+The game’s **Private game** checkbox is separate from the Windows **Private
+network** profile: leave the game checkbox off, while using the Windows Private
+profile for your trusted home LAN.
 
 ## What discovery does
 

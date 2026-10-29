@@ -43,7 +43,9 @@ Ausführliche Spieleranleitung: [Deutsch](LAN-SPIELER.md) · [English](LAN-PLAYE
 Auf jedem Rechner denselben RC2 installieren. Im Starter „LAN spielen“ wählen,
 einen Namen eintragen und „LAN-Spiel starten“ anklicken. Die gemeinsame
 LAN-Verbindung wird automatisch eingerichtet. Eure Partie wählt ihr genau
-einmal im Mehrspielermenü des Spiels.
+einmal im Mehrspielermenü des Spiels. Beim Erstellen bleibt **Privates Spiel
+ausgeschaltet**, damit die Partie sichtbar und betretbar ist. Das Windows-
+Netzwerkprofil **Privat** ist eine davon unabhängige Einstellung.
 Es müssen keine IP-Adressen eingegeben werden. Falls erforderlich richtet
 „Privaten LAN-Zugriff erlauben“ die Freigabe nach Windows-Bestätigung ein.
 
