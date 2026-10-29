@@ -2,6 +2,24 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## RC3.1 Discord community entry, 2026-10-29
+
+The user supplied the WePlay Discord server and requested launcher integration.
+RC3.1 adds the always-accessible community link, suggested server code/copy
+action in Help, and a deliberate clipboard export of private room instructions
+for Discord. No invitation is opened as a URL or sent automatically. The
+compiled DE/EN UI/private-pipe and share-format round-trip checks pass.
+The existing game/network payload remains unchanged from RC3.
+
+The public invite API confirmed guild 1565306702356815962 but reports the
+supplied nvcERcHpR invitation expires on 2026-11-28. The user was informed and
+asked for a permanent replacement. The code identifies Discord, not a shared
+EasyTier room. No common VPN secret was introduced. Discord supports Rich
+Presence and a server bot, but a shared games list additionally needs explicit
+room announcements, verified match-state projection and a registered app/host.
+The available Developer Portal is not logged in, so no application/token/bot
+was created. See DISCORD-INTEGRATION.md for the concrete design and blockers.
+
 ## RC3 integrated EasyTier preview, 2026-10-29
 
 The user selected EasyTier. The GUI/installer owner explicitly handed shared

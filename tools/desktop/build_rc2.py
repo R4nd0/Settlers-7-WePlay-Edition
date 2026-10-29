@@ -1,4 +1,4 @@
-"""Build the RC3 Internet Preview and one Inno Setup EXE from pinned inputs."""
+"""Build the RC3.1 Internet/Discord Preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -45,13 +45,14 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
     guide=REPO/'docs/RC3-INTERNET.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
+    if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3 Internet Preview','network_revision':3,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC3.1 Internet and Discord Preview','network_revision':3,'game_bits':32,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -94,6 +95,7 @@ def refresh_stage(app,desktop_publish):
     for path in desktop_publish.iterdir():
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
     if (REPO/'docs/RC3-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3-INTERNET.md',app/'LIESMICH.txt')
+    if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 

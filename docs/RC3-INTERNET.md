@@ -1,9 +1,16 @@
-# WePlay RC3 Internet Preview
+# WePlay RC3.1 Internet and Discord Preview
 
 This preview adds integrated EasyTier Internet rooms to the existing local and
 LAN modes. It is a new build; the published RC2.1 installer is unchanged.
 Internet match compatibility and the known simulation desync require separate
 gameplay qualification. Matching files and a connected VPN do not prove either.
+
+The launcher links to the WePlay Discord community and suggests the supplied
+server code `nvcERcHpR`. **Copy for Discord** copies a private room invitation
+with joining instructions; paste/send it yourself to the intended players.
+The supplied Discord server link currently expires on 2026-11-28. A permanent
+link is still needed. A Discord games-list bot is a separate integration, not
+active in this build; see [DISCORD-INTEGRATION.md](DISCORD-INTEGRATION.md).
 
 ## Start an Internet room
 

@@ -1,6 +1,6 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3 · Internet-Vorschau",
+  "version": "RC3.1 · Internet & Discord",
   "setupTitle": "WePlay Edition einrichten",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Deine Original-Spieldateien bleiben unverändert. Wir erstellen eine getrennte Kopie und richten die Grafik automatisch ein.",
@@ -202,5 +202,14 @@
   "internet_firewall_failed": "Windows konnte die Firewallregeln dieses Raums nicht einrichten oder entfernen.",
   "internet_windows_required": "Diese Internetintegration benötigt Windows 10 oder 11.",
   "internet_channel_failed": "Der private Einladungskanal konnte nicht aufgebaut werden. Starte WePlay erneut.",
-  "internet_coordinator_unreachable": "Der Raumersteller ist noch nicht bereit oder erreichbar. Er muss WePlay geöffnet lassen."
+  "internet_coordinator_unreachable": "Der Raumersteller ist noch nicht bereit oder erreichbar. Er muss WePlay geöffnet lassen.",
+  "discordOpen": "WePlay auf Discord",
+  "discordTitle": "Die WePlay-Community",
+  "discordInfo": "Finde Mitspieler, teile Raumeinladungen oder hole dir Hilfe auf unserem Discord-Server. Der Community-Code führt zu Discord; private Spielräume haben ihre eigene Einladung.",
+  "discordSuggestedCode": "Vorgeschlagener Discord-Einladungscode",
+  "discordCopyLink": "Discord-Link kopieren",
+  "discordLinkCopied": "Discord-Einladungslink kopiert.",
+  "discordRoomShare": "Für Discord kopieren",
+  "discordRoomCopied": "Raumeinladung mit Anleitung kopiert. Füge sie selbst in Discord ein.",
+  "discordOpenFailed": "Discord konnte nicht geöffnet werden. Verwende den Einladungscode nvcERcHpR auf discord.com."
 }

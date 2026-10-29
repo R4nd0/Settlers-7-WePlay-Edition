@@ -224,9 +224,10 @@ internal sealed class MainForm : Form
     private readonly TextBox internetEndpoint = new() { Dock = DockStyle.Fill, MaxLength = 256 };
     private readonly ComboBox internetMode = Combo();
     private readonly Label internetPolicy = new() { AutoSize = true, MaximumSize = new Size(850,0) };
-    private Button internetCopy = null!, internetEnd = null!, internetCreate = null!, internetJoinButton = null!;
+    private Button internetCopy = null!, internetShare = null!, internetEnd = null!, internetCreate = null!, internetJoinButton = null!;
+    private LinkLabel discordLink = null!;
     private readonly List<Control> internetSetupControls = [];
-    private Control internetEndpointField = null!, internetInviteField = null!, internetEndRow = null!;
+    private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
     private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
@@ -258,8 +259,15 @@ internal sealed class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2) };
-        footer.Controls.Add(status); footer.Controls.Add(progress);
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=2,RowCount=2 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
+            Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
+        Bind(discordLink,"discordOpen");discordLink.LinkClicked+=(_,_)=>
+        {try{Community.OpenDiscord();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,2);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(discordLink,1,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
@@ -360,7 +368,15 @@ internal sealed class MainForm : Form
             if(internetOperation && internetInvite.Text.Length>0)
                 try{Clipboard.SetText(internetInvite.Text);}catch(System.Runtime.InteropServices.ExternalException){status.Text=Lang.T("internetClipboardFailed");}
         };
-        internetInviteField=Field("internetOwnCode",internetInvite,internetCopy);Add(net,internetInviteField);
+        internetShare=new Button { AutoSize=true,MinimumSize=new Size(150,38),Padding=new Padding(10,3,10,3) };
+        Bind(internetShare,"discordRoomShare");internetShare.Click+=(_,_)=>
+        {
+            if(internetOperation&&internetInvite.Text.Length>0)
+                try{Clipboard.SetText(Community.InvitationMessage(internetInvite.Text,Lang.Current));status.Text=Lang.T("discordRoomCopied");}
+                catch(System.Runtime.InteropServices.ExternalException){status.Text=Lang.T("internetClipboardFailed");}
+        };
+        internetInviteField=Field("internetOwnCode",internetInvite);Add(net,internetInviteField);
+        internetShareRow=Buttons(internetCopy,internetShare);Add(net,internetShareRow);
         internetEnd=new Button { AutoSize=true,MinimumSize=new Size(150,38),Padding=new Padding(10,3,10,3) };
         Bind(internetEnd,"internetEnd"); internetEnd.Click += (_,_) =>
         {
@@ -392,6 +408,12 @@ internal sealed class MainForm : Form
         Add(h,Label("helpIntro")); Add(h,Buttons(Button("verify",Verify),Button("repair",ShowRepair)));
         Add(h,Buttons(Button("fallback",Fallback),Button("probe",Probe),Button("lanPermission",Firewall)));
         Add(h,Buttons(Button("cleanup",Cleanup),Button("diagnostics",Diagnostics))); Add(h,Label("details")); Add(h,details);
+        Add(h,Label("discordTitle"));Add(h,Label("discordInfo"));
+        var discordCode=new TextBox { Text=Community.DiscordCode,ReadOnly=true,Dock=DockStyle.Fill };
+        Add(h,Field("discordSuggestedCode",discordCode));
+        Add(h,Buttons(Button("discordOpen",()=>{Community.OpenDiscord();return Task.CompletedTask;}),
+            Button("discordCopyLink",()=>{try{Clipboard.SetText(Community.DiscordUrl);status.Text=Lang.T("discordLinkCopied");}
+                catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardFailed","");}return Task.CompletedTask;})));
     }
 
     private void ApplyLanguage()
@@ -586,17 +608,19 @@ internal sealed class MainForm : Form
         if(internetCreate!=null)internetCreate.Enabled=!busy&&internetAvailable;
         if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable;
         if(internetCopy!=null)internetCopy.Enabled=internetOperation&&internetInvite.Text.Length>0;
+        if(internetShare!=null)internetShare.Enabled=internetOperation&&internetInvite.Text.Length>0;
         if(internetEnd!=null)internetEnd.Enabled=internetOperation&&!gameRunning&&!cancelRequested;
         foreach(Control control in internetSetupControls)control.Visible=!internetOperation;
         if(internetEndpointField!=null)internetEndpointField.Visible=!internetOperation&&direct;
         if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&internetInvite.Text.Length>0;
+        if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&internetInvite.Text.Length>0;
         if(internetEndRow!=null)internetEndRow.Visible=internetOperation;
         internetInvite.Enabled=true;
     }
     private async Task PlayInternet(bool create)
     {
         player.Text=internetPlayer.Text;string name=ValidName();
-        string? invitation=create?null:internetJoin.Text;
+        string? invitation=create?null:Community.InvitationCode(internetJoin.Text);
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
@@ -718,8 +742,16 @@ internal sealed class MainForm : Form
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
                 form.internetAvailable=true;form.internetOperation=true;form.internetInvite.Text="weplay1.synthetic-pipe-fixture";form.SetBusy(true);
-                if(!form.internetCopy.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
+                if(!form.internetCopy.Enabled||!form.internetShare.Enabled||!form.discordLink.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
                     throw new Exception("Private Internet room controls failed");
+                string share=Community.InvitationMessage("weplay1.synthetic-pipe-fixture",language);
+                if(Community.InvitationCode(share)!="weplay1.synthetic-pipe-fixture"||!share.Contains(Community.DiscordUrl)||Community.DiscordCode!="nvcERcHpR")
+                    throw new Exception("Discord sharing failed");
+                foreach(string invalid in new[]{Community.DiscordUrl,"https://example.invalid/#weplay1.secret","text\nweplay1.secret","weplay1.secret\nuntrusted"})
+                {try{Community.InvitationCode(invalid);throw new Exception("Unsafe invitation accepted");}catch(BackendError){}}
+                form.tabs.SelectedTab=form.internetPage;Application.DoEvents();
+                using(var roomImage=new Bitmap(form.Width,form.Height))
+                {form.DrawToBitmap(roomImage,new Rectangle(0,0,form.Width,form.Height));roomImage.Save(Path.Combine(folder,language+"-internet-room.png"));}
                 form.internetInvite.Clear();form.internetOperation=false;form.SetBusy(false);
                 foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage})
                 {
@@ -732,7 +764,7 @@ internal sealed class MainForm : Form
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
-                    "bilingual_pages_rendered","private_internet_controls"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }
