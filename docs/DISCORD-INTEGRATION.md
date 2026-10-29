@@ -33,6 +33,12 @@ OAuth redirect URL, client secret or HTTP-signature public key is needed for
 this phase. The bot process still needs a running host; it can initially be the
 user's PC. This does not add a dedicated gameplay server.
 
+The user supplied the target channel ID `1565306705535959042` on 2026-10-29.
+It is recorded with the verified guild ID in `tools/discord/settings.example.json`.
+The application ID is still missing; this example is configuration preparation,
+not an active bot. The token will be read privately from
+`WEPLAY_DISCORD_BOT_TOKEN` on the bot host, never from the launcher or this file.
+
 ## Developer Portal setup for the owner
 
 1. Create an application named **WePlay Multiplayer** at
@@ -56,14 +62,14 @@ user's PC. This does not add a dedicated gameplay server.
    **#🎮multiplayer** and select **Copy Channel ID**. That channel should be a
    normal text channel for the first implementation.
 
-Send only these non-secret values in chat:
+Only the application's non-secret ID is still needed in chat:
 
 ```text
 Application ID: <from General Information>
-Channel ID (#🎮multiplayer): <from Copy Channel ID>
 ```
 
-The guild ID is already verified as `1565306702356815962`. The bot token is
+The guild ID is already verified as `1565306702356815962`, and the target
+channel ID is supplied as `1565306705535959042`. The bot token is
 needed only as a private credential on the selected host. The application ID
 is not a token; Client Secret, user tokens and webhook URLs are not needed.
 

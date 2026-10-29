@@ -1,0 +1,9 @@
+{
+  "format": "weplay-discord-bot-settings-v1",
+  "application_id": null,
+  "guild_id": "1565306702356815962",
+  "channel_id": "1565306705535959042",
+  "channel_name": "🎮multiplayer",
+  "transport": "gateway",
+  "token_environment": "WEPLAY_DISCORD_BOT_TOKEN"
+}
