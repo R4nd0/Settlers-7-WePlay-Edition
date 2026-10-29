@@ -49,14 +49,9 @@ def menu_plan():
 
 
 def ensure_closed():
-    result = subprocess.run(
-        ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
-         "if (Get-Process -Name Settlers7R -ErrorAction SilentlyContinue) { exit 7 }; exit 0"],
-        capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
-    if result.returncode == 7:
+    from windows_system import process_names
+    if any(name in ('settlers7r.exe','settlers7.exe') for name in process_names()):
         raise ValueError('Bitte S7 vollstaendig beenden und das Update erneut starten.')
-    if result.returncode != 0:
-        raise ValueError('Laufende Spiele konnten nicht sicher geprueft werden.')
 
 
 @contextmanager

@@ -27,6 +27,7 @@ DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detectio
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
+WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
     'lan_discovery.py', 'lan_autoconnect.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
@@ -38,8 +39,16 @@ INTERNET_TOOLS = tuple(('installer/' + name, name) for name in (
 
 def lan_tools(manifest):
     # RC1 used an external picker. Its unchanged package remains valid.
-    return tuple(item for item in LAN_LOBBY_TOOLS if item[0]!='installer/lan_autoconnect.py' or
-                 'tools/installer/lan_autoconnect.py' in manifest['files'])
+    return script_tools(tuple(item for item in LAN_LOBBY_TOOLS if item[0]!='installer/lan_autoconnect.py' or
+                 'tools/installer/lan_autoconnect.py' in manifest['files']),manifest)
+
+
+def script_tools(items,manifest):
+    return tuple(item for item in items if not (manifest.get('windows_helpers',False) and item[0].endswith('.ps1')))
+
+
+def update_package_tools(manifest):
+    return tuple(name for name in UPDATE_PACKAGE_TOOLS if not (manifest.get('windows_helpers',False) and name.endswith('.ps1')))
 
 
 def launcher_sources(manifest):
@@ -48,7 +57,8 @@ def launcher_sources(manifest):
     for capability,items in (('graphics_choice',GRAPHICS_TOOLS),('display_selection',DISPLAY_TOOLS),
                              ('desktop_launcher',DESKTOP_TOOLS),('automatic_lan',lan_tools(manifest)),
                              ('internet_easytier',INTERNET_TOOLS)):
-        if manifest.get(capability,False):files.extend(items)
+        if manifest.get(capability,False):files.extend(script_tools(items,manifest))
+    if manifest.get('windows_helpers',False):files.extend(WINDOWS_API_TOOLS)
     return files
 
 
@@ -82,7 +92,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled'):
+    for capability in ('update_patcher','achievement_notifications_disabled','windows_helpers'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -90,7 +100,7 @@ def package_manifest(root):
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
     if manifest.get('internet_easytier',False):
         if not manifest.get('automatic_lan',False) or any(
-                ('tools/'+original).lower() not in expected for original,_ in INTERNET_TOOLS):
+                ('tools/'+original).lower() not in expected for original,_ in script_tools(INTERNET_TOOLS,manifest)):
             raise ValueError('Die EasyTier-Integration im Paket ist unvollstaendig.')
         from easytier_runtime import verify_runtime
         verify_runtime(root)
@@ -98,8 +108,15 @@ def package_manifest(root):
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
     if manifest.get('update_patcher',False) and (not manifest.get('desktop_launcher',False) or
-            any(('tools/'+name).lower() not in expected for name in UPDATE_PACKAGE_TOOLS)):
+            any(('tools/'+name).lower() not in expected for name in update_package_tools(manifest))):
         raise ValueError('Der Update-Patcher im Paket ist unvollstaendig.')
+    if manifest.get('windows_helpers',False):
+        from windows_system import SYSTEM_FILES
+        required=['tools/'+original for original,_ in WINDOWS_API_TOOLS]
+        required+=['runtime/dotnet/'+name.lower() for name in SYSTEM_FILES]
+        if manifest.get('update_patcher',False):required+=['payload/helpers/weplay.updatehelper.exe']
+        if any(name not in expected for name in required) or any(name.endswith('.ps1') for name in expected):
+            raise ValueError('Die Windows-Hilfsprogramme im Paket sind unvollstaendig.')
     if manifest.get('achievement_notifications_disabled',False) and (not manifest.get('lan_public_creation',False) or
             any(('tools/'+name).lower() not in expected for name in ACHIEVEMENT_PACKAGE_TOOLS)):
         raise ValueError('Die Errungenschaftsanpassung im Paket ist unvollstaendig.')
@@ -108,7 +125,7 @@ def package_manifest(root):
             ('tools/installer/lan_public_game.py','tools/offline-ui/lan-public-creation.json'))):
         raise ValueError('Die LAN-Spielerstellung im Paket ist unvollstaendig.')
     if manifest.get('graphics_choice', False) and any(
-            ('tools/' + original).lower() not in expected for original, _ in GRAPHICS_TOOLS):
+            ('tools/' + original).lower() not in expected for original, _ in script_tools(GRAPHICS_TOOLS,manifest)):
         raise ValueError('Die Grafikauswahl im Installationspaket ist unvollstaendig.')
     if manifest.get('display_selection', False) and (not manifest.get('graphics_choice', False) or any(
             ('tools/' + original).lower() not in expected for original, _ in DISPLAY_TOOLS)):
@@ -253,24 +270,8 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     shutil.copytree(package / 'Payload/Server', destination / 'Server')
     shutil.copytree(package / 'Runtime', destination / 'Runtime')
     (destination / 'Launcher').mkdir()
-    for original, target in [('offline-ui/launch_local.py', 'launch_local.py'), ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py')]:
+    for original, target in launcher_sources(manifest):
         shutil.copyfile(tools / original, destination / 'Launcher' / target)
-    shutil.copyfile(tools / 'installer/start.py', destination / 'Launcher/start.py')
-    if manifest.get('graphics_choice', False):
-        for original, target in GRAPHICS_TOOLS:
-            shutil.copyfile(tools / original, destination / 'Launcher' / target)
-    if manifest.get('display_selection', False):
-        for original, target in DISPLAY_TOOLS:
-            shutil.copyfile(tools / original, destination / 'Launcher' / target)
-    if manifest.get('desktop_launcher',False):
-        for original,target in DESKTOP_TOOLS:
-            shutil.copyfile(tools/original,destination/'Launcher'/target)
-    if manifest.get('automatic_lan', False):
-        for original, target in lan_tools(manifest):
-            shutil.copyfile(tools / original, destination / 'Launcher' / target)
-    if manifest.get('internet_easytier',False):
-        for original,target in INTERNET_TOOLS:
-            shutil.copyfile(tools/original,destination/'Launcher'/target)
     shutil.copyfile(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
               'files': {name: content.digest(destination / name) for name in
@@ -287,18 +288,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             raise ValueError('Dienstkopie stimmt nicht ueberein.')
     if content.inventory(destination, ('Runtime',)) != content.inventory(package, ('Runtime',)):
         raise ValueError('Laufzeitkopie stimmt nicht ueberein.')
-    launcher_tools = [('offline-ui/launch_local.py', 'launch_local.py'),
-                      ('installer/compatibility.py', 'compatibility.py'), ('installer/launch_lan.py', 'launch_lan.py'), ('installer/start.py', 'start.py')]
-    if manifest.get('graphics_choice', False):
-        launcher_tools += list(GRAPHICS_TOOLS)
-    if manifest.get('display_selection', False):
-        launcher_tools += list(DISPLAY_TOOLS)
-    if manifest.get('desktop_launcher',False):
-        launcher_tools += list(DESKTOP_TOOLS)
-    if manifest.get('automatic_lan', False):
-        launcher_tools += list(lan_tools(manifest))
-    if manifest.get('internet_easytier',False):
-        launcher_tools += list(INTERNET_TOOLS)
+    launcher_tools = launcher_sources(manifest)
     for original, target in launcher_tools:
         if content.digest(tools / original) != content.digest(destination / 'Launcher' / target):
             raise ValueError('Starterkopie stimmt nicht ueberein.')
@@ -326,7 +316,9 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         with (destination / 'Start-S7-LAN.cmd').open('x', encoding='ascii') as stream:
             stream.write('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Launcher\\launch_auto_lan.py" --bundle "%~dp0."\nif errorlevel 1 pause\n')
         with (destination / 'LAN-Netzwerk-freigeben.cmd').open('x', encoding='ascii') as stream:
-            stream.write('@echo off\npowershell.exe -NoLogo -NoProfile -File "%~dp0Launcher\\Configure-LAN-Firewall.ps1" -Bundle "%~dp0."\npause\n')
+            if manifest.get('windows_helpers',False):
+                stream.write('@echo off\n"%~dp0Runtime\\dotnet\\WePlay.WindowsHelper.exe" lan-firewall "%~dp0." apply\npause\n')
+            else:stream.write('@echo off\npowershell.exe -NoLogo -NoProfile -File "%~dp0Launcher\\Configure-LAN-Firewall.ps1" -Bundle "%~dp0."\npause\n')
         with (destination / 'LIESMICH.txt').open('a', encoding='utf-8') as stream:
             stream.write('\nAutomatische LAN-Lobby: Start-S7-LAN.cmd. Spielernamen eingeben und Lobby auswaehlen oder erstellen.\n'
                 'Keine IP-Eingabe erforderlich. Bei mehreren Netzwerken das gemeinsame Heimnetz auswaehlen.\n'

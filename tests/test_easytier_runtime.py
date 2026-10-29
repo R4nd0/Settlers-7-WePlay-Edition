@@ -108,5 +108,29 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(InternetError) as error: overlay.snapshot()
         self.assertEqual(error.exception.code, 'internet_disconnected')
 
+    def test_close_removes_only_owned_adapter_after_child_exit_and_preserves_other_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);data=root/'LocalData';data.mkdir();other=data/'keep.txt';other.write_bytes(b'personal fixture')
+            overlay=runtime.EasyTier(root,ROOM,host=True);overlay.private=data/'easytier-fixture';overlay.private.mkdir()
+            (overlay.private/'network.toml').write_text('private fixture',encoding='utf-8')
+            child=Mock();child.poll.return_value=None;overlay.child=child;overlay.job=Mock()
+            def remove(bundle,name,address):
+                child.wait.assert_called_once_with(timeout=10)
+                self.assertEqual((bundle,name,address),(root,overlay.device_name,overlay.address))
+                self.assertNotIn(ROOM.secret,repr((bundle,name,address)))
+            with patch('windows_system.remove_adapter',side_effect=remove) as cleanup:
+                overlay.close();overlay.close();cleanup.assert_called_once()
+            self.assertEqual(other.read_bytes(),b'personal fixture');self.assertIsNone(overlay.private)
+
+    def test_failed_adapter_cleanup_still_reclaims_private_room_config(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);data=root/'LocalData';data.mkdir()
+            overlay=runtime.EasyTier(root,ROOM,host=True);overlay.private=data/'easytier-fixture';overlay.private.mkdir()
+            config=overlay.private/'network.toml';config.write_text('private fixture',encoding='utf-8')
+            overlay.child=Mock();overlay.child.poll.return_value=0
+            with patch('windows_system.remove_adapter',side_effect=ValueError('helper failed')):
+                with self.assertRaisesRegex(InternetError,'cleanup_failed'):overlay.close()
+            self.assertFalse(config.exists());self.assertIsNone(overlay.private)
+
 
 if __name__ == '__main__': unittest.main()

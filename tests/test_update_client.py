@@ -126,6 +126,23 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual((self.app/'Instances/keep.s7local').read_bytes(),b'opaque save fixture')
         self.assertFalse((job/'ready.json').exists())
 
+    def test_compiled_package_copies_and_launches_only_verified_exe_handoff(self):
+        helper=self.app/'Package/Payload/Helpers/WePlay.UpdateHelper.exe';helper.parent.mkdir(parents=True)
+        helper.write_bytes(b'MZ unexecuted helper fixture')
+        (self.app/'Package/package.json').write_bytes(client.canonical({'windows_helpers':True,
+            'files':{'payload/helpers/weplay.updatehelper.exe':hashlib.sha256(helper.read_bytes()).hexdigest()}}))
+        job=Path(self.prepare(self.signed())['job'])
+        self.assertEqual((job/helper.name).read_bytes(),helper.read_bytes())
+        self.assertFalse((job/'update_handoff.ps1').exists())
+        child=Mock();child.poll.return_value=2
+        with patch.object(client.subprocess,'Popen',return_value=child) as start, \
+                self.assertRaisesRegex(client.UpdateError,'handoff_failed'):
+            client.start_handoff(self.app,job)
+        self.assertEqual(start.call_args.args[0],[str(job/helper.name),'--job',str(job/'handoff.json')])
+        self.assertFalse((job/'ready.json').exists())
+        helper.write_bytes(b'modified')
+        with self.assertRaisesRegex(client.UpdateError,'invalid'):client.handoff_source(self.app)
+
     def test_changed_download_never_becomes_an_executable_and_keeps_existing_state(self):
         envelope=self.signed();fetch=self.fetcher(envelope);client.check(self.app,fetch=fetch)
         def corrupt(url,limit,**kwargs):

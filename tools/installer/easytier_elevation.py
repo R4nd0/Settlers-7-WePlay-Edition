@@ -131,17 +131,9 @@ def write_state(directory, value):
 
 
 def firewall(root, key, interface=None):
-    script = compatibility.plain(root / 'Launcher/Configure-Internet-Firewall.ps1')
-    arguments = ['powershell.exe', '-NoProfile', '-NonInteractive', '-File', str(script),
-                 '-Bundle', str(root), '-RuleKey', key]
-    if interface is None:
-        arguments += ['-Remove']
-    else:
-        arguments += ['-Address', interface.address, '-InterfaceName', interface.name]
-    result = subprocess.run(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, timeout=30,
-                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    if result.returncode:
+    from windows_system import internet_firewall
+    try:internet_firewall(root,key,interface)
+    except (OSError,ValueError,subprocess.TimeoutExpired):
         raise InternetError('internet_firewall_failed')
 
 
@@ -164,6 +156,9 @@ def verify_worker(root):
     python = {key:digest for key,digest in manifest['files'].items() if key.startswith('runtime/python/')}
     if (not python or compatibility.inventory(root, ('Launcher',)) != expected or
             compatibility.inventory(root, ('Runtime/python',)) != python):
+        raise InternetError('internet_runtime_invalid')
+    net={key:digest for key,digest in manifest['files'].items() if key.startswith('runtime/dotnet/')}
+    if manifest.get('windows_helpers',False) and (not net or compatibility.inventory(root,('Runtime/dotnet',))!=net):
         raise InternetError('internet_runtime_invalid')
 
 

@@ -205,6 +205,8 @@ class EasyTier:
         raise InternetError('internet_direct_unavailable' if self.room.mode == 'direct' else 'internet_connect_timeout') from None
 
     def close(self):
+        had_child=self.child is not None
+        cleanup_error=None
         try:
             if self.job:
                 self.job.close()
@@ -217,6 +219,10 @@ class EasyTier:
                     self.child.wait(timeout=10)
                 finally:
                     self.child = None
+            if had_child:
+                from windows_system import remove_adapter
+                try:remove_adapter(self.root,self.device_name,self.address)
+                except (OSError,ValueError,subprocess.TimeoutExpired):cleanup_error=InternetError('internet_cleanup_failed')
             if self.private is not None:
                 # Only our new, random, non-reparse directory may be removed.
                 directory = compatibility.plain(self.private)
@@ -225,3 +231,4 @@ class EasyTier:
                     raise InternetError('internet_cleanup_failed')
                 shutil.rmtree(directory)
                 self.private = None
+            if cleanup_error is not None:raise cleanup_error

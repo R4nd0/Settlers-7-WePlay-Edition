@@ -12,7 +12,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, WINDOWS_API_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
@@ -31,7 +31,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -59,6 +59,12 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         from easytier_runtime import verify_directory
         easytier_runtime=verify_directory(easytier_runtime)
         check_output_location(repo,output,(easytier_runtime,))
+    if windows_helpers is None:raise ValueError('Compiled Windows helpers are required for new preparation packages')
+    windows_helpers=content.plain(windows_helpers)
+    check_output_location(repo,output,(windows_helpers,))
+    from windows_system import SYSTEM_FILES
+    for relative in [*('System/'+name for name in SYSTEM_FILES),'Update/WePlay.UpdateHelper.exe']:
+        if not content.plain(windows_helpers/relative).is_file():raise ValueError('Compiled Windows helper missing')
     version = '10.0.13'
     for path in (dotnet / 'dotnet.exe', dotnet / 'host/fxr' / version / 'hostfxr.dll',
                  dotnet / 'shared/Microsoft.NETCore.App' / version / 'System.Private.CoreLib.dll'):
@@ -76,6 +82,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         shutil.copyfile(dotnet / name, net / name)
     for relative in ('host/fxr/' + version, 'shared/Microsoft.NETCore.App/' + version):
         shutil.copytree(dotnet / relative, net / relative)
+    for name in SYSTEM_FILES:shutil.copyfile(windows_helpers/'System'/name,net/name)
     if easytier_runtime is not None:
         shutil.copytree(easytier_runtime,output/'Runtime/easytier')
         verify_directory(output/'Runtime/easytier')
@@ -83,6 +90,9 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     for name in ('S7Patcher.dll', 'S7Patcher.deps.json', 'S7Patcher.runtimeconfig.json'):
         shutil.copyfile(service / name, server / name)
     shutil.copyfile(adapter, output / 'Payload/uplay_r1_loader.dll')
+    if graphics_probe is not None:
+        helpers=output/'Payload/Helpers';helpers.mkdir()
+        shutil.copyfile(windows_helpers/'Update/WePlay.UpdateHelper.exe',helpers/'WePlay.UpdateHelper.exe')
     if dxvk_dll is not None:
         profile = output / 'Payload/Graphics'; profile.mkdir()
         shutil.copyfile(dxvk_dll, profile / 'd3d9.dll')
@@ -105,6 +115,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         names += list(DESKTOP_PACKAGE_TOOLS)+[original for original,_ in DESKTOP_TOOLS]
         names += list(UPDATE_PACKAGE_TOOLS)
         if easytier_runtime is not None:names += list(DISCORD_PACKAGE_TOOLS)
+    names += [original for original,_ in WINDOWS_API_TOOLS]
+    names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
@@ -121,6 +133,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'discord_directory': graphics_probe is not None and easytier_runtime is not None,
         'update_patcher': graphics_probe is not None,
         'achievement_notifications_disabled': True,
+        'windows_helpers': True,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')
@@ -181,7 +194,8 @@ if __name__ == '__main__':
     parser.add_argument('--dxvk-dll'); parser.add_argument('--dxvk-license')
     parser.add_argument('--graphics-probe')
     parser.add_argument('--easytier-runtime')
+    parser.add_argument('--windows-helpers',required=True)
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
-                easytier_runtime=args.easytier_runtime))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers))

@@ -91,6 +91,9 @@ installer live in `tools/desktop` and `tools/installer`. Read
 [development notes](docs/DEVELOPMENT.md) and the
 [native adapter documentation](docs/NATIVE-LOCAL-START.md) before changing it.
 Local agent instructions and handoff journals are intentionally ignored.
+The RC3.5 implementation replaces player-facing PowerShell operations with
+[Windows helpers](docs/WINDOWS-HELPERS.md); the download above remains the
+currently published RC3.4 release until the next preview is published.
 Never commit or distribute copied game files, local account data,
 runtimes or private experiment outputs as source.
 

@@ -1,6 +1,6 @@
 # WePlay signed update patcher
 
-The RC3.4 bootstrap launcher can check for later signed preview releases at
+The RC3.4 bootstrap and later launchers can check for signed preview releases at
 startup and on demand. Checking does not hold the game operation lock or require
 sign-in. It reads up to twenty releases from the fixed public repository
 `R4nd0/Settlers-7-WePlay-Edition` and checks the newest eight releases containing
@@ -48,10 +48,13 @@ launcher migration; silently replacing the key breaks the existing trust chain.
 ## Safe handoff and recovery boundary
 
 The backend checks the actual parent launcher PID, executable path and Windows
-creation token, then downloads and verifies the installer. It copies a trusted
-system-PowerShell handoff script, public pin and signed manifest under
-`State/Updates/<random-id>`. PowerShell runs independently of the application's
-Python/.NET runtime files, so the old runtime is not held open during replacement.
+creation token, then downloads and verifies the installer. RC3.5 copies a verified
+native `WePlay.UpdateHelper.exe`, public pin and signed manifest under
+`State/Updates/<random-id>`. The helper embeds its public verification key and
+does not depend on the application's Python/.NET runtime files, so the old runtime
+is not held open during replacement. The final installer hash check and launch
+retain a non-writable file handle. RC3.4 used a PowerShell helper; the new package
+contains no scripts and requires no change to Windows execution policy.
 The helper opens and verifies exact launcher/backend process handles, takes the
 same per-app update mutex checked by the launcher, and acknowledges readiness
 before the old UI exits. Reused PIDs, changed helper files and unexpected paths
@@ -77,6 +80,9 @@ error under `State/Updates/status.json`; the downloaded verified Setup and prior
 game instance remain available for repair. Unknown files and personal data are
 never deleted to make an update succeed. An obsolete or unsigned launcher needs
 the bootstrap installer once before it can recognize signed future updates.
+If an existing RC3.4 handoff is blocked by its current script policy, run the
+RC3.5 installer directly once rather than changing that policy. See
+[Windows helpers](WINDOWS-HELPERS.md).
 
 ## Maintainer: signing and publishing
 
@@ -91,7 +97,7 @@ existing key/pin pair. No user-facing updater can mint release signatures.
 After building and testing a future installer, use a new sequence and tag:
 
 ```powershell
-python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.5 --sequence 2 --tag weplay-rc3.5 --notes-file work/updates/release-notes.txt
+python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.6 --sequence 3 --tag v2.0.0-rc3.6 --notes-file work/updates/release-notes.txt
 ```
 
 The tool validates the metadata, signs inside Windows cryptography, verifies the
@@ -101,13 +107,15 @@ list including both assets and the fixed repository. Publish only the reviewed,
 verified installer and its matching signed manifest to that exact tag. Example:
 
 ```powershell
-gh release create weplay-rc3.5 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.5"
+gh release create v2.0.0-rc3.6 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.6"
 ```
 
 Publishing is an operator action; the implementation does not silently create
-or overwrite a release. Existing published RC2.1 assets remain intact. The first
-RC3.4 bootstrap and signing tooling alone do not claim that a new signed public
-release already exists or that a real user's installation was updated.
+or overwrite a release. Existing published assets remain intact. The signed
+RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 uses sequence 2;
+building/signing a local candidate does not publish it or update a user's PC.
+Maintainer signing tools may use PowerShell/CNG locally; they are not shipped
+and do not add a PowerShell prerequisite to RC3.5 player operations.
 
 ## Validation
 

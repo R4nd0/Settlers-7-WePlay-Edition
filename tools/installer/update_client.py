@@ -239,6 +239,19 @@ def process_info(pid):
         return {'pid':pid,'path':str(compatibility.plain(buffer.value)),'started_ticks':creation+504911232000000000}
     finally:kernel.CloseHandle(handle)
 
+
+def handoff_source(app):
+    package=compatibility.plain(app/'Package/package.json')
+    if package.is_file():
+        manifest=decode(package.read_bytes(),4*1024*1024)
+        if manifest.get('windows_helpers',False) is True:
+            source=compatibility.plain(app/'Package/Payload/Helpers/WePlay.UpdateHelper.exe')
+            if compatibility.digest(source)!=manifest.get('files',{}).get('payload/helpers/weplay.updatehelper.exe'):
+                raise UpdateError('update_invalid')
+            return source
+    # Compatibility for RC3.4 packages; RC3.5 neither ships nor executes this script.
+    return compatibility.plain(Path(__file__).with_name('update_handoff.ps1'))
+
 def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequence=None,fetch=transfer,process_reader=process_info):
     app,updates=paths(app);local=current(app)
     if parent_pid!=os.getppid() or type(parent_started_ticks) is not int:raise UpdateError('update_parent_invalid')
@@ -258,7 +271,8 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
         size,digest=fetch(value['setup']['url'],value['setup']['size'],destination=partial,expected_size=value['setup']['size'],progress=progress)
         if size!=value['setup']['size'] or digest!=value['setup']['sha256'] or compatibility.digest(partial)!=digest:raise UpdateError('update_hash_invalid')
         os.replace(partial,target)
-        for name in ('update_handoff.ps1','update-key.json'):shutil.copyfile(compatibility.plain(Path(__file__).with_name(name)),job/name)
+        helper=handoff_source(app);shutil.copyfile(helper,job/helper.name)
+        shutil.copyfile(compatibility.plain(Path(__file__).with_name('update-key.json')),job/'update-key.json')
         atomic(job/'weplay-update.json',decode(envelope))
         record={'format':'weplay-update-handoff-v1','app':str(app),'parent':parent,'backend':backend,'version':value['version'],'sequence':value['sequence']}
         atomic(job/'handoff.json',record)
@@ -275,11 +289,13 @@ def start_handoff(app,job):
     if record.get('app')!=str(app) or record.get('format')!='weplay-update-handoff-v1':raise UpdateError('update_invalid')
     if record.get('backend',{}).get('pid')!=os.getpid() or record.get('parent',{}).get('pid')!=os.getppid():raise UpdateError('update_parent_invalid')
     if compatibility.plain(job/'ready.json').exists():raise UpdateError('update_invalid')
-    for name in ('update_handoff.ps1','update-key.json'):
-        if compatibility.digest(compatibility.plain(job/name))!=compatibility.digest(compatibility.plain(Path(__file__).with_name(name))):raise UpdateError('update_invalid')
+    helper=handoff_source(app)
+    if compatibility.digest(compatibility.plain(job/helper.name))!=compatibility.digest(helper):raise UpdateError('update_invalid')
+    if compatibility.digest(compatibility.plain(job/'update-key.json'))!=compatibility.digest(compatibility.plain(Path(__file__).with_name('update-key.json'))):raise UpdateError('update_invalid')
     # No browser URL or update-provided argument is executable input.
-    command=[str(Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'),
-             '-NoProfile','-NonInteractive','-File',str(job/'update_handoff.ps1'),'-Job',str(job/'handoff.json')]
+    command=([str(job/helper.name),'--job',str(job/'handoff.json')] if helper.suffix.lower()=='.exe' else
+        [str(Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe'),
+         '-NoProfile','-NonInteractive','-File',str(job/'update_handoff.ps1'),'-Job',str(job/'handoff.json')])
     try:child=subprocess.Popen(command,cwd=job,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),close_fds=True)
     except OSError:raise UpdateError('update_handoff_failed') from None
     deadline=time.monotonic()+90

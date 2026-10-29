@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\work\windows-helper-build\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\..\work\windows-helper-build\$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Version>2.0.0-rc3.5</Version>
+    <ApplicationManifest>$(MSBuildThisFileDirectory)helper.manifest</ApplicationManifest>
+  </PropertyGroup>
+</Project>

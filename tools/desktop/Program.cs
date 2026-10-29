@@ -683,13 +683,7 @@ internal sealed class MainForm : Form
     }
     private async Task Firewall()
     {
-        if(snapshot.ValueKind!=JsonValueKind.Object||snapshot.GetProperty("current").ValueKind!=JsonValueKind.String)throw new BackendError("not_installed","");
-        string root=snapshot.GetProperty("current").GetString()!;
-        var start=new ProcessStartInfo("powershell.exe") {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
-        foreach(string item in new[]{"-NoLogo","-NoProfile","-NonInteractive","-WindowStyle","Hidden","-File",Path.Combine(root,"Launcher","Configure-LAN-Firewall.ps1"),"-Bundle",root})start.ArgumentList.Add(item);
-        using var process=Process.Start(start)??throw new BackendError("permissionFailed","");
-        Task<string> output=process.StandardOutput.ReadToEndAsync(),error=process.StandardError.ReadToEndAsync();await process.WaitForExitAsync();await output;
-        if(process.ExitCode!=0)throw new BackendError("permissionFailed",await error);
+        await Backend.Run("firewall",new {},Receive);
         status.Text=Lang.T("permissionDone");
     }
     private async Task Play(bool lan)

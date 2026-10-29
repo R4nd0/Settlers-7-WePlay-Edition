@@ -54,6 +54,19 @@ def prepare(source, output, specification, profile):
     def prepare(self):
         return install.prepare(self.package, self.source, self.destination, emit=lambda _: None)
 
+    def test_windows_helper_package_requires_complete_binaries_and_rejects_script_payloads(self):
+        from windows_system import SYSTEM_FILES
+        self.data['windows_helpers']=True
+        for name in SYSTEM_FILES:self.write(self.package,'Runtime/dotnet/'+name,b'invented compiled helper')
+        self.write(self.package,'Tools/installer/windows_system.py',b'# API helper fixture')
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        install.package_manifest(self.package)
+        self.write(self.package,'Tools/installer/unexpected.ps1',b'# must not ship')
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with self.assertRaises(ValueError):install.package_manifest(self.package)
+
     def test_prepares_separate_copy_without_identity_or_original_changes(self):
         before = content.inventory(self.source, ('Base',))
         self.prepare()

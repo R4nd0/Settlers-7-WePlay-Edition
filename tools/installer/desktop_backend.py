@@ -147,6 +147,9 @@ class Desktop:
                  ('payload/uplay_r1_loader.dll','payload/graphics/d3d9.dll','tools/license.txt')}
         flags={key:value.get(key,False) for key in ('graphics_choice','display_selection','automatic_lan','desktop_launcher')}
         if value.get('achievement_notifications_disabled',False):flags['achievement_notifications_disabled']=True
+        if value.get('windows_helpers',False):
+            flags['windows_helpers']=True
+            records.update({name:digest for name,digest in value['files'].items() if name=='tools/installer/windows_system.py'})
         return content.fingerprint({'files':records,'archive':value.get('patched_archive_sha256'),
              'flags':flags})
 
@@ -604,6 +607,14 @@ class Desktop:
     def verify(self):
         self.progress('verify');content.verify(self.game());return {'verified':True}
 
+    def configure_firewall(self):
+        import windows_system
+        install.package_manifest(self.package)
+        root=self.game();content.verify(root)
+        try:windows_system.lan_firewall(root)
+        except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('permissionFailed')
+        return {'configured':True}
+
     def cleanup_instance(self,container,name):
         root=self.instance(container,name)
         record=self.read(root/'desktop-files.json')
@@ -622,24 +633,18 @@ class Desktop:
             if not path.is_relative_to(root):raise ValueError('ownership_invalid')
             if relative not in ('desktop-owner.json',):validated.append((path,digest))
         # Runtime/hub processes may survive their owner's game intentionally.
-        script='[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false); @((Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {$_.Name -in @("Settlers7R.exe","dotnet.exe","python.exe")} | ForEach-Object {$_.ExecutablePath})) | ConvertTo-Json -Compress'
-        result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],
-            capture_output=True,timeout=20,creationflags=subprocess.CREATE_NO_WINDOW)
-        if result.returncode or len(result.stdout)>65536:raise ValueError('managed_copy_busy')
-        paths=json.loads(result.stdout.decode('utf-8-sig')) or []
-        if isinstance(paths,str):paths=[paths]
+        import windows_system
+        try:paths=windows_system.process_paths()
+        except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('managed_copy_busy')
         if any(p and Path(p).is_relative_to(root) for p in paths):raise ValueError('managed_copy_busy')
         marker=self.read(root/'LocalData/desktop-firewall.json')
         if marker is not None:
-            key=hashlib.sha256(str(root).casefold().encode('utf-8')).hexdigest()[:16].upper()
+            key=hashlib.sha256(str(root).lower().encode('utf-8')).hexdigest()[:16].upper()
             if marker!={'format':'s7-private-firewall-v1','key':key}:raise ValueError('ownership_invalid')
-            helper=graphics._plain(root/'Launcher/Configure-LAN-Firewall.ps1')
-            if content.digest(helper)!=files.get('launcher/configure-lan-firewall.ps1'):
-                raise ValueError('ownership_invalid')
-            result=subprocess.run(['powershell.exe','-NoLogo','-NoProfile','-NonInteractive','-WindowStyle','Hidden',
-                '-File',str(helper),'-Bundle',str(root),'-Remove'],capture_output=True,
-                creationflags=subprocess.CREATE_NO_WINDOW)
-            if result.returncode:raise ValueError('firewall_remove_failed')
+            # Use the current app's helper, including cleanup of legacy copies.
+            # Never execute an old script from a user-writable previous game copy.
+            try:windows_system.lan_firewall(root,remove=True)
+            except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('firewall_remove_failed')
         kept=0
         for index,(path,digest) in enumerate(validated):
             self.progress('cleanup',index,len(validated))
@@ -725,6 +730,7 @@ def dispatch(desktop,request):
         return {'sources':game_detection.detect(locations)}
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
+        if action=='firewall' and not data:return desktop.configure_firewall()
         if action in ('install','repair') and set(data)<= {'source','container'}:
             previous=desktop.installed()
             source=data.get('source') or (previous['source'] if previous else None)
@@ -760,7 +766,7 @@ def error_code(error):
         'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}
-    known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid'))
+    known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     if text in known:return text
     if '4 GiB' in text:return 'memory_low'
     if 'laeuft' in text or 'running' in text or 'schliessen' in text:return 'game_running'

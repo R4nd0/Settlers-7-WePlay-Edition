@@ -1,6 +1,6 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3.4 · Updates",
+  "version": "RC3.5 · Windows helpers",
   "setupTitle": "Set up WePlay Edition",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Your original game stays unchanged. We prepare a separate copy and set up graphics automatically.",
@@ -143,7 +143,7 @@
   "details": "Details",
   "restartSetup": "Set up / repair game",
   "permissionDone": "Private LAN access has been configured.",
-  "permissionFailed": "Windows did not configure LAN access. You can retry the same button.",
+  "permissionFailed": "Windows did not configure LAN access. A declined administrator prompt or managed firewall policy can prevent this. Security policies remain unchanged.",
   "unsupportedSize": "This desktop size exceeds the supported limits. Select a windowed resolution.",
   "nameInvalid": "Use a name of 1–24 UTF-8 bytes, without leading/trailing spaces or control characters.",
   "language": "Language",

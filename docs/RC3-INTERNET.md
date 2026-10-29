@@ -1,4 +1,11 @@
-# WePlay RC3.4 Update Preview
+# WePlay RC3.5 Windows Helpers Preview
+
+RC3.5 replaces PowerShell in normal launcher operations with bounded Windows API
+helpers, including discovery, firewall configuration, update handoff and cleanup.
+It does not change Windows security policies. Network setup still requests UAC;
+centrally blocked actions fail without changing policy. If RC3.4's old update
+handoff is blocked, run the RC3.5 Setup once directly. See
+[Windows helper verification and limits](WINDOWS-HELPERS.md).
 
 RC3.4 suppresses repeated achievement popups while preserving the achievement
 catalogue and rewards. The owner reported two three-hour play sessions without

@@ -97,11 +97,11 @@ class ElevationTests(unittest.TestCase):
     def test_firewall_only_invokes_fixed_helper_with_structured_arguments(self):
         root = ROOT / 'work/fictional-internet-copy'
         interface = LanInterface('10.203.77.1', 24, 'WePlay-12345678')
-        with patch.object(elevation.subprocess, 'run', return_value=Mock(returncode=0)) as command:
+        with patch.object(elevation.subprocess, 'run', return_value=Mock(returncode=0,stdout=b'{}')) as command:
             elevation.firewall(root, 'a' * 32, interface)
         args = command.call_args.args[0]
-        self.assertEqual(args[args.index('-InterfaceName') + 1], interface.name)
-        self.assertEqual(args[args.index('-Address') + 1], interface.address)
+        self.assertEqual(Path(args[0]).name,'WePlay.WindowsHelper.exe')
+        self.assertEqual(args[1:],['internet-firewall',str(root),'a'*32,'apply',interface.address,interface.name])
         self.assertNotIn(ROOM.secret, repr(command.call_args))
         self.assertNotIn('shell', command.call_args.kwargs)
 

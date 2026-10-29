@@ -160,7 +160,8 @@ class DesktopTests(unittest.TestCase):
     def test_active_hub_prevents_removing_that_managed_copy(self):
         self.prepare();root=self.desktop.game()
         owned=str(root/'Runtime/python/python.exe')
-        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps([owned]).encode())):
+        row={'pid':123,'name':'python.exe','path':owned,'s7_service':False}
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps([row]).encode())):
             with self.assertRaisesRegex(ValueError,'managed_copy_busy'):self.desktop.cleanup_instance(root.parent,root.name)
         self.assertTrue((root/'Base/Bin/Settlers7R.exe').exists())
 
@@ -265,7 +266,7 @@ class DesktopTests(unittest.TestCase):
         for code in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
             self.assertEqual(backend.error_code(lan_autoconnect.LanConnectionError(code,'private details')),code)
 
-    def test_firewall_cleanup_is_owned_hash_guarded_and_aborts_before_game_deletion(self):
+    def test_firewall_cleanup_uses_current_helper_aborts_on_failure_and_never_executes_legacy_script(self):
         self.prepare();root=self.desktop.game();helper=root/'Launcher/Configure-LAN-Firewall.ps1'
         helper.write_bytes(b'fixture helper');self.desktop.record_ownership(root,content.create(root))
         key=hashlib.sha256(str(root).casefold().encode()).hexdigest()[:16].upper()
@@ -274,12 +275,16 @@ class DesktopTests(unittest.TestCase):
                 SimpleNamespace(returncode=1,stdout=b'')]) as child:
             with self.assertRaisesRegex(ValueError,'firewall_remove_failed'):self.desktop.cleanup_instance(root.parent,root.name)
             self.assertEqual(child.call_count,2)
-            self.assertIn('-Remove',child.call_args.args[0])
+            self.assertEqual(Path(child.call_args.args[0][0]).name,'WePlay.WindowsHelper.exe')
+            self.assertEqual(child.call_args.args[0][-1],'remove')
         self.assertTrue((root/'Base/Bin/Settlers7R.exe').exists())
         helper.write_bytes(b'unknown modification')
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')) as child:
-            with self.assertRaisesRegex(ValueError,'ownership_invalid'):self.desktop.cleanup_instance(root.parent,root.name)
-            self.assertEqual(child.call_count,1)
+            self.desktop.cleanup_instance(root.parent,root.name)
+            self.assertEqual(child.call_count,2)
+            self.assertNotIn('.ps1',repr(child.call_args))
+        self.assertEqual(helper.read_bytes(),b'unknown modification')
+        self.assertFalse((root/'Base/Bin/Settlers7R.exe').exists())
 
 
 class ProbeTests(unittest.TestCase):

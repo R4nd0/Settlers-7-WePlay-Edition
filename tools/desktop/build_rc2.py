@@ -1,4 +1,4 @@
-"""Build the RC3.4 Update Preview from pinned inputs."""
+"""Build the RC3.5 Windows Helpers Preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,update_sequence=1):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=2):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -39,7 +39,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
-        easytier_runtime=easytier_runtime)
+        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers)
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
@@ -53,8 +53,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.4 Update Preview','network_revision':5,'game_bits':32,
-             'version':'2.0.0-rc3.4','update_sequence':update_sequence,'update_channel':'preview',
+    release={'format':'s7-desktop-release-v1','release':'RC3.5 Windows Helpers Preview','network_revision':6,'game_bits':32,
+             'version':'2.0.0-rc3.5','update_sequence':update_sequence,'update_channel':'preview',
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -108,8 +108,9 @@ if __name__=='__main__':
     for name in ('base-package','service','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
-    parser.add_argument('--update-sequence',type=int,default=1)
+    parser.add_argument('--windows-helpers',required=True)
+    parser.add_argument('--update-sequence',type=int,default=2)
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,update_sequence=values.update_sequence)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence)

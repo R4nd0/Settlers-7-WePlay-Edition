@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>WePlay.UpdateHelper</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UpdatePublicKey Condition="'$(UpdatePublicKey)'==''">$(MSBuildThisFileDirectory)..\..\installer\update-key.json</UpdatePublicKey>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../SafePaths.cs" Link="SafePaths.cs" />
+    <EmbeddedResource Include="$(UpdatePublicKey)" LogicalName="WePlay.UpdateKey" />
+  </ItemGroup>
+</Project>
