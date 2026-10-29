@@ -2,6 +2,21 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## RC2 destination tracking correction, 2026-10-29
+
+The real user-selected destination change exposed a pre-release metadata bug:
+previous version IDs had no container, so the finished current copy was wrongly
+reported as needing repair. `desktop_backend.py` now uses installation record
+v2 with a container/instance reference per previous copy. Owner/file guards
+remain in force; legacy recovery is limited to exact owned IDs in this app’s
+original default directory. Backups preserve the original record byte for byte.
+The affected local installation was migrated successfully without another game
+copy; its backend reports ready, no repair and no update. Twenty-six desktop
+checks pass, including cross-container repair/recovery/cleanup/uninstall.
+A compiled maintenance run against a separate small invented fixture exits0
+and retains personal/modified/unknown files. The user’s prepared game is kept.
+See [RC2-QA.md](RC2-QA.md) for the remaining live-UI and multiplayer limits.
+
 ## WePlay automatic-launch integration, 2026-10-28
 
 The project remote is now

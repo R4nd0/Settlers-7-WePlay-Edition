@@ -38,6 +38,7 @@ from lobby_directory import json_record, encode
 from lobby_picker import read_choice
 
 FORMAT='s7-desktop-install-v1'
+INSTALL_FORMAT='s7-desktop-install-v2'
 REQUEST='s7-desktop-request-v1'
 HEX=re.compile('[0-9a-f]{32}')
 
@@ -91,17 +92,31 @@ class Desktop:
         except (OSError,ValueError):raise ValueError('installation_invalid') from None
         if value is None:return None
         if (set(value)!={'format','source','container','current','previous','package_id','renderer_policy'}
-                or value['format']!=FORMAT or value['renderer_policy'] not in ('auto','dxvk','native')
+                or value['format'] not in (FORMAT,INSTALL_FORMAT) or value['renderer_policy'] not in ('auto','dxvk','native')
                 or not isinstance(value['source'],str) or not isinstance(value['previous'],list)
                 or len(value['previous'])>16 or not isinstance(value['package_id'],str)):
             raise ValueError('installation_invalid')
-        if any(not isinstance(name,str) or not HEX.fullmatch(name) for name in [value['current'],*value['previous']]):
-            raise ValueError('installation_invalid')
-        if len({value['current'],*value['previous']})!=1+len(value['previous']):raise ValueError('installation_invalid')
-        for name in [value['current'],*value['previous']]:self.instance(value['container'],name)
+        self.instance(value['container'],value['current'])
+        references=[];seen={value['current']}
+        for item in value['previous']:
+            if value['format']==FORMAT:
+                if not isinstance(item,str) or not HEX.fullmatch(item):raise ValueError('installation_invalid')
+                container=value['container']
+                # Pre-release v1 lost old locations when the destination changed.
+                # Recover only exact owned IDs in this app's original default;
+                # never search drives or adopt an existing foreign directory.
+                declared=graphics._plain(Path(container)/item)
+                if not declared.exists():container=str(self.app/'Instances')
+                item={'container':container,'instance':item}
+            if not isinstance(item,dict) or set(item)!={'container','instance'}:raise ValueError('installation_invalid')
+            root=self.instance(item['container'],item['instance'])
+            if root.name in seen:raise ValueError('installation_invalid')
+            seen.add(item['instance']);references.append({'container':str(root.parent),'instance':root.name})
+        value={**value,'format':INSTALL_FORMAT,'previous':references}
         return value
 
     def instance(self,container,name):
+        if not isinstance(container,(str,Path)) or not container or not Path(container).is_absolute():raise ValueError('installation_invalid')
         if not isinstance(name,str) or not HEX.fullmatch(name):raise ValueError('installation_invalid')
         root=graphics._plain(Path(container)/name)
         marker=self.read(root/'desktop-owner.json')
@@ -313,8 +328,8 @@ class Desktop:
         self.progress('verify')
         verified=content.verify(root)
         self.record_ownership(root,verified)
-        record={'format':FORMAT,'source':str(source),'container':str(base),'current':instance,
-                'previous':([previous['current'],*previous['previous']][:16] if previous else []),
+        record={'format':INSTALL_FORMAT,'source':str(source),'container':str(base),'current':instance,
+                'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']][:16] if previous else []),
                 'package_id':self.package_id(),'renderer_policy':policy}
         self.progress('finish')
         self.write(self.state/'installation.json',record)
@@ -505,15 +520,16 @@ class Desktop:
         graphics.ensure_closed();value=self.installed()
         if not value:return {'cleaned':0}
         count=0
-        for instance in value['previous']:
-            self.progress('cleanup');self.cleanup_instance(value['container'],instance);count+=1
+        for reference in value['previous']:
+            self.progress('cleanup');self.cleanup_instance(reference['container'],reference['instance']);count+=1
         value['previous']=[];self.write(self.state/'installation.json',value)
         return {'cleaned':count}
 
     def uninstall(self):
         graphics.ensure_closed();value=self.installed()
         if value:
-            for name in [value['current'],*value['previous']]:self.cleanup_instance(value['container'],name)
+            references=[{'container':value['container'],'instance':value['current']},*value['previous']]
+            for reference in references:self.cleanup_instance(reference['container'],reference['instance'])
             self.write(self.state/'retained-profile.json',{'container':value['container'],'instance':value['current']})
             graphics._plain(self.state/'installation.json').unlink()
         return {'personal_data_kept':True}
@@ -541,6 +557,19 @@ class Desktop:
             graphics.atomic_write(backup,before,self.state)
             if graphics._read(path,4*1024*1024)!=before:raise ValueError('operation_busy')
             path.unlink()
+        return self.snapshot()
+
+    def migrate_record(self):
+        """Publish a validated legacy record; preserve the original for recovery."""
+        graphics.ensure_closed()
+        path=self.state/'installation.json';before=graphics._read(path,4*1024*1024)
+        value=self.installed()
+        if value is None:raise ValueError('not_installed')
+        if self.read(path)['format']!=INSTALL_FORMAT:
+            backup=self.state/('installation-v1-backup-'+uuid.uuid4().hex+'.json')
+            graphics.atomic_write(backup,before,self.state)
+            if graphics._read(path,4*1024*1024)!=before:raise ValueError('operation_busy')
+            self.write(path,value)
         return self.snapshot()
 
 
@@ -573,6 +602,7 @@ def dispatch(desktop,request):
         if action=='uninstall' and not data:return desktop.uninstall()
         if action=='diagnostics' and not data:return desktop.diagnostics()
         if action=='reset-installation' and not data:return desktop.reset_installation()
+        if action=='migrate-record' and not data:return desktop.migrate_record()
         raise ValueError('request_invalid')
 
 

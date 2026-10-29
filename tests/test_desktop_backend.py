@@ -72,7 +72,7 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual((new/'LocalData/saves/1.s7local').read_bytes(),b'opaque save fixture')
         self.assertEqual((new/'LocalData/local-profile-id.txt').read_bytes(),b'opaque identity fixture')
         self.assertEqual((old/'compatibility.json').read_bytes(),old_manifest)
-        self.assertEqual(self.desktop.installed()['previous'],[old.name])
+        self.assertEqual(self.desktop.installed()['previous'],[{'container':str(old.parent),'instance':old.name}])
 
     def test_failed_or_cancelled_preparation_never_switches_active_version(self):
         self.prepare();before=(self.desktop.state/'installation.json').read_bytes();old=self.desktop.game()
@@ -83,6 +83,48 @@ class DesktopTests(unittest.TestCase):
         with self.assertRaises(backend.Cancelled):self.prepare()
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
         self.assertTrue((old/'Base/Bin/Settlers7R.exe').is_file())
+
+    def test_destination_change_keeps_previous_locations_and_cleanup_preserves_personal_data(self):
+        self.prepare();old=self.desktop.game();(old/'LocalData/saves').mkdir()
+        (old/'LocalData/saves/keep.txt').write_bytes(b'personal');(old/'unknown.txt').write_bytes(b'unknown')
+        target=self.fixture.root/'other-drive'
+        self.desktop.install_game(self.fixture.source,target);new=self.desktop.game()
+        self.assertEqual(new.parent,target)
+        self.assertFalse(self.desktop.snapshot()['needs_repair'])
+        self.assertEqual(self.desktop.installed()['previous'],[{'container':str(old.parent),'instance':old.name}])
+        self.assertEqual((new/'LocalData/saves/keep.txt').read_bytes(),b'personal')
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            self.assertEqual(self.desktop.clean_old(),{'cleaned':1})
+        self.assertFalse((old/'Base/Bin/Settlers7R.exe').exists())
+        self.assertTrue((new/'Base/Bin/Settlers7R.exe').is_file())
+        self.assertEqual((old/'unknown.txt').read_bytes(),b'unknown')
+        self.assertEqual((old/'LocalData/saves/keep.txt').read_bytes(),b'personal')
+
+    def test_legacy_cross_container_record_recovers_only_exact_owned_default_instances(self):
+        self.prepare();old=self.desktop.game()
+        self.desktop.install_game(self.fixture.source,self.fixture.root/'moved')
+        value=self.desktop.installed();value.update(format=backend.FORMAT,previous=[old.name])
+        self.desktop.write(self.desktop.state/'installation.json',value)
+        before=(self.desktop.state/'installation.json').read_bytes()
+        self.assertFalse(self.desktop.snapshot()['needs_repair'])
+        self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
+        result=self.desktop.migrate_record();self.assertTrue(result['installed'])
+        self.assertEqual(self.desktop.read(self.desktop.state/'installation.json')['format'],backend.INSTALL_FORMAT)
+        backups=list(self.desktop.state.glob('installation-v1-backup-*.json'));self.assertEqual(len(backups),1)
+        self.assertEqual(json.loads(backups[0].read_bytes()),value)
+        self.assertEqual(backups[0].read_bytes(),before)
+        value['previous']=['a'*32];self.desktop.write(self.desktop.state/'installation.json',value)
+        with self.assertRaisesRegex(ValueError,'installation_invalid'):self.desktop.installed()
+
+    def test_uninstall_follows_cross_container_references_and_keeps_all_saves(self):
+        self.prepare();old=self.desktop.game();(old/'LocalData/saves').mkdir()
+        (old/'LocalData/saves/keep.txt').write_bytes(b'personal')
+        self.desktop.install_game(self.fixture.source,self.fixture.root/'moved');new=self.desktop.game()
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            self.desktop.uninstall()
+        for root in (old,new):
+            self.assertFalse((root/'Base/Bin/Settlers7R.exe').exists())
+            self.assertEqual((root/'LocalData/saves/keep.txt').read_bytes(),b'personal')
 
     def test_corrupt_preferences_are_left_in_old_copy_and_reset_in_repair(self):
         self.prepare();old=self.desktop.game();(old/quality.FILE).write_bytes(b'not json')
@@ -189,7 +231,7 @@ class DesktopTests(unittest.TestCase):
         self.assertTrue((self.fixture.source/'Base/Bin/Settlers7R.exe').is_file())
 
     def test_duplicate_active_version_cannot_be_cleaned_as_an_older_copy(self):
-        self.prepare();value=self.desktop.installed();value['previous']=[value['current']]
+        self.prepare();value=self.desktop.installed();value['previous']=[{'container':value['container'],'instance':value['current']}]
         self.desktop.write(self.desktop.state/'installation.json',value)
         with self.assertRaisesRegex(ValueError,'installation_invalid'):self.desktop.installed()
 
