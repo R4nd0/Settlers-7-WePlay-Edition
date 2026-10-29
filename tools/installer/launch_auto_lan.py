@@ -64,7 +64,7 @@ def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
         raise
 
 
-def run(args, *, picker=None):
+def run(args, *, picker=None, network=None):
     root = compatibility.plain(args.bundle)
     if (root / 'INSTALLATION-INCOMPLETE.txt').exists():
         raise ValueError('Die Installation ist noch nicht abgeschlossen.')
@@ -84,8 +84,13 @@ def run(args, *, picker=None):
         expected = compatibility.verify(root)['content_id']
         launch_local.verify_bundle(root)
         lan_autoconnect.checkpoint(cancel)
-        interfaces = enumerate_interfaces()
-        directory = LanDiscovery(interfaces)
+        if network is None:
+            interfaces = enumerate_interfaces()
+            directory = LanDiscovery(interfaces)
+        else:
+            # An owned Internet transport supplies exactly its verified overlay.
+            # Never discover or offer a coordinator on a physical default route.
+            interfaces, directory = network()
         # Explicit injection remains available to diagnostics. The shipped
         # desktop/CLI path never opens a room picker before the game browser.
         choice = picker(root, directory, interfaces, expected) if picker is not None else None

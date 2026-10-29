@@ -2,16 +2,18 @@
 
 Research date: 2026-10-29. This is an implementation handoff for WePlay. The
 user requested research and notification of the networking chat, including free
-alternatives. Installing a VPN, creating accounts or networks, and implementing
-Internet mode are outside this research milestone.
+alternatives. The user subsequently selected EasyTier and authorized direct
+integration. See [RC3-INTERNET.md](RC3-INTERNET.md) for the implemented preview
+and its observed verification limits; the comparisons below retain the research
+context.
 
 ## Recommendation
 
 The user clarified that the solution should be serverless and directly
-integrable. **Evaluate a bundled EasyTier helper first** for that requirement;
+integrable. **EasyTier is the selected, bundled helper** for that requirement;
 the next section distinguishes direct-only operation from public bootstrap and
-relay infrastructure. This is an integration candidate, not a tested WePlay
-transport.
+relay infrastructure. Windows adapter/firewall lifecycle and loopback transport
+have been tested. Actual Internet gameplay is still unverified.
 
 For the earlier separate-client approach, **externally installed ZeroTier One
 and a private RFC1918 IPv4 network** remain an option. Its free Personal plan covers

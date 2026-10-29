@@ -176,7 +176,7 @@ internal static class Shortcuts
                 // A same-named unrelated shortcut is kept.
                 if (File.Exists(path) && !string.Equals((string)link.TargetPath, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) continue;
                 link.TargetPath = Environment.ProcessPath!; link.WorkingDirectory = Program.AppRoot;
-                link.IconLocation = Environment.ProcessPath!; link.Description = "Settlers 7: WePlay Edition · RC2.1"; link.Save();
+                link.IconLocation = Environment.ProcessPath!; link.Description = "Settlers 7: WePlay Edition · RC3 Internet Preview"; link.Save();
                 System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link);
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException){ }
@@ -218,6 +218,16 @@ internal sealed class MainForm : Form
     private readonly Label homeTitle = new() { AutoSize = true, Font = new Font("Segoe UI",22,FontStyle.Bold) };
     private readonly Label homeInfo = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly TextBox player = new() { Dock = DockStyle.Fill, MaxLength = 24 };
+    private readonly TextBox internetPlayer = new() { Dock = DockStyle.Fill, MaxLength = 24 };
+    private readonly TextBox internetJoin = new() { Dock = DockStyle.Fill, MaxLength = 2048, UseSystemPasswordChar = true };
+    private readonly TextBox internetInvite = new() { Dock = DockStyle.Fill, ReadOnly = true, UseSystemPasswordChar = true };
+    private readonly TextBox internetEndpoint = new() { Dock = DockStyle.Fill, MaxLength = 256 };
+    private readonly ComboBox internetMode = Combo();
+    private readonly Label internetPolicy = new() { AutoSize = true, MaximumSize = new Size(850,0) };
+    private Button internetCopy = null!, internetEnd = null!, internetCreate = null!, internetJoinButton = null!;
+    private readonly List<Control> internetSetupControls = [];
+    private Control internetEndpointField = null!, internetInviteField = null!, internetEndRow = null!;
+    private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
@@ -227,7 +237,7 @@ internal sealed class MainForm : Form
     private readonly Dictionary<Control,string> accessibleFields = [];
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Top, Height = 120, ScrollBars = ScrollBars.Vertical };
     private readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Visible = false };
-    private TabPage homePage = null!, lanPage = null!, graphicsPage = null!, helpPage = null!;
+    private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!;
 
     public MainForm(bool initialSetup = false, bool test = false)
     {
@@ -322,17 +332,42 @@ internal sealed class MainForm : Form
     {
         homePage = new TabPage(); Bind(homePage,"play"); homePage.BackColor = Color.White;
         lanPage = new TabPage(); Bind(lanPage,"lan"); lanPage.BackColor = Color.White;
+        internetPage = new TabPage(); Bind(internetPage,"internet"); internetPage.BackColor = Color.White;
         graphicsPage = new TabPage(); Bind(graphicsPage,"graphics"); graphicsPage.BackColor = Color.White;
         helpPage = new TabPage(); Bind(helpPage,"help"); helpPage.BackColor = Color.White;
-        tabs.TabPages.AddRange([homePage,lanPage,graphicsPage,helpPage]);
+        tabs.TabPages.AddRange([homePage,lanPage,internetPage,graphicsPage,helpPage]);
         var home = Stack(homePage); Add(home,homeTitle); Add(home,homeInfo);
-        Add(home,Buttons(Button("playButton",()=>Play(false),true),Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        Add(home,Buttons(Button("playButton",()=>Play(false),true),Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;}),Button("internet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
         var lan = Stack(lanPage);
         var lanTitle=Label("lanTitle");lanTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(lan,lanTitle);
         Add(lan,Label("lanIntro"));Add(lan,Field("player",player));
         Add(lan,Buttons(Button("lanStart",()=>Play(true),true)));
         Add(lan,Label("lanSteps"));Add(lan,Label("lanTrouble"));
         Add(lan,Buttons(Button("lanPermission",Firewall)));Add(lan,lanNotice);
+        var internetScroll = new Panel { Dock=DockStyle.Fill, AutoScroll=true }; internetPage.Controls.Add(internetScroll);
+        var net = Stack(internetScroll);
+        var netTitle = Label("internetTitle"); netTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold); Add(net,netTitle);
+        Add(net,Label("internetIntro")); Add(net,Field("player",internetPlayer));
+        void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
+        AddSetup(Field("internetMode",internetMode)); Add(net,internetPolicy);
+        internetEndpointField=Field("internetEndpoint",internetEndpoint);AddSetup(internetEndpointField);
+        internetCreate=Button("internetCreate",()=>PlayInternet(true),true); AddSetup(Buttons(internetCreate));
+        AddSetup(Field("internetJoinCode",internetJoin));
+        internetJoinButton=Button("internetJoin",()=>PlayInternet(false)); AddSetup(Buttons(internetJoinButton));
+        internetCopy = new Button { AutoSize=true, MinimumSize=new Size(150,38), Padding=new Padding(10,3,10,3) };
+        Bind(internetCopy,"internetCopy"); internetCopy.Click += (_,_) =>
+        {
+            if(internetOperation && internetInvite.Text.Length>0)
+                try{Clipboard.SetText(internetInvite.Text);}catch(System.Runtime.InteropServices.ExternalException){status.Text=Lang.T("internetClipboardFailed");}
+        };
+        internetInviteField=Field("internetOwnCode",internetInvite,internetCopy);Add(net,internetInviteField);
+        internetEnd=new Button { AutoSize=true,MinimumSize=new Size(150,38),Padding=new Padding(10,3,10,3) };
+        Bind(internetEnd,"internetEnd"); internetEnd.Click += (_,_) =>
+        {
+            if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;internetEnd.Enabled=false;status.Text=Lang.T("cancelRequested");}
+        };
+        internetEndRow=Buttons(internetEnd);Add(net,internetEndRow); Add(net,Label("internetSafety"));
+        internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
         var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
         Add(g,Label("rendererInfo")); Add(g,activeRenderer);
         Add(g,Field("renderer",renderer)); Add(g,Field("gpu",gpu)); Bind(keepDisplay,"keepDisplay"); Add(g,keepDisplay);
@@ -368,11 +403,13 @@ internal sealed class MainForm : Form
         int oldRenderer=renderer.SelectedIndex,oldWindow=window.SelectedIndex;
         renderer.Items.Clear();renderer.Items.AddRange([Lang.T("auto"),Lang.T("modern"),Lang.T("native")]); renderer.SelectedIndex=Math.Max(0,oldRenderer);
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
+        int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
         if(snapshot.ValueKind==JsonValueKind.Object) LoadSnapshot(snapshot,false);
         homeTitle.Text=Lang.T(gameRunning?"running":"ready"); homeInfo.Text=Lang.T(gameRunning?"runningInfo":"playIntro");
         if(!busy) status.Text=Lang.T("ready");
+        UpdateInternetControls();
     }
     private async Task Initialise()
     {
@@ -398,12 +435,13 @@ internal sealed class MainForm : Form
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
         if(replaceFields)
         {
-            destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();
+            destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();internetPlayer.Text=player.Text;
             string policy=value.GetProperty("renderer_policy").GetString()!;renderer.SelectedIndex=policy=="dxvk"?1:policy=="native"?2:0;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
+        internetAvailable=value.TryGetProperty("internet_available",out var available)&&available.GetBoolean();
         activeRenderer.Text=Lang.T("activeRenderer")+": "+Lang.T(value.GetProperty("renderer").GetString()=="dxvk"?"modern":"native");
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
@@ -539,6 +577,50 @@ internal sealed class MainForm : Form
         else await Backend.Run("play",new {},Receive);
         gameRunning=false;RestoreWindow();homeTitle.Text=Lang.T("ready");homeInfo.Text=Lang.T("playIntro");LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
     }
+    private void UpdateInternetControls()
+    {
+        bool direct=internetMode.SelectedIndex==1;
+        internetPolicy.Text=Lang.T(direct?"internetDirectInfo":"internetAssistedInfo");
+        internetEndpoint.Enabled=!busy&&direct;
+        internetMode.Enabled=internetPlayer.Enabled=internetJoin.Enabled=!busy;
+        if(internetCreate!=null)internetCreate.Enabled=!busy&&internetAvailable;
+        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable;
+        if(internetCopy!=null)internetCopy.Enabled=internetOperation&&internetInvite.Text.Length>0;
+        if(internetEnd!=null)internetEnd.Enabled=internetOperation&&!gameRunning&&!cancelRequested;
+        foreach(Control control in internetSetupControls)control.Visible=!internetOperation;
+        if(internetEndpointField!=null)internetEndpointField.Visible=!internetOperation&&direct;
+        if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&internetInvite.Text.Length>0;
+        if(internetEndRow!=null)internetEndRow.Visible=internetOperation;
+        internetInvite.Enabled=true;
+    }
+    private async Task PlayInternet(bool create)
+    {
+        player.Text=internetPlayer.Text;string name=ValidName();
+        string? invitation=create?null:internetJoin.Text;
+        if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
+        bool direct=internetMode.SelectedIndex==1;
+        string? endpoint=direct?internetEndpoint.Text:null;
+        internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);tabs.SelectedTab=internetPage;
+        using var channel=new InternetChannel();
+        Task privateTask=channel.Run(invitation,code=>
+        {
+            void Accept(){if(internetOperation){internetInvite.Text=code;UpdateInternetControls();}}
+            if(InvokeRequired)BeginInvoke(new Action(Accept));else Accept();
+        });
+        try
+        {
+            if(create)await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint},Receive);
+            else await Backend.Run("internet-join",new {player_name=name,channel=channel.Name},Receive);
+            channel.Dispose();await privateTask;
+            gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+        }
+        finally
+        {
+            channel.Dispose();
+            try{await privateTask;}catch(Exception){/* No private bytes enter exception details. */}
+            internetInvite.Clear();internetOperation=false;UpdateInternetControls();
+        }
+    }
     private void Receive(JsonElement value)
     {
         if(InvokeRequired){BeginInvoke(new Action(()=>Receive(value)));return;}
@@ -556,7 +638,12 @@ internal sealed class MainForm : Form
         {
             gameRunning=true;homeTitle.Text=Lang.T("running");homeInfo.Text=Lang.T("runningInfo");status.Text=Lang.T("running");progress.Visible=false;
         }
-        else if(kind=="game_finished"){gameRunning=false;status.Text=Lang.T("ready");}
+        else if(kind=="game_finished"){gameRunning=false;status.Text=Lang.T("ready");UpdateInternetControls();}
+        else if(kind=="internet_policy")
+        {
+            internetMode.SelectedIndex=value.GetProperty("mode").GetString()=="direct"?1:0;
+            UpdateInternetControls();
+        }
         else if(kind=="warning")
         {
             string code=value.GetProperty("code").GetString()!;status.Text=Lang.T(code);
@@ -565,11 +652,13 @@ internal sealed class MainForm : Form
     }
     private void SetBusy(bool value)
     {
-        busy=value;tabs.Enabled=!value;source.Enabled=destination.Enabled=installButton.Enabled=!value;language.Enabled=!value;
+        busy=value;tabs.Enabled=!value||internetOperation;source.Enabled=destination.Enabled=installButton.Enabled=!value;language.Enabled=!value;
+        foreach(TabPage page in tabs.TabPages)page.Enabled=!value||(internetOperation&&page==internetPage);
         foreach(var button in Descendants(setup).OfType<Button>())button.Enabled=!value;
         cancelButton.Visible=value&&setup.Visible;cancelButton.Enabled=true;
         if(value){status.Text=Lang.T("working");progress.Visible=true;progress.Style=ProgressBarStyle.Marquee;}
         else{cancelRequested=false;progress.Visible=false;DisplayEnabled();if(setup.Visible)installButton.Enabled=recoverState||source.SelectedIndex>=0;}
+        UpdateInternetControls();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -593,6 +682,23 @@ internal sealed class MainForm : Form
         Directory.CreateDirectory(folder);
         try
         {
+            string? pipeProbe=Environment.GetEnvironmentVariable("S7_TEST_PRIVATE_PROBE");
+            string? testPython=Environment.GetEnvironmentVariable("S7_TEST_PYTHON");
+            if(pipeProbe!=null&&testPython!=null)
+            {
+                Task.Run(async()=>
+                {
+                    using var channel=new InternetChannel();string received="";
+                    Task pump=channel.Run(null,value=>received=value);
+                    var start=new ProcessStartInfo(testPython){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
+                    foreach(string argument in new[]{"-I","-B",pipeProbe,"--channel",channel.Name})start.ArgumentList.Add(argument);
+                    using var client=Process.Start(start)??throw new Exception("Private channel client failed");
+                    await client.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                    await pump.WaitAsync(TimeSpan.FromSeconds(5));
+                    string output=await client.StandardOutput.ReadToEndAsync();
+                    if(client.ExitCode!=0||received!="weplay1.synthetic-pipe-fixture"||output.Contains("weplay1"))throw new Exception("Private channel round trip failed");
+                }).GetAwaiter().GetResult();
+            }
             if(!Lang.Read("en").Keys.ToHashSet().SetEquals(Lang.Read("de").Keys))throw new Exception("Translation keys differ");
             foreach(string locale in new[]{"en","de"})
                 if(Lang.Read(locale).Values.Any(text=>text.Contains("\u00c3")||text.Contains("\u00c2")||text.Contains("\ufffd")))
@@ -611,7 +717,11 @@ internal sealed class MainForm : Form
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
-                foreach(var page in new[]{form.homePage,form.lanPage,form.graphicsPage,form.helpPage})
+                form.internetAvailable=true;form.internetOperation=true;form.internetInvite.Text="weplay1.synthetic-pipe-fixture";form.SetBusy(true);
+                if(!form.internetCopy.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
+                    throw new Exception("Private Internet room controls failed");
+                form.internetInvite.Clear();form.internetOperation=false;form.SetBusy(false);
+                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
@@ -620,7 +730,9 @@ internal sealed class MainForm : Form
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
                 form.Close();
             }
-            File.WriteAllText(Path.Combine(folder,"result.json"),"{\"passed\":true,\"checks\":[\"translation_keys\",\"borderless_native_resolution\",\"native_gpu_filter_disabled\",\"bilingual_pages_rendered\"]}");return 0;
+            File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
+                passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
+                    "bilingual_pages_rendered","private_internet_controls"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

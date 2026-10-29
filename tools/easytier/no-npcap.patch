@@ -1,0 +1,52 @@
+--- a/easytier/src/common/network.rs
++++ b/easytier/src/common/network.rs
+@@ -298,19 +298,10 @@
+                 .map(Self::convert_windows_interface)
+                 .collect(),
+             Err(e) => {
+-                tracing::warn!(
+-                    ?e,
+-                    "failed to enumerate interfaces via network-interface, falling back to pnet"
+-                );
+-                match std::panic::catch_unwind(pnet::datalink::interfaces) {
+-                    Ok(ifaces) => ifaces,
+-                    Err(_) => {
+-                        tracing::error!(
+-                            "failed to enumerate interfaces via both network-interface and pnet"
+-                        );
+-                        Vec::new()
+-                    }
+-                }
++                // WePlay uses Windows adapter enumeration and Wintun only.
++                // Fail closed rather than importing the Npcap capture fallback.
++                tracing::error!(?e, "Windows interface enumeration failed");
++                Vec::new()
+             }
+         }
+     }
+--- a/easytier/build.rs
++++ b/easytier/build.rs
+@@ -146,9 +146,7 @@
+     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+     // enable thunk-rs when target os is windows and arch is x86_64 or i686
+-    if target_os == "windows" && (target_arch == "x86" || target_arch == "x86_64") {
+-        thunk::thunk();
+-    }
++    // WePlay targets Windows 10/11; no downloaded Windows 7 thunk libraries.
+ 
+     #[cfg(target_os = "windows")]
+     WindowsBuild::check_for_win();
+--- a/easytier/src/common/constants.rs
++++ b/easytier/src/common/constants.rs
+@@ -34,9 +34,4 @@
+ 
+ pub const WIN_SERVICE_WORK_DIR_REG_KEY: &str = "SOFTWARE\\EasyTier\\Service\\WorkDir";
+ 
+-pub const EASYTIER_VERSION: &str = git_version::git_version!(
+-    args = ["--abbrev=8", "--always", "--dirty=~"],
+-    prefix = concat!(env!("CARGO_PKG_VERSION"), "-"),
+-    suffix = "",
+-    fallback = env!("CARGO_PKG_VERSION")
+-);
++pub const EASYTIER_VERSION: &str = "2.6.4-weplay-npcap-free";

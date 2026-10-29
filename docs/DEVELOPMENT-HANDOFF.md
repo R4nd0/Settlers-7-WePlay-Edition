@@ -2,6 +2,47 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## RC3 integrated EasyTier preview, 2026-10-29
+
+The user selected EasyTier. The GUI/installer owner explicitly handed shared
+files and the live test slot to this chat through human-approved coordination.
+RC2.1 remains published unchanged. RC3 adds Internet create/join buttons,
+versioned private invitations, and a pinned EasyTier core/CLI sidecar. Default
+operation needs no own server/account but uses community bootstrap/STUN/relay;
+direct-only operation needs a reachable numeric endpoint and forbids relay.
+This is a preview, not an Internet-gameplay qualification or desync fix.
+
+The stock Windows core requires the non-redistributable Npcap Packet.dll. Our
+reviewed v2.6.4 build disables capture features/removes the enumeration fallback
+and does not require or distribute Npcap or WinDivert. Runtime hashes and all
+notices are pinned; the installer includes patched corresponding source and
+build instructions without upstream's prebuilt native binaries. See
+tools/easytier/README.md and docs/RC3-INTERNET.md.
+
+Only the scoped network worker elevates. It verifies installed imports and the
+interpreter against the app package, tracks the exact backend process creation,
+owns the core child and eight scoped firewall rules, and removes its temporary
+protected files. A real Windows test exposed missing inheritable IPC ACLs;
+these now explicitly grant only the invoking user, administrators and SYSTEM.
+Invitations travel through a random CurrentUserOnly .NET/Python pipe and never
+ordinary backend events/errors. The game/native ABI, content, exact-peer lease,
+memory, ownership, destination-v2 and disabled-private-creation guards remain.
+Renderer alignment occurs before the final full content verification.
+
+Observed on this PC: two real EasyTier processes connected P2P over loopback
+without TUN/public nodes/game; the compiled DE/EN UI and real private pipe passed.
+A separate minimal test copy then ran the actual UAC worker and Wintun adapter:
+the /24 adapter and eight rules appeared, then disappeared on normal close;
+private files were removed and system default routes/DNS stayed unchanged.
+No game was started in this network test, and no public node or second PC was
+used. The original installation and existing managed copies were not changed.
+132 targeted Python regression checks pass. The known simulation desync and
+actual Internet matches remain unverified.
+
+Build the preview with tools/desktop/build_rc2.py (historical filename), supplying
+the pinned runtime directory and upstream source ZIP. A new stage under work/
+and a new outputs/ destination are required. Do not refresh a published build.
+
 ## RC2.1 LAN-private creation fix, 2026-10-29
 
 The user explicitly requested forced-off/disabled Private game and an updated

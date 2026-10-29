@@ -6,6 +6,7 @@ the existing installer, profile journal, launch locks and LAN checks do the work
 import argparse
 from contextlib import contextmanager, redirect_stdout
 import hashlib
+import http.client
 import io
 import json
 import msvcrt
@@ -225,7 +226,8 @@ class Desktop:
                 'probe':self.read(self.state/'graphics-probe.json',{'devices':[],'failure':None}),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
-                'current':None,'update_available':False,'needs_repair':False}
+                'current':None,'update_available':False,'needs_repair':False,
+                'internet_available':self.read(self.package/'package.json',{}).get('internet_easytier',False) is True}
         if value:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
@@ -424,7 +426,50 @@ class Desktop:
                 selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
             self.record_ownership(root)
 
-    def play(self,request=None):
+    def internet_play(self,request,*,host):
+        if not install.package_manifest(self.package).get('internet_easytier',False):
+            raise ValueError('package_invalid')
+        required={'player_name','channel','mode','direct_endpoint'} if host else {'player_name','channel'}
+        if not isinstance(request,dict) or set(request)!=required:raise ValueError('request_invalid')
+        self.validate_lan({'player_name':request['player_name']})
+        if host and (request['mode'] not in ('assisted','direct') or
+                (request['mode']=='direct')!=(request['direct_endpoint'] is not None)):
+            raise ValueError('request_invalid')
+        from internet_private_channel import PrivateChannel
+        from internet_room import InternetError, parse, endpoint
+        with PrivateChannel(request['channel'],cancel_check=lambda:self.progress('internet_connect')) as channel:
+            invitation=channel.read()
+            if (invitation is None)!=host:raise InternetError('internet_invitation_invalid')
+            if not host:parse(invitation)
+            elif request['mode']=='direct':endpoint(request['direct_endpoint'])
+            options={'invitation':invitation,'mode':request.get('mode','assisted'),
+                     'direct_endpoint':request.get('direct_endpoint')}
+            return self.play({'player_name':request['player_name']},internet=options,
+                             invitation_ready=channel.invitation_ready)
+
+    def align_internet(self,root,interface,coordinator,host):
+        if host:return
+        from launch_lan import remote_configuration
+        from internet_room import InternetError
+        deadline=time.monotonic()+45
+        while True:
+            self.progress('internet_connect')
+            try:
+                configuration=remote_configuration(coordinator,interface.address)
+                break
+            except (OSError,ValueError,http.client.HTTPException):
+                if time.monotonic()>=deadline:raise InternetError('internet_coordinator_unreachable') from None
+                time.sleep(.2)
+        alternatives=self.alternatives(root)
+        actual=configuration.get('content_id')
+        mode=next((key for key,value in alternatives.items() if value==actual),None)
+        if mode is None:raise ValueError('version_mismatch')
+        probe=self.probe();self.renderer(root,mode,probe)
+        with graphics.session_lock(root):
+            selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
+        self.record_ownership(root)
+
+    def play(self,request=None,*,internet=None,invitation_ready=None):
         if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -443,10 +488,17 @@ class Desktop:
                 if game.poll() is None:game.terminate();game.wait(timeout=10)
                 raise
             self.emit('game_started',pid=game.pid)
+            if internet is not None:
+                desktop=self
+                class InternetObserver:
+                    def close(self):
+                        try:observer.close()
+                        finally:desktop.emit('game_finished',exit_code=game.poll())
+                return InternetObserver()
             return observer
         # Repair saved monitor selections after a real hotplug, before launch.
         probe=self.probe()
-        if request is None:mode=self.renderer(root,self.installed()['renderer_policy'],probe)
+        if request is None or internet is not None:mode=self.renderer(root,self.installed()['renderer_policy'],probe)
         else:
             self.align_lan(request);mode=choice._renderer(root,{})[0]
         with graphics.session_lock(root):
@@ -457,6 +509,14 @@ class Desktop:
                 server=str(root/'Server/S7Patcher.dll'),local_connect_probe=True,local_session_display_probe=False,
                 launch_game=True,saved_graphics=True,before_game=before,game_monitor=monitor)
             code=launch_local.run(args)
+        elif internet is not None:
+            import launch_internet
+            code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
+                player_name=request['player_name'],progress=self.progress,
+                cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,**internet),
+                invitation_ready=invitation_ready,
+                policy_ready=lambda mode:self.emit('internet_policy',mode=mode),
+                network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
         else:
             code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
                 player_name=request['player_name'],progress=self.progress,
@@ -597,6 +657,7 @@ def dispatch(desktop,request):
         if action=='play' and not data:return desktop.play()
         if action=='lan-list' and not data:return desktop.lan_list()
         if action=='lan-play':return desktop.play(data)
+        if action in ('internet-create','internet-join'):return desktop.internet_play(data,host=action=='internet-create')
         if action=='probe' and not data:return desktop.probe(refresh=True)
         if action=='verify' and not data:return desktop.verify()
         if action=='cleanup' and not data:return desktop.clean_old()
@@ -608,6 +669,7 @@ def dispatch(desktop,request):
 
 
 def error_code(error):
+    if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
         return error.code
     text=str(error)
@@ -631,7 +693,7 @@ def main():
     def emit(kind,**fields):
         with lock:
             output.write(json.dumps({'kind':kind,**fields},ensure_ascii=True)+'\n');output.flush()
-    desktop=None
+    desktop=None;request=None
     try:
         app=graphics._plain(args.app)
         if Path(__file__).resolve()!=app/'Package/Tools/installer/desktop_backend.py':raise ValueError('package_invalid')
@@ -641,7 +703,8 @@ def main():
             result=dispatch(desktop,request)
         emit('result',data=result);return 0
     except (OSError,ValueError,RuntimeError,TimeoutError,KeyError,TypeError) as error:
-        emit('error',code=error_code(error),detail=str(error)[:512]);return 2
+        private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join')
+        emit('error',code=error_code(error),detail='' if private else str(error)[:512]);return 2
     finally:
         if desktop is not None and desktop.cancel.exists():desktop.cancel.unlink()
 

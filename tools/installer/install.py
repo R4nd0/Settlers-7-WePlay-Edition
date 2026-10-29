@@ -28,12 +28,25 @@ LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
     'lan_discovery.py', 'lan_autoconnect.py', 'lobby_directory.py', 'lobby_picker.py', 'Choose-Lobby.ps1',
     'player_settings.py', 'Configure-LAN-Firewall.ps1'))
+INTERNET_TOOLS = tuple(('installer/' + name, name) for name in (
+    'internet_room.py', 'easytier_runtime.py', 'easytier_elevation.py', 'easytier-runtime.json',
+    'launch_internet.py', 'internet_private_channel.py', 'Configure-Internet-Firewall.ps1'))
 
 
 def lan_tools(manifest):
     # RC1 used an external picker. Its unchanged package remains valid.
     return tuple(item for item in LAN_LOBBY_TOOLS if item[0]!='installer/lan_autoconnect.py' or
                  'tools/installer/lan_autoconnect.py' in manifest['files'])
+
+
+def launcher_sources(manifest):
+    files=[('offline-ui/launch_local.py','launch_local.py'),('installer/compatibility.py','compatibility.py'),
+           ('installer/launch_lan.py','launch_lan.py'),('installer/start.py','start.py')]
+    for capability,items in (('graphics_choice',GRAPHICS_TOOLS),('display_selection',DISPLAY_TOOLS),
+                             ('desktop_launcher',DESKTOP_TOOLS),('automatic_lan',lan_tools(manifest)),
+                             ('internet_easytier',INTERNET_TOOLS)):
+        if manifest.get(capability,False):files.extend(items)
+    return files
 
 
 def write_json(path, value):
@@ -62,10 +75,18 @@ def package_manifest(root):
         raise ValueError('Unbekannte LAN-Lobby-Version.')
     if type(manifest.get('desktop_launcher',False)) is not bool:
         raise ValueError('Unbekannte Desktop-Starter-Version.')
+    if type(manifest.get('internet_easytier',False)) is not bool:
+        raise ValueError('Unbekannte Internet-Transportversion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('internet_easytier',False):
+        if not manifest.get('automatic_lan',False) or any(
+                ('tools/'+original).lower() not in expected for original,_ in INTERNET_TOOLS):
+            raise ValueError('Die EasyTier-Integration im Paket ist unvollstaendig.')
+        from easytier_runtime import verify_runtime
+        verify_runtime(root)
     if manifest.get('lan_public_creation',False) and (not manifest.get('join_menu_update',False) or
             not manifest.get('automatic_lan',False) or any(name not in expected for name in
             ('tools/installer/lan_public_game.py','tools/offline-ui/lan-public-creation.json'))):
@@ -225,6 +246,9 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if manifest.get('automatic_lan', False):
         for original, target in lan_tools(manifest):
             shutil.copyfile(tools / original, destination / 'Launcher' / target)
+    if manifest.get('internet_easytier',False):
+        for original,target in INTERNET_TOOLS:
+            shutil.copyfile(tools/original,destination/'Launcher'/target)
     shutil.copyfile(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
               'files': {name: content.digest(destination / name) for name in
@@ -251,6 +275,8 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         launcher_tools += list(DESKTOP_TOOLS)
     if manifest.get('automatic_lan', False):
         launcher_tools += list(lan_tools(manifest))
+    if manifest.get('internet_easytier',False):
+        launcher_tools += list(INTERNET_TOOLS)
     for original, target in launcher_tools:
         if content.digest(tools / original) != content.digest(destination / 'Launcher' / target):
             raise ValueError('Starterkopie stimmt nicht ueberein.')

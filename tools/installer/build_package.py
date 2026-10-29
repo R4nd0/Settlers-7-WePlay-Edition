@@ -12,7 +12,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
@@ -31,7 +31,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -55,6 +55,10 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if (content.digest(dxvk_dll) != graphics_profile.DXVK_SHA256
                 or content.digest(dxvk_license) != LICENSE_SHA256):
             raise ValueError('DXVK distribution fingerprint mismatch')
+    if easytier_runtime is not None:
+        from easytier_runtime import verify_directory
+        easytier_runtime=verify_directory(easytier_runtime)
+        check_output_location(repo,output,(easytier_runtime,))
     version = '10.0.13'
     for path in (dotnet / 'dotnet.exe', dotnet / 'host/fxr' / version / 'hostfxr.dll',
                  dotnet / 'shared/Microsoft.NETCore.App' / version / 'System.Private.CoreLib.dll'):
@@ -72,6 +76,9 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         shutil.copyfile(dotnet / name, net / name)
     for relative in ('host/fxr/' + version, 'shared/Microsoft.NETCore.App/' + version):
         shutil.copytree(dotnet / relative, net / relative)
+    if easytier_runtime is not None:
+        shutil.copytree(easytier_runtime,output/'Runtime/easytier')
+        verify_directory(output/'Runtime/easytier')
     server = output / 'Payload/Server'; server.mkdir(parents=True)
     for name in ('S7Patcher.dll', 'S7Patcher.deps.json', 'S7Patcher.runtimeconfig.json'):
         shutil.copyfile(service / name, server / name)
@@ -89,6 +96,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names += [original for original, _ in DISPLAY_TOOLS]
     names += [original for original, _ in LAN_LOBBY_TOOLS]
     names += ['installer/lan_public_game.py','offline-ui/lan-public-creation.json']
+    if easytier_runtime is not None:
+        names += [original for original,_ in INTERNET_TOOLS]
     if dxvk_dll is not None:
         names += ['installer/graphics_distribution.py']
     if graphics_probe is not None:
@@ -104,6 +113,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'graphics_choice': True,
         'display_selection': True,
         'automatic_lan': True,
+        'internet_easytier': easytier_runtime is not None,
         'desktop_launcher': graphics_probe is not None,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
@@ -164,6 +174,8 @@ if __name__ == '__main__':
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--dxvk-dll'); parser.add_argument('--dxvk-license')
     parser.add_argument('--graphics-probe')
+    parser.add_argument('--easytier-runtime')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
-                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe))
+                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
+                easytier_runtime=args.easytier_runtime))

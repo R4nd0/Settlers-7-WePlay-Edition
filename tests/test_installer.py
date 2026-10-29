@@ -96,6 +96,25 @@ def prepare(source, output, specification, profile):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 install.package_manifest(self.package)
 
+    def test_internet_capability_copies_all_helpers_and_requires_runtime_validation(self):
+        for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS,*install.INTERNET_TOOLS):
+            if original!='lan/prepare.py':
+                self.write(self.package,'Tools/'+original,('# fixture '+original).encode())
+        self.write(self.package,'Runtime/easytier/easytier-core.exe',b'invented VPN')
+        self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,internet_easytier=True)
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with patch('easytier_runtime.verify_runtime') as verify:
+            self.prepare()
+        self.assertGreaterEqual(verify.call_count,1)
+        for original,target in install.INTERNET_TOOLS:
+            self.assertEqual((self.destination/'Launcher'/target).read_bytes(),(self.package/'Tools'/original).read_bytes())
+        with patch('easytier_runtime.verify_runtime',side_effect=ValueError('runtime rejected')):
+            with self.assertRaisesRegex(ValueError,'runtime rejected'):install.package_manifest(self.package)
+        self.data['files'].pop('tools/installer/launch_internet.py')
+        (self.package/'Tools/installer/launch_internet.py').unlink()
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'unvollstaendig'):install.package_manifest(self.package)
+
     def test_display_selection_installs_its_helper_without_requiring_it_in_old_packages(self):
         for original, _ in (*install.GRAPHICS_TOOLS, *install.DISPLAY_TOOLS):
             if original != 'lan/prepare.py':

@@ -1,0 +1,17 @@
+{
+  "format": "weplay-easytier-runtime-v1",
+  "version": "2.6.4-weplay-npcap-free",
+  "upstream": "https://github.com/EasyTier/EasyTier",
+  "source_sha256": "57eb069465ad52bc328bec597c820163afc94d85469e9299f2b8b210c71897b4",
+  "patch_sha256": "2b33471d1259ce5f0a2e270b6d427def7bef41eb58661343fae6e80dfa4c2307",
+  "files": {
+    "easytier-cli.exe": "5285a5a8133162ddbf1c1d7221fd24f860b7f599688b37057cc2eac98150eea8",
+    "easytier-core.exe": "db15b13152597d95933f8887aac012d348663781b6cfb1ab6f5b5262e06facee",
+    "GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "SOURCE.txt": "780201c04a2a39c99acd995f79e035c4c370d388c11329bfea4f1da7921983d6",
+    "THIRD-PARTY-NOTICES.txt": "900cd1a6f2528c78cdea88cf5cd0fbb18ca25d4dcbb43f78df3b43c9e5f7dbdf",
+    "WINTUN-LICENSE.txt": "183adac21e7d96c508c8fd34d394b7b6708bc81564ad1bad61ab66143a008cd2",
+    "wintun.dll": "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce"
+  }
+}
