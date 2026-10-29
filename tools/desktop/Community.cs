@@ -7,6 +7,14 @@ internal static class Community
 {
     public const string DiscordCode = "j2eQgVzssc";
     public const string DiscordUrl = "https://discord.gg/" + DiscordCode;
+    public const string DonationUrl = "https://example.invalid/removed-personal-link";
+
+    public static void OpenDonation()
+    {
+        try { Process.Start(new ProcessStartInfo(DonationUrl) { UseShellExecute=true }); }
+        catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        { throw new BackendError("donationOpenFailed", ""); }
+    }
 
     public static void OpenDiscord()
     {

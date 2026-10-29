@@ -263,15 +263,19 @@ internal sealed class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=2,RowCount=2 };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=3,RowCount=2 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
             Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
         Bind(discordLink,"discordOpen");discordLink.LinkClicked+=(_,_)=>
         {try{Community.OpenDiscord();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
-        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,2);
-        footer.Controls.Add(status,0,1);footer.Controls.Add(discordLink,1,1);
+        var donationLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
+            Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DonationUrl };
+        Bind(donationLink,"donationOpen");donationLink.LinkClicked+=(_,_)=>
+        {try{Community.OpenDonation();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,3);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(donationLink,1,1);footer.Controls.Add(discordLink,2,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
@@ -422,6 +426,10 @@ internal sealed class MainForm : Form
         Add(h,Buttons(Button("discordOpen",()=>{Community.OpenDiscord();return Task.CompletedTask;}),
             Button("discordCopyLink",()=>{try{Clipboard.SetText(Community.DiscordUrl);status.Text=Lang.T("discordLinkCopied");}
                 catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardFailed","");}return Task.CompletedTask;})));
+        Add(h,Label("donationTitle"));Add(h,Label("donationInfo"));
+        var donationAddress=new LinkLabel { AutoSize=true, Text=Community.DonationUrl,AccessibleDescription=Community.DonationUrl };
+        donationAddress.LinkClicked+=async (_,_)=>await Guard(()=>{Community.OpenDonation();return Task.CompletedTask;});
+        Add(h,donationAddress);Add(h,Buttons(Button("donationPayPal",()=>{Community.OpenDonation();return Task.CompletedTask;})));
     }
 
     private void ApplyLanguage()
@@ -796,6 +804,9 @@ internal sealed class MainForm : Form
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
+                var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
+                using(var supportImage=new Bitmap(form.Width,form.Height))
+                {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
                 form.tabs.Visible=false;form.setup.Visible=true;form.source.Items.Add(new Item("C:\\Fixture\\Original","C:\\Fixture\\Original"));form.source.SelectedIndex=0;form.setupNotice.Text=Lang.T("found");Application.DoEvents();
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
                 form.Close();

@@ -2,6 +2,21 @@
 
 Updated 2026-10-28. Baseline implementation commit: `b94c978`.
 
+## RC3.3 voluntary community support, 2026-10-29
+
+The owner requested https://example.invalid/removed-personal-link as a donation link for
+R4nd0 R4nd0 and operation of the WePlay bot. RC3.3 adds a persistent Support
+WePlay footer link and a bilingual Help section naming the recipient and showing
+the exact URL. Only a deliberate click opens that fixed HTTPS link in the
+default browser; no amount, account data or payment is submitted by the launcher.
+The existing compiled DE/EN UI and private-pipe checks pass. No new runtime,
+game, service, transport or bot payload is required for this launcher change.
+The new installer is outputs/S7-WePlay-RC3.3-Community-Preview/Setup.exe;
+the bundled launcher passed the same UI/private-pipe check. Its package file
+inventory exactly matches RC3.2, so the prepared game's contract is unchanged.
+Setup: 104,641,970 bytes, SHA-256
+f26ba79f42c390162634e6a933ccf086ad3bdc40eac7504685548138383b8cd8.
+
 ## External Discord directory implementation, 2026-10-29
 
 The user confirmed the installed Gateway bot and its three commands, then chose

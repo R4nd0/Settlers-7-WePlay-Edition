@@ -1,6 +1,6 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3.2 · Discord-Spielanzeige",
+  "version": "RC3.3 · WePlay-Community",
   "setupTitle": "WePlay Edition einrichten",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Deine Original-Spieldateien bleiben unverändert. Wir erstellen eine getrennte Kopie und richten die Grafik automatisch ein.",
@@ -224,5 +224,10 @@
   "discord_publish_failed": "Die Discord-Anzeige kann gerade nicht aktualisiert werden. Dein Spiel läuft weiter; alte Meldungen verfallen automatisch.",
   "discord_status_invalid": "Der lokale Spielstatus konnte nicht geprüft werden. Es werden keine ungeprüften Daten veröffentlicht.",
   "discord_unavailable": "Diese WePlay-Version enthält noch keine automatische Discord-Anzeige. Aktualisiere den Starter.",
-  "discord_windows_required": "Die private Discord-Verbindung benötigt Windows."
+  "discord_windows_required": "Die private Discord-Verbindung benötigt Windows.",
+  "donationOpen": "WePlay unterstützen",
+  "donationTitle": "R4nd0 und den WePlay-Bot unterstützen",
+  "donationInfo": "Mit einer freiwilligen Spende unterstützt du R4nd0 R4nd0 und den Betrieb des WePlay-Bots. Der PayPal-Link führt direkt zu R4nd0 R4nd0.",
+  "donationPayPal": "Über PayPal spenden",
+  "donationOpenFailed": "PayPal konnte nicht geöffnet werden. Verwende https://example.invalid/removed-personal-link in deinem Browser."
 }

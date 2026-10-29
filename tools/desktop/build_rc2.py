@@ -1,4 +1,4 @@
-"""Build the RC3.2 Internet/Discord Preview from pinned inputs."""
+"""Build the RC3.3 Community Preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -52,7 +52,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.2 External Discord Preview','network_revision':4,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC3.3 Community Preview','network_revision':4,'game_bits':32,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',

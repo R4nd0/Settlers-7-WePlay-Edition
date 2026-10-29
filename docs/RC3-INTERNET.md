@@ -1,4 +1,9 @@
-# WePlay RC3.2 Internet and external Discord Preview
+# WePlay RC3.3 Community Preview
+
+**Support WePlay** in the launcher footer opens the owner's PayPal page at
+https://example.invalid/removed-personal-link. The Help page explains that this is voluntary
+support for R4nd0 R4nd0 and operation of the WePlay bot. Clicking opens a
+browser; the launcher never chooses an amount or submits a payment.
 
 This preview adds integrated EasyTier Internet rooms to the existing local and
 LAN modes. It is a new build; the published RC2.1 installer is unchanged.
