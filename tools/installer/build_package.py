@@ -12,12 +12,12 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, WINDOWS_API_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, WINDOWS_API_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
 SERVICE_SHA256 = 'b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206'
-ARCHIVE_SHA256 = '38edae6dd347e9bc4afb9f3474285e8458f3d712dd058492f56bacc066ce15e4'
+ARCHIVE_SHA256 = '38ec2b865459e6af19b1291edc402e43bd37f46e783bd3c2b15d5156b42f5bcd'
 
 
 def check_output_location(repo, output, inputs):
@@ -107,6 +107,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names += [original for original, _ in LAN_LOBBY_TOOLS]
     names += ['installer/lan_public_game.py','offline-ui/lan-public-creation.json']
     names += list(ACHIEVEMENT_PACKAGE_TOOLS)
+    names += list(CARTOGRAPHER_PACKAGE_TOOLS)
     if easytier_runtime is not None:
         names += [original for original,_ in INTERNET_TOOLS]
     if dxvk_dll is not None:
@@ -133,6 +134,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'discord_directory': graphics_probe is not None and easytier_runtime is not None,
         'update_patcher': graphics_probe is not None,
         'achievement_notifications_disabled': True,
+        'cartographer_context': True,
         'windows_helpers': True,
         'patched_archive_sha256': ARCHIVE_SHA256,
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})

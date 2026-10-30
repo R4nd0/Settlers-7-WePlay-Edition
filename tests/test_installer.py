@@ -80,6 +80,31 @@ def prepare(source, output, specification, profile):
         self.assertEqual((self.source / 'Base/BBA/map.bba').read_bytes(), b'invented map')
         with self.assertRaisesRegex(ValueError, 'veraendert'): content.verify(self.destination)
 
+    def test_cartographer_stage_runs_after_existing_archive_stages_and_is_required_when_declared(self):
+        for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS):
+            if original!='lan/prepare.py':self.write(self.package,'Tools/'+original,b'# fixture')
+        stages=[('update_join_menu','offline-ui/join-menu-update.json',b'invented patched archive',b'join'),
+                ('lan_public_game','offline-ui/lan-public-creation.json',b'join',b'public'),
+                ('achievement_notifications','offline-ui/achievement-notifications.json',b'public',b'achievements'),
+                ('cartographer_context','offline-ui/cartographer-context.json',b'achievements',b'context')]
+        for name,recipe,before,after in stages:
+            code=f'def build_archive(raw,spec):\n    assert raw=={before!r}\n    return {after!r}\n'
+            self.write(self.package,'Tools/installer/'+name+'.py',code.encode())
+            self.write(self.package,'Tools/'+recipe,b'{}')
+        self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,join_menu_update=True,
+            lan_public_creation=True,achievement_notifications_disabled=True,cartographer_context=True,
+            patched_archive_sha256=hashlib.sha256(b'context').hexdigest())
+        record=self.package/'package.json';record.write_text(json.dumps(self.data))
+        self.prepare()
+        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'context')
+        content.verify(self.destination)
+        self.data['cartographer_context']='yes';record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
+        self.data['cartographer_context']=True
+        (self.package/'Tools/offline-ui/cartographer-context.json').unlink()
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Kartograph'):install.package_manifest(self.package)
+
     def test_alternate_data_layout_becomes_canonical(self):
         (self.source / 'Data').mkdir()
         (self.source / 'Base').rename(self.source / 'Data/Base')

@@ -58,14 +58,36 @@ def host_memory():
 
 
 class HostMemoryError(RuntimeError):
-    pass
+    def __init__(self, message, *, code='memory_low'):
+        super().__init__(message)
+        self.code = code
 
 
 def require_host_headroom(sample=None):
+    """Conservative budget for the isolated graphics experiments only."""
     sample = host_memory() if sample is None else sample
     if min(sample['host_physical_free'],sample['host_commit_free']) < 4096*MIB:
         raise HostMemoryError('Zu wenig freier Systemspeicher fuer den Grafikversuch; '
                            'mindestens 4 GiB freier RAM und Commit-Spielraum erforderlich.')
+
+
+def require_game_headroom(sample=None):
+    """Production preflight: available physical pages are not a memory quota.
+
+    Windows can page and trim working sets when the game requests memory. Block
+    only the critical system-commit level already used by the sentinel. Leave
+    physical-memory pressure to warnings and the running process sentinel. This does
+    not allocate/reserve memory or predict whether future allocations succeed.
+    """
+    sample = host_memory() if sample is None else sample
+    for key in ('host_physical_free', 'host_commit_free'):
+        if type(sample.get(key)) is not int or sample[key] < 0:
+            raise HostMemoryError('Systemspeicherzaehler nicht verfuegbar.', code='memory_status_failed')
+    if sample['host_commit_free'] <= 1024*MIB:
+        raise HostMemoryError('Windows meldet akuten Speicherdruck: hoechstens 1 GiB '
+                              'zusaetzlicher Commit-Spielraum ist verfuegbar.',
+                              code='memory_commit_low')
+    return sample
 
 
 def process_pressure(sample):

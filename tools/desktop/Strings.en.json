@@ -128,7 +128,7 @@
   "cancelled": "The operation was cancelled. Your previous working copy was kept.",
   "probe_invalid": "The graphics check could not be read. Try the check again.",
   "update_required": "Finish the update before starting the game.",
-  "memory_low": "At least 4 GiB of free RAM and commit headroom is required. Close unused applications and try again.",
+  "memory_low": "Windows reports too little additional memory capacity. Close unused applications and try again.",
   "game_running": "Close all running Settlers 7 games before changing this installation.",
   "disk_low": "There is not enough free disk space for a separate game copy.",
   "lan_failed": "LAN preparation failed. Check the selected home network and allow private LAN access using the button in this window.",
@@ -261,5 +261,9 @@
   "phase_update_prepare": "Preparing update installation …",
   "phase_update_handoff": "Handing over the update …",
   "updateGlobal": "Install version {0}",
-  "updateLastFailure": "The last update did not finish: {0}"
+  "updateLastFailure": "The last update did not finish: {0}",
+  "memory_commit_low": "Windows reports critical memory pressure: at most 1 GiB of additional memory capacity is available. Close unused applications and try again.",
+  "memory_physical_warning": "Little physical memory is currently available. Windows can page memory and the game can still start. Loading may take longer and stuttering may occur.",
+  "memory_status_failed": "Windows memory measurements could not be read reliably. Please try starting again.",
+  "memory_commit_warning": "Windows memory headroom is limited. The game can still start; larger maps or longer games may need more memory."
 }

@@ -141,12 +141,14 @@ class Desktop:
                 ('offline-ui/patch-spec.json',''),('offline-ui/join-menu-update.json',''),
                 ('installer/lan_public_game.py',''),('offline-ui/lan-public-creation.json','')]
         mapped += [(name,'') for name in install.ACHIEVEMENT_PACKAGE_TOOLS]
+        mapped += [(name,'') for name in install.CARTOGRAPHER_PACKAGE_TOOLS]
         names={('tools/'+name).lower() for name,_ in mapped}
         records={name:digest for name,digest in value['files'].items() if name in names or
                  name.startswith(('runtime/','payload/server/')) or name in
                  ('payload/uplay_r1_loader.dll','payload/graphics/d3d9.dll','tools/license.txt')}
         flags={key:value.get(key,False) for key in ('graphics_choice','display_selection','automatic_lan','desktop_launcher')}
         if value.get('achievement_notifications_disabled',False):flags['achievement_notifications_disabled']=True
+        if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('windows_helpers',False):
             flags['windows_helpers']=True
             records.update({name:digest for name,digest in value['files'].items() if name=='tools/installer/windows_system.py'})
@@ -188,8 +190,7 @@ class Desktop:
                            DXVK_STATE_CACHE='0',DXVK_LOG_PATH=str(self.state))
         devices=[];failure=None
         try:
-            import memory_guard
-            memory_guard.require_host_headroom()
+            self.check_start_memory()
             result=subprocess.run([str(program),str(dll)],cwd=self.state,env=environment,
                 capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
             parsed=json_record(result.stdout,65536)
@@ -539,6 +540,14 @@ class Desktop:
             selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
         self.record_ownership(root)
 
+    def check_start_memory(self):
+        import memory_guard
+        sample=memory_guard.require_game_headroom()
+        if sample['host_commit_free']<4096*memory_guard.MIB:
+            self.emit('warning',code='memory_commit_warning')
+        elif sample['host_physical_free']<=1536*memory_guard.MIB:
+            self.emit('warning',code='memory_physical_warning')
+
     def play(self,request=None,*,internet=None,invitation_ready=None):
         if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
@@ -548,7 +557,7 @@ class Desktop:
         graphics.ensure_closed()
         import memory_guard
         def before():
-            graphics.ensure_closed();memory_guard.require_host_headroom();self.progress('starting')
+            graphics.ensure_closed();self.check_start_memory();self.progress('starting')
         def monitor(game):
             observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
                 memory_guard.Probe(game,root/'Base/Bin/Settlers7R.exe'),
@@ -759,7 +768,8 @@ def error_code(error):
     if re.fullmatch('update_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
-    if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
+    if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing',
+                                    'memory_commit_low','memory_status_failed'):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy',

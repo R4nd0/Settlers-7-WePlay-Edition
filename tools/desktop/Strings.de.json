@@ -128,7 +128,7 @@
   "cancelled": "Der Vorgang wurde abgebrochen. Deine bisherige funktionsfähige Kopie bleibt erhalten.",
   "probe_invalid": "Die Grafikprüfung konnte nicht gelesen werden. Starte die Prüfung erneut.",
   "update_required": "Schließe vor dem Spielstart die Aktualisierung ab.",
-  "memory_low": "Es werden mindestens 4 GiB freier RAM und Speicherzusicherung benötigt. Schließe unbenutzte Anwendungen und versuche es erneut.",
+  "memory_low": "Windows meldet zu wenig zusätzlichen Speicherspielraum. Schließe ungenutzte Anwendungen und versuche es erneut.",
   "game_running": "Beende alle laufenden Siedler-7-Spiele, bevor du diese Installation änderst.",
   "disk_low": "Für eine getrennte Spielkopie ist nicht genügend Speicherplatz frei.",
   "lan_failed": "Die LAN-Vorbereitung ist fehlgeschlagen. Prüfe das gewählte Heimnetz und erlaube den privaten LAN-Zugriff über die Schaltfläche in diesem Fenster.",
@@ -261,5 +261,9 @@
   "phase_update_prepare": "Bereite Update-Installation vor …",
   "phase_update_handoff": "Übergebe die Aktualisierung …",
   "updateGlobal": "Version {0} installieren",
-  "updateLastFailure": "Das letzte Update wurde nicht abgeschlossen: {0}"
+  "updateLastFailure": "Das letzte Update wurde nicht abgeschlossen: {0}",
+  "memory_commit_low": "Windows meldet akuten Speicherdruck: höchstens 1 GiB zusätzlicher Speicherspielraum ist verfügbar. Schließe ungenutzte Anwendungen und versuche es erneut.",
+  "memory_physical_warning": "Wenig freier Arbeitsspeicher. Windows kann Speicher auslagern; der Spielstart bleibt möglich. Dabei kann es zu längeren Ladezeiten und Rucklern kommen.",
+  "memory_status_failed": "Windows-Speicherwerte konnten nicht zuverlässig gelesen werden. Bitte versuche den Start erneut.",
+  "memory_commit_warning": "Der Windows-Speicherspielraum ist begrenzt. Der Start bleibt möglich; größere Karten oder längere Partien können mehr Speicher benötigen."
 }

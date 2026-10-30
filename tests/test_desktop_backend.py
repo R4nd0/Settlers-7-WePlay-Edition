@@ -46,6 +46,35 @@ class DesktopTests(unittest.TestCase):
 
     def prepare(self):return self.desktop.install_game(self.fixture.source)
 
+    def test_low_physical_ram_warns_but_reaches_regular_game_start_callback(self):
+        self.prepare();order=[]
+        def run(args):
+            args.before_game();order.append('game_start');return 0
+        sample={'host_physical_free':700*memory_guard.MIB,'host_commit_free':16000*memory_guard.MIB}
+        with patch.object(memory_guard,'host_memory',return_value=sample), \
+                patch.object(backend.launch_local,'run',side_effect=run):
+            self.desktop.play()
+        self.assertEqual(order,['game_start'])
+        self.assertIn(('warning',{'code':'memory_physical_warning'}),self.events)
+
+    def test_low_system_commit_stops_before_the_regular_game_start_callback(self):
+        self.prepare();order=[]
+        def run(args):
+            args.before_game();order.append('game_start');return 0
+        sample={'host_physical_free':16000*memory_guard.MIB,'host_commit_free':1000*memory_guard.MIB}
+        with patch.object(memory_guard,'host_memory',return_value=sample), \
+                patch.object(backend.launch_local,'run',side_effect=run):
+            with self.assertRaises(memory_guard.HostMemoryError) as failure:
+                self.desktop.play()
+        self.assertEqual(order,[])
+        self.assertEqual(backend.error_code(failure.exception),'memory_commit_low')
+
+    def test_commit_below_old_four_gib_threshold_warns_without_blocking(self):
+        sample={'host_physical_free':700*memory_guard.MIB,'host_commit_free':2500*memory_guard.MIB}
+        with patch.object(memory_guard,'host_memory',return_value=sample):
+            self.desktop.check_start_memory()
+        self.assertEqual(self.events,[('warning',{'code':'memory_commit_warning'})])
+
     def test_detect_supported_originals_once_and_reject_changed_or_linked_sources(self):
         found=game_detection.detect([self.fixture.source,self.fixture.source,self.fixture.root/'missing'])
         self.assertEqual([x['path'] for x in found],[str(self.fixture.source.resolve())])
@@ -202,6 +231,15 @@ class DesktopTests(unittest.TestCase):
         self.assertNotEqual(self.desktop.package_id(),before)
         self.assertTrue(self.desktop.snapshot()['update_available'])
 
+    def test_cartographer_recipe_and_capability_participate_in_game_contract(self):
+        self.prepare();package=self.desktop.package;before=self.desktop.package_id()
+        record=package/'package.json';value=json.loads(record.read_bytes())
+        value['cartographer_context']=True;record.write_bytes(graphics.encoded(value))
+        flagged=self.desktop.package_id();self.assertNotEqual(flagged,before)
+        value['files']['tools/offline-ui/cartographer-context.json']='a'*64
+        record.write_bytes(graphics.encoded(value))
+        self.assertNotEqual(self.desktop.package_id(),flagged)
+
     def test_explicit_metadata_recovery_backs_up_unknown_record_without_touching_games(self):
         self.prepare();root=self.desktop.game();before=(root/'Base/Bin/Settlers7R.exe').read_bytes()
         record=self.desktop.state/'installation.json';record.write_bytes(b'foreign or damaged record')
@@ -299,7 +337,7 @@ class ProbeTests(unittest.TestCase):
             with patch.object(install,'package_manifest',return_value=expected), \
                     patch.object(graphics,'DXVK_SHA256',content.digest(dll)),patch.object(graphics,'ensure_closed'), \
                     patch.object(desktop,'displays',return_value=[{'adapter':'Fixture GPU'}]), \
-                    patch.object(memory_guard,'require_host_headroom'), \
+                    patch.object(desktop,'check_start_memory'), \
                     patch.object(subprocess,'run',side_effect=[subprocess.TimeoutExpired('owned probe',25),
                          SimpleNamespace(returncode=0,stdout=b'{"format":"s7-render-probe-v1","devices":["Fixture GPU"]}')]) as child:
                 first=desktop.probe();self.assertEqual(first['devices'],[]);self.assertEqual(first['failure'],'probe_failed')

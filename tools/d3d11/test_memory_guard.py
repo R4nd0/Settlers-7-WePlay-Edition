@@ -126,6 +126,25 @@ class MemoryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 guard.require_host_headroom({'host_physical_free':ram*guard.MIB,'host_commit_free':commit*guard.MIB})
 
+    def test_game_start_accepts_low_physical_ram_with_windows_commit_available(self):
+        for ram in (0, 700, 4095, 8192):
+            sample={'host_physical_free':ram*guard.MIB,'host_commit_free':16000*guard.MIB}
+            with self.subTest(ram=ram):
+                self.assertEqual(guard.require_game_headroom(sample),sample)
+
+    def test_game_start_rejects_critical_commit_and_unknown_measurements(self):
+        sample={'host_physical_free':8192*guard.MIB,'host_commit_free':1024*guard.MIB+1}
+        guard.require_game_headroom(sample)
+        for commit in (0,1024*guard.MIB):
+            with self.subTest(commit=commit),self.assertRaises(guard.HostMemoryError) as failure:
+                guard.require_game_headroom(dict(sample,host_commit_free=commit))
+            self.assertEqual(failure.exception.code,'memory_commit_low')
+        for bad in ({},dict(sample,host_physical_free=-1),dict(sample,host_commit_free=True),
+                    dict(sample,host_commit_free=float('nan'))):
+            with self.subTest(bad=bad),self.assertRaises(guard.HostMemoryError) as failure:
+                guard.require_game_headroom(bad)
+            self.assertEqual(failure.exception.code,'memory_status_failed')
+
     def test_host_counts_use_page_size_and_system_commit_not_helper_va(self):
         def fill(pointer,size):
             value=pointer._obj

@@ -27,6 +27,7 @@ DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detectio
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
+CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
@@ -92,7 +93,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','windows_helpers'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -120,6 +121,9 @@ def package_manifest(root):
     if manifest.get('achievement_notifications_disabled',False) and (not manifest.get('lan_public_creation',False) or
             any(('tools/'+name).lower() not in expected for name in ACHIEVEMENT_PACKAGE_TOOLS)):
         raise ValueError('Die Errungenschaftsanpassung im Paket ist unvollstaendig.')
+    if manifest.get('cartographer_context',False) and (not manifest.get('achievement_notifications_disabled',False) or
+            any(('tools/'+name).lower() not in expected for name in CARTOGRAPHER_PACKAGE_TOOLS)):
+        raise ValueError('Die Kartograph-Anpassung im Paket ist unvollstaendig.')
     if manifest.get('lan_public_creation',False) and (not manifest.get('join_menu_update',False) or
             not manifest.get('automatic_lan',False) or any(name not in expected for name in
             ('tools/installer/lan_public_game.py','tools/offline-ui/lan-public-creation.json'))):
@@ -264,6 +268,12 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         achievements=importlib.util.module_from_spec(achievement_spec);achievement_spec.loader.exec_module(achievements)
         recipe=json.loads((tools/'offline-ui/achievement-notifications.json').read_text(encoding='utf-8'))
         target.write_bytes(achievements.build_archive(target.read_bytes(),recipe))
+    if manifest.get('cartographer_context',False):
+        target=destination/'Base/BBA/Interface.bba'
+        context_spec=importlib.util.spec_from_file_location('s7_installer_cartographer',tools/'installer/cartographer_context.py')
+        context=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(context)
+        recipe=json.loads((tools/'offline-ui/cartographer-context.json').read_text(encoding='utf-8'))
+        target.write_bytes(context.build_archive(target.read_bytes(),recipe))
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     shutil.copyfile(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')

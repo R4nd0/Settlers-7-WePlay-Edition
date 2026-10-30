@@ -1,0 +1,26 @@
+{
+  "format": "s7-cartographer-context-v1",
+  "source_archive_sha256": "38edae6dd347e9bc4afb9f3474285e8458f3d712dd058492f56bacc066ce15e4",
+  "patched_archive_sha256": "38ec2b865459e6af19b1291edc402e43bd37f46e783bd3c2b15d5156b42f5bcd",
+  "files": [
+    {
+      "path": "Script/local/menu/panel/menu/control/mainState.lua",
+      "source_sha256": "145c8e0c1054349646661d46405cf16ec2590fd269facc3b5bd2fe3aadbcb09e",
+      "patched_sha256": "7ea0c4faef575083d3d1b4beee9ed81526e872533614814d3a44c3dd7b060b8d",
+      "edits": [
+        {
+          "offset": 26206,
+          "before_hex": "6c6f63616c20793d66756e6374696f6e2863296c6f63616c20693d4a5b635b6e28313735295d5d696620693d3d6c5b6e28313335295d7468656e",
+          "after_utf8": "local y=function(c)local i=J[c[n(175)]]\nif i==M and not e[\"Game\"][\"InMapMode\"]() then\n l.weplayPendingMapForge=c\n if not e[\"loadingScreen\"][\"isCreated\"]() then\n  e[\"loadingScreen\"][\"create\"](e[\"loadingScreen\"][\"creationMode\"][\"backgroundMap\"],nil,nil)\n end\n return\nend\nl.weplayPendingMapForge=nil\nif i==l[n(135)]then",
+          "reason": "Load the existing menu-world context on demand before opening MapForge; defer the original action until InMapMode"
+        },
+        {
+          "offset": 32617,
+          "before_hex": "6c5b6e28313332295d5b6e28313636295d2829696620655b6e28313530295d5b6e28333034295d2829616e64206e6f7420655b6e28333039295d5b6e28313733295d28297468656e",
+          "after_utf8": "if l.weplayPendingMapForge and e[\"Game\"][\"InMapMode\"]() then\n local pending=l.weplayPendingMapForge\n l.weplayPendingMapForge=nil\n y(pending)\nend\nl[n(132)][n(166)]()if e[n(150)][n(304)]()and not e[n(309)][n(173)]()then",
+          "reason": "Load the existing menu-world context on demand before opening MapForge; defer the original action until InMapMode"
+        }
+      ]
+    }
+  ]
+}
