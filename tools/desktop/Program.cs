@@ -275,21 +275,17 @@ internal sealed class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=4,RowCount=2 };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=3,RowCount=2 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
             Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
         Bind(discordLink,"discordOpen");discordLink.LinkClicked+=(_,_)=>
         {try{Community.OpenDiscord();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
-        var donationLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
-            Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DonationUrl };
-        Bind(donationLink,"donationOpen");donationLink.LinkClicked+=(_,_)=>
-        {try{Community.OpenDonation();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
         globalUpdateLink=new LinkLabel { AutoSize=true,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,Padding=new Padding(12,0,0,0),Visible=false };
         globalUpdateLink.LinkClicked+=async (_,_)=>await Guard(InstallUpdate);
-        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,4);
-        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(donationLink,2,1);footer.Controls.Add(discordLink,3,1);
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,3);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordLink,2,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
@@ -445,10 +441,6 @@ internal sealed class MainForm : Form
         Add(h,Buttons(Button("discordOpen",()=>{Community.OpenDiscord();return Task.CompletedTask;}),
             Button("discordCopyLink",()=>{try{Clipboard.SetText(Community.DiscordUrl);status.Text=Lang.T("discordLinkCopied");}
                 catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardFailed","");}return Task.CompletedTask;})));
-        Add(h,Label("donationTitle"));Add(h,Label("donationInfo"));
-        var donationAddress=new LinkLabel { AutoSize=true, Text=Community.DonationUrl,AccessibleDescription=Community.DonationUrl };
-        donationAddress.LinkClicked+=async (_,_)=>await Guard(()=>{Community.OpenDonation();return Task.CompletedTask;});
-        Add(h,donationAddress);Add(h,Buttons(Button("donationPayPal",()=>{Community.OpenDonation();return Task.CompletedTask;})));
         var updateScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };updatesPage.Controls.Add(updateScroll);var u=Stack(updateScroll);
         var updateTitle=Label("updatesTitle");updateTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(u,updateTitle);
         Add(u,Label("updatesIntro"));Add(u,updateNotice);

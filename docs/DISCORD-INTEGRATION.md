@@ -24,8 +24,7 @@ has verified the HTTP Interactions Endpoint. The former local Gateway bot has
 been gracefully stopped. The automatic
 [board message](https://discord.com/channels/1565306702356815962/1565306705535959042/1565391361295917167)
 has been created in the configured channel; no synthetic games were published.
-The public [health endpoint](https://example.invalid/removed-personal-link)
-now returns 200/ready:true. Unsigned interaction
+The directory's public health endpoint returns 200/ready:true. Unsigned interaction
 requests and unauthenticated publisher checks return 401 in production.
 The old Gateway implementation remains available under tools/discord for
 migration; do not run two production directory writers.
