@@ -123,7 +123,7 @@ checks do not establish multiplayer simulation stability.
 ## Support and credits
 
 **[Support WePlay and the bot via PayPal](https://example.invalid/removed-personal-link).**
-Donations go to R4nd0 R4nd0 and are voluntary; the launcher only opens the
+Donations go to R4nd0 and are voluntary; the launcher only opens the
 payment page and never selects an amount or submits a payment.
 
 With love and thanks to **[Eisenmonoxid](https://github.com/Eisenmonoxid)**:
