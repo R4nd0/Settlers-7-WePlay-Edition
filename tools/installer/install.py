@@ -17,6 +17,9 @@ import compatibility as content
 
 FORMAT = 's7-patch-package-v1'
 EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
+# Identified by a read-only comparison of the owner's original Steam copy.
+# Its code/image layout differs; this is a rejection identity, not an allowlist.
+UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -146,6 +149,15 @@ def package_manifest(root):
     return manifest
 
 
+class UnsupportedSteamBuild(ValueError):
+    code = 'source_steam_unsupported'
+
+    def __init__(self):
+        super().__init__('Diese Steam-Spielversion wird noch nicht unterstuetzt. '
+                         'Der native WePlay-Adapter benoetigt eine Anpassung fuer diese EXE. '
+                         'Bitte vorerst die unterstuetzte Ubisoft-Connect-Installation verwenden.')
+
+
 def source_base(root):
     root = content.plain(root)
     bases = [root / name for name in ('Base', 'Data/Base') if (root / name / 'Bin/Settlers7R.exe').is_file()]
@@ -154,7 +166,10 @@ def source_base(root):
     base = content.plain(bases[0])
     exe = content.plain(base / 'Bin/Settlers7R.exe')
     archive = content.plain(base / 'BBA/Interface.bba')
-    if content.digest(exe) != EXPECTED_EXE or content.digest(archive) != EXPECTED_ARCHIVE:
+    exe_hash = content.digest(exe)
+    if exe_hash == UNSUPPORTED_STEAM_EXE:
+        raise UnsupportedSteamBuild()
+    if exe_hash != EXPECTED_EXE or content.digest(archive) != EXPECTED_ARCHIVE:
         raise ValueError('Diese Spielversion ist veraendert oder wird noch nicht unterstuetzt.')
     return base
 

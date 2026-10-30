@@ -769,7 +769,7 @@ def error_code(error):
     if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing',
-                                    'memory_commit_low','memory_status_failed'):
+                                    'memory_commit_low','memory_status_failed','source_steam_unsupported'):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy',

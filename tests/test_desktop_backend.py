@@ -81,6 +81,16 @@ class DesktopTests(unittest.TestCase):
         (self.fixture.source/'Base/Bin/Settlers7R.exe').write_bytes(b'changed')
         self.assertEqual(game_detection.detect([self.fixture.source]),[])
 
+    def test_identified_steam_rejection_is_localized_and_does_not_create_an_instance(self):
+        exe=self.fixture.source/'Base/Bin/Settlers7R.exe'
+        exe.write_bytes(b'invented unsupported Steam executable')
+        with patch.object(install,'UNSUPPORTED_STEAM_EXE',content.digest(exe)):
+            self.assertEqual(game_detection.detect([self.fixture.source]),[])
+            with self.assertRaises(install.UnsupportedSteamBuild) as failure:self.prepare()
+        self.assertEqual(backend.error_code(failure.exception),'source_steam_unsupported')
+        self.assertFalse((self.app/'Instances').exists())
+        self.assertFalse((self.app/'State/installation.json').exists())
+
     def test_setup_is_one_transaction_without_cmd_starters_and_records_ownership(self):
         original={p.relative_to(self.fixture.source):p.read_bytes() for p in self.fixture.source.rglob('*') if p.is_file()}
         result=self.prepare();root=self.desktop.game()

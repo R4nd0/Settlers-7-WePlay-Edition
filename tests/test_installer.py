@@ -112,6 +112,19 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_identified_steam_build_is_rejected_before_copying_without_weakening_exe_guard(self):
+        (self.source/'Data').mkdir()
+        (self.source/'Base').rename(self.source/'Data/Base')
+        exe=self.source/'Data/Base/Bin/Settlers7R.exe'
+        exe.write_bytes(b'invented unsupported Steam build')
+        before=content.inventory(self.source,('Data/Base',))
+        with patch.object(install,'UNSUPPORTED_STEAM_EXE',content.digest(exe)):
+            with self.assertRaises(install.UnsupportedSteamBuild) as failure:self.prepare()
+        self.assertEqual(failure.exception.code,'source_steam_unsupported')
+        self.assertFalse(self.destination.exists())
+        self.assertEqual(before,content.inventory(self.source,('Data/Base',)))
+        with self.assertRaises(ValueError):install.source_base(self.source)
+
     def test_graphics_choice_package_copies_all_runtime_helpers(self):
         for original, _ in install.GRAPHICS_TOOLS:
             # prepare.py is the archive fixture; preserve its behavior.
