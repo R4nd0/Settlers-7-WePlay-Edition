@@ -344,7 +344,7 @@ def restore(root):
     return _change(root, False)
 
 
-def launch_environment(root, inherited=None, *, device_name=None):
+def launch_environment(root, inherited=None, *, device_name=None, anisotropic_filtering=False):
     """Return a child environment for a verified active profile; perform no writes.
 
     The caller must hold its launcher session lock until its game exits. Logs
@@ -353,6 +353,8 @@ def launch_environment(root, inherited=None, *, device_name=None):
     A fixed shader compatibility setting avoids black water on the tested GPU.
     It is not a free-form environment or user-supplied configuration override.
     """
+    if type(anisotropic_filtering) is not bool:
+        raise ValueError('Ungueltige lokale Texturfilterung.')
     root = _preflight(root)
     # Startup checks the owned profile and the three established launcher
     # files, not all multi-gigabyte archives. Install/restore use full inventory.
@@ -373,7 +375,8 @@ def launch_environment(root, inherited=None, *, device_name=None):
         if name.upper() in owned:
             del result[name]
     result.update(DXVK_CONFIG_FILE=str(_plain(root / CONF)),
-                  DXVK_CONFIG=SHADER_COMPATIBILITY,
+                  DXVK_CONFIG=SHADER_COMPATIBILITY + (
+                      '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else ''),
                   DXVK_LOG_PATH=str(_plain(folder / 'logs')),
                   DXVK_SHADER_CACHE_PATH=str(_plain(folder / 'cache')))
     if device_name is not None:

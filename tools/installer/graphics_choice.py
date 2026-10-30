@@ -25,11 +25,13 @@ CANCELLED = 10
 def validate_choice(value):
     """Validate local choices; never accept hardware IDs or free-form argv."""
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
-            or not set(value) <= {'format', 'choice', 'simple_menu', 'display'}
+            or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
+    if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
+        raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
     name = value['choice']
     if name is not None and (not isinstance(name, str) or not name.strip()
             or name != name.strip() or any(unicodedata.category(c).startswith('C') for c in name)
@@ -38,6 +40,8 @@ def validate_choice(value):
     result = {'format': FORMAT, 'choice': name}
     if 'simple_menu' in value:
         result['simple_menu'] = value['simple_menu']
+    if 'anisotropic_filtering' in value:
+        result['anisotropic_filtering'] = value['anisotropic_filtering']
     if 'display' in value:
         result['display'] = display.validate(value['display'])
     return result
@@ -126,7 +130,8 @@ def saved_launch_environment(root, inherited=None):
     selected = _load_choice(root)
     mode, environment = _renderer(root, inherited)
     if mode == 'dxvk':
-        environment = graphics.launch_environment(root, environment, device_name=selected['choice'])
+        environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
+            anisotropic_filtering=selected.get('anisotropic_filtering', False))
     elif selected['choice'] is not None:
         raise ValueError('Die gespeicherte Grafikkarte passt nicht zum Standardrenderer.')
     if selected.get('display') is not None:
@@ -187,7 +192,8 @@ def choose_launch_environment(root, inherited=None):
     if current_mode != mode:
         raise ValueError('Das Grafikprofil wurde waehrend des Dialogs veraendert.')
     if mode == 'dxvk':
-        environment = graphics.launch_environment(root, environment, device_name=selected['choice'])
+        environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
+            anisotropic_filtering=selected.get('anisotropic_filtering', False))
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(),
                         renderer=mode, gpu=selected['choice'])

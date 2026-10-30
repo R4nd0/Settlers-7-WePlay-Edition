@@ -90,5 +90,15 @@ Unter **Grafik** bedeutet Automatisch, dass WePlay moderne Grafik bei vorhandene
 Unterstützung auswählt. Kompatible Grafik ist der Ausweichmodus bei Grafikproblemen.
 **Speichern** übernimmt die Einstellungen für den nächsten Spielstart.
 
+**Klare Landschaft** setzt hohe Textur-, Licht-, Schatten-, Wasser- und
+Bodendetails, lässt Objektdetails auf Mittel und schaltet Tiefenunschärfe aus.
+Spiel-Kantenglättung bleibt eingeschaltet. **Höchste Objektdetails** erhöht
+zusätzlich Objektdetails auf Hoch. Beide Vorlagen wählen die abschaltbare
+16× Texturfilterung für Moderne Grafik. Sie ändern weder Bildschirm/Auflösung
+noch CPU-Zuweisung, Bildratenlimit oder den einfachen Menümodus. Erst Speichern
+übernimmt die Vorlage. Bestehende Einstellungen werden nicht automatisch ersetzt.
+Prüfstand, Vergleich und Rückkehr zum bisherigen Bild:
+[DXVK-Bildqualität](DXVK-QUALITY.md).
+
 Weitere Details: [Internetverbindung](RC3-INTERNET.md),
 [Discord-Anzeige](DISCORD-INTEGRATION.md), [LAN](LAN-SPIELER.md).

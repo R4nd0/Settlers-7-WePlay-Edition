@@ -259,6 +259,7 @@ internal sealed class MainForm : Form
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
+    private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
     private readonly Label activeRenderer = new() { AutoSize = true };
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
@@ -473,11 +474,15 @@ internal sealed class MainForm : Form
         qualityGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); qualityGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
         string[] levels = ["ShaderQuality","TextureQuality","ObjectQuality","DistanceCulling","ShadowQuality","WaterQuality","ClutterQuality"];
         for (int i=0;i<levels.Length;i++) { var combo = Combo(); qualities[levels[i]]=combo; qualityGrid.Controls.Add(Field(levels[i],combo),i%2,i/2); }
-        Add(g,Label("quality")); Add(g,qualityGrid);
+        Add(g,Label("quality"));
+        Add(g,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
+            Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;})));
+        Add(g,Label("qualityPresetInfo")); Add(g,qualityGrid);
         var effectRow = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, WrapContents = true };
         foreach (string key in new[] { "Shadows","SSAO","DepthOfField","SunShafts","Parallax","Antialiasing" })
         { var box = new CheckBox { AutoSize = true, Margin = new Padding(0,8,18,8) }; Bind(box,key); effects[key]=box; effectRow.Controls.Add(box); }
-        Add(g,effectRow); Bind(simple,"simple"); Add(g,simple);
+        Add(g,effectRow); Bind(anisotropicFiltering,"anisotropicFiltering");Add(g,anisotropicFiltering);
+        Add(g,Label("anisotropicInfo"));Bind(simple,"simple"); Add(g,simple);
         var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
         monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
         window.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
@@ -555,6 +560,7 @@ internal sealed class MainForm : Form
             destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();internetPlayer.Text=player.Text;
             string policy=value.GetProperty("renderer_policy").GetString()!;renderer.SelectedIndex=policy=="dxvk"?1:policy=="native"?2:0;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
+            anisotropicFiltering.Checked=value.GetProperty("choice").TryGetProperty("anisotropic_filtering",out var filteringValue)&&filteringValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -691,6 +697,13 @@ internal sealed class MainForm : Form
     {
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
         gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
+        anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
+    }
+    private void ApplyQualityPreset(bool maximumObjects)
+    {
+        foreach(var pair in qualities)pair.Value.SelectedIndex=pair.Key=="ObjectQuality"&&!maximumObjects?1:2;
+        foreach(var pair in effects)pair.Value.Checked=pair.Key!="DepthOfField";
+        anisotropicFiltering.Checked=true;
     }
     private object GraphicsRequest(bool compatible=false)
     {
@@ -704,7 +717,8 @@ internal sealed class MainForm : Form
         string policy=compatible?"native":renderer.SelectedIndex==1?"dxvk":renderer.SelectedIndex==2?"native":"auto";
         string? card=compatible||policy=="native"?null:(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
-        return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output},quality,player_name=ValidName()};
+        return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
+            anisotropic_filtering=anisotropicFiltering.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -949,9 +963,22 @@ internal sealed class MainForm : Form
                 using var request=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 var output=request.RootElement.GetProperty("choice").GetProperty("display");
                 if(output.GetProperty("mode").GetString()!="borderless"||output.GetProperty("width").GetInt32()!=1920||form.resolution.Enabled)throw new Exception("Borderless controls failed");
+                if(form.anisotropicFiltering.Checked)throw new Exception("Legacy preferences force texture filtering");
+                form.ApplyQualityPreset(false);
+                using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
+                {
+                    var values=preset.RootElement.GetProperty("quality");
+                    if(values.GetProperty("DepthOfField").GetInt32()!=0||values.GetProperty("ObjectQuality").GetInt32()!=1||
+                        values.GetProperty("TextureQuality").GetInt32()!=2||!preset.RootElement.GetProperty("choice").GetProperty("anisotropic_filtering").GetBoolean())
+                        throw new Exception("Clear landscape preset failed");
+                }
+                form.ApplyQualityPreset(true);
+                if(form.qualities["ObjectQuality"].SelectedIndex!=2)throw new Exception("Object detail preset failed");
+                form.LoadSnapshot(json.RootElement);
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
+                if(form.anisotropicFiltering.Enabled)throw new Exception("Native texture filtering control enabled");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
                 void Capture(string name)
                 {
@@ -1014,8 +1041,12 @@ internal sealed class MainForm : Form
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
+                form.tabs.SelectedTab=form.graphicsPage;form.renderer.SelectedIndex=0;form.ApplyQualityPreset(false);
+                var graphicsScroll=form.graphicsPage.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
+                graphicsScroll.ScrollControlIntoView(form.qualities["ShaderQuality"]);Capture("graphics-quality");
+                graphicsScroll.ScrollControlIntoView(form.anisotropicFiltering);Capture("graphics-effects");
                 Size normalSize=form.Size;form.Size=form.MinimumSize;
-                foreach(var page in new[]{form.homePage,form.internetPage})
+                foreach(var page in new[]{form.homePage,form.internetPage,form.graphicsPage})
                 {form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);}
                 form.Size=normalSize;
                 form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
@@ -1034,7 +1065,7 @@ internal sealed class MainForm : Form
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
-                    "bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
+                    "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}

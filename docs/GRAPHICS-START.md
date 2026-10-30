@@ -1,5 +1,10 @@
 # Per-PC graphics choice and optional compatibility profile
 
+The optional landscape-clarity presets and 16× D3D9 texture filtering, including
+the matched real-game comparison and rollback, are documented in
+[DXVK-QUALITY.md](DXVK-QUALITY.md). They preserve the existing cap, water fix,
+GPU/output choice, simple menu and CPU/resource rules.
+
 The shared local and LAN launchers show the graphics dialog before starting
 the service or game. Cancelling starts neither. Check-only runs do not show
 it. The existing launcher session lock is held through selection and gameplay.

@@ -77,6 +77,37 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertNotIn('DXVK_FILTER_DEVICE_NAME', environment)
         self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous']['choice'], 'Fixture GPU')
 
+    def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
+        self.install()
+        before = content.verify(self.root)
+        parent = {'dxvk_config': 'd3d9.maxFrameRate = -1', 'PATH': 'fixture'}
+        for enabled in (True, False):
+            raw = graphics.encoded({'format': choice.FORMAT, 'choice': 'Fixture GPU',
+                                    'anisotropic_filtering': enabled})
+            environment, _ = self.choose(self.result(raw=raw), parent)
+            expected = graphics.SHADER_COMPATIBILITY + ('; d3d9.samplerAnisotropy = 16' if enabled else '')
+            self.assertEqual(environment['DXVK_CONFIG'], expected)
+            self.assertEqual(environment['DXVK_FILTER_DEVICE_NAME'], 'Fixture GPU')
+            self.assertNotIn('dxvk_config', environment)
+            self.assertEqual(choice.saved_launch_environment(self.root, parent)['DXVK_CONFIG'], expected)
+            self.assertEqual(content.verify(self.root), before)
+        self.assertEqual(parent['dxvk_config'], 'd3d9.maxFrameRate = -1')
+        record = (self.root / choice.CHOICE_FILE).read_bytes()
+        self.choose(self.result(code=choice.CANCELLED))
+        self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), record)
+        raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'anisotropic_filtering': True})
+        graphics.restore(self.root)
+        environment, _ = self.choose(self.result(raw=raw), {})
+        self.assertNotIn('DXVK_CONFIG', environment)
+        self.assertEqual(choice.saved_launch_environment(self.root, {}), {})
+
+    def test_filtering_rejects_coercion_and_arbitrary_config(self):
+        for value in (None, 0, 1, '16', 'true', [], {}, '16; d3d9.maxFrameRate = -1'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                choice.validate_choice({'format': choice.FORMAT, 'choice': None, 'anisotropic_filtering': value})
+            with self.assertRaises(ValueError):
+                graphics.launch_environment(self.root, {}, anisotropic_filtering=value)
+
     def test_cancellation_writes_nothing_and_returns_no_launch_environment(self):
         before = self.snapshot()
         environment, _ = self.choose(self.result(code=choice.CANCELLED, raw=b'ignored'))
@@ -346,6 +377,8 @@ foreach ($function in $functions) { . ([scriptblock]::Create($function.Extent.Te
 $models = @(Normalize-ModelNames @(' NVIDIA Fixture ', 'Intel Fixture', 'AMD Fixture', 'nvidia fixture', 'Other Vendor', "bad`nname", 13, '', ('x' * 257)))
 $invalidMenuRejected = $false
 try { [void](ConvertTo-ChoiceJson $null 'false') } catch { $invalidMenuRejected = $true }
+$invalidFilteringRejected = $false
+try { [void](ConvertTo-ChoiceJson $null $false $null 'true') } catch { $invalidFilteringRejected = $true }
 $output = @{
     models = $models
     selected = Resolve-PreferredChoice 'nvidia fixture' $models $true
@@ -354,6 +387,8 @@ $output = @{
     automatic = ConvertTo-ChoiceJson $null
     record = ConvertTo-ChoiceJson 'Other Vendor'
     simpleMenu = ConvertTo-ChoiceJson $null $true
+    filtering = ConvertTo-ChoiceJson $null $false $null $true
+    invalidFilteringRejected = $invalidFilteringRejected
     displayRecord = ConvertTo-ChoiceJson $null $true @{device='\\.\DISPLAY1';width=1280;height=720;mode='windowed'}
     badDisplayBoolean = Test-DisplayChoice @{device='\\.\DISPLAY1';width=$true;height=720;mode='windowed'}
     badDisplayMode = Test-DisplayChoice @{device='\\.\DISPLAY1';width=1280;height=720;mode=@('windowed')}
@@ -377,6 +412,8 @@ $output | ConvertTo-Json -Compress
         self.assertEqual(json.loads(value['automatic']), {'format': choice.FORMAT, 'choice': None, 'simple_menu': False})
         self.assertEqual(json.loads(value['record'])['choice'], 'Other Vendor')
         self.assertIs(json.loads(value['simpleMenu'])['simple_menu'], True)
+        self.assertIs(json.loads(value['filtering'])['anisotropic_filtering'], True)
+        self.assertTrue(value['invalidFilteringRejected'])
         self.assertEqual(json.loads(value['displayRecord'])['display'],
                          {'device':r'\\.\DISPLAY1','width':1280,'height':720,'mode':'windowed'})
         self.assertFalse(value['badDisplayBoolean'])

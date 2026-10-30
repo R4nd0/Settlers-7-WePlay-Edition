@@ -44,12 +44,14 @@ function Resolve-PreferredChoice {
 }
 
 function ConvertTo-ChoiceJson {
-    param($Choice, $SimpleMenu = $false, $Display = $null)
+    param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
     if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
+    if ($AnisotropicFiltering -isnot [bool]) { throw 'Invalid texture filtering choice.' }
     if (-not (Test-DisplayChoice $Display)) { throw 'Invalid display choice.' }
     $record = @{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu}
     if ($PSBoundParameters.ContainsKey('Display')) { $record.display = $Display }
+    if ($PSBoundParameters.ContainsKey('AnisotropicFiltering')) { $record.anisotropic_filtering = $AnisotropicFiltering }
     return ($record | ConvertTo-Json -Compress -Depth 5)
 }
 
@@ -84,10 +86,15 @@ try {
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
     $fields = @($previous.PSObject.Properties.Name)
-    if ($fields.Count -lt 2 -or $fields.Count -gt 4 -or
-        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display') }).Count -gt 0 -or
+    if ($fields.Count -lt 2 -or $fields.Count -gt 5 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering') }).Count -gt 0 -or
         'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
     $simpleMenuEnabled = $false
+    $anisotropicFilteringEnabled = $false
+    if ('anisotropic_filtering' -cin $fields) {
+        if ($previous.anisotropic_filtering -isnot [bool]) { throw 'Invalid previous texture filtering choice.' }
+        $anisotropicFilteringEnabled = $previous.anisotropic_filtering
+    }
     if ('simple_menu' -cin $fields) {
         if ($previous.simple_menu -isnot [bool]) { throw 'Invalid previous simple menu choice.' }
         $simpleMenuEnabled = $previous.simple_menu
@@ -250,6 +257,13 @@ try {
     $menuHint.Text = 'Disables the menu landscape and some castle/content previews. VSync follows the display refresh rate. Experimental: longer matches and LAN with this option are not yet verified.'
     [void]$form.Controls.Add($menuHint)
 
+    $filtering = New-Object Windows.Forms.CheckBox
+    $filtering.SetBounds(18, 550, 614, 30)
+    $filtering.Text = 'Sharper terrain textures (16x anisotropic filtering, DXVK only)'
+    $filtering.Checked = $anisotropicFilteringEnabled
+    $filtering.Enabled = ($RendererMode -eq 'dxvk')
+    [void]$form.Controls.Add($filtering)
+
     $start = New-Object Windows.Forms.Button
     $start.SetBounds(414, 590, 104, 30)
     $start.Text = 'Start'
@@ -275,6 +289,7 @@ try {
         $choice = [string]$combo.SelectedItem
     }
     $selectedSimpleMenu = [bool]$simpleMenu.Checked
+    $selectedFiltering = [bool]$filtering.Checked
     $selectedDisplay = $null
     if (-not $keepDisplay.Checked) {
         $entry = $displayEntries[$displayCombo.SelectedIndex]
@@ -284,7 +299,7 @@ try {
             mode=$(if ($modeCombo.SelectedIndex -eq 1) {'borderless'} else {'windowed'})}
     }
     $form.Dispose()
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering))
     exit 0
 } catch {
     [Console]::Error.WriteLine('The graphics dialog could not be displayed.')
