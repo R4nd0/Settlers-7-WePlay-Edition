@@ -97,7 +97,7 @@ existing key/pin pair. No user-facing updater can mint release signatures.
 After building and testing a future installer, use a new sequence and tag:
 
 ```powershell
-python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.6 --sequence 3 --tag v2.0.0-rc3.6 --notes-file work/updates/release-notes.txt
+python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.6 --sequence 4 --tag v2.0.0-rc3.6 --notes-file work/updates/release-notes.txt
 ```
 
 The tool validates the metadata, signs inside Windows cryptography, verifies the
@@ -113,7 +113,8 @@ gh release create v2.0.0-rc3.6 outputs/Your-Verified-Release/Setup.exe outputs/Y
 Publishing is an operator action; the implementation does not silently create
 or overwrite a release. Existing published assets remain intact. The signed
 RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 is published as
-v2.0.0-rc3.5 (sequence 2). Building/signing a local candidate does not publish it
+v2.0.0-rc3.5 (initial sequence 2, privacy rebuild sequence 3). RC3.6 uses sequence 4.
+Building/signing a local candidate does not publish it
 or update a user's PC; publication remains a separate operator action.
 Maintainer signing tools may use PowerShell/CNG locally; they are not shipped
 and do not add a PowerShell prerequisite to RC3.5 player operations.

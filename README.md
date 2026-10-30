@@ -7,13 +7,12 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**Released RC3.5 source:** the fingerprinted Ubisoft Connect History Edition build.
-The development adapter also supports the identified Steam History Edition
-executable: startup and a local two-client match have been observed.
-The released Setup below does not contain this port. See the
+**RC3.6 sources:** the fingerprinted Ubisoft Connect and Steam History Edition
+builds. Steam startup and a local two-client match have been observed; keep
+Steam running when using that edition. See the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.5 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.5/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.5) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.6 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.6/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.6) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
 ![WePlay RC3.5 launcher in English](docs/screenshots/launcher-en.png)
 
@@ -21,7 +20,7 @@ The released Setup below does not contain this port. See the
 
 ## What you can do
 
-| Feature | Available in RC3.5 |
+| Feature | Available in RC3.6 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
@@ -34,10 +33,10 @@ The released Setup below does not contain this port. See the
 
 ## Install or upgrade
 
-1. Download **Setup.exe** from the RC3.5 release. Close S7 and WePlay before upgrading.
+1. Download **Setup.exe** from the RC3.6 release. Close S7 and WePlay before upgrading.
 2. Run Setup; for an upgrade, use your existing WePlay application folder.
 3. Select your original supported History Edition when asked and let WePlay prepare or update its separate game copy.
-4. Install the **same RC3.5 build on every player's PC** before playing together.
+4. Install the **same RC3.6 build on every player's PC** before playing together.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.
@@ -47,7 +46,13 @@ Native graphics is also available.
 Saves and settings are preserved during managed updates. New releases appear
 automatically when you open the launcher; install them with **Install update**.
 Older launchers need this Setup once. If RC3.4's old update handoff is blocked by
-your script policy, run RC3.5 Setup directly — **do not change the policy**.
+your script policy, run the current Setup directly — **do not change the policy**.
+
+RC3.6 also includes clearer start/room guidance, optional DXVK landscape presets
+and the simple-menu Kartograph correction. Before switching host roles after
+a match, restart both games. Steam/Ubisoft mixed matches, Steam on two physical
+PCs and extended/endgame sessions remain unqualified; known desyncs are open.
+See the [RC3.6 changes and limits](docs/RC3.6-STEAM.md).
 
 Windows asks for administrator consent when network adapters or firewall rules
 need changing; the game runs without elevation. This preview's installer and

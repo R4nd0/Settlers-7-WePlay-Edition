@@ -4,7 +4,7 @@ The development adapter now has a separate, guarded Steam executable profile.
 The owner's unchanged Steam EXE reaches the main menu and local login in a
 separate copy with DXVK. Two isolated Steam-derived clients have also joined
 the same lobby, loaded a map and completed construction commands in a running
-multiplayer match. This port is not in the previously released RC3.5 Setup.
+multiplayer match. RC3.6 includes this port; the earlier RC3.5 Setup does not.
 
 ## Identified originals
 

@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.4. Use its `--help` and the
+currently building RC3.6. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,24 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.5 release and RC3.4 baseline
+## RC3.6 Steam Preview
+
+RC3.6 packages the guarded Steam adapter alongside Ubisoft support, the clearer
+launcher flow, optional DXVK quality presets and the simple-menu Kartograph fix.
+Version `2.0.0-rc3.6` uses signed preview sequence 4, after the RC3.5 privacy
+rebuild's sequence 3. The native adapter pin is
+`642c5163e74e8fdb2bb3153b3997fa345bf64e851c1f08eb622f9405fca402c5`;
+the service remains
+`b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206`.
+Use a matching Steam-capable base package with the builder. The normal native
+build remains two physical cores; private eight-core and same-PC lab builds
+are excluded. See [release scope and limitations](RC3.6-STEAM.md).
+
+## Historical RC3.5 release and RC3.4 baseline
+
+The following hashes and sequence2 describe the original RC3.5 build. Its later
+privacy rebuild uses sequence3 and a different installer hash; use the matching
+signed metadata/checksum assets for that release rather than these old values.
 
 RC3.5 adds [bounded Windows API helpers](WINDOWS-HELPERS.md),
 update sequence 2 and copied-game revision 6. Its native adapter, service and
