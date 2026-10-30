@@ -55,7 +55,7 @@ def candidates():
     return found[:256]
 
 
-def detect(locations=None):
+def detect(locations=None, *, steam_supported=False):
     good, seen = [], set()
     for location in (candidates() if locations is None else locations):
         try:
@@ -67,7 +67,7 @@ def detect(locations=None):
             # Quick existence check before hashing a candidate.
             if not any((root/name/'Bin/Settlers7R.exe').is_file() for name in ('Base','Data/Base')):
                 continue
-            install.source_base(root)
+            install.source_base(root,steam_supported=steam_supported)
             good.append({'path':str(root),'name':'The Settlers 7 - History Edition'})
         except (OSError, ValueError):
             continue

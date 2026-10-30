@@ -11,16 +11,18 @@
 #include "runtime_config.h"
 
 bool InstallOfflineNetworkGuard();
-bool InitializeOfflineBootstrap();
+bool InitializeOfflineBootstrap(uint32_t application_id);
 void PumpOfflineBootstrap();
 bool StartLanGroupNetworkGuard();
 bool StopLanGroupNetworkGuard();
 
 namespace {
 constexpr uint32_t ExpectedApplication = 11788;
+constexpr uint32_t ExpectedSteamApplication = 5321;
 constexpr UINT UnsupportedExitCode = 0xE0537001u;
 SRWLOCK state_lock = SRWLOCK_INIT;
 bool started = false;
+uint32_t started_application = 0;
 char local_id[37] = {};
 char local_name[65] = {};
 char local_ticket[129] = {};
@@ -48,16 +50,16 @@ __declspec(noreturn) void Unsupported() {
 }
 
 extern "C" int __cdecl UPLAY_Start(uint32_t application_id, uint32_t flags) {
-    if (application_id != ExpectedApplication || flags != 0) {
+    if ((application_id != ExpectedApplication && application_id != ExpectedSteamApplication) || flags != 0) {
         StateLock lock;
         last_error = "Unsupported application or start flags.";
         return 1;
     }
-    { StateLock lock; if (started) return 0; }
+    { StateLock lock; if (started) return started_application == application_id ? 0 : 1; }
     ReportLocalStatus("local-platform-start-requested");
     // Bootstrap calls InitializeLocalPlatform, so do not hold state_lock here.
     // The network guard is a prerequisite, including on repeated Start calls.
-    if (!InstallOfflineNetworkGuard() || !InitializeOfflineBootstrap() || !StartLanGroupNetworkGuard()) {
+    if (!InstallOfflineNetworkGuard() || !InitializeOfflineBootstrap(application_id) || !StartLanGroupNetworkGuard()) {
         ReportLocalStatus("local-platform-start-failed");
         StateLock lock;
         last_error = "Local network guard or bootstrap failed.";
@@ -66,6 +68,7 @@ extern "C" int __cdecl UPLAY_Start(uint32_t application_id, uint32_t flags) {
     StateLock lock;
     if (!configured) { last_error = "Local platform configuration is missing."; return 1; }
     started = true;
+    started_application = application_id;
     last_error = "";
     ReportLocalStatus("local-platform-started");
     return 0; // Verified EXE 4C7F3A..4C7F5A: zero is startup success.
@@ -76,6 +79,7 @@ extern "C" void __cdecl UPLAY_Quit() {
     StopLanGroupNetworkGuard();
     StateLock lock;
     started = false;
+    started_application = 0;
     ClearStorageState();
     // Keep the identity buffer valid until module unload: the client owns no
     // returned strings. There is no persisted identity or token to erase.

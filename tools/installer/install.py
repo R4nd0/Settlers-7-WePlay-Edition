@@ -18,8 +18,10 @@ import compatibility as content
 FORMAT = 's7-patch-package-v1'
 EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
 # Identified by a read-only comparison of the owner's original Steam copy.
-# Its code/image layout differs; this is a rejection identity, not an allowlist.
+# Its different native layout needs the exact Steam-capable adapter below.
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
+STEAM_EXE = UNSUPPORTED_STEAM_EXE
+STEAM_ADAPTER_SHA256 = '642c5163e74e8fdb2bb3153b3997fa345bf64e851c1f08eb622f9405fca402c5'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -108,6 +110,10 @@ def package_manifest(root):
             raise ValueError('Die EasyTier-Integration im Paket ist unvollstaendig.')
         from easytier_runtime import verify_runtime
         verify_runtime(root)
+    if type(manifest.get('steam_history',False)) is not bool:
+        raise ValueError('Unbekannte Steam-Adapterversion.')
+    if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != STEAM_ADAPTER_SHA256:
+        raise ValueError('Der Steam-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
     if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
@@ -153,12 +159,12 @@ class UnsupportedSteamBuild(ValueError):
     code = 'source_steam_unsupported'
 
     def __init__(self):
-        super().__init__('Diese Steam-Spielversion wird noch nicht unterstuetzt. '
-                         'Der native WePlay-Adapter benoetigt eine Anpassung fuer diese EXE. '
-                         'Bitte vorerst die unterstuetzte Ubisoft-Connect-Installation verwenden.')
+        super().__init__('Dieses Installationspaket enthaelt noch keinen passenden Steam-Adapter. '
+                         'Bitte ein neueres Paket mit Steam-Unterstuetzung oder die unterstuetzte '
+                         'Ubisoft-Connect-Installation verwenden. Die Originaldateien bleiben unveraendert.')
 
 
-def source_base(root):
+def source_base(root, *, steam_supported=False):
     root = content.plain(root)
     bases = [root / name for name in ('Base', 'Data/Base') if (root / name / 'Bin/Settlers7R.exe').is_file()]
     if len(bases) != 1:
@@ -167,6 +173,10 @@ def source_base(root):
     exe = content.plain(base / 'Bin/Settlers7R.exe')
     archive = content.plain(base / 'BBA/Interface.bba')
     exe_hash = content.digest(exe)
+    if exe_hash == STEAM_EXE and steam_supported:
+        if content.digest(archive) != EXPECTED_ARCHIVE:
+            raise ValueError('Diese Spielversion ist veraendert oder wird noch nicht unterstuetzt.')
+        return base
     if exe_hash == UNSUPPORTED_STEAM_EXE:
         raise UnsupportedSteamBuild()
     if exe_hash != EXPECTED_EXE or content.digest(archive) != EXPECTED_ARCHIVE:
@@ -227,7 +237,11 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if progress: progress('package',0,0)
     manifest = package_manifest(package)
     if progress: progress('source',0,0)
-    base = source_base(source)
+    base = source_base(source,steam_supported=manifest.get('steam_history',False))
+    source_exe_hash = content.digest(base/'Bin/Settlers7R.exe')
+    accepted_executables = (EXPECTED_EXE, STEAM_EXE) if manifest.get('steam_history', False) else (EXPECTED_EXE,)
+    if source_exe_hash not in accepted_executables:
+        raise ValueError('Spielprogramm hat sich nach der Versionspruefung geaendert.')
     emit('Pruefe die Spieldateien. Das kann etwas dauern ...')
     # Validate every source path before creating output; no links/hardlinks used.
     files = []
@@ -301,7 +315,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
               'files': {name: content.digest(destination / name) for name in
                         ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll', 'Base/BBA/Interface.bba')}}
-    if bundle['files']['Base/Bin/Settlers7R.exe'] != EXPECTED_EXE:
+    if bundle['files']['Base/Bin/Settlers7R.exe'] != source_exe_hash:
         raise ValueError('Spielprogramm hat sich waehrend der Vorbereitung geaendert.')
     # Detect modified payloads during copying, before publishing any starter.
     if progress: progress('verify',0,0)

@@ -112,6 +112,32 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_steam_source_requires_pinned_capability_and_preserves_original_executable(self):
+        exe = self.source / 'Base/Bin/Settlers7R.exe'
+        exe.write_bytes(b'invented exact Steam image')
+        checksum = content.digest(exe)
+        before = content.inventory(self.source, ('Base',))
+        with patch.object(install, 'STEAM_EXE', checksum), patch.object(install, 'UNSUPPORTED_STEAM_EXE', checksum):
+            with self.assertRaises(install.UnsupportedSteamBuild):self.prepare()
+            self.data['steam_history'] = True
+            record = self.package / 'package.json';record.write_text(json.dumps(self.data))
+            with self.assertRaisesRegex(ValueError, 'Steam-Adapter'):self.prepare()
+            adapter_hash = self.data['files']['payload/uplay_r1_loader.dll']
+            with patch.object(install, 'STEAM_ADAPTER_SHA256', adapter_hash):self.prepare()
+        self.assertEqual(content.digest(self.destination / 'Base/Bin/Settlers7R.exe'), checksum)
+        self.assertEqual(content.inventory(self.source, ('Base',)), before)
+        content.verify(self.destination)
+
+    def test_executable_changed_after_source_validation_is_not_adopted_as_a_new_baseline(self):
+        original = install.source_base
+        def change_after_check(root, **options):
+            base = original(root, **options)
+            (base / 'Bin/Settlers7R.exe').write_bytes(b'unknown concurrently replaced executable')
+            return base
+        with patch.object(install, 'source_base', side_effect=change_after_check):
+            with self.assertRaisesRegex(ValueError, 'Versionspruefung'):self.prepare()
+        self.assertFalse(self.destination.exists())
+
     def test_identified_steam_build_is_rejected_before_copying_without_weakening_exe_guard(self):
         (self.source/'Data').mkdir()
         (self.source/'Base').rename(self.source/'Data/Base')

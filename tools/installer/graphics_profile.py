@@ -34,6 +34,7 @@ COMPAT = 'compatibility.json'
 BUNDLE = 'local-bundle.json'
 FILES = (DLL, CONF, COMPAT)
 EXE_SHA256 = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
+STEAM_EXE_SHA256 = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 CONFIG = b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
 # PC1 Tanholm A/B/A: Auto renders black water; Strict restores the water path.
@@ -106,7 +107,7 @@ def _bundle(root, expected):
     hashes = value.get('files')
     if (value.get('format') != 's7-local-experimental-v1'
             or not isinstance(hashes, dict) or set(hashes) != {EXE, LOADER, MENU}
-            or hashes.get(EXE) != EXE_SHA256):
+            or hashes.get(EXE) not in (EXE_SHA256, STEAM_EXE_SHA256)):
         raise ValueError('Dieses Grafikprofil braucht eine vorbereitete lokale S7-Testkopie.')
     for name, digest in hashes.items():
         if (not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest)

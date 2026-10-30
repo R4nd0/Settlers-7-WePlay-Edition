@@ -15,6 +15,7 @@
 #include "cpu_affinity.h"
 #include "local_pair_lab.h"
 #include "desync_diagnostics.h"
+#include "steam_history.h"
 
 // The proven native dispatch bridge can be tested against the original HE
 // executable without enabling lab hashes, profiles or loopback slot addresses.
@@ -43,6 +44,7 @@ volatile LONG initialization = 0;
 volatile LONG error_code = None;
 volatile LONG login_active = 0;
 uintptr_t image_base = 0;
+bool steam_history = false;
 unsigned short udp_port = 0;
 char server_address[16] = "127.0.0.1";
 bool local_connect_probe = false;
@@ -113,8 +115,17 @@ __declspec(noreturn) void Stop(Error error) {
     __fastfail(7);
 }
 
+uintptr_t NativeVA(uintptr_t va) {
+    if (steam_history) {
+        bool found = false;
+        for (const auto& address : SteamHistory::Addresses)
+            if (address.ubisoft == va) { va = address.steam; found = true; break; }
+        if (!found) Stop(WrongExecutable);
+    }
+    return image_base + va - PreferredBase;
+}
 template<typename T> T Native(uintptr_t va) {
-    return reinterpret_cast<T>(image_base + va - PreferredBase);
+    return reinterpret_cast<T>(NativeVA(va));
 }
 
 // This native qString owns a char allocation whose allocator metadata starts
@@ -203,7 +214,7 @@ NativeResult* RejectForeignLocalConnect(NativeResult* output) {
 }
 unsigned char* CheckedGame(void* game) {
     auto* bytes = static_cast<unsigned char*>(game);
-    if (!bytes || *reinterpret_cast<uintptr_t*>(bytes) != image_base + 0x109C9D8 - PreferredBase)
+    if (!bytes || *reinterpret_cast<uintptr_t*>(bytes) != NativeVA(0x109C9D8))
         Stop(NativeGameObjectMismatch);
     void* facade = *reinterpret_cast<void**>(bytes + 0x54);
     if (!facade || *reinterpret_cast<void**>(static_cast<unsigned char*>(facade) + 0x0c))
@@ -268,7 +279,7 @@ void __fastcall UpdateLocalGame(void* self, void*) {
     if (initialization != 2 || !local_connect_probe || !self) return;
     if (LocalUpdateOwner(*Native<unsigned char**>(0x1379E14)) != self) return;
     auto* game = static_cast<unsigned char*>(self) + 0x50;
-    if (*reinterpret_cast<uintptr_t*>(game) != image_base + 0x109C9D8 - PreferredBase) {
+    if (*reinterpret_cast<uintptr_t*>(game) != NativeVA(0x109C9D8)) {
         if (!wrong_object) { wrong_object = true; ReportLocalStatus("local-connect-update-object-mismatch"); }
         return;
     }
@@ -290,9 +301,9 @@ bool LocalConnectionReady(void* self) {
     if (initialization != 2 || !local_connect_probe || !self ||
         self != *Native<void**>(0x1379E14)) return false;
     auto* owner = *reinterpret_cast<unsigned char**>(static_cast<unsigned char*>(self) + 0xa18);
-    if (!owner || *reinterpret_cast<uintptr_t*>(owner) != image_base + 0x10919BC - PreferredBase) return false;
+    if (!owner || *reinterpret_cast<uintptr_t*>(owner) != NativeVA(0x10919BC)) return false;
     auto* game = owner + 0x50;
-    if (*reinterpret_cast<uintptr_t*>(game) != image_base + 0x109C9D8 - PreferredBase) return false;
+    if (*reinterpret_cast<uintptr_t*>(game) != NativeVA(0x109C9D8)) return false;
     auto* facade = *reinterpret_cast<unsigned char**>(game + 0x54);
     // Report the real locally connected transport, not a fabricated Ubisoft SDK
     // session. Pending, disconnected and differently owned objects stay false.
@@ -302,10 +313,10 @@ bool LocalConnectionReady(void* self) {
 unsigned char* LocalUpdateOwner(unsigned char* network) {
     if (!network || network != *Native<unsigned char**>(0x1379E14)) return nullptr;
     auto* owner = *reinterpret_cast<unsigned char**>(network + 0xa18);
-    if (!owner || *reinterpret_cast<uintptr_t*>(owner) != image_base + 0x10919BC - PreferredBase)
+    if (!owner || *reinterpret_cast<uintptr_t*>(owner) != NativeVA(0x10919BC))
         return nullptr;
     auto* game = owner + 0x50;
-    if (*reinterpret_cast<uintptr_t*>(game) != image_base + 0x109C9D8 - PreferredBase) return nullptr;
+    if (*reinterpret_cast<uintptr_t*>(game) != NativeVA(0x109C9D8)) return nullptr;
     auto* facade = *reinterpret_cast<unsigned char**>(game + 0x54);
     if (!facade || *reinterpret_cast<void**>(facade + 0x0c) ||
         !*reinterpret_cast<void**>(owner + 0x100) ||
@@ -320,16 +331,16 @@ unsigned char* LocalUpdateCore(unsigned char* network) {
     auto* core = *reinterpret_cast<unsigned char**>(network + 0x2c);
     // ED46A0 publishes the master's core only after ED60F0/ED55F0 have
     // constructed the core and registered the game-side observers.
-    if (!core || *reinterpret_cast<uintptr_t*>(core) != image_base + 0x10940A0 - PreferredBase ||
-        *reinterpret_cast<uintptr_t*>(master) != image_base + 0x1091E3C - PreferredBase ||
+    if (!core || *reinterpret_cast<uintptr_t*>(core) != NativeVA(0x10940A0) ||
+        *reinterpret_cast<uintptr_t*>(master) != NativeVA(0x1091E3C) ||
         *reinterpret_cast<void**>(master + 0x4c0) != core) return nullptr;
     auto* implementation = *reinterpret_cast<unsigned char**>(core + 0x20);
     if (!implementation ||
-        *reinterpret_cast<uintptr_t*>(implementation) != image_base + 0x1099548 - PreferredBase ||
+        *reinterpret_cast<uintptr_t*>(implementation) != NativeVA(0x1099548) ||
         !*reinterpret_cast<void**>(implementation + 4)) return nullptr;
 #ifdef S7_LOCAL_NETWORK_PUMP
     auto* scheduler = *reinterpret_cast<unsigned char**>(implementation + 4);
-    if (*reinterpret_cast<uintptr_t*>(scheduler) != image_base + 0x109959C - PreferredBase) return nullptr;
+    if (*reinterpret_cast<uintptr_t*>(scheduler) != NativeVA(0x109959C)) return nullptr;
 #endif
     return core;
 }
@@ -364,11 +375,11 @@ void __fastcall SetLocalTurnOffset(void* self, void*, unsigned int requested) {
         auto* network = *Native<unsigned char**>(0x1379E14);
         auto* main = *Native<unsigned char**>(0x13A5210);
         if (LocalUpdateOwner(network) && main &&
-            *reinterpret_cast<uintptr_t*>(main) == image_base + 0x113F2C0 - PreferredBase &&
+            *reinterpret_cast<uintptr_t*>(main) == NativeVA(0x113F2C0) &&
             self && *reinterpret_cast<void**>(main + 0x18) == self &&
-            *static_cast<uintptr_t*>(self) == image_base + 0x113F424 - PreferredBase) {
+            *static_cast<uintptr_t*>(self) == NativeVA(0x113F424)) {
             auto* latency = *reinterpret_cast<unsigned char**>(network + 0xa58);
-            if (latency && *reinterpret_cast<uintptr_t*>(latency) == image_base + 0x1140188 - PreferredBase && latency[0x18]) {
+            if (latency && *reinterpret_cast<uintptr_t*>(latency) == NativeVA(0x1140188) && latency[0x18]) {
                 // ED2EA0 initializes twenty samples to UINT_MAX. ED2DE0 returns
                 // their minimum; ECF59F otherwise divides the unknown sentinel
                 // by 66 and increases the guest offset on every command turn.
@@ -416,7 +427,7 @@ bool __fastcall SkipLocalNetworkStartup(void* self, void*) {
     if (initialization != 2 || !local_connect_probe ||
         GetCurrentThreadId() != bootstrap_thread || !self ||
         self != *Native<void**>(0x13789D0) ||
-        *static_cast<uintptr_t*>(self) != image_base + 0x112BE3C - PreferredBase)
+        *static_cast<uintptr_t*>(self) != NativeVA(0x112BE3C))
         return true;
     ReportLocalStatus("local-network-startup-enabled");
     return false;
@@ -483,7 +494,7 @@ bool EnsureLocalSearchSpace(void* self) {
     auto* network = static_cast<unsigned char*>(self);
     auto* owner = LocalUpdateOwner(network);
     auto* helper = *reinterpret_cast<unsigned char**>(owner + 0x108);
-    if (*reinterpret_cast<uintptr_t*>(helper) != image_base + 0x109CB58 - PreferredBase ||
+    if (*reinterpret_cast<uintptr_t*>(helper) != NativeVA(0x109CB58) ||
         !*reinterpret_cast<void**>(helper + 0x1d8)) return false;
     auto* facade = *reinterpret_cast<unsigned char**>(owner + 0xa4);
     auto* backend = *reinterpret_cast<unsigned char**>(facade + 0x20);
@@ -754,7 +765,7 @@ unsigned char* LocalLabManager(unsigned char* network) {
     auto* owner = LocalUpdateOwner(network);
     if (!owner) return nullptr;
     auto* manager = *reinterpret_cast<unsigned char**>(owner + 0x100);
-    return manager && *reinterpret_cast<uintptr_t*>(manager) == image_base + 0x10934EC - PreferredBase
+    return manager && *reinterpret_cast<uintptr_t*>(manager) == NativeVA(0x10934EC)
         ? manager : nullptr;
 }
 void __fastcall UpdateLabManager(void* self, void*) {
@@ -954,12 +965,24 @@ bool AcceptExecutableDigest(const unsigned char (&actual)[32]) {
     static const unsigned char lab_b[32] = {
         0xdb,0xc1,0x08,0x23,0x73,0x01,0xf3,0x29,0xfe,0xd5,0x37,0x2f,0x79,0x91,0x5c,0x82,
         0xac,0xd9,0x08,0x5f,0x58,0xd3,0x2a,0xde,0xfa,0x4e,0xfe,0x43,0x42,0x08,0xef,0x72};
-    bool valid = (memcmp(actual, lab_a, 32) == 0
-                  || memcmp(actual, lab_b, 32) == 0);
-    if (valid) local_pair_bind.store(memcmp(actual, lab_a, 32) == 0
+    // Steam-only private C/D profiles keep the existing Ubisoft A/B profiles
+    // untouched. These exact test images are never accepted by normal builds.
+    static const unsigned char steam_lab_c[32] = {
+        0xcf,0x7f,0x5f,0x25,0x66,0x5d,0x8e,0x98,0xff,0x3b,0x17,0xa7,0x0e,0x65,0x8b,0xe4,
+        0x45,0x8f,0x67,0xb2,0x9c,0x42,0x45,0x5c,0x83,0x71,0x5a,0x4b,0xb6,0x8c,0x7d,0x2d};
+    static const unsigned char steam_lab_d[32] = {
+        0xce,0x9f,0x64,0x80,0x1c,0xd6,0xe8,0x37,0xdf,0x28,0x7e,0x9a,0x5c,0x18,0x0d,0x65,
+        0x3f,0x4e,0x14,0x81,0x4c,0xd2,0x80,0x6d,0x2c,0xb8,0xb8,0x98,0x10,0x6f,0xc8,0x10};
+    bool first = memcmp(actual, steam_history ? steam_lab_c : lab_a, 32) == 0;
+    bool valid = first || memcmp(actual, steam_history ? steam_lab_d : lab_b, 32) == 0;
+    if (valid) local_pair_bind.store(first
         ? 0x7f000002u : 0x7f000003u);
 #else
-    bool valid = memcmp(actual, ExpectedHash, 32) == 0;
+    static const unsigned char steam[32] = {
+        0x83,0x49,0xae,0x65,0x23,0xdf,0xb5,0xc5,0x4f,0xea,0xaa,0x61,0x37,0x0e,0xc6,0x57,
+        0x08,0xd2,0xcd,0xe6,0xd1,0x06,0x3c,0x1c,0x9c,0xfb,0xe0,0x30,0xb2,0xaa,0xb4,0x10};
+    bool valid = steam_history ? memcmp(actual, steam, 32) == 0
+                              : memcmp(actual, ExpectedHash, 32) == 0;
 #endif
     return valid;
 }
@@ -972,7 +995,9 @@ bool HashExecutable() {
                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (file == INVALID_HANDLE_VALUE) return false;
     LARGE_INTEGER size = {};
-    bool valid = GetFileSizeEx(file, &size) && size.QuadPart == 17333680;
+    bool valid = GetFileSizeEx(file, &size) && (steam_history
+        ? (size.QuadPart == 17459856 || size.QuadPart == 17460224)
+        : size.QuadPart == 17333680);
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     BCRYPT_HASH_HANDLE hash = nullptr;
     // CNG allocates/frees the hash object when its buffer is omitted (Win7+).
@@ -1004,19 +1029,27 @@ bool ValidateImage() {
     if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < sizeof(*dos) ||
         dos->e_lfanew > 0x1000) return false;
     const IMAGE_NT_HEADERS32* pe = reinterpret_cast<const IMAGE_NT_HEADERS32*>(image_base + dos->e_lfanew);
+    steam_history = pe->FileHeader.TimeDateStamp == 0x5d305b24 && pe->OptionalHeader.SizeOfImage == 0x1106000;
     return pe->Signature == IMAGE_NT_SIGNATURE && pe->FileHeader.Machine == IMAGE_FILE_MACHINE_I386 &&
-        pe->FileHeader.TimeDateStamp == ExpectedTimestamp &&
+        pe->FileHeader.TimeDateStamp == (steam_history ? 0x5d305b24 : ExpectedTimestamp) &&
         pe->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
-        pe->OptionalHeader.SizeOfImage == ExpectedImageSize && HashExecutable();
+        pe->OptionalHeader.SizeOfImage == (steam_history ? 0x1106000 : ExpectedImageSize) && HashExecutable();
+}
+
+const unsigned char* OriginalBytes(const Patch& patch) {
+    if (!steam_history) return patch.original;
+    for (const auto& guard : SteamHistory::Guards)
+        if (guard.ubisoft == patch.va) return guard.bytes;
+    Stop(WrongExecutable);
 }
 
 unsigned char* PatchAddress(const Patch& patch) {
-    return reinterpret_cast<unsigned char*>(image_base + patch.va - PreferredBase);
+    return Native<unsigned char*>(patch.va);
 }
 
 uint32_t OriginalPointer(const Patch& patch) {
     uint32_t preferred = 0;
-    memcpy(&preferred, patch.original, sizeof(preferred));
+    memcpy(&preferred, OriginalBytes(patch), sizeof(preferred));
     return static_cast<uint32_t>(image_base + preferred - PreferredBase);
 }
 
@@ -1033,7 +1066,7 @@ bool WritePatch(const Patch& patch, bool restore) {
     if (patch.pointer_slot) {
         uint32_t value = restore ? OriginalPointer(patch) : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(patch.replacement));
         memcpy(at, &value, sizeof(value));
-    } else memcpy(at, restore ? patch.original : (patch.raw_length ? patch.replacement : bytes), length);
+    } else memcpy(at, restore ? OriginalBytes(patch) : (patch.raw_length ? patch.replacement : bytes), length);
     bool flushed = FlushInstructionCache(GetCurrentProcess(), at, length) != FALSE;
     DWORD ignored = 0;
     if (!VirtualProtect(at, length, old_protection, &ignored)) Stop(RollbackFailure);
@@ -1044,7 +1077,7 @@ bool Install() {
     if (memcmp(Native<const void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue)) != 0) {
         SetError(ChangedCallsite); return false;
     }
-    if (memcmp(PatchAddress(DevelopmentPatch), DevelopmentPatch.original, DevelopmentPatch.raw_length) != 0) {
+    if (memcmp(PatchAddress(DevelopmentPatch), OriginalBytes(DevelopmentPatch), DevelopmentPatch.raw_length) != 0) {
         SetError(ChangedCallsite); return false;
     }
     std::vector<const Patch*> selected;
@@ -1054,7 +1087,7 @@ bool Install() {
     for (const auto* patch : selected) {
         const bool matches = patch->pointer_slot
             ? *reinterpret_cast<uint32_t*>(PatchAddress(*patch)) == OriginalPointer(*patch)
-            : memcmp(PatchAddress(*patch), patch->original, patch->raw_length ? patch->raw_length : 5) == 0;
+            : memcmp(PatchAddress(*patch), OriginalBytes(*patch), patch->raw_length ? patch->raw_length : 5) == 0;
         if (!matches) {
             SetError(ChangedCallsite); return false;
         }
@@ -1089,6 +1122,7 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
     if (!valid) { SetError(InvalidConfiguration); return false; }
     if (!ValidateKey(config.public_key_base64)) { SetError(InvalidPublicKey); return false; }
     if (!ValidateImage()) { SetError(WrongExecutable); return false; }
+    if (config.application_id != (steam_history ? 5321u : 11788u)) { SetError(WrongExecutable); return false; }
     memcpy(public_key, config.public_key_base64, key_length + 1);
     memcpy(local_ticket, config.local_ticket, ticket_length + 1);
     strcpy_s(server_address, config.server_address);

@@ -12,6 +12,7 @@ import sys
 from bba import Archive
 
 KNOWN_EXE = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
+KNOWN_STEAM_EXE = "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410"
 KNOWN_ARCHIVE = "766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94"
 
 
@@ -21,7 +22,7 @@ def sha256(data):
 
 def read_checked(path, expected):
     data = path.read_bytes()
-    if sha256(data) != expected:
+    if sha256(data) not in (expected if isinstance(expected, tuple) else (expected,)):
         raise ValueError("Unsupported or modified input; SHA-256 mismatch: " + str(path))
     return data
 
@@ -71,7 +72,7 @@ def prepare(installation, output, specification, *, profile="lan-diagnostic"):
 
     exe_path = base / "Bin" / "Settlers7R.exe"
     archive_path = base / "BBA" / "Interface.bba"
-    read_checked(exe_path, KNOWN_EXE)
+    source_executable_sha256 = sha256(read_checked(exe_path, (KNOWN_EXE, KNOWN_STEAM_EXE)))
     original = read_checked(archive_path, KNOWN_ARCHIVE)
     spec_bytes = Path(specification).read_bytes()
     spec = json.loads(spec_bytes)
@@ -102,7 +103,7 @@ def prepare(installation, output, specification, *, profile="lan-diagnostic"):
 
     # Validate everything before creating the output. Recheck the game inputs
     # so a concurrently changed installation cannot be marked as validated.
-    read_checked(exe_path, KNOWN_EXE)
+    read_checked(exe_path, source_executable_sha256)
     read_checked(archive_path, KNOWN_ARCHIVE)
     artifact_relative = base.relative_to(root) / "BBA" / "Interface.bba"
     manifest = {
@@ -110,7 +111,7 @@ def prepare(installation, output, specification, *, profile="lan-diagnostic"):
         "status": "menu-diagnostic-staged-not-installed",
         "lan_compatibility_verified": False,
         "installed": False,
-        "source_executable_sha256": KNOWN_EXE,
+        "source_executable_sha256": source_executable_sha256,
         "source_archive_sha256": KNOWN_ARCHIVE,
         "staged_archive_sha256": sha256(patched),
         "patch_specification_sha256": sha256(spec_bytes),

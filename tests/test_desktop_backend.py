@@ -91,6 +91,21 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse((self.app/'Instances').exists())
         self.assertFalse((self.app/'State/installation.json').exists())
 
+    def test_steam_detection_and_desktop_setup_require_matching_package_capability(self):
+        exe = self.fixture.source / 'Base/Bin/Settlers7R.exe'
+        exe.write_bytes(b'invented Steam desktop executable')
+        checksum = content.digest(exe)
+        with patch.object(install, 'STEAM_EXE', checksum), patch.object(install, 'UNSUPPORTED_STEAM_EXE', checksum):
+            self.assertEqual(game_detection.detect([self.fixture.source]), [])
+            self.assertEqual(len(game_detection.detect([self.fixture.source], steam_supported=True)), 1)
+            record = self.app / 'Package/package.json'
+            manifest = json.loads(record.read_text());manifest['steam_history'] = True
+            record.write_text(json.dumps(manifest))
+            with patch.object(install, 'STEAM_ADAPTER_SHA256', manifest['files']['payload/uplay_r1_loader.dll']):
+                result = self.prepare()
+            self.assertTrue(result['installed'])
+            self.assertEqual(content.digest(self.desktop.game() / 'Base/Bin/Settlers7R.exe'), checksum)
+
     def test_setup_is_one_transaction_without_cmd_starters_and_records_ownership(self):
         original={p.relative_to(self.fixture.source):p.read_bytes() for p in self.fixture.source.rglob('*') if p.is_file()}
         result=self.prepare();root=self.desktop.game()

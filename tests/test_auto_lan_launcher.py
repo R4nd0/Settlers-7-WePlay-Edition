@@ -19,6 +19,11 @@ class AutomaticLauncherTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT'))
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        executable = self.root / 'Base/Bin/Settlers7R.exe'
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b'invented automatic LAN game')
+        digest_patch = patch.object(launcher.launch_local, 'EXE_HASH', launcher.launch_local.digest(executable))
+        digest_patch.start(); self.addCleanup(digest_patch.stop)
         self.interface = LanInterface('192.168.1.10', 24)
         self.args = SimpleNamespace(bundle=self.root, check_only=False)
         self.mocks = {}
@@ -52,7 +57,7 @@ class AutomaticLauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
         self.assertIn(b'--bundle', result.stdout)
 
-    def test_group_admission_precedes_configuration_and_game_without_killing_hub(self):
+    def test_steam_group_admission_precedes_configuration_and_game_without_killing_hub(self):
         choice = dict(action='create', network=0, display_name='Anna')
         order = []
         membership = Mock()
@@ -68,8 +73,10 @@ class AutomaticLauncherTests(unittest.TestCase):
         def spawn(*args, **kwargs):
             self.assertEqual(args[0], [str(self.root / 'Base/Bin/Settlers7R.exe'),
                                       '-vSynch', '-noMapInMainMenu'])
+            self.assertEqual(kwargs['env'], {'SteamAppId': '965320', 'SteamGameId': '965320'})
             order.append('game'); return game
-        with patch.object(launcher, '_fixture_picker', create=True, return_value=choice), \
+        with patch.object(launcher.launch_local, 'STEAM_EXE_HASH', launcher.launch_local.EXE_HASH), \
+                patch.object(launcher, '_fixture_picker', create=True, return_value=choice), \
                 patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
                 patch.object(launcher, 'start_hub') as hub, \
                 patch.object(launcher, 'Membership', return_value=membership), \

@@ -129,7 +129,7 @@
   "managed_copy_busy": "In dieser Spielkopie läuft noch ein Spiel oder eine LAN-Komponente. Beende sie vor dem Fortfahren.",
   "source_missing": "Wähle deine Original-Spielinstallation aus.",
   "source_invalid": "Dieser Ordner enthält keine unveränderte unterstützte History Edition.",
-  "source_steam_unsupported": "Diese Steam-Version ist erkannt, wird von WePlay aber noch nicht unterstützt. Ihre Spiel-EXE unterscheidet sich von der Ubisoft-Version; der native Adapter muss dafür angepasst werden. Verwende vorerst die unterstützte Ubisoft-Connect-Installation. Deine Steam-Dateien wurden nicht geändert.",
+  "source_steam_unsupported": "Diese Steam-Version ist erkannt. Dieses Installationspaket enthält noch keinen passenden Steam-Adapter. Verwende ein neueres Paket mit Steam-Unterstützung oder die unterstützte Ubisoft-Connect-Installation. Deine Steam-Dateien wurden nicht geändert.",
   "game_failed": "Das Spiel wurde mit einem Fehler beendet. Unter Hilfe kannst du Kompatible Grafik versuchen.",
   "cancelled": "Der Vorgang wurde abgebrochen. Deine bisherige funktionsfähige Kopie bleibt erhalten.",
   "probe_invalid": "Die Grafikprüfung konnte nicht gelesen werden. Starte die Prüfung erneut.",

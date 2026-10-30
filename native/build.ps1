@@ -36,6 +36,7 @@ try {
     Compile-Native @((Join-Path $nativeSource 'local_connect_tests.cpp'), '/Fe:local_connect_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'bootstrap_patch_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:bootstrap_patch_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'steam_profile_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:steam_profile_tests.exe')
     Compile-Native @('/LD', (Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'network_guard.cpp'),
         (Join-Path $nativeSource 'offline_bootstrap.cpp'), (Join-Path $nativeSource 'runtime_config.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:uplay_r1_loader.dll',
         '/link', "/DEF:$(Join-Path $nativeSource 'local_platform.def')", 'ws2_32.lib','winhttp.lib','shell32.lib','bcrypt.lib','crypt32.lib',

@@ -20,6 +20,10 @@ class GraphicsLauncherTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT'))
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        executable = self.root / 'Base/Bin/Settlers7R.exe'
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b'invented game fixture')
+        patch.object(launch_local, 'EXE_HASH', launch_local.digest(executable)).start()
         for name in ('dotnet.exe', 'service.dll'):
             (self.root / name).write_bytes(b'fixture')
         self.args = SimpleNamespace(bundle=str(self.root), dotnet=str(self.root / 'dotnet.exe'),
@@ -42,6 +46,27 @@ class GraphicsLauncherTests(unittest.TestCase):
             self.assertEqual(launch_local.run(self.args), 0)
             choose.assert_called_once_with(self.root)
             child.assert_not_called()
+
+    def test_steam_sdk_environment_is_title_bound_and_child_only(self):
+        inherited = {'steamappid': 'foreign title', 'SteamGameId': 'foreign title', 'DXVK_CONFIG': 'fixed fixture'}
+        before = dict(inherited)
+        with patch.object(launch_local, 'STEAM_EXE_HASH', launch_local.EXE_HASH):
+            actual = launch_local.game_launch_environment(self.root, inherited)
+        self.assertEqual(actual, {'SteamAppId': '965320', 'SteamGameId': '965320', 'DXVK_CONFIG': 'fixed fixture'})
+        self.assertEqual(inherited, before)
+        (self.root / 'Base/Bin/Settlers7R.exe').write_bytes(b'unknown changed game')
+        with self.assertRaises(ValueError):launch_local.game_launch_environment(self.root, inherited)
+
+    def test_steam_local_start_passes_app_id_only_to_game(self):
+        with patch.object(launch_local, 'STEAM_EXE_HASH', launch_local.EXE_HASH), \
+                patch.object(launch_local, 'choose_graphics_environment', return_value={'DXVK_CONFIG': 'fixture'}), \
+                patch.object(launch_local, 'service_ready', return_value=({}, 9111)), \
+                patch.object(launch_local, 'write_configuration', return_value=self.runtime), \
+                patch.object(launch_local.subprocess, 'Popen', side_effect=[self.service, self.game]) as child:
+            self.assertEqual(launch_local.run(self.args), 0)
+        self.assertNotIn('env', child.call_args_list[0].kwargs)
+        self.assertEqual(child.call_args_list[1].kwargs['env'],
+                         {'DXVK_CONFIG': 'fixture', 'SteamAppId': '965320', 'SteamGameId': '965320'})
 
     def test_installed_graphics_helpers_import_with_isolated_python(self):
         folder = self.root / 'Launcher'; folder.mkdir()
@@ -67,7 +92,7 @@ class GraphicsLauncherTests(unittest.TestCase):
                 patch.object(launch_local.subprocess, 'Popen', side_effect=[self.service, self.game]) as child:
             self.assertEqual(launch_local.run(self.args), 0)
         self.assertNotIn('env', child.call_args_list[0].kwargs)
-        self.assertIs(child.call_args_list[1].kwargs['env'], selected)
+        self.assertEqual(child.call_args_list[1].kwargs['env'], selected)
         self.assertEqual(child.call_args_list[1].args[0], [str(self.root / 'Base/Bin/Settlers7R.exe')])
         self.service.terminate.assert_called_once()
 
@@ -96,14 +121,15 @@ class GraphicsLauncherTests(unittest.TestCase):
         arguments.assert_not_called()
         self.assertEqual(child.call_count, 1)
 
-    def test_manual_lan_passes_fixed_menu_arguments_only_to_game(self):
+    def test_steam_manual_lan_passes_fixed_menu_arguments_and_sdk_id_only_to_game(self):
         data = self.root / 'LocalData'; data.mkdir()
         (data / 'graphics-choice.json').write_text(json.dumps({'format': 's7-graphics-choice-v1',
             'choice': None, 'simple_menu': True}))
         args = SimpleNamespace(bundle=str(self.root), local='10.1.2.3', peer='10.1.2.4',
                                role='host', check_only=False)
         selected = {'S7_TEST_GPU': 'fixture'}
-        with patch.object(launch_lan.compatibility, 'verify', return_value={'content_id': 'fixture'}), \
+        with patch.object(launch_local, 'STEAM_EXE_HASH', launch_local.EXE_HASH), \
+                patch.object(launch_lan.compatibility, 'verify', return_value={'content_id': 'fixture'}), \
                 patch.object(launch_lan.socket, 'socket'), \
                 patch.object(launch_local, 'choose_graphics_environment', return_value=selected), \
                 patch.object(launch_local, 'service_ready', return_value=({}, launch_lan.UDP_PORT)), \
@@ -115,7 +141,7 @@ class GraphicsLauncherTests(unittest.TestCase):
         self.assertNotIn('-noMapInMainMenu', child.call_args_list[0].args[0])
         self.assertEqual(child.call_args_list[1].args[0], [str(self.root / 'Base/Bin/Settlers7R.exe'),
                                                        '-vSynch', '-noMapInMainMenu'])
-        self.assertIs(child.call_args_list[1].kwargs['env'], selected)
+        self.assertEqual(child.call_args_list[1].kwargs['env'], dict(selected, SteamAppId='965320', SteamGameId='965320'))
 
     def test_lan_cancel_never_starts_host_service_or_connects_to_peer(self):
         args = SimpleNamespace(bundle=str(self.root), local='10.1.2.3', peer='10.1.2.4',
@@ -145,7 +171,7 @@ class GraphicsLauncherTests(unittest.TestCase):
             self.assertEqual(launch_local.run(self.args),0)
         dialog.assert_not_called()
         self.assertEqual(order,['preflight','monitor','wait'])
-        self.assertIs(child.call_args_list[1].kwargs['env'],selected)
+        self.assertEqual(child.call_args_list[1].kwargs['env'],selected)
         self.assertEqual(child.call_args_list[1].args[0][1:],['-vSynch','-width','1280'])
         self.args.game_monitor.assert_called_once_with(self.game);observer.close.assert_called_once()
 

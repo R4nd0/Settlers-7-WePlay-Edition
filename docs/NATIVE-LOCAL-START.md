@@ -1,5 +1,12 @@
 # Experimental native local start, 2026-10-26
 
+Steam development update (2026-10-30): a separate guarded address/byte profile
+now supports the identified unchanged Steam EXE and product ID 5321. Real
+DXVK startup and local two-client matches in both freshly started host
+directions have been observed. Session reuse after a match still needs a
+restart for role changes. See [Steam verification](STEAM-COMPATIBILITY.md)
+for exact identities and the remaining two-PC/Internet qualification limits.
+
 This is an incomplete separate-copy prototype for the fingerprinted History
 Edition. The separate copy now reaches the main menu directly, without startup
 videos or the intro click gate, using the local platform adapter. Do not replace an

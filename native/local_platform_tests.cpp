@@ -17,7 +17,7 @@ static int membership_start_calls = 0, membership_stop_calls = 0;
 bool StartLanGroupNetworkGuard() { ++membership_start_calls; return true; }
 bool StopLanGroupNetworkGuard() { ++membership_stop_calls; return true; }
 bool InstallOfflineNetworkGuard() { ++guard_calls; return allow_guard; }
-bool InitializeOfflineBootstrap() { ++bootstrap_calls; return allow_bootstrap; }
+bool InitializeOfflineBootstrap(uint32_t) { ++bootstrap_calls; return allow_bootstrap; }
 void PumpOfflineBootstrap() {
     ++pump_calls;
     // This acquires the platform lock and would deadlock if Update retained it.
@@ -51,6 +51,7 @@ int wmain(int argc, wchar_t** argv) {
     Check(pump_calls == 0 && membership_start_calls == 0, "no native pump or membership worker before startup");
     Check(UPLAY_Start(1, 0) == 1, "wrong app rejected");
     Check(UPLAY_Start(11788, 1) == 1, "wrong flags rejected");
+    Check(UPLAY_Start(5321, 1) == 1, "Steam wrong flags rejected");
     Check(guard_calls == 0 && bootstrap_calls == 0, "invalid start has no bootstrap");
     allow_guard = false;
     Check(UPLAY_Start(11788, 0) == 1 && bootstrap_calls == 0, "guard precedes bootstrap");
@@ -73,6 +74,7 @@ int wmain(int argc, wchar_t** argv) {
     Check(pump_calls == 1 && membership_start_calls == membership_before_start + 1, "worker starts once outside update; pump runs outside platform lock");
     int old_calls = bootstrap_calls;
     Check(UPLAY_Start(11788, 0) == 0 && bootstrap_calls == old_calls, "start idempotent");
+    Check(UPLAY_Start(5321, 0) == 1 && bootstrap_calls == old_calls, "cannot switch application after startup");
     Check(UPLAY_USER_IsInOfflineMode() == 1, "local offline capability");
     Check(strcmp(UPLAY_USER_GetAccountIdUtf8(), Id) == 0, "configured local identity");
     Check(strcmp(UPLAY_USER_GetNameUtf8(), Name) == 0, "configured UTF8 name returned byte exactly");

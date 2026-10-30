@@ -323,7 +323,7 @@ class Desktop:
         self.finalizing=False
         graphics.ensure_closed()
         source=graphics._plain(source)
-        install.source_base(source)
+        install.source_base(source,steam_supported=install.package_manifest(self.package).get('steam_history',False))
         previous=self.installed()
         base=graphics._plain(container or (previous['container'] if previous else self.app/'Instances'))
         if base==source or base.is_relative_to(source) or source.is_relative_to(base):
@@ -736,7 +736,7 @@ def dispatch(desktop,request):
         desktop.progress('source')
         previous=desktop.installed()
         locations=([Path(previous['source'])] if previous else [])+game_detection.candidates()
-        return {'sources':game_detection.detect(locations)}
+        return {'sources':game_detection.detect(locations,steam_supported=install.package_manifest(desktop.package).get('steam_history',False))}
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()

@@ -102,6 +102,7 @@ def run(args, *, picker=None, network=None):
                        else launch_local.choose_graphics_environment(root))
         if environment is None:
             return 0
+        environment = launch_local.game_launch_environment(root, environment)
         game_arguments = launch_local.graphics_game_arguments(root)
         player_settings.save(root, name)
         if choice is None:

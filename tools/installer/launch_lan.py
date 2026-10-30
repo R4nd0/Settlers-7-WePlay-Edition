@@ -100,8 +100,7 @@ def run(args):
                 raise RuntimeError('Der LAN-Dienst wurde beendet.')
             print('LAN-Sitzungstest: Beitritt und Spielstart sind noch in Entwicklung.', flush=True)
             game_options = {'cwd': root / 'Base/Bin'}
-            if game_environment is not None:
-                game_options['env'] = game_environment
+            game_options['env'] = launch_local.game_launch_environment(root, game_environment)
             game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], **game_options)
             code = launch_local.wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True))
             with (data / (run_id + '-game-exit.txt')).open('x', encoding='ascii') as output:

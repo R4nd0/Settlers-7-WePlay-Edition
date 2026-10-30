@@ -12,6 +12,7 @@ struct OfflineBootstrapConfig {
     const char* server_address = "127.0.0.1";
     bool lan_game = false;
     bool developer_mode = false;
+    unsigned int application_id = 11788;
 };
 
 // Startup only, before the relevant game constructors execute. Copies inputs.

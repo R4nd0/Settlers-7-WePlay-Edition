@@ -15,7 +15,7 @@ import compatibility as content
 from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, WINDOWS_API_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
-ADAPTER_SHA256 = '14f9bc05638480a9f3cf32c6e668ce35781e47dc368a526d0c75223b5412bf16'
+ADAPTER_SHA256 = '642c5163e74e8fdb2bb3153b3997fa345bf64e851c1f08eb622f9405fca402c5'
 SERVICE_SHA256 = 'b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206'
 ARCHIVE_SHA256 = '38ec2b865459e6af19b1291edc402e43bd37f46e783bd3c2b15d5156b42f5bcd'
 
@@ -123,6 +123,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         shutil.copyfile(repo / 'tools' / name, target)
     shutil.copyfile(repo / 'LICENSE', output / 'Tools/LICENSE.txt')
     write_json(output / 'package.json', {'format': FORMAT,
+        'steam_history': True,
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
         'join_menu_update': True,
         'lan_public_creation': True,

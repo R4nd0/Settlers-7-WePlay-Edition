@@ -64,9 +64,10 @@ void ReportLocalStatus(const char* label) {
     } catch (...) { /* Diagnostics must never replace the failure being reported. */ }
 }
 
-bool InitializeOfflineBootstrap() {
+bool InitializeOfflineBootstrap(uint32_t application_id) {
     static bool initialized = false;
-    if (initialized) return true;
+    static uint32_t initialized_application = 0;
+    if (initialized) return initialized_application == application_id;
     try {
         std::wstring root;
         std::map<std::string, std::string> fields;
@@ -79,6 +80,7 @@ bool InitializeOfflineBootstrap() {
         if (!InitializeLocalPlatform((root + L"\\saves").c_str(), fields.at("profile_id").c_str(),
             fields.at("display_name").c_str(), fields.at("ticket").c_str())) return false;
         OfflineBootstrapConfig config{static_cast<unsigned short>(value), fields.at("public_key").c_str(), fields.at("ticket").c_str()};
+        config.application_id = application_id;
         config.local_connect_probe = fields.count("connect_probe") && fields.at("connect_probe") == "1";
         config.server_address = fields.at("address").c_str();
         config.lan_game = fields.count("lan_local") != 0;
@@ -93,6 +95,7 @@ bool InitializeOfflineBootstrap() {
             ReportLocalStatus("explicit-two-peer-lan-enabled");
         }
         initialized = true;
+        initialized_application = application_id;
         ReportLocalStatus(config.local_connect_probe ? "native-bootstrap-installed-local-connect-probe" : "native-bootstrap-installed-login-trigger-unverified");
         return true;
     } catch (...) { return false; }

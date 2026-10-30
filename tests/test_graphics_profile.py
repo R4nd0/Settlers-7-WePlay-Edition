@@ -91,6 +91,13 @@ class GraphicsProfileTests(unittest.TestCase):
         self.assertEqual(graphics.restore(self.root), 'disabled')
         self.assert_original()
 
+    def test_verified_steam_copy_supports_reversible_dxvk_with_same_integrity_guards(self):
+        with patch.object(graphics, 'STEAM_EXE_SHA256', graphics.EXE_SHA256), \
+                patch.object(graphics, 'EXE_SHA256', '0' * 64):
+            self.assertEqual(self.install(), 'enabled')
+            self.assertEqual(graphics.restore(self.root), 'disabled')
+        self.assert_original()
+
     def test_original_installation_without_manifests_is_rejected_without_writes(self):
         for name in (graphics.BUNDLE, graphics.COMPAT):
             saved = (self.root / name).read_bytes()

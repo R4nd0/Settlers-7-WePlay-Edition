@@ -19,6 +19,25 @@ import time
 import uuid
 
 EXE_HASH = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
+STEAM_EXE_HASH = "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410"
+
+
+def game_launch_environment(root, inherited=None):
+    """Bind Steam SDK startup to the checked title, in the child only.
+
+    All launch methods use this boundary, including automatic LAN and Internet.
+    Steam itself continues to perform its normal ownership checks.
+    """
+    executable = digest(Path(root) / 'Base/Bin/Settlers7R.exe')
+    if executable not in (EXE_HASH, STEAM_EXE_HASH):
+        raise ValueError('Unbekannte Spielversion beim Vorbereiten des Spielstarts.')
+    result = dict(os.environ if inherited is None else inherited)
+    if executable == STEAM_EXE_HASH:
+        for key in list(result):
+            if key.upper() in ('STEAMAPPID', 'STEAMGAMEID'):
+                del result[key]
+        result.update(SteamAppId='965320', SteamGameId='965320')
+    return result
 
 
 def _graphics_module():
@@ -93,7 +112,7 @@ def verify_bundle(root):
     expected_paths = {"Base/Bin/Settlers7R.exe", "Base/Bin/uplay_r1_loader.dll", "Base/BBA/Interface.bba"}
     if manifest.get("format") != "s7-local-experimental-v1" or set(manifest.get("files", {})) != expected_paths:
         raise ValueError("Die Testversion hat kein gueltiges Manifest.")
-    if manifest["files"]["Base/Bin/Settlers7R.exe"] != EXE_HASH:
+    if manifest["files"]["Base/Bin/Settlers7R.exe"] not in (EXE_HASH, STEAM_EXE_HASH):
         raise ValueError("Diese Spielversion wird nicht unterstuetzt.")
     for name, expected in manifest["files"].items():
         path = root / name
@@ -251,6 +270,8 @@ def run(args):
                     print('Spielstart abgebrochen.', flush=True)
                     return 0
                 game_arguments = graphics_game_arguments(root)
+            if args.launch_game:
+                game_environment = game_launch_environment(root, game_environment)
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
             log = data / (run_id + "-server.jsonl")
             errors = data / (run_id + "-server-errors.txt")

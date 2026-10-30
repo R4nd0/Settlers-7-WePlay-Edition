@@ -7,10 +7,11 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**Supported source:** the fingerprinted Ubisoft Connect History Edition build.
-The separately inspected Steam History Edition build is **not yet supported**;
-its executable requires its own native adapter profile. See the
-[Steam compatibility check](docs/STEAM-COMPATIBILITY.md).
+**Released RC3.5 source:** the fingerprinted Ubisoft Connect History Edition build.
+The development adapter also supports the identified Steam History Edition
+executable: startup and a local two-client match have been observed.
+The released Setup below does not contain this port. See the
+[Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
 **[Download RC3.5 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.5/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.5) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 

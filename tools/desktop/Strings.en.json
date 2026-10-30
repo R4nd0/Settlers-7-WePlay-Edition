@@ -129,7 +129,7 @@
   "managed_copy_busy": "This game copy still has an active game or LAN component. Close it before continuing.",
   "source_missing": "Select your original game installation.",
   "source_invalid": "This folder is not an unmodified supported History Edition installation.",
-  "source_steam_unsupported": "This Steam build is identified but is not yet supported by WePlay. Its game executable differs from the Ubisoft build and needs a native adapter port. Use the supported Ubisoft Connect installation for now. Your Steam files were not changed.",
+  "source_steam_unsupported": "This Steam build is identified. This preparation package does not include its matching Steam adapter yet. Use a newer package with Steam support or the supported Ubisoft Connect installation. Your Steam files were not changed.",
   "game_failed": "The game ended with an error. You can try Compatible graphics in Help.",
   "cancelled": "The operation was cancelled. Your previous working copy was kept.",
   "probe_invalid": "The graphics check could not be read. Try the check again.",
