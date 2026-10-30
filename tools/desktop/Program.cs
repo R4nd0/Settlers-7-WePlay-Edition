@@ -236,6 +236,17 @@ internal sealed class MainForm : Form
     private readonly TextBox internetEndpoint = new() { Dock = DockStyle.Fill, MaxLength = 256 };
     private readonly ComboBox internetMode = Combo();
     private readonly Label internetPolicy = new() { AutoSize = true, MaximumSize = new Size(850,0) };
+    private readonly Label internetConnection = new() { AutoSize=true,MaximumSize=new Size(850,0) };
+    private readonly Label internetNext = new() { AutoSize=true,MaximumSize=new Size(850,0),BackColor=Color.FromArgb(238,245,253),Padding=new Padding(12) };
+    private readonly Label internetUnavailable = new() { AutoSize=true,MaximumSize=new Size(850,0),ForeColor=Color.Firebrick };
+    private readonly RadioButton internetHostChoice = new() { AutoSize=true,Appearance=Appearance.Button,FlatStyle=FlatStyle.Flat,MinimumSize=new Size(220,40),TextAlign=ContentAlignment.MiddleCenter,Padding=new Padding(10,4,10,4) };
+    private readonly RadioButton internetGuestChoice = new() { AutoSize=true,Appearance=Appearance.Button,FlatStyle=FlatStyle.Flat,MinimumSize=new Size(220,40),TextAlign=ContentAlignment.MiddleCenter,Padding=new Padding(10,4,10,4) };
+    private readonly CheckBox internetAdvanced = new() { AutoSize=true };
+    private readonly CheckBox discordOptions = new() { AutoSize=true };
+    private TableLayoutPanel internetHostPanel = null!,internetGuestPanel = null!,internetAdvancedPanel = null!,discordOptionsPanel = null!;
+    private Button internetPaste = null!;
+    private bool internetCreating;
+    private string internetStage = "connecting";
     private Button internetCopy = null!, internetShare = null!, internetEnd = null!, internetCreate = null!, internetJoinButton = null!;
     private LinkLabel discordLink = null!;
     private readonly CheckBox discordPublish = new() { AutoSize=true };
@@ -337,10 +348,19 @@ internal sealed class MainForm : Form
     {
         control.Anchor = AnchorStyles.Left | AnchorStyles.Right; stack.RowStyles.Add(new RowStyle(SizeType.AutoSize)); stack.Controls.Add(control,0,stack.RowCount++);
     }
+    private GroupBox StartCard(string title,string description,Button action)
+    {
+        var card=new GroupBox { AutoSize=true,Dock=DockStyle.Fill,MinimumSize=new Size(0,180),Margin=new Padding(0,8,12,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
+        Bind(card,title);var content=Stack(card);content.Font=Font;content.Padding=new Padding(12,8,12,8);
+        var explanation=Label(description);explanation.MaximumSize=new Size(230,0);Add(content,explanation);Add(content,Buttons(action));
+        card.SizeChanged+=(_,_)=>explanation.MaximumSize=new Size(Math.Max(160,card.ClientSize.Width-36),0);
+        return card;
+    }
     private Control Field(string key,Control value,Control? extra = null)
     {
         accessibleFields[value]=key;value.AccessibleName=Lang.T(key);
         var outer = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Margin = new Padding(0,2,0,8) };
+        accessibleFields[outer]=key;outer.AccessibleName=Lang.T(key);
         outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100)); outer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var label = Label(key); outer.Controls.Add(label,0,0); outer.SetColumnSpan(label,2);
         value.Margin = new Padding(0,0,10,0); outer.Controls.Add(value,0,1);
@@ -364,12 +384,18 @@ internal sealed class MainForm : Form
         helpPage = new TabPage(); Bind(helpPage,"help"); helpPage.BackColor = Color.White;
         updatesPage=new TabPage();Bind(updatesPage,"updates");updatesPage.BackColor=Color.White;
         tabs.TabPages.AddRange([homePage,lanPage,internetPage,graphicsPage,helpPage,updatesPage]);
-        var home = Stack(homePage); Add(home,homeTitle); Add(home,homeInfo);
-        Add(home,Buttons(Button("playButton",()=>Play(false),true),Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;}),Button("internet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        var homeScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };homePage.Controls.Add(homeScroll);
+        var home = Stack(homeScroll); Add(home,homeTitle); Add(home,homeInfo);
+        var starts=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=3 };
+        for(int column=0;column<3;column++)starts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/3));
+        starts.Controls.Add(StartCard("startLocalTitle","startLocalInfo",Button("playButton",()=>Play(false),true)),0,0);
+        starts.Controls.Add(StartCard("startLanTitle","startLanInfo",Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;})),1,0);
+        starts.Controls.Add(StartCard("startInternetTitle","startInternetInfo",Button("openInternet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;})),2,0);
+        Add(home,starts);Add(home,Buttons(Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
         Add(home,homeUpdateNotice);
         homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
         Add(home,Buttons(Button("updates",()=>{tabs.SelectedTab=updatesPage;return Task.CompletedTask;}),homeUpdateInstall));
-        var lan = Stack(lanPage);
+        var lanScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };lanPage.Controls.Add(lanScroll);var lan = Stack(lanScroll);
         var lanTitle=Label("lanTitle");lanTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(lan,lanTitle);
         Add(lan,Label("lanIntro"));Add(lan,Field("player",player));
         Add(lan,Buttons(Button("lanStart",()=>Play(true),true)));
@@ -378,16 +404,28 @@ internal sealed class MainForm : Form
         var internetScroll = new Panel { Dock=DockStyle.Fill, AutoScroll=true }; internetPage.Controls.Add(internetScroll);
         var net = Stack(internetScroll);
         var netTitle = Label("internetTitle"); netTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold); Add(net,netTitle);
-        Add(net,Label("internetIntro")); Add(net,Field("player",internetPlayer));
-        Bind(discordPublish,"discordPublish");Add(net,discordPublish);
-        discordConnect=Button("discordConnect",ConnectDiscord);
-        discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
+        Add(net,Label("internetIntro"));Bind(internetUnavailable,"internetUnavailable");Add(net,internetUnavailable);
+        Add(net,internetConnection);Add(net,internetNext);
         void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
-        AddSetup(Field("internetMode",internetMode)); Add(net,internetPolicy);
-        internetEndpointField=Field("internetEndpoint",internetEndpoint);AddSetup(internetEndpointField);
-        internetCreate=Button("internetCreate",()=>PlayInternet(true),true); AddSetup(Buttons(internetCreate));
-        internetJoinButton=Button("internetJoin",()=>PlayInternet(false));
-        AddSetup(Field("internetJoinCode",internetJoin,internetJoinButton));
+        AddSetup(Field("player",internetPlayer));
+        Bind(internetHostChoice,"internetHostChoice");Bind(internetGuestChoice,"internetGuestChoice");internetHostChoice.Checked=true;
+        AddSetup(Buttons(internetHostChoice,internetGuestChoice));
+        internetHostPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };internetHostPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        accessibleFields[internetHostPanel]="internetHostChoice";
+        Add(internetHostPanel,Label("internetHostSteps"));
+        internetCreate=Button("internetCreate",()=>PlayInternet(true),true);Add(internetHostPanel,Buttons(internetCreate));
+        Bind(internetAdvanced,"internetAdvanced");Add(internetHostPanel,internetAdvanced);
+        internetAdvancedPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };internetAdvancedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        accessibleFields[internetAdvancedPanel]="internetAdvanced";
+        Add(internetAdvancedPanel,Field("internetMode",internetMode));Add(internetAdvancedPanel,internetPolicy);
+        internetEndpointField=Field("internetEndpoint",internetEndpoint);Add(internetAdvancedPanel,internetEndpointField);
+        Add(internetHostPanel,internetAdvancedPanel);AddSetup(internetHostPanel);
+        internetGuestPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };internetGuestPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        accessibleFields[internetGuestPanel]="internetGuestChoice";
+        Add(internetGuestPanel,Label("internetGuestSteps"));
+        internetPaste=Button("internetPaste",()=>{PasteInternetInvitation();return Task.CompletedTask;});
+        Add(internetGuestPanel,Field("internetJoinCode",internetJoin,internetPaste));
+        internetJoinButton=Button("internetJoin",()=>PlayInternet(false),true);Add(internetGuestPanel,Buttons(internetJoinButton));AddSetup(internetGuestPanel);
         internetCopy = new Button { AutoSize=true, MinimumSize=new Size(150,38), Padding=new Padding(10,3,10,3) };
         Bind(internetCopy,"internetCopy"); internetCopy.Click += (_,_) =>
         {
@@ -409,10 +447,23 @@ internal sealed class MainForm : Form
             if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;internetEnd.Enabled=false;status.Text=Lang.T("cancelRequested");}
         };
         internetEndRow=Buttons(internetEnd);Add(net,internetEndRow); Add(net,Label("internetSafety"));
-        Add(net,Buttons(discordConnect,discordDisconnect));Add(net,discordNotice);
+        var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
+        Bind(discordSection,"discordOptionalTitle");var discord=Stack(discordSection);discord.Font=Font;
+        Add(discord,Label("discordOptionalInfo"));Add(discord,discordNotice);
+        Bind(discordOptions,"discordOptions");Add(discord,Buttons(Button("discordFindPlayers",()=>{Community.OpenDiscord();return Task.CompletedTask;}),discordOptions));
+        discordOptionsPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };discordOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        accessibleFields[discordOptionsPanel]="discordOptions";
+        Add(discordOptionsPanel,Label("discordSetupSteps"));
+        discordConnect=Button("discordConnect",ConnectDiscord);discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
+        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");Add(discordOptionsPanel,discordPublish);
+        Add(discord,discordOptionsPanel);Add(net,discordSection);
+        internetHostChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();internetGuestChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();
+        internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
+        discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();if(discordOptions.Checked)internetScroll.ScrollControlIntoView(discordOptionsPanel);};
+        internetJoin.TextChanged+=(_,_)=>UpdateInternetControls();discordPublish.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
         var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
-        Add(g,Label("rendererInfo")); Add(g,activeRenderer);
+        Add(g,Label("rendererInfo"));Add(g,Label("graphicsModeInfo")); Add(g,activeRenderer);
         Add(g,Field("renderer",renderer)); Add(g,Field("gpu",gpu)); Bind(keepDisplay,"keepDisplay"); Add(g,keepDisplay);
         var outputs = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2 };
         outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
@@ -432,7 +483,12 @@ internal sealed class MainForm : Form
         window.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
         keepDisplay.CheckedChanged += (_,_) => DisplayEnabled(); renderer.SelectedIndexChanged += (_,_) => DisplayEnabled();
         var helpScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; helpPage.Controls.Add(helpScroll); var h = Stack(helpScroll);
-        Add(h,Label("helpIntro")); Add(h,Buttons(Button("verify",Verify),Button("repair",ShowRepair)));
+        Add(h,Label("helpIntro"));
+        var ways=Label("startGuideTitle");ways.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(h,ways);
+        Add(h,Label("startGuide"));Add(h,Label("roomGuide"));Add(h,Label("invitationGuide"));
+        var maintenance=Label("maintenanceTitle");maintenance.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(h,maintenance);
+        Add(h,Label("maintenanceGuide"));
+        Add(h,Buttons(Button("verify",Verify),Button("repair",ShowRepair)));
         Add(h,Buttons(Button("fallback",Fallback),Button("probe",Probe),Button("lanPermission",Firewall)));
         Add(h,Buttons(Button("cleanup",Cleanup),Button("diagnostics",Diagnostics))); Add(h,Label("details")); Add(h,details);
         Add(h,Label("discordTitle"));Add(h,Label("discordInfo"));
@@ -464,7 +520,7 @@ internal sealed class MainForm : Form
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
         if(snapshot.ValueKind==JsonValueKind.Object) LoadSnapshot(snapshot,false);
-        homeTitle.Text=Lang.T(gameRunning?"running":"ready"); homeInfo.Text=Lang.T(gameRunning?"runningInfo":"playIntro");
+        homeTitle.Text=Lang.T(gameRunning?"running":"playTitle"); homeInfo.Text=Lang.T(gameRunning?"runningInfo":"playIntro");
         if(!busy) status.Text=Lang.T("ready");
         UpdateInternetControls();
         RefreshUpdateControls();
@@ -527,7 +583,7 @@ internal sealed class MainForm : Form
             for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==key)resolution.SelectedIndex=i;
         }
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("ready");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");}
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");}
     private async Task ShowSetup()
     {
         tabs.Visible=false;setup.Visible=true;
@@ -682,44 +738,74 @@ internal sealed class MainForm : Form
     {
         if(lan)await Backend.Run("lan-play",new {player_name=ValidName()},Receive);
         else await Backend.Run("play",new {},Receive);
-        gameRunning=false;RestoreWindow();homeTitle.Text=Lang.T("ready");homeInfo.Text=Lang.T("playIntro");LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+        gameRunning=false;RestoreWindow();homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
     }
     private void UpdateInternetControls()
     {
         bool direct=internetMode.SelectedIndex==1;
         internetPolicy.Text=Lang.T(direct?"internetDirectInfo":"internetAssistedInfo");
+        internetConnection.Text=Lang.T(!internetOperation&&internetGuestChoice.Checked?"internetConnectionFromInvite":
+            direct?"internetConnectionDirect":"internetConnectionAuto");
+        internetUnavailable.Visible=!internetAvailable;
+        internetNext.Visible=internetOperation;
+        internetNext.Text=Lang.T(internetCreating
+            ? internetStage=="hosting"?"internetHostWaiting":internetStage=="playing"?"internetHostPlaying":internetStage=="ready"?"internetHostReady":"internetHostConnecting"
+            : internetStage=="hosting"?"internetGuestEnding":internetStage=="playing"?"internetGuestPlaying":internetStage=="ready"?"internetGuestReady":"internetGuestConnecting");
+        foreach(var option in new[]{internetHostChoice,internetGuestChoice})
+        {
+            option.Enabled=!busy;
+            option.BackColor=option.Checked?Color.FromArgb(30,91,164):Color.White;
+            option.ForeColor=option.Checked?Color.White:SystemColors.ControlText;
+        }
         internetEndpoint.Enabled=!busy&&direct;
         internetMode.Enabled=internetPlayer.Enabled=internetJoin.Enabled=!busy;
         if(internetCreate!=null)internetCreate.Enabled=!busy&&internetAvailable;
-        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable;
+        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable&&!string.IsNullOrWhiteSpace(internetJoin.Text);
+        if(internetPaste!=null)internetPaste.Enabled=!busy&&internetAvailable;
         if(internetCopy!=null)internetCopy.Enabled=internetOperation&&internetInvite.Text.Length>0;
         if(internetShare!=null)internetShare.Enabled=internetOperation&&internetInvite.Text.Length>0;
-        if(internetEnd!=null)internetEnd.Enabled=internetOperation&&!gameRunning&&!cancelRequested;
+        if(internetEnd!=null)
+        {
+            internetEnd.Enabled=internetOperation&&!gameRunning&&!cancelRequested;
+            internetEnd.Text=Lang.T(gameRunning?(internetCreating?"internetEndGameHost":"internetEndGameGuest"):
+                internetStage=="connecting"?"internetCancel":internetCreating?"internetEnd":"internetLeave");
+        }
         foreach(Control control in internetSetupControls)control.Visible=!internetOperation;
-        if(internetEndpointField!=null)internetEndpointField.Visible=!internetOperation&&direct;
+        if(internetHostPanel!=null)internetHostPanel.Visible=!internetOperation&&internetHostChoice.Checked;
+        if(internetGuestPanel!=null)internetGuestPanel.Visible=!internetOperation&&internetGuestChoice.Checked;
+        if(internetAdvancedPanel!=null)internetAdvancedPanel.Visible=!internetOperation&&internetHostChoice.Checked&&internetAdvanced.Checked;
+        if(internetEndpointField!=null)internetEndpointField.Visible=direct;
         if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&internetInvite.Text.Length>0;
         if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&internetInvite.Text.Length>0;
         if(internetEndRow!=null)internetEndRow.Visible=internetOperation;
         internetInvite.Enabled=true;
-        discordPublish.Enabled=!busy&&discordConnected;discordPublish.Visible=discordAvailable;
+        discordPublish.Enabled=!busy&&discordAvailable&&discordConnected;discordPublish.Visible=discordAvailable;
         if(discordConnect!=null)discordConnect.Enabled=!busy&&discordAvailable;
-        if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordConnected;
-        discordNotice.Text=Lang.T(discordConnected?"discordConnected":"discordNotConnected");
+        if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordAvailable&&discordConnected;
+        if(discordOptionsPanel!=null)discordOptionsPanel.Visible=discordOptions.Checked;
+        discordNotice.Text=Lang.T(!discordAvailable?"discordUnavailableInfo":!discordConnected?"discordNotConnected":discordPublish.Checked?"discordConnected":"discordConnectedPrivate");
+    }
+    private void PasteInternetInvitation()
+    {
+        // Read the clipboard only after the explicit paste action. Never log it.
+        try{internetJoin.Text=Community.InvitationCode(Clipboard.GetText());}
+        catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardReadFailed","");}
     }
     private async Task ConnectDiscord()
     {
-        using var dialog=new Form { Text=Lang.T("discordConnect"),ClientSize=new Size(650,210),
+        using var dialog=new Form { Text=Lang.T("discordConnect"),ClientSize=new Size(650,290),
             StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false };
-        var explanation=new Label {Text=Lang.T("discordConnectInfo"),Left=18,Top=18,Width=610,Height=76};
-        var code=new TextBox {Left=18,Top=100,Width=610,MaxLength=2048,UseSystemPasswordChar=true};
-        var accept=new Button {Text=Lang.T("discordConnect"),Left=450,Top=150,Width=180,DialogResult=DialogResult.OK};
-        dialog.Controls.AddRange([explanation,code,accept]);dialog.AcceptButton=accept;
+        var explanation=new Label {Text=Lang.T("discordConnectInfo"),Left=18,Top=18,Width=610,Height=142};
+        var code=new TextBox {Left=18,Top=172,Width=610,MaxLength=2048,UseSystemPasswordChar=true,AccessibleName=Lang.T("discordConnectionCode")};
+        var accept=new Button {Text=Lang.T("discordConnect"),Left=410,Top=226,Width=220,Height=38,DialogResult=DialogResult.OK};
+        var cancel=new Button {Text=Lang.T("cancel"),Left=250,Top=226,Width=150,Height=38,DialogResult=DialogResult.Cancel};
+        dialog.Controls.AddRange([explanation,code,accept,cancel]);dialog.AcceptButton=accept;dialog.CancelButton=cancel;
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         string secret=code.Text;code.Clear();using var channel=new InternetChannel();
         Task pump=channel.Run(secret,_=>{});secret="";
         try{await Backend.Run("discord-connect",new {channel=channel.Name},Receive);}
         finally{channel.Dispose();try{await pump;}catch(Exception){}}
-        LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordConnected");
+        LoadSnapshot(await Backend.Run("snapshot",new {},Receive));discordOptions.Checked=true;UpdateInternetControls();status.Text=discordNotice.Text;
     }
     private async Task DisconnectDiscord()
     {
@@ -733,11 +819,11 @@ internal sealed class MainForm : Form
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
-        internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);tabs.SelectedTab=internetPage;
+        internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);tabs.SelectedTab=internetPage;
         using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
         {
-            void Accept(){if(internetOperation){internetInvite.Text=code;UpdateInternetControls();}}
+            void Accept(){if(internetOperation){internetInvite.Text=code;internetStage="ready";UpdateInternetControls();}}
             if(InvokeRequired)BeginInvoke(new Action(Accept));else Accept();
         });
         try
@@ -745,7 +831,7 @@ internal sealed class MainForm : Form
             if(create)await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint,publish_discord=discordPublish.Checked},Receive);
             else await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=discordPublish.Checked},Receive);
             channel.Dispose();await privateTask;
-            gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+            gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
         finally
         {
@@ -761,6 +847,12 @@ internal sealed class MainForm : Form
         if(kind=="progress")
         {
             string phase=value.GetProperty("phase").GetString()!;long current=value.GetProperty("current").GetInt64(),total=value.GetProperty("total").GetInt64();
+            if(internetOperation)
+            {
+                if(phase=="internet_hosting")internetStage="hosting";
+                else if(phase is "internet_ready" or "starting")internetStage="ready";
+                UpdateInternetControls();
+            }
             if(phase is "patch" or "verify" or "graphics_probe" or "graphics_apply" or "finish")cancelButton.Enabled=false;
             if(cancelRequested){status.Text=Lang.T("cancelRequested");progress.Style=ProgressBarStyle.Marquee;return;}
             status.Text=Lang.T("phase_"+phase)+(phase=="copy"&&total>0?"  "+(current/1073741824.0).ToString("0.0")+" / "+(total/1073741824.0).ToString("0.0")+" GB":"");
@@ -770,8 +862,13 @@ internal sealed class MainForm : Form
         else if(kind=="game_started")
         {
             gameRunning=true;homeTitle.Text=Lang.T("running");homeInfo.Text=Lang.T("runningInfo");status.Text=Lang.T("running");progress.Visible=false;
+            if(internetOperation)internetStage="playing";UpdateInternetControls();
         }
-        else if(kind=="game_finished"){gameRunning=false;status.Text=Lang.T("ready");UpdateInternetControls();}
+        else if(kind=="game_finished")
+        {
+            gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");
+            if(internetOperation)internetStage="hosting";status.Text=Lang.T("ready");UpdateInternetControls();
+        }
         else if(kind=="internet_policy")
         {
             internetMode.SelectedIndex=value.GetProperty("mode").GetString()=="direct"?1:0;
@@ -790,7 +887,11 @@ internal sealed class MainForm : Form
         foreach(var button in Descendants(setup).OfType<Button>())button.Enabled=!value;
         cancelButton.Visible=value&&setup.Visible;cancelButton.Enabled=true;
         if(value){status.Text=Lang.T("working");progress.Visible=true;progress.Style=ProgressBarStyle.Marquee;}
-        else{cancelRequested=false;progress.Visible=false;DisplayEnabled();if(setup.Visible)installButton.Enabled=recoverState||source.SelectedIndex>=0;}
+        else
+        {
+            cancelRequested=false;progress.Visible=false;DisplayEnabled();if(setup.Visible)installButton.Enabled=recoverState||source.SelectedIndex>=0;
+            if(status.Text==Lang.T("working"))status.Text=Lang.T(gameRunning?"running":"ready");
+        }
         UpdateInternetControls();
         RefreshUpdateControls();
     }
@@ -851,7 +952,32 @@ internal sealed class MainForm : Form
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
-                form.internetAvailable=true;form.internetOperation=true;form.internetInvite.Text="weplay1.synthetic-pipe-fixture";form.SetBusy(true);
+                form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
+                void Capture(string name)
+                {
+                    Application.DoEvents();using var image=new Bitmap(form.Width,form.Height);
+                    form.DrawToBitmap(image,new Rectangle(0,0,form.Width,form.Height));image.Save(Path.Combine(folder,language+"-"+name+".png"));
+                }
+                if(!form.internetHostPanel.Visible||form.internetGuestPanel.Visible||form.internetAdvancedPanel.Visible||form.discordOptionsPanel.Visible||!form.internetCreate.Enabled)
+                    throw new Exception("Internet host defaults failed");
+                Capture("internet-host");
+                form.internetAdvanced.Checked=true;form.internetMode.SelectedIndex=1;Application.DoEvents();
+                if(!form.internetAdvancedPanel.Visible||!form.internetEndpointField!.Visible)throw new Exception("Direct connection disclosure failed");
+                Capture("internet-advanced");
+                form.internetGuestChoice.Checked=true;Application.DoEvents();
+                if(form.internetHostPanel.Visible||!form.internetGuestPanel.Visible||form.internetAdvancedPanel.Visible||form.internetJoinButton.Enabled||form.internetConnection.Text!=Lang.T("internetConnectionFromInvite"))
+                    throw new Exception("Internet guest choice failed");
+                form.internetJoin.Text="weplay1.synthetic-pipe-fixture";
+                if(!form.internetJoinButton.Enabled)throw new Exception("Guest invitation did not enable join");
+                Capture("internet-guest");
+                form.internetHostChoice.Checked=true;form.internetAdvanced.Checked=false;form.internetMode.SelectedIndex=0;
+                form.SetBusy(true);form.SetBusy(false);
+                if(form.status.Text!=Lang.T("ready"))throw new Exception("Navigation leaves a stale busy message");
+                form.discordOptions.Checked=true;Application.DoEvents();
+                if(form.discordPublish.Enabled||!form.discordConnect.Enabled||!form.discordOptionsPanel.Visible||form.discordNotice.Text!=Lang.T("discordNotConnected"))
+                    throw new Exception("Private Internet play requires Discord");
+                Capture("discord-options");form.discordOptions.Checked=false;
+                form.internetCreating=true;form.internetStage="connecting";form.internetOperation=true;form.internetInvite.Text="weplay1.synthetic-pipe-fixture";form.SetBusy(true);
                 if(!form.internetCopy.Enabled||!form.internetShare.Enabled||!form.discordLink.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
                     throw new Exception("Private Internet room controls failed");
                 string share=Community.InvitationMessage("weplay1.synthetic-pipe-fixture",language);
@@ -859,18 +985,39 @@ internal sealed class MainForm : Form
                     throw new Exception("Discord sharing failed");
                 foreach(string invalid in new[]{Community.DiscordUrl,"https://example.invalid/#weplay1.secret","text\nweplay1.secret","weplay1.secret\nuntrusted"})
                 {try{Community.InvitationCode(invalid);throw new Exception("Unsafe invitation accepted");}catch(BackendError){}}
-                form.tabs.SelectedTab=form.internetPage;Application.DoEvents();
-                using(var roomImage=new Bitmap(form.Width,form.Height))
-                {form.DrawToBitmap(roomImage,new Rectangle(0,0,form.Width,form.Height));roomImage.Save(Path.Combine(folder,language+"-internet-room.png"));}
+                using(var started=JsonDocument.Parse("""{"kind":"game_started"}"""))form.Receive(started.RootElement);
+                if(form.internetEnd.Enabled||form.internetNext.Text!=Lang.T("internetHostPlaying")||form.internetHostPanel.Visible||form.internetGuestPanel.Visible)
+                    throw new Exception("Running host guidance or room-close guard failed");
+                Capture("internet-room");
+                using(var finished=JsonDocument.Parse("""{"kind":"game_finished"}"""))form.Receive(finished.RootElement);
+                if(!form.internetEnd.Enabled||form.internetNext.Text!=Lang.T("internetHostWaiting")||form.internetEnd.Text!=Lang.T("internetEnd"))
+                    throw new Exception("Host room waiting guidance failed");
+                form.internetCreating=false;form.internetInvite.Clear();
+                using(var started=JsonDocument.Parse("""{"kind":"game_started"}"""))form.Receive(started.RootElement);
+                if(form.internetEnd.Enabled||form.internetNext.Text!=Lang.T("internetGuestPlaying")||form.internetInviteField!.Visible)
+                    throw new Exception("Running guest guidance failed");
+                Capture("internet-guest-playing");
+                using(var finished=JsonDocument.Parse("""{"kind":"game_finished"}"""))form.Receive(finished.RootElement);
+                if(form.internetEnd.Text!=Lang.T("internetLeave"))throw new Exception("Guest close label failed");
                 form.internetInvite.Clear();form.internetOperation=false;form.SetBusy(false);
                 form.discordAvailable=true;form.discordConnected=true;form.discordPublish.Checked=true;form.UpdateInternetControls();
                 if(!form.discordPublish.Enabled||!form.discordDisconnect.Enabled||!form.discordConnect.Enabled)
                     throw new Exception("Connected Discord publisher controls failed");
+                form.discordPublish.Checked=false;
+                if(form.discordNotice.Text!=Lang.T("discordConnectedPrivate"))throw new Exception("Disabled Discord publication is unclear");
+                form.discordAvailable=false;form.UpdateInternetControls();
+                if(form.discordConnect.Enabled||form.discordPublish.Visible||form.discordNotice.Text!=Lang.T("discordUnavailableInfo"))
+                    throw new Exception("Unavailable Discord capability controls failed");
+                form.discordAvailable=true;form.UpdateInternetControls();
                 foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage,form.updatesPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
+                Size normalSize=form.Size;form.Size=form.MinimumSize;
+                foreach(var page in new[]{form.homePage,form.internetPage})
+                {form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);}
+                form.Size=normalSize;
                 form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
                 using(var supportImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
@@ -887,7 +1034,8 @@ internal sealed class MainForm : Form
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
-                    "bilingual_pages_rendered","private_internet_controls","discord_community_and_share","discord_publisher_opt_in","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
+                    "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

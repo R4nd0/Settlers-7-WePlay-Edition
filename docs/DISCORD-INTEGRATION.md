@@ -31,6 +31,15 @@ migration; do not run two production directory writers.
 
 ## Player flow
 
+Discord is optional for creating or joining an Internet room. It is a directory,
+not a game transport or an automatic invitation service. Players obtain the
+private WePlay room invitation directly from its creator, then select the
+actual match inside S7. A Discord community link, a publisher connection code
+and a room invitation have different purposes; see the [launcher walkthrough](LAUNCHER-GUIDE.md).
+The revised development UI places pairing under **Discord: find players
+(optional)** → **Set up / manage automatic match listings** → **Link match
+listings**; the published RC3.5 pairing labels below are unchanged.
+
 1. In #🎮multiplayer run `/weplay-hilfe` and choose **Launcher verbinden**.
 2. Copy the private connection code from Discord's ephemeral response into
    **Mit Discord verbinden** in the launcher's Internet tab. This is a limited

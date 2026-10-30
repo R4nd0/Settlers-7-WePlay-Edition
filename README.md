@@ -51,11 +51,18 @@ security policies.
 
 ## Play over the Internet
 
+A WePlay room connects the PCs; the actual match is created afterwards inside
+S7. Discord is optional and does not distribute private room invitations.
+For the guided development interface, see the [launcher walkthrough (Deutsch)](docs/LAUNCHER-GUIDE.md).
+
 1. Everyone opens **Internet play** and enters their player name.
 2. The creator selects **Create room and start** and approves the Windows network permission prompt.
 3. Use **Copy invitation**, or **Copy for Discord** to include joining instructions. Share that private invitation only with your intended players.
 4. Friends paste it into **Paste your private invitation** and choose **Join room and start**.
 5. Inside S7, open **Multiplayer**. One player creates the match and the others join it there.
+
+Keep **Private session** off so the other room members can find the match.
+That setting alone does not publish anything on Discord.
 
 The default **No own server · public-assisted** mode uses public EasyTier nodes
 for discovery/NAT traversal. Traffic connects directly where possible and may

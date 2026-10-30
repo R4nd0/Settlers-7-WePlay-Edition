@@ -40,12 +40,21 @@ does not require an always-on private PC.
 
 ## Start an Internet room
 
+For the revised development launcher, see the [German launcher walkthrough](LAUNCHER-GUIDE.md).
+It separates **I invite friends** from **I have an invitation**, keeps direct
+connection settings under an optional disclosure and shows the next step while
+connecting or playing. The published RC3.5 buttons below retain the earlier labels.
+In both versions, opening a connection room does not create the actual S7 match.
+
 Install the new preview, select your original History Edition when asked, and
 let WePlay prepare a separate game copy. Open **Internet play**, enter your
 player name and choose **Create room and start**. Windows asks permission for
 the network helper. Copy the invitation with its dedicated button and send it
 privately to your friends. They paste it into **Join room and start** using the
 same WePlay build. Select the actual match once inside S7's multiplayer menu.
+Keep **Private session** off when creating that match so the group can find it.
+This alone does not publish a Discord listing. The bot never distributes the
+room invitation; its creator sends it privately.
 
 The default **No own server · public-assisted** mode uses public EasyTier nodes
 for discovery/NAT traversal and, when necessary, relay traffic. It needs no

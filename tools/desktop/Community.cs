@@ -21,11 +21,13 @@ internal static class Community
         string code = InvitationCode(invitation);
         if(language=="de")
             return code+"\n\nWePlay – private Raumeinladung\n"+
-                "Im WePlay-Starter: Internet spielen → Private Einladung einfügen → Raum beitreten und starten.\n"+
+                "Im WePlay-Starter: Internet spielen → Ich habe eine Einladung → Einladung einfügen → Raum beitreten + S7 starten.\n"+
+                "Danach in S7: Mehrspieler → Partie des Erstellers auswählen und beitreten.\n"+
                 "Alle benötigen dieselbe WePlay-Version. Der Ersteller muss verbunden bleiben.\n"+
                 "Teile diesen Code nur mit deinen Mitspielern.\nCommunity: "+DiscordUrl;
         return code+"\n\nWePlay – private room invitation\n"+
-            "In the WePlay launcher: Internet play → Paste private invitation → Join room and start.\n"+
+            "In the WePlay launcher: Internet play → I have an invitation → Paste invitation → Join room + start S7.\n"+
+            "Then in S7: Multiplayer → select the creator's match and join it.\n"+
             "Everyone needs the same WePlay version. The creator must stay connected.\n"+
             "Share this code only with your players.\nCommunity: "+DiscordUrl;
     }
