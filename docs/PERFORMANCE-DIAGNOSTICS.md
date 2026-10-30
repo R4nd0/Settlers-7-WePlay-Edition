@@ -147,3 +147,65 @@ FP control-word/MXCSR observations are limited to20minutes/120,000 bridge
 pumps and fixed deduplicated labels, without changing numerical state. The
 automatic-LAN test candidate uses the two-physical-core build for this next
 diagnostic stage; this is not evidence that two cores fix the original problem.
+
+## Physical-core comparison with DXVK (2026-10-30)
+
+On PC1's Ryzen 7 9800X3D (8 physical cores, 16 logical processors), increasing
+the game allowance from two to four or eight physical cores produced no
+demonstrated benefit in the tested 60-FPS configuration. Keep the current
+two-core default pending evidence from a CPU-bound workload. This result does
+not establish that two cores are optimal for every machine or scene.
+
+Four fresh starts used the same separate Steam-derived test copy in the order
+2, 4, 8, then 2 again. Windows processor-core topology supplied one logical
+processor per physical core: process masks were `0x5`, `0x55`, and `0x5555` on
+this particular machine. The mask was applied before game entry; initial and
+final thread-affinity snapshots also excluded SMT siblings. These masks must
+not be copied to other hardware. System-wide SMT settings were unchanged.
+
+All runs used DXVK 3.1.1 x32, the Radeon RX 9070 XT, a 60-FPS cap, VSync,
+Normal priority, 1920x1080 windowed output, the simple menu, and the same
+graphics settings. The map scene loaded the existing WePlay graphics QA save
+on Schlacht um Tanholm, with its initial city camera and no commands or camera
+movement during capture. Each scene was measured for 45 seconds after settling.
+Manual load/observation timing means the simulation did not begin each capture
+at exactly the same turn. This is a developed city, not a large endgame stress
+save. Graphics and CPU tests were serialized with the graphics chat.
+
+| Physical cores / run | Scene | Update loop (Hz) | p95 interval (ms) | Max interval (ms) | Process CPU (core equivalents) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 2 / first | Simple menu | 59.998 | 16.836 | 19.362 | 0.337 |
+| 4 | Simple menu | 59.997 | 17.179 | 19.623 | 0.358 |
+| 8 | Simple menu | 59.998 | 17.123 | 19.988 | 0.350 |
+| 2 / repeat | Simple menu | 60.000 | 17.596 | 19.967 | 0.323 |
+| 2 / first | Tanholm city | 59.998 | 16.837 | 33.756 | 1.069 |
+| 4 | Tanholm city | 59.999 | 16.945 | 19.706 | 1.260 |
+| 8 | Tanholm city | 59.999 | 17.690 | 19.576 | 1.674 |
+| 2 / repeat | Tanholm city | 60.000 | 17.144 | 19.575 | 1.032 |
+
+These are engine screen-update intervals from guarded, passive reads of the
+byte-identical Vision90 module, not presentation timestamps or simulation
+ticks. The private observer pinned the Steam executable and owned process;
+it did not use Ubisoft executable RVAs. The DXVK HUD separately showed about
+60 FPS. Each capture observed all 2,700 consecutive update intervals, with
+the game foreground throughout and no interval above 50 ms. One CPU core
+equivalent means one second of process CPU time per wall-clock second.
+
+The map's measured CPU consumption rose with the allowance, while the update
+rate stayed capped. Background host load varied (approximately 2.4 to 4.1
+logical-CPU equivalents across captures), and simulation timing varied, so
+neither that rise nor small timing differences establish causation. The
+eight-core run did not improve the p95 interval. Uncapped throughput and a
+CPU-bound endgame remain unmeasured; the cap can hide additional headroom.
+The short captures also cannot rule out the previously intermittent menu
+hangs, qualify multiplayer stability, or establish a desync fix.
+
+The four- and eight-core experimental adapters built successfully and passed
+the focused CPU-selection, Steam-profile and bootstrap checks. Eight cores
+required widening the limit only in an ignored private source copy; no product
+limit, payload pin, release package or deterministic simulation setting changed.
+All four games exited cleanly, their memory sentinels reported no pressure or
+monitor failure, and the original test-copy adapter and bundle fingerprints
+were restored and verified after the comparison. Both original installations
+were left untouched. Raw captures and experimental binaries remain in ignored
+local storage.
