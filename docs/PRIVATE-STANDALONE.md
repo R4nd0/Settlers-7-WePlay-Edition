@@ -121,3 +121,9 @@ and DXVK were loaded, with no Orbit module. It exited normally with code 0.
 The engine refused to start the match without a second human client. The
 Steam sentinel recorded memory pressure and a monitoring failure, so that run
 does not establish clean memory behavior or multiplayer stability.
+
+The RC3.8 follow-up subsequently completed two real, fresh mixed-edition local
+matches with each edition hosting, beyond turns 3489 and 2858 respectively.
+The complete loaded castle values matched on both clients. See the
+[two-client qualification](MULTIPLAYER-CASTLES.md#rc38-two-client-qualification-2026-10-31)
+for the laboratory isolation, memory-monitor failures and remaining limits.

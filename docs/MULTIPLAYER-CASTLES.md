@@ -89,6 +89,46 @@ after the hooked event. The engine refused match startup without a second
 human player; no synchronization check was bypassed. This was a startup/lobby
 check, not a new match or a desync-free result.
 
+## RC3.8 two-client qualification, 2026-10-31
+
+Two freshly started isolated clients ran Fiery Chasm with one normal-difficulty
+AI. The same castle-consistency source was compiled with the existing guarded
+laboratory executable/profile/loopback isolation; the production package keeps
+the original-executable adapter and never includes those laboratory binaries.
+
+| Host | Guest | Last paired command turns | Human castle parts on both clients |
+| --- | --- | --- | --- |
+| Ubisoft | Steam | 3489 / 3489 | 106 / 25 |
+| Steam | Ubisoft | 2858 / 2858 | 25 / 106 |
+
+Bounded passive reads of the loaded multiplayer configuration compared the
+type, every part asset, parent, attachment slot and name for all five setup
+records. Complete value hashes matched across both clients after loading and
+again after sustained play in both host directions. Both human names were
+empty in the actual multiplayer records; the 136-part AI castle also matched.
+The earlier pre-start observation read a different, menu-time configuration;
+it did not demonstrate the eventual multiplayer record.
+
+Both players' different castles were observed visually, including each other
+player's starting sector. Host residence construction completed in both runs;
+the first guest's construction command was accepted, although its building
+remained unconnected to the road network. The two traces contain 360 and 300
+paired samples, including loading. They retain host horizon 1 and guest horizon
+5 during sustained play. Both clients advanced beyond the reported turn 461
+and the older turn 2154 without a visible desync. Sequential turn reads are not
+atomic and no whole-simulation checksum equality was measured.
+
+All four games exited normally with code 0. The peer-left notices appeared
+after the deliberate guest closures. Private profile fixtures were restored.
+Memory peaked at 1449–1542 MiB per process; the recorded pressure level was 0,
+but the final sentinel summaries marked monitoring failures. These runs must
+not be presented as clean memory-monitor or long-session qualification.
+
+Laboratory validation passed 1381 bootstrap/ABI and 741 Steam-profile checks;
+the production candidate had passed 1360 and 732 respectively. This is a real,
+bounded same-PC mixed-edition test. Physical-PC LAN, Internet, save/reload,
+maximum-size designs and extended/endgame synchronization remain unqualified.
+
 ## Build and verification
 
 For the original-executable development adapter:
@@ -102,7 +142,9 @@ defaults to true. For the local-only diagnostic variant, explicitly use
 `-CastleWirePrototype:$false -CastlePrototype`. Laboratory builds accept only their existing private
 test executable identities and loopback slots; never distribute those DLLs.
 
-Observed behavior:
+### Historical RC3.7 observations
+
+The earlier RC3.7 candidate produced the following observations:
 
 | Host | Guest | Both clients' loaded castle part counts | Visual result |
 | --- | --- | --- | --- |

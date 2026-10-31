@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.7.1. Use its `--help` and the
+currently building RC3.8. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,20 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.7.1 maintenance
+## RC3.8 standalone and castle consistency
+
+Version `2.0.0-rc3.8` uses preview sequence 7 and retains network revision 7.
+It includes the guarded legacy-launcher startup correction for Ubisoft/Uplay
+and Steam, the verified standalone export helper and complete-ZIP relocation
+recovery. Steam retains its genuine SDK and ownership check. The normal native
+payload SHA-256 is
+`44e48d22dfcc0d1f807c1ad82c2ae313962bca91d834daa35795eae853068289`;
+the service, DXVK and runtime pins remain those of the verified base package.
+Never substitute a laboratory adapter or laboratory service in this package.
+See [RC3.8 notes](RC3.8-STANDALONE-CASTLES.md) and
+[castle verification](MULTIPLAYER-CASTLES.md) for actual test scope.
+
+## Historical RC3.7.1 maintenance
 
 Version `2.0.0-rc3.7.1` uses preview sequence 6 and network revision 7. It fixes
 the stale visible version and retires unchanged owned files from obsolete game

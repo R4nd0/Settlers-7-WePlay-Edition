@@ -7,9 +7,10 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**RC3.7.1 sources:** the fingerprinted Ubisoft Connect and Steam History Edition
-builds. Steam startup and a local two-client match have been observed; keep
-Steam running when using that edition. See the
+**RC3.8 development sources** support the fingerprinted Ubisoft Connect/Uplay
+and Steam History Edition builds, with standalone startup recovery and castle
+data consistency corrections. Keep Steam running when using that edition.
+See [RC3.8 build notes](docs/RC3.8-STANDALONE-CASTLES.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
 **[Download RC3.7.1 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.7.1/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.7.1) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)

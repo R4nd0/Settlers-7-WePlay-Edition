@@ -8,8 +8,8 @@
 [Setup]
 AppId={{B66B3FA3-165A-4B0E-ACAA-771C64367317}
 AppName=Settlers 7: WePlay Edition
-AppVersion=2.0.0-rc3.7.1
-AppVerName=Settlers 7: WePlay Edition RC3.7.1 Maintenance
+AppVersion=2.0.0-rc3.8
+AppVerName=Settlers 7: WePlay Edition RC3.8 Standalone and Castles
 AppPublisher=WePlay Community
 AppPublisherURL=https://github.com/R4nd0/Settlers-7-WePlay-Edition
 DefaultDirName={localappdata}\Settlers7WePlay
