@@ -1,6 +1,5 @@
 {
   "app": "Settlers 7: WePlay Edition",
-  "version": "RC3.5 · Windows-Hilfe",
   "setupTitle": "WePlay Edition einrichten",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "Deine Original-Spieldateien bleiben unverändert. Wir erstellen eine getrennte Kopie und richten die Grafik automatisch ein.",
@@ -17,7 +16,10 @@
   "notFound": "Wähle einmal deinen Original-Spielordner aus, um fortzufahren.",
   "found": "Spiel gefunden. Mit Spiel installieren wird alles eingerichtet.",
   "browseHint": "Wähle den Ordner, der Base oder Data\\Base enthält.",
-  "dataHint": "Wähle einen Ordner mit genügend Platz für die getrennte Kopie.",
+  "dataHint": "Wähle den bisherigen WePlay-Speicherort oder einen neuen Ordner mit genügend freiem Platz.",
+  "storagePolicy": "Der bisherige Speicherort wird weiterverwendet. Alte WePlay-Spieldateien werden nach erfolgreicher Aktualisierung automatisch bereinigt. Für den sicheren Wechsel wird vorübergehend Platz für eine zusätzliche Kopie benötigt. Spielstände und eigene Dateien bleiben erhalten.",
+  "cleanup_required": "Zu viele alte Kopien konnten noch nicht bereinigt werden. Beende alte Spiele und wähle unter Hilfe: Ältere Versionen entfernen. Danach die Aktualisierung erneut starten.",
+  "cleanup_deferred": "Die neue Spielkopie ist bereit. Einige alte Dateien sind noch belegt oder konnten nicht sicher bereinigt werden. Beende alte Spiele und wähle unter Hilfe: Ältere Versionen entfernen.",
   "play": "Spielen",
   "lan": "LAN spielen",
   "graphics": "Grafik",

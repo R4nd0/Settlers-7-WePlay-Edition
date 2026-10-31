@@ -69,15 +69,22 @@ source contains no `State`, `Instances` or `LocalData`; those local directories
 remain in place. A changed copied-game contract uses the existing staged
 installation transaction: create and verify a separate game instance, copy
 supported preferences/saves and atomically switch `installation.json` only
-after verification. The previous instance stays available. GUI-only changes
-do not demand another full game copy.
+after verification. In development sources after RC3.7, the previous instance
+remains available until that commit, then its unchanged owned game files are
+automatically retired. Personal, unknown and modified files are retained.
+Busy or unsafe old copies remain referenced for a later Help cleanup; their
+cleanup failure does not undo the successfully prepared new version. The chosen
+storage container is reused, and choosing an existing owned copy resolves to
+its container rather than nesting copies. The safe staged switch still needs
+temporary space for one additional full copy. GUI-only changes do not demand
+another full game copy. Published RC3.7 still needs the manual cleanup action.
 
 Recovery is deliberately limited: a failed Setup relies on Inno Setup's normal
 installation transaction; a failed new game preparation retains the active old
 instance. There is no automatic post-update health rollback, simulation test or
 delta-patch rollback. If the installer itself fails, the helper records a fixed
 error under `State/Updates/status.json`; the downloaded verified Setup and prior
-game instance remain available for repair. Unknown files and personal data are
+game instance remain available for repair if preparation did not commit. Unknown files and personal data are
 never deleted to make an update succeed. An obsolete or unsigned launcher needs
 the bootstrap installer once before it can recognize signed future updates.
 If an existing RC3.4 handoff is blocked by its current script policy, run the

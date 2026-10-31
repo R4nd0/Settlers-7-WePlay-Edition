@@ -44,7 +44,9 @@ class DesktopTests(unittest.TestCase):
                                ((self.desktop,'renderer'),{'return_value':'native'})]:
             item=patch.object(*target,**options);item.start();self.addCleanup(item.stop)
 
-    def prepare(self):return self.desktop.install_game(self.fixture.source)
+    def prepare(self):
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            return self.desktop.install_game(self.fixture.source)
 
     def test_low_physical_ram_warns_but_reaches_regular_game_start_callback(self):
         self.prepare();order=[]
@@ -117,16 +119,17 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(choice._load_choice(root)['display']['mode'],'borderless')
         self.assertIn('copy',[fields['phase'] for kind,fields in self.events if kind=='progress'])
 
-    def test_repair_preserves_same_pc_saves_and_previous_copy(self):
-        self.prepare();old=self.desktop.game();old_manifest=(old/'compatibility.json').read_bytes()
+    def test_repair_preserves_saves_then_retires_old_game_only_after_commit(self):
+        self.prepare();old=self.desktop.game()
         (old/'LocalData/saves').mkdir();(old/'LocalData/saves/1.s7local').write_bytes(b'opaque save fixture')
         (old/'LocalData/local-profile-id.txt').write_bytes(b'opaque identity fixture')
         self.prepare();new=self.desktop.game()
         self.assertNotEqual(old,new)
         self.assertEqual((new/'LocalData/saves/1.s7local').read_bytes(),b'opaque save fixture')
         self.assertEqual((new/'LocalData/local-profile-id.txt').read_bytes(),b'opaque identity fixture')
-        self.assertEqual((old/'compatibility.json').read_bytes(),old_manifest)
-        self.assertEqual(self.desktop.installed()['previous'],[{'container':str(old.parent),'instance':old.name}])
+        self.assertFalse((old/'Base/Bin/Settlers7R.exe').exists())
+        self.assertEqual((old/'LocalData/saves/1.s7local').read_bytes(),b'opaque save fixture')
+        self.assertEqual(self.desktop.installed()['previous'],[])
 
     def test_failed_or_cancelled_preparation_never_switches_active_version(self):
         self.prepare();before=(self.desktop.state/'installation.json').read_bytes();old=self.desktop.game()
@@ -138,17 +141,85 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
         self.assertTrue((old/'Base/Bin/Settlers7R.exe').is_file())
 
+    def test_cleanup_is_after_publication_and_failure_keeps_retry_reference(self):
+        self.prepare();old=self.desktop.game()
+        def busy(container,name):
+            self.assertEqual(Path(container)/name,old)
+            self.assertNotEqual(self.desktop.game(),old)
+            self.assertTrue((self.desktop.game()/'compatibility.json').is_file())
+            raise ValueError('managed_copy_busy')
+        with patch.object(self.desktop,'cleanup_instance',side_effect=busy):self.prepare()
+        self.assertTrue((old/'Base/Bin/Settlers7R.exe').exists())
+        self.assertEqual(self.desktop.installed()['previous'],[{'container':str(old.parent),'instance':old.name}])
+        self.assertIn(('warning',{'code':'cleanup_deferred'}),self.events)
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            self.assertEqual(self.desktop.clean_old(),{'cleaned':1})
+        self.assertEqual(self.desktop.installed()['previous'],[])
+
+    def test_failed_publication_never_removes_previous_game(self):
+        self.prepare();old=self.desktop.game();before=(self.desktop.state/'installation.json').read_bytes()
+        write=self.desktop.write
+        def fail_publish(path,value):
+            if path==self.desktop.state/'installation.json':raise OSError('invented commit failure')
+            return write(path,value)
+        with patch.object(self.desktop,'write',side_effect=fail_publish),patch.object(self.desktop,'cleanup_instance') as cleanup:
+            with self.assertRaises(OSError):self.prepare()
+            cleanup.assert_not_called()
+        self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
+        self.assertTrue((old/'Base/Bin/Settlers7R.exe').is_file())
+
+    def test_selecting_existing_managed_copy_reuses_container_without_nesting(self):
+        self.prepare();old=self.desktop.game()
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            self.desktop.install_game(self.fixture.source,old)
+        self.assertEqual(self.desktop.game().parent,old.parent)
+        self.assertFalse((old/'Base/Bin/Settlers7R.exe').exists())
+        self.assertTrue((self.desktop.game()/'Base/Bin/Settlers7R.exe').exists())
+
+    def test_destination_cannot_nest_in_active_copy(self):
+        self.prepare();old=self.desktop.game()
+        with patch.object(install,'prepare') as prepare:
+            with self.assertRaisesRegex(ValueError,'destination_invalid'):
+                self.desktop.install_game(self.fixture.source,old/'nested')
+            prepare.assert_not_called()
+        self.assertTrue((old/'Base/Bin/Settlers7R.exe').exists())
+
+    def test_legacy_nested_active_copy_prevents_ancestor_cleanup(self):
+        self.prepare();old=self.desktop.game();value=self.desktop.installed()
+        nested=old/('f'*32);(nested/'Base').mkdir(parents=True)
+        (nested/'Base/keep.bin').write_bytes(b'active game fixture')
+        self.desktop.write(nested/'desktop-owner.json',{'format':backend.FORMAT,'owner':self.desktop.owner,'instance':nested.name})
+        value.update(container=str(old),current=nested.name,
+            previous=[{'container':str(old.parent),'instance':old.name}])
+        self.desktop.write(self.desktop.state/'installation.json',value)
+        with patch.object(self.desktop,'cleanup_instance') as cleanup:
+            self.assertEqual(self.desktop.clean_old(automatic=True),{'cleaned':0})
+            cleanup.assert_not_called()
+        self.assertEqual((nested/'Base/keep.bin').read_bytes(),b'active game fixture')
+        self.assertEqual(self.desktop.installed()['previous'],value['previous'])
+
+    def test_partial_manual_cleanup_keeps_only_unfinished_references(self):
+        self.prepare()
+        with patch.object(self.desktop,'cleanup_instance',side_effect=ValueError('managed_copy_busy')):
+            self.prepare();self.prepare()
+        previous=self.desktop.installed()['previous']
+        with patch.object(self.desktop,'cleanup_instance',side_effect=[{'kept_modified':0},OSError('invented locked file')]):
+            with self.assertRaises(OSError):self.desktop.clean_old()
+        self.assertEqual(self.desktop.installed()['previous'],previous[1:])
+
     def test_destination_change_keeps_previous_locations_and_cleanup_preserves_personal_data(self):
         self.prepare();old=self.desktop.game();(old/'LocalData/saves').mkdir()
         (old/'LocalData/saves/keep.txt').write_bytes(b'personal');(old/'unknown.txt').write_bytes(b'unknown')
         target=self.fixture.root/'other-drive'
-        self.desktop.install_game(self.fixture.source,target);new=self.desktop.game()
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+            self.desktop.install_game(self.fixture.source,target)
+        new=self.desktop.game()
         self.assertEqual(new.parent,target)
         self.assertFalse(self.desktop.snapshot()['needs_repair'])
-        self.assertEqual(self.desktop.installed()['previous'],[{'container':str(old.parent),'instance':old.name}])
+        self.assertEqual(self.desktop.installed()['previous'],[])
         self.assertEqual((new/'LocalData/saves/keep.txt').read_bytes(),b'personal')
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
-            self.assertEqual(self.desktop.clean_old(),{'cleaned':1})
+            self.assertEqual(self.desktop.clean_old(),{'cleaned':0})
         self.assertFalse((old/'Base/Bin/Settlers7R.exe').exists())
         self.assertTrue((new/'Base/Bin/Settlers7R.exe').is_file())
         self.assertEqual((old/'unknown.txt').read_bytes(),b'unknown')
@@ -156,7 +227,8 @@ class DesktopTests(unittest.TestCase):
 
     def test_legacy_cross_container_record_recovers_only_exact_owned_default_instances(self):
         self.prepare();old=self.desktop.game()
-        self.desktop.install_game(self.fixture.source,self.fixture.root/'moved')
+        with patch.object(self.desktop,'cleanup_instance',side_effect=ValueError('managed_copy_busy')):
+            self.desktop.install_game(self.fixture.source,self.fixture.root/'moved')
         value=self.desktop.installed();value.update(format=backend.FORMAT,previous=[old.name])
         self.desktop.write(self.desktop.state/'installation.json',value)
         before=(self.desktop.state/'installation.json').read_bytes()
@@ -173,7 +245,9 @@ class DesktopTests(unittest.TestCase):
     def test_uninstall_follows_cross_container_references_and_keeps_all_saves(self):
         self.prepare();old=self.desktop.game();(old/'LocalData/saves').mkdir()
         (old/'LocalData/saves/keep.txt').write_bytes(b'personal')
-        self.desktop.install_game(self.fixture.source,self.fixture.root/'moved');new=self.desktop.game()
+        with patch.object(self.desktop,'cleanup_instance',side_effect=ValueError('managed_copy_busy')):
+            self.desktop.install_game(self.fixture.source,self.fixture.root/'moved')
+        new=self.desktop.game()
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
             self.desktop.uninstall()
         for root in (old,new):

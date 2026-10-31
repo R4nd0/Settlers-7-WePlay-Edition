@@ -326,7 +326,20 @@ class Desktop:
         source=graphics._plain(source)
         install.source_base(source,steam_supported=install.package_manifest(self.package).get('steam_history',False))
         previous=self.installed()
+        # Never discard an older owned location to make room in the bounded
+        # history. Retry its cleanup before allocating another full game copy.
+        if previous and len(previous['previous'])>=16:
+            self.clean_old(automatic=True)
+            previous=self.installed()
+            if len(previous['previous'])>=16:raise ValueError('cleanup_required')
         base=graphics._plain(container or (previous['container'] if previous else self.app/'Instances'))
+        if previous:
+            references=[{'container':previous['container'],'instance':previous['current']},*previous['previous']]
+            # Selecting our existing copy means keep its storage location,
+            # rather than nesting another full copy inside the old instance.
+            owned=[self.instance(item['container'],item['instance']) for item in references]
+            if base in owned:base=base.parent
+            if any(base.is_relative_to(path) for path in owned):raise ValueError('destination_invalid')
         if base==source or base.is_relative_to(source) or source.is_relative_to(base):
             raise ValueError('destination_invalid')
         if base.is_relative_to(self.package) or self.package.is_relative_to(base):
@@ -355,10 +368,15 @@ class Desktop:
         verified=content.verify(root)
         self.record_ownership(root,verified)
         record={'format':INSTALL_FORMAT,'source':str(source),'container':str(base),'current':instance,
-                'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']][:16] if previous else []),
+                'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
                 'package_id':self.package_id(),'renderer_policy':policy}
         self.progress('finish')
         self.write(self.state/'installation.json',record)
+        # Publish and verify first. Only then retire the old owned game files;
+        # cleanup failure must not turn a successful installation into failure.
+        self.finalizing=True
+        try:self.clean_old(automatic=True)
+        except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
         return self.snapshot()
 
     def record_ownership(self,root,manifest=None):
@@ -668,13 +686,24 @@ class Desktop:
             except OSError:pass
         return {'kept_modified':kept}
 
-    def clean_old(self):
+    def clean_old(self,automatic=False):
         graphics.ensure_closed();value=self.installed()
         if not value:return {'cleaned':0}
-        count=0
-        for reference in value['previous']:
-            self.progress('cleanup');self.cleanup_instance(reference['container'],reference['instance']);count+=1
-        value['previous']=[];self.write(self.state/'installation.json',value)
+        count=0;pending=[]
+        active=self.instance(value['container'],value['current'])
+        for index,reference in enumerate(value['previous']):
+            try:
+                root=self.instance(reference['container'],reference['instance'])
+                if active.is_relative_to(root):raise ValueError('ownership_invalid')
+                self.progress('cleanup');self.cleanup_instance(reference['container'],reference['instance']);count+=1
+            except (OSError,ValueError,subprocess.TimeoutExpired):
+                pending.append(reference)
+                if not automatic:
+                    value['previous']=[*pending,*value['previous'][index+1:]]
+                    self.write(self.state/'installation.json',value)
+                    raise
+        value['previous']=pending;self.write(self.state/'installation.json',value)
+        if pending:self.emit('warning',code='cleanup_deferred')
         return {'cleaned':count}
 
     def uninstall(self):
@@ -773,7 +802,7 @@ def error_code(error):
                                     'memory_commit_low','memory_status_failed','source_steam_unsupported'):
         return error.code
     text=str(error)
-    known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy',
+    known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
         'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}

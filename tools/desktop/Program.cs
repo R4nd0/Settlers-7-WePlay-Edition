@@ -10,6 +10,9 @@ namespace S7Desktop;
 internal static class Program
 {
     public static string AppRoot => AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+    internal static string ReleaseVersion => Assembly.GetExecutingAssembly()
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
+        ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "";
     [STAThread]
     private static int Main(string[] args)
     {
@@ -222,6 +225,7 @@ internal sealed class MainForm : Form
     private readonly TabControl tabs = new() { Dock = DockStyle.Fill, Padding = new Point(16,8) };
     private readonly ComboBox language = Combo();
     private readonly Label status = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly Label releaseVersion = new() { AutoSize = true, Margin = new Padding(10,12,18,0), ForeColor = Color.DimGray, Text = Program.ReleaseVersion };
     private readonly ProgressBar progress = new() { Dock = DockStyle.Top, Height = 6, Visible = false };
     private readonly ComboBox source = Combo();
     private readonly TextBox destination = new() { ReadOnly = true, Dock = DockStyle.Fill };
@@ -282,7 +286,7 @@ internal sealed class MainForm : Form
         using(var logoStream=Assembly.GetExecutingAssembly().GetManifestResourceStream("WePlay.Logo.png"))
             if(logoStream!=null)title.Image=new Bitmap(logoStream);
         header.Controls.Add(title,0,0);
-        var version = new Label { AutoSize = true, Margin = new Padding(10,12,18,0), ForeColor = Color.DimGray }; Bind(version,"version"); header.Controls.Add(version,1,0);
+        header.Controls.Add(releaseVersion,1,0);
         language.Items.AddRange([new Item("de","Deutsch"),new Item("en","English")]); language.SelectedIndex = Lang.Current == "de" ? 0 : 1;
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
@@ -374,6 +378,7 @@ internal sealed class MainForm : Form
         var title = Label("setupTitle"); title.Font = new Font(Font.FontFamily,20,FontStyle.Bold); Add(stack,title); Add(stack,Label("setupIntro"));
         Add(stack,Field("source",source,Button("browseSource",BrowseSource)));
         Add(stack,Field("destination",destination,Button("change",BrowseDestination)));
+        Add(stack,Label("storagePolicy"));
         Add(stack,Label("installInfo")); Add(stack,setupNotice); Add(stack,Buttons(installButton,cancelButton));
     }
     private void BuildTabs()
@@ -959,6 +964,7 @@ internal sealed class MainForm : Form
             foreach(string language in new[]{"en","de"})
             {
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
+                if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
                 form.LoadSnapshot(json.RootElement);form.ShowMain();form.Show();Application.DoEvents();
                 using var request=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 var output=request.RootElement.GetProperty("choice").GetProperty("display");
@@ -1064,7 +1070,7 @@ internal sealed class MainForm : Form
                 form.Close();
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","borderless_native_resolution","native_gpu_filter_disabled",
+                passed=true,checks=new[]{"translation_keys","release_version_from_assembly","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
