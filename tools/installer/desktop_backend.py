@@ -686,6 +686,22 @@ class Desktop:
             except OSError:pass
         return {'kept_modified':kept}
 
+    def retire_old_copies(self):
+        value=self.installed()
+        if not value or not value['previous']:return {'cleaned':0}
+        try:
+            graphics.ensure_closed()
+            install.package_manifest(self.package)
+            # A GUI-only update can reuse its active game. Verify that copy
+            # before reclaiming old versions; do not allocate another copy.
+            if value['package_id']!=self.package_id():return {'cleaned':0}
+            content.verify(self.game())
+            self.finalizing=True
+            return self.clean_old(automatic=True)
+        except (OSError,ValueError,subprocess.TimeoutExpired):
+            self.emit('warning',code='cleanup_deferred')
+            return {'cleaned':0}
+
     def clean_old(self,automatic=False):
         graphics.ensure_closed();value=self.installed()
         if not value:return {'cleaned':0}
@@ -787,6 +803,7 @@ def dispatch(desktop,request):
         if action=='probe' and not data:return desktop.probe(refresh=True)
         if action=='verify' and not data:return desktop.verify()
         if action=='cleanup' and not data:return desktop.clean_old()
+        if action=='cleanup-automatic' and not data:return desktop.retire_old_copies()
         if action=='uninstall' and not data:return desktop.uninstall()
         if action=='diagnostics' and not data:return desktop.diagnostics()
         if action=='reset-installation' and not data:return desktop.reset_installation()

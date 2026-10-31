@@ -7,12 +7,17 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**RC3.7 sources:** the fingerprinted Ubisoft Connect and Steam History Edition
+**RC3.7.1 sources:** the fingerprinted Ubisoft Connect and Steam History Edition
 builds. Steam startup and a local two-client match have been observed; keep
 Steam running when using that edition. See the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.7 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.7/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.7) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.7.1 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.7.1/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.7.1) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+
+**RC3.7.1 maintenance:** correct version display and automatic cleanup of older
+managed game files, preserving saves and personal files. The safe switch to a
+new game copy still temporarily needs extra disk space.
+[Maintenance notes](docs/RC3.7.1-MAINTENANCE.md).
 
 **Your castle is back in multiplayer.** RC3.7 restores each player's customized
 Castle Forge design inside matches, including its appearance on the other
@@ -24,7 +29,7 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## What you can do
 
-| Feature | Available in RC3.7 |
+| Feature | Available in RC3.7.1 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
@@ -38,10 +43,10 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## Install or upgrade
 
-1. Download **Setup.exe** from the RC3.7 release. Close S7 and WePlay before upgrading.
+1. Download **Setup.exe** from the RC3.7.1 release. Close S7 and WePlay before upgrading.
 2. Run Setup; for an upgrade, use your existing WePlay application folder.
 3. Select your original supported History Edition when asked and let WePlay prepare or update its separate game copy.
-4. Install the **same RC3.7 build on every player's PC** before playing together. Older clients use a different castle message format.
+4. Install the **same RC3.7.1 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.

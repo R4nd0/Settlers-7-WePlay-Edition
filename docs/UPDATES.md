@@ -69,7 +69,7 @@ source contains no `State`, `Instances` or `LocalData`; those local directories
 remain in place. A changed copied-game contract uses the existing staged
 installation transaction: create and verify a separate game instance, copy
 supported preferences/saves and atomically switch `installation.json` only
-after verification. In development sources after RC3.7, the previous instance
+after verification. Starting with RC3.7.1, the previous instance
 remains available until that commit, then its unchanged owned game files are
 automatically retired. Personal, unknown and modified files are retained.
 Busy or unsafe old copies remain referenced for a later Help cleanup; their
@@ -77,7 +77,10 @@ cleanup failure does not undo the successfully prepared new version. The chosen
 storage container is reused, and choosing an existing owned copy resolves to
 its container rather than nesting copies. The safe staged switch still needs
 temporary space for one additional full copy. GUI-only changes do not demand
-another full game copy. Published RC3.7 still needs the manual cleanup action.
+another full game copy. Startup can also retire a backlog after verifying a
+current active copy, without preparing another game copy. Busy, corrupted or
+unmatched active copies defer this cleanup. Published RC3.7 still needs the
+manual cleanup action.
 
 Recovery is deliberately limited: a failed Setup relies on Inno Setup's normal
 installation transaction; a failed new game preparation retains the active old
@@ -104,7 +107,7 @@ existing key/pin pair. No user-facing updater can mint release signatures.
 After building and testing a future installer, use a new sequence and tag:
 
 ```powershell
-python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.7 --sequence 5 --tag v2.0.0-rc3.7 --notes-file work/updates/release-notes.txt
+python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.7.1 --sequence 6 --tag v2.0.0-rc3.7.1 --notes-file work/updates/release-notes.txt
 ```
 
 The tool validates the metadata, signs inside Windows cryptography, verifies the
@@ -114,14 +117,14 @@ list including both assets and the fixed repository. Publish only the reviewed,
 verified installer and its matching signed manifest to that exact tag. Example:
 
 ```powershell
-gh release create v2.0.0-rc3.7 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.7"
+gh release create v2.0.0-rc3.7.1 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.7.1"
 ```
 
 Publishing is an operator action; the implementation does not silently create
 or overwrite a release. Existing published assets remain intact. The signed
 RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 is published as
 v2.0.0-rc3.5 (initial sequence 2, privacy rebuild sequence 3). RC3.6 uses sequence 4;
-RC3.7 Castle Restoration uses sequence 5.
+RC3.7 Castle Restoration uses sequence 5; RC3.7.1 maintenance uses sequence 6.
 Building/signing a local candidate does not publish it
 or update a user's PC; publication remains a separate operator action.
 Maintainer signing tools may use PowerShell/CNG locally; they are not shipped

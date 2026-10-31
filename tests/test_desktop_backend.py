@@ -207,6 +207,31 @@ class DesktopTests(unittest.TestCase):
             with self.assertRaises(OSError):self.desktop.clean_old()
         self.assertEqual(self.desktop.installed()['previous'],previous[1:])
 
+    def test_startup_reclaims_backlog_without_preparing_another_copy(self):
+        self.prepare();old=self.desktop.game()
+        with patch.object(self.desktop,'cleanup_instance',side_effect=ValueError('managed_copy_busy')):self.prepare()
+        current=self.desktop.game()
+        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')),patch.object(install,'prepare') as prepare:
+            self.assertEqual(self.desktop.retire_old_copies(),{'cleaned':1})
+            prepare.assert_not_called()
+        self.assertEqual(self.desktop.game(),current)
+        self.assertFalse((old/'Base/Bin/Settlers7R.exe').exists())
+
+    def test_startup_preserves_backlog_if_active_copy_or_package_is_not_ready(self):
+        self.prepare();old=self.desktop.game()
+        with patch.object(self.desktop,'cleanup_instance',side_effect=ValueError('managed_copy_busy')):self.prepare()
+        current=self.desktop.game();exe=current/'Base/Bin/Settlers7R.exe';original=exe.read_bytes()
+        with patch.object(self.desktop,'cleanup_instance') as cleanup:
+            exe.write_bytes(b'invented corrupt active executable')
+            self.assertEqual(self.desktop.retire_old_copies(),{'cleaned':0})
+            exe.write_bytes(original)
+            with patch.object(self.desktop,'package_id',return_value='different'):
+                self.assertEqual(self.desktop.retire_old_copies(),{'cleaned':0})
+            with patch.object(graphics,'ensure_closed',side_effect=ValueError('managed_copy_busy')):
+                self.assertEqual(self.desktop.retire_old_copies(),{'cleaned':0})
+            cleanup.assert_not_called()
+        self.assertTrue((old/'Base/Bin/Settlers7R.exe').exists())
+
     def test_destination_change_keeps_previous_locations_and_cleanup_preserves_personal_data(self):
         self.prepare();old=self.desktop.game();(old/'LocalData/saves').mkdir()
         (old/'LocalData/saves/keep.txt').write_bytes(b'personal');(old/'unknown.txt').write_bytes(b'unknown')

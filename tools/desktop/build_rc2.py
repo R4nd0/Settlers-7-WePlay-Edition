@@ -1,4 +1,4 @@
-"""Build the RC3.7 Castle Restoration preview from pinned inputs."""
+"""Build the RC3.7.1 maintenance preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=5):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=6):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -47,15 +47,15 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     guide=REPO/'docs/RC3-INTERNET.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.7-CASTLES.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.7.1-MAINTENANCE.md',app/'RELEASE-NOTES.md')
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.7 Castle Restoration','network_revision':7,'game_bits':32,
-             'version':'2.0.0-rc3.7','update_sequence':update_sequence,'update_channel':'preview',
+    release={'format':'s7-desktop-release-v1','release':'RC3.7.1 Maintenance','network_revision':7,'game_bits':32,
+             'version':'2.0.0-rc3.7.1','update_sequence':update_sequence,'update_channel':'preview',
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -99,7 +99,7 @@ def refresh_stage(app,desktop_publish):
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
     if (REPO/'docs/RC3-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3-INTERNET.md',app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.7-CASTLES.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.7.1-MAINTENANCE.md',app/'RELEASE-NOTES.md')
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 
@@ -111,7 +111,7 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=5)
+    parser.add_argument('--update-sequence',type=int,default=6)
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,

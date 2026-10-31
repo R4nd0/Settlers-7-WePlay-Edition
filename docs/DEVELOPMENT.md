@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.7. Use its `--help` and the
+currently building RC3.7.1. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,16 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.7 Castle Restoration
+## RC3.7.1 maintenance
+
+Version `2.0.0-rc3.7.1` uses preview sequence 6 and network revision 7. It fixes
+the stale visible version and retires unchanged owned files from obsolete game
+copies after verified preparation. Startup can retire a backlog while reusing
+a verified current copy; busy, invalid or unmatched copies defer cleanup.
+The normal RC3.7 native/service/DXVK pins below remain unchanged. The compiled
+launcher version drives the header. See [release notes](RC3.7.1-MAINTENANCE.md).
+
+## RC3.7 Castle Restoration payload
 
 RC3.7 enables the guarded castle restoration/replication in normal native builds.
 Version `2.0.0-rc3.7` uses signed preview sequence 5 and network revision 7.

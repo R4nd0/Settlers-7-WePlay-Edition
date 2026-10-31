@@ -544,7 +544,12 @@ internal sealed class MainForm : Form
             bool installed=value.GetProperty("installed").GetBoolean();
             if(!installed||value.GetProperty("update_available").GetBoolean()||
                 (value.TryGetProperty("needs_repair",out var repair)&&repair.GetBoolean())) await ShowSetup();
-            else { ShowMain(); Shortcuts.Create(); }
+            else
+            {
+                try { await Backend.Run("cleanup-automatic",new {},Receive); }
+                catch(BackendError) { status.Text=Lang.T("cleanup_deferred"); }
+                ShowMain(); Shortcuts.Create();
+            }
         }
         catch(Exception error)
         {
