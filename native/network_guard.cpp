@@ -1,6 +1,7 @@
 #include "network_guard.h"
 #include "lan_address.h"
 #include "local_pair_lab.h"
+#include "lab_address_table.h"
 #if defined(S7_LOCAL_PAIR_LAB) || defined(S7_LOCAL_NETWORK_PUMP)
 #include "runtime_config.h"
 #endif
@@ -225,6 +226,19 @@ int WSAAPI LanRecvFrom(SOCKET socket, char* buffer, int length, int flags, socka
 }
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
+void LabOnce(unsigned int bit, const char* label);
+NETIO_STATUS WINAPI LabUnicastTable(ADDRESS_FAMILY family, PMIB_UNICASTIPADDRESS_TABLE* table) {
+    using Original = NETIO_STATUS (WINAPI*)(ADDRESS_FAMILY, PMIB_UNICASTIPADDRESS_TABLE*);
+    const auto original = reinterpret_cast<Original>(GetProcAddress(GetModuleHandleW(L"iphlpapi.dll"), "GetUnicastIpAddressTable"));
+    if (!original) return ERROR_PROC_NOT_FOUND;
+    const auto result = original(family, table);
+    const auto error = GetLastError();
+    if (result == NO_ERROR && family == AF_INET && table && *table) {
+        if (!lab_address_table::Project(*table, local_pair_bind.load())) (*table)->NumEntries = 0;
+        else LabOnce(1048576, "lab-unicast-address-projected");
+    }
+    SetLastError(error); return result;
+}
 void LabOnce(unsigned int bit, const char* label) {
     static std::atomic<unsigned int> observed{0};
     if (!(observed.fetch_or(bit) & bit)) ReportLocalStatus(label);
@@ -674,6 +688,9 @@ HINSTANCE WINAPI GuardShellW(HWND, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, INT) { Se
 struct Binding { const char* dll; const char* name; void* replacement; };
 #define BIND(dll, name, replacement) {dll, name, reinterpret_cast<void*>(replacement)}
 const Binding bindings[] = {
+#ifdef S7_LOCAL_PAIR_LAB
+    BIND("IPHLPAPI.DLL", "GetUnicastIpAddressTable", LabUnicastTable),
+#endif
     BIND("WS2_32.dll", "recvfrom", GuardRecvFrom), BIND("WS2_32.dll", "recv", GuardRecv),
     BIND("WS2_32.dll", "WSARecvFrom", GuardWSARecvFrom), BIND("WS2_32.dll", "WSAGetOverlappedResult", GuardWSAGetOverlappedResult),
     BIND("WS2_32.dll", "closesocket", GuardCloseSocket),

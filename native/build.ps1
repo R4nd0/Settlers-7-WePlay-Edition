@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump,
+param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype,
       [ValidateSet(2,4)][int]$MaximumPhysicalCores=4)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
@@ -19,6 +19,8 @@ $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_W
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
 if ($LocalNetworkPump) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
+if ($CastlePrototype -or $CastleWirePrototype) { $common += '/DS7_CASTLE_PROTOTYPE' }
+if ($CastleWirePrototype) { $common += '/DS7_CASTLE_WIRE_PROTOTYPE' }
 function Compile-Native([string[]]$Arguments) {
     if ($Arguments -notcontains '/link') { $Arguments += '/link' }
     # Avoid Windows' filename-based installer detection for test executables.
@@ -28,6 +30,8 @@ function Compile-Native([string[]]$Arguments) {
 }
 Push-Location $nativeOutput
 try {
+    Compile-Native @((Join-Path $nativeSource 'castle_profile_tests.cpp'), '/Fe:castle_profile_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'castle_wire_tests.cpp'), '/Fe:castle_wire_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'local_platform_tests.cpp'), '/Fe:local_platform_tests.exe')
     Compile-Native @('/LD', '/DS7_GUARD_TESTING', (Join-Path $nativeSource 'network_guard.cpp'), (Join-Path $nativeSource 'network_guard_test_exports.cpp'), '/Fe:network_guard_test.dll', '/link','ws2_32.lib','winhttp.lib','shell32.lib')
     Compile-Native @((Join-Path $nativeSource 'network_guard_tests.cpp'), '/Fe:network_guard_tests.exe', '/link','network_guard_test.lib','ws2_32.lib','winhttp.lib','shell32.lib')

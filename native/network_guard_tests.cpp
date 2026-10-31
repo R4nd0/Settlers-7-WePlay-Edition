@@ -6,6 +6,7 @@
 #include <shellapi.h>
 #include "lan_address.h"
 #include "transport_observation.h"
+#include "lab_address_table.h"
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
@@ -32,6 +33,43 @@ static int Bound(SOCKET socket, sockaddr_in& address) {
 }
 int main() {
     setvbuf(stdout, nullptr, _IONBF, 0);
+#ifdef S7_LOCAL_PAIR_LAB
+    {
+        struct Fixture { ULONG count; MIB_UNICASTIPADDRESS_ROW rows[3]; } fixture{};
+        static_assert(offsetof(Fixture, rows) == offsetof(MIB_UNICASTIPADDRESS_TABLE, Table));
+        auto* table = reinterpret_cast<MIB_UNICASTIPADDRESS_TABLE*>(&fixture);
+        fixture.count = 3;
+        fixture.rows[0].Address.si_family = AF_INET6;
+        fixture.rows[1].Address.Ipv4 = Address(0xc0a80a0a, 3074);
+        fixture.rows[1].DadState = IpDadStatePreferred;
+        fixture.rows[1].InterfaceIndex = 12;
+        fixture.rows[2].Address.Ipv4 = Address(0x0a000001);
+        fixture.rows[2].DadState = IpDadStatePreferred;
+        const auto original = fixture;
+        Check(!lab_address_table::Project(nullptr, 0x7f000002u), "lab null table rejected");
+        Check(!lab_address_table::Project(table, 0xc0a80a0au)
+            && memcmp(&fixture, &original, sizeof(fixture)) == 0, "lab physical slot rejected without mutation");
+        for (uint32_t slot : {0x7f000002u, 0x7f000003u}) {
+            fixture = original;
+            Check(lab_address_table::Project(table, slot) && table->NumEntries == 1
+                && ntohl(table->Table[0].Address.Ipv4.sin_addr.s_addr) == slot
+                && table->Table[0].Address.Ipv4.sin_port == 0
+                && table->Table[0].InterfaceIndex == 12
+                && table->Table[0].OnLinkPrefixLength == 8, "lab returns only owned loopback slot");
+            Check(memcmp(&fixture.rows[1], &original.rows[1], sizeof(fixture.rows[1]) * 2) == 0,
+                "lab leaves unused rows and caller storage intact");
+        }
+        fixture = original; fixture.count = 0;
+        Check(!lab_address_table::Project(table, 0x7f000002u), "lab empty table rejected");
+        fixture.count = 4097;
+        Check(!lab_address_table::Project(table, 0x7f000002u), "lab excessive table rejected before access");
+        fixture = original; fixture.rows[1].DadState = IpDadStateTentative;
+        fixture.rows[2].Address.Ipv4 = Address(0xc0000201);
+        const auto unsupported = fixture;
+        Check(!lab_address_table::Project(table, 0x7f000002u)
+            && memcmp(&fixture, &unsupported, sizeof(fixture)) == 0, "lab never advertises tentative or unrelated address");
+    }
+#endif
     {
         using namespace transport_observation;
         constexpr uint32_t local = 0xc0a80a0a, peer = 0xc0a80a14;

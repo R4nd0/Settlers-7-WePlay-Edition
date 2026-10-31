@@ -6,6 +6,51 @@
 std::vector<const char*> diagnostic_events;
 void ReportLocalStatus(const char* event) { diagnostic_events.push_back(event); SetLastError(12345); }
 namespace {
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+struct CastleTestStream { std::vector<uint32_t> words; size_t at = 0; };
+bool __fastcall FakeCastleWrite(CastleTestStream* stream, void*, uint32_t word) { stream->words.push_back(word); return true; }
+bool __fastcall FakeCastleRead(CastleTestStream* stream, void*, uint32_t* word) {
+    if (stream->at == stream->words.size()) return false;
+    *word = stream->words[stream->at++]; return true;
+}
+uintptr_t castle_join_words[4]{};
+DWORD castle_join_incoming_error = 0;
+void* __fastcall FakeCastleJoinConstructor(void* self, void*) {
+    castle_join_words[0] = reinterpret_cast<uintptr_t>(self);
+    castle_join_incoming_error = GetLastError(); SetLastError(6789); return self;
+}
+void __fastcall FakeCastleCopy(void* self, void*, const void* source) {
+    castle_join_words[0] = reinterpret_cast<uintptr_t>(self); castle_join_words[1] = reinterpret_cast<uintptr_t>(source);
+    castle_join_incoming_error = GetLastError(); SetLastError(6789);
+}
+void __fastcall FakeCastleExtract(void* self, void*, void* name, void* avatar) {
+    castle_join_words[0] = reinterpret_cast<uintptr_t>(self); castle_join_words[1] = reinterpret_cast<uintptr_t>(name);
+    castle_join_words[2] = reinterpret_cast<uintptr_t>(avatar); castle_join_incoming_error = GetLastError(); SetLastError(6789);
+}
+void __fastcall FakeCastleDispatch(void* self, void*, const char* name, uint32_t player, uint32_t avatar) {
+    castle_join_words[0] = reinterpret_cast<uintptr_t>(self); castle_join_words[1] = reinterpret_cast<uintptr_t>(name);
+    castle_join_words[2] = player; castle_join_words[3] = avatar;
+    castle_join_incoming_error = GetLastError(); SetLastError(6789);
+}
+#endif
+#ifdef S7_CASTLE_PROTOTYPE
+uintptr_t castle_constructor_words[7]{};
+DWORD castle_constructor_incoming_error = 0;
+void* __fastcall FakeCastlePlayer(void* self, void*, unsigned int kind, unsigned int player,
+    const void* setup, bool local, const void* castle, unsigned int extra) {
+    const uintptr_t words[] = {reinterpret_cast<uintptr_t>(self), kind, player,
+        reinterpret_cast<uintptr_t>(setup), local, reinterpret_cast<uintptr_t>(castle), extra};
+    memcpy(castle_constructor_words, words, sizeof(words));
+    castle_constructor_incoming_error = GetLastError();
+    SetLastError(6789); return reinterpret_cast<void*>(0x12345678);
+}
+#endif
+#ifdef S7_LOCAL_PAIR_LAB
+bool lab_interface_original = false;
+bool __cdecl FakeLocalInterface(const void*, const char**) {
+    SetLastError(6789); return lab_interface_original;
+}
+#endif
 #ifdef S7_LOCAL_NETWORK_PUMP
 void* turn_setter_self = nullptr;
 unsigned int turn_setter_value = 0;
@@ -302,6 +347,137 @@ int main() {
     auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, ExpectedImageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     if (!memory) return 2;
     image_base = reinterpret_cast<uintptr_t>(memory);
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+    check(FakeJump(0x6679E0, reinterpret_cast<const void*>(&FakeCastleWrite)));
+    check(FakeJump(0x667A10, reinterpret_cast<const void*>(&FakeCastleRead)));
+    check(FakeJump(0x668AC0, reinterpret_cast<const void*>(&FakeCastleJoinConstructor)));
+    check(FakeJump(0x6680A0, reinterpret_cast<const void*>(&FakeCastleCopy)));
+    check(FakeJump(0x6680F0, reinterpret_cast<const void*>(&FakeCastleExtract)));
+    check(FakeJump(0xEC9EC0, reinterpret_cast<const void*>(&FakeCastleDispatch)));
+    {
+        const castle_wire::Design design{"CF_Castle_01", {{"CF_Base_03", UINT32_MAX, 0}, {"CF_Turret_01", 0, 7}}};
+        own_castle_player = 101; CacheCastle(101, design);
+        CastleWireContext context{101}; bool touched = true;
+        CastleWireField field{nullptr, 1, &touched, &context}; CastleWireResult result{}; CastleTestStream stream;
+        check(WriteCastleField(&field, nullptr, &result, &stream) == &result && result.error == 1);
+        const auto original_words = stream.words;
+        context.player = 102;
+        check(ReadCastleField(&field, nullptr, &result, &stream) == &result && result.error == 1);
+        castle_wire::Design received; check(FindCastle(102, received) && received.type == design.type
+            && received.parts.size() == 2 && received.parts[1].asset == "CF_Turret_01");
+        CastleView view(received);
+        check(view.value.type == NativeVA(0x11372D0) && view.parts.size() == 2
+            && view.value.castle_type.length == design.type.size() && view.parents[0] == UINT32_MAX
+            && view.slots[1] == 7 && !view.value.name.length);
+        CacheCastle(0, design); check(FindCastle(0, received) && received.parts.size() == 2);
+        own_castle_player = 102; context.player = 102; stream.words = original_words; stream.at = 0;
+        ReadCastleField(&field, nullptr, &result, &stream);
+        check(result.error == 1 && FindCastle(102, received) && received.parts.size() == 2);
+        own_castle_player = 101;
+        check(!GetJoinCastle(nullptr, received));
+        SaveJoinCastle(reinterpret_cast<void*>(111), &design);
+        SetLastError(4321);
+        CopyCastleJoinMessage(reinterpret_cast<void*>(222), nullptr, reinterpret_cast<void*>(111));
+        check(GetLastError() == 6789 && castle_join_incoming_error == 4321
+            && castle_join_words[0] == 222 && castle_join_words[1] == 111);
+        check(GetJoinCastle(reinterpret_cast<void*>(222), received) && received.parts.size() == 2);
+        SetLastError(4321);
+        ExtractCastleJoinMessage(reinterpret_cast<void*>(222), nullptr, reinterpret_cast<void*>(333), reinterpret_cast<void*>(444));
+        check(GetLastError() == 6789 && castle_join_incoming_error == 4321 && pending_join_castle_valid
+            && castle_join_words[0] == 222 && castle_join_words[1] == 333 && castle_join_words[2] == 444);
+        SetLastError(4321);
+        DispatchCastleJoin(reinterpret_cast<void*>(111), nullptr, reinterpret_cast<const char*>(222), 104, 7);
+        check(GetLastError() == 6789 && castle_join_incoming_error == 4321 && !pending_join_castle_valid
+            && castle_join_words[0] == 111 && castle_join_words[1] == 222 && castle_join_words[2] == 104 && castle_join_words[3] == 7);
+        check(FindCastle(104, received) && received.parts.size() == 2);
+        SaveJoinCastle(reinterpret_cast<void*>(111), nullptr);
+        CopyCastleJoinMessage(reinterpret_cast<void*>(222), nullptr, reinterpret_cast<void*>(111));
+        check(!GetJoinCastle(reinterpret_cast<void*>(222), received));
+        ExtractCastleJoinMessage(reinterpret_cast<void*>(222), nullptr, nullptr, nullptr);
+        DispatchCastleJoin(nullptr, nullptr, nullptr, 105, 0);
+        check(!FindCastle(105, received));
+        SaveJoinCastle(reinterpret_cast<void*>(222), &design);
+        SetLastError(4321);
+        check(ConstructCastleJoinMessage(reinterpret_cast<void*>(222), nullptr) == reinterpret_cast<void*>(222)
+            && GetLastError() == 6789 && castle_join_incoming_error == 4321 && castle_join_words[0] == 222);
+        check(!GetJoinCastle(reinterpret_cast<void*>(222), received));
+        for (size_t n = 0; n < original_words.size(); ++n) {
+            context.player = 103; stream.words.assign(original_words.begin(), original_words.begin() + n); stream.at = 0;
+            check(ReadCastleField(&field, nullptr, &result, &stream) == &result && result.error < 0);
+            check(!FindCastle(103, received));
+        }
+        stream.words = {0xffffffff}; stream.at = 0;
+        ReadCastleField(&field, nullptr, &result, &stream); check(result.error < 0 && !FindCastle(103, received));
+        for (auto& item : castle_cache) item = {};
+        for (auto& item : join_castles) item = {};
+        own_castle_player = UINT32_MAX;
+    }
+#endif
+#ifdef S7_CASTLE_PROTOTYPE
+    check(FakeJump(0x690C20, reinterpret_cast<const void*>(&FakeCastlePlayer)));
+    {
+        auto fixture = image_base + 0x60000;
+        auto put = [&](uintptr_t at, uint32_t value) { memcpy(reinterpret_cast<void*>(at), &value, 4); };
+        auto vec = [&](uintptr_t at, uintptr_t begin, uint32_t bytes) {
+            put(at, static_cast<uint32_t>(begin)); put(at + 4, static_cast<uint32_t>(begin + bytes));
+            put(at + 8, static_cast<uint32_t>(begin + bytes));
+        };
+        put(NativeVA(0x13A5228), static_cast<uint32_t>(fixture));
+        put(fixture + 4, static_cast<uint32_t>(fixture + 0x100));
+        put(fixture + 0x100, static_cast<uint32_t>(NativeVA(0x11372B8)));
+        vec(fixture + 0x108, fixture + 0x200, 0x1d0);
+        put(fixture + 0x200, static_cast<uint32_t>(NativeVA(0x113729C)));
+        vec(fixture + 0x2e8, fixture + 0x400, 0x48);
+        put(fixture + 0x400, static_cast<uint32_t>(NativeVA(0x11372D0)));
+        vec(fixture + 0x424, fixture + 0x800, 32);
+        vec(fixture + 0x430, fixture + 0x900, 8);
+        vec(fixture + 0x43c, fixture + 0xa00, 8);
+        const auto old_thread = bootstrap_thread.load(); const auto old_initialization = initialization;
+        const bool old_probe = local_connect_probe;
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
+        for (unsigned int kind : {2u, 3u}) for (bool local : {false, true}) {
+            SetLastError(4321);
+            auto* result = ConstructLocalCastlePlayer(reinterpret_cast<void*>(111), nullptr,
+                kind, 222, reinterpret_cast<const void*>(333), local, reinterpret_cast<const void*>(444), 555);
+            check(result == reinterpret_cast<void*>(0x12345678) && GetLastError() == 6789);
+            check(castle_constructor_incoming_error == 4321);
+            check(castle_constructor_words[0] == 111 && castle_constructor_words[1] == kind
+                && castle_constructor_words[2] == 222 && castle_constructor_words[3] == 333
+                && castle_constructor_words[4] == static_cast<uintptr_t>(local) && castle_constructor_words[6] == 555);
+            check(castle_constructor_words[5] == (kind == 3 && local ? fixture + 0x400 : 444));
+        }
+        put(fixture + 0x260, 0xffffffff);
+        ConstructLocalCastlePlayer(nullptr, nullptr, 3, 0, nullptr, true, reinterpret_cast<const void*>(444), 0);
+        check(castle_constructor_words[5] == 444); // Explicit no-castle remains empty.
+        put(fixture + 0x260, 0);
+        bootstrap_thread = GetCurrentThreadId() + 1;
+        ConstructLocalCastlePlayer(nullptr, nullptr, 3, 0, nullptr, true, reinterpret_cast<const void*>(444), 0);
+        check(castle_constructor_words[5] == 444); // Foreign thread cannot read profile state.
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
+        put(NativeVA(0x13A5228), 0);
+    }
+#endif
+#ifdef S7_LOCAL_PAIR_LAB
+    check(FakeJump(0xCB7F50, reinterpret_cast<const void*>(&FakeLocalInterface)));
+    {
+        unsigned char address[0x22]{};
+        const uint32_t kind = 0x97;
+        memcpy(address, &kind, sizeof(kind));
+        const auto original_slot = local_pair_bind.load();
+        local_pair_bind.store(0x7f000002u);
+        for (uint32_t candidate : {0x7f000001u, 0x7f000002u, 0x7f000003u, 0xc0a80a01u, 0u}) {
+            const auto ip = _byteswap_ulong(candidate); memcpy(address + 0x1e, &ip, sizeof(ip));
+            check(AcceptLabLocalInterface(address, nullptr) == (candidate == 0x7f000002u)
+                && GetLastError() == 6789);
+            const char* reason = nullptr;
+            check(!AcceptLabLocalInterface(address, &reason) && !reason);
+        }
+        check(!AcceptLabLocalInterface(nullptr, nullptr));
+        lab_interface_original = true;
+        check(AcceptLabLocalInterface(address, nullptr) && GetLastError() == 6789);
+        lab_interface_original = false; local_pair_bind.store(original_slot);
+    }
+#endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     check(FakeJump(0xD49B10, reinterpret_cast<const void*>(&FakeLabJoinRequest)));
     check(FakeJump(0xC33020, reinterpret_cast<const void*>(&FakeEchoDispatcher)));
@@ -431,17 +607,46 @@ int main() {
         check(lab_join_arguments[0] == 11 && lab_join_arguments[1] == 22 && lab_join_arguments[2] == 33
             && lab_join_arguments[3] == 44 && lab_join_arguments[4] == 55 && lab_join_arguments[5] == 66);
     }
+    for (int code : {-999912, -999907, -999906}) {
+        for (unsigned int detail : {0u, 5u, 995u, 10013u, 10048u, 10049u, 10060u, 10061u, 0xabcdef01u}) {
+            NativeResult result{code, detail};
+            const auto before = diagnostic_events.size();
+            SetLastError(9012);
+            check(ObserveLabJoinCompletion(&result, nullptr) == code && result.code == code
+                && result.detail == detail && GetLastError() == 9012);
+            check(diagnostic_events.size() == before + 2);
+            const char* expected = detail == 0 ? "local-join-os-error-none"
+                : detail == 5 || detail == 10013 ? "local-join-os-error-access-denied"
+                : detail == 995 ? "local-join-os-error-operation-aborted"
+                : detail == 10048 ? "local-join-os-error-address-in-use"
+                : detail == 10049 ? "local-join-os-error-address-unavailable"
+                : detail == 10060 ? "local-join-os-error-timeout"
+                : detail == 10061 ? "local-join-os-error-refused" : "local-join-os-error-other";
+            check(strcmp(diagnostic_events.back(), expected) == 0);
+        }
+    }
 #endif
     local_connect_probe = true; developer_mode = true;
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+    auto occupied_patch_byte = [&](const unsigned char* byte) {
+        for (const auto* candidate : selected) {
+            const auto* begin = PatchAddress(*candidate);
+            const size_t length = candidate->pointer_slot ? 4 : (candidate->raw_length ? candidate->raw_length : 5);
+            if (byte >= begin && byte < begin + length) return true;
+        }
+        return false;
+    };
     memcpy(Native<void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue));
     for (const auto* patch : selected) {
         auto* at = PatchAddress(*patch);
         const size_t length = patch->pointer_slot ? 4 : (patch->raw_length ? patch->raw_length : 5);
-        at[-1] = 0xa5; at[length] = 0x5a;
+        // Adjacent vtable slots are both legitimate patch ranges. Do not put
+        // a canary inside the next slot and corrupt its original-byte guard.
+        if (!occupied_patch_byte(at - 1)) at[-1] = 0xa5;
+        if (!occupied_patch_byte(at + length)) at[length] = 0x5a;
         if (patch->pointer_slot) {
             uint32_t original = OriginalPointer(*patch); memcpy(at, &original, 4);
         } else memcpy(at, patch->original, length);
@@ -452,7 +657,8 @@ int main() {
     for (const auto* patch : selected) {
         auto* at = PatchAddress(*patch);
         const size_t length = patch->pointer_slot ? 4 : (patch->raw_length ? patch->raw_length : 5);
-        check(at[-1] == 0xa5 && at[length] == 0x5a);
+        check((occupied_patch_byte(at - 1) || at[-1] == 0xa5)
+            && (occupied_patch_byte(at + length) || at[length] == 0x5a));
         uint32_t actual = 0;
         if (patch->raw_length) check(memcmp(at, patch->replacement, length) == 0);
         else if (patch->pointer_slot) memcpy(&actual, at, 4);

@@ -16,6 +16,13 @@
 #include "local_pair_lab.h"
 #include "desync_diagnostics.h"
 #include "steam_history.h"
+#include "castle_profile.h"
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+#include "castle_wire.h"
+#include <mutex>
+#include <array>
+#include <memory>
+#endif
 
 // The proven native dispatch bridge can be tested against the original HE
 // executable without enabling lab hashes, profiles or loopback slot addresses.
@@ -127,6 +134,30 @@ uintptr_t NativeVA(uintptr_t va) {
 template<typename T> T Native(uintptr_t va) {
     return reinterpret_cast<T>(NativeVA(va));
 }
+
+#ifdef S7_CASTLE_PROTOTYPE
+#include "castle_bridge.inc"
+#endif
+
+#ifdef S7_LOCAL_PAIR_LAB
+bool __cdecl AcceptLabLocalInterface(const void* address, const char** reason) {
+    using Original = bool (__cdecl*)(const void*, const char**);
+    const bool accepted = Native<Original>(0xCB7F50)(address, reason);
+    const DWORD error = GetLastError();
+    // Only D00D17's local-address enumeration is wrapped. Original CB7F50
+    // rejects 127/8; allow exactly our hash-selected slot in that local list.
+    // Remote descriptors and production filters never use this exception.
+    uint32_t kind = 0, ip = 0;
+    if (address) {
+        memcpy(&kind, address, sizeof(kind));
+        if (kind == 0x97) memcpy(&ip, static_cast<const unsigned char*>(address) + 0x1e, sizeof(ip));
+    }
+    const auto slot = local_pair_bind.load();
+    const bool own = !reason && kind == 0x97 && (slot == 0x7f000002u || slot == 0x7f000003u)
+        && ip == _byteswap_ulong(slot);
+    SetLastError(error); return accepted || own;
+}
+#endif
 
 // This native qString owns a char allocation whose allocator metadata starts
 // four bytes before data. Never substitute a CRT pointer or CRT destructor.
@@ -793,7 +824,8 @@ void* __fastcall ObserveLabSessionRejection(void* output, void*, const char* tex
 }
 int __fastcall ObserveLabJoinCompletion(const NativeResult* result, void*) {
     // The guarded original call at D3F928 targets 4DA460: MOV EAX,[ECX]; RET.
-    // Observe only that same result code; no object identities are inspected.
+    // CC5640 formats the second result word as the OS error. Emit fixed
+    // categories only; neither native addresses nor arbitrary values leave here.
     const int code = result->code;
     const DWORD error = GetLastError();
     const char* label = "lab-native-join-completion-other-failure";
@@ -807,8 +839,24 @@ int __fastcall ObserveLabJoinCompletion(const NativeResult* result, void*) {
     case -999925: label = "lab-native-join-completion-invalid-session"; break;
     case -999920: label = "lab-native-join-completion-session-exists"; break;
     case -999912: label = "lab-native-join-completion-link-reach-failed"; break;
+    case -999907: label = "lab-native-join-completion-connection-request-failed"; break;
+    case -999906: label = "lab-native-join-completion-connection-reach-failed"; break;
     }
-    ReportLocalStatus(label); SetLastError(error); return code;
+    ReportLocalStatus(label);
+    if (code == -999912 || code == -999907 || code == -999906) {
+        const char* detail = "local-join-os-error-other";
+        switch (result->detail) {
+        case 0: detail = "local-join-os-error-none"; break;
+        case 5: case 10013: detail = "local-join-os-error-access-denied"; break;
+        case 995: detail = "local-join-os-error-operation-aborted"; break;
+        case 10048: detail = "local-join-os-error-address-in-use"; break;
+        case 10049: detail = "local-join-os-error-address-unavailable"; break;
+        case 10060: detail = "local-join-os-error-timeout"; break;
+        case 10061: detail = "local-join-os-error-refused"; break;
+        }
+        ReportLocalStatus(detail);
+    }
+    SetLastError(error); return code;
 }
 // D49B10 does not consume ECX and returns RET 1C: seven stack arguments.
 // D47803 leaves the trailing zero on the stack across BA4750; the six following
@@ -872,6 +920,20 @@ const Patch Patches[] = {
 // Explicit opt-in substitutes complete connect operations at known callers,
 // instead of making a UbiServices session-readiness predicate return true.
 const Patch ConnectPatches[] = {
+#ifdef S7_CASTLE_PROTOTYPE
+    {0xED9B73, {0xe8,0xa8,0x70,0x7b,0xff}, reinterpret_cast<const void*>(&ConstructLocalCastlePlayer)},
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+    {0x668365, {0xe8,0xc6,0xfa,0xff,0xff}, reinterpret_cast<const void*>(&VisitCastlePlayerField)},
+    {0xED201F, {0xe8,0x9c,0x6a,0x79,0xff}, reinterpret_cast<const void*>(&ConstructCastleJoinMessage)},
+    {0x113F5FC, {0x60,0x80,0x66,0x00}, reinterpret_cast<const void*>(&VisitCastleJoinMessage), true},
+    {0x113F600, {0xa0,0x80,0x66,0x00}, reinterpret_cast<const void*>(&CopyCastleJoinMessage), true},
+    {0xED23F4, {0xe8,0xf7,0x5c,0x79,0xff}, reinterpret_cast<const void*>(&ExtractCastleJoinMessage)},
+    {0xED2411, {0xe8,0xaa,0x7a,0xff,0xff}, reinterpret_cast<const void*>(&DispatchCastleJoin)},
+#endif
+#endif
+#ifdef S7_LOCAL_PAIR_LAB
+    {0xD00D17, {0xe8,0x34,0x72,0xfb,0xff}, reinterpret_cast<const void*>(&AcceptLabLocalInterface)},
+#endif
     {0xC92127, {0xe8,0xb4,0xca,0xff,0xff}, reinterpret_cast<const void*>(&RequestLocalGame)},
     {0xC93A31, {0xe8,0xaa,0xb1,0xff,0xff}, reinterpret_cast<const void*>(&RequestLocalGame)},
     {0xC9511A, {0xe8,0xc1,0x9a,0xff,0xff}, reinterpret_cast<const void*>(&RequestLocalGame)},

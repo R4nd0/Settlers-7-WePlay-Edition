@@ -1,5 +1,13 @@
 # Experimental native local start, 2026-10-26
 
+Castle development update (2026-10-31): an explicit `-CastleWirePrototype`
+build restores the selected design and transfers each player's castle through
+the existing join/player-data messages. Two isolated Ubisoft/Steam clients have
+shown both distinct castles in running matches with either edition hosting.
+Default builds and RC3.6 payloads are unchanged. See
+[multiplayer castle verification](MULTIPLAYER-CASTLES.md) for the build command,
+wire bounds and remaining release qualification.
+
 Steam development update (2026-10-30): a separate guarded address/byte profile
 now supports the identified unchanged Steam EXE and product ID 5321. Real
 DXVK startup and local two-client matches in both freshly started host
