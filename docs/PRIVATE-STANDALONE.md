@@ -50,3 +50,33 @@ Fixture tests cover relocation with a stale absolute path, preservation of
 saves, graphics selection, corrupted game/runtime rejection, package mismatch
 and refusal to adopt external managed storage. These checks do not establish
 startup on a second physical PC or multiplayer synchronization.
+
+## Private launcher fix candidate, 2026-10-31
+
+A recipient reported "Ubisoft Game Launcher error code 1" after the local
+adapter had logged successful startup. The Ubisoft executable also contains a
+legacy Orbit client: its initializer reads the old launcher registration and
+loads ubiorbitapi_r2.dll. Missing registration produces legacy error 1, which
+the later facade constructor treats as fatal independently of UPLAY_Start.
+
+The candidate retains an explicitly unavailable legacy API and null session
+instead of initializing that obsolete client. A separate guarded constructor
+predicate permits precisely that unavailable state after the verified local
+bootstrap. The original legacy session check remains unchanged. No Ubisoft
+registry entry, launcher DLL, credentials, fake session or save handle is
+created. Three exact byte guards apply only to the Ubisoft profile with the
+local connect probe; Steam uses its existing path. Hash, ABI, owner-thread and
+rollback checks remain enabled.
+
+Candidate DLL SHA-256:
+`e6a8e204296a32f53358ab6f4e7e93d3a0df0b78a09e4edec9994399bb12df63`.
+Synthetic validation passes 1,338 bootstrap, 708 Steam-profile, 94 platform,
+78 network-guard, 48 castle-profile, 160 castle-wire, 24 CPU and 18 connect
+checks. A live game start with this candidate remains unverified; the user
+stopped computer operation before that check and then requested packaging.
+
+The private standalone package pins its new DLL, installer-tool hash, bundle,
+content manifest and launcher package ID together. It includes matching native
+source and a qualification note. Use the same corrected copy on every player's
+PC. Published RC3.7.1 assets, version/update sequence and release payload pins
+are unchanged; this is not a published release or a claim of second-PC startup.

@@ -897,6 +897,54 @@ NativeResult* __stdcall ObserveLabJoinRequest(NativeResult* result, void* peer, 
 // ED0300 returns a *locked* boolean for a known privilege descriptor. Both
 // callers retain their original lookup/existence checks and cdecl cleanup.
 bool __cdecl LocalContentLocked(const void*) { return false; }
+// HE still constructs an obsolete Orbit client after UPLAY_Start succeeds.
+// Its original initializer loads ubiorbitapi_r2.dll from HKLM's launcher path;
+// missing launcher registration sets error 1 even though our local SDK is ready.
+// Keep that legacy API explicitly unavailable. Its original facade constructor
+// sees error 1 and retains a null session, so its guarded methods remain idle.
+struct LegacyOrbitApi {
+    void* module;
+    uint32_t unavailable;
+    void* functions[22];
+};
+static_assert(sizeof(LegacyOrbitApi) == 0x60, "verified Ubisoft Orbit API layout");
+bool LocalLegacyOrbitContext() {
+    return !steam_history && initialization == 2 && local_connect_probe &&
+        GetCurrentThreadId() == bootstrap_thread;
+}
+bool EmptyLegacyOrbitApi(const LegacyOrbitApi* api, uint32_t error) {
+    if (!api || api->module || api->unavailable != error) return false;
+    for (const auto* function : api->functions) if (function) return false;
+    return true;
+}
+void __fastcall InitializeUnavailableLegacyOrbit(LegacyOrbitApi* api, void*) {
+    const DWORD saved = GetLastError();
+    // Original 4C1160 clears every field before the replaced 4C120A call.
+    if (!LocalLegacyOrbitContext() || !EmptyLegacyOrbitApi(api, 0)) Stop(NativeFacadeMismatch);
+    api->unavailable = 1;
+    ReportLocalStatus("local-legacy-orbit-api-unavailable");
+    SetLastError(saved);
+}
+bool __cdecl AllowLocalLegacyOrbitAbsence() {
+    const DWORD saved = GetLastError();
+    if (!LocalLegacyOrbitContext()) Stop(NativeFacadeMismatch);
+    using Getter = LegacyOrbitApi* (__cdecl*)();
+    const auto* api = Native<Getter>(0x4C1220)();
+    if (api != *Native<LegacyOrbitApi**>(0x13A570C) || !EmptyLegacyOrbitApi(api, 1))
+        Stop(NativeFacadeMismatch);
+    ReportLocalStatus("local-legacy-launcher-not-required");
+    SetLastError(saved);
+    return true;
+}
+// Only EC5CF1's optional-legacy startup gate changes. The following original
+// EC555D check still sees unavailable=1 and never calls GetSession. No legacy
+// session, credential, save object, function pointer or SDK success is invented.
+const unsigned char LocalLegacyOrbitGate[] = {0x84,0xc0,0x75,0x2d,0x90,0x90};
+const Patch UbisoftLegacyOrbitPatches[] = {
+    {0x4C120A, {0xe8,0x21,0xfd,0xff,0xff}, reinterpret_cast<const void*>(&InitializeUnavailableLegacyOrbit)},
+    {0xEC5CF1, {0xe8,0x2a,0xb5,0x5f,0xff}, reinterpret_cast<const void*>(&AllowLocalLegacyOrbitAbsence)},
+    {0xEC5CF6, {0x83,0x78,0x04,0x00,0x74,0x2b}, LocalLegacyOrbitGate, false, 6}
+};
 // 7708D0 is the game's reward-is-locked query, separate from ED0300's
 // privilege descriptors. Its original type/identifier lookup and missing or
 // disabled-item handling remain before 770915. Only a known offered item reaches
@@ -1144,6 +1192,8 @@ bool Install() {
     }
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
+    if (!steam_history && local_connect_probe)
+        for (const auto& patch : UbisoftLegacyOrbitPatches) selected.push_back(&patch);
     if (developer_mode && !lan_game) selected.push_back(&DevelopmentPatch);
     if (local_connect_probe) for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     for (const auto* patch : selected) {

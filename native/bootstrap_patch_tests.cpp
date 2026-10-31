@@ -347,6 +347,47 @@ int main() {
     auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, ExpectedImageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     if (!memory) return 2;
     image_base = reinterpret_cast<uintptr_t>(memory);
+    {
+        const auto previous_thread = bootstrap_thread.load();
+        const auto previous_initialization = initialization;
+        const bool previous_probe = local_connect_probe;
+        struct GuardedOrbit { uint32_t before; LegacyOrbitApi api; uint32_t after; } fixture{0x11223344, {}, 0x55667788};
+        check(EmptyLegacyOrbitApi(&fixture.api, 0));
+        check(!EmptyLegacyOrbitApi(nullptr, 0));
+        initialization = 2; bootstrap_thread = GetCurrentThreadId(); local_connect_probe = true;
+        check(LocalLegacyOrbitContext());
+        SetLastError(7654);
+        using OrbitInitializer = void (__thiscall*)(LegacyOrbitApi*);
+        reinterpret_cast<OrbitInitializer>(&InitializeUnavailableLegacyOrbit)(&fixture.api);
+        check(GetLastError() == 7654 && fixture.before == 0x11223344 && fixture.after == 0x55667788);
+        check(EmptyLegacyOrbitApi(&fixture.api, 1) && !EmptyLegacyOrbitApi(&fixture.api, 0));
+        for (size_t slot = 0; slot < 22; ++slot) {
+            fixture.api.functions[slot] = reinterpret_cast<void*>(1);
+            check(!EmptyLegacyOrbitApi(&fixture.api, 1)); fixture.api.functions[slot] = nullptr;
+        }
+        fixture.api.module = reinterpret_cast<void*>(1); check(!EmptyLegacyOrbitApi(&fixture.api, 1));
+        fixture.api.module = nullptr; fixture.api.unavailable = 2; check(!EmptyLegacyOrbitApi(&fixture.api, 1));
+        local_connect_probe = false; check(!LocalLegacyOrbitContext()); local_connect_probe = true;
+        bootstrap_thread = GetCurrentThreadId() + 1; check(!LocalLegacyOrbitContext());
+        bootstrap_thread = GetCurrentThreadId(); initialization = 1; check(!LocalLegacyOrbitContext());
+        initialization = 2; steam_history = true; check(!LocalLegacyOrbitContext()); steam_history = false;
+        bootstrap_thread = previous_thread; initialization = previous_initialization; local_connect_probe = previous_probe;
+        // Execute the replacement branch for both predicate values. The true
+        // case reaches exactly EC5D27, the original constructor continuation.
+        auto* branch = Native<unsigned char*>(0xEC5CF6);
+        DWORD old = 0;
+        check(VirtualProtect(branch, 50, PAGE_EXECUTE_READWRITE, &old) != FALSE);
+        memset(branch, 0xcc, 50); memcpy(branch, LocalLegacyOrbitGate, sizeof(LocalLegacyOrbitGate));
+        const unsigned char denied[] = {0x31,0xc0,0xc3};
+        const unsigned char allowed[] = {0xb0,0x01,0xc3};
+        memcpy(branch + 6, denied, sizeof(denied)); memcpy(branch + 0x31, allowed, sizeof(allowed));
+        check(FlushInstructionCache(GetCurrentProcess(), branch, 53) != FALSE);
+        using Branch = bool (__fastcall*)(bool);
+        // MOV AL,CL supplies the synthetic predicate at the real instruction.
+        branch[-2] = 0x8a; branch[-1] = 0xc1;
+        check(!reinterpret_cast<Branch>(branch - 2)(false));
+        check(reinterpret_cast<Branch>(branch - 2)(true));
+    }
 #ifdef S7_CASTLE_WIRE_PROTOTYPE
     check(FakeJump(0x6679E0, reinterpret_cast<const void*>(&FakeCastleWrite)));
     check(FakeJump(0x667A10, reinterpret_cast<const void*>(&FakeCastleRead)));
@@ -629,6 +670,7 @@ int main() {
     local_connect_probe = true; developer_mode = true;
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
+    for (const auto& patch : UbisoftLegacyOrbitPatches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     auto occupied_patch_byte = [&](const unsigned char* byte) {
