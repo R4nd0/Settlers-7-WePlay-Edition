@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.6. Use its `--help` and the
+currently building RC3.7. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,20 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.6 Steam Preview
+## RC3.7 Castle Restoration
+
+RC3.7 enables the guarded castle restoration/replication in normal native builds.
+Version `2.0.0-rc3.7` uses signed preview sequence 5 and network revision 7.
+The adapter pin is `7975f5450dba485de23926781e605d86eb884f98fda0e27c0575d06e6ba2fd3f`;
+the service pin is `1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438`.
+Both are checked during packaging. Build native with `-LocalNetworkPump
+-MaximumPhysicalCores 2`; castle transfer is enabled by default. The service
+uses a framework-dependent Release DLL (`SelfContained=false`, `UseAppHost=false`,
+`PublishSingleFile=false`) with the bundled runtime. The coherent base package
+must use these pins. See [release scope and limits](RC3.7-CASTLES.md) and
+[native verification](MULTIPLAYER-CASTLES.md). Existing RC3.6 releases stay intact.
+
+## Historical RC3.6 Steam Preview
 
 RC3.6 packages the guarded Steam adapter alongside Ubisoft support, the clearer
 launcher flow, optional DXVK quality presets and the simple-menu Kartograph fix.

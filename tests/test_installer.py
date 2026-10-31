@@ -112,6 +112,15 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_castle_capability_requires_boolean_and_exact_native_payload(self):
+        record=self.package/'package.json'
+        self.data['multiplayer_castles']='yes';record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
+        self.data['multiplayer_castles']=True;record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Castle-Adapter'):install.package_manifest(self.package)
+        with patch.object(install,'STEAM_ADAPTER_SHA256',self.data['files']['payload/uplay_r1_loader.dll']):
+            self.assertTrue(install.package_manifest(self.package)['multiplayer_castles'])
+
     def test_steam_source_requires_pinned_capability_and_preserves_original_executable(self):
         exe = self.source / 'Base/Bin/Settlers7R.exe'
         exe.write_bytes(b'invented exact Steam image')

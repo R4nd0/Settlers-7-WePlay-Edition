@@ -1,8 +1,8 @@
 # Multiplayer castle restoration candidate
 
-Verified on 2026-10-31 in two isolated clients on one Windows PC. This is an
-explicit native development option; RC3.6, installer pins and installed games
-have not been changed.
+Verified on 2026-10-31 in two isolated clients on one Windows PC. Integrated into
+RC3.7's normal native build and matching installer pins. Existing RC3.6 releases
+and installed games are not modified in place.
 
 ## Behavior
 
@@ -57,9 +57,9 @@ For the original-executable development adapter:
 powershell -NoProfile -File native/build.ps1 -LocalNetworkPump -CastleWirePrototype -MaximumPhysicalCores 2 -OutputDirectory work/native-castles
 ```
 
-`CastleWirePrototype` enables both local restoration and transfer.
-`CastlePrototype` alone is the local-only diagnostic variant. Neither is enabled
-by default. Laboratory builds additionally accept only their existing private
+`CastleWirePrototype` enables both local restoration and transfer and now
+defaults to true. For the local-only diagnostic variant, explicitly use
+`-CastleWirePrototype:$false -CastlePrototype`. Laboratory builds accept only their existing private
 test executable identities and loopback slots; never distribute those DLLs.
 
 Observed behavior:
@@ -83,6 +83,6 @@ the visual runs used freshly started clients.
 
 This does not qualify three or more players, two physical PCs, Internet rooms,
 save/reload, maximum-size edited designs or long-match synchronization. The
-previous desync investigation remains open. Before release integration, qualify
-those applicable paths and update the normal payload and installer fingerprints
+previous desync investigation remains open. RC3.7 is a preview with these
+qualification limits; normal payload and installer fingerprints are updated
 together. No release binary or game data is committed here.

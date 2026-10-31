@@ -15,8 +15,8 @@ import compatibility as content
 from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, WINDOWS_API_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
-ADAPTER_SHA256 = '642c5163e74e8fdb2bb3153b3997fa345bf64e851c1f08eb622f9405fca402c5'
-SERVICE_SHA256 = 'b228b88e6200bce03ea4dcd6befdb989e9b218b37e29a259b321662cbda61206'
+ADAPTER_SHA256 = '7975f5450dba485de23926781e605d86eb884f98fda0e27c0575d06e6ba2fd3f'
+SERVICE_SHA256 = '1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438'
 ARCHIVE_SHA256 = '38ec2b865459e6af19b1291edc402e43bd37f46e783bd3c2b15d5156b42f5bcd'
 
 
@@ -124,6 +124,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     shutil.copyfile(repo / 'LICENSE', output / 'Tools/LICENSE.txt')
     write_json(output / 'package.json', {'format': FORMAT,
         'steam_history': True,
+        'multiplayer_castles': True,
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
         'join_menu_update': True,
         'lan_public_creation': True,

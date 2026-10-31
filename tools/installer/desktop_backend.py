@@ -149,6 +149,7 @@ class Desktop:
         flags={key:value.get(key,False) for key in ('graphics_choice','display_selection','automatic_lan','desktop_launcher')}
         if value.get('achievement_notifications_disabled',False):flags['achievement_notifications_disabled']=True
         if value.get('cartographer_context',False):flags['cartographer_context']=True
+        if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
         if value.get('windows_helpers',False):
             flags['windows_helpers']=True
             records.update({name:digest for name,digest in value['files'].items() if name=='tools/installer/windows_system.py'})

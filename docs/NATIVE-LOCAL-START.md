@@ -1,10 +1,10 @@
 # Experimental native local start, 2026-10-26
 
-Castle development update (2026-10-31): an explicit `-CastleWirePrototype`
-build restores the selected design and transfers each player's castle through
+Castle update (2026-10-31): RC3.7 enables `CastleWirePrototype` by default in
+the native build, restoring the selected design and transferring it through
 the existing join/player-data messages. Two isolated Ubisoft/Steam clients have
 shown both distinct castles in running matches with either edition hosting.
-Default builds and RC3.6 payloads are unchanged. See
+RC3.7 uses matching new payload pins; older RC3.6 assets remain intact. See
 [multiplayer castle verification](MULTIPLAYER-CASTLES.md) for the build command,
 wire bounds and remaining release qualification.
 

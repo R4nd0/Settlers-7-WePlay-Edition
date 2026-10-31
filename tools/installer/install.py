@@ -21,7 +21,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 # Its different native layout needs the exact Steam-capable adapter below.
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
-STEAM_ADAPTER_SHA256 = '642c5163e74e8fdb2bb3153b3997fa345bf64e851c1f08eb622f9405fca402c5'
+STEAM_ADAPTER_SHA256 = '7975f5450dba485de23926781e605d86eb884f98fda0e27c0575d06e6ba2fd3f'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -98,7 +98,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -114,6 +114,8 @@ def package_manifest(root):
         raise ValueError('Unbekannte Steam-Adapterversion.')
     if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != STEAM_ADAPTER_SHA256:
         raise ValueError('Der Steam-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
+    if manifest.get('multiplayer_castles',False) and expected.get('payload/uplay_r1_loader.dll') != STEAM_ADAPTER_SHA256:
+        raise ValueError('Der Castle-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
     if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
