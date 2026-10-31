@@ -19,7 +19,7 @@ local-post-login-request-observed local-session-create-response-queued
 local-session-update-response-queued local-session-leave-response-queued
 local-session-join-response-queued local-session-join-success-response-queued
 local-session-get-response-queued local-session-search-response-queued
-local-session-join-failure-observed local-login-response-queued
+local-session-join-failure-observed local-session-join-failure-reservation-released local-login-response-queued
 local-login-ack-observed local-ping-ack-sent connect-probe-request-rejected'''.split())
 REASONS = frozenset('''probe-lifetime-ended keepalive-maximum-ended
 keepalive-idle-timeout response-ack-timeout response-budget-exhausted
@@ -29,7 +29,7 @@ local-session-record-created local-session-metadata-updated
 local-session-record-left local-session-confirmed-member-left
 local-session-pending-member-left local-session-leave-owner-or-space-mismatch
 local-session-update-owner-or-space-mismatch local-session-owner-not-registered
-local-join-reservation-created local-join-member-confirmed
+local-join-reservation-created local-join-member-confirmed local-join-failed-reservation-released
 matchmaking-migrate-session-v1 matchmaking-report-migration-success-v1
 matchmaking-leave-session-v1 matchmaking-update-session-v1
 matchmaking-create-session-v1 matchmaking-create-session2-v1
@@ -44,6 +44,10 @@ local-game-login-status-connected local-game-login-status-not-ready
 local-command-offset-unknown-latency-default local-network-core-pump-active
 lab-native-core-natural-progress-observed lab-native-core-resumed-after-owner-update
 lab-native-join-completion-succeeded lab-native-join-completion-link-reach-failed
+lab-native-join-completion-connection-request-failed lab-native-join-completion-connection-reach-failed
+local-join-os-error-none local-join-os-error-access-denied local-join-os-error-operation-aborted
+local-join-os-error-address-in-use local-join-os-error-address-unavailable
+local-join-os-error-timeout local-join-os-error-refused local-join-os-error-other
 lab-native-join-request-pending lab-native-host-join-gate-open'''.split())
 
 

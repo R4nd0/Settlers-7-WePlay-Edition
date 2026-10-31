@@ -40,7 +40,28 @@ namespace S7Patcher.Source
 
         internal bool TryObserveJoinFailure(object owner, LocalLoginRpcEngine registration,
             ReadOnlySpan<byte> message, out uint sessionKind, out int textLength, out string reason, out string category)
+            => TryFindFailedJoin(owner, registration, message, out _, out _,
+                out sessionKind, out textLength, out reason, out category);
+
+        internal bool TryReleaseFailedJoin(object owner, LocalLoginRpcEngine registration,
+            ReadOnlySpan<byte> message, out string reason)
         {
+            if (!TryFindFailedJoin(owner, registration, message, out var entry, out var pending,
+                out _, out _, out reason, out _)) return false;
+            // A delayed failure cannot revoke a subsequently confirmed participant.
+            // Only the matching transport's incomplete reservation belongs to this report.
+            if (pending.Confirmed) { reason = "local-join-failure-confirmed-member-kept"; return false; }
+            entry.Pending.Remove(owner);
+            pending.Dispose(); RefreshPublicGames();
+            reason = "local-join-failed-reservation-released";
+            return true;
+        }
+
+        private bool TryFindFailedJoin(object owner, LocalLoginRpcEngine registration,
+            ReadOnlySpan<byte> message, out Entry selected, out PendingMember member,
+            out uint sessionKind, out int textLength, out string reason, out string category)
+        {
+            selected = null; member = null;
             category = null;
             sessionKind = 0; textLength = 0; reason = "local-join-failure-shape";
             if (closed || !CatalogueProbe || owner == null || registration == null
@@ -55,6 +76,7 @@ namespace S7Patcher.Source
                     if (entry.Id == id && space.SequenceEqual(entry.Space)
                         && entry.Pending.TryGetValue(owner, out var pending) && pending.Peer.Matches(peer))
                     {
+                        selected = entry; member = pending;
                         sessionKind = reported; textLength = length; category = classified;
                         reason = "local-join-failure-observed"; return true;
                     }

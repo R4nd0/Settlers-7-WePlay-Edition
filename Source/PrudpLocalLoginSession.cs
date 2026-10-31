@@ -180,8 +180,9 @@ namespace S7Patcher.Source
                         }
                         if (LoginRpcCodec.ClassifyPostLoginRequest(message) == "matchmaking-report-join-failure-v1")
                         {
-                            // One redacted observation per registered transport. No
-                            // success response, membership transition or text logging.
+                            // Cap redacted diagnostics, not lifecycle processing:
+                            // every owned failed attempt must release its reservation.
+                            // This report never fabricates a successful native join.
                             if (!joinFailureObserved)
                             {
                                 joinFailureObserved = true;
@@ -190,6 +191,8 @@ namespace S7Patcher.Source
                                     ReportedSessionKind = valid ? sessionKind : null, ReportTextLength = valid ? length : null,
                                     ReportedFailureCategory = valid ? category : null });
                             }
+                            if (sessions.TryReleaseFailedJoin(this, rpc, message, out reason))
+                                Emit(emit, new() { Event = "local-session-join-failure-reservation-released", Reason = reason });
                             continue;
                         }
                         if (!TryReplyToSessionRequest(message, out response, out reason))

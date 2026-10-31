@@ -74,6 +74,31 @@ internal static class LocalJoinFailureChecks
         Check(!registry.TryObserveJoinFailure(visitor, null, Request(), out _, out _, out _), "Unregistered report accepted");
         Check(registry.TryCopyLiveSession(visitor, "invented-space"u8, 1, out var snapshot), "Observation removed session");
         using(snapshot) Check(snapshot.PendingProfiles.Count == 1, "Diagnostic changed membership");
+        foreach (var request in new[] { Request(Body(space:"other")), Request(Body(id:2)), LocalSessionJoinChecks.Request() })
+            Check(!registry.TryReleaseFailedJoin(visitor, guest, request, out _), "Wrong failure scope released reservation");
+        Check(!registry.TryReleaseFailedJoin(new object(), guest, Request(), out _), "Foreign failure transport released reservation");
+        Check(!registry.TryReleaseFailedJoin(visitor, host, Request(), out _), "Foreign registration released reservation");
+        Check(!registry.TryReleaseFailedJoin(visitor, null, Request(), out _), "Unregistered failure released reservation");
+        Check(registry.TryCopyLiveSession(owner, "invented-space"u8, 1, out snapshot), "Invalid failure removed host session");
+        using(snapshot) Check(snapshot.PendingProfiles.Count==1, "Invalid failure altered membership");
+        Check(registry.TryReleaseFailedJoin(visitor, guest, Request(), out reason)
+            && reason=="local-join-failed-reservation-released", "Owned failed reservation not released");
+        Check(!registry.TryReleaseFailedJoin(visitor, guest, Request(), out _), "Duplicate failure released twice");
+        Check(registry.TryCopyLiveSession(owner, "invented-space"u8, 1, out snapshot), "Failure removed host session");
+        using(snapshot) Check(snapshot.PendingProfiles.Count==0 && snapshot.ConfirmedProfiles.Count==0,
+            "Released reservation remained visible");
+        Check(!registry.TryConfirmJoin(visitor, guest, LocalJoinSuccessChecks.Body(), out _), "Success revived released reservation");
+        Check(registry.TryCreate(visitor, guest, LocalSessionCatalogueChecks.PublicBody(), out uint next, out _)
+            && next==2, "Failed guest cannot become host on same registration");
+        registry.RemoveOwner(visitor);
+        Check(registry.Count==1, "Cleanup of retrying owner removed another host");
+        Check(LocalSessionJoinCodec.TryReply(LocalSessionJoinChecks.Request(), registry, visitor, guest, out _, out _), "Retry join failed");
+        Check(registry.TryConfirmJoin(visitor, guest, LocalJoinSuccessChecks.Body(), out _), "Retry confirmation failed");
+        Check(!registry.TryReleaseFailedJoin(visitor, guest, Request(), out reason)
+            && reason=="local-join-failure-confirmed-member-kept", "Late failure revoked confirmed membership");
+        Check(registry.TryCopyLiveSession(owner, "invented-space"u8, 1, out snapshot), "Late failure removed host session");
+        using(snapshot) Check(snapshot.PendingProfiles.Count==0 && snapshot.ConfirmedProfiles.Count==1,
+            "Late failure changed confirmed participant");
         return passed;
     }
 }

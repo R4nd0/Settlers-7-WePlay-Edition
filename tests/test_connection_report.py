@@ -36,6 +36,15 @@ class ConnectionReportTests(unittest.TestCase):
         self.assertFalse(value['transport_roles_present'])
         self.assertNotIn('elapsed_milliseconds', value['notable_records'][0])
 
+    def test_failed_join_cleanup_and_fixed_native_errors_are_reportable(self):
+        value = report.summarize(b'{"event":"local-session-join-failure-reservation-released","reason":"local-join-failed-reservation-released"}')
+        self.assertEqual(value['counts'], {
+            'local-session-join-failure-reservation-released:local-join-failed-reservation-released': 1})
+        self.assertIn('lab-native-join-completion-connection-request-failed', report.NATIVE)
+        self.assertIn('lab-native-join-completion-connection-reach-failed', report.NATIVE)
+        self.assertIn('local-join-os-error-access-denied', report.NATIVE)
+        self.assertNotIn('local-join-os-error-12345', report.NATIVE)
+
     def test_bounded_tails_malformed_lines_and_chronology(self):
         records = [{'event': 'local-login-session-expired', 'reason': 'response-ack-timeout'}] * 40
         value = report.summarize(b'bad\n' + b'\n'.join(json.dumps(x).encode() for x in records))
