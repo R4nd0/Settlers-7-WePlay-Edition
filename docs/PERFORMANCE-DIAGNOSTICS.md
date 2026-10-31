@@ -3,6 +3,15 @@
 The later sustained menu investigation, repeated hangs, renderer comparison
 and shared graphics choice are documented in [GRAPHICS-START.md](GRAPHICS-START.md).
 
+The 2026-10-31 LAN failure is independently confirmed in the game's own log at
+turn 461 (Fiery Chasm, three active players). Its private desync save and replay
+were preserved before further tests. The native observation window contains
+no reported x87/MXCSR control changes, but its untimed labels cannot identify
+the precise failing callback or exclude numerical divergence elsewhere.
+Review and regressions found local/peer castle-data inconsistencies; see
+[the castle follow-up](MULTIPLAYER-CASTLES.md#desync-follow-up-2026-10-31).
+Neither the log nor the synthetic correction establishes the actual cause.
+
 ## Scope
 
 `tools/installer/observe_game.py` observes one explicitly selected, owned History

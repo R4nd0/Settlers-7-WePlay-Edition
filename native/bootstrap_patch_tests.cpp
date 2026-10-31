@@ -36,12 +36,29 @@ void __fastcall FakeCastleDispatch(void* self, void*, const char* name, uint32_t
 #ifdef S7_CASTLE_PROTOTYPE
 uintptr_t castle_constructor_words[7]{};
 DWORD castle_constructor_incoming_error = 0;
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+castle_wire::Design castle_constructor_design;
+bool castle_constructor_design_valid = false;
+std::string castle_constructor_name;
+#endif
 void* __fastcall FakeCastlePlayer(void* self, void*, unsigned int kind, unsigned int player,
     const void* setup, bool local, const void* castle, unsigned int extra) {
     const uintptr_t words[] = {reinterpret_cast<uintptr_t>(self), kind, player,
         reinterpret_cast<uintptr_t>(setup), local, reinterpret_cast<uintptr_t>(castle), extra};
     memcpy(castle_constructor_words, words, sizeof(words));
     castle_constructor_incoming_error = GetLastError();
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+    castle_constructor_design_valid = SnapshotCastle(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(castle)), castle_constructor_design);
+    BorrowedCastle copied{};
+    if (ReadOwnCastleMemory(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(castle)), &copied, sizeof(copied))) {
+        if (!copied.castle_type.length && copied.parts.begin == copied.parts.end
+            && copied.parents.begin == copied.parents.end && copied.slots.begin == copied.slots.end) {
+            castle_constructor_design = {}; castle_constructor_design_valid = true;
+        }
+    }
+    castle_constructor_name.clear();
+    ReadCastleAsset(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(castle)) + 0x14, castle_constructor_name);
+#endif
     SetLastError(6789); return reinterpret_cast<void*>(0x12345678);
 }
 #endif
@@ -165,6 +182,8 @@ void TickFakeManager() {
 }
 #endif
 int network_getter_calls = 0;
+LegacyOrbitApi* legacy_test_api = nullptr;
+LegacyOrbitApi* __cdecl FakeLegacyOrbitGetter() { SetLastError(6789); return legacy_test_api; }
 void* owner_update_self = nullptr;
 DWORD owner_update_thread = 0;
 int search_space_calls = 0;
@@ -287,7 +306,8 @@ bool FakeJump(uintptr_t address, const void* target) {
 }
 int main() {
     int failures = 0, checks = 0;
-    auto check = [&](bool result) { ++checks; if (!result) { ++failures; std::printf("Failed check %d\n", checks); } };
+    auto check = [&](bool result, int line = 0) { ++checks; if (!result) { ++failures; std::printf("Failed check %d (line %d)\n", checks, line); } };
+#define check(...) check(__VA_ARGS__, __LINE__)
     {
         DesyncDiagnostics state;
         const DesyncFpControl normal{0x23f, 0x1f80};
@@ -370,7 +390,19 @@ int main() {
         local_connect_probe = false; check(!LocalLegacyOrbitContext()); local_connect_probe = true;
         bootstrap_thread = GetCurrentThreadId() + 1; check(!LocalLegacyOrbitContext());
         bootstrap_thread = GetCurrentThreadId(); initialization = 1; check(!LocalLegacyOrbitContext());
-        initialization = 2; steam_history = true; check(!LocalLegacyOrbitContext()); steam_history = false;
+        initialization = 2; steam_history = true; check(LocalLegacyOrbitContext()); steam_history = false;
+        for (bool steam : {false, true}) {
+            steam_history = steam; fixture.api = {}; legacy_test_api = &fixture.api;
+            *Native<LegacyOrbitApi**>(0x13A570C) = legacy_test_api;
+            check(FakeJump(0x4C1220, reinterpret_cast<const void*>(&FakeLegacyOrbitGetter)));
+            SetLastError(7654);
+            reinterpret_cast<OrbitInitializer>(&InitializeUnavailableLegacyOrbit)(&fixture.api);
+            check(GetLastError() == 7654 && EmptyLegacyOrbitApi(&fixture.api, 1));
+            check(AllowLocalLegacyOrbitAbsence() && GetLastError() == 7654);
+            check(fixture.before == 0x11223344 && fixture.after == 0x55667788);
+            *Native<LegacyOrbitApi**>(0x13A570C) = nullptr;
+        }
+        steam_history = false; legacy_test_api = nullptr;
         bootstrap_thread = previous_thread; initialization = previous_initialization; local_connect_probe = previous_probe;
         // Execute the replacement branch for both predicate values. The true
         // case reaches exactly EC5D27, the original constructor continuation.
@@ -473,6 +505,18 @@ int main() {
         vec(fixture + 0x424, fixture + 0x800, 32);
         vec(fixture + 0x430, fixture + 0x900, 8);
         vec(fixture + 0x43c, fixture + 0xa00, 8);
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+        auto text = [&](uintptr_t at, const char* value) {
+            const auto size = static_cast<uint32_t>(strlen(value));
+            put(at, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value)));
+            put(at + 4, size + 1); put(at + 8, size); put(at + 12, 0);
+        };
+        text(fixture + 0x404, "CF_Castle_01");
+        text(fixture + 0x414, "local-name-not-transferred");
+        text(fixture + 0x800, "CF_Base_03"); text(fixture + 0x810, "CF_Turret_01");
+        put(fixture + 0x900, UINT32_MAX); put(fixture + 0x904, 0);
+        put(fixture + 0xa00, 0); put(fixture + 0xa04, 7);
+#endif
         const auto old_thread = bootstrap_thread.load(); const auto old_initialization = initialization;
         const bool old_probe = local_connect_probe;
         bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
@@ -485,11 +529,69 @@ int main() {
             check(castle_constructor_words[0] == 111 && castle_constructor_words[1] == kind
                 && castle_constructor_words[2] == 222 && castle_constructor_words[3] == 333
                 && castle_constructor_words[4] == static_cast<uintptr_t>(local) && castle_constructor_words[6] == 555);
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+            check(kind == 3 && local ? castle_constructor_words[5] != 444 : castle_constructor_words[5] == 444);
+            if (kind == 3 && local) {
+                check(castle_constructor_design_valid && castle_constructor_design.parts.size() == 2);
+                check(castle_constructor_name.empty());
+                castle_wire::Design cached;
+                std::vector<unsigned char> local_bytes, peer_bytes;
+                check(FindCastle(222, cached) && castle_wire::Encode(cached, peer_bytes)
+                    && castle_wire::Encode(castle_constructor_design, local_bytes) && local_bytes == peer_bytes);
+                ConstructLocalCastlePlayer(nullptr, nullptr, 3, 222, nullptr, false, reinterpret_cast<void*>(444), 0);
+                check(castle_constructor_design_valid && castle_constructor_name.empty()
+                    && castle_wire::Encode(castle_constructor_design, peer_bytes) && local_bytes == peer_bytes);
+            }
+#else
             check(castle_constructor_words[5] == (kind == 3 && local ? fixture + 0x400 : 444));
+#endif
         }
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+        // A request retains the profile captured at its own construction even
+        // if another request is built before it is serialized or copied.
+        ConstructCastleJoinMessage(reinterpret_cast<void*>(321), nullptr);
+        text(fixture + 0x810, "CF_Turret_02");
+        ConstructCastleJoinMessage(reinterpret_cast<void*>(322), nullptr);
+        CopyCastleJoinMessage(reinterpret_cast<void*>(323), nullptr, reinterpret_cast<void*>(321));
+        for (uintptr_t id : {321u, 322u, 323u}) {
+            CastleWireContext context{0, reinterpret_cast<void*>(id)}; bool touched = true;
+            CastleWireField field{nullptr, 1, &touched, &context}; CastleWireResult result{}; CastleTestStream stream;
+            WriteCastleField(&field, nullptr, &result, &stream); check(result.error == 1);
+            context.joining_message = nullptr; context.player = 223;
+            ReadCastleField(&field, nullptr, &result, &stream);
+            castle_wire::Design received;
+            check(result.error == 1 && FindCastle(223, received) && received.parts.size() == 2
+                && received.parts[1].asset == (id == 322 ? "CF_Turret_02" : "CF_Turret_01"));
+        }
+        CastleWireContext missing{0, reinterpret_cast<void*>(324)}; bool touched = true;
+        CastleWireField field{nullptr, 1, &touched, &missing}; CastleWireResult result{}; CastleTestStream stream;
+        WriteCastleField(&field, nullptr, &result, &stream); check(result.error < 0 && stream.words.empty());
+        // Valid native profile, too large for the bounded field: both sides
+        // must see the same empty design, rather than only peers losing it.
+        vec(fixture + 0x424, fixture + 0x2000, 512 * 16);
+        vec(fixture + 0x430, fixture + 0x5000, 512 * 4);
+        vec(fixture + 0x43c, fixture + 0x6000, 512 * 4);
+        for (uint32_t i = 0; i < 512; ++i) {
+            text(fixture + 0x2000 + i * 16, "CF_Base_03");
+            put(fixture + 0x5000 + i * 4, i ? i - 1 : UINT32_MAX);
+            put(fixture + 0x6000 + i * 4, 0);
+        }
+        ConstructLocalCastlePlayer(nullptr, nullptr, 3, 222, nullptr, true, reinterpret_cast<void*>(444), 0);
+        castle_wire::Design empty;
+        check(castle_constructor_design_valid && castle_constructor_design.parts.empty() && castle_constructor_name.empty());
+        check(FindCastle(222, empty) && empty.parts.empty() && empty.type.empty());
+        ConstructLocalCastlePlayer(nullptr, nullptr, 3, 222, nullptr, false, reinterpret_cast<void*>(444), 0);
+        check(castle_constructor_design_valid && castle_constructor_design.parts.empty() && castle_constructor_name.empty());
+        for (auto& item : castle_cache) item = {};
+        for (auto& item : join_castles) item = {};
+#endif
         put(fixture + 0x260, 0xffffffff);
         ConstructLocalCastlePlayer(nullptr, nullptr, 3, 0, nullptr, true, reinterpret_cast<const void*>(444), 0);
+#ifdef S7_CASTLE_WIRE_PROTOTYPE
+        check(castle_constructor_design_valid && castle_constructor_design.parts.empty());
+#else
         check(castle_constructor_words[5] == 444); // Explicit no-castle remains empty.
+#endif
         put(fixture + 0x260, 0);
         bootstrap_thread = GetCurrentThreadId() + 1;
         ConstructLocalCastlePlayer(nullptr, nullptr, 3, 0, nullptr, true, reinterpret_cast<const void*>(444), 0);
@@ -670,7 +772,7 @@ int main() {
     local_connect_probe = true; developer_mode = true;
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
-    for (const auto& patch : UbisoftLegacyOrbitPatches) selected.push_back(&patch);
+    for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     auto occupied_patch_byte = [&](const unsigned char* byte) {

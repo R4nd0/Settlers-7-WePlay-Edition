@@ -1,5 +1,15 @@
 # Steam History Edition adapter — 2026-10-30
 
+The next-RC source also maps the legacy Orbit initializer, API ownership slot,
+getter and optional-launcher failure gate independently for Steam. Startup
+retains an unavailable legacy client instead of consulting obsolete Ubisoft
+launcher registration. All three new patch sites have exact Steam byte guards.
+Steam export/adoption is supported by the standalone helper and strict package
+capability; the running Steam client and genuine ownership check remain required.
+See [next-RC integration](PRIVATE-STANDALONE.md#next-rc-integration) for the current
+candidate digest and validation; the earlier release observations below apply
+to their stated builds.
+
 The development adapter now has a separate, guarded Steam executable profile.
 The owner's unchanged Steam EXE reaches the main menu and local login in a
 separate copy with DXVK. Two isolated Steam-derived clients have also joined

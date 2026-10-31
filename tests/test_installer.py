@@ -267,6 +267,26 @@ def prepare(source, output, specification, profile):
         (self.package/'package.json').write_text(json.dumps(self.data))
         with self.assertRaisesRegex(ValueError,'Desktop-Starter'):install.package_manifest(self.package)
 
+    def test_standalone_capability_requires_boolean_desktop_and_verified_helper(self):
+        for value in ('true', 1, True):
+            self.data['standalone_export'] = value
+            (self.package/'package.json').write_text(json.dumps(self.data))
+            with self.assertRaises(ValueError):install.package_manifest(self.package)
+        helpers=(*install.GRAPHICS_TOOLS,*install.DISPLAY_TOOLS,*install.LAN_LOBBY_TOOLS,*install.DESKTOP_TOOLS)
+        for original,_ in helpers:
+            if original!='lan/prepare.py':self.write(self.package,'Tools/'+original,('# fixture '+original).encode())
+        for original in (*install.DESKTOP_PACKAGE_TOOLS,*install.STANDALONE_PACKAGE_TOOLS):
+            self.write(self.package,'Tools/'+original,b'# package fixture')
+        self.write(self.package,'Payload/Graphics/S7GraphicsProbe.exe',b'probe fixture')
+        self.manifest();self.data.update(graphics_choice=True,display_selection=True,automatic_lan=True,
+                                        desktop_launcher=True,standalone_export=True)
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        self.assertTrue(install.package_manifest(self.package)['standalone_export'])
+        (self.package/'Tools/installer/standalone.py').unlink()
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Standalone'):install.package_manifest(self.package)
+
     def test_older_automatic_lan_picker_package_remains_valid(self):
         for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS):
             if original not in ('lan/prepare.py','installer/lan_autoconnect.py'):

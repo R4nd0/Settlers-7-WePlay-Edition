@@ -907,9 +907,9 @@ struct LegacyOrbitApi {
     uint32_t unavailable;
     void* functions[22];
 };
-static_assert(sizeof(LegacyOrbitApi) == 0x60, "verified Ubisoft Orbit API layout");
+static_assert(sizeof(LegacyOrbitApi) == 0x60, "verified History Edition Orbit API layout");
 bool LocalLegacyOrbitContext() {
-    return !steam_history && initialization == 2 && local_connect_probe &&
+    return initialization == 2 && local_connect_probe &&
         GetCurrentThreadId() == bootstrap_thread;
 }
 bool EmptyLegacyOrbitApi(const LegacyOrbitApi* api, uint32_t error) {
@@ -940,7 +940,7 @@ bool __cdecl AllowLocalLegacyOrbitAbsence() {
 // EC555D check still sees unavailable=1 and never calls GetSession. No legacy
 // session, credential, save object, function pointer or SDK success is invented.
 const unsigned char LocalLegacyOrbitGate[] = {0x84,0xc0,0x75,0x2d,0x90,0x90};
-const Patch UbisoftLegacyOrbitPatches[] = {
+const Patch LegacyOrbitPatches[] = {
     {0x4C120A, {0xe8,0x21,0xfd,0xff,0xff}, reinterpret_cast<const void*>(&InitializeUnavailableLegacyOrbit)},
     {0xEC5CF1, {0xe8,0x2a,0xb5,0x5f,0xff}, reinterpret_cast<const void*>(&AllowLocalLegacyOrbitAbsence)},
     {0xEC5CF6, {0x83,0x78,0x04,0x00,0x74,0x2b}, LocalLegacyOrbitGate, false, 6}
@@ -1192,8 +1192,8 @@ bool Install() {
     }
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
-    if (!steam_history && local_connect_probe)
-        for (const auto& patch : UbisoftLegacyOrbitPatches) selected.push_back(&patch);
+    if (local_connect_probe)
+        for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     if (developer_mode && !lan_game) selected.push_back(&DevelopmentPatch);
     if (local_connect_probe) for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     for (const auto* patch : selected) {

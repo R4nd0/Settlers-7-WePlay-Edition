@@ -1,6 +1,6 @@
-# Private Ubisoft standalone copy
+# Private History Edition standalone copy
 
-The supported Ubisoft Connect History Edition can be prepared as a private,
+The supported Ubisoft Connect and Steam History Editions can be prepared as a private,
 portable WePlay copy. The export includes the game, release launcher, Python,
 .NET and the existing local adapter. The adapter loads no Ubisoft launcher DLL.
 This export is a private backup containing proprietary game files; it must never
@@ -18,6 +18,8 @@ launcher. It never follows the exporting PC's old absolute game path. Each PC
 should start from the pristine export, which contains no player identity,
 account cache, Discord pairing, network room, saves or selected hardware.
 Saves created after first use remain intact when relocating the whole folder.
+The Steam edition still requires the installed, running Steam client and its
+normal ownership check. The export does not replace the Steam SDK.
 
 Always close WePlay and S7 before copying or moving. Use WePlay-Starten.cmd
 again after moving. If a subsequent managed update has prepared a different
@@ -25,10 +27,18 @@ game instance, create a fresh export before another relocation. Launcher-only
 updates can reuse the game; a future update that changes game content may
 require selecting the original supported game source again.
 
+When a complete newer standalone ZIP is unpacked over the same contained
+instance, the helper verifies its full supplied game/runtime/payload before
+refreshing the package binding. A stale package ID alone no longer asks for
+the source installation. A known DXVK profile left by an earlier extraction is
+preserved as a local backup and replaced only after checking the new native
+baseline and exact renderer hashes; interrupted recovery can resume. Unknown
+renderer changes and external managed instances remain rejected.
+
 ## Build locally
 
 Use a clean, unpacked release App with no State or Instances directory and
-the original supported Ubisoft game as source:
+the original supported Ubisoft or Steam game as source:
 
 ```powershell
 python -B tools/installer/standalone.py --build --app <release-App> --source <original-game> --output outputs/<new-private-folder>
@@ -70,7 +80,7 @@ rollback checks remain enabled.
 
 Candidate DLL SHA-256:
 `e6a8e204296a32f53358ab6f4e7e93d3a0df0b78a09e4edec9994399bb12df63`.
-Synthetic validation passes 1,338 bootstrap, 708 Steam-profile, 94 platform,
+Synthetic validation passed 1,338 bootstrap, 708 Steam-profile, 94 platform,
 78 network-guard, 48 castle-profile, 160 castle-wire, 24 CPU and 18 connect
 checks. A live game start with this candidate remains unverified; the user
 stopped computer operation before that check and then requested packaging.
@@ -80,3 +90,34 @@ content manifest and launcher package ID together. It includes matching native
 source and a qualification note. Use the same corrected copy on every player's
 PC. Published RC3.7.1 assets, version/update sequence and release payload pins
 are unchanged; this is not a published release or a claim of second-PC startup.
+
+## Next-RC integration
+
+Desktop packages now include the verified export helper and declare the strict
+boolean `standalone_export` capability. The unavailable-legacy-API path also
+has independently mapped Steam callsites, globals and original byte guards.
+Both editions retain owner-thread, object, executable fingerprint and rollback
+checks. Steam continues through its genuine SDK/ownership path.
+
+The source pins and next-RC test package use adapter SHA-256
+`44e48d22dfcc0d1f807c1ad82c2ae313962bca91d834daa35795eae853068289`.
+This also includes the [castle consistency correction](MULTIPLAYER-CASTLES.md#desync-follow-up-2026-10-31).
+Bootstrap/ABI checks pass 1,360; Steam-profile checks pass 732. Steam export
+and adoption, existing-archive overlays, recovery interruption, corruption and
+relocation have synthetic coverage. The existing public RC3.7.1 release and
+the earlier private full ZIP are separate artifacts; updating these source
+pins does not publish or silently replace either one.
+
+The combined candidate reached the real Ubisoft main menu and connected local
+login, with DXVK and the two-core safeguard. Its owned process loaded the
+expected local adapter, reported both legacy-unavailable predicates, and loaded
+no Orbit module. It exited normally with code 0; the memory sentinel reported
+no pressure or monitoring failure. This tests the native startup path, not
+relocation to another physical PC or a running multiplayer match.
+
+Steam likewise reached the main menu, connected local login and an isolated
+Fiery Chasm lobby with two AI slots. The original Steam API, expected adapter
+and DXVK were loaded, with no Orbit module. It exited normally with code 0.
+The engine refused to start the match without a second human client. The
+Steam sentinel recorded memory pressure and a monitoring failure, so that run
+does not establish clean memory behavior or multiplayer stability.

@@ -1,5 +1,19 @@
 # Experimental native local start, 2026-10-26
 
+Next-RC startup correction (2026-10-31): the verified Ubisoft and Steam profiles
+keep the obsolete legacy Orbit API explicitly unavailable and permit that exact
+state at the facade's optional-launcher check after local initialization. The
+API record's null module, error flag, all 22 null function pointers, getter
+ownership and owner thread are checked. Its later session gate stays unchanged.
+The three patch sites retain their original build-specific bytes; no EXE on
+disk, registry registration, launcher DLL, credential or synthetic session is
+created. Steam keeps its genuine Steam SDK and ownership requirements. See
+[standalone integration](PRIVATE-STANDALONE.md#next-rc-integration).
+
+The same candidate corrects unequal local/peer castle data and mutable outgoing
+join snapshots. Those regressions are separate from startup and remain subject
+to multiplayer verification; see [castle follow-up](MULTIPLAYER-CASTLES.md#desync-follow-up-2026-10-31).
+
 Castle update (2026-10-31): RC3.7 enables `CastleWirePrototype` by default in
 the native build, restoring the selected design and transferring it through
 the existing join/player-data messages. Two isolated Ubisoft/Steam clients have

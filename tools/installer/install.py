@@ -21,7 +21,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 # Its different native layout needs the exact Steam-capable adapter below.
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
-STEAM_ADAPTER_SHA256 = '7975f5450dba485de23926781e605d86eb884f98fda0e27c0575d06e6ba2fd3f'
+STEAM_ADAPTER_SHA256 = '44e48d22dfcc0d1f807c1ad82c2ae313962bca91d834daa35795eae853068289'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -29,6 +29,7 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
+STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
@@ -98,12 +99,15 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('standalone_export',False) and (not manifest.get('desktop_launcher',False) or
+            any(('tools/'+name).lower() not in expected for name in STANDALONE_PACKAGE_TOOLS)):
+        raise ValueError('Die Standalone-Werkzeuge im Paket sind unvollstaendig.')
     if manifest.get('internet_easytier',False):
         if not manifest.get('automatic_lan',False) or any(
                 ('tools/'+original).lower() not in expected for original,_ in script_tools(INTERNET_TOOLS,manifest)):

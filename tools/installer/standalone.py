@@ -1,4 +1,4 @@
-"""Private Ubisoft standalone export and relocation helper.
+"""Private History Edition standalone export and relocation helper.
 
 The export contains the owner's game files. Never publish it as a release asset.
 The normal release App and its hash-checked Package are copied unchanged.
@@ -38,6 +38,71 @@ def descriptor(root):
     return value
 
 
+def accepted_executables(backend, manifest):
+    return ((backend.install.EXPECTED_EXE, backend.install.STEAM_EXE)
+            if manifest.get('steam_history', False) else (backend.install.EXPECTED_EXE,))
+
+
+def recover_renderer_overlay(backend, desktop, game, package_id):
+    """Retire only known renderer files after a pristine ZIP was overlaid.
+
+    All game files must match the supplied baseline except the pinned DXVK
+    DLL/config. Keep the old profile, caches and logs as a local backup. Saves,
+    identity and preferences stay in place. A small journal makes interruption
+    between profile rename and renderer removal recoverable.
+    """
+    graphics = backend.graphics
+    baseline_raw = graphics._read(game / graphics.COMPAT, graphics.MAX_JSON)
+    baseline = backend.content.validate(graphics._json(baseline_raw))
+    if any(name.lower() in baseline['files'] for name in (graphics.DLL, graphics.CONF)):
+        raise ValueError('Die Standalone-Sicherung enthaelt kein natives Grafik-Basismanifest.')
+    owned = {graphics.DLL: graphics.DXVK_SHA256, graphics.CONF: graphics._hash(graphics.CONFIG)}
+    for name, expected in owned.items():
+        path = graphics._plain(game / name)
+        if path.exists() and backend.content.digest(path) != expected:
+            raise ValueError('Ein unbekanntes Grafikprofil wird nicht veraendert.')
+    actual = backend.content.inventory(game)
+    for name in owned:
+        actual.pop(name.lower(), None)
+    if actual != baseline['files']:
+        raise ValueError('Die Spieldateien stimmen nicht mit der Standalone-Sicherung ueberein.')
+    journal_path = game / 'standalone-renderer-recovery.json'
+    journal = desktop.read(journal_path, limit=4096)
+    folder = graphics._plain(game / graphics.STATE)
+    if journal is None:
+        if graphics._plain(folder / 'transaction.json').exists():
+            raise ValueError('Eine laufende Grafiktransaktion muss zuerst abgeschlossen werden.')
+        backup = folder.name + '-standalone-' + uuid.uuid4().hex
+        journal = {'format': 'weplay-standalone-renderer-recovery-v1', 'package_id': package_id,
+                   'baseline_sha256': graphics._hash(baseline_raw), 'backup': backup,
+                   'had_profile': folder.exists()}
+        desktop.write(journal_path, journal)
+    if (set(journal) != {'format', 'package_id', 'baseline_sha256', 'backup', 'had_profile'}
+            or journal['format'] != 'weplay-standalone-renderer-recovery-v1'
+            or journal['package_id'] != package_id or journal['baseline_sha256'] != graphics._hash(baseline_raw)
+            or type(journal['had_profile']) is not bool or not isinstance(journal['backup'], str)
+            or not re.fullmatch(re.escape(folder.name) + '-standalone-[0-9a-f]{32}', journal['backup'])):
+        raise ValueError('Die Standalone-Grafikwiederherstellung ist ungueltig.')
+    backup = graphics._plain(folder.parent / journal['backup'])
+    if journal['had_profile']:
+        if folder.exists():
+            if backup.exists():
+                raise ValueError('Die Grafikprofilsicherung ist bereits belegt.')
+            for path in folder.rglob('*'):
+                graphics._plain(path)
+            folder.rename(backup)
+        if not backup.is_dir():
+            raise ValueError('Die Grafikprofilsicherung fehlt.')
+    for name, expected in owned.items():
+        path = graphics._plain(game / name)
+        if path.exists():
+            if backend.content.digest(path) != expected:
+                raise ValueError('Eine Grafikdatei wurde waehrend der Wiederherstellung veraendert.')
+            path.unlink()
+    backend.content.verify(game)
+    graphics._plain(journal_path).unlink()
+
+
 def bind(root):
     """Adopt only the one bundled instance; never follow an old absolute path."""
     backend = modules(root / 'App')
@@ -48,6 +113,7 @@ def bind(root):
     with desktop.lock():
         package_id = desktop.package_id(full=True)
         raw = desktop.read(desktop.state / 'installation.json')
+        repair_overlay = False
         # An already bound, valid launcher remains in charge of later updates.
         # Do not resurrect an old bundled instance after a managed game update.
         if raw is not None:
@@ -58,24 +124,44 @@ def bind(root):
             if installed is not None:
                 if installed['container'] != str(desktop.app / 'Instances'):
                     raise ValueError('Standalone verwendet einen externen Spielordner.')
-                return desktop
+                if installed['current'] != value['instance']:
+                    return desktop
+                if installed['package_id'] == package_id:
+                    try:
+                        backend.choice._renderer(game, {})
+                    except (OSError, ValueError):
+                        repair_overlay = True
+                    else:
+                        if not (game / 'standalone-renderer-recovery.json').exists():
+                            return desktop
             # A relocation can repair only this export's single managed copy.
             if (not isinstance(raw, dict)
                     or set(raw) != {'format', 'source', 'container', 'current', 'previous', 'package_id', 'renderer_policy'}
                     or raw['format'] != backend.INSTALL_FORMAT
                     or raw['current'] != value['instance'] or raw['previous'] != []
-                    or raw['package_id'] != value['package_id']):
+                    or not isinstance(raw['package_id'], str)
+                    or not re.fullmatch('[0-9a-f]{64}', raw['package_id'])):
                 raise ValueError('Spielstand der Verwaltung passt nicht zum Export. Neu exportieren.')
         if package_id != value['package_id']:
             raise ValueError('Standalone-Spiel und Launcher-Paket passen nicht zusammen.')
         if not game.is_dir():
             raise ValueError('Die mitgelieferte Spielkopie fehlt. Gesamten Standalone-Ordner kopieren.')
         backend.graphics.ensure_closed()
-        verified = backend.content.verify(game)
-        backend.graphics._bundle(game, verified)
-        if backend.content.digest(game / 'Base/Bin/Settlers7R.exe') != backend.install.EXPECTED_EXE:
-            raise ValueError('Dieser Standalone-Export unterstuetzt nur die Ubisoft History Edition.')
         package = desktop.read(desktop.package / 'package.json')
+        baseline = backend.content.load(game / 'compatibility.json')
+        backend.graphics._bundle(game, baseline)
+        if backend.content.digest(game / 'Base/Bin/Settlers7R.exe') not in accepted_executables(backend, package):
+            raise ValueError('Diese History Edition wird vom Standalone-Paket nicht unterstuetzt.')
+        has_profile = (game / backend.graphics.STATE).exists()
+        if has_profile and not repair_overlay:
+            try:
+                backend.choice._renderer(game, {})
+            except (OSError, ValueError):
+                repair_overlay = True
+        if repair_overlay or (game / 'standalone-renderer-recovery.json').exists():
+            with backend.graphics.session_lock(game):
+                recover_renderer_overlay(backend, desktop, game, package_id)
+        verified = backend.content.verify(game)
         expected = {'base/bin/uplay_r1_loader.dll': package['files']['payload/uplay_r1_loader.dll'],
                     'base/bba/interface.bba': package['patched_archive_sha256']}
         expected.update({name.removeprefix('payload/'): digest for name, digest in package['files'].items()
@@ -113,10 +199,12 @@ def build(app, source, output):
             raise ValueError('Ausgabe muss getrennt von Spiel und Launcher liegen.')
     if (app / 'State').exists() or (app / 'Instances').exists():
         raise ValueError('Eine saubere Release-App ohne State/Instances verwenden.')
-    backend.install.package_manifest(app / 'Package')
-    base = backend.install.source_base(source)
-    if backend.content.digest(base / 'Bin/Settlers7R.exe') != backend.install.EXPECTED_EXE:
-        raise ValueError('Nur die unterstuetzte Ubisoft History Edition kann exportiert werden.')
+    manifest = backend.install.package_manifest(app / 'Package')
+    base = backend.install.source_base(source, steam_supported=manifest.get('steam_history', False))
+    executable = backend.content.digest(base / 'Bin/Settlers7R.exe')
+    if executable not in accepted_executables(backend, manifest):
+        raise ValueError('Nur eine unterstuetzte History Edition kann exportiert werden.')
+    edition = 'Steam' if executable == backend.install.STEAM_EXE else 'Ubisoft'
     # Validate paths before copying; no links and no existing user app state.
     for path in app.rglob('*'):
         backend.graphics._plain(path)
@@ -147,14 +235,15 @@ def build(app, source, output):
                '--root "%~dp0."\r\nif errorlevel 1 pause\r\n')
     (output / 'WePlay-Starten.cmd').write_bytes(starter.encode('ascii'))
     (output / 'LIESMICH.txt').write_text(
-        'WePlay RC3.7.1 - privater Ubisoft-Standalone-Export\n\n'
+        'WePlay - privater ' + edition + '-Standalone-Export\n\n'
         'Den GESAMTEN Ordner auf den anderen Windows-PC kopieren oder dort entpacken.\n'
         'In einen beschreibbaren lokalen Ordner legen, z.B. D:\\Spiele\\WePlay.\n'
         'WePlay-Starten.cmd starten. Beim ersten Start werden Dateien geprueft und\n'
         'Grafikkarte/Bildschirm auf diesem PC neu ausgewaehlt. Das kann dauern.\n'
         'Danach im normalen WePlay-Starter Namen eingeben und Spielmodus waehlen.\n'
         'Uplay/Ubisoft Connect und eine zweite Installation werden fuer diese\n'
-        'vorbereitete Ubisoft-Kopie nicht vom lokalen Adapter geladen.\n'
+        'vorbereitete Kopie nicht vom lokalen Adapter geladen.\n'
+        + ('Bei der Steam-Version Steam geoeffnet lassen; die normale Steam-Spielpruefung bleibt aktiv.\n' if edition == 'Steam' else '') +
         'Python und .NET sind dabei; fuer LAN/Internet ggf. Windows-Freigabe bestaetigen.\n'
         'Windows 10 x64 ab Build 19045 oder Windows 11 erforderlich.\n\n'
         'Dies ist eine frische Kopie ohne deine Spielstaende, Konten, Discord-Verbindung\n'

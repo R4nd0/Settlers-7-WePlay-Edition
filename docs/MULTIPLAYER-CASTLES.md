@@ -36,8 +36,9 @@ new socket, configuration-service endpoint or Ubisoft SDK call is introduced.
   128 bytes per asset identifier. Identifiers exclude paths and traversal;
   parents must precede children, with the native root marker allowed.
 - Invalid, truncated or oversized received fields fail the native field result.
-  A local design that exceeds the transfer budget is advertised as empty; its
-  own local appearance is retained. Large-design coverage remains limited.
+  The next-RC candidate uses the same canonical design locally and on peers.
+  A design that exceeds the transfer budget becomes empty on both sides.
+  Large-design coverage remains limited.
 - Companion records are bounded to eight player designs and 32 join-message
   entries. Access across native message threads uses a mutex; the pending
   callback handoff is thread-local and consumed once.
@@ -48,6 +49,45 @@ new socket, configuration-service endpoint or Ubisoft SDK call is introduced.
 All participating clients must use the same candidate. It changes the native
 message format. Retain the launcher's existing content fingerprint checks; do
 not mix this DLL with an older installed package or weaken its manifest checks.
+
+## Desync follow-up, 2026-10-31
+
+The latest local game log confirms a LAN simulation desync at turn 461 on
+Fiery Chasm, with three active players. The game produced a desync save. The
+save and replay are preserved privately. The local report alone does not
+identify the first divergent object or establish the other PC's state.
+
+Review found two concrete asymmetries in the released castle implementation:
+the local native constructor copied the profile's castle name while peers
+received an empty name, and an oversized design remained complete locally
+while peers received an empty design. The guarded native constructor copies
+the name as well as the type, parts, parents and attachment slots. Whether the
+name difference contributes to the simulation checksum is not yet established.
+
+The next-RC candidate constructs the local castle through the same bounded
+representation used for received castles. Its borrowed source storage lives
+through the original native deep copy. Outgoing join requests also retain
+their own captured selection through delayed serialization and message copies;
+they no longer fall back to the most recently constructed request's selection.
+A missing captured request fails its field result without writing substitute
+data. The wire format, numerical modes, turn timing and desync checks remain
+unchanged.
+
+The actual native bridge passes 1,360 synthetic bootstrap/ABI checks. Replacing
+only the two castle bridge files with their previous versions causes eight
+failures in that same suite, covering name equality, request snapshots and
+oversized/no-castle parity. These are reproduced data-consistency defects and
+a tested correction; they do not prove that turn 461 was caused or fixed by
+this change. The earlier visual match observations below describe the previous
+candidate. New physical-PC and extended multiplayer verification remains open.
+
+The combined candidate's real Steam process opened a Fiery Chasm lobby with
+two AI slots. Bounded passive reads found the selected 121-part design in the
+local pre-start configuration. That configuration still retained its profile
+name, so the lobby observation does not prove end-to-end canonical equality
+after the hooked event. The engine refused match startup without a second
+human player; no synchronization check was bypassed. This was a startup/lobby
+check, not a new match or a desync-free result.
 
 ## Build and verification
 

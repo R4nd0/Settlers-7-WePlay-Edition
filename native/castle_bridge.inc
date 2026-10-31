@@ -23,12 +23,21 @@ void* __fastcall ConstructLocalCastlePlayer(void* self, void*, unsigned int kind
             static_cast<uint32_t>(NativeVA(0x113729C)),
             static_cast<uint32_t>(NativeVA(0x11372D0))};
         const auto address = castle_profile::Selected(layout, ReadOwnCastleMemory);
-        if (address) selected = reinterpret_cast<const void*>(address);
 #ifdef S7_CASTLE_WIRE_PROTOTYPE
         own_castle_player.store(player);
         castle_wire::Design design;
-        if (SnapshotCastle(address, design)) CacheCastle(player, design);
-        else { CacheCastle(player, {}); ReportCastleWire(8, "local-castle-wire-snapshot-unavailable"); }
+        std::vector<unsigned char> encoded;
+        if (!SnapshotCastle(address, design) || !castle_wire::Encode(design, encoded)) {
+            design = {};
+            ReportCastleWire(8, "local-castle-wire-snapshot-unavailable");
+        }
+        // The profile's name is not sent. Designs exceeding the wire budget
+        // are empty on peers. Use that same canonical value locally, too.
+        CacheCastle(player, design);
+        peer_design = std::move(design);
+        peer_view = std::make_unique<CastleView>(peer_design); selected = &peer_view->value;
+#else
+        if (address) selected = reinterpret_cast<const void*>(address);
 #endif
     }
 #ifdef S7_CASTLE_WIRE_PROTOTYPE

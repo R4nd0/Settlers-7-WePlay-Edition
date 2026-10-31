@@ -40,6 +40,7 @@ int main() {
     }
     std::vector<const Patch*> selected;
     for (const auto& patch : Patches) selected.push_back(&patch);
+    for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
     auto reset = [&]() {

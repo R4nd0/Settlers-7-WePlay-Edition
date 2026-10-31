@@ -66,7 +66,6 @@ struct CastleView {
     }
 };
 
-castle_wire::Design published_local_castle;
 struct JoinCastle { const void* message = nullptr; ULONGLONG at = 0; castle_wire::Design design; };
 std::array<JoinCastle, 32> join_castles;
 thread_local castle_wire::Design pending_join_castle;
@@ -98,7 +97,7 @@ CastleWireResult* __fastcall WriteCastleField(CastleWireField* field, void*, Cas
     castle_wire::Design design;
     if (field->context->joining_message) {
         if (!GetJoinCastle(field->context->joining_message, design)) {
-            std::lock_guard<std::mutex> lock(castle_cache_mutex); design = published_local_castle;
+            *result = {static_cast<int32_t>(0xfff0bdc0), 0}; return result;
         }
     } else FindCastle(field->context->player, design);
     std::vector<unsigned char> bytes;
@@ -164,17 +163,24 @@ void* __fastcall ConstructCastleJoinMessage(void* self, void*) {
     // Native message storage can be reused for a later join. A newly
     // constructed request must not inherit an older received/copied sidecar.
     SaveJoinCastle(self, nullptr);
+    castle_wire::Design design;
+    bool captured = false;
     if (GetCurrentThreadId() == bootstrap_thread.load(std::memory_order_acquire)
         && initialization == 2 && local_connect_probe) {
         const castle_profile::Layout layout{static_cast<uint32_t>(NativeVA(0x13A5228)),
             static_cast<uint32_t>(NativeVA(0x11372B8)), static_cast<uint32_t>(NativeVA(0x113729C)),
             static_cast<uint32_t>(NativeVA(0x11372D0))};
-        castle_wire::Design design;
-        if (!SnapshotCastle(castle_profile::Selected(layout, ReadOwnCastleMemory), design)) design = {};
-        std::lock_guard<std::mutex> lock(castle_cache_mutex); published_local_castle = std::move(design);
+        std::vector<unsigned char> encoded;
+        if (!SnapshotCastle(castle_profile::Selected(layout, ReadOwnCastleMemory), design)
+            || !castle_wire::Encode(design, encoded)) design = {};
+        captured = true;
     }
     SetLastError(incoming);
-    return Native<void* (__thiscall*)(void*)>(0x668AC0)(self);
+    auto* result = Native<void* (__thiscall*)(void*)>(0x668AC0)(self);
+    const auto error = GetLastError();
+    if (captured) SaveJoinCastle(self, &design);
+    SetLastError(error);
+    return result;
 }
 void __fastcall VisitCastleJoinMessage(void* self, void*, void* visitor) {
     using Visit = void (__thiscall*)(void*, void*);

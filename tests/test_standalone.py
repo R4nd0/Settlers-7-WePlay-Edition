@@ -1,5 +1,7 @@
 """Relocation, corruption and ownership boundaries using invented game files."""
 import json
+import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import shutil
 import sys
@@ -116,6 +118,102 @@ class StandaloneTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             standalone.bind(self.root)
         self.assertEqual(desktop.read(desktop.state / 'installation.json'), value)
+
+    def test_overlaid_native_patch_repins_existing_copy_without_original_source(self):
+        desktop = standalone.bind(self.root)
+        value = desktop.installed()
+        value['package_id'] = 'b' * 64
+        desktop.write(desktop.state / 'installation.json', value)
+        # The ZIP already supplied the complete, current game and manifests.
+        with patch.object(backend.install, 'prepare', side_effect=AssertionError('must not prepare again')):
+            adopted = standalone.bind(self.root)
+        self.assertEqual(adopted.installed()['package_id'], self.data['package_id'])
+        self.assertEqual(adopted.installed()['source'], '')
+
+    def test_pristine_zip_overlay_preserves_saves_and_retires_owned_renderer_state(self):
+        desktop = standalone.bind(self.root)
+        saved = self.game / 'LocalData/saves'
+        saved.mkdir(); (saved / '1.s7local').write_bytes(b'personal save')
+        profile = self.game / graphics.STATE
+        profile.mkdir(); (profile / 'cache').mkdir()
+        (profile / 'cache/keep.bin').write_bytes(b'owned graphics cache')
+        (self.game / graphics.DLL).write_bytes(b'owned dxvk')
+        (self.game / graphics.CONF).write_bytes(graphics.CONFIG)
+        with patch.object(graphics, 'DXVK_SHA256', content.digest(self.game / graphics.DLL)):
+            adopted = standalone.bind(self.root)
+        self.assertEqual(adopted.installed()['source'], '')
+        self.assertEqual((saved / '1.s7local').read_bytes(), b'personal save')
+        backups = list(profile.parent.glob(profile.name + '-standalone-*'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual((backups[0] / 'cache/keep.bin').read_bytes(), b'owned graphics cache')
+        self.assertFalse((self.game / graphics.DLL).exists())
+        self.assertFalse((self.game / 'standalone-renderer-recovery.json').exists())
+        content.verify(self.game)
+
+    def test_unknown_renderer_is_preserved_instead_of_adopted(self):
+        standalone.bind(self.root)
+        profile = self.game / graphics.STATE; profile.mkdir()
+        (self.game / graphics.DLL).write_bytes(b'unknown user renderer')
+        with self.assertRaises(ValueError):
+            standalone.bind(self.root)
+        self.assertEqual((self.game / graphics.DLL).read_bytes(), b'unknown user renderer')
+        self.assertTrue(profile.exists())
+
+    def test_owned_renderer_overlay_recovers_after_interrupted_file_removal(self):
+        desktop = standalone.bind(self.root)
+        profile = self.game / graphics.STATE; profile.mkdir()
+        (self.game / graphics.DLL).write_bytes(b'owned dxvk')
+        (self.game / graphics.CONF).write_bytes(graphics.CONFIG)
+        pinned = content.digest(self.game / graphics.DLL)
+        original_unlink = Path.unlink
+        def interrupt(path, *args, **kwargs):
+            if path == self.game / graphics.CONF:
+                raise OSError('invented interruption')
+            return original_unlink(path, *args, **kwargs)
+        with patch.object(graphics, 'DXVK_SHA256', pinned), patch.object(Path, 'unlink', interrupt):
+            with self.assertRaises(OSError):
+                standalone.bind(self.root)
+        self.assertTrue((self.game / 'standalone-renderer-recovery.json').exists())
+        with patch.object(graphics, 'DXVK_SHA256', pinned):
+            recovered = standalone.bind(self.root)
+        self.assertEqual(recovered.installed()['source'], '')
+        content.verify(self.game)
+
+    def test_supported_steam_copy_is_adopted_without_disabling_steam_ownership(self):
+        executable = self.game / 'Base/Bin/Settlers7R.exe'
+        executable.write_bytes(b'invented original Steam executable')
+        steam_hash = content.digest(executable)
+        self.data['package_id'] = backend.Desktop(self.app).package_id()
+        manifest_path = self.app / 'Package/package.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['steam_history'] = True
+        manifest_path.write_bytes(graphics.encoded(manifest))
+        (self.game / 'compatibility.json').write_bytes(graphics.encoded(content.create(self.game)))
+        with patch.object(backend.install, 'STEAM_EXE', steam_hash), \
+                patch.object(backend.install, 'STEAM_ADAPTER_SHA256', manifest['files']['payload/uplay_r1_loader.dll']):
+            adopted = standalone.bind(self.root)
+        self.assertEqual(adopted.game(), self.game)
+        self.assertEqual(executable.read_bytes(), b'invented original Steam executable')
+
+    def test_steam_export_builds_from_supported_original_and_documents_client_requirement(self):
+        source_exe = self.fixture.source / 'Base/Bin/Settlers7R.exe'
+        source_exe.write_bytes(b'invented original Steam executable')
+        steam_hash = content.digest(source_exe)
+        manifest = json.loads((self.app / 'Package/package.json').read_text())
+        manifest['steam_history'] = True
+        (self.app / 'Package/package.json').write_bytes(graphics.encoded(manifest))
+        clean = self.fixture.root / 'clean-release-app'; clean.mkdir()
+        shutil.copytree(self.app / 'Package', clean / 'Package')
+        output = self.fixture.root / 'steam-export'
+        with patch.object(backend.install, 'STEAM_EXE', steam_hash), \
+                patch.object(backend.install, 'STEAM_ADAPTER_SHA256', manifest['files']['payload/uplay_r1_loader.dll']), \
+                redirect_stdout(io.StringIO()):
+            standalone.build(clean, self.fixture.source, output)
+        info = standalone.descriptor(output)
+        exported = output / 'App/Instances' / info['instance']
+        self.assertEqual((exported / 'Base/Bin/Settlers7R.exe').read_bytes(), source_exe.read_bytes())
+        self.assertFalse((exported / 'LocalData').exists())
+        self.assertIn('Steam geoeffnet lassen', (output / 'LIESMICH.txt').read_text(encoding='utf-8'))
 
 
 if __name__ == '__main__':
