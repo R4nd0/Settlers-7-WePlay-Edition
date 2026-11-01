@@ -150,6 +150,48 @@ the first differing object on the other peer. This confirms that the shipped
 RC3.8 corrections do **not** resolve the reported desync; the bounded same-PC
 qualification above remains limited to its observed scenario.
 
+## Monitored recurrence and replay comparison, 2026-11-01
+
+A second production RC3.8 match was observed without changing its game files
+or inputs. The native log and the save metadata agree on **desync turn 4994**
+on `s02_m05_Twin_Peaks`, with four active players and coop mode enabled.
+The matching save, replay, log and bounded monitor records were preserved
+privately with source/copy hash verification. The peer state had already been
+released when the later diagnostic read was attempted; that read stopped at
+its guard and did not recover peer checksum values.
+
+The unchanged production adapter's existing floating-point diagnostics recorded
+19,326 observations in most callback phases and no control-mode changes in any
+of the seven observed phases. Its baseline was masked x87 `0x023f` and MXCSR
+`0x1f80`. This limits the callback-mode-leak hypothesis for this local run;
+it does not observe every simulation worker or the other PC. No numerical-mode
+normalization was added.
+
+An isolated Ubisoft/Ubisoft match on Throne of Tandria used two humans on one
+team against two normal AI opponents on the other. Both clients advanced to
+the final sequential command-turn observations 5498 / 5497 without a visible
+desync and exited with code 0. Their complete compared game-file inventories
+matched apart from the existing private executable/profile isolation. This
+remains a same-PC loopback test; the memory sentinels again reported failures
+and no whole-simulation checksum comparison was obtained.
+
+The turn-4994 replay was then loaded through the game's existing replay path
+in one isolated Ubisoft client. A reversible private boot selection supplied
+the replay filename; all other archive entries and the simulation/adapter
+code remained unchanged. Read-only, type- and process-guarded samples captured
+the replay counter at 4995, corresponding to the log's completed turn 4994.
+Five stable samples exactly reproduced the aborted match's **RandomCount
+228985 and RandomSeed 35614633**. Playback remained active at that checkpoint
+and ended at counter 4997. The test exited with code 0; the original test
+archive and profile snapshots were restored and verified.
+
+This reproduces two local RNG scalars, not the complete world state or the
+other peer's simulation. It neither proves that the castle correction caused
+the desync nor establishes a fix. Identifying the first divergence still
+requires the corresponding other-PC evidence or an instrumented reproduction
+that captures both sides before their session state is released. No new
+simulation, transport or release-binary change was made from this evidence.
+
 ## Build and verification
 
 For the original-executable development adapter:
