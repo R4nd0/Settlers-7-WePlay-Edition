@@ -7,15 +7,15 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**RC3.8 development sources** support the fingerprinted Ubisoft Connect/Uplay
+**RC3.8** supports the fingerprinted Ubisoft Connect/Uplay
 and Steam History Edition builds, with standalone startup recovery and castle
 data consistency corrections. Keep Steam running when using that edition.
 See [RC3.8 build notes](docs/RC3.8-STANDALONE-CASTLES.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.7.1 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.7.1/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.7.1) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.8 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.8/Setup.exe)** · [Release notes and checksum](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.8) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
-**RC3.7.1 maintenance:** correct version display and automatic cleanup of older
+**Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
 managed game files, preserving saves and personal files. The safe switch to a
 new game copy still temporarily needs extra disk space.
 [Maintenance notes](docs/RC3.7.1-MAINTENANCE.md).
@@ -30,7 +30,7 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## What you can do
 
-| Feature | Available in RC3.7.1 |
+| Feature | Available in RC3.8 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
@@ -44,10 +44,10 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## Install or upgrade
 
-1. Download **Setup.exe** from the RC3.7.1 release. Close S7 and WePlay before upgrading.
+1. Download **Setup.exe** from the RC3.8 release. Close S7 and WePlay before upgrading.
 2. Run Setup; for an upgrade, use your existing WePlay application folder.
 3. Select your original supported History Edition when asked and let WePlay prepare or update its separate game copy.
-4. Install the **same RC3.7.1 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
+4. Install the **same RC3.8 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.
@@ -140,13 +140,15 @@ check private LAN permission on each PC.
 
 ## Current status
 
-**RC3.5 is an experimental preview.** Two-PC LAN joins and match starts have
-worked with either PC hosting. The owner reported **two three-hour sessions
-without an observed desync**; the report did not specify the build, map or
-transport. This is not a guarantee of desync-free play or qualification of all
-Internet connections, three-or-more-player matches or large endgame networks.
+**RC3.8 is an experimental preview; LAN desync remains open.** Two local
+Ubisoft/Steam clients played Feuerschlucht with one AI in both host directions,
+to turns 3489 and 2858, with matching castle values and no observed desync.
+These same-PC tests do not qualify two humans versus two AI, physical-PC LAN,
+Internet gameplay, multiplayer save/reload or extended/endgame synchronization.
+The memory monitors reported failures, so clean memory stability is also
+unqualified. See [RC3.8 verification and limits](docs/RC3.8-STANDALONE-CASTLES.md).
 
-RC3.5's Windows helpers, signed updater, real scoped firewall/adapter lifecycle,
+The Windows helpers, signed updater, real scoped firewall/adapter lifecycle,
 separate-copy preparation and save-preserving cleanup have been tested. Those
 checks do not establish multiplayer simulation stability.
 

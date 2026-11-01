@@ -47,3 +47,11 @@ Version `2.0.0-rc3.8`, preview update sequence 7, network revision 7. Setup is a
 normal WePlay application installer; a private full standalone export is a
 separate user-owned artifact. This build does not publish a new GitHub release
 or redirect the public update feed by itself.
+
+## Publication
+
+[RC3.8 was published as a GitHub prerelease on 2026-11-01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.8),
+with Setup, its checksum, the signed sequence-7 update manifest, release notes
+and corresponding EasyTier source. The public update client verified the
+signed offer. The installer is the unchanged build from source commit
+`74127f635962ccf4e09947574f62f6f0253270eb`.

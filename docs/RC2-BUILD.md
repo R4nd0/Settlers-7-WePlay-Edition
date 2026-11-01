@@ -1,6 +1,6 @@
 # Building Settlers-7-WePlay-Edition RC2
 
-Current build target: RC3.8; the published RC3.7.1 remains separate. This document retains the historical
+Current build target and published preview: RC3.8. This document retains the historical
 builder filename and RC2 examples below. Use `tools/desktop/build_rc2.py --help`
 for the current required EasyTier runtime/source and Windows-helper inputs, and
 [current payload pins](DEVELOPMENT.md) for a coherent base package. Native
