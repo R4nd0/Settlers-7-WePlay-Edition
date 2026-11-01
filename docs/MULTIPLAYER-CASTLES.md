@@ -192,6 +192,77 @@ requires the corresponding other-PC evidence or an instrumented reproduction
 that captures both sides before their session state is released. No new
 simulation, transport or release-binary change was made from this evidence.
 
+### Corresponding save and AI-state comparison
+
+A subsequently supplied second save has identical map/turn metadata and save
+cache bytes to the local turn-4994 case. Native serializer inspection identifies
+a concrete difference in the two AI players' `Allies` lists: they are mutually
+allied in the second save and are not mutually allied in the local save. Their
+saved `TeamID` values remain separate on both sides. The local replay's two
+serialized initial configurations already lack that mutual alliance. This does
+not establish when the other peer acquired it; its corresponding replay is
+still needed to compare the recorded initial state and subsequent events.
+
+The AI player's camp at the same world position has an active construction
+reference and full remaining progress locally, whereas those fields are zero
+in the second save. A further replay run reproduces the local camp transition
+exactly at completed turn 4994: five stable guarded samples show the same
+construction/logistics references, remaining progress, RNG seed and RNG count.
+The preceding completed turn has no construction. The replay also reproduces
+the local AI victory-point state, which differs from the second save. These
+observations establish a reproducible local action and differing saved state,
+not yet the mechanism that made the peers diverge.
+
+The saved fortification collection contains 516 entries and is byte-identical
+between the saves. This narrows the visible difference; it does not establish
+equality of every castle-related field or rule out an earlier castle effect.
+The AI `State` values differ as expected for local and remote control roles;
+that role distinction alone is not a desync finding.
+
+A fresh same-PC Ubisoft pair on Twin Peaks explicitly placed the humans on
+one team and the two normal AI opponents on another. Both reached command
+turn 9935 without a visible desync and exited with code 0. Their preserved
+replays have **9,939 common native end-of-turn CRC records, all equal**. The
+native aggregate covers RNG and selected manager/task counts, rather than
+every world field. The memory sentinels reported failures, so this is not a
+clean-memory qualification. The original reported run's saved human/AI team
+configuration differs from this explicitly configured 2v2 test.
+
+A second fresh Ubisoft pair kept the map's individual default teams and normal
+AI opponents. Its guarded samples show the same camp's upgrade active on both
+clients from replay counter 4784 onward. Both advanced to the final sampled
+command turn 5986 with matching alliance lists and no visible desync, then
+exited with code 0. All **6,152 common replay CRC records are equal**. In this
+run both memory sentinels completed without failure or pressure flags, with a
+minimum of 7,390 MiB free host physical memory. This provides a bounded test of
+the relevant upgrade action; it still does not reproduce the two-PC alliance
+difference.
+
+A controlled replay-input comparison changes only the mutual AI alliance in
+both serialized initial configurations. Every recorded event and native CRC
+record is kept byte-identical to the original recording; the simulation,
+adapter and checksum detection are unchanged. This reproduces the second
+save's missing camp construction and AI victory-point value/change turn. The
+game's own replay check generates a `DESYNCSAVE.s7s`. Its decompressed world
+has the same 21,897,092-byte length as the supplied second world and differs
+in only four bytes: two expected local/remote AI-control role bytes and two
+uninterpreted bytes in the military collection. The replay-error save reports
+metadata turn 4993, whereas the network-error save reports 4994; the world
+comparison is separate from that callback/counter difference. The original
+test archive and isolated profile snapshots were restored and verified after
+exit code 0. Its memory sentinel completed without failure.
+
+The unequal alliance state is therefore a demonstrated trigger for the
+observed divergent world, rather than merely a correlated save difference.
+This controlled input is not the other PC's original replay. Determining why
+the two PCs initialized or acquired different alliances remains open, and
+requires that original replay or a natural reproduction of the configuration
+transition. The successful fresh-client tests above do not reproduce that
+transition. No speculative alliance rewrite has been added to gameplay.
+
+No simulation or transport fix, new release binary, or suppression of native
+checksum detection follows from these comparisons.
+
 ## Build and verification
 
 For the original-executable development adapter:
