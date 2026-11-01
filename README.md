@@ -143,6 +143,8 @@ check private LAN permission on each PC.
 **RC3.8 is an experimental preview; LAN desync remains open.** Two local
 Ubisoft/Steam clients played Feuerschlucht with one AI in both host directions,
 to turns 3489 and 2858, with matching castle values and no observed desync.
+Subsequent local logs from the user's RC3.8 installation confirm another desync
+at turn 2122 with four active players on Throne of Tandria.
 These same-PC tests do not qualify two humans versus two AI, physical-PC LAN,
 Internet gameplay, multiplayer save/reload or extended/endgame synchronization.
 The memory monitors reported failures, so clean memory stability is also

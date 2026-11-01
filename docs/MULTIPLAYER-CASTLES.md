@@ -129,6 +129,27 @@ the production candidate had passed 1360 and 732 respectively. This is a real,
 bounded same-PC mixed-edition test. Physical-PC LAN, Internet, save/reload,
 maximum-size designs and extended/endgame synchronization remain unqualified.
 
+## RC3.8 recurrence confirmed from local logs, 2026-11-01
+
+After the user reported another desync, read-only inspection of the running
+installation confirmed launcher RC3.8 and the exact production adapter
+`44e48d22dfcc0d1f807c1ad82c2ae313962bca91d834daa35795eae853068289`.
+The local game log records **desync at turn 2122** on
+`s05_m03_Throne_of_Tandria`, with `ActivePlayers: 4` and two initialized
+network state players. The log identifies neither the teams nor both peers'
+complete configuration. It initialized those players at 21:22:50 local time;
+the final log write was at 21:26:39. This is an approximate session interval,
+not an exact desync timestamp or a measured duration from the first simulation
+turn. The game was left running and no files in its installation were changed.
+
+The matching desync save, replay, fixed native labels, game-log tail and memory
+summary were preserved privately with copy/hash checks. The memory summary
+records pressure 0 and a monitoring failure, which does not establish a cause
+for the simulation divergence. One peer's object counts and save do not identify
+the first differing object on the other peer. This confirms that the shipped
+RC3.8 corrections do **not** resolve the reported desync; the bounded same-PC
+qualification above remains limited to its observed scenario.
+
 ## Build and verification
 
 For the original-executable development adapter:
