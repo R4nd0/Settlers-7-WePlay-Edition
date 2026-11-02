@@ -254,14 +254,50 @@ exit code 0. Its memory sentinel completed without failure.
 
 The unequal alliance state is therefore a demonstrated trigger for the
 observed divergent world, rather than merely a correlated save difference.
-This controlled input is not the other PC's original replay. Determining why
-the two PCs initialized or acquired different alliances remains open, and
-requires that original replay or a natural reproduction of the configuration
-transition. The successful fresh-client tests above do not reproduce that
-transition. No speculative alliance rewrite has been added to gameplay.
+The subsequently supplied original replay from the second PC contains those
+mutual AI alliances in both initial configurations, before the first turn.
+The common recorded commands and events match the local recording; the first
+different native CRC is at record ordinal 4993. The four AI-control role bytes
+are expected host/guest differences. The replay does not establish which
+launcher edition ran on that PC.
 
-No simulation or transport fix, new release binary, or suppression of native
-checksum detection follows from these comparisons.
+A natural two-client reproduction now identifies the initialization failure.
+The guest first creates a Twin Peaks lobby, allies Ramirez and Bishop in one
+team, leaves without restarting, and joins a host whose two AIs have separate
+teams. The guest receives the new TeamIDs but retains the old mutual AI
+alliances. The host has no such alliance. This difference persists into the
+match, which produces native desync saves on both clients at metadata turn
+4778. The first differing native CRC is at record ordinal 4777. No input state,
+replay, simulation or checksum check was modified to trigger this failure.
+
+The lobby roster handler calls a scalar TeamID setter. The adapter now routes
+that call through the game's own reciprocal team-affiliation update for
+validated active players in the preparation buffer. Repeated TeamIDs also
+rebuild their relations, so an unchanged number cannot preserve stale allies.
+Neutral Type8/Team0 relations remain under native handling. The hook retains
+the executable and callsite guards, edition-specific addresses, main-thread
+ownership, bounded layout/list validation and a reentrancy guard; other calls
+use the original scalar setter. The active world and replay buffers are not
+selected for this correction. No native checksum detection is suppressed.
+
+The corrected Ubisoft pair passed the previously failing lobby transition:
+the guest's stale AI alliance was removed and both preparation configurations
+agreed. Their replays contain **17,987 common native CRC records, all equal**,
+and the previously divergent AI camp upgrade completed on both clients.
+Both later crashed with a null-pointer read at the same native instruction,
+with the same stale entity identifier. This is not a differing checksum, and
+its relationship to the adapter has not been established. Both exits were
+`0xc0000005`; the final sentinels reported monitor failure after the exits, so
+this is not a clean-memory or extended-session qualification.
+
+The same lobby transition corrected the stale alliance on an actual
+Steam-derived guest joining a Ubisoft host. All **6,586 common native CRC
+records are equal**, all observed player alliances match, and both games closed
+with exit code 0. The Steam memory sentinel failed during play; the Ubisoft
+sentinel completed. Neither recorded a pressure flag. This bounds the observed
+configuration/simulation result and does not qualify clean memory monitoring,
+two physical PCs or extended/endgame sessions. See
+[RC3.9 notes](RC3.9-LOBBY-DESYNC.md) for release scope.
 
 ## Build and verification
 

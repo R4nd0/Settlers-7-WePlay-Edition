@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.8. Use its `--help` and the
+currently building RC3.9. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,17 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.8 standalone and castle consistency
+## RC3.9 lobby desync correction
+
+Version `2.0.0-rc3.9` uses preview sequence 8 and network revision 7. The
+guarded roster hook rebuilds preparation-buffer team relations using the
+game's native reciprocal setter, correcting stale AI alliances after a lobby
+change. The normal adapter SHA-256 is
+`16fc7a2f3ca70ae59df92f640d86c93e93cf169d2844f39fbe5702126419a8a1`.
+The normal service, interface, graphics and runtime pins are unchanged.
+See [RC3.9 notes and qualification limits](RC3.9-LOBBY-DESYNC.md).
+
+## Historical RC3.8 standalone and castle consistency
 
 Version `2.0.0-rc3.8` uses preview sequence 7 and retains network revision 7.
 It includes the guarded legacy-launcher startup correction for Ubisoft/Uplay

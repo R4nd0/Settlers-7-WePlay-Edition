@@ -135,6 +135,11 @@ template<typename T> T Native(uintptr_t va) {
     return reinterpret_cast<T>(NativeVA(va));
 }
 
+#ifdef S7_LOCAL_NETWORK_PUMP
+#include "lobby_teams.h"
+#include "lobby_team_bridge.inc"
+#endif
+
 #ifdef S7_CASTLE_PROTOTYPE
 #include "castle_bridge.inc"
 #endif
@@ -999,6 +1004,7 @@ const Patch ConnectPatches[] = {
     {0xED673B, {0xe8,0x30,0x0b,0x00,0x00}, reinterpret_cast<const void*>(&QueryLocalSessionJoin)},
     {0xC8DCC5, {0xe8,0x86,0x62,0x0b,0x00}, reinterpret_cast<const void*>(&GetLocalSearchSandbox)},
 #ifdef S7_LOCAL_NETWORK_PUMP
+    {0xED9D26, {0xe8,0xe5,0xc5,0x6a,0xff}, reinterpret_cast<const void*>(&SetLocalLobbyTeam)},
     {0xECF5D8, {0xe8,0x93,0xd2,0xff,0xff}, reinterpret_cast<const void*>(&SetLocalTurnOffset)},
     {0xECF5F4, {0xe8,0x77,0xd2,0xff,0xff}, reinterpret_cast<const void*>(&SetLocalTurnOffset)},
     {0xC0E809, {0xe8,0x02,0x6e,0x01,0x00}, reinterpret_cast<const void*>(&ObserveLabTicketRequest)},

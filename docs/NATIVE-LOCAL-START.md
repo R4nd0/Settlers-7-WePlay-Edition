@@ -1,5 +1,14 @@
 # Experimental native local start, 2026-10-26
 
+Lobby desync correction (2026-11-02): a guest can retain reciprocal AI allies
+from an earlier lobby while accepting the next host's different TeamIDs. The
+full-roster scalar setter is now routed through the game's team-affiliation
+update for guarded preparation-buffer players. Ubisoft and Steam use separate
+callsite bytes and native addresses. Active-world/replay entries are excluded;
+neutral relations and native checksum detection remain unchanged. See the
+[reproduction and qualification](MULTIPLAYER-CASTLES.md) before treating a build
+as verified for a particular multiplayer setup.
+
 Next-RC startup correction (2026-10-31): the verified Ubisoft and Steam profiles
 keep the obsolete legacy Orbit API explicitly unavailable and permit that exact
 state at the facade's optional-launcher check after local initialization. The

@@ -107,7 +107,7 @@ existing key/pin pair. No user-facing updater can mint release signatures.
 After building and testing a future installer, use a new sequence and tag:
 
 ```powershell
-python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.8 --sequence 7 --tag v2.0.0-rc3.8 --notes-file work/updates/release-notes.txt
+python -B tools/updates/build_release.py --setup outputs/Your-Verified-Release/Setup.exe --output outputs/Your-Verified-Release/weplay-update.json --version 2.0.0-rc3.9 --sequence 8 --tag v2.0.0-rc3.9 --notes-file work/updates/release-notes.txt
 ```
 
 The tool validates the metadata, signs inside Windows cryptography, verifies the
@@ -117,7 +117,7 @@ list including both assets and the fixed repository. Publish only the reviewed,
 verified installer and its matching signed manifest to that exact tag. Example:
 
 ```powershell
-gh release create v2.0.0-rc3.8 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.8"
+gh release create v2.0.0-rc3.9 outputs/Your-Verified-Release/Setup.exe outputs/Your-Verified-Release/weplay-update.json --repo R4nd0/Settlers-7-WePlay-Edition --prerelease --title "WePlay 2.0.0-rc3.9"
 ```
 
 Publishing is an operator action; the implementation does not silently create
@@ -126,6 +126,9 @@ RC3.4 bootstrap is published as v2.0.0-rc3.4 (sequence 1). RC3.5 is published as
 v2.0.0-rc3.5 (initial sequence 2, privacy rebuild sequence 3). RC3.6 uses sequence 4;
 RC3.7 Castle Restoration uses sequence 5; RC3.7.1 maintenance uses sequence 6.
 RC3.8 Standalone and Castles is published as v2.0.0-rc3.8 with sequence 7.
+RC3.9 Lobby Desync Fix targets v2.0.0-rc3.9 and sequence 8, with the same
+network revision 7. Its release ZIP includes the separately downloadable Setup
+and signed manifest; the updater continues to validate and download Setup.
 Building/signing a local candidate does not publish it
 or update a user's PC; publication remains a separate operator action.
 Maintainer signing tools may use PowerShell/CNG locally; they are not shipped

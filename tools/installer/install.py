@@ -21,7 +21,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 # Its different native layout needs the exact Steam-capable adapter below.
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
-STEAM_ADAPTER_SHA256 = '44e48d22dfcc0d1f807c1ad82c2ae313962bca91d834daa35795eae853068289'
+STEAM_ADAPTER_SHA256 = '16fc7a2f3ca70ae59df92f640d86c93e93cf169d2844f39fbe5702126419a8a1'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
