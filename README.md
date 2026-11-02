@@ -7,14 +7,14 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own game installation.
 
-**RC3.9** corrects a reproduced LAN desync caused by old AI alliances surviving
-a lobby change. It supports the fingerprinted Ubisoft Connect/Uplay and Steam
-History Edition builds and includes the standalone startup recovery and castle
-corrections from RC3.8. Keep Steam running when using that edition.
-See [RC3.9 changes and test limits](docs/RC3.9-LOBBY-DESYNC.md) and the
+**RC3.10** fixes the native logistics crash found during the longer RC3.9 test.
+It supports the fingerprinted Ubisoft Connect/Uplay and Steam History Edition
+builds and includes the lobby-alliance desync correction, standalone startup
+recovery and multiplayer castle corrections. Keep Steam running when using that edition.
+See [RC3.10 changes and test limits](docs/RC3.10-LOGISTICS-CRASH.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.9 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.9/WePlay-RC3.9.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.9/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.9) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.10 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.10/WePlay-RC3.10.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.10/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.10) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
 **Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
 managed game files, preserving saves and personal files. The safe switch to a
@@ -31,7 +31,7 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## What you can do
 
-| Feature | Available in RC3.9 |
+| Feature | Available in RC3.10 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
@@ -45,10 +45,10 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## Install or upgrade
 
-1. Download and unpack the **RC3.9 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading.
+1. Download and unpack the **RC3.10 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading.
 2. Run Setup; for an upgrade, use your existing WePlay application folder.
 3. Select your original supported History Edition when asked and let WePlay prepare or update its separate game copy.
-4. Install the **same RC3.9 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
+4. Install the **same RC3.10 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.
@@ -64,13 +64,12 @@ RC3.7 retains clearer start/room guidance, optional DXVK landscape presets
 and the simple-menu Kartograph correction. Before switching host roles after
 a match, restart both games. Mixed Steam/Ubisoft castle matches passed locally
 with either edition hosting. Two physical PCs, Internet castle transfer and
-extended/endgame sessions remain unqualified. RC3.9 fixes the reproduced stale
-lobby-alliance desync; a longer local test subsequently crashed on both clients
-at the same native null-pointer access after 17,987 matching turn checksums.
-That crash remains open in the published RC3.9 packages. The current source
-includes an [unreleased logistics priority correction](docs/LOGISTICS-PRIORITY-CRASH.md),
-verified against the original replay and a mixed Ubisoft/Steam live match.
-See the [RC3.9 verification and limits](docs/RC3.9-LOBBY-DESYNC.md) for release scope.
+extended/endgame sessions remain unqualified. RC3.10 includes RC3.9's stale
+lobby-alliance desync correction and the subsequent native logistics crash fix.
+The original replay passed its earlier crash region; a new mixed Ubisoft/Steam
+live match had **20,525 matching native turn checksums** and normal exits.
+The live memory monitors failed, so continuous memory monitoring remains
+unqualified. See [RC3.10 verification and limits](docs/RC3.10-LOGISTICS-CRASH.md).
 
 Windows asks for administrator consent when network adapters or firewall rules
 need changing; the game runs without elevation. This preview's installer and

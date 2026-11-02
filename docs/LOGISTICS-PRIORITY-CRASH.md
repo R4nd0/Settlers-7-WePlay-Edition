@@ -1,4 +1,4 @@
-# Logistics priority crash correction (unreleased)
+# Logistics priority crash correction (RC3.10)
 
 The longer RC3.9 verification match ended with both Ubisoft clients reading
 through a null pointer in a native logistics query. Their replays contained
@@ -54,7 +54,7 @@ Both original live memory sentinels failed during the run, without a preceding
 pressure flag. An additional read-only probe subsequently worked, but cannot
 fill the monitoring gap or establish its cause. This run therefore does not
 qualify continuous memory monitoring. The replay sentinel completed normally.
-The source change is not yet part of a published release.
+The correction is included in [RC3.10](RC3.10-LOGISTICS-CRASH.md).
 
 Synthetic verification executes the actual original and corrected x86
 conditional branches for both profiles, including valid IDs, expired

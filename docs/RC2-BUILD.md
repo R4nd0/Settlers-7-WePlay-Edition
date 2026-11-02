@@ -1,12 +1,12 @@
 # Building Settlers-7-WePlay-Edition RC2
 
-Current build target: RC3.9. This document retains the historical
+Current build target: RC3.10. This document retains the historical
 builder filename and RC2 examples below. Use `tools/desktop/build_rc2.py --help`
 for the current required EasyTier runtime/source and Windows-helper inputs, and
 [current payload pins](DEVELOPMENT.md) for a coherent base package. Native
 `build.ps1 -LocalNetworkPump -MaximumPhysicalCores 2` enables castle transfer by
 default. No laboratory executable identities belong in the release adapter.
-Current build metadata is `2.0.0-rc3.9`, network revision 7, preview sequence 8.
+Current build metadata is `2.0.0-rc3.10`, network revision 7, preview sequence 9.
 
 The shipped Setup.exe is an offline, per-user Windows x64 application. No original game data or local identity belongs in the build stage. The supported original game is checked on the recipient’s own PC.
 

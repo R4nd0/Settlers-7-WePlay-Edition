@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.9. Use its `--help` and the
+currently building RC3.10. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,17 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.9 lobby desync correction
+## RC3.10 logistics crash correction
+
+Version `2.0.0-rc3.10` uses preview sequence 9 and network revision 7. Two
+guarded native rejection branches skip missing logistics priorities using the
+original next-entry loop. Replay and mixed Ubisoft/Steam live verification
+passed the previous crash region. The normal adapter SHA-256 is
+`6340582b834082701a1e1e2bf3374d8bbc5aff109dec0cfc3af7cee4970a3c8d`.
+The service, interface, graphics and runtime pins retain their verified values.
+See [RC3.10 scope and qualification limits](RC3.10-LOGISTICS-CRASH.md).
+
+## Historical RC3.9 lobby desync correction
 
 Version `2.0.0-rc3.9` uses preview sequence 8 and network revision 7. The
 guarded roster hook rebuilds preparation-buffer team relations using the
