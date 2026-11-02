@@ -51,6 +51,9 @@ int main() {
             } else memcpy(PatchAddress(*patch), OriginalBytes(*patch), patch->raw_length ? patch->raw_length : 5);
         }
         memcpy(Native<void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue));
+#ifdef S7_LOCAL_NETWORK_PUMP
+        memcpy(Native<void*>(0x795967), PriorityNextEntryGuard, sizeof(PriorityNextEntryGuard));
+#endif
     };
     local_connect_probe = true; developer_mode = true; lan_game = false;
     reset(); check(Install());
@@ -61,6 +64,15 @@ int main() {
             : memcmp(PatchAddress(*patch), OriginalBytes(*patch), patch->raw_length ? patch->raw_length : 5) == 0);
     }
     // Corruption of the final guarded site must reject before any write.
+#ifdef S7_LOCAL_NETWORK_PUMP
+    for (size_t i = 0; i < sizeof(PriorityNextEntryGuard); ++i) {
+        reset(); Native<unsigned char*>(0x795967)[i] ^= 1;
+        check(!Install() && error_code == ChangedCallsite);
+        for (const auto* patch : selected)
+            check(patch->pointer_slot ? *reinterpret_cast<uint32_t*>(PatchAddress(*patch)) == OriginalPointer(*patch)
+                : memcmp(PatchAddress(*patch), OriginalBytes(*patch), patch->raw_length ? patch->raw_length : 5) == 0);
+    }
+#endif
     reset(); auto* final_site = PatchAddress(*selected.back()); *final_site ^= 1;
     check(!Install() && error_code == ChangedCallsite);
     for (size_t i = 0; i + 1 < selected.size(); ++i) {

@@ -784,6 +784,9 @@ int main() {
         return false;
     };
     memcpy(Native<void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue));
+#ifdef S7_LOCAL_NETWORK_PUMP
+    memcpy(Native<void*>(0x795967), PriorityNextEntryGuard, sizeof(PriorityNextEntryGuard));
+#endif
     for (const auto* patch : selected) {
         auto* at = PatchAddress(*patch);
         const size_t length = patch->pointer_slot ? 4 : (patch->raw_length ? patch->raw_length : 5);
@@ -814,6 +817,21 @@ int main() {
         if (patch->pointer_slot) { memcpy(&actual, at, 4); check(actual == OriginalPointer(*patch)); }
         else check(memcmp(at, patch->original, length) == 0);
     }
+#ifdef S7_LOCAL_NETWORK_PUMP
+    // A changed loop target must reject before any selected site is modified.
+    auto* priority_next = Native<unsigned char*>(0x795967);
+    DWORD priority_old = 0, priority_ignored = 0;
+    check(VirtualProtect(priority_next, sizeof(PriorityNextEntryGuard), PAGE_READWRITE, &priority_old) != FALSE);
+    for (size_t i = 0; i < sizeof(PriorityNextEntryGuard); ++i) {
+        priority_next[i] ^= 1;
+        check(!Install() && error_code == ChangedCallsite);
+        for (const auto* patch : selected)
+            check(patch->pointer_slot ? *reinterpret_cast<uint32_t*>(PatchAddress(*patch)) == OriginalPointer(*patch)
+                : memcmp(PatchAddress(*patch), OriginalBytes(*patch), patch->raw_length ? patch->raw_length : 5) == 0);
+        priority_next[i] ^= 1;
+    }
+    check(VirtualProtect(priority_next, sizeof(PriorityNextEntryGuard), priority_old, &priority_ignored) != FALSE);
+#endif
     // Execute the real six-byte reward branch and original false epilogue in
     // owned synthetic x86 memory. Only a tiny prologue is supplied; no game,
     // SDK, profile, reward catalogue or native constructor is called.

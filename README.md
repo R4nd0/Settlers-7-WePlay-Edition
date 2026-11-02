@@ -67,7 +67,10 @@ with either edition hosting. Two physical PCs, Internet castle transfer and
 extended/endgame sessions remain unqualified. RC3.9 fixes the reproduced stale
 lobby-alliance desync; a longer local test subsequently crashed on both clients
 at the same native null-pointer access after 17,987 matching turn checksums.
-That crash remains open. See the [RC3.9 verification and limits](docs/RC3.9-LOBBY-DESYNC.md).
+That crash remains open in the published RC3.9 packages. The current source
+includes an [unreleased logistics priority correction](docs/LOGISTICS-PRIORITY-CRASH.md),
+verified against the original replay and a mixed Ubisoft/Steam live match.
+See the [RC3.9 verification and limits](docs/RC3.9-LOBBY-DESYNC.md) for release scope.
 
 Windows asks for administrator consent when network adapters or firewall rules
 need changing; the game runs without elevation. This preview's installer and

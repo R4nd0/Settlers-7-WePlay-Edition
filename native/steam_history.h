@@ -7,6 +7,9 @@ namespace SteamHistory {
 struct Address { uintptr_t ubisoft; uintptr_t steam; };
 constexpr Address Addresses[] = {
 #if defined(S7_LOCAL_NETWORK_PUMP) || defined(S7_LOCAL_PAIR_LAB)
+    {0x795929, 0x7956F9},
+    {0x79593A, 0x79570A},
+    {0x795967, 0x795737},
     {0xED9D26, 0xED9416},
     {0x586310, 0x585DD0},
     {0x586720, 0x5861E0},
@@ -193,6 +196,8 @@ constexpr Address Addresses[] = {
 struct Guard { uintptr_t ubisoft; unsigned char bytes[6]; };
 constexpr Guard Guards[] = {
 #if defined(S7_LOCAL_NETWORK_PUMP) || defined(S7_LOCAL_PAIR_LAB)
+    {0x795929, {0x73,0x1c}},
+    {0x79593A, {0x75,0x0b}},
     {0xED9D26, {0xe8,0xb5,0xc9,0x6a,0xff,0x8b}},
 #endif
     {0x4C120A, {0xe8,0x21,0xfd,0xff,0xff}},

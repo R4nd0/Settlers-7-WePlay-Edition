@@ -962,6 +962,15 @@ const unsigned char RewardUnlockedEpilogue[] = {0x5f,0x5e,0x32,0xc0,0x5b,0x5d,0x
 // Guard the whole original SETcc instruction in either mode.
 const unsigned char DevelopmentModeBytes[] = {0x0f,0x94,0xc0};
 const Patch DevelopmentPatch = {0x53E5FB, {0x0f,0x95,0xc0}, DevelopmentModeBytes, false, 3};
+#ifdef S7_LOCAL_NETWORK_PUMP
+// ELLog's settler query rejects an expired priority handle, then dereferences
+// the resulting null pointer. Keep both original rejection conditions and
+// continue with the next transfer entry, as the neighbouring query does.
+// Existing entries, output flags, list ownership and native cleanup are unchanged.
+const unsigned char MissingPriorityBounds[] = {0x73,0x3c};
+const unsigned char MissingPriorityGeneration[] = {0x75,0x2b};
+const unsigned char PriorityNextEntryGuard[] = {0x8b,0x36,0x3b,0xf7,0x0f,0x85,0x60,0xff,0xff,0xff};
+#endif
 const Patch Patches[] = {
     {0xD3C62D, {0xe8,0x1e,0x6f,0x10,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
     {0xD4A083, {0xe8,0xc8,0x94,0x0f,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
@@ -1004,6 +1013,8 @@ const Patch ConnectPatches[] = {
     {0xED673B, {0xe8,0x30,0x0b,0x00,0x00}, reinterpret_cast<const void*>(&QueryLocalSessionJoin)},
     {0xC8DCC5, {0xe8,0x86,0x62,0x0b,0x00}, reinterpret_cast<const void*>(&GetLocalSearchSandbox)},
 #ifdef S7_LOCAL_NETWORK_PUMP
+    {0x795929, {0x73,0x1c}, MissingPriorityBounds, false, 2},
+    {0x79593A, {0x75,0x0b}, MissingPriorityGeneration, false, 2},
     {0xED9D26, {0xe8,0xe5,0xc5,0x6a,0xff}, reinterpret_cast<const void*>(&SetLocalLobbyTeam)},
     {0xECF5D8, {0xe8,0x93,0xd2,0xff,0xff}, reinterpret_cast<const void*>(&SetLocalTurnOffset)},
     {0xECF5F4, {0xe8,0x77,0xd2,0xff,0xff}, reinterpret_cast<const void*>(&SetLocalTurnOffset)},
@@ -1190,6 +1201,12 @@ bool WritePatch(const Patch& patch, bool restore) {
 }
 
 bool Install() {
+#ifdef S7_LOCAL_NETWORK_PUMP
+    if (local_connect_probe && memcmp(Native<const void*>(0x795967), PriorityNextEntryGuard,
+            sizeof(PriorityNextEntryGuard)) != 0) {
+        SetError(ChangedCallsite); return false;
+    }
+#endif
     if (memcmp(Native<const void*>(0x770906), RewardUnlockedEpilogue, sizeof(RewardUnlockedEpilogue)) != 0) {
         SetError(ChangedCallsite); return false;
     }

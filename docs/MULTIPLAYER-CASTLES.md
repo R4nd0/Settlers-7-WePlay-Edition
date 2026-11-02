@@ -299,6 +299,18 @@ configuration/simulation result and does not qualify clean memory monitoring,
 two physical PCs or extended/endgame sessions. See
 [RC3.9 notes](RC3.9-LOBBY-DESYNC.md) for release scope.
 
+## Unreleased logistics priority crash correction
+
+Subsequent source work redirects two native rejection branches to their
+existing next-entry loop instead of dereferencing a missing priority. The
+original replay completed with all 17,987 shared native checksums unchanged
+and continued beyond its recorded end. A new Ubisoft/Steam live match passed
+the old crash region with all 20,525 common checksums equal and normal exits.
+Its commands differ from the old match, so it is a separate regression test.
+The live memory monitors failed; continuous memory monitoring remains
+unqualified. See [the correction and verification details](LOGISTICS-PRIORITY-CRASH.md).
+Published RC3.9 packages do not contain this source correction.
+
 ## Build and verification
 
 For the original-executable development adapter:
