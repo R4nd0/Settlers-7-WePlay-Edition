@@ -78,6 +78,22 @@ class StandaloneTests(unittest.TestCase):
         self.assertEqual(standalone.bind(self.root).game(), first.game())
         self.assertFalse(choice._load_choice(self.game)['simple_menu'])
 
+    def test_launcher_update_opens_owned_copy_for_repair_without_original(self):
+        desktop=standalone.bind(self.root)
+        previous=desktop.installed()
+        self.fixture.source.rename(self.fixture.root/'source-unavailable')
+        tool=desktop.package/'Tools/installer/start.py'
+        tool.write_bytes(tool.read_bytes()+b'\n# fixture package update\n')
+        package=desktop.package/'package.json'
+        value=json.loads(package.read_text())
+        value['files']=content.inventory(desktop.package,('Payload','Runtime','Tools'))
+        package.write_text(json.dumps(value))
+        self.assertNotEqual(desktop.package_id(),previous['package_id'])
+        opened=standalone.bind(self.root)
+        self.assertEqual(opened.game(),self.game)
+        self.assertEqual(opened.installed(),previous)
+        self.assertTrue(opened.snapshot()['update_available'])
+
     def test_repaired_export_remains_relocatable_without_original(self):
         desktop=standalone.bind(self.root)
         self.fixture.source.rename(self.fixture.root/'original-unavailable')

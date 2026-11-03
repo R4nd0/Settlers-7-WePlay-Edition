@@ -24,13 +24,13 @@ normal ownership check. The export does not replace the Steam SDK.
 Always close WePlay and S7 before copying or moving. Use WePlay-Starten.cmd
 again after moving.
 
-## Independent maintenance (development source after RC3.11)
+## Independent maintenance (RC3.12)
 
 After successful preparation, the original Ubisoft or Steam game installation
 is no longer needed by WePlay. Detection selects the owned WePlay instance;
 repair and game-content updates prepare a replacement from that instance.
 The Steam client and its normal ownership check remain required for Steam.
-The published RC3.11 download predates this maintenance change.
+This maintenance support starts with RC3.12; RC3.11 predates the change.
 
 New copies retain the exact original executable and interface archive under
 `RepairSource`, with an inventory of the retained game assets. Repairs rebuild
@@ -50,7 +50,7 @@ The launcher starts with a taller window and expands to fit the selected menu,
 bounded by the current monitor's usable height. Scrolling remains available on
 small screens or after manually reducing the window size.
 
-Verification: the final focused installer/backend/export suite passed 89 tests,
+Verification: the final focused installer/backend/export suite passed 90 tests,
 including source removal for both editions, generated-file repair, save
 preservation, relocation after repair, legacy archive recovery and corrupted
 backup rejection. A broader regression run passed 184 tests with 19 optional

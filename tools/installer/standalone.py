@@ -126,6 +126,12 @@ def bind(root):
                     raise ValueError('Standalone verwendet einen externen Spielordner.')
                 if installed['current'] != value['instance']:
                     return desktop
+                # A launcher update can precede rebuilding the owned game.
+                # Open its normal update/repair UI; do not repin or launch the
+                # old game against the new package. Relocation still requires
+                # the full adoption checks below when ownership is stale.
+                if installed['package_id'] != package_id and value['package_id'] != package_id:
+                    return desktop
                 if installed['package_id'] == package_id:
                     try:
                         backend.choice._renderer(game, {})

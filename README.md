@@ -7,13 +7,14 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own supported game files.
 
-Development source after RC3.11 adds independent maintenance for both Ubisoft
-and Steam copies: WePlay detects, repairs and updates its own prepared game
-after the original installation is removed. It also opens taller menus that
-use the available screen height. See [standalone maintenance](docs/PRIVATE-STANDALONE.md#independent-maintenance-development-source-after-rc311).
-These changes are not part of the published RC3.11 assets.
+**RC3.12** adds independent maintenance for both Ubisoft and Steam copies:
+WePlay detects, repairs and updates its own prepared game after the original
+installation is removed. The launcher opens taller menus and expands within
+the available screen height. Keep Steam running when using that edition.
+See [RC3.12 changes and verification](docs/RC3.12-STANDALONE-MAINTENANCE.md)
+and [standalone maintenance](docs/PRIVATE-STANDALONE.md#independent-maintenance-rc312).
 
-**RC3.11** adds multiplayer saving, continuing saved matches and a host autosave
+Includes **RC3.11** multiplayer saving, continuing saved matches and a host autosave
 every five minutes of game time.
 It supports the fingerprinted Ubisoft Connect/Uplay and Steam History Edition
 builds and includes the logistics crash fix, lobby-alliance correction, standalone startup
@@ -21,7 +22,7 @@ recovery and multiplayer castle corrections. Keep Steam running when using that 
 See [RC3.11 changes and test limits](docs/RC3.11-MULTIPLAYER-SAVES.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.11 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.11/WePlay-RC3.11.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.11/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.11) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.12 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.12/WePlay-RC3.12.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.12/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.12) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
 **Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
 managed game files, preserving saves and personal files. The safe switch to a
@@ -32,13 +33,13 @@ new game copy still temporarily needs extra disk space.
 Castle Forge design inside matches, including its appearance on the other
 client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
-![WePlay RC3.5 launcher in English](docs/screenshots/launcher-en.png)
+![WePlay RC3.12 launcher in English](docs/screenshots/launcher-en.png)
 
-*English launcher preview, rendered from the packaged RC3.5 application with demonstration data.*
+*English RC3.12 launcher with the taller window, rendered with demonstration data.*
 
 ## What you can do
 
-| Feature | Available in RC3.11 |
+| Feature | Available in RC3.12 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
@@ -50,6 +51,7 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 | Achievement notifications | Repeated achievement popups are suppressed; the achievement catalogue and rewards remain available. |
 | Multiplayer castles | Your selected Castle Forge design appears in the match and is transferred to the other players. |
 | Multiplayer saves | Host manual saves, an automatic save every five game minutes, and continuing matches from the multiplayer browser. |
+| Standalone maintenance | Update and repair your owned Ubisoft/Steam copy without the original installation; local repair inputs stay with the game. |
 
 ## Install or upgrade
 
