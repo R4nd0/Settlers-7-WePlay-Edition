@@ -32,6 +32,28 @@ private backup to recover it; do not run the public Setup inside the export.
 
 ## Independent maintenance (RC3.12)
 
+### Manual Setup and portable folders
+
+RC3.13's separately launched Setup reuses a registered installation directory;
+it does not automatically find an unregistered private standalone export and
+its directory page is hidden. Running it from Downloads can therefore install
+another launcher rather than update the portable copy. Prefer **Updates →
+Install update** in the standalone launcher: its signed updater explicitly
+passes that copy's exact `App` directory to Setup. Start an old unbound export
+through WePlay-Starten.cmd first, or apply the matching launcher-start fix.
+
+For a manual offline update, close WePlay and S7 and explicitly select the
+portable application directory using Setup's directory argument, for example:
+
+```text
+Setup.exe "/DIR=D:\Games\WePlay-Standalone\App"
+```
+
+The target is the export's **App** folder, not its outer folder and not the
+original game installation. Keep the whole export, including standalone.json,
+Instances and RepairSource. A newly prepared complete private ZIP can instead
+be extracted into a new folder and started directly, without running Setup.
+
 After successful preparation, the original Ubisoft or Steam game installation
 is no longer needed by WePlay. Detection selects the owned WePlay instance;
 repair and game-content updates prepare a replacement from that instance.
