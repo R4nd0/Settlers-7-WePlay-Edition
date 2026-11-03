@@ -115,11 +115,32 @@ rendered successfully. The fully packaged app-relative helper passed an actual
 encrypt/decrypt round trip. Native synthetic callback/patch/rollback tests pass
 for Ubisoft and Steam.
 
-Observed with real games so far: two guarded laboratory clients start; a real
-host-created match is projected through the local Worker and displayed in the
-guest's global in-game view. An initial overlap with the old LAN list was fixed.
-The final visible selection/restart/rejoin test is still pending. Native game
-traffic so far used loopback; the remaining integration setup uses isolated
-EasyTier peers without TUN. Two-peer EasyTier admission through the new broker
-has not yet been observed. These checks do not qualify Internet gameplay, two
-remote PCs, a real Discord publication, or long-session simulation synchronization.
+Real two-client verification completed on 2026-11-03: two guarded Ubisoft
+laboratory clients started, and the host created a public native Twin Peaks
+lobby. Its actual owner-filtered metadata traveled through the local Worker/D1
+and appeared in the guest's global in-game view. The corrected view hid the old
+LAN list instead of overlapping it. Selecting that game and confirming the
+restart produced the per-run join request and normally exited the guest. The
+broker delivered its encrypted room invitation, and two real pinned EasyTier
+processes established mutual P2P membership using the delivered room identity.
+The guest restarted, found the native host game and successfully joined it:
+both the visible lobby and the native public projection confirmed two players.
+Both original test processes exited with code0; the restarted guest and host
+were closed through the normal menu. Memory monitoring reported no pressure
+on the restarted guest. Owned test services, peers and private overlay files
+were cleaned up. See the [sanitized verification record](verification/shared-directory-two-clients-20261103.json).
+
+This was a private integration harness with actual games and the unchanged
+production Worker routes, using synthetic local publisher credentials. Native
+game traffic remained on the guarded loopback laboratory path; EasyTier ran
+without TUN and without public nodes. The unshipped laboratory service models
+guest transport-generation renewal on restart; production LAN admission guards
+are unchanged. Discord HTTP interactions were tested locally with external
+Discord traffic mocked. This does not qualify a complete packaged-desktop flow
+over TUN, two remote PCs, Steam live UI, or a real Discord game publication.
+No match world was started, so this is not a desync or long-session test.
+
+S7's existing startup-options recovery dialog appeared on laboratory starts,
+including the restarted guest. It was answered **No**, preserving graphics
+settings. Unattended startup without that prompt is not established by this
+test; the successful restart/rejoin result includes that visible dialog step.

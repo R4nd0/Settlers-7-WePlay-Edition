@@ -1,0 +1,41 @@
+{
+  "format": "weplay-directory-verification-v1",
+  "date": "2026-11-03",
+  "code_commit": "12a1c5780e1ee8a48ead710ebe0dd7bacb6a6cc2",
+  "native_clients": 2,
+  "edition": "Ubisoft History Edition, guarded private laboratory aliases",
+  "observed": {
+    "real_native_host_game_published_locally": true,
+    "global_ingame_view_showed_real_host": true,
+    "corrected_view_hid_native_list": true,
+    "explicit_ingame_restart_confirmation": true,
+    "per_run_join_request_consumed": true,
+    "encrypted_room_grant_delivered": true,
+    "two_real_easytier_peers_mutual_p2p": true,
+    "guest_process_restarted": true,
+    "guest_joined_native_host_lobby": true,
+    "native_projection_confirmed_two_players": true,
+    "initial_host_exit_code": 0,
+    "initial_guest_exit_code": 0,
+    "restarted_guest_memory_pressure": 0,
+    "own_game_windows_and_services_closed": true,
+    "private_overlay_directories_remaining": 0
+  },
+  "boundaries": {
+    "native_game_transport": "guarded loopback laboratory",
+    "easytier_tun": false,
+    "public_easytier_nodes_used": false,
+    "publisher_credentials": "synthetic local fixture",
+    "external_discord_calls": "mocked",
+    "laboratory_guest_generation_renewal": "unshipped test instrumentation",
+    "packaged_desktop_flow_over_tun_verified": false,
+    "two_remote_pcs_verified": false,
+    "steam_live_ui_verified": false,
+    "active_match_world_started": false,
+    "simulation_sync_qualified": false,
+    "startup_options_recovery_dialog_seen": true,
+    "startup_options_reset": false,
+    "unattended_startup_qualified": false
+  },
+  "result": "local integration restart and native lobby rejoin passed"
+}

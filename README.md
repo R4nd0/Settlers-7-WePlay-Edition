@@ -10,6 +10,8 @@ keeps the original intact. Each player needs their own supported game files.
 **In development after RC3.12:** a shared public game directory for the launcher,
 Discord and the in-game multiplayer browser, with private host-mediated joining
 over the existing EasyTier rooms. See [implementation and verification](docs/SHARED-GAME-DIRECTORY.md).
+Two local laboratory clients completed the in-game selection, encrypted invitation,
+guest restart and native lobby rejoin; remote-PC/TUN gameplay remains unqualified.
 This feature is not included in the RC3.12 downloads below.
 
 **RC3.12** adds independent maintenance for both Ubisoft and Steam copies:
