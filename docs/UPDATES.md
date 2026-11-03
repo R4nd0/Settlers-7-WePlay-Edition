@@ -94,6 +94,11 @@ If an existing RC3.4 handoff is blocked by its current script policy, run the
 RC3.5 installer directly once rather than changing that policy. See
 [Windows helpers](WINDOWS-HELPERS.md).
 
+The [2026-11-03 update/patch audit](UPDATE-PATCH-AUDIT.md) records reproduced
+package-overlay and portable-metadata failure cases, incomplete-copy cleanup
+limits and remaining disk-budget concerns. These are open findings; the audit
+does not change the published installer or relax its verification.
+
 ## Maintainer: signing and publishing
 
 The signing key was generated locally at `work/updates/signing-key.dpapi`. It is

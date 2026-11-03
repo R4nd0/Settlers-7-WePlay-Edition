@@ -1,0 +1,68 @@
+{
+  "format": "weplay-update-patch-audit-v1",
+  "date": "2026-11-03",
+  "source_commit": "0bbd3bc946b3f2409771c4533991ea2a3df1fa8e",
+  "status": "investigation completed; findings remain open",
+  "fixtures_only": true,
+  "reproduced_cases": 4,
+  "observations": {
+    "obsolete_package_overlay": {
+      "reproduced": true,
+      "new_files_intact": true,
+      "obsolete_helper_retained": true,
+      "package_rejected": true,
+      "setup_executed": false
+    },
+    "orphan_after_patch_failure": {
+      "reproduced": true,
+      "old_record_preserved": true,
+      "old_game_preserved": true,
+      "orphan_incomplete_marker": true,
+      "orphan_base_files": true,
+      "orphan_repair_inputs": true,
+      "orphan_has_owner": false,
+      "orphan_in_previous_history": false
+    },
+    "split_portable_publication": {
+      "reproduced": true,
+      "installation_committed_to_new_instance": true,
+      "descriptor_still_points_to_old_instance": true,
+      "cleanup_started": false,
+      "save_copied": true,
+      "relocation_rejected": true
+    },
+    "pending_cleanup_relocation": {
+      "reproduced": true,
+      "pending_history_entries": 1,
+      "descriptor_current_before_move": true,
+      "relocation_rejected": true,
+      "save_preserved": true
+    }
+  },
+  "static_findings": {
+    "space_budget_explicitly_includes_retained_inputs": false,
+    "space_budget_explicitly_includes_archive_staging": false,
+    "space_budget_explicitly_includes_migrated_saves": false,
+    "fixed_additional_reserve_mib": 512,
+    "disk_exhaustion_reproduced": false,
+    "real_game_or_save_sizes_inspected": false
+  },
+  "isolation": {
+    "blocked_entry_points": [
+      "subprocess.Popen",
+      "socket.socket",
+      "ctypes.WinDLL",
+      "winreg.OpenKey",
+      "winreg.CreateKey",
+      "winreg.CreateKeyEx",
+      "winreg.DeleteKey",
+      "winreg.SetValueEx"
+    ],
+    "forbidden_access_attempts": 0,
+    "current_session_accessed": false,
+    "real_installer_or_game_started": false,
+    "installed_copies_changed": false,
+    "production_code_changed": false,
+    "new_release_or_assets_published": false
+  }
+}
