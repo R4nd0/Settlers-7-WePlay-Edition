@@ -42,10 +42,18 @@ $subnet = ($parts[0..2] -join '.') + '.0/24'
 try {
     foreach ($index in 0..2) {
         foreach ($protocol in @('TCP','UDP')) {
+            $ports = switch ("$index-$protocol") {
+                '0-UDP' { '3074,6200,9103' }
+                '1-UDP' { '9112' }
+                '2-TCP' { '9110' }
+                '2-UDP' { '9111' }
+                default { $null }
+            }
+            if ($null -eq $ports) { continue }
             New-NetFirewallRule -Name "S7ET-$RuleKey-$index-$protocol" -DisplayName 'WePlay Internet room' `
                 -Direction Inbound -Action Allow -Profile Any -InterfaceAlias $InterfaceName `
                 -LocalAddress $Address -RemoteAddress $subnet -Program (Join-Path $root $programs[$index]) `
-                -Protocol $protocol -Enabled True | Out-Null
+                -Protocol $protocol -LocalPort $ports -Enabled True | Out-Null
         }
     }
     # Encrypted outer transport. Management RPC stays bound to loopback; only

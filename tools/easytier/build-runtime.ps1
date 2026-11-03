@@ -39,6 +39,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Source patch does not apply to reviewed release' }
     & git apply --directory=$relative (Join-Path $PSScriptRoot 'no-npcap.patch')
     if ($LASTEXITCODE -ne 0) { throw 'Source patch failed' }
+    & git apply --check --directory=$relative (Join-Path $PSScriptRoot 'strict-acl.patch')
+    if ($LASTEXITCODE -ne 0) { throw 'Strict ACL patch does not apply' }
+    & git apply --directory=$relative (Join-Path $PSScriptRoot 'strict-acl.patch')
+    if ($LASTEXITCODE -ne 0) { throw 'Strict ACL patch failed' }
     $env:PROTOC = Join-Path $output 'protoc\bin\protoc.exe'
     & $Cargo +stable build --manifest-path (Join-Path $output 'source\Cargo.toml') -p easytier `
         --bin easytier-core --bin easytier-cli --release --no-default-features --features tun,aes-gcm,smoltcp -j 1 --locked

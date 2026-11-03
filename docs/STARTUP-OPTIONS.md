@@ -1,6 +1,6 @@
 # Preserve options during startup
 
-The development build after RC3.12 answers S7's “Startup problem detected!”
+RC3.13 answers S7's “Startup problem detected!”
 reset-options question with **No** automatically. Existing settings are retained,
 including when the preceding process was stopped. The RC3.12 downloads have not
 been replaced by this change.

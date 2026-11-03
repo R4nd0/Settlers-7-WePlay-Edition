@@ -1,7 +1,7 @@
 # WePlay EasyTier runtime
 
 The selected runtime is EasyTier v2.6.4, upstream revision `8428a89`, built as
-`2.6.4-weplay-npcap-free` for Windows 10/11 x64. WePlay's game and native adapter
+`2.6.4-weplay-npcap-free-acl1` for Windows 10/11 x64. WePlay's game and native adapter
 remain 32-bit; the VPN runs in a separate process. The authoritative distributable
 file inventory is `tools/installer/easytier-runtime.json`.
 
@@ -22,6 +22,17 @@ closed if the Windows adapter API fails. Disabling `faketcp` removes the other
 capture path. It also omits Windows 7 thunk-library downloads and gives the build
 an explicit modified version instead of accidentally identifying the enclosing
 WePlay Git checkout. Preserve the original upstream copyright and licenses.
+
+`strict-acl.patch` additionally makes enabled ACLs reject unparseable data
+packets. It rejects fragmented/inconsistent IPv4 and incomplete TCP/UDP headers
+before port matching, instead of delivering unchecked packets to the adapter.
+The configuration permits the bounded WePlay game/coordinator ports, denies
+other inbound/outbound traffic and all forwarding, and disables IPv6 and the
+optional KCP/QUIC inputs. The distributed build omits the SOCKS/port-forward
+feature. A separate extra-feature sender is used only in private security tests.
+Both reviewed patches and their hashes are included in corresponding-source
+preparation. These controls do not eliminate game vulnerabilities or denial of
+service; they limit the network services reachable through the managed tunnel.
 
 The stock Windows core has a hard dependency on its supplied Npcap `Packet.dll`.
 The modified core and CLI were started and connected without that DLL. Do not

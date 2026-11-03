@@ -1,0 +1,81 @@
+--- a/easytier/src/peers/acl_filter.rs
++++ b/easytier/src/peers/acl_filter.rs
+@@ -64,6 +64,25 @@
+     // packets, even if they would normally be dropped by ACL rules
+     outbound_allow_records: Arc<DashMap<OutboundAllowRecord, Instant>>,
+     clean_task: AbortOnDropHandle<()>,
++}
++
++// ACL port checks cannot authenticate non-initial fragments. Reject fragmented
++// or inconsistent IPv4 packets instead of delivering unchecked bytes to TUN.
++fn acl_ipv4_valid(payload: &[u8]) -> bool {
++    let Some(ip) = Ipv4Packet::new(payload) else { return false; };
++    let header = usize::from(ip.get_header_length()) * 4;
++    if ip.get_version() != 4 || header < 20 || header > payload.len()
++        || usize::from(ip.get_total_length()) != payload.len()
++        || ip.get_fragment_offset() != 0 || ip.get_flags() & 5 != 0 {
++        return false;
++    }
++    match ip.get_next_level_protocol() {
++        IpNextHeaderProtocols::Udp => UdpPacket::new(ip.payload()).is_some_and(|udp|
++            udp.get_length() >= 8 && usize::from(udp.get_length()) == ip.payload().len()),
++        IpNextHeaderProtocols::Tcp => TcpPacket::new(ip.payload()).is_some_and(|tcp|
++            tcp.get_data_offset() >= 5 && usize::from(tcp.get_data_offset()) * 4 <= ip.payload().len()),
++        _ => true, // The enabled chains still decide other protocols.
++    }
+ }
+ 
+ impl Default for AclFilter {
+@@ -154,6 +173,7 @@
+ 
+         let ipv4_packet = Ipv4Packet::new(payload)?;
+         if ipv4_packet.get_version() == 4 {
++            if !acl_ipv4_valid(payload) { return None; }
+             src_ip = IpAddr::V4(ipv4_packet.get_source());
+             dst_ip = IpAddr::V4(ipv4_packet.get_destination());
+             protocol = ipv4_packet.get_next_level_protocol();
+@@ -340,8 +360,8 @@
+                     if is_in { "inbound" } else { "outbound" },
+                     packet.peer_manager_header()
+                 );
+-                // allow all unknown packets
+-                return true;
++                // Enabled ACLs fail closed on malformed or unknown data packets.
++                return false;
+             }
+         };
+ 
+@@ -410,7 +430,24 @@
+         proto::acl::{Acl, ChainType, Protocol},
+     };
+ 
+-    use super::{AclFilter, OutboundAllowRecord};
++    use super::{acl_ipv4_valid, AclFilter, OutboundAllowRecord};
++
++    #[test]
++    fn acl_ipv4_rejects_fragments_truncation_and_hidden_ports() {
++        let mut udp = [0u8; 28];
++        udp[0] = 0x45; udp[3] = 28; udp[9] = 17; udp[25] = 8;
++        assert!(acl_ipv4_valid(&udp));
++        for len in 0..28 { assert!(!acl_ipv4_valid(&udp[..len])); }
++        for (index, value) in [(0, 0x44), (0, 0x4f), (3, 27), (3, 29),
++            (6, 0x20), (6, 0x80), (7, 1), (25, 7), (25, 9)] {
++            let mut bad = udp; bad[index] = value; assert!(!acl_ipv4_valid(&bad));
++        }
++        udp[6] = 0x40; assert!(acl_ipv4_valid(&udp)); // DF is safe.
++        let mut tcp = [0u8; 40]; tcp[0] = 0x45; tcp[3] = 40; tcp[9] = 6;
++        tcp[32] = 0x50; assert!(acl_ipv4_valid(&tcp));
++        tcp[32] = 0x40; assert!(!acl_ipv4_valid(&tcp));
++        tcp[32] = 0xf0; assert!(!acl_ipv4_valid(&tcp));
++    }
+ 
+     fn packet_info(dst_ip: IpAddr) -> PacketInfo {
+         PacketInfo {
+--- a/easytier/src/common/constants.rs
++++ b/easytier/src/common/constants.rs
+@@ -34,4 +34,4 @@
+ 
+ pub const WIN_SERVICE_WORK_DIR_REG_KEY: &str = "SOFTWARE\\EasyTier\\Service\\WorkDir";
+ 
+-pub const EASYTIER_VERSION: &str = "2.6.4-weplay-npcap-free";
++pub const EASYTIER_VERSION: &str = "2.6.4-weplay-npcap-free-acl1";

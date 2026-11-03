@@ -1,0 +1,93 @@
+{
+  "format": "weplay-rc313-verification-v1",
+  "date": "2026-11-03",
+  "release": "2.0.0-rc3.13",
+  "runtime": {
+    "version": "2.6.4-weplay-npcap-free-acl1",
+    "core_sha256": "f5395de51b3c63239598cf030ffe7bb2baea53f3edf2c32085e255d25d7b48e4",
+    "strict_acl_patch_sha256": "430e6400d8bd7b04de027750dbb778db7df1b869612d4f32c53888bde657d76e",
+    "rust_acl_tests_passed": 4
+  },
+  "python_regression": {
+    "tests": 179,
+    "passed": 178,
+    "skipped": 1,
+    "note": "Eight helper cases initially could not read execution-policy registry keys inside the sandbox; all eight passed when rerun outside it. No policy was changed."
+  },
+  "standalone": {
+    "direct_exe_first_start_without_source": true,
+    "direct_exe_relocation_preserves_saves": true,
+    "incomplete_and_corrupt_exports_rejected": true,
+    "normal_nonexport_setup_preserved": true,
+    "scope": "Invented-file backend fixtures; not a second physical PC launch."
+  },
+  "launcher": {
+    "languages": [
+      "de",
+      "en"
+    ],
+    "pages_per_language": 7,
+    "vertical_overflow": 0,
+    "private_pipe_roundtrip": true,
+    "consent_initially_denied": true,
+    "room_switch_requires_fresh_consent": true
+  },
+  "two_actual_game_clients": {
+    "format": "weplay-directory-live-lab-v1",
+    "native_game_loopback": true,
+    "easytier_tun": false,
+    "external_discord": false,
+    "real_native_game_published": true,
+    "encrypted_room_grant": true,
+    "two_easytier_peers_p2p": true,
+    "ingame_requested_normal_restart": true,
+    "native_two_player_lobby": true,
+    "passed": true,
+    "edition": "Ubisoft laboratory",
+    "new_guest_startup_reset_prompt": false,
+    "two_original_process_exit_codes": [
+      0,
+      0
+    ],
+    "restarted_guest_cleanup": "bounded harness termination",
+    "host_cleanup": "normal menu exit",
+    "world_started": false
+  },
+  "actual_tun_receiver_isolation": {
+    "passed": true,
+    "tun_receiver": true,
+    "sender_has_no_acl": true,
+    "external_nodes": false,
+    "six_production_program_port_rules_verified": true,
+    "allowed_tcp": true,
+    "allowed_udp": true,
+    "forbidden_controlled_tcp_blocked": true,
+    "forbidden_controlled_udp_blocked": true,
+    "smb_probe_blocked": true,
+    "rdp_probe_blocked": true,
+    "receiver_saw_real_virtual_peer": true,
+    "all_listener_counts": {
+      "tcp-9110": 1,
+      "udp-3074": 1,
+      "tcp-27445": 0,
+      "udp-27446": 0
+    },
+    "listener_counts": {
+      "tcp-9110": 1,
+      "udp-3074": 1,
+      "tcp-27445": 0,
+      "udp-27446": 0
+    },
+    "production_firewall_removed": true,
+    "fixture_firewall_removed": true,
+    "owned_adapter_removed": true
+  },
+  "limits": {
+    "two_remote_pcs_tested": false,
+    "steam_global_ui_live_tested": false,
+    "real_discord_game_publication_tested": false,
+    "world_over_tun_tested": false,
+    "long_match_or_desync_verification": false,
+    "individual_shared_transport_credential_revocation": false
+  }
+}

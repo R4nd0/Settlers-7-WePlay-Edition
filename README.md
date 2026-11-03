@@ -7,19 +7,24 @@ or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own supported game files.
 
-**In development after RC3.12:** a shared public game directory for the launcher,
-Discord and the in-game multiplayer browser, with private host-mediated joining
-over the existing EasyTier rooms. See [implementation and verification](docs/SHARED-GAME-DIRECTORY.md).
-Two local laboratory clients completed the in-game selection, encrypted invitation,
-guest restart and native lobby rejoin; remote-PC/TUN gameplay remains unqualified.
-This feature is not included in the RC3.12 downloads below.
+**RC3.13** adds a **Public lobby** in the launcher and the in-game **WePlay
+Online** browser. Published games show their player counts, open slots and
+compatibility. Private rooms by invitation remain a separate path and are not
+published automatically.
 
-The next build also keeps your startup options automatically when S7 reports
-an unsuccessful previous start. This removes the repeated reset-options question;
-your saved settings are retained. Ubisoft and Steam menu starts were checked
-locally; see [startup recovery verification](docs/STARTUP-OPTIONS.md).
+Before each new EasyTier connection, the launcher explains the virtual network,
+address visibility and remaining risks, and asks for explicit consent. Browsing
+the lobby starts no tunnel. The managed tunnel permits the required game/lobby
+ports and their replies, and denies other services and forwarding. It also keeps
+your startup options automatically, removing the repeated reset-options question.
+See [RC3.13 release notes and limits](docs/RC3.13-PUBLIC-LOBBY.md) and
+[directory setup and verification](docs/SHARED-GAME-DIRECTORY.md).
 
-**RC3.12** adds independent maintenance for both Ubisoft and Steam copies:
+Private standalone exports now also open correctly through **App/S7Launcher.exe**:
+the launcher recognizes the bundled game before setup, including after moving
+the complete folder. No original installation is needed for a complete export.
+
+Includes **RC3.12** independent maintenance for both Ubisoft and Steam copies:
 WePlay detects, repairs and updates its own prepared game after the original
 installation is removed. The launcher opens taller menus and expands within
 the available screen height. Keep Steam running when using that edition.
@@ -34,7 +39,7 @@ recovery and multiplayer castle corrections. Keep Steam running when using that 
 See [RC3.11 changes and test limits](docs/RC3.11-MULTIPLAYER-SAVES.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.12 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.12/WePlay-RC3.12.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.12/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.12) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+**[Download RC3.13 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.13/WePlay-RC3.13.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.13/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.13) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
 **Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
 managed game files, preserving saves and personal files. The safe switch to a
@@ -45,16 +50,18 @@ new game copy still temporarily needs extra disk space.
 Castle Forge design inside matches, including its appearance on the other
 client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
-![WePlay RC3.12 launcher in English](docs/screenshots/launcher-en.png)
+![WePlay RC3.13 launcher in English](docs/screenshots/launcher-en.png)
 
-*English RC3.12 launcher with the taller window, rendered with demonstration data.*
+*English RC3.13 launcher, rendered with demonstration data.*
 
 ## What you can do
 
-| Feature | Available in RC3.12 |
+| Feature | Available in RC3.13 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
+| Public lobby | Browse published games in the launcher or S7; join their private room, then select the native match in S7. Initial reader linking uses the Discord helper. |
+| Connection consent and isolation | Read the EasyTier explanation and explicitly agree before each new room connection; unrelated tunnel traffic and forwarding are denied. |
 | Internet rooms | Create a private room or join by invitation, using integrated EasyTier. No separate VPN installation, EasyTier account or rented WePlay server is needed. |
 | Discord community | Find players, share room invitations and optionally report your public games to the board in #🎮multiplayer. |
 | Graphics | Native or Modern (DXVK) graphics, GPU/display selection where supported, window modes and quality settings. |
@@ -67,10 +74,10 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 ## Install or upgrade
 
-1. Download and unpack the **RC3.11 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading.
+1. Download and unpack the **RC3.13 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading.
 2. Run Setup; for an upgrade, use your existing WePlay application folder.
-3. Select your original supported History Edition when asked and let WePlay prepare or update its separate game copy.
-4. Install the **same RC3.11 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
+3. For a first installation, select your original supported History Edition. Existing prepared copies can update from their own retained files. A complete private standalone export opens through App/S7Launcher.exe or WePlay-Starten.cmd and needs no Setup or source installation.
+4. Install the **same RC3.13 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.

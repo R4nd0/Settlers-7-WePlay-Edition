@@ -49,6 +49,43 @@ class StandaloneTests(unittest.TestCase):
     def save_descriptor(self):
         (self.root / standalone.RECORD).write_text(json.dumps(self.data), encoding='utf-8')
 
+    def launcher_snapshot(self, app=None):
+        return backend.dispatch(backend.Desktop(app or self.app),
+                                {'format':backend.REQUEST,'action':'snapshot','data':{}})
+
+    def test_direct_launcher_adopts_export_without_original_source(self):
+        self.fixture.source.rename(self.fixture.root/'source-unavailable')
+        with patch.object(backend.install,'source_base',side_effect=AssertionError('source lookup')):
+            result=self.launcher_snapshot()
+        self.assertTrue(result['installed'])
+        self.assertFalse(result['update_available'])
+        self.assertEqual(result['current'],str(self.game))
+
+    def test_direct_launcher_relocates_bound_export_and_preserves_saves(self):
+        self.launcher_snapshot()
+        saves=self.game/'LocalData/saves'
+        saves.mkdir(parents=True)
+        (saves/'keep.s7s').write_bytes(b'keep save')
+        moved=self.fixture.root/'moved export'
+        shutil.move(str(self.root),moved)
+        self.fixture.source.rename(self.fixture.root/'source-unavailable')
+        result=self.launcher_snapshot(moved/'App')
+        self.assertTrue(result['installed'])
+        self.assertEqual(Path(result['current']),moved/'App/Instances'/self.instance)
+        self.assertEqual((Path(result['current'])/'LocalData/saves/keep.s7s').read_bytes(),b'keep save')
+
+    def test_direct_launcher_rejects_incomplete_or_corrupt_export_without_setup(self):
+        incomplete=self.root/'EXPORT-INCOMPLETE.txt'
+        incomplete.write_text('incomplete')
+        with self.assertRaisesRegex(ValueError,'^standalone_invalid$'):self.launcher_snapshot()
+        incomplete.unlink()
+        (self.root/standalone.RECORD).write_text('{}')
+        with self.assertRaisesRegex(ValueError,'^standalone_invalid$'):self.launcher_snapshot()
+
+    def test_normal_launcher_without_export_still_opens_setup(self):
+        (self.root/standalone.RECORD).unlink()
+        self.assertFalse(self.launcher_snapshot()['installed'])
+
     def test_fresh_binding_and_relocation_preserve_saves_and_do_not_follow_old_paths(self):
         first = standalone.bind(self.root)
         self.assertEqual(first.game(), self.game)

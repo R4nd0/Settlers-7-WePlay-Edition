@@ -244,7 +244,7 @@ def build(app, source, output):
         'WePlay - privater ' + edition + '-Standalone-Export\n\n'
         'Den GESAMTEN Ordner auf den anderen Windows-PC kopieren oder dort entpacken.\n'
         'In einen beschreibbaren lokalen Ordner legen, z.B. D:\\Spiele\\WePlay.\n'
-        'WePlay-Starten.cmd starten. Beim ersten Start werden Dateien geprueft und\n'
+        'App\\S7Launcher.exe oder WePlay-Starten.cmd starten. Beim ersten Start werden Dateien geprueft und\n'
         'Grafikkarte/Bildschirm auf diesem PC neu ausgewaehlt. Das kann dauern.\n'
         'Danach im normalen WePlay-Starter Namen eingeben und Spielmodus waehlen.\n'
         'Uplay/Ubisoft Connect und eine zweite Installation werden fuer diese\n'

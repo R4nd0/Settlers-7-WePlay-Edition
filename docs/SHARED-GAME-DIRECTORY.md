@@ -1,12 +1,12 @@
 # Shared game directory and private joining
 
-Development implementation, after RC3.12. The published RC3.12 ZIP does not
-contain these new features. EasyTier remains the transport; this is original
+Included in RC3.13. The earlier RC3.12 ZIP does not contain these features.
+EasyTier remains the transport; this is original
 WePlay code, with no aLobby code copied into the MIT project.
 
 ## Player flow
 
-The launcher has a **Public games / Öffentliche Spiele** tab. It lists the same
+The launcher has a **Public lobby / Öffentliche Lobby** tab. It lists the same
 public native matches as Discord, including player counts, open/full/started
 state, version and content compatibility. Refresh the list, select an open
 compatible match and choose **Join**. WePlay obtains the host's private room
@@ -140,7 +140,18 @@ Discord traffic mocked. This does not qualify a complete packaged-desktop flow
 over TUN, two remote PCs, Steam live UI, or a real Discord game publication.
 No match world was started, so this is not a desync or long-session test.
 
-S7's existing startup-options recovery dialog appeared on laboratory starts,
+In that earlier test, S7's existing startup-options recovery dialog appeared on laboratory starts,
 including the restarted guest. It was answered **No**, preserving graphics
 settings. Unattended startup without that prompt is not established by this
 test; the successful restart/rejoin result includes that visible dialog step.
+
+The RC3.13 follow-up repeated listing, encrypted invitation delivery and native
+two-player admission with the guarded startup-options fix: the restarted guest
+did not display that question. Its restarted process was later terminated by
+the bounded harness cleanup; the original two processes exited normally.
+The game harness still used loopback and a local Worker with mocked Discord.
+Separate actual-TUN tests verified receiver ACL enforcement and six scoped
+production firewall rules. Public/private UI paths and explicit consent before
+every new connection are included; in-game room changes now return to the
+launcher for that fresh consent. See [network isolation](EASYTIER-SECURITY.md)
+and the [RC3.13 verification record](verification/rc313-lobby-security-20261103.json).

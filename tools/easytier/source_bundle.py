@@ -21,6 +21,9 @@ def build(archive, destination):
     patch = REPO / 'tools/easytier/no-npcap.patch'
     if hashlib.sha256(patch.read_bytes()).hexdigest() != lock['patch_sha256']:
         raise ValueError('Unreviewed EasyTier patch')
+    security_patch = REPO / 'tools/easytier/strict-acl.patch'
+    if hashlib.sha256(security_patch.read_bytes()).hexdigest() != lock['security_patch_sha256']:
+        raise ValueError('Unreviewed EasyTier security patch')
     if destination.exists() or not destination.parent.is_dir():
         raise ValueError('Use a new source ZIP in an existing directory')
     with tempfile.TemporaryDirectory(prefix='easytier-source-', dir=REPO / 'work') as temporary:
@@ -44,12 +47,14 @@ def build(archive, destination):
         relative = source.relative_to(REPO).as_posix()
         subprocess.run(['git', 'apply', '--directory=' + relative, str(patch)], cwd=REPO, check=True,
                        capture_output=True)
-        for name in ('no-npcap.patch', 'build-runtime.ps1', 'README.md'):
+        subprocess.run(['git', 'apply', '--directory=' + relative, str(security_patch)], cwd=REPO, check=True,
+                       capture_output=True)
+        for name in ('no-npcap.patch', 'strict-acl.patch', 'build-runtime.ps1', 'README.md'):
             shutil.copyfile(REPO / 'tools/easytier' / name, folder / name)
         (folder / 'SOURCE-BUNDLE.txt').write_text(
-            'EasyTier 2.6.4-weplay-npcap-free corresponding source\n'
+            'EasyTier 2.6.4-weplay-npcap-free-acl1 corresponding source\n'
             'Upstream: https://github.com/EasyTier/EasyTier/tree/8428a89\n'
-            'The source/ tree already contains no-npcap.patch. Cargo.lock is retained.\n'
+            'The source/ tree already contains no-npcap.patch and strict-acl.patch. Cargo.lock is retained.\n'
             'Windows 10/11 x64, MSVC tools, Rust stable 1.99.0, protoc 26.0.\n'
             'Use build-runtime.ps1 with the pinned original source/protoc ZIPs for the complete build.\n'
             'It uses upstream import libraries privately at build time; they are not distributed here.\n'

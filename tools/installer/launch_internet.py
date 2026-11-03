@@ -29,6 +29,8 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     game exits. Cancellation explicitly closes the room; normal game exit does
     not disconnect other players.
     """
+    if type(getattr(args,'internet_consent',None)) is not int or args.internet_consent != 1:
+        raise InternetError('internet_consent_required')
     root = compatibility.plain(args.bundle)
     name = player_settings.player_name(args.player_name)
     invitation = getattr(args, 'invitation', None)
@@ -114,6 +116,10 @@ def main():
             args.invitation = getpass('WePlay-Einladung: ')
         print('EasyTier-Internetraum. Der Ersteller muss erreichbar bleiben.', flush=True)
         print('Ohne direkten Endpunkt werden oeffentliche Vermittlungsknoten und bei Bedarf Relays verwendet.', flush=True)
+        print('Andere Spieler koennen deine Verbindungsadresse sehen. Nur Spiel-/Lobbyports sind freigegeben; Fehler im Spiel/VPN und Ueberlastung bleiben moeglich.',flush=True)
+        if input('EasyTier fuer diese Verbindung ausdruecklich zulassen? [ja/Nein] ').strip().lower() != 'ja':
+            return 0
+        args.internet_consent=1
         def private_file(value):
             import tempfile
             directory = Path(tempfile.mkdtemp(prefix='internet-invitation-', dir=args.bundle / 'LocalData'))

@@ -259,7 +259,7 @@ internal sealed partial class MainForm : Form
     private bool discordAvailable, discordConnected;
     private readonly List<Control> internetSetupControls = [];
     private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
-    private bool internetOperation, internetAvailable,directorySwitch;
+    private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
@@ -433,6 +433,12 @@ internal sealed partial class MainForm : Form
         var net = Stack(internetScroll);
         var netTitle = Label("internetTitle"); netTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold); Add(net,netTitle);
         Add(net,Label("internetIntro"));Bind(internetUnavailable,"internetUnavailable");Add(net,internetUnavailable);
+        var publicHeading=Label("directoryTitle");publicHeading.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(net,publicHeading);
+        Add(net,Label("internetPublicInfo"));
+        var publicLobbyButton=Button("internetPublicBrowse",()=>{tabs.SelectedTab=directoryPage;return RefreshDirectory();});
+        Add(net,Buttons(publicLobbyButton));internetSetupControls.Add(publicLobbyButton);
+        var privateHeading=Label("internetPrivateTitle");privateHeading.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(net,privateHeading);Add(net,Label("internetPrivateInfo"));
+        Add(net,Label("internetNetworkSummary"));
         Add(net,internetConnection);Add(net,internetNext);
         void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
         AddSetup(Field("player",internetPlayer));
@@ -483,7 +489,7 @@ internal sealed partial class MainForm : Form
         accessibleFields[discordOptionsPanel]="discordOptions";
         Add(discordOptionsPanel,Label("discordSetupSteps"));
         discordConnect=Button("discordConnect",ConnectDiscord);discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
-        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");Add(discordOptionsPanel,discordPublish);
+        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");
         Add(discord,discordOptionsPanel);Add(net,discordSection);
         internetHostChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();internetGuestChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
@@ -577,6 +583,7 @@ internal sealed partial class MainForm : Form
         catch(Exception error)
         {
             ShowError(error);setup.Visible=true;tabs.Visible=false;installButton.Enabled=true;
+            if(error is BackendError portableFailure&&portableFailure.Code=="standalone_invalid")setup.Visible=false;
             if(error is BackendError failure&&failure.Code=="installation_invalid"){recoverState=true;Bind(installButton,"restartSetup");}
         }
         finally {SetBusy(false);}
@@ -796,8 +803,10 @@ internal sealed partial class MainForm : Form
     }
     private async Task Play(bool lan)
     {
-        if(lan)await Backend.Run("lan-play",new {player_name=ValidName()},Receive);
-        else await Backend.Run("play",new {},Receive);
+        JsonElement result;
+        if(lan)result=await Backend.Run("lan-play",new {player_name=ValidName()},Receive);
+        else result=await Backend.Run("play",new {},Receive);
+        QueueDirectorySwitch(result);
         gameRunning=false;RestoreWindow();homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
     }
     private void UpdateInternetControls()
@@ -872,13 +881,14 @@ internal sealed partial class MainForm : Form
         await Backend.Run("discord-disconnect",new {},Receive);
         LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordNotConnected");
     }
-    private async Task PlayInternet(bool create)
+    private async Task PlayInternet(bool create,bool publish=false)
     {
         player.Text=internetPlayer.Text;string name=ValidName();
         string? invitation=create?null:Community.InvitationCode(internetJoin.Text);
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
+        if(!ConfirmInternetConnection(publish))return;
         internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);tabs.SelectedTab=internetPage;
         using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
@@ -888,8 +898,10 @@ internal sealed partial class MainForm : Form
         });
         try
         {
-            if(create)await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint,publish_discord=discordPublish.Checked},Receive);
-            else await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=discordPublish.Checked},Receive);
+            JsonElement result;
+            if(create)result=await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint,publish_discord=publish,internet_consent=1},Receive);
+            else result=await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=false,internet_consent=1},Receive);
+            QueueDirectorySwitch(result);
             channel.Dispose();await privateTask;
             gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
@@ -906,8 +918,9 @@ internal sealed partial class MainForm : Form
         string? kind=value.GetProperty("kind").GetString();
         if(kind=="directory_switch")
         {
-            directorySwitch=true;internetOperation=true;internetCreating=false;internetStage="connecting";
-            internetInvite.Clear();tabs.SelectedTab=internetPage;SetBusy(true);
+            // The awaited result owns the switch. Progress notifications may
+            // arrive later and must never start a connection or leave UI busy.
+            status.Text=Lang.T("internet_consent_required");
         }
         else if(kind=="progress")
         {
@@ -971,8 +984,12 @@ internal sealed partial class MainForm : Form
         catch(Exception error){gameRunning=false;RestoreWindow();ShowError(error);}
         finally
         {
-            if(directorySwitch){directorySwitch=false;internetOperation=false;internetInvite.Clear();UpdateInternetControls();}
             SetBusy(false);
+        }
+        if(pendingDirectoryGame is string pending)
+        {
+            pendingDirectoryGame=null;RestoreWindow();
+            await Guard(()=>JoinDirectoryGame(pending));
         }
     }
     private void ShowError(Exception error)
@@ -1015,6 +1032,18 @@ internal sealed partial class MainForm : Form
             using var json=JsonDocument.Parse(fixture);
             foreach(string language in new[]{"en","de"})
             {
+                Lang.Set(language,false);
+                foreach(bool publicLobby in new[]{false,true})
+                {
+                    var consent=BuildInternetConsent(publicLobby);using var dialog=consent.Dialog;
+                    if(consent.Choice.Checked||consent.Connect.Enabled)throw new Exception("EasyTier consent must start unchecked and disabled");
+                    consent.Choice.Checked=true;if(!consent.Connect.Enabled)throw new Exception("Explicit consent did not enable connect");
+                    consent.Choice.Checked=false;if(consent.Connect.Enabled)throw new Exception("Revoked consent left connect enabled");
+                    dialog.StartPosition=FormStartPosition.Manual;dialog.Location=new Point(-30000,-30000);dialog.ShowInTaskbar=false;
+                    dialog.Show();Application.DoEvents();using var consentImage=new Bitmap(dialog.Width,dialog.Height);
+                    dialog.DrawToBitmap(consentImage,new Rectangle(0,0,dialog.Width,dialog.Height));
+                    consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
+                }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
                 if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
                 form.LoadSnapshot(json.RootElement);form.ShowMain();form.Show();Application.DoEvents();
@@ -1102,6 +1131,12 @@ internal sealed partial class MainForm : Form
                 form.SetBusy(true);if(form.directoryJoin.Enabled)throw new Exception("Directory join enabled during game operation");form.SetBusy(false);
                 foreach(string row in new[]{"""{"compatible":false,"state":"open","free_slots":3}""","""{"compatible":true,"state":"full","free_slots":0}""","""{"compatible":true,"state":"started","free_slots":0}"""})
                 {using var unavailable=JsonDocument.Parse(row);if(DirectoryJoinable(unavailable.RootElement))throw new Exception("Unavailable directory game enabled");}
+                using(var switched=JsonDocument.Parse("""{"kind":"directory_switch","game_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"""))form.Receive(switched.RootElement);
+                if(form.busy||form.internetOperation||form.pendingDirectoryGame!=null)throw new Exception("Progress notification bypassed per-room consent");
+                using(var completed=JsonDocument.Parse("""{"exit_code":0,"directory_game_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"""))form.QueueDirectorySwitch(completed.RootElement);
+                if(form.pendingDirectoryGame!="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")throw new Exception("Awaited room switch result lost");
+                form.pendingDirectoryGame=null;
+                form.status.Text=Lang.T("ready");
                 foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.directoryPage,form.graphicsPage,form.helpPage,form.updatesPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();form.FitMenuHeight();Application.DoEvents();
@@ -1138,7 +1173,8 @@ internal sealed partial class MainForm : Form
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","release_version_from_assembly","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
-                    "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
+                    "easytier_consent_defaults_denied","room_switch_requires_fresh_consent"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

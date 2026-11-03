@@ -19,6 +19,50 @@ from lan_child_job import ServiceJob
 from lan_interfaces import enumerate_interfaces
 
 LOCK = Path(__file__).with_name('easytier-runtime.json')
+# Native peer sockets and the bounded WePlay coordinator/discovery services.
+GAME_UDP_PORTS = (3074, 6200, 9103)
+ROOM_UDP_PORTS = (*GAME_UDP_PORTS, 9111, 9112)
+
+
+def room_acl(room, address):
+    """Receiver-enforced policy, independent of the other player's launcher.
+
+    Keep forwarding and IPv6 closed. Responses to explicitly permitted outgoing
+    connections use EasyTier's reverse-flow tracking, not an ephemeral-port range.
+    """
+    local = ipaddress.IPv4Address(address)
+    if local not in room.network or local in (room.network.network_address, room.network.broadcast_address):
+        raise InternetError('internet_adapter_invalid')
+    quote = json.dumps
+    lines = []
+    for kind, name in ((1, 'inbound'), (2, 'outbound'), (3, 'forward')):
+        lines += ['[[acl.acl_v1.chains]]', f'name = "weplay-{name}"',
+                  f'chain_type = {kind}', 'enabled = true', 'default_action = 2']
+        if kind == 3:
+            continue
+        source = room.subnet if kind == 1 else address + '/32'
+        target = address + '/32' if kind == 1 else room.subnet
+        rules = [(2, ROOM_UDP_PORTS, source, target)]
+        if kind == 2 or address == room.coordinator:
+            rules.append((1, (9110,), source, target if kind == 1 else room.coordinator + '/32'))
+        for protocol, ports, src, dst in rules:
+            lines += ['[[acl.acl_v1.chains.rules]]', f'name = "weplay-{name}-{protocol}"',
+                      'priority = 1000', 'enabled = true', 'action = 1', f'protocol = {protocol}',
+                      'ports = ' + quote([str(p) for p in ports]),
+                      'source_ips = ' + quote([src]), 'destination_ips = ' + quote([dst]),
+                      'stateful = false']
+        if kind == 2:
+            # Replies originate from these fixed service sockets and target
+            # the caller's ephemeral port. Do not open an inbound port range.
+            replies=[(2,ROOM_UDP_PORTS)]
+            if address == room.coordinator:replies.append((1,(9110,)))
+            for protocol,ports in replies:
+                lines += ['[[acl.acl_v1.chains.rules]]',f'name = "weplay-reply-{protocol}"',
+                          'priority = 900','enabled = true','action = 1',f'protocol = {protocol}',
+                          'source_ports = '+quote([str(p) for p in ports]),
+                          'source_ips = '+quote([address+'/32']),
+                          'destination_ips = '+quote([room.subnet]),'stateful = false']
+    return '\n'.join(lines) + '\n'
 
 
 def verify_runtime(root):
@@ -77,9 +121,11 @@ def configuration(room, address, instance_id, device_name):
                  no_tun=False, enable_udp_broadcast_relay=False, multi_thread=False,
                  relay_network_whitelist='', private_mode=room.mode == 'direct',
                  p2p_only=room.mode == 'direct', disable_upnp=True,
-                 enable_kcp_proxy=False, enable_quic_proxy=False, bind_device=True)
+                 enable_kcp_proxy=False, enable_quic_proxy=False, bind_device=True,
+                 enable_ipv6=False, disable_kcp_input=True, disable_quic_input=True,
+                 disable_relay_kcp=True, disable_relay_quic=True)
     lines += ['[flags]'] + [f'{k} = {str(v).lower() if isinstance(v, bool) else quote(v)}' for k, v in flags.items()]
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines) + '\n' + room_acl(room, address)
 
 
 def peer_snapshot(raw, room, device_name):

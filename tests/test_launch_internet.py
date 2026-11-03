@@ -17,7 +17,7 @@ ROOM = Room('a' * 32, 'b' * 64, '10.203.77.0/24')
 class LaunchTests(unittest.TestCase):
     def setUp(self):
         self.args = SimpleNamespace(bundle=ROOT / 'work/fictional-internet-copy', player_name='Anna',
-                                    saved_graphics=True)
+                                    saved_graphics=True,internet_consent=1)
         self.overlay = Mock()
         self.host_interface = LanInterface(ROOM.coordinator, 24, 'WePlay-id')
         self.overlay.start.return_value = self.host_interface
@@ -25,6 +25,13 @@ class LaunchTests(unittest.TestCase):
         self.factory = Mock(return_value=self.overlay)
         self.physical = patch.object(launch, 'enumerate_interfaces', return_value=[LanInterface('192.168.1.7', 24)])
         self.physical.start(); self.addCleanup(self.physical.stop)
+
+    def test_missing_or_unchecked_consent_starts_no_overlay(self):
+        for value in (None,False,True,0,'1',2):
+            self.args.internet_consent=value
+            with self.assertRaisesRegex(InternetError,'internet_consent_required'):
+                launch.run(self.args,overlay_factory=self.factory)
+        self.factory.assert_not_called()
 
     def test_host_uses_only_overlay_and_emits_private_invitation_after_readiness(self):
         event = Mock()

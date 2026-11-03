@@ -23,7 +23,7 @@ class InternetBackendTests(unittest.TestCase):
         with patch.object(backend.install,'package_manifest',return_value={'internet_easytier':True}), \
                 patch('internet_private_channel.PrivateChannel',return_value=Mock(__enter__=Mock(return_value=channel),__exit__=Mock(return_value=False))), \
                 patch.object(self.desktop,'play',return_value={'exit_code':0}) as play:
-            self.desktop.internet_play({'player_name':'Anna','channel':'weplay-internet-'+'c'*32},host=False)
+            self.desktop.internet_play({'player_name':'Anna','channel':'weplay-internet-'+'c'*32,'internet_consent':1},host=False)
         self.assertEqual(play.call_args.kwargs['internet']['invitation'],ROOM.token())
         self.assertNotIn(ROOM.secret,repr(self.fixture.events));self.assertNotIn(ROOM.token(),repr(self.fixture.events))
 
@@ -34,7 +34,7 @@ class InternetBackendTests(unittest.TestCase):
 
     def test_create_requires_empty_private_request_and_explicit_mode(self):
         channel=Mock();channel.read.return_value=ROOM.token()
-        data=dict(player_name='Anna',channel='weplay-internet-'+'c'*32,mode='assisted',direct_endpoint=None)
+        data=dict(player_name='Anna',channel='weplay-internet-'+'c'*32,mode='assisted',direct_endpoint=None,internet_consent=1)
         with patch.object(backend.install,'package_manifest',return_value={'internet_easytier':True}), \
                 patch('internet_private_channel.PrivateChannel',return_value=Mock(__enter__=Mock(return_value=channel),__exit__=Mock(return_value=False))), \
                 patch.object(self.desktop,'play') as play:
@@ -50,6 +50,14 @@ class InternetBackendTests(unittest.TestCase):
     def test_private_channel_name_never_opens_arbitrary_files(self):
         for name in ('C:/private.txt',r'\\.\pipe\someone-else','weplay-internet-'+'c'*31,'weplay-internet-'+'c'*32+'\\x'):
             with self.assertRaises(InternetError):PrivateChannel(name)
+
+    def test_unchecked_consent_cannot_reach_private_channel_or_play(self):
+        with patch.object(backend.install,'package_manifest',return_value={'internet_easytier':True}), \
+                patch('internet_private_channel.PrivateChannel') as channel,patch.object(self.desktop,'play') as play:
+            for value in (None,False,True,0,'1'):
+                with self.assertRaisesRegex(ValueError,'internet_consent_required'):
+                    self.desktop.internet_play(dict(player_name='Anna',channel='weplay-internet-'+'c'*32,internet_consent=value),host=False)
+            channel.assert_not_called();play.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

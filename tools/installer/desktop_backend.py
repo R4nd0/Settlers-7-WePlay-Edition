@@ -527,8 +527,9 @@ class Desktop:
     def internet_play(self,request,*,host):
         if not install.package_manifest(self.package).get('internet_easytier',False):
             raise ValueError('package_invalid')
-        required={'player_name','channel','mode','direct_endpoint'} if host else {'player_name','channel'}
+        required={'player_name','channel','mode','direct_endpoint','internet_consent'} if host else {'player_name','channel','internet_consent'}
         if not isinstance(request,dict) or set(request) not in (required,required|{'publish_discord'}):raise ValueError('request_invalid')
+        if type(request['internet_consent']) is not int or request['internet_consent']!=1:raise ValueError('internet_consent_required')
         publish=request.get('publish_discord',False)
         if type(publish) is not bool:raise ValueError('request_invalid')
         if publish:
@@ -552,7 +553,7 @@ class Desktop:
             if not host:parse(invitation)
             elif request['mode']=='direct':endpoint(request['direct_endpoint'])
             options={'invitation':invitation,'mode':request.get('mode','assisted'),
-                     'direct_endpoint':request.get('direct_endpoint'),'publish_discord':publish}
+                     'direct_endpoint':request.get('direct_endpoint'),'publish_discord':publish,'internet_consent':1}
             return self.play({'player_name':request['player_name']},internet=options,
                              invitation_ready=channel.invitation_ready)
 
@@ -578,7 +579,8 @@ class Desktop:
 
     def directory_join(self,data):
         if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
-        if not isinstance(data,dict) or set(data)!={'game_id','player_name'}:raise ValueError('request_invalid')
+        if not isinstance(data,dict) or set(data)!={'game_id','player_name','internet_consent'}:raise ValueError('request_invalid')
+        if type(data['internet_consent']) is not int or data['internet_consent']!=1:raise ValueError('internet_consent_required')
         self.validate_lan({'player_name':data['player_name']});graphics.ensure_closed()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         from game_directory import configured,join
@@ -588,7 +590,7 @@ class Desktop:
         invitation=join(url,data['game_id'],allowed,root=self.package,
             cancel=lambda:self.progress('directory_join'),progress=self.progress)
         return self.play({'player_name':data['player_name']},internet={'invitation':invitation,
-            'mode':'assisted','direct_endpoint':None,'publish_discord':False})
+            'mode':'assisted','direct_endpoint':None,'publish_discord':False,'internet_consent':1})
 
     def align_internet(self,root,interface,coordinator,host):
         if host:return
@@ -702,8 +704,10 @@ class Desktop:
         self.emit('game_finished',exit_code=code)
         if code:raise RuntimeError('game_failed')
         if directory_bridge[0] is not None and directory_bridge[0].pending:
-            self.emit('directory_switch')
-            return self.directory_join({'game_id':directory_bridge[0].pending,'player_name':player_settings.load(root)})
+            # The previous transport is already closed. A fresh UI consent is
+            # required before connecting to the newly selected host's room.
+            self.emit('directory_switch',game_id=directory_bridge[0].pending)
+            return {'exit_code':code,'directory_game_id':directory_bridge[0].pending}
         return {'exit_code':code}
 
     def verify(self):
@@ -849,7 +853,18 @@ def dispatch(desktop,request):
         raise ValueError('request_invalid')
     action,data=request['action'],request['data']
     if not isinstance(data,dict):raise ValueError('request_invalid')
-    if action=='snapshot' and not data:return desktop.snapshot()
+    if action=='snapshot' and not data:
+        # Opening S7Launcher.exe directly must adopt a portable export just as
+        # its CMD starter does. Never send an unbound export to source setup.
+        root=desktop.app.parent
+        if (root/'standalone.json').exists() or (root/'EXPORT-INCOMPLETE.txt').exists():
+            import standalone
+            try:
+                if (root/'EXPORT-INCOMPLETE.txt').exists():raise ValueError('incomplete export')
+                standalone.bind(root)
+            except (OSError,ValueError,RuntimeError) as error:
+                raise ValueError('standalone_invalid') from error
+        return desktop.snapshot()
     # Startup checks must not hold the game-operation lock during network I/O.
     if action=='update-check' and not data:return desktop.check_updates()
     if action=='detect' and not data:
@@ -906,9 +921,9 @@ def error_code(error):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
-        'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid',
+        'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid','standalone_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
-        'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}
+        'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text

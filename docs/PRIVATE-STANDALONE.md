@@ -7,7 +7,7 @@ This export is a private backup containing proprietary game files; it must never
 be uploaded as a public WePlay release asset.
 
 Copy the **entire exported folder** to a writable local folder on the other
-Windows PC, then run **WePlay-Starten.cmd**. No Setup or second source-game
+Windows PC, then run **App/S7Launcher.exe** or **WePlay-Starten.cmd**. No Setup or second source-game
 installation is needed for this already prepared copy. Windows x64 10 build
 19045 or newer is required. LAN/Internet setup may still request the normal
 Windows network permission. Use the same WePlay version on all players' PCs.
@@ -22,7 +22,13 @@ The Steam edition still requires the installed, running Steam client and its
 normal ownership check. The export does not replace the Steam SDK.
 
 Always close WePlay and S7 before copying or moving. Use WePlay-Starten.cmd
-again after moving.
+again after moving. Starting App/S7Launcher.exe directly also performs the
+binding from RC3.13 onward. Earlier exports require WePlay-Starten.cmd before
+opening the EXE; their direct EXE start can incorrectly show initial setup.
+RC3.13 checks the bundled instance before showing the launcher, including after
+a whole-folder move. An incomplete or inconsistent export shows a standalone
+error instead of requesting an original installation. Re-extract the complete
+private backup to recover it; do not run the public Setup inside the export.
 
 ## Independent maintenance (RC3.12)
 

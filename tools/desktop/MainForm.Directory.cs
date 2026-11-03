@@ -11,6 +11,12 @@ internal sealed partial class MainForm
     private readonly ListView directoryGames=new() { Dock=DockStyle.Top,Height=290,View=View.Details,FullRowSelect=true,MultiSelect=false,HideSelection=false };
     private Button directoryRefresh=null!,directoryJoin=null!,directoryConnect=null!;
     private readonly List<JsonElement> directoryRows=[];
+    private string? pendingDirectoryGame;
+    private void QueueDirectorySwitch(JsonElement result)
+    {
+        if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String)
+            pendingDirectoryGame=id.GetString();
+    }
 
     private TabPage BuildDirectory()
     {
@@ -26,7 +32,11 @@ internal sealed partial class MainForm
         directoryConnect=Button("directoryConnect",ConnectDirectory);
         Add(stack,directoryGames);Add(stack,Buttons(directoryRefresh,directoryJoin,directoryConnect));Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
-        Add(stack,Buttons(Button("directoryHost",()=>{internetHostChoice.Checked=true;discordOptions.Checked=true;tabs.SelectedTab=internetPage;return Task.CompletedTask;})));
+        Add(stack,Buttons(Button("directoryHost",async()=>{
+            if(!discordConnected)throw new BackendError("discord_not_connected","");
+            internetPlayer.Text=directoryPlayer.Text;internetMode.SelectedIndex=0;internetHostChoice.Checked=true;
+            await PlayInternet(true,publish:true);
+        }),Button("discordConnect",ConnectDiscord)));
         return page;
     }
 
@@ -92,13 +102,19 @@ internal sealed partial class MainForm
     {
         var selected=SelectedDirectoryGame();
         if(!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
+        await JoinDirectoryGame(selected.Value.GetProperty("id").GetString()!);
+    }
+
+    private async Task JoinDirectoryGame(string id)
+    {
         player.Text=directoryPlayer.Text;string name=ValidName();internetPlayer.Text=name;
-        string id=selected.Value.GetProperty("id").GetString()!;
+        if(!ConfirmInternetConnection(publicLobby:true))return;
         internetCreating=false;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();
         SetBusy(true);tabs.SelectedTab=internetPage;
         try
         {
-            await Backend.Run("directory-join",new {game_id=id,player_name=name},Receive);
+            var result=await Backend.Run("directory-join",new {game_id=id,player_name=name,internet_consent=1},Receive);
+            QueueDirectorySwitch(result);
             gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
         finally{internetOperation=false;internetInvite.Clear();UpdateInternetControls();}

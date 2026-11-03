@@ -17,7 +17,7 @@ from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_
 from install import DIRECTORY_ADAPTER_SHA256
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
-ADAPTER_SHA256 = 'dd0be49727dc8561a61098e917c05bb51616322af8c365d086751bfd58ecfd63'
+ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
 SERVICE_SHA256 = '1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438'
 ARCHIVE_SHA256 = 'be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6'
 DIRECTORY_ARCHIVE_SHA256 = '01071d9d44928cf4c4853b197489010a591a576ca34622ff8b4bde0cbc22d565'
@@ -45,8 +45,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
         probe=subprocess.run([str(dotnet/'dotnet.exe'),str(helper),'capabilities'],
             capture_output=True,timeout=30)
-        if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig'))!={'format':'weplay-windows-capabilities-v1','directory_crypto':1}:
-            raise ValueError('Directory cryptography helper is missing')
+        if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig'))!={'format':'weplay-windows-capabilities-v1','directory_crypto':1,'internet_firewall':2}:
+            raise ValueError('Directory cryptography or restricted Internet firewall helper is missing')
     check_output_location(repo, output, (service, dotnet, python_zip.parent, adapter.parent))
     if content.digest(adapter) != (DIRECTORY_ADAPTER_SHA256 if game_directory else ADAPTER_SHA256) or content.digest(python_zip) != PYTHON_SHA256:
         raise ValueError('Adapter or Python distribution fingerprint mismatch')

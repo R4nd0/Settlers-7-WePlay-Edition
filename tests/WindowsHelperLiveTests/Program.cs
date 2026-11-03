@@ -98,15 +98,16 @@ enable_encryption = true
             internet=true;Call(helper,"internet-firewall",root,key,"apply",address,name);
             using(var read=JsonDocument.Parse(Call(helper,"inspect-firewall","S7ET-"+key+"-")))
             {
-                Require(read.RootElement.GetArrayLength()==8,"eight Internet rules");
+                Require(read.RootElement.GetArrayLength()==6,"six Internet rules");
                 foreach(var rule in read.RootElement.EnumerateArray().Where(x=>!x.GetProperty("name").GetString()!.Contains("-core-")))
                 {
                     Require(rule.GetProperty("local").GetString()!.StartsWith(address,StringComparison.Ordinal),"overlay local address");
                     Require(rule.GetProperty("remote").GetString()!.StartsWith(subnet+".0/",StringComparison.Ordinal),"overlay subnet");
                     Require(rule.GetProperty("interfaces").ToString().Contains(name,StringComparison.Ordinal),"overlay interface");
+                    Require(rule.GetProperty("port").GetString()!="*","overlay ports restricted");
                 }
             }
-            Checks.Add("eight real Internet rules with adapter/address/subnet scope");
+            Checks.Add("six real Internet rules with adapter/address/subnet/port scope");
             Call(helper,"internet-firewall",root,key,"remove");internet=false;
             using(var read=JsonDocument.Parse(Call(helper,"inspect-firewall","S7ET-"+key+"-")))Require(read.RootElement.GetArrayLength()==0,"Internet removal");
             Checks.Add("Internet rules removed");

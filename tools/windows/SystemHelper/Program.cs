@@ -11,7 +11,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using WePlay.Helpers;
 
-internal sealed record Rule(string Name,string Program,int Protocol,int Profiles,string Remote,string Local="*",string? Interface=null,string? Port=null);
+internal sealed record Rule(string Name,string Program,int Protocol,int Profiles,string Remote,string Local="*",string? Interface=null,string? Port=null,bool Install=true);
 
 internal static class Program
 {
@@ -24,7 +24,7 @@ internal static class Program
         Console.OutputEncoding=new UTF8Encoding(false);
         try
         {
-            if(args is ["capabilities"]){Print(new {format="weplay-windows-capabilities-v1",directory_crypto=1});return 0;}
+            if(args is ["capabilities"]){Print(new {format="weplay-windows-capabilities-v1",directory_crypto=1,internet_firewall=2});return 0;}
             if(args is ["directory-crypto",string operation]){Print(DirectoryCrypto.Run(operation));return 0;}
             if(args is ["interfaces"]){Print(Interfaces());return 0;}
             if(args is ["processes"]){Print(Processes());return 0;}
@@ -124,7 +124,18 @@ internal static class Program
         }
         var result=new List<Rule>();
         for(int i=0;i<Programs.Length;i++)foreach(int protocol in new[]{6,17})
-            result.Add(new($"S7ET-{key}-{i}-{(protocol==6?"TCP":"UDP")}",SafePaths.FileAt(root,Programs[i]),protocol,int.MaxValue,remote,local,name));
+        {
+            // Keep the old owned names so removal also reclaims earlier broad
+            // rules. Unused combinations remain removal-only plans.
+            // Overlay ACLs enforce the default deny.
+            string? port=(i,protocol) switch
+            {
+                (0,17)=>"3074,6200,9103",
+                (1,6)=>"9110", (1,17)=>"9111", (2,17)=>"9112",
+                _=>null
+            };
+            result.Add(new($"S7ET-{key}-{i}-{(protocol==6?"TCP":"UDP")}",SafePaths.FileAt(root,Programs[i]),protocol,int.MaxValue,remote,local,name,port,port!=null));
+        }
         string core=SafePaths.FileAt(root,"Runtime/easytier/easytier-core.exe");
         result.Add(new($"S7ET-{key}-core-TCP",core,6,int.MaxValue,"*",Port:"11010"));
         result.Add(new($"S7ET-{key}-core-UDP",core,17,int.MaxValue,"*"));
@@ -154,7 +165,7 @@ internal static class Program
                     }
                     finally{Marshal.FinalReleaseComObject(existing);}
                 }
-                if(remove)continue;
+                if(remove||!plan.Install)continue;
                 dynamic rule=Com("HNetCfg.FWRule");
                 try
                 {

@@ -21,6 +21,23 @@ def row(ip, cost='p2p', name='Guest'):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_room_policy_denies_other_services_ipv6_and_forwarding(self):
+        for address in (ROOM.coordinator,'10.203.77.2'):
+            config=tomllib.loads(runtime.configuration(ROOM,address,'id','WePlay-id'))
+            chains=config['acl']['acl_v1']['chains']
+            self.assertEqual({c['chain_type'] for c in chains},{1,2,3})
+            self.assertTrue(all(c['enabled'] and c['default_action']==2 for c in chains))
+            forward=next(c for c in chains if c['chain_type']==3)
+            self.assertNotIn('rules',forward)
+            inbound=next(c for c in chains if c['chain_type']==1)
+            for rule in inbound['rules']:
+                self.assertEqual(rule['destination_ips'],[address+'/32'])
+                self.assertEqual(rule['source_ips'],[ROOM.subnet])
+                self.assertFalse(set(rule['ports'])&{'22','135','139','445','3389','5985'})
+            self.assertFalse(config['flags']['enable_ipv6'])
+            self.assertTrue(config['flags']['disable_kcp_input'])
+            self.assertTrue(config['flags']['disable_quic_input'])
+        with self.assertRaises(InternetError):runtime.configuration(ROOM,'192.168.0.1','id','WePlay-id')
     def test_config_is_private_encrypted_and_has_no_exit_routes_or_broadcast_capture(self):
         text = runtime.configuration(ROOM, ROOM.coordinator, 'id', 'WePlay-id')
         config = tomllib.loads(text)

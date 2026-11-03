@@ -124,7 +124,7 @@ class BackendTests(unittest.TestCase):
 
     def test_join_delegates_only_resolved_private_room_to_existing_internet_launcher(self):
         with patch.object(directory,'join',return_value='weplay1.private-fixture') as resolve:
-            self.assertEqual(self.backend.directory_join({'game_id':GAME,'player_name':'Tester'}),{'exit_code':0})
+            self.assertEqual(self.backend.directory_join({'game_id':GAME,'player_name':'Tester','internet_consent':1}),{'exit_code':0})
         self.assertEqual(resolve.call_args.args,(ORIGIN,GAME,{CONTENT}))
         self.assertEqual(self.backend.play.call_args.kwargs['internet']['invitation'],'weplay1.private-fixture')
         self.assertFalse(self.backend.play.call_args.kwargs['internet']['publish_discord'])
@@ -132,9 +132,16 @@ class BackendTests(unittest.TestCase):
     def test_update_and_closed_game_guard_precede_remote_join(self):
         self.backend.installed.return_value={'package_id':'outdated'}
         with patch.object(directory,'join') as resolve,self.assertRaisesRegex(ValueError,'^update_required$'):
-            self.backend.directory_join({'game_id':GAME,'player_name':'Tester'})
+            self.backend.directory_join({'game_id':GAME,'player_name':'Tester','internet_consent':1})
         resolve.assert_not_called()
         self.assertEqual(desktop_backend.error_code(directory.DirectoryError('directory_join_failed')),'directory_join_failed')
         self.assertNotIn('private',desktop_backend.error_code(ValueError('weplay1.private')))
+
+    def test_public_join_requires_consent_before_requesting_room_credentials(self):
+        with patch.object(directory,'join') as resolve:
+            for value in (None,False,True,0,'1'):
+                with self.assertRaisesRegex(ValueError,'internet_consent_required'):
+                    self.backend.directory_join({'game_id':GAME,'player_name':'Tester','internet_consent':value})
+            resolve.assert_not_called();self.backend.play.assert_not_called()
 
 if __name__=='__main__':unittest.main()
