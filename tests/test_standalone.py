@@ -131,6 +131,33 @@ class StandaloneTests(unittest.TestCase):
         self.assertEqual(opened.installed(),previous)
         self.assertTrue(opened.snapshot()['update_available'])
 
+    def test_installer_preflight_then_package_update_repairs_without_original_and_keeps_saves(self):
+        self.assertFalse((self.app/'State/installation.json').exists())
+        saves=self.game/'LocalData/saves';saves.mkdir(parents=True)
+        (saves/'keep.s7s').write_bytes(b'checkpoint preservation marker')
+        # Setup must bind with the old package before replacing its files.
+        standalone.bind(self.root)
+        self.fixture.source.rename(self.fixture.root/'original-unavailable')
+        tool=self.app/'Package/Tools/installer/start.py'
+        tool.write_bytes(tool.read_bytes()+b'\n# next installer fixture\n')
+        record=self.app/'Package/package.json';manifest=json.loads(record.read_text())
+        manifest['files']=content.inventory(self.app/'Package',('Payload','Runtime','Tools'))
+        record.write_text(json.dumps(manifest))
+        snapshot=self.launcher_snapshot()
+        self.assertTrue(snapshot['installed'])
+        self.assertTrue(snapshot['update_available'])
+        desktop=backend.Desktop(self.app)
+        with patch.object(backend.game_detection,'candidates',side_effect=AssertionError('original search')):
+            detected=backend.dispatch(desktop,{'format':backend.REQUEST,'action':'detect','data':{}})
+        self.assertEqual(detected['sources'],[{'path':str(self.game),'name':'WePlay'}])
+        with patch.object(desktop,'clean_old',return_value={'cleaned':0}):
+            result=desktop.install_game(self.game)
+        self.assertTrue(result['installed'])
+        self.assertFalse(result['update_available'])
+        self.assertEqual(desktop.installed()['source'],'')
+        self.assertEqual((desktop.game()/'LocalData/saves/keep.s7s').read_bytes(),b'checkpoint preservation marker')
+        self.assertEqual(standalone.descriptor(self.root)['instance'],desktop.game().name)
+
     def test_repaired_export_remains_relocatable_without_original(self):
         desktop=standalone.bind(self.root)
         self.fixture.source.rename(self.fixture.root/'original-unavailable')

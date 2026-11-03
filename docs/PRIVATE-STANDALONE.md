@@ -34,6 +34,38 @@ private backup to recover it; do not run the public Setup inside the export.
 
 ### Manual Setup and portable folders
 
+**Unreleased installer changes:** future Setup builds show the destination
+folder and a dedicated **Select existing standalone copy** button. They detect
+an export next to Setup, its remembered application directory, or an existing
+WePlay desktop/Start-menu shortcut that points to a portable copy. Other copies
+can be selected by their outer folder or their App folder. Explicit `/DIR`
+arguments from the signed updater take precedence; no drive-wide search runs.
+
+Before replacing launcher files, Setup uses the old copy's bundled Python and
+the current guarded adoption helper to validate and bind that copy. This also
+handles an export that has never been started on this PC. A missing runtime,
+incomplete export or failed integrity check stops installation before replacing
+files. Setup refreshes the outer standalone helper and remembers the chosen
+portable App directory. The launcher can then rebuild its game from its owned
+copy and RepairSource, preserving saves and settings without the original.
+
+All four EasyTier license/notice files are included in the pinned runtime
+manifest. Earlier RC3.13 preparation omitted them from the manifest; updating
+over RC3.12 left those old files behind and the strict inventory check rejected
+the result. Future packages retain and verify these notices rather than
+loosening the integrity check.
+
+These changes are in development; the published RC3.13 Setup is unchanged.
+Verification passed with a complete prior RC3.12 private export: the actual
+installer selected and adopted its initially unbound copy before replacement,
+then the launcher backend rebuilt the owned game with original discovery
+forbidden. Synthetic save data, player name and local profile ID were retained;
+the export descriptor advanced and a fresh bundled-Python backend reported the
+updated copy ready. The missing-runtime counterexample stopped before copying.
+All 74 focused regressions passed. These were installation/content checks,
+without launching a world or proving that a saved match resumes correctly.
+See the [sanitized verification record](verification/standalone-installer-update-20261103.json).
+
 RC3.13's separately launched Setup reuses a registered installation directory;
 it does not automatically find an unregistered private standalone export and
 its directory page is hidden. Running it from Downloads can therefore install

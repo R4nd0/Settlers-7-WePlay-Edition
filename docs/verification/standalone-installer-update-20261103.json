@@ -1,0 +1,108 @@
+{
+  "format": "weplay-standalone-installer-verification-v1",
+  "date": "2026-11-03",
+  "published_release_created": false,
+  "build": {
+    "base_payload": "2.0.0-rc3.13",
+    "status": "unreleased installer development build",
+    "private_test_registration_isolated": true,
+    "production_branch_compiled": true,
+    "desktop_mutex_guard_unchanged": true,
+    "runtime_files": 10,
+    "package_files": 310,
+    "runtime_core_unchanged": true,
+    "four_notice_files_hash_pinned": true
+  },
+  "automated_regression": {
+    "passed": true,
+    "tests": 74,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "actual_installer": {
+    "passed": true,
+    "setup_exit_code": 0,
+    "old_version": "2.0.0-rc3.12",
+    "new_version": "2.0.0-rc3.13",
+    "automatic_adjacent_detection": true,
+    "explicit_dir_used": false,
+    "initially_unbound_copy_adopted_before_replacement": true,
+    "original_source_empty": true,
+    "same_instance_before_game_refresh": true,
+    "root_helper_updated": true,
+    "synthetic_save_preserved": true,
+    "private_registry_target_correct": true,
+    "game_refresh_pending": true
+  },
+  "actual_owned_game_update": {
+    "passed": true,
+    "owned_copy_detected": true,
+    "original_discovery_forbidden": true,
+    "all_source_base_calls_inside_owned_instances": true,
+    "source_empty": true,
+    "new_instance_published": true,
+    "synthetic_save_preserved": true,
+    "player_name_preserved": true,
+    "local_identity_preserved": true,
+    "descriptor_updated": true,
+    "update_available": false,
+    "needs_repair": false,
+    "old_references": 0,
+    "package_id": "f34603e460feabfb1576b3610fd0309f5961a6de33bddc7a0f8fa61141bb2a7b",
+    "game_launched": false
+  },
+  "packaged_backend_restart": {
+    "passed": true,
+    "actual_bundled_python_restart": true,
+    "installed": true,
+    "update_available": false,
+    "needs_repair": false,
+    "player_name_preserved": true,
+    "save_marker_present": true,
+    "original_source_empty": true,
+    "private_registry_removed": true,
+    "game_launched": false
+  },
+  "incomplete_export_negative": {
+    "passed": true,
+    "setup_exit_code": 7,
+    "explicit_outer_root_normalized": true,
+    "explicit_dir_beats_adjacent_copy": true,
+    "missing_runtime_rejected_before_replacement": true,
+    "old_launcher_unchanged": true,
+    "new_payload_not_copied": true
+  },
+  "ui": {
+    "languages_reviewed": [
+      "de",
+      "en"
+    ],
+    "adjacent_export_app_selected": true,
+    "remembered_path_selected_from_other_setup_directory": true,
+    "directory_page_rendered": true,
+    "concurrent_preflight_rejected_operation_busy": true,
+    "note": "A second visible test reached preflight while the isolated game-copy refresh held its operation lock; it was rejected before replacement and the test window was closed. Private test builds now use an explicit TEST title."
+  },
+  "incidental_lan_diagnosis": {
+    "scope": "Only the locally opened private hybrid standalone copy was corrected; public assets and the existing private ZIP were unchanged.",
+    "remote_group_verified": true,
+    "remote_group_active_members": 2,
+    "exact_differences": [
+      "base/support/vc_redist.x64.exe",
+      "base/support/vc_redist.x86.exe"
+    ],
+    "two_stock_auxiliary_files_added_without_execution": true,
+    "all_other_manifest_entries_unchanged": true,
+    "full_content_renderer_and_retained_repair_checks_passed": true,
+    "content_matches_remote_after_correction": true,
+    "lan_compatibility_guards_unchanged": true,
+    "game_join_not_performed_by_agent": true
+  },
+  "limits": {
+    "saved_game_marker_is_synthetic": true,
+    "real_game_world_launched_in_installer_test": false,
+    "two_remote_pc_upgrade_tested": false,
+    "published_rc313_setup_unchanged": true
+  }
+}

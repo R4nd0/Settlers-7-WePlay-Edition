@@ -7,10 +7,14 @@
   "files": {
     "easytier-cli.exe": "a29f1d8bd368024440f5a8c4b013e8cafb2af485400e5896a837ab4c381e4ed6",
     "easytier-core.exe": "f5395de51b3c63239598cf030ffe7bb2baea53f3edf2c32085e255d25d7b48e4",
+    "GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
     "Packet.dll": "c7c03a87eac7243ccbe331554624b18803010b740e311fc8cfddb573096eacac",
     "SOURCE.txt": "fdaf7d602205520825d772d0a96e68441c0d294b07fac225b56c601a4011c749",
+    "THIRD-PARTY-NOTICES.txt": "900cd1a6f2528c78cdea88cf5cd0fbb18ca25d4dcbb43f78df3b43c9e5f7dbdf",
     "WinDivert64.sys": "8da085332782708d8767bcace5327a6ec7283c17cfb85e40b03cd2323a90ddc2",
-    "wintun.dll": "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce"
+    "wintun.dll": "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce",
+    "WINTUN-LICENSE.txt": "183adac21e7d96c508c8fd34d394b7b6708bc81564ad1bad61ab66143a008cd2"
   },
   "security_patch_sha256": "430e6400d8bd7b04de027750dbb778db7df1b869612d4f32c53888bde657d76e"
 }

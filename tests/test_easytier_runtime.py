@@ -87,7 +87,7 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); directory = root / 'Runtime/easytier'; directory.mkdir(parents=True)
             files = {}
-            for name in ('easytier-core.exe', 'easytier-cli.exe', 'wintun.dll'):
+            for name in ('easytier-core.exe', 'easytier-cli.exe', 'wintun.dll', 'GPL-3.0.txt'):
                 data = name.encode(); (directory / name).write_bytes(data)
                 files[name] = hashlib.sha256(data).hexdigest()
             lock = root / 'lock.json'; lock.write_text(json.dumps(dict(format='weplay-easytier-runtime-v1', files=files)))
@@ -96,6 +96,9 @@ class RuntimeTests(unittest.TestCase):
                 (directory / 'Packet.dll').write_bytes(b'extra')
                 with self.assertRaises(InternetError): runtime.verify_runtime(root)
                 (directory / 'Packet.dll').unlink()
+                (directory / 'GPL-3.0.txt').write_bytes(b'modified notice')
+                with self.assertRaises(InternetError): runtime.verify_runtime(root)
+                (directory / 'GPL-3.0.txt').write_bytes(b'GPL-3.0.txt')
                 (directory / 'wintun.dll').write_bytes(b'modified')
                 with self.assertRaises(InternetError): runtime.verify_runtime(root)
 

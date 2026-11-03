@@ -6,10 +6,19 @@
 #endif
 
 [Setup]
+#ifdef InstallerTest
+AppId=WePlay-Standalone-Installer-Private-Test
+Uninstallable=no
+#else
 AppId={{B66B3FA3-165A-4B0E-ACAA-771C64367317}
+#endif
 AppName=Settlers 7: WePlay Edition
 AppVersion=2.0.0-rc3.13
+#ifdef InstallerTest
+AppVerName=WePlay Installer TEST - RC3.13
+#else
 AppVerName=Settlers 7: WePlay Edition RC3.13 Public Lobby and Network Isolation
+#endif
 AppPublisher=WePlay Community
 AppPublisherURL=https://github.com/R4nd0/Settlers-7-WePlay-Edition
 DefaultDirName={localappdata}\Settlers7WePlay
@@ -23,7 +32,8 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 DisableWelcomePage=yes
-DisableDirPage=yes
+DisableDirPage=no
+AppendDefaultDirName=no
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
 DisableFinishedPage=yes
@@ -42,6 +52,8 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Files]
 Source: "{#Stage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Stage}\Package\Tools\installer\standalone.py"; DestName: "WePlay-Standalone-Preflight.py"; Flags: dontcopy
+Source: "{#Stage}\Package\Tools\installer\standalone.py"; DestDir: "{code:StandaloneRoot}"; DestName: "standalone.py"; Check: IsPortableTarget; Flags: ignoreversion
 
 [Run]
 Filename: "{app}\S7Launcher.exe"; Parameters: "--setup"; Flags: nowait skipifsilent runasoriginaluser
@@ -49,8 +61,20 @@ Filename: "{app}\S7Launcher.exe"; Parameters: "--setup"; Flags: nowait skipifsil
 [CustomMessages]
 english.UninstallBusy=The managed game files could not be removed safely. Close the game and launcher, then try again. Saved games have been kept.
 german.UninstallBusy=Die verwalteten Spieldateien konnten nicht sicher entfernt werden. Beende Spiel und Starter und versuche es erneut. Spielstände bleiben erhalten.
+english.PortableBrowse=Select existing standalone copy...
+german.PortableBrowse=Vorhandene Standalone-Kopie auswählen...
+english.PortableHint=To update a portable copy, choose its outer folder (with standalone.json) or its App folder. The existing game and saves are retained; no original installation is needed.
+german.PortableHint=Zum Aktualisieren einer portablen Kopie ihren äußeren Ordner (mit standalone.json) oder den App-Ordner auswählen. Spielkopie und Spielstände bleiben erhalten; eine Originalinstallation ist nicht nötig.
+english.PortableFound=Existing standalone copy detected. Its launcher will be updated here:
+german.PortableFound=Vorhandene Standalone-Kopie erkannt. Ihr Launcher wird hier aktualisiert:
+english.PortableChecking=Checking the existing standalone copy before updating its launcher...
+german.PortableChecking=Vorhandene Standalone-Kopie wird vor dem Launcher-Update geprüft...
+english.PortableFailed=The existing standalone copy could not be prepared. Close WePlay and S7, and make sure the complete export was extracted. No launcher files have been replaced.
+german.PortableFailed=Die vorhandene Standalone-Kopie konnte nicht vorbereitet werden. WePlay und S7 schließen und prüfen, ob der vollständige Export entpackt wurde. Es wurden keine Launcher-Dateien ersetzt.
 
 [Code]
+#include "StandaloneSetup.iss"
+
 function InitializeUninstall(): Boolean;
 var ResultCode: Integer;
 begin
