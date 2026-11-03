@@ -1,0 +1,190 @@
+"""Pure filesystem/protocol tests; no installed game, sockets or child processes."""
+import copy
+from contextlib import redirect_stdout
+import hashlib
+import io
+import json
+from pathlib import Path
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
+import compatibility as content
+import desktop_backend as backend
+import game_directory
+import lan_autoconnect
+import lan_hub
+import launch_auto_lan
+from lobby_directory import CONTROL_FORMAT, MAX_MEMBERS, LanInterface, LobbyEndpoint, LobbyRoom
+
+
+def manifest(files):
+    return {'format':content.FORMAT, 'files':files, 'content_id':content.fingerprint(files)}
+
+
+class NetworkContentTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.directory=Path(self.temp.name)
+        self.files={name:hashlib.sha256(name.encode()).hexdigest() for name in (
+            'base/bin/settlers7r.exe','base/bin/uplay_r1_loader.dll','base/bba/interface.bba',
+            'base/bba/map.bba','server/s7patcher.dll','launcher/start.py')}
+
+    def test_only_two_exact_auxiliary_paths_do_not_change_network_identity(self):
+        bare=manifest(dict(self.files))
+        aux=dict(self.files)
+        for name in content.NETWORK_AUXILIARIES:aux[name]='a'*64
+        supplied=manifest(aux)
+        self.assertNotEqual(bare['content_id'],supplied['content_id'])
+        self.assertEqual(content.network_id(bare),content.network_id(supplied))
+        for name in content.NETWORK_AUXILIARIES:aux[name]='b'*64
+        self.assertEqual(content.network_id(bare),content.network_id(manifest(aux)))
+
+    def test_game_adapter_archive_server_and_helpers_still_change_identity(self):
+        expected=content.network_id(manifest(self.files))
+        for name in self.files:
+            changed=dict(self.files);changed[name]='f'*64
+            with self.subTest(file=name):self.assertNotEqual(expected,content.network_id(manifest(changed)))
+        for name in ('base/support/custom.dll','base/bin/vc_redist.x64.exe',
+                     'base/support/vc_redist.x64.exe.bak','launcher/vc_redist.x86.exe'):
+            with self.subTest(extra=name):
+                self.assertNotEqual(expected,content.network_id(manifest(dict(self.files,**{name:'c'*64}))))
+
+    def test_network_contract_is_domain_separated_and_does_not_mutate_manifest(self):
+        value=manifest(dict(self.files));before=copy.deepcopy(value)
+        expected=hashlib.sha256(json.dumps({'format':'s7-play-content-v1','files':self.files},
+            sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')).hexdigest()
+        self.assertEqual(content.network_id(value),expected)
+        self.assertNotEqual(value['content_id'],expected)
+        self.assertEqual(value,before)
+
+    def test_invalid_full_manifest_and_empty_gameplay_are_rejected(self):
+        value=manifest(dict(self.files));value['content_id']='0'*64
+        with self.assertRaises(ValueError):content.network_id(value)
+        value=manifest({next(iter(content.NETWORK_AUXILIARIES)):'a'*64})
+        with self.assertRaises(ValueError):content.network_id(value)
+
+    def test_explicit_full_file_comparison_reports_auxiliary_differences_and_keeps_exit_code(self):
+        bare,left=self.root('compare-native');root,right=self.root('compare-aux',aux=True)
+        output=io.StringIO()
+        with patch.object(sys,'argv',['compatibility.py','--bundle',str(bare),'--compare',str(root/'compatibility.json')]), \
+                redirect_stdout(output):
+            result=content.main()
+        self.assertEqual(result,2)
+        self.assertIn('base/support/vc_redist.x64.exe',output.getvalue())
+        self.assertIn('Netzwerkkennung stimmt ueberein',output.getvalue())
+
+    def root(self,name,aux=False):
+        root=self.directory/name
+        data={'Base/Bin/Settlers7R.exe':b'invented game','Base/Bin/uplay_r1_loader.dll':b'invented adapter',
+              'Base/BBA/Interface.bba':b'invented UI','Server/S7Patcher.dll':b'invented service',
+              'Launcher/start.py':b'invented launcher'}
+        if aux:data['Base/Support/vc_redist.x64.exe']=b'invented auxiliary installer'
+        for relative,raw in data.items():
+            target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+        value=content.create(root)
+        (root/'compatibility.json').write_text(json.dumps(value))
+        return root,value
+
+    def test_full_local_verification_still_checks_changed_or_missing_auxiliary_file(self):
+        root,value=self.root('full',aux=True);expected=content.network_id(value)
+        path=root/'Base/Support/vc_redist.x64.exe';path.write_bytes(b'changed')
+        self.assertEqual(content.network_id(content.create(root)),expected)
+        with self.assertRaises(ValueError):content.verify(root)
+        path.unlink()
+        with self.assertRaises(ValueError):content.verify(root)
+
+    def test_failed_local_auxiliary_check_prevents_discovery_and_game_start(self):
+        root,value=self.root('rejected',aux=True)
+        (root/'Base/Support/vc_redist.x64.exe').write_bytes(b'changed')
+        network=Mock()
+        with patch.object(launch_auto_lan,'enumerate_interfaces') as interfaces, \
+                patch.object(launch_auto_lan.subprocess,'Popen') as child:
+            with self.assertRaises(ValueError):
+                launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False),network=network)
+        interfaces.assert_not_called();network.assert_not_called();child.assert_not_called()
+
+    def test_launcher_election_and_membership_share_canonical_identity(self):
+        identities=[]
+        for enabled in (False,True):
+            root,value=self.root('launch-'+str(enabled),aux=enabled)
+            expected=content.network_id(value);identities.append(expected)
+            interface=LanInterface('192.168.1.10',24)
+            room=LobbyRoom('a'*32,'Fixture',expected,LobbyEndpoint('lan-direct','192.168.1.20'),interface)
+            runtime=root/'LocalData/fixture-runtime.ini'
+            def configure(*args,**kwargs):runtime.write_text('fixture');return runtime
+            with patch.object(launch_auto_lan.launch_local,'verify_bundle'), \
+                    patch.object(launch_auto_lan.launch_local,'choose_graphics_environment',return_value={}), \
+                    patch.object(launch_auto_lan.launch_local,'game_launch_environment',return_value={}), \
+                    patch.object(launch_auto_lan.launch_local,'graphics_game_arguments',return_value=()), \
+                    patch.object(launch_auto_lan,'enumerate_interfaces',return_value=[interface]), \
+                    patch.object(launch_auto_lan.lan_autoconnect,'connect',return_value=room) as election, \
+                    patch.object(launch_auto_lan,'Membership') as membership, \
+                    patch.object(launch_auto_lan.launch_lan,'remote_configuration',return_value={'content_id':expected}), \
+                    patch.object(launch_auto_lan.launch_local,'write_configuration',side_effect=configure), \
+                    patch.object(launch_auto_lan.launch_local,'wait_for_graphics_game',return_value=0), \
+                    patch.object(launch_auto_lan.subprocess,'Popen'):
+                self.assertEqual(launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False)),0)
+            self.assertEqual(election.call_args.args[1],expected)
+            self.assertEqual(membership.call_args.args[-1],expected)
+        self.assertEqual(*identities)
+
+    def test_hub_accepts_network_identity_and_retains_service_file_guard(self):
+        bare,left=self.root('bare');root,right=self.root('aux',aux=True)
+        expected=content.network_id(left)
+        lan_hub.verify_service(root,expected)
+        with self.assertRaises(ValueError):lan_hub.verify_service(root,right['content_id'])
+        (root/'Server/S7Patcher.dll').write_bytes(b'modified service')
+        with self.assertRaises(ValueError):lan_hub.verify_service(root,expected)
+
+    def test_renderer_alternatives_are_consistent_for_auxiliary_variants(self):
+        bare,left=self.root('native');extra,right=self.root('native-aux',aux=True)
+        desktop=backend.Desktop.__new__(backend.Desktop)
+        a=desktop.alternatives(bare);b=desktop.alternatives(extra)
+        self.assertEqual(a,b)
+        self.assertEqual(a['native'],content.network_id(left))
+        self.assertNotEqual(a['native'],a['dxvk'])
+
+    def test_directory_uses_network_identity_without_accepting_legacy_full_id(self):
+        root,value=self.root('directory',aux=True)
+        desktop=backend.Desktop.__new__(backend.Desktop)
+        desktop.package=self.directory/'package';desktop.state=self.directory/'state'
+        desktop.game=Mock(return_value=root)
+        rows=[{'id':'new','content_id':content.network_id(value)},
+              {'id':'legacy','content_id':value['content_id']}]
+        with patch.object(backend.install,'package_manifest',return_value={'game_directory':True}), \
+                patch.object(game_directory,'configured',return_value='https://fixture.invalid'), \
+                patch.object(game_directory,'listing',return_value=rows):
+            result=desktop.directory_list()
+        self.assertEqual([row['compatible'] for row in result['games']],[True,False])
+
+    def test_gui_preconnect_uses_the_same_contract_as_game_launcher(self):
+        root,value=self.root('preconnect',aux=True)
+        desktop=backend.Desktop.__new__(backend.Desktop)
+        desktop.game=Mock(return_value=root);desktop.progress=Mock();desktop.renderer=Mock()
+        desktop.installed=Mock(return_value={'renderer_policy':'auto'});desktop.probe=Mock()
+        with patch.object(backend,'enumerate_interfaces',return_value=[]), \
+                patch.object(backend,'LanDiscovery'), \
+                patch.object(lan_autoconnect,'discover_preferred',return_value=None) as discover:
+            desktop.align_lan({'player_name':'Fixture'})
+        self.assertEqual(discover.call_args.args[1],content.network_id(value))
+        self.assertNotIn(value['content_id'],discover.call_args.kwargs['acceptable_content_ids'])
+
+    def test_legacy_group_is_rejected_instead_of_silently_elected(self):
+        expected=content.network_id(manifest(self.files))
+        interface=LanInterface('192.168.1.10',24)
+        room=LobbyRoom('a'*32,'Fixture',manifest(self.files)['content_id'],
+                       LobbyEndpoint('lan-direct','192.168.1.20'),interface)
+        directory=Mock();directory.list_rooms.return_value=[room]
+        response={'format':CONTROL_FORMAT,'content_id':room.content_id,
+                  'members':2,'active_members':1,'max_members':MAX_MEMBERS}
+        with patch.object(lan_autoconnect,'request',return_value=response):
+            with self.assertRaises(lan_autoconnect.LanConnectionError) as caught:
+                lan_autoconnect.discover_preferred(directory,expected)
+        self.assertEqual(caught.exception.code,'lan_version')
+
+
+if __name__=='__main__':unittest.main()

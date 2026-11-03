@@ -15,6 +15,7 @@ import uuid
 
 FORMAT = 'weplay-private-standalone-v1'
 RECORD = 'standalone.json'
+PREFLIGHT_BUSY = 3
 
 
 def modules(app):
@@ -298,6 +299,8 @@ def main():
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         print('Standalone abgebrochen: ' + str(exc), flush=True)
+        if args.check_only and not args.build and str(exc)=='operation_busy':
+            return PREFLIGHT_BUSY
         return 2
 
 

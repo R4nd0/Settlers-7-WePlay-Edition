@@ -56,6 +56,12 @@ the result. Future packages retain and verify these notices rather than
 loosening the integrity check.
 
 These changes are in development; the published RC3.13 Setup is unchanged.
+Further source hardening gives a parallel-operation preflight a distinct busy
+exit code, so Setup reports that an update is already using the copy rather than
+suggesting it is incomplete. Runtime validation also requires all four notices
+independently of the supplied lock-file inventory, preventing accidental omission
+from being redefined as a valid runtime. These follow-ups have source-only checks;
+they have not been deployed to running copies.
 Verification passed with a complete prior RC3.12 private export: the actual
 installer selected and adopted its initially unbound copy before replacement,
 then the launcher backend rebuilt the owned game with original discovery

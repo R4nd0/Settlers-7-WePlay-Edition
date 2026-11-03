@@ -19,7 +19,7 @@ from lobby_directory import (HTTP_PORT, GAME_SERVICE_PORT, MAX_MEMBERS, LobbyRoo
 
 def verify_service(root, expected):
     manifest = compatibility.load(compatibility.plain(root / 'compatibility.json'))
-    if manifest['content_id'] != content_id(expected):
+    if compatibility.network_id(manifest) != content_id(expected):
         raise ValueError('Der Lobby-Dateistand hat sich geaendert.')
     files = {name: digest for name, digest in manifest['files'].items()
              if name.startswith(('server/', 'launcher/'))}

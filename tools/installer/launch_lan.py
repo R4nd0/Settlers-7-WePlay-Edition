@@ -47,7 +47,7 @@ def run(args):
     root = compatibility.plain(Path(args.bundle))
     if (root / 'INSTALLATION-INCOMPLETE.txt').exists():
         raise ValueError('Die Installation ist noch nicht abgeschlossen.')
-    expected = compatibility.verify(root)['content_id']
+    expected = compatibility.network_id(compatibility.verify(root))
     launch_local.verify_bundle(root)
     # Fails before launching anything if the configured local address is not on this PC.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:

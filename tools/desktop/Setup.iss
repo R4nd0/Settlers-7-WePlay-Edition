@@ -71,6 +71,8 @@ english.PortableChecking=Checking the existing standalone copy before updating i
 german.PortableChecking=Vorhandene Standalone-Kopie wird vor dem Launcher-Update geprüft...
 english.PortableFailed=The existing standalone copy could not be prepared. Close WePlay and S7, and make sure the complete export was extracted. No launcher files have been replaced.
 german.PortableFailed=Die vorhandene Standalone-Kopie konnte nicht vorbereitet werden. WePlay und S7 schließen und prüfen, ob der vollständige Export entpackt wurde. Es wurden keine Launcher-Dateien ersetzt.
+english.PortableBusy=This standalone copy is currently being updated or used by another WePlay operation. Wait for it to finish, then retry. No launcher files have been replaced.
+german.PortableBusy=Diese Standalone-Kopie wird gerade aktualisiert oder von einem anderen WePlay-Vorgang verwendet. Den Vorgang beenden lassen und dann erneut versuchen. Es wurden keine Launcher-Dateien ersetzt.
 
 [Code]
 #include "StandaloneSetup.iss"

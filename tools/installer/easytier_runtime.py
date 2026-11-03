@@ -19,6 +19,8 @@ from lan_child_job import ServiceJob
 from lan_interfaces import enumerate_interfaces
 
 LOCK = Path(__file__).with_name('easytier-runtime.json')
+REQUIRED_NOTICES = frozenset(('GPL-3.0.txt', 'LGPL-3.0.txt',
+                             'THIRD-PARTY-NOTICES.txt', 'WINTUN-LICENSE.txt'))
 # Native peer sockets and the bounded WePlay coordinator/discovery services.
 GAME_UDP_PORTS = (3074, 6200, 9103)
 ROOM_UDP_PORTS = (*GAME_UDP_PORTS, 9111, 9112)
@@ -75,7 +77,8 @@ def verify_directory(directory):
     try:
         manifest = json.loads(LOCK.read_text(encoding='utf-8'))
         files = manifest['files']
-        if (manifest['format'] != 'weplay-easytier-runtime-v1' or not files or
+        if (manifest['format'] != 'weplay-easytier-runtime-v1' or not isinstance(files, dict)
+                or not REQUIRED_NOTICES.issubset(files) or
                 any('/' in name or '\\' in name or ':' in name or name in ('.', '..') for name in files)):
             raise ValueError()
         if {p.name for p in directory.iterdir()} != set(files):

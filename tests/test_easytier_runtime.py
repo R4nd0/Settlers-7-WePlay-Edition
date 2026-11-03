@@ -87,7 +87,7 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); directory = root / 'Runtime/easytier'; directory.mkdir(parents=True)
             files = {}
-            for name in ('easytier-core.exe', 'easytier-cli.exe', 'wintun.dll', 'GPL-3.0.txt'):
+            for name in ('easytier-core.exe', 'easytier-cli.exe', 'wintun.dll', *runtime.REQUIRED_NOTICES):
                 data = name.encode(); (directory / name).write_bytes(data)
                 files[name] = hashlib.sha256(data).hexdigest()
             lock = root / 'lock.json'; lock.write_text(json.dumps(dict(format='weplay-easytier-runtime-v1', files=files)))
@@ -102,6 +102,18 @@ class RuntimeTests(unittest.TestCase):
                 (directory / 'wintun.dll').write_bytes(b'modified')
                 with self.assertRaises(InternetError): runtime.verify_runtime(root)
 
+    def test_incomplete_notice_set_cannot_be_redefined_as_a_valid_runtime(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);directory=root/'Runtime/easytier';directory.mkdir(parents=True)
+            files={}
+            for name in ('easytier-core.exe','easytier-cli.exe','wintun.dll',*runtime.REQUIRED_NOTICES):
+                if name=='GPL-3.0.txt':continue
+                raw=name.encode();(directory/name).write_bytes(raw)
+                files[name]=hashlib.sha256(raw).hexdigest()
+            lock=root/'lock.json';lock.write_text(json.dumps({'format':'weplay-easytier-runtime-v1','files':files}))
+            with patch.object(runtime,'LOCK',lock),self.assertRaises(InternetError):
+                runtime.verify_runtime(root)
+
     def test_child_start_failure_closes_job_and_removes_own_secret_config(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); directory = root / 'Runtime/easytier'; directory.mkdir(parents=True)
@@ -115,7 +127,9 @@ class RuntimeTests(unittest.TestCase):
                 raise OSError('fixture failure')
             job.start.side_effect = spawn
             with patch.object(runtime, 'verify_runtime', return_value=directory), \
-                    patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1):
+                    patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1), \
+                    patch.object(runtime.socket, 'socket') as probe:
+                probe.return_value.__enter__.return_value.getsockname.return_value=('127.0.0.1',12345)
                 with self.assertRaises(OSError): overlay.start()
             job.close.assert_called_once()
             self.assertEqual(list((root / 'LocalData').iterdir()), [])

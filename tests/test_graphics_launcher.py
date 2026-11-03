@@ -130,6 +130,7 @@ class GraphicsLauncherTests(unittest.TestCase):
         selected = {'S7_TEST_GPU': 'fixture'}
         with patch.object(launch_local, 'STEAM_EXE_HASH', launch_local.EXE_HASH), \
                 patch.object(launch_lan.compatibility, 'verify', return_value={'content_id': 'fixture'}), \
+                patch.object(launch_lan.compatibility, 'network_id', return_value='fixture'), \
                 patch.object(launch_lan.socket, 'socket'), \
                 patch.object(launch_local, 'choose_graphics_environment', return_value=selected), \
                 patch.object(launch_local, 'service_ready', return_value=({}, launch_lan.UDP_PORT)), \
@@ -147,6 +148,7 @@ class GraphicsLauncherTests(unittest.TestCase):
         args = SimpleNamespace(bundle=str(self.root), local='10.1.2.3', peer='10.1.2.4',
                                role='host', check_only=False)
         with patch.object(launch_lan.compatibility, 'verify', return_value={'content_id': 'fixture'}), \
+                patch.object(launch_lan.compatibility, 'network_id', return_value='fixture'), \
                 patch.object(launch_lan.socket, 'socket'), \
                 patch.object(launch_local, 'choose_graphics_environment', return_value=None), \
                 patch.object(launch_lan, 'remote_configuration') as remote, \

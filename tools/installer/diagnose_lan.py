@@ -57,7 +57,7 @@ def check(root, local, host, *, compatibility, launcher, local_launcher, emit=pr
             raise ValueError('incomplete')
         result = compatibility.verify(root)
         local_launcher.verify_bundle(root)
-        return result['content_id']
+        return compatibility.network_id(result)
     content = step('Dateipruefung', files)
     def own_address():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:

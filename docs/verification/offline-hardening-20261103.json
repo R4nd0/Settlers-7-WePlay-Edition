@@ -1,0 +1,59 @@
+{
+  "format": "weplay-offline-hardening-verification-v1",
+  "date": "2026-11-03",
+  "status": "unreleased source changes",
+  "scope": {
+    "network_identity": "s7-play-content-v1",
+    "only_network_exclusions": [
+      "base/support/vc_redist.x64.exe",
+      "base/support/vc_redist.x86.exe"
+    ],
+    "full_local_inventory_guards_preserved": true,
+    "legacy_network_id_fallback": false,
+    "standalone_preflight_busy_exit": 3,
+    "four_runtime_notices_required_independently_of_lock_inventory": true
+  },
+  "source_fixture_suite": {
+    "runner": "tools/testing/run_offline.py",
+    "passed": true,
+    "tests": 150,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "forbidden_access_attempts": 0,
+    "blocked_entry_points": [
+      "subprocess.Popen",
+      "socket.socket",
+      "ctypes.WinDLL",
+      "winreg.OpenKey",
+      "winreg.CreateKey",
+      "winreg.CreateKeyEx",
+      "winreg.DeleteKey",
+      "winreg.SetValueEx"
+    ],
+    "child_import_checks_omitted": [
+      "test_auto_lan_launcher.AutomaticLauncherTests.test_hub_entrypoint_boots_with_isolated_python_module_search",
+      "test_graphics_launcher.GraphicsLauncherTests.test_installed_graphics_helpers_import_with_isolated_python"
+    ]
+  },
+  "installer_compilation": {
+    "test_branch_compiled": true,
+    "production_branch_compiled": true,
+    "input": "tiny invented payload and source helper",
+    "payload_bytes": 17374,
+    "installer_executed": false
+  },
+  "limits": {
+    "current_game_session_accessed": false,
+    "ui_operated": false,
+    "installed_or_running_copies_changed": false,
+    "game_or_installer_started": false,
+    "real_network_test_performed": false,
+    "two_real_clients_verified": false,
+    "native_game_or_service_binaries_changed": false,
+    "new_release_or_assets_published": false,
+    "live_qualification_requires_fresh_user_permission": true,
+    "all_players_require_same_future_build": true,
+    "desync_freedom_established": false
+  }
+}

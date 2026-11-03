@@ -158,6 +158,7 @@ begin
     Log('Standalone preflight could not be started.');
   end;
   if not Started then Result := CustomMessage('PortableFailed')
+  else if ResultCode = 3 then Result := CustomMessage('PortableBusy')
   else if (ResultCode <> 0) or Output.Error then Result := CustomMessage('PortableFailed')
   else begin
     PreparedPortable := App;

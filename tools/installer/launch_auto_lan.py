@@ -81,7 +81,7 @@ def run(args, *, picker=None, network=None):
         # Profile installation and other launchers use this same copy lock.
         # Verify once while owning it, so a profile/content change cannot land
         # between the full-file check and admission/startup.
-        expected = compatibility.verify(root)['content_id']
+        expected = compatibility.network_id(compatibility.verify(root))
         launch_local.verify_bundle(root)
         lan_autoconnect.checkpoint(cancel)
         if network is None:

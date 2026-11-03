@@ -1,7 +1,7 @@
 """Deterministic content manifest. No account, path, player or machine identifiers.
 
-This detects file differences, not divergence of an already running simulation.
-LAN admission must call the same comparison before permitting a future join.
+The full inventory detects local file differences, not simulation divergence.
+LAN admission verifies it before deriving the separate network identity.
 """
 import argparse
 import hashlib
@@ -10,6 +10,11 @@ from pathlib import Path, PurePosixPath
 
 FORMAT = 's7-content-v1'
 ROOTS = ('Base', 'Server', 'Launcher')
+NETWORK_FORMAT = 's7-play-content-v1'
+# These installers are never loaded by S7. They remain in the full local
+# inventory and repair inputs, but do not determine whether two games match.
+NETWORK_AUXILIARIES = frozenset(('base/support/vc_redist.x64.exe',
+                               'base/support/vc_redist.x86.exe'))
 
 
 def digest(path):
@@ -83,6 +88,20 @@ def load(path):
     return validate(json.loads(Path(path).read_text(encoding='utf-8')))
 
 
+def network_id(value):
+    """Identify verified gameplay files separately from the full local inventory.
+
+    Call verify() before admission as usual. The domain separates this contract
+    from legacy full-file IDs; there is deliberately no legacy-ID fallback.
+    """
+    files = validate(value)['files']
+    gameplay = {name: digest for name, digest in files.items()
+                if name not in NETWORK_AUXILIARIES}
+    if not gameplay:
+        raise ValueError('Keine Spiel- oder Patchdateien fuer den Netzwerkvergleich.')
+    return fingerprint({'format': NETWORK_FORMAT, 'files': gameplay})
+
+
 def compare(left, right):
     validate(left); validate(right)
     return sorted(name for name in left['files'].keys() | right['files'].keys()
@@ -105,11 +124,16 @@ def main():
     try:
         local = verify(Path(args.bundle))
         if args.compare:
-            changed = compare(local, load(args.compare))
+            other = load(args.compare)
+            changed = compare(local, other)
             if changed:
-                print('Unterschiedliche Spiel-/Patchdateien:\n' + '\n'.join(changed[:20])); return 2
+                print('Unterschiedliche lokale Dateien:\n' + '\n'.join(changed[:20]))
+                if network_id(local) == network_id(other):
+                    print('Die Netzwerkkennung stimmt ueberein; nur Installationshilfen unterscheiden sich.')
+                return 2
         print('Dateistand stimmt ueberein. Das ist kein Nachweis einer desyncfreien Partie.')
         print('Vergleichskennung: ' + local['content_id'])
+        print('Netzwerkkennung: ' + network_id(local))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(str(exc)); return 2

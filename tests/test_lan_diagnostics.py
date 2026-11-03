@@ -19,7 +19,8 @@ class DiagnosticTests(unittest.TestCase):
         self.output = []
         self.config = {'content_id':'a'*64, 'prudp_urls':['prudp:/address=192.168.10.10;port=9111'],
                        'public_key':base64.b64encode(b'ECS1'+bytes([32,0,0,0])+bytes(64)).decode()}
-        self.compatibility = SimpleNamespace(plain=MagicMock(return_value=self.root), verify=MagicMock(return_value={'content_id':'a'*64}))
+        self.compatibility = SimpleNamespace(plain=MagicMock(return_value=self.root), verify=MagicMock(return_value={'content_id':'a'*64}),
+                                             network_id=MagicMock(return_value='a'*64))
         self.local = SimpleNamespace(lan_pair=MagicMock(), verify_bundle=MagicMock())
         self.launcher = SimpleNamespace(UDP_PORT=9111,remote_configuration=MagicMock(return_value=self.config),check_content=MagicMock())
         self.socket = MagicMock()

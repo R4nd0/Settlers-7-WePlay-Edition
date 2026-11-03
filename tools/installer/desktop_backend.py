@@ -439,18 +439,21 @@ class Desktop:
         self.record_ownership(root)
         return self.snapshot()
 
+    def network_id(self,root):
+        return content.network_id(content.load(root/'compatibility.json'))
+
     def alternatives(self,root):
         current=content.load(root/'compatibility.json')
         if (root/graphics.STATE).is_dir():
             _,versions,_=graphics._load_state(root,full_inventory=False)
-            return {('dxvk' if enabled else 'native'):json.loads(values[graphics.COMPAT])['content_id']
+            return {('dxvk' if enabled else 'native'):content.network_id(json.loads(values[graphics.COMPAT]))
                     for enabled,values in versions.items()}
         before=graphics.encoded(current)
-        return {'native':current['content_id'],'dxvk':json.loads(graphics._expected(before))['content_id']}
+        return {'native':content.network_id(current),'dxvk':content.network_id(json.loads(graphics._expected(before)))}
 
     def lan_list(self):
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
-        expected=content.load(root/'compatibility.json')['content_id'];alternatives=self.alternatives(root)
+        expected=self.network_id(root);alternatives=self.alternatives(root)
         probe=self.probe()
         rooms=directory.list_rooms(timeout=1)
         def status(room):
@@ -472,7 +475,7 @@ class Desktop:
         from lan_autoconnect import discover_preferred
         self.progress('lan_search')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
-        current=content.load(root/'compatibility.json')['content_id']
+        current=self.network_id(root)
         alternatives=self.alternatives(root)
         room=discover_preferred(directory,current,acceptable_content_ids=tuple(alternatives.values()),
             progress=self.progress,cancel_check=lambda:self.progress('lan_search'))
@@ -571,7 +574,7 @@ class Desktop:
         from game_directory import configured,listing
         url=configured(self.state)
         if url is None:return {'connected':False,'games':[]}
-        root=self.game();current=content.load(root/'compatibility.json')['content_id']
+        root=self.game();current=self.network_id(root)
         alternatives=self.alternatives(root);allowed={current,*alternatives.values()}
         rows=listing(url)
         for row in rows:row['compatible']=row['content_id'] in allowed
@@ -586,7 +589,7 @@ class Desktop:
         from game_directory import configured,join
         url=configured(self.state)
         if url is None:raise ValueError('directory_not_connected')
-        root=self.game();allowed={content.load(root/'compatibility.json')['content_id'],*self.alternatives(root).values()}
+        root=self.game();allowed={self.network_id(root),*self.alternatives(root).values()}
         invitation=join(url,data['game_id'],allowed,root=self.package,
             cancel=lambda:self.progress('directory_join'),progress=self.progress)
         return self.play({'player_name':data['player_name']},internet={'invitation':invitation,
@@ -648,7 +651,7 @@ class Desktop:
                 try:
                     url=configured(self.state)
                     if url:
-                        allowed={content.load(root/'compatibility.json')['content_id'],*self.alternatives(root).values()}
+                        allowed={self.network_id(root),*self.alternatives(root).values()}
                         directory_bridge[0]=Bridge(root,url,allowed).start()
                 except (OSError,ValueError):self.emit('warning',code='directory_unavailable')
             desktop=self

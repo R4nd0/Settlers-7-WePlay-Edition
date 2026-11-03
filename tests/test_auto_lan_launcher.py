@@ -28,6 +28,7 @@ class AutomaticLauncherTests(unittest.TestCase):
         self.args = SimpleNamespace(bundle=self.root, check_only=False)
         self.mocks = {}
         for target, value in [('compatibility.verify', {'content_id': 'a' * 64}),
+                              ('compatibility.network_id', 'a' * 64),
                               ('launch_local.verify_bundle', None),
                               ('enumerate_interfaces', [self.interface])]:
             item = patch('launch_auto_lan.' + target, return_value=value)

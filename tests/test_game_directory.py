@@ -105,7 +105,7 @@ class BackendTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.object(desktop_backend.install,'package_manifest',return_value={'game_directory':True}).start()
         patch.object(directory,'configured',return_value=ORIGIN).start()
-        patch.object(desktop_backend.content,'load',return_value={'content_id':CONTENT}).start()
+        patch.object(desktop_backend.Desktop,'network_id',return_value=CONTENT).start()
         patch.object(desktop_backend.graphics,'ensure_closed').start()
 
     def test_list_exposes_only_public_rows_and_compatibility(self):
