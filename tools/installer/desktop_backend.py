@@ -231,7 +231,7 @@ class Desktop:
     def snapshot(self):
         value=self.installed()
         result={'installed':value is not None,'displays':self.displays(),
-                'data_default':str(value['container'] if value else self.app/'Instances'),'source':value['source'] if value else '',
+                'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':value['renderer_policy'] if value else 'auto',
                 'probe':self.read(self.state/'graphics-probe.json',{'devices':[],'failure':None}),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
@@ -326,8 +326,11 @@ class Desktop:
         self.finalizing=False
         graphics.ensure_closed()
         source=graphics._plain(source)
-        install.source_base(source,steam_supported=install.package_manifest(self.package).get('steam_history',False))
         previous=self.installed()
+        managed=bool(previous and source==self.game())
+        supported=install.package_manifest(self.package).get('steam_history',False)
+        if managed:install.repair_source(source,steam_supported=supported,tools=self.package/'Tools')
+        else:install.source_base(source,steam_supported=supported)
         # Never discard an older owned location to make room in the bounded
         # history. Retry its cleanup before allocating another full game copy.
         if previous and len(previous['previous'])>=16:
@@ -342,7 +345,7 @@ class Desktop:
             owned=[self.instance(item['container'],item['instance']) for item in references]
             if base in owned:base=base.parent
             if any(base.is_relative_to(path) for path in owned):raise ValueError('destination_invalid')
-        if base==source or base.is_relative_to(source) or source.is_relative_to(base):
+        if base==source or base.is_relative_to(source) or (source.is_relative_to(base) and not managed):
             raise ValueError('destination_invalid')
         if base.is_relative_to(self.package) or self.package.is_relative_to(base):
             raise ValueError('destination_invalid')
@@ -350,7 +353,8 @@ class Desktop:
         instance=uuid.uuid4().hex
         root=base/instance
         self.progress('source')
-        install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,publish_starters=False)
+        options={'managed':True} if managed else {}
+        install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,publish_starters=False,**options)
         self.write(root/'desktop-owner.json',{'format':FORMAT,'owner':self.owner,'instance':instance})
         old=self.game() if previous else None
         if old is None:
@@ -369,11 +373,18 @@ class Desktop:
         self.progress('verify')
         verified=content.verify(root)
         self.record_ownership(root,verified)
-        record={'format':INSTALL_FORMAT,'source':str(source),'container':str(base),'current':instance,
+        record={'format':INSTALL_FORMAT,'source':'' if managed else str(source),'container':str(base),'current':instance,
                 'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
                 'package_id':self.package_id(),'renderer_policy':policy}
         self.progress('finish')
         self.write(self.state/'installation.json',record)
+        # Keep a private portable export relocatable after replacing its game.
+        descriptor=self.app.parent/'standalone.json'
+        if previous and base==self.app/'Instances' and descriptor.is_file():
+            value=self.read(descriptor,limit=4096)
+            if (isinstance(value,dict) and set(value)=={'format','instance','package_id'}
+                    and value['format']=='weplay-private-standalone-v1' and value['instance']==previous['current']):
+                self.write(descriptor,{'format':value['format'],'instance':instance,'package_id':record['package_id']})
         # Publish and verify first. Only then retire the old owned game files;
         # cleanup failure must not turn a successful installation into failure.
         self.finalizing=True
@@ -389,8 +400,9 @@ class Desktop:
         files.update({name:digest for name,digest in package['files'].items() if name.startswith('runtime/')})
         for path in root.iterdir():
             if path.is_file() and path.name!='desktop-files.json':files[path.name.lower()]=content.digest(path)
-        for path in (root/'ArchiveStage').rglob('*'):
-            if path.is_file():files[path.relative_to(root).as_posix().lower()]=content.digest(path)
+        for directory in ('ArchiveStage',install.REPAIR):
+            for path in (root/directory).rglob('*'):
+                if path.is_file():files[path.relative_to(root).as_posix().lower()]=content.digest(path)
         self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':files})
 
     def save_settings(self,request):
@@ -783,14 +795,22 @@ def dispatch(desktop,request):
     if action=='detect' and not data:
         desktop.progress('source')
         previous=desktop.installed()
-        locations=([Path(previous['source'])] if previous else [])+game_detection.candidates()
-        return {'sources':game_detection.detect(locations,steam_supported=install.package_manifest(desktop.package).get('steam_history',False))}
+        supported=install.package_manifest(desktop.package).get('steam_history',False)
+        sources=[]
+        if previous:
+            try:
+                install.repair_source(desktop.game(),steam_supported=supported,tools=desktop.package/'Tools')
+                sources.append({'path':str(desktop.game()),'name':'WePlay'})
+            except (OSError,ValueError,KeyError):pass
+        if sources:return {'sources':sources}
+        locations=([Path(previous['source'])] if previous and previous['source'] else [])+game_detection.candidates()
+        return {'sources':sources+game_detection.detect(locations,steam_supported=supported)}
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
         if action in ('install','repair') and set(data)<= {'source','container'}:
             previous=desktop.installed()
-            source=data.get('source') or (previous['source'] if previous else None)
+            source=data.get('source') or (str(desktop.game()) if previous else None)
             if not isinstance(source,str) or not source:raise ValueError('source_missing')
             container=data.get('container')
             if container is not None and not isinstance(container,str):raise ValueError('request_invalid')

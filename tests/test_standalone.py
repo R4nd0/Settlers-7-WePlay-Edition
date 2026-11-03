@@ -78,6 +78,22 @@ class StandaloneTests(unittest.TestCase):
         self.assertEqual(standalone.bind(self.root).game(), first.game())
         self.assertFalse(choice._load_choice(self.game)['simple_menu'])
 
+    def test_repaired_export_remains_relocatable_without_original(self):
+        desktop=standalone.bind(self.root)
+        self.fixture.source.rename(self.fixture.root/'original-unavailable')
+        with patch.object(desktop,'clean_old',return_value={'cleaned':0}):
+            desktop.install_game(self.game)
+        current=desktop.game()
+        # Relocation requires completed cleanup, as for a fresh export.
+        value=desktop.installed();value['previous']=[]
+        desktop.write(desktop.state/'installation.json',value)
+        self.assertEqual(standalone.descriptor(self.root)['instance'],current.name)
+        moved=self.fixture.root/'repaired-and-moved'
+        shutil.move(str(self.root),moved)
+        rebound=standalone.bind(moved)
+        self.assertEqual(rebound.game().name,current.name)
+        content.verify(rebound.game())
+
     def test_corrupt_game_cannot_create_an_installation_record(self):
         (self.game / 'Base/BBA/map.bba').write_bytes(b'corrupt')
         with self.assertRaises(ValueError):

@@ -9,6 +9,7 @@ import importlib.util
 import hashlib
 import json
 import shutil
+import struct
 import sys
 from pathlib import Path
 
@@ -196,6 +197,59 @@ def source_base(root, *, steam_supported=False):
     return base
 
 
+REPAIR = 'RepairSource'
+REPAIR_INPUTS = ('base/bin/settlers7r.exe', 'base/bba/interface.bba')
+GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', 'base/bin/d3d9.dll', 'base/bin/dxvk.conf')
+
+
+def repair_source(root, *, steam_supported=False, tools=None):
+    """Return original inputs and retained assets of a managed copy, read-only.
+
+    Old exports retain the pristine archive body in ArchiveStage: BBA edits
+    append payloads/directories and replace only the header. Recover that header
+    from the retained original directory, then require the exact stock SHA-256.
+    No original installation, drive search or relaxed executable guard is used.
+    """
+    root = content.plain(root)
+    saved = content.plain(root / REPAIR)
+    record = content.plain(saved / 'files.json')
+    if record.exists():
+        files = content.load(record)['files']
+        if any(not name.startswith('base/') or name in GENERATED_BASE
+               or Path(name).as_posix()!=name for name in files):
+            raise ValueError('Ungueltige lokale Reparaturdaten.')
+        inputs = {name: content.plain(saved / name).read_bytes() for name in REPAIR_INPUTS}
+    else:
+        files = {name: digest for name, digest in content.load(root / 'compatibility.json')['files'].items()
+                 if name.startswith('base/') and name not in GENERATED_BASE}
+        inputs = {REPAIR_INPUTS[0]: content.plain(root / 'Base/Bin/Settlers7R.exe').read_bytes()}
+        sys.path.insert(0, str(content.plain(Path(tools or Path(__file__).parents[1]) / 'lan')))
+        from bba import Archive, HEAD_KEYS, crypt, crc32
+        specification = json.loads(content.plain(Path(tools or Path(__file__).parents[1]) / 'offline-ui/patch-spec.json').read_text(encoding='utf-8'))
+        candidates = [content.plain(root / 'ArchiveStage' / layout / 'BBA/Interface.bba')
+                      for layout in ('Base', 'Data/Base')]
+        candidates = [path for path in candidates if path.is_file()]
+        if len(candidates) != 1:raise ValueError('Lokale Reparaturdaten fehlen. Originalquelle einmal erneut vorbereiten.')
+        archive = Archive(candidates[0].read_bytes())
+        size = min(archive.entries[item['path']].values[6] for item in specification['files'])
+        directory_size = len(archive.directory)
+        offset = size - directory_size
+        if offset < 16 + archive.header_size or size > len(archive.raw):
+            raise ValueError('Ungueltige lokale Archiv-Sicherung.')
+        original = bytearray(archive.raw[:size])
+        header = bytearray(archive.header)
+        struct.pack_into('<4I', header, 0, offset, 0, directory_size, crc32(original[offset:size]))
+        original[16:16 + archive.header_size] = crypt(header, HEAD_KEYS, 1231853475, 7, True)
+        inputs[REPAIR_INPUTS[1]] = bytes(original)
+        files[REPAIR_INPUTS[1]] = EXPECTED_ARCHIVE
+    accepted = (EXPECTED_EXE, STEAM_EXE) if steam_supported else (EXPECTED_EXE,)
+    if (hashlib.sha256(inputs[REPAIR_INPUTS[0]]).hexdigest() not in accepted
+            or hashlib.sha256(inputs[REPAIR_INPUTS[1]]).hexdigest() != EXPECTED_ARCHIVE
+            or any(files.get(name) != hashlib.sha256(raw).hexdigest() for name, raw in inputs.items())):
+        raise ValueError('Lokale Reparaturdaten stimmen nicht mit der unterstuetzten History Edition ueberein.')
+    return files, inputs
+
+
 def _rollback_copies(records):
     """Remove only this copy operation's unchanged files, never unknown data."""
     for path,identity,digest in reversed(records):
@@ -207,12 +261,13 @@ def _rollback_copies(records):
             pass  # A changed/unreadable file is retained for recovery.
 
 
-def _copy_sources(files,base,destination,emit,progress):
-    total=sum(path.stat().st_size for path in files);copied=0;owned=[]
+def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=None):
+    total=sum((overrides or {}).get(path,path).stat().st_size for path in files);copied=0;owned=[];verified={}
     try:
-        for index,path in enumerate(files,1):
+        for index,original in enumerate(files,1):
+            path=(overrides or {}).get(original,original)
             content.plain(path)
-            target=content.plain(destination/'Base'/path.relative_to(base))
+            target=content.plain(destination/'Base'/original.relative_to(base))
             target.parent.mkdir(parents=True,exist_ok=True)
             hasher=hashlib.sha256();identity=None
             try:
@@ -229,17 +284,20 @@ def _copy_sources(files,base,destination,emit,progress):
             if progress:
                 owned.append((target,identity,hasher.hexdigest()))
                 progress('copy_check',index,len(files))
-            if content.digest(target)!=content.digest(path):
+            copied_digest=content.digest(target)
+            if copied_digest!=content.digest(path) or (expected and original in expected and copied_digest!=expected[original]):
                 raise ValueError('Spieldatei hat sich waehrend des Kopierens geaendert.')
+            verified[('base/'+original.relative_to(base).as_posix()).lower()]=copied_digest
             emit(f'Spieldateien kopiert: {index}/{len(files)}')
         # The last cancellable boundary precedes patching/renderer transactions.
         if progress:progress('patch',0,0)
+        return verified
     except BaseException:
         if progress:_rollback_copies(owned)
         raise
 
 
-def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True):
+def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True, managed=False):
     package, source, destination = map(content.plain, (package, source, destination))
     for protected in (source, package):
         if destination.is_relative_to(protected) or protected.is_relative_to(destination):
@@ -249,38 +307,58 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if progress: progress('package',0,0)
     manifest = package_manifest(package)
     if progress: progress('source',0,0)
-    base = source_base(source,steam_supported=manifest.get('steam_history',False))
-    source_exe_hash = content.digest(base/'Bin/Settlers7R.exe')
+    recovery = repair_source(source,steam_supported=manifest.get('steam_history',False),tools=package/'Tools') if managed else None
+    base = content.plain(source/'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
+    source_exe_hash = hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe')
     accepted_executables = (EXPECTED_EXE, STEAM_EXE) if manifest.get('steam_history', False) else (EXPECTED_EXE,)
     if source_exe_hash not in accepted_executables:
         raise ValueError('Spielprogramm hat sich nach der Versionspruefung geaendert.')
     emit('Pruefe die Spieldateien. Das kann etwas dauern ...')
     # Validate every source path before creating output; no links/hardlinks used.
     files = []
-    stack = [base]
+    stack = [] if managed else [base]
+    if managed:
+        for name,digest in recovery[0].items():
+            path=content.plain(source/name)
+            if name not in REPAIR_INPUTS and not path.is_file():
+                raise ValueError('Unveraenderte Spieldatei fehlt oder ist beschaedigt: '+name)
+            files.append(path)
     while stack:
         for path in sorted(stack.pop().iterdir()):
             content.plain(path)
             if path.is_dir(): stack.append(path)
             elif path.is_file(): files.append(path)
             else: raise ValueError('Unbekannter Dateityp in der Spielinstallation.')
-    required = sum(p.stat().st_size for p in files) + sum(p.stat().st_size for p in package.rglob('*') if p.is_file()) + 512 * 1024 * 1024
+    required = (sum(len(recovery[1][name]) if managed and name in REPAIR_INPUTS else p.stat().st_size
+                    for p in files for name in [('base/'+p.relative_to(base).as_posix()).lower()])
+                + sum(p.stat().st_size for p in package.rglob('*') if p.is_file()) + 512 * 1024 * 1024)
     if shutil.disk_usage(destination.parent).free < required:
         raise ValueError('Nicht genug freier Speicher fuer eine unabhaengige Testkopie.')
     destination.mkdir()
     incomplete = destination / 'INSTALLATION-INCOMPLETE.txt'
     incomplete.write_text('Vorbereitung nicht abgeschlossen. Diesen Ordner nicht starten.\n', encoding='utf-8')
-    _copy_sources(files,base,destination,emit,progress)
+    saved=destination/REPAIR
+    input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
+    inputs=recovery[1] if managed else {name:content.plain(path).read_bytes() for name,path in input_paths.items()}
+    for name,raw in inputs.items():
+        target=content.plain(saved/name);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+    source_base(saved,steam_supported=manifest.get('steam_history',False))
+    overrides={source/name:saved/name for name in REPAIR_INPUTS} if managed else None
+    # Missing/corrupt generated files are rebuilt from the package/repair inputs.
+    expected={source/name:digest for name,digest in recovery[0].items()} if managed else {
+        input_paths[name]:hashlib.sha256(raw).hexdigest() for name,raw in inputs.items()}
+    copied=_copy_sources(files,base,destination,emit,progress,overrides,expected)
+    original_files={name:digest for name,digest in copied.items() if name not in GENERATED_BASE}
+    write_json(saved/'files.json',{'format':content.FORMAT,'files':original_files,'content_id':content.fingerprint(original_files)})
     # Reuse the existing hash-locked patcher; patch the copied archive only.
     tools = package / 'Tools'
     sys.path.insert(0, str(tools / 'lan'))
     spec = importlib.util.spec_from_file_location('s7_installer_archive', tools / 'lan/prepare.py')
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     stage = destination / 'ArchiveStage'
-    # Archive preparation requires an output outside the input root. Use original
-    # source, with a new staging directory inside this separate destination.
-    module.prepare(source, stage, tools / 'offline-ui/patch-spec.json', profile='offline-ui')
-    staged = stage / base.relative_to(source) / 'BBA/Interface.bba'
+    # Patch the retained pristine input; staging is its separate sibling.
+    module.prepare(saved, stage, tools / 'offline-ui/patch-spec.json', profile='offline-ui')
+    staged = stage / 'Base/BBA/Interface.bba'
     if manifest.get('join_menu_update', False):
         # Reuse the already verified pure archive transformation, without running
         # the installed-copy updater, process checks or its old adapter policy.

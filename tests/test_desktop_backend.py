@@ -119,6 +119,58 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(choice._load_choice(root)['display']['mode'],'borderless')
         self.assertIn('copy',[fields['phase'] for kind,fields in self.events if kind=='progress'])
 
+    def test_maintenance_uses_own_copy_after_original_is_removed_for_both_editions(self):
+        for steam in (False,True):
+            with self.subTest(steam=steam):
+                # Each iteration owns an independent fixture and managed app.
+                case=DesktopTests();case.setUp()
+                try:
+                    if steam:(case.fixture.source/'Base/Bin/Settlers7R.exe').write_bytes(b'invented Steam maintenance executable')
+                    checksum=content.digest(case.fixture.source/'Base/Bin/Settlers7R.exe')
+                    manifest_path=case.app/'Package/package.json'
+                    manifest=json.loads(manifest_path.read_text())
+                    manifest['steam_history']=steam;manifest_path.write_text(json.dumps(manifest))
+                    with patch.object(install,'STEAM_EXE',checksum),patch.object(install,'STEAM_ADAPTER_SHA256',manifest['files']['payload/uplay_r1_loader.dll']):
+                        case.prepare();old=case.desktop.game()
+                        case.fixture.source.rename(case.fixture.root/'original-unavailable')
+                        saves=old/'LocalData/saves';saves.mkdir()
+                        (saves/'fixture.s7local').write_bytes(b'checkpoint')
+                        # All generated parts can be recreated, including a damaged EXE.
+                        (old/'Base/Bin/Settlers7R.exe').unlink()
+                        (old/'Base/BBA/Interface.bba').write_bytes(b'broken UI')
+                        (old/'Base/Bin/uplay_r1_loader.dll').unlink()
+                        shutil.rmtree(old/'Launcher')
+                        shutil.rmtree(old/'Runtime')
+                        with patch.object(game_detection,'candidates',side_effect=AssertionError('must use owned copy')):
+                            found=backend.dispatch(case.desktop,{'format':backend.REQUEST,'action':'detect','data':{}})
+                        self.assertEqual(found['sources'][0]['path'],str(old))
+                        with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+                            result=backend.dispatch(case.desktop,{'format':backend.REQUEST,'action':'repair','data':{}})
+                        new=case.desktop.game()
+                        self.assertTrue(result['installed']);self.assertNotEqual(new,old)
+                        self.assertEqual(result['source'],str(new))
+                        self.assertEqual(content.digest(new/'Base/Bin/Settlers7R.exe'),checksum)
+                        self.assertEqual((new/'LocalData/saves/fixture.s7local').read_bytes(),b'checkpoint')
+                        content.verify(new)
+                        self.assertEqual(content.digest(new/'RepairSource/Base/BBA/Interface.bba'),install.EXPECTED_ARCHIVE)
+                finally:case.doCleanups()
+
+    def test_missing_retained_game_asset_stops_repair_without_replacing_active_copy(self):
+        self.prepare();old=self.desktop.game();record=self.desktop.installed()
+        (old/'Base/BBA/map.bba').unlink()
+        with self.assertRaises((ValueError,OSError)):
+            backend.dispatch(self.desktop,{'format':backend.REQUEST,'action':'repair','data':{}})
+        self.assertEqual(self.desktop.installed(),record)
+        self.assertEqual(self.desktop.game(),old)
+
+    def test_corrupt_repair_input_is_rejected_before_replacing_active_copy(self):
+        self.prepare();old=self.desktop.game();record=self.desktop.installed()
+        (old/'RepairSource/Base/BBA/Interface.bba').write_bytes(b'foreign archive')
+        with self.assertRaises(ValueError):
+            backend.dispatch(self.desktop,{'format':backend.REQUEST,'action':'repair','data':{}})
+        self.assertEqual(self.desktop.installed(),record)
+        self.assertEqual(self.desktop.game(),old)
+
     def test_repair_preserves_saves_then_retires_old_game_only_after_commit(self):
         self.prepare();old=self.desktop.game()
         (old/'LocalData/saves').mkdir();(old/'LocalData/saves/1.s7local').write_bytes(b'opaque save fixture')

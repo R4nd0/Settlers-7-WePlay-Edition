@@ -2,8 +2,8 @@
   "app": "Settlers 7: WePlay Edition",
   "setupTitle": "WePlay Edition einrichten",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
-  "setupIntro": "Deine Original-Spieldateien bleiben unverändert. Wir erstellen eine getrennte Kopie und richten die Grafik automatisch ein.",
-  "source": "Deine installierte History Edition",
+  "setupIntro": "WePlay verwaltet seine eigene Spielkopie. Die Originalinstallation wird nur für die erste Vorbereitung benötigt.",
+  "source": "Spieldateien: WePlay-Kopie oder installierte History Edition",
   "browseSource": "Spielordner auswählen…",
   "destination": "Speicherort der getrennten Kopie",
   "change": "Ändern…",
@@ -100,7 +100,7 @@
   "reportSaved": "Diagnosebericht gespeichert. Er enthält keine Spielerkennungen, Spielstände oder Netzwerkadressen.",
   "working": "Bitte warten…",
   "phase_package": "Installer-Dateien werden geprüft…",
-  "phase_source": "Dein Originalspiel wird geprüft…",
+  "phase_source": "Spieldateien werden geprüft…",
   "phase_copy": "Spieldateien werden kopiert…",
   "phase_copy_check": "Kopierte Spieldateien werden geprüft…",
   "phase_patch": "Die getrennte Spielkopie wird vorbereitet…",
@@ -314,5 +314,6 @@
   "invitationGuide": "Nicht verwechseln: Der Discord-Serverlink führt zur Community. Der Discord-Verbindungscode richtet nur die automatische Spieleanzeige ein. Die WePlay-Raumeinladung kommt vom Ersteller und verbindet dich mit seiner Gruppe.",
   "maintenanceTitle": "Installation und Verbindungsprobleme beheben",
   "graphicsModeInfo": "Automatisch wählt moderne Grafik, wenn dein PC sie unterstützt. Kompatible Grafik ist der Ausweichmodus bei Grafikproblemen. Speichern übernimmt deine Wahl für den nächsten Spielstart.",
-  "maintenanceGuide": "Prüfen sucht nach beschädigten oder fehlenden Spieldateien. Reparieren öffnet die Einrichtung der separaten Spielkopie. Kompatible Grafik speichert den Ausweichmodus; die erneute Grafikprüfung prüft die Unterstützung dieses PCs. Ältere Versionen entfernen gibt Speicherplatz frei und fragt vorher nach. Ein Diagnosebericht hilft bei der Fehlersuche."
+  "maintenanceGuide": "Prüfen sucht nach beschädigten oder fehlenden Spieldateien. Reparieren öffnet die Einrichtung der separaten Spielkopie. Kompatible Grafik speichert den Ausweichmodus; die erneute Grafikprüfung prüft die Unterstützung dieses PCs. Ältere Versionen entfernen gibt Speicherplatz frei und fragt vorher nach. Ein Diagnosebericht hilft bei der Fehlersuche.",
+  "managedFound": "Deine WePlay-Kopie ist zum Reparieren oder Aktualisieren bereit. Der Original-Spielordner wird nicht benötigt."
 }

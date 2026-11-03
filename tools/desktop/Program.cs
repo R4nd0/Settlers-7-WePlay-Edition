@@ -271,12 +271,13 @@ internal sealed class MainForm : Form
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Top, Height = 120, ScrollBars = ScrollBars.Vertical };
     private readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Visible = false };
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
+    private bool automaticMenuHeight = true;
 
     public MainForm(bool initialSetup = false, bool test = false)
     {
         testing = test; forceSetup = initialSetup;
         Text = Lang.T("app"); Font = new Font("Segoe UI",10); BackColor = Color.White;
-        ClientSize = new Size(1020,720); MinimumSize = new Size(880,620); StartPosition = FormStartPosition.CenterScreen;
+        ClientSize = new Size(1020,1040); MinimumSize = new Size(880,620); StartPosition = FormStartPosition.CenterScreen;
         using(var iconStream=Assembly.GetExecutingAssembly().GetManifestResourceStream("WePlay.Icon.ico"))
             if(iconStream!=null)Icon=new Icon(iconStream);
         var header = new TableLayoutPanel { Dock = DockStyle.Top, Height = 94, Padding = new Padding(22,10,22,8), ColumnCount = 3, RowCount = 2 };
@@ -307,8 +308,10 @@ internal sealed class MainForm : Form
         installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
         cancelButton.Click += (_,_) => {Backend.Cancel();cancelRequested=true;cancelButton.Enabled=false;status.Text=Lang.T("cancelRequested");};
         BuildSetup(); BuildTabs();
+        tabs.SelectedIndexChanged += (_,_) => { if(IsHandleCreated) BeginInvoke((Action)FitMenuHeight); };
+        ResizeBegin += (_,_) => automaticMenuHeight=false;
         tabs.Visible=false;
-        language.SelectedIndexChanged += (_,_) => { if (language.SelectedItem is Item item) { Lang.Set(item.Key,!testing); ApplyLanguage(); } };
+        language.SelectedIndexChanged += (_,_) => { if (language.SelectedItem is Item item) { Lang.Set(item.Key,!testing); ApplyLanguage(); FitMenuHeight(); } };
         tray.DoubleClick += (_,_) => RestoreWindow();
         var trayMenu = new ContextMenuStrip(); trayMenu.Items.Add(Lang.T("show"),null,(_,_)=>RestoreWindow()); trayMenu.Items.Add(Lang.T("exit"),null,(_,_)=>Close()); tray.ContextMenuStrip = trayMenu;
         Resize += (_,_) => { if (gameRunning && WindowState == FormWindowState.Minimized) { ShowInTaskbar = false; tray.Visible = true; } };
@@ -325,8 +328,26 @@ internal sealed class MainForm : Form
             Rectangle area=Screen.FromControl(this).WorkingArea;
             MinimumSize=new Size(Math.Min(MinimumSize.Width,area.Width-16),Math.Min(MinimumSize.Height,area.Height-16));
             Size=new Size(Math.Min(Width,area.Width-16),Math.Min(Height,area.Height-16));
+            BeginInvoke((Action)FitMenuHeight);
         };
         ApplyLanguage();
+    }
+
+    private void FitMenuHeight()
+    {
+        if(!automaticMenuHeight||!Visible||WindowState!=FormWindowState.Normal)return;
+        PerformLayout();
+        Panel? scroll=setup.Visible?setup:tabs.SelectedTab?.Controls.OfType<Panel>().FirstOrDefault(panel=>panel.AutoScroll);
+        if(scroll==null)return;
+        scroll.PerformLayout();
+        int extra=scroll.DisplayRectangle.Height-scroll.ClientSize.Height;
+        if(extra<=0)return;
+        Rectangle area=Screen.FromControl(this).WorkingArea;
+        int target=Math.Min(Height+extra+8,area.Height-16);
+        if(target<=Height)return;
+        Height=target;
+        Top=Math.Clamp(Top,area.Top+8,Math.Max(area.Top+8,area.Bottom-Height-8));
+        scroll.AutoScrollPosition=Point.Empty;
     }
 
     private static ComboBox Combo() => new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, IntegralHeight = false, DropDownHeight = 280 };
@@ -464,11 +485,12 @@ internal sealed class MainForm : Form
         Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");Add(discordOptionsPanel,discordPublish);
         Add(discord,discordOptionsPanel);Add(net,discordSection);
         internetHostChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();internetGuestChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();
-        internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
-        discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();if(discordOptions.Checked)internetScroll.ScrollControlIntoView(discordOptionsPanel);};
+        internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
+        discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(discordOptions.Checked)internetScroll.ScrollControlIntoView(discordOptionsPanel);};
         internetJoin.TextChanged+=(_,_)=>UpdateInternetControls();discordPublish.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
         var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
+        g.Padding=new Padding(14,6,14,2);
         Add(g,Label("rendererInfo"));Add(g,Label("graphicsModeInfo")); Add(g,activeRenderer);
         Add(g,Field("renderer",renderer)); Add(g,Field("gpu",gpu)); Bind(keepDisplay,"keepDisplay"); Add(g,keepDisplay);
         var outputs = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2 };
@@ -599,7 +621,7 @@ internal sealed class MainForm : Form
             for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==key)resolution.SelectedIndex=i;
         }
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");}
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
         tabs.Visible=false;setup.Visible=true;
@@ -611,7 +633,16 @@ internal sealed class MainForm : Form
             string path=item.GetProperty("path").GetString()!;
             if(!source.Items.Cast<Item>().Any(x=>x.Key==path))source.Items.Add(new Item(path,path));
         }
-        if(source.Items.Count>0){source.SelectedIndex=0;Bind(setupNotice,"found");status.Text=Lang.T("found");}else {Bind(setupNotice,"notFound");status.Text=Lang.T("notFound");}
+        if(source.Items.Count>0)
+        {
+            source.SelectedIndex=0;
+            bool own=snapshot.GetProperty("installed").GetBoolean()&&
+                (source.SelectedItem as Item)?.Key==snapshot.GetProperty("current").GetString();
+            string message=own?"managedFound":"found";
+            Bind(setupNotice,message);status.Text=Lang.T(message);
+        }
+        else {Bind(setupNotice,"notFound");status.Text=Lang.T("notFound");}
+        FitMenuHeight();
     }
     private Task BrowseSource()
     {
@@ -939,6 +970,7 @@ internal sealed class MainForm : Form
     internal static int SelfTest(string folder)
     {
         Directory.CreateDirectory(folder);
+        var menuLayouts=new List<object>();
         try
         {
             string? pipeProbe=Environment.GetEnvironmentVariable("S7_TEST_PRIVATE_PROBE");
@@ -1049,17 +1081,23 @@ internal sealed class MainForm : Form
                 form.discordAvailable=true;form.UpdateInternetControls();
                 foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage,form.updatesPage})
                 {
-                    form.tabs.SelectedTab=page;Application.DoEvents();using var bitmap=new Bitmap(form.Width,form.Height);
+                    form.tabs.SelectedTab=page;Application.DoEvents();form.FitMenuHeight();Application.DoEvents();
+                    var scroll=page.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
+                    int overflow=scroll.DisplayRectangle.Height-scroll.ClientSize.Height;
+                    int available=Screen.FromControl(form).WorkingArea.Height-16;
+                    if(overflow>0&&form.Height<available)throw new Exception("Menu has unused vertical screen space");
+                    menuLayouts.Add(new {language,page=form.tabs.SelectedIndex,height=form.Height,available,overflow});
+                    using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
                 form.tabs.SelectedTab=form.graphicsPage;form.renderer.SelectedIndex=0;form.ApplyQualityPreset(false);
                 var graphicsScroll=form.graphicsPage.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
                 graphicsScroll.ScrollControlIntoView(form.qualities["ShaderQuality"]);Capture("graphics-quality");
                 graphicsScroll.ScrollControlIntoView(form.anisotropicFiltering);Capture("graphics-effects");
-                Size normalSize=form.Size;form.Size=form.MinimumSize;
+                Size normalSize=form.Size;form.automaticMenuHeight=false;form.Size=form.MinimumSize;
                 foreach(var page in new[]{form.homePage,form.internetPage,form.graphicsPage})
                 {form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);}
-                form.Size=normalSize;
+                form.Size=normalSize;form.automaticMenuHeight=true;
                 form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
                 using(var supportImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
@@ -1077,7 +1115,7 @@ internal sealed class MainForm : Form
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","release_version_from_assembly","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
-                    "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","home_update_notice_and_busy_guard"},private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

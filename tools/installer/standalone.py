@@ -251,9 +251,8 @@ def build(app, source, output):
         'einrichten, bevor darauf gespielt wird. Nicht laufend verschieben/kopieren.\n'
         'Die Originalinstallation bleibt unveraendert. Enthaltene Spieldateien\n'
         'sind eine private Sicherung; diesen Ordner nicht oeffentlich hochladen.\n\n'
-        'Launcher-Updates bleiben verfuegbar. Ein spaeterer Update-Schritt, der\n'
-        'Spieldateien neu vorbereitet, braucht wieder eine unterstuetzte Originalquelle.\n'
-        'Nach einer solchen Neuinstallation fuer weitere Umzuege neu exportieren.\n'
+        'Updates und Reparaturen verwenden diese WePlay-Kopie und ihre lokalen Reparaturdaten.\n'
+        'Die Originalinstallation wird nach erfolgreicher Vorbereitung nicht mehr benoetigt.\n'
         'Pruefung auf diesem PC ist kein Startnachweis auf deinem anderen PC\n'
         'und keine Garantie fuer desyncfreie Mehrspielerpartien.\n', encoding='utf-8')
     incomplete.unlink()

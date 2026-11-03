@@ -5,7 +5,13 @@
 Play **The Settlers 7 History Edition** locally, with friends on your home network,
 or in private Internet rooms — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
-keeps the original intact. Each player needs their own game installation.
+keeps the original intact. Each player needs their own supported game files.
+
+Development source after RC3.11 adds independent maintenance for both Ubisoft
+and Steam copies: WePlay detects, repairs and updates its own prepared game
+after the original installation is removed. It also opens taller menus that
+use the available screen height. See [standalone maintenance](docs/PRIVATE-STANDALONE.md#independent-maintenance-development-source-after-rc311).
+These changes are not part of the published RC3.11 assets.
 
 **RC3.11** adds multiplayer saving, continuing saved matches and a host autosave
 every five minutes of game time.

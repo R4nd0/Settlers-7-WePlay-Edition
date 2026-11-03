@@ -22,10 +22,47 @@ The Steam edition still requires the installed, running Steam client and its
 normal ownership check. The export does not replace the Steam SDK.
 
 Always close WePlay and S7 before copying or moving. Use WePlay-Starten.cmd
-again after moving. If a subsequent managed update has prepared a different
-game instance, create a fresh export before another relocation. Launcher-only
-updates can reuse the game; a future update that changes game content may
-require selecting the original supported game source again.
+again after moving.
+
+## Independent maintenance (development source after RC3.11)
+
+After successful preparation, the original Ubisoft or Steam game installation
+is no longer needed by WePlay. Detection selects the owned WePlay instance;
+repair and game-content updates prepare a replacement from that instance.
+The Steam client and its normal ownership check remain required for Steam.
+The published RC3.11 download predates this maintenance change.
+
+New copies retain the exact original executable and interface archive under
+`RepairSource`, with an inventory of the retained game assets. Repairs rebuild
+the interface, adapter, service, launcher helpers and runtimes from the verified
+package and local inputs. They preserve saves and compatible player settings,
+publish the verified replacement before cleaning up the old instance, and update
+the private export descriptor so a subsequent whole-folder move still works.
+
+Existing copies can migrate using their `ArchiveStage` backup. The patcher keeps
+the original archive payload and directory; recovery reconstructs its header and
+requires the exact supported original SHA-256 before patching. An absent or
+modified backup is rejected. Missing or damaged unchanged game assets still need
+a healthy private backup or original source; the public patch package contains
+no replacement game assets. Never remove `RepairSource` from a prepared copy.
+
+The launcher starts with a taller window and expands to fit the selected menu,
+bounded by the current monitor's usable height. Scrolling remains available on
+small screens or after manually reducing the window size.
+
+Verification: the final focused installer/backend/export suite passed 89 tests,
+including source removal for both editions, generated-file repair, save
+preservation, relocation after repair, legacy archive recovery and corrupted
+backup rejection. A broader regression run passed 184 tests with 19 optional
+platform checks skipped. Bounded content checks using both actual production
+executables, the Steam API and the real interface archive also passed detection,
+package-change repair and save-file preservation with original-source access
+forbidden. These were content checks; no new game was launched. Two attempted
+full-size copy checks were stopped because of slow file I/O and do not count as
+completed verification.
+The final launcher self-test passed both languages and its private IPC check;
+all six menus fit without vertical overflow at the tested 1,376-pixel available
+window height. The minimum-window fallback also rendered successfully.
 
 When a complete newer standalone ZIP is unpacked over the same contained
 instance, the helper verifies its full supplied game/runtime/payload before

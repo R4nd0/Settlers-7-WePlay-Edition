@@ -2,8 +2,8 @@
   "app": "Settlers 7: WePlay Edition",
   "setupTitle": "Set up WePlay Edition",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
-  "setupIntro": "Your original game stays unchanged. We prepare a separate copy and set up graphics automatically.",
-  "source": "Your installed History Edition",
+  "setupIntro": "WePlay maintains its own game copy. The original installation is needed only for the first preparation.",
+  "source": "Game files: WePlay copy or installed History Edition",
   "browseSource": "Find game folder…",
   "destination": "Location for the separate copy",
   "change": "Change…",
@@ -100,7 +100,7 @@
   "reportSaved": "Diagnostic report saved. It contains no player identifiers, save data or network addresses.",
   "working": "Working…",
   "phase_package": "Checking installer files…",
-  "phase_source": "Checking your original game…",
+  "phase_source": "Checking game files…",
   "phase_copy": "Copying game files…",
   "phase_copy_check": "Verifying copied game files…",
   "phase_patch": "Preparing the separate game copy…",
@@ -314,5 +314,6 @@
   "invitationGuide": "Keep these separate: the Discord server link opens the community. The Discord connection code only enables automatic match listings. The WePlay room invitation comes from the creator and connects you to their group.",
   "maintenanceTitle": "Fix installation or connection problems",
   "graphicsModeInfo": "Automatic chooses modern graphics when your PC supports it. Compatible graphics is the fallback for graphics problems. Save applies your choice to the next game start.",
-  "maintenanceGuide": "Check looks for damaged or missing game files. Repair opens setup for the separate game copy. Compatible graphics saves the fallback mode; checking graphics support tests this PC again. Removing older versions frees disk space and asks first. A diagnostic report helps investigate problems."
+  "maintenanceGuide": "Check looks for damaged or missing game files. Repair opens setup for the separate game copy. Compatible graphics saves the fallback mode; checking graphics support tests this PC again. Removing older versions frees disk space and asks first. A diagnostic report helps investigate problems.",
+  "managedFound": "Your WePlay copy is ready for repair or updating. The original game folder is not needed."
 }

@@ -124,6 +124,24 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_legacy_archive_recovery_requires_exact_original_bytes(self):
+        from test_lan_tools import synthetic_archive,specification,bba
+        self.prepare()
+        (self.destination/install.REPAIR).rename(self.destination/'repair-disabled')
+        original=synthetic_archive()
+        staged=bba.Archive(original).replace({'Script/example.lua':b'return true\n'})
+        archive=self.destination/'ArchiveStage/Base/BBA/Interface.bba'
+        archive.write_bytes(staged)
+        (self.package/'Tools/offline-ui/patch-spec.json').write_text(json.dumps(specification()))
+        with patch.object(install,'EXPECTED_ARCHIVE',hashlib.sha256(original).hexdigest()):
+            files,inputs=install.repair_source(self.destination,tools=self.package/'Tools')
+            self.assertEqual(inputs[install.REPAIR_INPUTS[1]],original)
+            self.assertEqual(files[install.REPAIR_INPUTS[1]],install.EXPECTED_ARCHIVE)
+            changed=bytearray(staged)
+            changed[bba.Archive(original).entries['Script/unchanged.lua'].values[6]]^=1
+            archive.write_bytes(changed)
+            with self.assertRaises(ValueError):install.repair_source(self.destination,tools=self.package/'Tools')
+
     def test_castle_capability_requires_boolean_and_exact_native_payload(self):
         record=self.package/'package.json'
         self.data['multiplayer_castles']='yes';record.write_text(json.dumps(self.data))
