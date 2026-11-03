@@ -56,6 +56,10 @@ the result. Future packages retain and verify these notices rather than
 loosening the integrity check.
 
 These changes are in development; the published RC3.13 Setup is unchanged.
+The follow-up [recovery flow](UPDATE-RECOVERY.md) replaces complete packages,
+journals the active-selection/portable-descriptor pair, tracks interrupted game
+preparations and preserves contained cleanup history when an export is moved.
+Save migration and staging are included in destination capacity checks.
 Further source hardening gives a parallel-operation preflight a distinct busy
 exit code, so Setup reports that an update is already using the copy rather than
 suggesting it is incomplete. Runtime validation also requires all four notices

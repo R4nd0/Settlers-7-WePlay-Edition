@@ -164,14 +164,13 @@ class StandaloneTests(unittest.TestCase):
         with patch.object(desktop,'clean_old',return_value={'cleaned':0}):
             desktop.install_game(self.game)
         current=desktop.game()
-        # Relocation requires completed cleanup, as for a fresh export.
-        value=desktop.installed();value['previous']=[]
-        desktop.write(desktop.state/'installation.json',value)
+        # A deferred old copy remains bounded and relocatable with the export.
         self.assertEqual(standalone.descriptor(self.root)['instance'],current.name)
         moved=self.fixture.root/'repaired-and-moved'
         shutil.move(str(self.root),moved)
         rebound=standalone.bind(moved)
         self.assertEqual(rebound.game().name,current.name)
+        self.assertEqual(len(rebound.installed()['previous']),1)
         content.verify(rebound.game())
 
     def test_corrupt_game_cannot_create_an_installation_record(self):

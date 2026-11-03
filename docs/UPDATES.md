@@ -96,8 +96,9 @@ RC3.5 installer directly once rather than changing that policy. See
 
 The [2026-11-03 update/patch audit](UPDATE-PATCH-AUDIT.md) records reproduced
 package-overlay and portable-metadata failure cases, incomplete-copy cleanup
-limits and remaining disk-budget concerns. These are open findings; the audit
-does not change the published installer or relax its verification.
+limits and disk-budget concerns in the audited revision. The unreleased
+[recovery changes](UPDATE-RECOVERY.md) implement the remedies without changing
+the published installer or relaxing its verification.
 
 ## Maintainer: signing and publishing
 

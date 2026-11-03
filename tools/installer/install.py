@@ -269,7 +269,7 @@ def _rollback_copies(records):
             pass  # A changed/unreadable file is retained for recovery.
 
 
-def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=None):
+def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=None,tracker=None):
     total=sum((overrides or {}).get(path,path).stat().st_size for path in files);copied=0;owned=[];verified={}
     try:
         for index,original in enumerate(files,1):
@@ -296,6 +296,7 @@ def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=N
             if copied_digest!=content.digest(path) or (expected and original in expected and copied_digest!=expected[original]):
                 raise ValueError('Spieldatei hat sich waehrend des Kopierens geaendert.')
             verified[('base/'+original.relative_to(base).as_posix()).lower()]=copied_digest
+            if tracker:tracker(target,copied_digest)
             emit(f'Spieldateien kopiert: {index}/{len(files)}')
         # The last cancellable boundary precedes patching/renderer transactions.
         if progress:progress('patch',0,0)
@@ -305,7 +306,8 @@ def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=N
         raise
 
 
-def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True, managed=False):
+def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True, managed=False,
+            additional_bytes=0,on_created=None,tracker=None):
     package, source, destination = map(content.plain, (package, source, destination))
     for protected in (source, package):
         if destination.is_relative_to(protected) or protected.is_relative_to(destination):
@@ -337,27 +339,36 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             if path.is_dir(): stack.append(path)
             elif path.is_file(): files.append(path)
             else: raise ValueError('Unbekannter Dateityp in der Spielinstallation.')
+    if type(additional_bytes) is not int or additional_bytes<0:raise ValueError('Ungueltige Speicherreservierung.')
+    input_sizes={name:len(recovery[1][name]) if managed else (base/name.removeprefix('base/')).stat().st_size
+                 for name in REPAIR_INPUTS}
     required = (sum(len(recovery[1][name]) if managed and name in REPAIR_INPUTS else p.stat().st_size
                     for p in files for name in [('base/'+p.relative_to(base).as_posix()).lower()])
-                + sum(p.stat().st_size for p in package.rglob('*') if p.is_file()) + 512 * 1024 * 1024)
+                + sum(p.stat().st_size for p in package.rglob('*') if p.is_file())
+                + sum(input_sizes.values()) + 2*input_sizes[REPAIR_INPUTS[1]]
+                + additional_bytes + 512 * 1024 * 1024)
     if shutil.disk_usage(destination.parent).free < required:
         raise ValueError('Nicht genug freier Speicher fuer eine unabhaengige Testkopie.')
     destination.mkdir()
+    if on_created:on_created(destination)
     incomplete = destination / 'INSTALLATION-INCOMPLETE.txt'
     incomplete.write_text('Vorbereitung nicht abgeschlossen. Diesen Ordner nicht starten.\n', encoding='utf-8')
+    if tracker:tracker(incomplete,content.digest(incomplete))
     saved=destination/REPAIR
     input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
     inputs=recovery[1] if managed else {name:content.plain(path).read_bytes() for name,path in input_paths.items()}
     for name,raw in inputs.items():
         target=content.plain(saved/name);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+        if tracker:tracker(target,hashlib.sha256(raw).hexdigest())
     source_base(saved,steam_supported=manifest.get('steam_history',False))
     overrides={source/name:saved/name for name in REPAIR_INPUTS} if managed else None
     # Missing/corrupt generated files are rebuilt from the package/repair inputs.
     expected={source/name:digest for name,digest in recovery[0].items()} if managed else {
         input_paths[name]:hashlib.sha256(raw).hexdigest() for name,raw in inputs.items()}
-    copied=_copy_sources(files,base,destination,emit,progress,overrides,expected)
+    copied=_copy_sources(files,base,destination,emit,progress,overrides,expected,tracker)
     original_files={name:digest for name,digest in copied.items() if name not in GENERATED_BASE}
     write_json(saved/'files.json',{'format':content.FORMAT,'files':original_files,'content_id':content.fingerprint(original_files)})
+    if tracker:tracker(saved/'files.json',content.digest(saved/'files.json'))
     # Reuse the existing hash-locked patcher; patch the copied archive only.
     tools = package / 'Tools'
     sys.path.insert(0, str(tools / 'lan'))
@@ -367,6 +378,12 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     # Patch the retained pristine input; staging is its separate sibling.
     module.prepare(saved, stage, tools / 'offline-ui/patch-spec.json', profile='offline-ui')
     staged = stage / 'Base/BBA/Interface.bba'
+    if tracker:
+        tracker(staged,content.digest(staged))
+        if (stage/'manifest.json').is_file():tracker(stage/'manifest.json',content.digest(stage/'manifest.json'))
+    def record_archive():
+        if tracker:
+            path=destination/'Base/BBA/Interface.bba';tracker(path,content.digest(path))
     if manifest.get('join_menu_update', False):
         # Reuse the already verified pure archive transformation, without running
         # the installed-copy updater, process checks or its old adapter policy.
@@ -382,6 +399,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         (destination / 'Base/BBA/Interface.bba').write_bytes(patched)
     else:
         shutil.copyfile(staged, destination / 'Base/BBA/Interface.bba')
+    record_archive()
     if manifest.get('lan_public_creation',False):
         target=destination/'Base/BBA/Interface.bba'
         public_spec=importlib.util.spec_from_file_location('s7_installer_public_creation',tools/'installer/lan_public_game.py')
@@ -389,37 +407,49 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         public_spec.loader.exec_module(public_menu)
         recipe=json.loads((tools/'offline-ui/lan-public-creation.json').read_text(encoding='utf-8'))
         target.write_bytes(public_menu.build_archive(target.read_bytes(),recipe))
+        record_archive()
     if manifest.get('achievement_notifications_disabled',False):
         target=destination/'Base/BBA/Interface.bba'
         achievement_spec=importlib.util.spec_from_file_location('s7_installer_achievements',tools/'installer/achievement_notifications.py')
         achievements=importlib.util.module_from_spec(achievement_spec);achievement_spec.loader.exec_module(achievements)
         recipe=json.loads((tools/'offline-ui/achievement-notifications.json').read_text(encoding='utf-8'))
         target.write_bytes(achievements.build_archive(target.read_bytes(),recipe))
+        record_archive()
     if manifest.get('cartographer_context',False):
         target=destination/'Base/BBA/Interface.bba'
         context_spec=importlib.util.spec_from_file_location('s7_installer_cartographer',tools/'installer/cartographer_context.py')
         context=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(context)
         recipe=json.loads((tools/'offline-ui/cartographer-context.json').read_text(encoding='utf-8'))
         target.write_bytes(context.build_archive(target.read_bytes(),recipe))
+        record_archive()
     if manifest.get('multiplayer_resume', False):
         target = destination / 'Base/BBA/Interface.bba'
         resume_spec = importlib.util.spec_from_file_location('s7_installer_mp_resume', tools / 'multiplayer-resume/interface_patch.py')
         resume = importlib.util.module_from_spec(resume_spec); resume_spec.loader.exec_module(resume)
         target.write_bytes(resume.build(target.read_bytes()))
+        record_archive()
     if manifest.get('game_directory',False):
         target=destination/'Base/BBA/Interface.bba'
         directory_spec=importlib.util.spec_from_file_location('s7_installer_global_directory',tools/'game-directory/interface_patch.py')
         directory=importlib.util.module_from_spec(directory_spec);directory_spec.loader.exec_module(directory)
         target.write_bytes(directory.build(target.read_bytes()))
+        record_archive()
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
-    shutil.copyfile(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')
-    shutil.copytree(package / 'Payload/Server', destination / 'Server')
-    shutil.copytree(package / 'Runtime', destination / 'Runtime')
+    def copy_payload(source,target):
+        source,target=map(content.plain,(source,target))
+        shutil.copyfile(source,target)
+        expected=manifest['files'][Path(source).relative_to(package).as_posix().lower()]
+        if content.digest(target)!=expected:raise ValueError('Paketkopie stimmt nicht ueberein.')
+        if tracker:tracker(Path(target),expected)
+        return target
+    copy_payload(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')
+    shutil.copytree(package / 'Payload/Server', destination / 'Server',copy_function=copy_payload)
+    shutil.copytree(package / 'Runtime', destination / 'Runtime',copy_function=copy_payload)
     (destination / 'Launcher').mkdir()
     for original, target in launcher_sources(manifest):
-        shutil.copyfile(tools / original, destination / 'Launcher' / target)
-    shutil.copyfile(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
+        copy_payload(tools / original, destination / 'Launcher' / target)
+    copy_payload(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
               'files': {name: content.digest(destination / name) for name in
                         ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll', 'Base/BBA/Interface.bba')}}
@@ -441,6 +471,8 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             raise ValueError('Starterkopie stimmt nicht ueberein.')
     write_json(destination / 'local-bundle.json', bundle)
     write_json(destination / 'compatibility.json', content.create(destination))
+    if tracker:
+        for name in ('local-bundle.json','compatibility.json'):tracker(destination/name,content.digest(destination/name))
     if not publish_starters:
         incomplete.unlink()
         emit('Spielkopie ist fuer den gemeinsamen Starter vorbereitet.')

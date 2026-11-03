@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 import uuid
 
-SUITES = ('test_network_content','test_standalone_preflight','test_game_directory',
+SUITES = ('test_update_recovery','test_standalone','test_installer','test_update_backend','test_network_content','test_standalone_preflight','test_game_directory',
           'test_lan_diagnostics','test_lan_launcher','test_auto_lan_launcher',
           'test_lan_autoconnect','test_graphics_launcher','test_desktop_backend',
           'test_internet_backend','test_ingame_directory','test_easytier_runtime')
@@ -33,7 +33,9 @@ def cases(suite):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--focused',action='store_true')
+    group=parser.add_mutually_exclusive_group()
+    group.add_argument('--focused',action='store_true')
+    group.add_argument('--updates',action='store_true')
     args=parser.parse_args(argv)
     if os.name!='nt':parser.error('This fixture suite requires the Windows development runtime.')
     repo=Path(__file__).resolve().parents[2]
@@ -45,7 +47,8 @@ def main(argv=None):
     sys.path.insert(0,str(repo/'tests'))
     # The allowlisted modules have definition-only imports. No integration
     # module or user-supplied test name is accepted here.
-    suite=unittest.defaultTestLoader.loadTestsFromNames(FOCUSED if args.focused else SUITES)
+    suites=('test_update_recovery','test_standalone','test_installer','test_update_backend') if args.updates else (FOCUSED if args.focused else SUITES)
+    suite=unittest.defaultTestLoader.loadTestsFromNames(suites)
     omitted=[];selected=unittest.TestSuite()
     for case in cases(suite):
         if case.id() in CHILD_IMPORT_CHECKS:omitted.append(case.id())

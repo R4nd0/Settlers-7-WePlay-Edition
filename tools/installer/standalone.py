@@ -4,6 +4,7 @@ The export contains the owner's game files. Never publish it as a release asset.
 The normal release App and its hash-checked Package are copied unchanged.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -108,20 +109,23 @@ def bind(root):
     """Adopt only the one bundled instance; never follow an old absolute path."""
     backend = modules(root / 'App')
     root = backend.graphics._plain(root)
-    value = descriptor(root)
     desktop = backend.Desktop(root / 'App')
-    game = backend.graphics._plain(desktop.app / 'Instances' / value['instance'])
     with desktop.lock():
+        if hasattr(desktop,'recover_publication'):desktop.recover_publication()
+        value = descriptor(root)
+        game = backend.graphics._plain(desktop.app / 'Instances' / value['instance'])
         package_id = desktop.package_id(full=True)
         raw = desktop.read(desktop.state / 'installation.json')
+        previous=[]
         repair_overlay = False
         # An already bound, valid launcher remains in charge of later updates.
         # Do not resurrect an old bundled instance after a managed game update.
         if raw is not None:
-            try:
-                installed = desktop.installed()
-            except (ValueError, OSError):
-                installed = None
+            # Never inspect an obsolete absolute container after relocation.
+            installed=None
+            if isinstance(raw,dict) and raw.get('container')==str(desktop.app/'Instances'):
+                try:installed=desktop.installed()
+                except (ValueError,OSError):pass
             if installed is not None:
                 if installed['container'] != str(desktop.app / 'Instances'):
                     raise ValueError('Standalone verwendet einen externen Spielordner.')
@@ -145,10 +149,38 @@ def bind(root):
             if (not isinstance(raw, dict)
                     or set(raw) != {'format', 'source', 'container', 'current', 'previous', 'package_id', 'renderer_policy'}
                     or raw['format'] != backend.INSTALL_FORMAT
-                    or raw['current'] != value['instance'] or raw['previous'] != []
+                    or raw['current'] != value['instance'] or not isinstance(raw['previous'],list)
+                    or len(raw['previous'])>16
                     or not isinstance(raw['package_id'], str)
                     or not re.fullmatch('[0-9a-f]{64}', raw['package_id'])):
                 raise ValueError('Spielstand der Verwaltung passt nicht zum Export. Neu exportieren.')
+            if (not isinstance(raw['container'],str) or not Path(raw['container']).is_absolute()
+                    or Path(raw['container']).name!='Instances'):
+                raise ValueError('Standalone verwendet einen externen Spielordner.')
+            old_owner=hashlib.sha256(str(Path(raw['container']).parent).casefold().encode('utf-8')).hexdigest()
+            seen={value['instance']}
+            # Resolve only explicitly declared IDs below the new export.
+            # Old file inventories are not repinned; changed/personal files
+            # retain their existing protection during later cleanup.
+            for item in raw['previous']:
+                if (not isinstance(item,dict) or set(item)!={'container','instance'}
+                        or item['container']!=raw['container'] or not isinstance(item['instance'],str)
+                        or not re.fullmatch('[0-9a-f]{32}',item['instance']) or item['instance'] in seen):
+                    raise ValueError('Standalone-Verlauf verweist auf einen externen oder ungueltigen Ordner.')
+                seen.add(item['instance']);prior=backend.graphics._plain(game.parent/item['instance'])
+                marker=desktop.read(prior/'desktop-owner.json');files=desktop.read(prior/'desktop-files.json')
+                if (marker not in ({'format':backend.FORMAT,'owner':owner,'instance':prior.name} for owner in (old_owner,desktop.owner))
+                        or not isinstance(files,dict) or set(files)!={'format','owner','files'}
+                        or files['format']!=backend.FORMAT or files['owner'] not in (old_owner,desktop.owner)
+                        or not isinstance(files['files'],dict) or len(files['files'])>30000):
+                    raise ValueError('Standalone-Verlauf hat keine passende Besitzkennung.')
+                for name,digest in files['files'].items():
+                    if (not isinstance(name,str) or not name or name.startswith('/') or '\\' in name or ':' in name
+                            or any(p in ('','.','..') for p in name.split('/')) or name.split('/')[0].casefold()=='localdata'
+                            or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest)):
+                        raise ValueError('Ungueltiger Standalone-Verlauf.')
+                    backend.graphics._plain(prior/name)
+                previous.append((prior,files))
         if package_id != value['package_id']:
             raise ValueError('Standalone-Spiel und Launcher-Paket passen nicht zusammen.')
         if not game.is_dir():
@@ -189,9 +221,13 @@ def bind(root):
                 'format': backend.FORMAT, 'owner': desktop.owner, 'instance': value['instance']})
             # Renderer transactions publish their own verified content manifest.
             desktop.record_ownership(game)
+            for prior,files in previous:
+                desktop.write(prior/'desktop-files.json',{**files,'owner':desktop.owner})
+                desktop.write(prior/'desktop-owner.json',{'format':backend.FORMAT,'owner':desktop.owner,'instance':prior.name})
             desktop.write(desktop.state / 'installation.json', {
                 'format': backend.INSTALL_FORMAT, 'source': '',
-                'container': str(game.parent), 'current': value['instance'], 'previous': [],
+                'container': str(game.parent), 'current': value['instance'],
+                'previous':[{'container':str(game.parent),'instance':prior.name} for prior,_ in previous],
                 'package_id': package_id, 'renderer_policy': 'auto'})
     return desktop
 

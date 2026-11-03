@@ -12,6 +12,9 @@ internal sealed partial class MainForm
     private Button directoryRefresh=null!,directoryJoin=null!,directoryConnect=null!;
     private readonly List<JsonElement> directoryRows=[];
     private string? pendingDirectoryGame;
+    private bool publicRoomOperation;
+    private readonly Label directoryProgress=new() { AutoSize=true,MaximumSize=new Size(850,0) };
+    private Button directoryHost=null!,directoryEnd=null!;
     private void QueueDirectorySwitch(JsonElement result)
     {
         if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String)
@@ -32,11 +35,29 @@ internal sealed partial class MainForm
         directoryConnect=Button("directoryConnect",ConnectDirectory);
         Add(stack,directoryGames);Add(stack,Buttons(directoryRefresh,directoryJoin,directoryConnect));Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
-        Add(stack,Buttons(Button("directoryHost",async()=>{
+        directoryHost=Button("directoryHost",async()=>{
             if(!discordConnected)throw new BackendError("discord_not_connected","");
             internetPlayer.Text=directoryPlayer.Text;internetMode.SelectedIndex=0;internetHostChoice.Checked=true;
             await PlayInternet(true,publish:true);
-        }),Button("discordConnect",ConnectDiscord)));
+        });
+        Add(stack,Buttons(directoryHost));
+        Add(stack,directoryProgress);
+        directoryEnd=Button("internetLeave",()=>{
+            if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;UpdateDirectoryControls();}
+            return Task.CompletedTask;
+        });
+        Add(stack,Buttons(directoryEnd));
+        var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
+        Bind(discordSection,"directoryPublisherTitle");var discord=Stack(discordSection);discord.Font=Font;
+        Add(discord,Label("directoryPublisherInfo"));Add(discord,discordNotice);
+        Bind(discordOptions,"discordOptions");Add(discord,Buttons(Button("discordFindPlayers",()=>{Community.OpenDiscord();return Task.CompletedTask;}),discordOptions));
+        discordOptionsPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };discordOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        accessibleFields[discordOptionsPanel]="discordOptions";
+        Add(discordOptionsPanel,Label("discordSetupSteps"));
+        discordConnect=Button("discordConnect",ConnectDiscord);discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
+        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");
+        Add(discord,discordOptionsPanel);Add(stack,discordSection);
+        discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(discordOptions.Checked)scroll.ScrollControlIntoView(discordOptionsPanel);};
         return page;
     }
 
@@ -56,6 +77,12 @@ internal sealed partial class MainForm
         string[] headings=["directoryGame","directoryState","directoryPlayers","directoryVersion"];
         for(int i=0;i<headings.Length;i++)directoryGames.Columns[i].Text=Lang.T(headings[i]);
         directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
+        if(directoryHost!=null)directoryHost.Enabled=!busy&&directoryAvailable&&internetAvailable&&discordConnected;
+        bool active=publicRoomOperation&&internetOperation;
+        directoryProgress.Visible=active;
+        directoryProgress.Text=Lang.T(cancelRequested?"cancelRequested":gameRunning?"directoryPlaying":
+            internetStage=="connecting"?"directoryConnecting":internetStage=="hosting"?"directoryHosting":internetCreating?"directoryHostReady":"directoryGuestReady");
+        if(directoryEnd!=null){directoryEnd.Visible=active;directoryEnd.Enabled=active&&!gameRunning&&!cancelRequested;}
     }
 
     private void ShowDirectory(JsonElement value,string? select=null)
@@ -109,14 +136,15 @@ internal sealed partial class MainForm
     {
         player.Text=directoryPlayer.Text;string name=ValidName();internetPlayer.Text=name;
         if(!ConfirmInternetConnection(publicLobby:true))return;
+        publicRoomOperation=true;
         internetCreating=false;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();
-        SetBusy(true);tabs.SelectedTab=internetPage;
+        SetBusy(true);tabs.SelectedTab=directoryPage;
         try
         {
             var result=await Backend.Run("directory-join",new {game_id=id,player_name=name,internet_consent=1},Receive);
             QueueDirectorySwitch(result);
             gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
-        finally{internetOperation=false;internetInvite.Clear();UpdateInternetControls();}
+        finally{internetOperation=false;publicRoomOperation=false;internetInvite.Clear();UpdateInternetControls();}
     }
 }

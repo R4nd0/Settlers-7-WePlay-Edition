@@ -54,6 +54,22 @@ client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
 *English RC3.13 launcher, rendered with demonstration data.*
 
+### Development changes — not released yet
+
+Existing-installation updates now stage and verify complete packages, recover
+interrupted package/standalone metadata switches, track failed game preparations
+and budget archive/save migration space. Complete standalone exports can move
+with contained old-version cleanup still pending. See
+[update recovery and qualification](docs/UPDATE-RECOVERY.md).
+
+The launcher separates **Private Internet play** from **Public lobby**, including
+their connection status and publisher settings. Per-room consent and network
+isolation remain enabled. A default worldwide directory still needs a configured
+public service; the package currently has no default service address. See
+[the two launcher flows](docs/LAUNCHER-LOBBY-FLOWS.md).
+
+These source changes are not included in the RC3.13 downloads above.
+
 ## What you can do
 
 | Feature | Available in RC3.13 |

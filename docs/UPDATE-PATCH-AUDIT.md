@@ -1,6 +1,10 @@
 # Update and patch audit — 2026-11-03
 
 Reviewed source revision `0bbd3bc946b3f2409771c4533991ea2a3df1fa8e`.
+The findings below describe that audited revision. The unreleased
+[recovery implementation](UPDATE-RECOVERY.md) addresses these cases;
+its [qualification record](verification/update-recovery-20261103.json) records
+the follow-up checks separately from the original reproductions.
 This is an investigation, not an update release or an implementation of the
 proposed remedies. Installed copies and published packages are unchanged.
 The user's active session was not accessed.

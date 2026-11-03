@@ -137,7 +137,26 @@ var App, Root, Python, Helper: String;
 begin
   Result := '';
   App := PortableApp(WizardDirValue);
-  if (App = '') or (App = PreparedPortable) then exit;
+  if App <> '' then WizardForm.DirEdit.Text := App;
+  if not RecoverPackageUpgrade(WizardDirValue) then begin
+    Result := CustomMessage('PackageFailed'); exit;
+  end;
+  if App = '' then begin
+    if not PreparePackageUpgrade(WizardDirValue) then Result := CustomMessage('PackageFailed');
+    if Result = '' then
+      try
+        if not ExtractVerifiedPackage then Result := CustomMessage('PackageFailed');
+      except Result := CustomMessage('PackageFailed'); end;
+    exit;
+  end;
+  if App = PreparedPortable then begin
+    if not PreparePackageUpgrade(WizardDirValue) then Result := CustomMessage('PackageFailed');
+    if Result = '' then
+      try
+        if not ExtractVerifiedPackage then Result := CustomMessage('PackageFailed');
+      except Result := CustomMessage('PackageFailed'); end;
+    exit;
+  end;
   Root := ExtractFileDir(App);
   Python := AddBackslash(App) + 'Package\Runtime\python\python.exe';
   if not FileExists(Python) then begin
@@ -164,6 +183,12 @@ begin
     PreparedPortable := App;
     Log('Existing standalone binding prepared before launcher replacement.');
   end;
+  if (Result = '') and not PreparePackageUpgrade(WizardDirValue) then
+    Result := CustomMessage('PackageFailed');
+  if Result = '' then
+    try
+      if not ExtractVerifiedPackage then Result := CustomMessage('PackageFailed');
+    except Result := CustomMessage('PackageFailed'); end;
 end;
 
 function IsPortableTarget: Boolean;
@@ -179,6 +204,15 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var App: String;
 begin
+  if CurStep = ssInstall then
+    try PublishPackageOnce;
+    except
+      Log('Package publication aborted before normal file installation: ' + GetExceptionMessage);
+      Abort;
+    end;
+  if CurStep = ssPostInstall then begin
+    CompletePackageUpgrade;
+  end;
   if CurStep = ssDone then begin
     App := PortableApp(ExpandConstant('{app}'));
     if App <> '' then

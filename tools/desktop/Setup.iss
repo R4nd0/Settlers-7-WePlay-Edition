@@ -40,6 +40,7 @@ DisableFinishedPage=yes
 ShowLanguageDialog=no
 UsePreviousAppDir=yes
 AppMutex=S7Launcher-Install
+SetupMutex=Local\S7Launcher-Setup
 CloseApplications=no
 RestartApplications=no
 UninstallDisplayIcon={app}\S7Launcher.exe
@@ -51,8 +52,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Files]
-Source: "{#Stage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "check_package.py"; DestName: "WePlay-Package-Check.py"; Flags: dontcopy
+Source: "{#Stage}\Package\package.json"; DestName: "WePlay-New-Package.json"; Flags: dontcopy
 Source: "{#Stage}\Package\Tools\installer\standalone.py"; DestName: "WePlay-Standalone-Preflight.py"; Flags: dontcopy
+; PrepareToInstall extracts and verifies this same entry before any installed
+; file is written. Normal copying retains Inno rollback/uninstall registration.
+Source: "{#Stage}\Package\*"; DestDir: "{app}\Package"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Stage}\*"; DestDir: "{app}"; Excludes: "Package\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Stage}\Package\Tools\installer\standalone.py"; DestDir: "{code:StandaloneRoot}"; DestName: "standalone.py"; Check: IsPortableTarget; Flags: ignoreversion
 
 [Run]
@@ -73,8 +79,13 @@ english.PortableFailed=The existing standalone copy could not be prepared. Close
 german.PortableFailed=Die vorhandene Standalone-Kopie konnte nicht vorbereitet werden. WePlay und S7 schließen und prüfen, ob der vollständige Export entpackt wurde. Es wurden keine Launcher-Dateien ersetzt.
 english.PortableBusy=This standalone copy is currently being updated or used by another WePlay operation. Wait for it to finish, then retry. No launcher files have been replaced.
 german.PortableBusy=Diese Standalone-Kopie wird gerade aktualisiert oder von einem anderen WePlay-Vorgang verwendet. Den Vorgang beenden lassen und dann erneut versuchen. Es wurden keine Launcher-Dateien ersetzt.
+english.PackageFailed=The new package could not be verified or published safely. The previous package and game data have been kept. Retry Setup; retained staging files will not be mixed into the active package.
+german.PackageFailed=Das neue Paket konnte nicht sicher geprüft oder übernommen werden. Das bisherige Paket und die Spieldaten bleiben erhalten. Setup erneut ausführen; zurückbehaltene Dateien werden nicht mit dem aktiven Paket vermischt.
+english.PackageBusy=The existing package is still in use. Close WePlay, then retry Setup. The new package has not replaced it.
+german.PackageBusy=Das bisherige Paket wird noch verwendet. WePlay schließen und Setup erneut versuchen. Das neue Paket hat es nicht ersetzt.
 
 [Code]
+#include "PackageSetup.iss"
 #include "StandaloneSetup.iss"
 
 function InitializeUninstall(): Boolean;

@@ -433,11 +433,6 @@ internal sealed partial class MainForm : Form
         var net = Stack(internetScroll);
         var netTitle = Label("internetTitle"); netTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold); Add(net,netTitle);
         Add(net,Label("internetIntro"));Bind(internetUnavailable,"internetUnavailable");Add(net,internetUnavailable);
-        var publicHeading=Label("directoryTitle");publicHeading.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(net,publicHeading);
-        Add(net,Label("internetPublicInfo"));
-        var publicLobbyButton=Button("internetPublicBrowse",()=>{tabs.SelectedTab=directoryPage;return RefreshDirectory();});
-        Add(net,Buttons(publicLobbyButton));internetSetupControls.Add(publicLobbyButton);
-        var privateHeading=Label("internetPrivateTitle");privateHeading.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(net,privateHeading);Add(net,Label("internetPrivateInfo"));
         Add(net,Label("internetNetworkSummary"));
         Add(net,internetConnection);Add(net,internetNext);
         void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
@@ -481,19 +476,8 @@ internal sealed partial class MainForm : Form
             if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;internetEnd.Enabled=false;status.Text=Lang.T("cancelRequested");}
         };
         internetEndRow=Buttons(internetEnd);Add(net,internetEndRow); Add(net,Label("internetSafety"));
-        var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
-        Bind(discordSection,"discordOptionalTitle");var discord=Stack(discordSection);discord.Font=Font;
-        Add(discord,Label("discordOptionalInfo"));Add(discord,discordNotice);
-        Bind(discordOptions,"discordOptions");Add(discord,Buttons(Button("discordFindPlayers",()=>{Community.OpenDiscord();return Task.CompletedTask;}),discordOptions));
-        discordOptionsPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };discordOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        accessibleFields[discordOptionsPanel]="discordOptions";
-        Add(discordOptionsPanel,Label("discordSetupSteps"));
-        discordConnect=Button("discordConnect",ConnectDiscord);discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
-        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");
-        Add(discord,discordOptionsPanel);Add(net,discordSection);
         internetHostChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();internetGuestChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
-        discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(discordOptions.Checked)internetScroll.ScrollControlIntoView(discordOptionsPanel);};
         internetJoin.TextChanged+=(_,_)=>UpdateInternetControls();discordPublish.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
         var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
@@ -816,7 +800,7 @@ internal sealed partial class MainForm : Form
         internetConnection.Text=Lang.T(!internetOperation&&internetGuestChoice.Checked?"internetConnectionFromInvite":
             direct?"internetConnectionDirect":"internetConnectionAuto");
         internetUnavailable.Visible=!internetAvailable;
-        internetNext.Visible=internetOperation;
+        internetNext.Visible=internetOperation&&!publicRoomOperation;
         internetNext.Text=Lang.T(internetCreating
             ? internetStage=="hosting"?"internetHostWaiting":internetStage=="playing"?"internetHostPlaying":internetStage=="ready"?"internetHostReady":"internetHostConnecting"
             : internetStage=="hosting"?"internetGuestEnding":internetStage=="playing"?"internetGuestPlaying":internetStage=="ready"?"internetGuestReady":"internetGuestConnecting");
@@ -831,8 +815,8 @@ internal sealed partial class MainForm : Form
         if(internetCreate!=null)internetCreate.Enabled=!busy&&internetAvailable;
         if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable&&!string.IsNullOrWhiteSpace(internetJoin.Text);
         if(internetPaste!=null)internetPaste.Enabled=!busy&&internetAvailable;
-        if(internetCopy!=null)internetCopy.Enabled=internetOperation&&internetInvite.Text.Length>0;
-        if(internetShare!=null)internetShare.Enabled=internetOperation&&internetInvite.Text.Length>0;
+        if(internetCopy!=null)internetCopy.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
+        if(internetShare!=null)internetShare.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
         if(internetEnd!=null)
         {
             internetEnd.Enabled=internetOperation&&!gameRunning&&!cancelRequested;
@@ -844,15 +828,16 @@ internal sealed partial class MainForm : Form
         if(internetGuestPanel!=null)internetGuestPanel.Visible=!internetOperation&&internetGuestChoice.Checked;
         if(internetAdvancedPanel!=null)internetAdvancedPanel.Visible=!internetOperation&&internetHostChoice.Checked&&internetAdvanced.Checked;
         if(internetEndpointField!=null)internetEndpointField.Visible=direct;
-        if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&internetInvite.Text.Length>0;
-        if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&internetInvite.Text.Length>0;
-        if(internetEndRow!=null)internetEndRow.Visible=internetOperation;
+        if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
+        if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
+        if(internetEndRow!=null)internetEndRow.Visible=internetOperation&&!publicRoomOperation;
         internetInvite.Enabled=true;
         discordPublish.Enabled=!busy&&discordAvailable&&discordConnected;discordPublish.Visible=discordAvailable;
         if(discordConnect!=null)discordConnect.Enabled=!busy&&discordAvailable;
         if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordAvailable&&discordConnected;
         if(discordOptionsPanel!=null)discordOptionsPanel.Visible=discordOptions.Checked;
-        discordNotice.Text=Lang.T(!discordAvailable?"discordUnavailableInfo":!discordConnected?"discordNotConnected":discordPublish.Checked?"discordConnected":"discordConnectedPrivate");
+        discordNotice.Text=Lang.T(!discordAvailable?"discordUnavailableInfo":!discordConnected?"discordNotConnected":"directoryPublisherReady");
+        UpdateDirectoryControls();
     }
     private void PasteInternetInvitation()
     {
@@ -889,7 +874,9 @@ internal sealed partial class MainForm : Form
         bool direct=internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
         if(!ConfirmInternetConnection(publish))return;
-        internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);tabs.SelectedTab=internetPage;
+        publicRoomOperation=publish;
+        internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);
+        tabs.SelectedTab=publish?directoryPage:internetPage;
         using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
         {
@@ -909,7 +896,7 @@ internal sealed partial class MainForm : Form
         {
             channel.Dispose();
             try{await privateTask;}catch(Exception){/* No private bytes enter exception details. */}
-            internetInvite.Clear();internetOperation=false;UpdateInternetControls();
+            internetInvite.Clear();internetOperation=false;publicRoomOperation=false;UpdateInternetControls();
         }
     }
     private void Receive(JsonElement value)
@@ -961,7 +948,7 @@ internal sealed partial class MainForm : Form
     private void SetBusy(bool value)
     {
         busy=value;tabs.Enabled=!value||internetOperation;source.Enabled=destination.Enabled=installButton.Enabled=!value;language.Enabled=!value;
-        foreach(TabPage page in tabs.TabPages)page.Enabled=!value||(internetOperation&&page==internetPage);
+        foreach(TabPage page in tabs.TabPages)page.Enabled=!value||(internetOperation&&page==(publicRoomOperation?directoryPage:internetPage));
         foreach(var button in Descendants(setup).OfType<Button>())button.Enabled=!value;
         cancelButton.Visible=value&&setup.Visible;cancelButton.Enabled=true;
         if(value){status.Text=Lang.T("working");progress.Visible=true;progress.Style=ProgressBarStyle.Marquee;}
@@ -1087,10 +1074,13 @@ internal sealed partial class MainForm : Form
                 form.internetHostChoice.Checked=true;form.internetAdvanced.Checked=false;form.internetMode.SelectedIndex=0;
                 form.SetBusy(true);form.SetBusy(false);
                 if(form.status.Text!=Lang.T("ready"))throw new Exception("Navigation leaves a stale busy message");
+                form.tabs.SelectedTab=form.directoryPage;
+                if(Descendants(form.internetPage).Contains(form.discordOptions)||!Descendants(form.directoryPage).Contains(form.discordOptions))
+                    throw new Exception("Public publishing controls mixed into private invitation tab");
                 form.discordOptions.Checked=true;Application.DoEvents();
                 if(form.discordPublish.Enabled||!form.discordConnect.Enabled||!form.discordOptionsPanel.Visible||form.discordNotice.Text!=Lang.T("discordNotConnected"))
-                    throw new Exception("Private Internet play requires Discord");
-                Capture("discord-options");form.discordOptions.Checked=false;
+                    throw new Exception("Public host access controls failed");
+                Capture("public-host-options");form.discordOptions.Checked=false;form.tabs.SelectedTab=form.internetPage;
                 form.internetCreating=true;form.internetStage="connecting";form.internetOperation=true;form.internetInvite.Text="weplay1.synthetic-pipe-fixture";form.SetBusy(true);
                 if(!form.internetCopy.Enabled||!form.internetShare.Enabled||!form.discordLink.Enabled||!form.internetInvite.UseSystemPasswordChar||form.internetCreate.Enabled||!form.internetPage.Enabled||form.lanPage.Enabled)
                     throw new Exception("Private Internet room controls failed");
@@ -1114,11 +1104,12 @@ internal sealed partial class MainForm : Form
                 using(var finished=JsonDocument.Parse("""{"kind":"game_finished"}"""))form.Receive(finished.RootElement);
                 if(form.internetEnd.Text!=Lang.T("internetLeave"))throw new Exception("Guest close label failed");
                 form.internetInvite.Clear();form.internetOperation=false;form.SetBusy(false);
+                form.tabs.SelectedTab=form.directoryPage;
                 form.discordAvailable=true;form.discordConnected=true;form.discordPublish.Checked=true;form.UpdateInternetControls();
                 if(!form.discordPublish.Enabled||!form.discordDisconnect.Enabled||!form.discordConnect.Enabled)
                     throw new Exception("Connected Discord publisher controls failed");
                 form.discordPublish.Checked=false;
-                if(form.discordNotice.Text!=Lang.T("discordConnectedPrivate"))throw new Exception("Disabled Discord publication is unclear");
+                if(form.discordNotice.Text!=Lang.T("directoryPublisherReady"))throw new Exception("Public host access status is unclear");
                 form.discordAvailable=false;form.UpdateInternetControls();
                 if(form.discordConnect.Enabled||form.discordPublish.Visible||form.discordNotice.Text!=Lang.T("discordUnavailableInfo"))
                     throw new Exception("Unavailable Discord capability controls failed");
@@ -1128,6 +1119,11 @@ internal sealed partial class MainForm : Form
                     form.ShowDirectory(directory.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
                 form.tabs.SelectedTab=form.directoryPage;Application.DoEvents();form.UpdateDirectoryControls();
                 if(!form.directoryJoin.Enabled)throw new Exception("Compatible open directory game cannot be selected");
+                form.publicRoomOperation=true;form.internetOperation=true;form.internetStage="ready";
+                form.internetInvite.Text="weplay1.synthetic-private-bytes";form.SetBusy(true);Application.DoEvents();
+                if(!form.directoryPage.Enabled||form.internetPage.Enabled||!form.directoryProgress.Visible||form.internetCopy.Enabled||form.internetShare.Enabled||form.internetInviteField!.Visible)
+                    throw new Exception("Public room operation leaked private invitation UI");
+                Capture("public-room-connected");form.publicRoomOperation=false;form.internetOperation=false;form.internetInvite.Clear();form.SetBusy(false);
                 form.SetBusy(true);if(form.directoryJoin.Enabled)throw new Exception("Directory join enabled during game operation");form.SetBusy(false);
                 foreach(string row in new[]{"""{"compatible":false,"state":"open","free_slots":3}""","""{"compatible":true,"state":"full","free_slots":0}""","""{"compatible":true,"state":"started","free_slots":0}"""})
                 {using var unavailable=JsonDocument.Parse(row);if(DirectoryJoinable(unavailable.RootElement))throw new Exception("Unavailable directory game enabled");}

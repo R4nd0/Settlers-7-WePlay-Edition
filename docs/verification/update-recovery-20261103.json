@@ -1,0 +1,105 @@
+{
+  "date": "2026-11-03",
+  "status": "verified-unreleased",
+  "source_base": "1b4cc17bbd2b7bd354600afbb05f750ecbaaa4c0",
+  "scope": "Installer package replacement, managed-game recovery, standalone relocation and launcher flow separation",
+  "source_tests": {
+    "passed": true,
+    "tests": 226,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "forbidden_api_attempts": 0,
+    "guards": ["subprocess.Popen", "socket.socket", "ctypes.WinDLL", "winreg.OpenKey", "winreg.CreateKey", "winreg.CreateKeyEx", "winreg.DeleteKey", "winreg.SetValueEx"],
+    "intentionally_omitted_child_import_checks": [
+      "test_auto_lan_launcher.AutomaticLauncherTests.test_hub_entrypoint_boots_with_isolated_python_module_search",
+      "test_graphics_launcher.GraphicsLauncherTests.test_installed_graphics_helpers_import_with_isolated_python"
+    ],
+    "live_verification": false
+  },
+  "installer": {
+    "production_and_test_branches_compile": true,
+    "executed_builds": "InstallerTest only; isolated application identity and registry",
+    "fault_matrix_candidate_sha256": "6f965050622ce80c8be2fc66a669d4e47d59cbdc40e561cd9ae3a87a05010ff2",
+    "fault_matrix": [
+      {"case": "tamper-stage", "passed": true, "exit_code": 7},
+      {"case": "before-swap", "passed": true, "exit_code": 3},
+      {"case": "after-old-moved", "passed": true, "exit_code": 3},
+      {"case": "after-new-moved", "passed": true, "exit_code": 3},
+      {"case": "after-final-check", "passed": true, "exit_code": 3},
+      {"case": "success", "passed": true, "exit_code": 0}
+    ],
+    "fault_points_confirmed_in_logs": true,
+    "failed_updates_preserved_old_package_launcher_state_and_save_marker": true,
+    "successful_update_removed_obsolete_declared_helper": true,
+    "unknown_and_modified_old_files_preserved": true,
+    "final_candidate_sha256": "2f423381134dff101c37e2a0f6801ca2808910f5f74d0641f787718e7888315f",
+    "final_candidate_cases": [
+      {"case": "parallel-setup-blocked", "passed": true, "exit_code": 1},
+      {"case": "recover-old-moved", "passed": true, "exit_code": 3},
+      {"case": "recover-new-moved", "passed": true, "exit_code": 3},
+      {"case": "success", "passed": true, "exit_code": 0},
+      {"case": "recover-committed", "passed": true, "exit_code": 3},
+      {"case": "recover-committed-distinct-backup", "passed": true, "exit_code": 3}
+    ],
+    "recovery_case_exit_3": "Recovery completed; a subsequent deliberate before-swap fault prevented another update and preserved the recovered package."
+  },
+  "actual_standalone_updates": [
+    {
+      "basis": "Previously bound, already migrated private RC3.13-based test copy; not a pristine RC3.12 installation",
+      "setup_sha256": "2bfa80145f1a1ba25c9bdaf6d51254b9fd25ff5a0439af690a9dfc02f90e008c",
+      "setup_exit_code": 0,
+      "passed": true,
+      "original_discovery_forbidden": true,
+      "repair_source_calls_contained_in_owned_instances": true,
+      "save_and_profile_preserved": true,
+      "relocation_with_deferred_history_passed": true,
+      "restart_used_bundled_python": true,
+      "previous_instances_after_safe_cleanup": 0
+    },
+    {
+      "basis": "Untouched, previously unbound RC3.13 private standalone export copied to an isolated test destination",
+      "setup_sha256": "2f423381134dff101c37e2a0f6801ca2808910f5f74d0641f787718e7888315f",
+      "setup_exit_code": 0,
+      "passed": true,
+      "old_easytier_runtime_files": 6,
+      "new_easytier_runtime_files": 10,
+      "original_discovery_forbidden": true,
+      "repair_source_calls_contained_in_owned_instances": true,
+      "save_and_profile_preserved": true,
+      "relocation_with_deferred_history_passed": true,
+      "restart_used_bundled_python": true,
+      "previous_instances_after_safe_cleanup": 0
+    }
+  ],
+  "standalone_test_limits": {
+    "game_world_started": false,
+    "save_marker": "Synthetic test save; byte preservation checked, not an in-game load",
+    "deferred_cleanup": "An owned hash-verified helper process temporarily held the old instance busy; it was closed through the test-owned job before relocation.",
+    "restart": "Bundled backend verification and installation snapshot after moving the complete copied export"
+  },
+  "launcher_gui": {
+    "passed": true,
+    "languages": ["de", "en"],
+    "rendered_menu_layouts": 14,
+    "overflow_in_tested_layouts": 0,
+    "private_and_public_control_placement_checked": true,
+    "public_lifecycle_stays_on_public_tab": true,
+    "private_invitation_controls_hidden_for_public_operations": true,
+    "easytier_consent_defaults_denied": true,
+    "room_switch_requires_fresh_consent": true,
+    "private_pipe_roundtrip_tested": false
+  },
+  "limits": {
+    "new_github_release": false,
+    "published_assets_or_existing_private_zips_replaced": false,
+    "original_installations_modified": false,
+    "native_adapter_or_service_changed": false,
+    "game_executable_or_abi_guards_changed": false,
+    "remote_pc_or_two_client_match_tested": false,
+    "desync_or_long_match_stability_claimed": false,
+    "global_public_directory_deployed": false,
+    "default_directory_origin": null,
+    "shared_global_easytier_network_added": false
+  }
+}

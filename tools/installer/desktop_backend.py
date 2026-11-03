@@ -92,6 +92,10 @@ class Desktop:
         try:value=self.read(self.state/'installation.json')
         except (OSError,ValueError):raise ValueError('installation_invalid') from None
         if value is None:return None
+        return self.validate_installation(value)
+
+    def validate_installation(self,value):
+        if not isinstance(value,dict):raise ValueError('installation_invalid')
         if (set(value)!={'format','source','container','current','previous','package_id','renderer_policy'}
                 or value['format'] not in (FORMAT,INSTALL_FORMAT) or value['renderer_policy'] not in ('auto','dxvk','native')
                 or not isinstance(value['source'],str) or not isinstance(value['previous'],list)
@@ -307,10 +311,107 @@ class Desktop:
         else:selected['choice']=None
         return selected
 
+    def recover_publication(self):
+        """Recover the metadata pair under the desktop operation lock."""
+        path=self.state/'installation-transaction.json';journal=self.read(path)
+        if journal is None:return
+        if (not isinstance(journal,dict) or set(journal)!={'format','owner','before','after','descriptor_before','descriptor_after'}
+                or journal['format']!='weplay-install-publication-v1' or journal['owner']!=self.owner):
+            raise ValueError('installation_invalid')
+        before,after=journal['before'],journal['after']
+        if before is not None:self.validate_installation(before)
+        self.validate_installation(after)
+        descriptor=self.app.parent/'standalone.json'
+        db,da=journal['descriptor_before'],journal['descriptor_after']
+        if (db is None)!=(da is None):raise ValueError('installation_invalid')
+        for value,record in ((db,before),(da,after)):
+            if value is not None and (not isinstance(value,dict) or record is None or
+                    value!={'format':'weplay-private-standalone-v1','instance':record['current'],'package_id':record['package_id']}
+                    or Path(record['container'])!=self.app/'Instances'):
+                raise ValueError('installation_invalid')
+        current=self.read(self.state/'installation.json')
+        portable=self.read(descriptor,limit=4096) if db is not None else None
+        if current not in (before,after) or portable not in (db,da):raise ValueError('installation_invalid')
+        if current==after and portable==da:
+            # Only a fully verified target can complete an interrupted commit.
+            content.verify(self.instance(after['container'],after['current']))
+            if after['package_id']!=self.package_id(full=True):raise ValueError('installation_invalid')
+        else:
+            if current!=before:
+                if before is None:graphics._plain(self.state/'installation.json').unlink()
+                else:self.write(self.state/'installation.json',before)
+            if db is not None and portable!=db:self.write(descriptor,db)
+        graphics._plain(path).unlink()
+
+    def publish_installation(self,record):
+        before=self.read(self.state/'installation.json');descriptor=self.app.parent/'standalone.json'
+        if before is not None:self.validate_installation(before)
+        db=self.read(descriptor,limit=4096) if descriptor.is_file() else None
+        da=None
+        if db is not None:
+            if (before is None or Path(record['container'])!=self.app/'Instances' or
+                    db!={'format':'weplay-private-standalone-v1','instance':before['current'],'package_id':before['package_id']}):
+                raise ValueError('standalone_invalid')
+            da={'format':db['format'],'instance':record['current'],'package_id':record['package_id']}
+        journal=self.state/'installation-transaction.json'
+        self.write(journal,{'format':'weplay-install-publication-v1','owner':self.owner,
+            'before':before,'after':record,'descriptor_before':db,'descriptor_after':da})
+        try:
+            self.write(self.state/'installation.json',record)
+            if da is not None:self.write(descriptor,da)
+        except BaseException:
+            # A failed second write rolls back the active selection. A hard
+            # interruption leaves the journal for the next locked startup.
+            self.recover_publication()
+            raise
+        graphics._plain(journal).unlink()
+
+    def preference_bytes(self,old):
+        if old is None:return 0
+        total=0
+        for name in ('local-profile-id.txt','player-settings.json','graphics-choice.json','graphics-quality.json'):
+            path=graphics._plain(old/'LocalData'/name)
+            if path.is_file():total+=path.stat().st_size
+        saves=graphics._plain(old/'LocalData/saves')
+        if saves.is_dir():
+            for path in saves.rglob('*'):
+                path=graphics._plain(path)
+                if path.is_file():total+=path.stat().st_size
+        return total
+
+    def cleanup_preparations(self):
+        folder=graphics._plain(self.state/'Preparations')
+        if not folder.is_dir():return
+        active=self.installed();pending=False
+        for path in folder.glob('*.json'):
+            if not HEX.fullmatch(path.stem):continue
+            value=self.read(path)
+            if (not isinstance(value,dict) or set(value)!={'format','owner','container','instance','allocated'}
+                    or value['format']!='weplay-preparation-v1' or value['owner']!=self.owner
+                    or value['instance']!=path.stem or type(value['allocated']) is not bool
+                    or not isinstance(value['container'],str) or not Path(value['container']).is_absolute()):
+                raise ValueError('ownership_invalid')
+            root=graphics._plain(Path(value['container'])/value['instance'])
+            if active and root==Path(active['container'])/active['current']:
+                path.unlink();continue
+            if not root.exists():path.unlink();continue
+            if not value['allocated']:
+                if not any(root.iterdir()):root.rmdir();path.unlink()
+                else:pending=True
+                continue
+            self.cleanup_instance(value['container'],value['instance'])
+            # Keep a receipt for preserved personal/unknown/modified files.
+            receipt=folder/'Retained';receipt.mkdir(exist_ok=True)
+            self.write(receipt/path.name,value)
+            path.unlink()
+        if pending:self.emit('warning',code='cleanup_deferred')
+
     def transfer_preferences(self,old,new):
         # Same-PC update only. Renderer backup/journal, caches and live runtime
         # configuration are deliberately not migrated into another version.
-        data=new/'LocalData';data.mkdir(exist_ok=True)
+        if shutil.disk_usage(new).free<self.preference_bytes(old)+64*1024*1024:
+            raise ValueError('Nicht genug freier Speicher fuer die Spielstaende.')
+        data=graphics._plain(new/'LocalData');data.mkdir(exist_ok=True)
         for name in ('local-profile-id.txt','player-settings.json','graphics-choice.json','graphics-quality.json'):
             source=graphics._plain(old/'LocalData'/name)
             if source.is_file():
@@ -330,6 +431,8 @@ class Desktop:
     def install_game(self,source,container=None):
         self.finalizing=False
         graphics.ensure_closed()
+        self.recover_publication()
+        self.cleanup_preparations()
         source=graphics._plain(source)
         previous=self.installed()
         managed=bool(previous and source==self.game())
@@ -358,15 +461,37 @@ class Desktop:
         instance=uuid.uuid4().hex
         root=base/instance
         self.progress('source')
-        options={'managed':True} if managed else {}
-        install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,publish_starters=False,**options)
-        self.write(root/'desktop-owner.json',{'format':FORMAT,'owner':self.owner,'instance':instance})
         old=self.game() if previous else None
         if old is None:
             retained=self.read(self.state/'retained-profile.json')
             if retained:
                 try:old=self.instance(retained['container'],retained['instance'])
                 except (OSError,ValueError,KeyError):pass
+        preparations=graphics._plain(self.state/'Preparations');preparations.mkdir(exist_ok=True)
+        if len(list(preparations.glob('*.json')))>=32:raise ValueError('cleanup_required')
+        pending=preparations/(instance+'.json')
+        allocation={'format':'weplay-preparation-v1','owner':self.owner,'container':str(base),'instance':instance,'allocated':False}
+        self.write(pending,allocation)
+        tracked={}
+        def created(target):
+            if target!=root:raise ValueError('ownership_invalid')
+            self.write(root/'desktop-owner.json',{'format':FORMAT,'owner':self.owner,'instance':instance})
+            self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':tracked})
+            allocation['allocated']=True;self.write(pending,allocation)
+        def track(path,digest):
+            relative=graphics._plain(path).relative_to(root).as_posix().lower()
+            if relative.startswith('localdata/'):raise ValueError('ownership_invalid')
+            tracked[relative]=digest
+            self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':tracked})
+        options={'managed':True} if managed else {}
+        try:
+            install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,
+                publish_starters=False,additional_bytes=self.preference_bytes(old),on_created=created,tracker=track,**options)
+        except BaseException:
+            self.finalizing=True
+            try:self.cleanup_preparations()
+            except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
+            raise
         if old:self.transfer_preferences(old,root)
         probe=self.probe()
         policy=previous['renderer_policy'] if previous else 'auto'
@@ -382,14 +507,8 @@ class Desktop:
                 'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
                 'package_id':self.package_id(),'renderer_policy':policy}
         self.progress('finish')
-        self.write(self.state/'installation.json',record)
-        # Keep a private portable export relocatable after replacing its game.
-        descriptor=self.app.parent/'standalone.json'
-        if previous and base==self.app/'Instances' and descriptor.is_file():
-            value=self.read(descriptor,limit=4096)
-            if (isinstance(value,dict) and set(value)=={'format','instance','package_id'}
-                    and value['format']=='weplay-private-standalone-v1' and value['instance']==previous['current']):
-                self.write(descriptor,{'format':value['format'],'instance':instance,'package_id':record['package_id']})
+        self.publish_installation(record)
+        pending.unlink()
         # Publish and verify first. Only then retire the old owned game files;
         # cleanup failure must not turn a successful installation into failure.
         self.finalizing=True
@@ -403,11 +522,14 @@ class Desktop:
         # Runtime files were byte-verified by prepare; reuse those package hashes.
         package=install.package_manifest(self.package)
         files.update({name:digest for name,digest in package['files'].items() if name.startswith('runtime/')})
-        for path in root.iterdir():
-            if path.is_file() and path.name!='desktop-files.json':files[path.name.lower()]=content.digest(path)
-        for directory in ('ArchiveStage',install.REPAIR):
-            for path in (root/directory).rglob('*'):
-                if path.is_file():files[path.relative_to(root).as_posix().lower()]=content.digest(path)
+        # Only generated metadata is owned. Never adopt an unknown root or
+        # repair/staging file merely because it appeared during preparation.
+        generated=('desktop-owner.json','compatibility.json','local-bundle.json','ArchiveStage/manifest.json',
+            'ArchiveStage/Base/BBA/Interface.bba','ArchiveStage/Data/Base/BBA/Interface.bba',
+            install.REPAIR+'/files.json',*(install.REPAIR+'/'+name for name in install.REPAIR_INPUTS))
+        for name in generated:
+            path=graphics._plain(root/name)
+            if path.is_file():files[name.lower()]=content.digest(path)
         self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':files})
 
     def save_settings(self,request):
@@ -784,7 +906,7 @@ class Desktop:
             return {'cleaned':0}
 
     def clean_old(self,automatic=False):
-        graphics.ensure_closed();value=self.installed()
+        graphics.ensure_closed();self.recover_publication();self.cleanup_preparations();value=self.installed()
         if not value:return {'cleaned':0}
         count=0;pending=[]
         active=self.instance(value['container'],value['current'])
@@ -856,6 +978,10 @@ def dispatch(desktop,request):
         raise ValueError('request_invalid')
     action,data=request['action'],request['data']
     if not isinstance(data,dict):raise ValueError('request_invalid')
+    # The signed-release network check never needs a game-operation lock.
+    if action=='update-check' and not data:return desktop.check_updates()
+    if (desktop.state/'installation-transaction.json').exists():
+        with desktop.lock():desktop.recover_publication()
     if action=='snapshot' and not data:
         # Opening S7Launcher.exe directly must adopt a portable export just as
         # its CMD starter does. Never send an unbound export to source setup.
@@ -868,8 +994,6 @@ def dispatch(desktop,request):
             except (OSError,ValueError,RuntimeError) as error:
                 raise ValueError('standalone_invalid') from error
         return desktop.snapshot()
-    # Startup checks must not hold the game-operation lock during network I/O.
-    if action=='update-check' and not data:return desktop.check_updates()
     if action=='detect' and not data:
         desktop.progress('source')
         previous=desktop.installed()
