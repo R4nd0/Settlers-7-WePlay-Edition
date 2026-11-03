@@ -386,6 +386,27 @@ int main() {
     auto check = [&](bool result, int line = 0) { ++checks; if (!result) { ++failures; std::printf("Failed check %d (line %d)\n", checks, line); } };
 #define check(...) check(__VA_ARGS__, __LINE__)
     {
+        // Exercise the real x86 fastcall stack contract: a callee-cleaned
+        // argument above a caller-owned sentinel, and AL consumed as boolean.
+        // Restore ESP even on failure so a bad patch reports a failed test.
+        const unsigned char before[] = {0x53,0x8b,0xdc,0x68,0x44,0x33,0x22,0x11,0x6a,0x01};
+        const unsigned char after[] = {
+            0x0f,0xb6,0xd0,0x85,0xd2,0x0f,0x94,0xc0, // original boolean, No expected
+            0x5a,0x81,0xfa,0x44,0x33,0x22,0x11,0x0f,0x94,0xc1,0x22,0xc1,
+            0x3b,0xe3,0x0f,0x94,0xc1,0x22,0xc1,0x8b,0xe3,0x5b,0xc3};
+        auto* code = static_cast<unsigned char*>(VirtualAlloc(nullptr, 64,
+            MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+        check(code != nullptr);
+        if (code) {
+            memcpy(code, before, sizeof(before));
+            memcpy(code + sizeof(before), PreserveStartupOptions, sizeof(PreserveStartupOptions));
+            memcpy(code + sizeof(before) + sizeof(PreserveStartupOptions), after, sizeof(after));
+            check(FlushInstructionCache(GetCurrentProcess(), code, 64) != FALSE);
+            check(reinterpret_cast<bool (__cdecl*)()>(code)());
+            check(VirtualFree(code, 0, MEM_RELEASE) != FALSE);
+        }
+    }
+    {
         DesyncDiagnostics state;
         const DesyncFpControl normal{0x23f, 0x1f80};
         unsigned int events = 0;

@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-03",
+  "scope": "startup-options reset question only; development build after RC3.12",
+  "production_adapter_sha256": {
+    "normal": "28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef",
+    "game_directory": "e58235da961c6de60ea2e2ffb42ec6749d2e11d498b0629783b520deabcf70ff"
+  },
+  "static_verification": {
+    "both_original_executable_hashes_unchanged": true,
+    "independent_ubisoft_and_steam_callsite_bytes": true,
+    "both_original_dialogs_callee_cleanup_bytes": 4
+  },
+  "synthetic_checks_passed": {
+    "normal_bootstrap": 2327,
+    "normal_steam_profile": 1742,
+    "directory_bootstrap": 2342,
+    "directory_steam_profile": 1767,
+    "laboratory_bootstrap": 4017,
+    "laboratory_steam_profile": 1799,
+    "directory_bridge": 11,
+    "lobby_team": 68,
+    "logistics_priority": 112,
+    "installer_tests": 31,
+    "x86_false_boolean_and_caller_stack_sentinel": true
+  },
+  "observed": {
+    "ubisoft_laboratory_menu_starts_without_dialog": 2,
+    "ubisoft_existing_startup_marker": true,
+    "ubisoft_options_byte_identical_across_repeated_start": true,
+    "steam_laboratory_menu_starts_without_dialog": 1,
+    "steam_client_was_running": true,
+    "normal_game_exit_codes": [0, 0, 0]
+  },
+  "limits": {
+    "new_match_tested": false,
+    "steam_client_free_start_tested": false,
+    "public_rc312_downloads_replaced": false
+  }
+}

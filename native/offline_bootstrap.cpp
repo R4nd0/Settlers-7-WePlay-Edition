@@ -1009,6 +1009,13 @@ const unsigned char RewardUnlockedEpilogue[] = {0x5f,0x5e,0x32,0xc0,0x5b,0x5d,0x
 // Guard the whole original SETcc instruction in either mode.
 const unsigned char DevelopmentModeBytes[] = {0x0f,0x94,0xc0};
 const Patch DevelopmentPatch = {0x53E5FB, {0x0f,0x95,0xc0}, DevelopmentModeBytes, false, 3};
+// Startup.tag is cleared by the original map-load completion, not by reaching
+// the menu. A successful -noMapInMainMenu run can therefore leave it behind.
+// Answer only the startup-options reset question with No: preserve the parsed
+// Options.ini and the original false continuation. The replaced fastcall takes
+// title/body in ECX/EDX and one stack argument (RET 4); discard that argument.
+// Other dialogs and the game's marker/file lifecycle remain untouched.
+const unsigned char PreserveStartupOptions[] = {0x32,0xc0,0x83,0xc4,0x04};
 #ifdef S7_LOCAL_NETWORK_PUMP
 // ELLog's settler query rejects an expired priority handle, then dereferences
 // the resulting null pointer. Keep both original rejection conditions and
@@ -1019,6 +1026,7 @@ const unsigned char MissingPriorityGeneration[] = {0x75,0x2b};
 const unsigned char PriorityNextEntryGuard[] = {0x8b,0x36,0x3b,0xf7,0x0f,0x85,0x60,0xff,0xff,0xff};
 #endif
 const Patch Patches[] = {
+    {0xEC698B, {0xe8,0x00,0x12,0x62,0xff}, PreserveStartupOptions, false, 5},
     {0xD3C62D, {0xe8,0x1e,0x6f,0x10,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
     {0xD4A083, {0xe8,0xc8,0x94,0x0f,0x00}, reinterpret_cast<const void*>(&ConstructLocalFacade)},
     {0xD49CFD, {0xe8,0x8e,0x9f,0x0f,0x00}, reinterpret_cast<const void*>(&LoginLocalFacade)},

@@ -377,6 +377,11 @@ service still needs an actual create handler.
 
 ## Fast menu startup
 
+The post-RC3.12 adapter also answers the exact startup-options reset question
+with No automatically, preserving parsed settings when a stale `Startup.tag`
+survives menu-only use. Ubisoft and Steam retain separate callsite guards and
+the original dialog stack cleanup. See [cause and verification](STARTUP-OPTIONS.md).
+
 `tools/offline-ui/prepare.py` applies seven fingerprinted raw-Lua deltas to
 `mainMenu.lua`, retaining its original constant-table header. Both movie
 dispatches and the timed menu flight/click blocker are skipped. First-start

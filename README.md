@@ -14,6 +14,11 @@ Two local laboratory clients completed the in-game selection, encrypted invitati
 guest restart and native lobby rejoin; remote-PC/TUN gameplay remains unqualified.
 This feature is not included in the RC3.12 downloads below.
 
+The next build also keeps your startup options automatically when S7 reports
+an unsuccessful previous start. This removes the repeated reset-options question;
+your saved settings are retained. Ubisoft and Steam menu starts were checked
+locally; see [startup recovery verification](docs/STARTUP-OPTIONS.md).
+
 **RC3.12** adds independent maintenance for both Ubisoft and Steam copies:
 WePlay detects, repairs and updates its own prepared game after the original
 installation is removed. The launcher opens taller menus and expands within
