@@ -1,5 +1,14 @@
 # Experimental native local start, 2026-10-26
 
+RC3.11 checkpoint integration (2026-11-03): `resume_transfer.inc` implements
+bounded, paced native save fragments and restricts the original readiness
+getter while the owned send queue is pending. Ubisoft and Steam retain
+independent callback-pointer, instruction and executable guards. Session
+create/join cancels fragments from the previous ownership interval. No world
+checksums or native acknowledgements are fabricated. Laboratory RNG, AI and
+Lua observers are excluded from the original-executable release build. See
+[save/resume verification and limits](RC3.11-MULTIPLAYER-SAVES.md).
+
 Lobby desync correction (2026-11-02): a guest can retain reciprocal AI allies
 from an earlier lobby while accepting the next host's different TeamIDs. The
 full-roster scalar setter is now routed through the game's team-affiliation

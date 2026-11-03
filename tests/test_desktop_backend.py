@@ -364,6 +364,17 @@ class DesktopTests(unittest.TestCase):
         record.write_bytes(graphics.encoded(value))
         self.assertNotEqual(self.desktop.package_id(),flagged)
 
+    def test_multiplayer_resume_and_every_patch_source_require_game_update(self):
+        self.prepare(); record=self.desktop.package/'package.json'
+        value=json.loads(record.read_bytes()); before=self.desktop.package_id()
+        value['multiplayer_resume']=True;record.write_bytes(graphics.encoded(value))
+        flagged=self.desktop.package_id();self.assertNotEqual(flagged,before)
+        for name in install.MULTIPLAYER_RESUME_TOOLS:
+            value['files'][('tools/'+name).lower()]='a'*64
+            record.write_bytes(graphics.encoded(value))
+            changed=self.desktop.package_id();self.assertNotEqual(changed,flagged)
+            flagged=changed
+
     def test_explicit_metadata_recovery_backs_up_unknown_record_without_touching_games(self):
         self.prepare();root=self.desktop.game();before=(root/'Base/Bin/Settlers7R.exe').read_bytes()
         record=self.desktop.state/'installation.json';record.write_bytes(b'foreign or damaged record')

@@ -142,6 +142,7 @@ class Desktop:
                 ('installer/lan_public_game.py',''),('offline-ui/lan-public-creation.json','')]
         mapped += [(name,'') for name in install.ACHIEVEMENT_PACKAGE_TOOLS]
         mapped += [(name,'') for name in install.CARTOGRAPHER_PACKAGE_TOOLS]
+        mapped += [(name,'') for name in install.MULTIPLAYER_RESUME_TOOLS]
         names={('tools/'+name).lower() for name,_ in mapped}
         records={name:digest for name,digest in value['files'].items() if name in names or
                  name.startswith(('runtime/','payload/server/')) or name in
@@ -150,6 +151,7 @@ class Desktop:
         if value.get('achievement_notifications_disabled',False):flags['achievement_notifications_disabled']=True
         if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
+        if value.get('multiplayer_resume',False):flags['multiplayer_resume']=True
         if value.get('windows_helpers',False):
             flags['windows_helpers']=True
             records.update({name:digest for name,digest in value['files'].items() if name=='tools/installer/windows_system.py'})

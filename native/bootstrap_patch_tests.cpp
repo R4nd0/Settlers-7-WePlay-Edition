@@ -1,5 +1,6 @@
 // Exercise the actual patch writer/validator against owned synthetic memory.
 // No game file is loaded and no native game function is ever called.
+#define S7_RNG_TRACE_TESTING
 #include "offline_bootstrap.cpp"
 #include <algorithm>
 #include <cstdio>
@@ -63,6 +64,82 @@ void* __fastcall FakeCastlePlayer(void* self, void*, unsigned int kind, unsigned
 }
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
+struct ResumeReadyState { double slot = 2; bool original = true; int result = 1; std::vector<int> values; };
+DWORD resume_ready_original_error = 0;
+int __cdecl FakeResumeReadyOriginal(void* state) {
+    auto* value = static_cast<ResumeReadyState*>(state);
+    resume_ready_original_error = GetLastError();
+    value->values.push_back(value->original ? 1 : 0);
+    SetLastError(6789); return value->result;
+}
+double __cdecl FakeResumeReadyNumber(void* state, int index) {
+    if (index != 1) abort();
+    SetLastError(5555); return static_cast<ResumeReadyState*>(state)->slot;
+}
+void __cdecl FakeResumeReadyBoolean(void* state, int value) {
+    static_cast<ResumeReadyState*>(state)->values.push_back(value);
+    SetLastError(3333);
+}
+void* ai_callback_self = nullptr;
+uint32_t ai_callback_event = 0;
+DWORD ai_callback_error = 0;
+int __fastcall FakeAiCallback(void* self, void*, uint32_t event) {
+    ai_callback_self = self; ai_callback_event = event; ai_callback_error = GetLastError();
+    SetLastError(6789); return static_cast<int>(event + 1234);
+}
+const void* ai_site_point = nullptr;
+bool __fastcall FakeAiSite(void* self, void*, const uint32_t* point) {
+    ai_callback_self = self; ai_site_point = point; ai_callback_error = GetLastError();
+    SetLastError(6789); return *point != 0;
+}
+const char* lua_console_test_text = nullptr;
+DWORD lua_console_conversion_error = 0, lua_console_original_error = 0;
+void* lua_console_test_state = nullptr;
+const char* __cdecl FakeLuaConsoleString(void* state, int index, void* length) {
+    if (index != 1 || length) abort();
+    lua_console_test_state = state; lua_console_conversion_error = GetLastError();
+    SetLastError(5555); return lua_console_test_text;
+}
+int __cdecl FakeLuaConsoleOriginal(void* state) {
+    lua_console_test_state = state; lua_console_original_error = GetLastError();
+    SetLastError(6789); return 17;
+}
+uintptr_t resume_event_words[3]{};
+uintptr_t resume_serialization_words[4]{};
+unsigned int resume_fragment_sends = 0, resume_fragment_destroys = 0;
+std::vector<unsigned char> resume_fragment_seen;
+uint32_t resume_fragment_source = 0, resume_fragment_checksum = 0, resume_fragment_total = 0;
+void* __fastcall FakeResumeFragmentConstruct(void* self, void*, uint32_t unused, uint32_t source,
+    const void* data, uint32_t length, uint32_t checksum, uint32_t total) {
+    if (unused) abort();
+    resume_fragment_source = source; resume_fragment_checksum = checksum; resume_fragment_total = total;
+    const auto* bytes = static_cast<const unsigned char*>(data);
+    resume_fragment_seen.assign(bytes, bytes + length); return self;
+}
+void __fastcall FakeResumeFragmentDestroy(void*, void*) { ++resume_fragment_destroys; }
+void __fastcall FakeResumeFragmentSend(void*, void*, const void*, uint32_t mode,
+    uint32_t reliable, uint32_t extra, uint32_t target) {
+    if (mode != 1 || reliable != 1 || extra || target != 123) abort();
+    ++resume_fragment_sends;
+}
+DWORD resume_serialization_error = 0;
+void __fastcall FakeResumeSerialization(void* self, void*, void** event, const char* label, uint32_t flags) {
+    resume_serialization_words[0] = reinterpret_cast<uintptr_t>(self);
+    resume_serialization_words[1] = reinterpret_cast<uintptr_t>(event);
+    resume_serialization_words[2] = reinterpret_cast<uintptr_t>(label);
+    resume_serialization_words[3] = flags;
+    resume_serialization_error = GetLastError(); SetLastError(6789);
+}
+unsigned int resume_event_calls = 0;
+DWORD resume_event_error = 0;
+void __fastcall FakeResumeEvent(void* self, void*, const void* data, uint32_t length) {
+    ++resume_event_calls;
+    resume_event_words[0] = reinterpret_cast<uintptr_t>(self);
+    resume_event_words[1] = reinterpret_cast<uintptr_t>(data);
+    resume_event_words[2] = length;
+    resume_event_error = GetLastError();
+    SetLastError(6789);
+}
 bool lab_interface_original = false;
 bool __cdecl FakeLocalInterface(const void*, const char**) {
     SetLastError(6789); return lab_interface_original;
@@ -601,6 +678,220 @@ int main() {
     }
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
+    for (bool edition : {false, true}) {
+        steam_history = edition;
+    check(FakeJump(0x84BEB0, reinterpret_cast<const void*>(&FakeResumeReadyOriginal)));
+    check(FakeJump(0x452C90, reinterpret_cast<const void*>(&FakeResumeReadyNumber)));
+    check(FakeJump(0x44C6E0, reinterpret_cast<const void*>(&FakeResumeReadyBoolean)));
+    {
+        const auto old_thread = bootstrap_thread.load();
+        const LONG old_initialization = initialization; const bool old_probe = local_connect_probe;
+        const bool old_steam = steam_history;
+        for (bool pending : {false, true}) for (bool own_thread : {false, true})
+        for (bool enabled : {false, true}) for (bool initialized : {false, true})
+        for (bool ready : {false, true}) {
+            resume_fragments.clear(); resume_readiness_held = false;
+            if (pending) resume_fragments.emplace_back();
+            bootstrap_thread = GetCurrentThreadId() + (own_thread ? 0 : 1);
+            initialization = initialized ? 2 : 1; local_connect_probe = enabled; steam_history = edition;
+            ResumeReadyState state; state.original = ready; SetLastError(4444);
+            check(ReadResumeReadyState(&state) == 1);
+            const bool held = pending && own_thread && enabled && initialized;
+            check(state.values.size() == (held ? 2u : 1u) && state.values.back() == (held ? 0 : ready));
+            check(resume_ready_original_error == 4444 && GetLastError() == 6789);
+            check(resume_readiness_held == held);
+        }
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true; steam_history = edition;
+        for (double slot : {0.0, 1.0, 2.0, 4.0, 5.0, 2.5}) {
+            resume_fragments.clear(); resume_fragments.emplace_back();
+            ResumeReadyState state; state.slot = slot;
+            check(ReadResumeReadyState(&state) == 1);
+            const bool valid = slot == 1 || slot == 2 || slot == 4;
+            check(state.values.size() == (valid ? 2u : 1u) && state.values.back() == (valid ? 0 : 1));
+        }
+        ResumeReadyState state; state.result = 0;
+        check(ReadResumeReadyState(&state) == 0 && state.values.size() == 1);
+        CancelResumeFragments(); check(resume_fragments.empty() && !resume_readiness_held);
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe; steam_history = old_steam;
+    }
+    }
+    steam_history = false;
+    check(FakeJump(0x45B650, reinterpret_cast<const void*>(&FakeLuaConsoleString)));
+    check(FakeJump(0x5D1550, reinterpret_cast<const void*>(&FakeLuaConsoleOriginal)));
+    {
+        const auto old_thread = bootstrap_thread.load();
+        const LONG old_initialization = initialization; const bool old_probe = local_connect_probe;
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
+        lua_console_test_text = "Attempt to read a missing laboratory field."; SetLastError(4444);
+        check(ObserveLabLuaConsole(reinterpret_cast<void*>(1234)) == 17);
+        check(lua_console_test_state == reinterpret_cast<void*>(1234) && lua_console_conversion_error == 4444
+            && lua_console_original_error == 4444 && GetLastError() == 6789);
+        check(lab_lua_console_count == 1 && lab_lua_console_records[0].length == strlen(lua_console_test_text)
+            && memcmp(lab_lua_console_records[0].bytes, lua_console_test_text, strlen(lua_console_test_text)) == 0);
+        lua_console_test_text = "ordinary informational console text"; SetLastError(4444);
+        check(ObserveLabLuaConsole(reinterpret_cast<void*>(1234)) == 17 && lab_lua_console_count == 1);
+        bootstrap_thread = GetCurrentThreadId() + 1; lua_console_conversion_error = 0; SetLastError(4444);
+        check(ObserveLabLuaConsole(reinterpret_cast<void*>(1234)) == 17 && lab_lua_console_count == 1
+            && !lua_console_conversion_error && lua_console_original_error == 4444);
+        lab_lua_console_count = 0;
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
+    }
+    check(FakeJump(0xEC9FD0, reinterpret_cast<const void*>(&FakeResumeEvent)));
+    #include "lab_resume_rng_trace_tests.inc"
+    {
+        const auto old_thread = bootstrap_thread.load();
+        const LONG old_initialization = initialization; const bool old_probe = local_connect_probe;
+        const auto old_replay = *Native<uintptr_t*>(0x13A5200);
+        unsigned char strategy[0x100]{}, replay[0x40]{};
+        auto put = [](uintptr_t at, uintptr_t value) { memcpy(reinterpret_cast<void*>(at), &value, sizeof(value)); };
+        uint32_t candidates[10]{1,2,3,4,1,6,7,8,9,1};
+        put(reinterpret_cast<uintptr_t>(strategy), NativeVA(0x1159874));
+        put(reinterpret_cast<uintptr_t>(replay), NativeVA(0x1133F40));
+        put(reinterpret_cast<uintptr_t>(replay + 0x2c), 2255);
+        put(NativeVA(0x13A5200), reinterpret_cast<uintptr_t>(replay));
+        put(reinterpret_cast<uintptr_t>(strategy + 0x84), reinterpret_cast<uintptr_t>(candidates));
+        put(reinterpret_cast<uintptr_t>(strategy + 0x88), reinterpret_cast<uintptr_t>(candidates + 10));
+        strategy[0x10] = 3; strategy[0x78] = 1;
+        put(reinterpret_cast<uintptr_t>(strategy + 0x60), 101);
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
+        using Callback = int (__thiscall*)(void*, uint32_t);
+        const void* shims[] = {&ObserveLabResumeAiSearch, &ObserveLabResumeAiBuild, &ObserveLabResumeAiPlacement,
+            &ObserveLabResumeWorkshopSearch, &ObserveLabResumeWorkshopBuild, &ObserveLabResumeWorkshopPlacement};
+        lab_resume_ai_test_clobber = true;
+        for (size_t i = 0; i < _countof(shims); ++i) {
+            put(reinterpret_cast<uintptr_t>(strategy), NativeVA(i < 3 ? 0x1159874 : 0x1159f00));
+            if (i >= 3) {
+                put(reinterpret_cast<uintptr_t>(strategy + 0xec), reinterpret_cast<uintptr_t>(candidates));
+                put(reinterpret_cast<uintptr_t>(strategy + 0xf0), reinterpret_cast<uintptr_t>(candidates + 10));
+            }
+            lab_resume_ai_original[i] = reinterpret_cast<uintptr_t>(&FakeAiCallback);
+            alignas(16) unsigned char before[512]{}, after[512]{};
+            SetLastError(4444); _fxsave(before);
+            const int result = reinterpret_cast<Callback>(const_cast<void*>(shims[i]))(strategy, 1);
+            _fxsave(after);
+            check(result == 1235 && ai_callback_self == strategy && ai_callback_event == 1
+                && ai_callback_error == 4444 && GetLastError() == 6789);
+            check(memcmp(before, after, 16) == 0 && memcmp(before + 24, after + 24, 8) == 0);
+            check(memcmp(before + 32, after + 32, 256) == 0);
+            check(lab_resume_ai_count == i + 1 && lab_resume_ai_records[i].callback == i
+                && lab_resume_ai_records[i].player == 3 && lab_resume_ai_records[i].building == (i < 3 ? 101u : 12u)
+                && lab_resume_ai_records[i].candidates == 2 && lab_resume_ai_records[i].last[0] == 6);
+        }
+        lab_resume_ai_test_clobber = false;
+        check(FakeJump(0x9BB4D0, reinterpret_cast<const void*>(&FakeAiSite)));
+        lab_resume_ai_test_clobber = true;
+        for (uint32_t accepted : {0u, 1u}) {
+            alignas(16) unsigned char before[512]{}, after[512]{};
+            SetLastError(4444); _fxsave(before);
+            const bool result = ObserveLabResumeWorkshopSite(strategy, nullptr, &accepted);
+            _fxsave(after);
+            check(result == (accepted != 0) && ai_site_point == &accepted && ai_callback_self == strategy
+                && ai_callback_error == 4444 && GetLastError() == 6789);
+            check(memcmp(before, after, 16) == 0 && memcmp(before + 24, after + 24, 8) == 0);
+            check(memcmp(before + 32, after + 32, 256) == 0);
+            check(lab_resume_ai_records[lab_resume_ai_count - 1].callback == 6
+                && lab_resume_ai_records[lab_resume_ai_count - 1].event == accepted);
+        }
+        lab_resume_ai_test_clobber = false;
+        put(reinterpret_cast<uintptr_t>(strategy), NativeVA(0x1159874));
+        const auto captured = lab_resume_ai_count;
+        ObserveLabResumeAi(strategy, 3, 0); ObserveLabResumeAi(strategy, 1, 3);
+        check(lab_resume_ai_count == captured);
+        bootstrap_thread = GetCurrentThreadId() + 1; ObserveLabResumeAi(strategy, 1, 0);
+        check(lab_resume_ai_count == captured); bootstrap_thread = GetCurrentThreadId();
+        put(reinterpret_cast<uintptr_t>(replay + 0x2c), 1999); ObserveLabResumeAi(strategy, 1, 0);
+        check(lab_resume_ai_count == captured);
+        put(reinterpret_cast<uintptr_t>(replay + 0x2c), 2255);
+        put(reinterpret_cast<uintptr_t>(strategy + 0x88), reinterpret_cast<uintptr_t>(candidates + 10) - 1);
+        ObserveLabResumeAi(strategy, 1, 0); check(lab_resume_ai_count == captured);
+        lab_resume_ai_count = 0;
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
+        put(NativeVA(0x13A5200), old_replay);
+        InitializeLabResumeAi();
+    }
+    check(FakeJump(0x6933A0, reinterpret_cast<const void*>(&FakeResumeSerialization)));
+    for (const bool steam : {false, true}) {
+        steam_history = steam;
+        resume_fragment_sends = 0; resume_fragment_destroys = 0;
+        check(FakeJump(0x84A1D0, reinterpret_cast<const void*>(&FakeResumeFragmentConstruct)));
+        check(FakeJump(0x84A270, reinterpret_cast<const void*>(&FakeResumeFragmentDestroy)));
+        check(FakeJump(0xEDB300, reinterpret_cast<const void*>(&FakeResumeFragmentSend)));
+        const auto old_thread = bootstrap_thread.load();
+        const LONG old_initialization = initialization;
+        const bool old_probe = local_connect_probe;
+        const auto old_main = *Native<uintptr_t*>(0x13A5210);
+        uintptr_t manager = NativeVA(0x11404F0), main[5]{NativeVA(0x113F2C0), 0, 0, 0, reinterpret_cast<uintptr_t>(&manager)};
+        *Native<uintptr_t*>(0x13A5210) = reinterpret_cast<uintptr_t>(main);
+        uintptr_t event[8]{NativeVA(0x114DE08), 0x24, 2, 1, 0, 456, 4, 9876};
+        unsigned char bytes[]{1,2,3,4}; event[4] = reinterpret_cast<uintptr_t>(bytes);
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
+        for (unsigned int i = 0; i < 10; ++i) QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
+        check(resume_fragments.size() == 10 && resume_fragment_bytes == 40 && !resume_fragment_sends);
+        bytes[0] = 99; resume_next_send = 0; SetLastError(4444);
+        DrainResumeFragments();
+        check(resume_fragments.size() == 2 && resume_fragment_bytes == 8);
+        check(resume_fragment_sends == 8 && resume_fragment_destroys == 8 && GetLastError() == 4444);
+        check(resume_fragment_seen == std::vector<unsigned char>({1,2,3,4}));
+        check(resume_fragment_source == 2 && resume_fragment_checksum == 456 && resume_fragment_total == 9876);
+        resume_next_send = GetTickCount64() + 10000; DrainResumeFragments();
+        check(resume_fragment_sends == 8 && resume_fragments.size() == 2);
+        main[4] = 0; DrainResumeFragments();
+        check(resume_fragments.empty() && !resume_fragment_bytes && resume_fragment_sends == 8);
+        main[4] = reinterpret_cast<uintptr_t>(&manager);
+        QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
+        bootstrap_thread = GetCurrentThreadId() + 1; SetLastError(4444);
+        CancelResumeFragments();
+        check(resume_fragments.size() == 1 && resume_fragment_bytes == 4 && GetLastError() == 4444);
+        bootstrap_thread = GetCurrentThreadId(); CancelResumeFragments();
+        check(resume_fragments.empty() && !resume_fragment_bytes && !resume_next_send
+            && resume_fragment_sends == 8 && GetLastError() == 4444);
+        *Native<uintptr_t*>(0x13A5210) = old_main;
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
+    }
+    steam_history = false;
+    {
+        const auto maximum = reinterpret_cast<uintptr_t>(&ResumeChunkSize);
+        memcpy(ResumeChunkLimit + 1, &maximum, 4);
+        check(ResumeChunkSize == 1024 && ResumeChunkLimit[0] == 0xba);
+        for (const auto& patch : ResumeChunkPatches) {
+            auto* at = PatchAddress(patch);
+            const size_t length = patch.raw_length ? patch.raw_length : 5;
+            memcpy(at, patch.original, length);
+            check(WritePatch(patch, false));
+            check(patch.raw_length ? memcmp(at, patch.replacement, length) == 0 : at[0] == 0xe8);
+            check(WritePatch(patch, true));
+            check(memcmp(at, patch.original, length) == 0);
+        }
+        const LONG old_initialization = initialization;
+        initialization = 0; SetLastError(4444);
+        void* event = reinterpret_cast<void*>(77);
+        const char* label = "private synthetic label";
+        ObserveLabResumeSerialization(reinterpret_cast<void*>(333), nullptr, &event, label, 123);
+        check(resume_serialization_words[0] == 333 && resume_serialization_words[1] == reinterpret_cast<uintptr_t>(&event)
+            && resume_serialization_words[2] == reinterpret_cast<uintptr_t>(label) && resume_serialization_words[3] == 123);
+        check(resume_serialization_error == 4444 && GetLastError() == 6789 && event == reinterpret_cast<void*>(77));
+        initialization = old_initialization;
+    }
+    {
+        // Execute the real fastcall wrapper in x86: zero-byte input is rejected
+        // without touching its pointer, and all nonempty input/ABI passes intact.
+        const auto old_thread = bootstrap_thread.load();
+        const LONG old_initialization = initialization;
+        const bool old_probe = local_connect_probe;
+        bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
+        for (uintptr_t pointer : {uintptr_t(0), uintptr_t(1), uintptr_t(0x12345678)}) {
+            resume_event_calls = 0; SetLastError(4444);
+            DeserializeResumeEvent(reinterpret_cast<void*>(333), nullptr, reinterpret_cast<const void*>(pointer), 0);
+            check(!resume_event_calls && GetLastError() == 4444);
+        }
+        for (uint32_t length : {1u, 4u, 64u, 65536u}) {
+            resume_event_calls = 0; SetLastError(4444);
+            DeserializeResumeEvent(reinterpret_cast<void*>(333), nullptr, reinterpret_cast<const void*>(444), length);
+            check(resume_event_calls == 1 && resume_event_words[0] == 333 && resume_event_words[1] == 444
+                && resume_event_words[2] == length && resume_event_error == 4444 && GetLastError() == 6789);
+        }
+        bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
+    }
     check(FakeJump(0xCB7F50, reinterpret_cast<const void*>(&FakeLocalInterface)));
     {
         unsigned char address[0x22]{};
@@ -775,6 +1066,16 @@ int main() {
     for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+#ifdef S7_LOCAL_PAIR_LAB
+    InitializeLabResumeRngPatches();
+    selected.push_back(&LabLuaConsolePatch);
+    for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);
+    for (const auto& patch : LabResumeRngPatches) selected.push_back(&patch);
+#endif
+#ifdef S7_LOCAL_NETWORK_PUMP
+    selected.push_back(&ResumeReadinessPatch);
+    for (const auto& patch : ResumeChunkPatches) selected.push_back(&patch);
+#endif
     auto occupied_patch_byte = [&](const unsigned char* byte) {
         for (const auto* candidate : selected) {
             const auto* begin = PatchAddress(*candidate);

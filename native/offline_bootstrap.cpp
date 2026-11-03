@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <vector>
 #include <atomic>
+#include <string>
+#include <cstdio>
+#if defined(S7_LOCAL_PAIR_LAB) || defined(S7_LOCAL_NETWORK_PUMP)
+#include <deque>
+#endif
 #include <intrin.h>
 #include "offline_bootstrap.h"
 #include "runtime_config.h"
@@ -144,7 +149,39 @@ template<typename T> T Native(uintptr_t va) {
 #include "castle_bridge.inc"
 #endif
 
+#ifdef S7_LOCAL_NETWORK_PUMP
+#include "resume_transfer.inc"
+#endif
+
 #ifdef S7_LOCAL_PAIR_LAB
+#include "lab_resume_rng_trace.inc"
+#include "lab_resume_ai_trace.inc"
+#include "lab_lua_console.inc"
+// Laboratory-only validation experiment for the unfinished multiplayer resume
+// path. A zero-byte event cannot contain the required native class identifier.
+// Reject it before deserialization; retain the original callback for all data.
+void __fastcall ObserveLabResumeSerialization(void* self, void*, void** event,
+    const char* label, uint32_t flags) {
+    const DWORD incoming = GetLastError();
+    const bool chunk = !steam_history && GetCurrentThreadId() == bootstrap_thread.load(std::memory_order_acquire)
+        && initialization == 2 && local_connect_probe && self && event && *event
+        && *static_cast<uintptr_t*>(self) == NativeVA(0x1130E98)
+        && *static_cast<uintptr_t*>(*event) == NativeVA(0x114DE08);
+    SetLastError(incoming);
+    Native<void (__thiscall*)(void*, void**, const char*, uint32_t)>(0x6933A0)(self, event, label, flags);
+    const DWORD result = GetLastError();
+    if (chunk) {
+        auto* stream = *reinterpret_cast<unsigned char**>(static_cast<unsigned char*>(self) + 8);
+        if (stream && *reinterpret_cast<uintptr_t*>(stream) == NativeVA(0x112F5BC)) {
+            const uint32_t length = *reinterpret_cast<uint32_t*>(stream + 0xc);
+            static std::atomic<unsigned int> reported{0};
+            const unsigned int bit = length ? 1u : 2u;
+            if (!(reported.fetch_or(bit) & bit))
+                ReportLocalStatus(length ? "lab-mp-resume-chunk-serialized" : "lab-mp-resume-chunk-serialization-empty");
+        }
+    }
+    SetLastError(result);
+}
 bool __cdecl AcceptLabLocalInterface(const void* address, const char** reason) {
     using Original = bool (__cdecl*)(const void*, const char**);
     const bool accepted = Native<Original>(0xCB7F50)(address, reason);
@@ -494,6 +531,9 @@ bool __fastcall QueryLocalSessionCreate(void* self, void*) {
     // Only ED630B in the Create Session request path. Its original asynchronous
     // job still owns success/failure; no lobby or transport state is fabricated.
     const bool ready = LocalSessionSearchReady(self) && EnsureLocalSearchSpace(self);
+#ifdef S7_LOCAL_NETWORK_PUMP
+    if (ready) CancelResumeFragments();
+#endif
     ReportLocalStatus(ready ? "local-session-create-ready" : "local-session-create-not-ready");
     return ready;
 }
@@ -501,6 +541,9 @@ bool __fastcall QueryLocalSessionJoin(void* self, void*) {
     // Only ED673B, before construction of the original Join Session job.
     // Preserve its RPC, native state transitions and eventual result.
     const bool ready = LocalSessionSearchReady(self) && EnsureLocalSearchSpace(self);
+#ifdef S7_LOCAL_NETWORK_PUMP
+    if (ready) CancelResumeFragments();
+#endif
     ReportLocalStatus(ready ? "local-session-join-ready" : "local-session-join-not-ready");
     return ready;
 }
@@ -993,7 +1036,11 @@ const Patch ConnectPatches[] = {
     {0xED2411, {0xe8,0xaa,0x7a,0xff,0xff}, reinterpret_cast<const void*>(&DispatchCastleJoin)},
 #endif
 #endif
+#ifdef S7_LOCAL_NETWORK_PUMP
+    {0xED2468, {0xe8,0x63,0x7b,0xff,0xff}, reinterpret_cast<const void*>(&DeserializeResumeEvent)},
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
+    {0xEDB2BF, {0xe8,0xdc,0x80,0x7b,0xff}, reinterpret_cast<const void*>(&ObserveLabResumeSerialization)},
     {0xD00D17, {0xe8,0x34,0x72,0xfb,0xff}, reinterpret_cast<const void*>(&AcceptLabLocalInterface)},
 #endif
     {0xC92127, {0xe8,0xb4,0xca,0xff,0xff}, reinterpret_cast<const void*>(&RequestLocalGame)},
@@ -1062,6 +1109,50 @@ const Patch ConnectPatches[] = {
 #endif
     {0x1091B08, {0xc0,0x56,0xc9,0x00,0x00}, reinterpret_cast<const void*>(&UpdateLocalGame), true}
 };
+
+#ifdef S7_LOCAL_NETWORK_PUMP
+const uint32_t ResumeChunkSize = 1024;
+unsigned char ResumeChunkLimit[] = {0xba, 0, 0, 0, 0};
+const unsigned char ResumeChunkShift[] = {0xc1,0xeb,0x0a};
+const unsigned char ResumeChunkCompare[] = {0x81,0xf9,0x00,0x04,0x00,0x00};
+const unsigned char ResumeChunkAdvance[] = {0x05,0x00,0x04,0x00,0x00};
+const Patch ResumeReadinessPatch = {0x138B950, {0xb0,0xbe,0x84,0},
+    reinterpret_cast<const void*>(&ReadResumeReadyState), true};
+const Patch ResumeChunkPatches[] = {
+    {0x84199D, {0x8b,0x01,0xff,0x50,0x14}, reinterpret_cast<const void*>(&QueueResumeFragment)},
+    {0x8418D6, {0xc1,0xeb,0x0d}, ResumeChunkShift, false, 3},
+    {0x841930, {0xba,0xf8,0xe0,0x11,0x01}, ResumeChunkLimit, false, 5},
+    {0x84193D, {0x81,0xf9,0x00,0x20,0x00,0x00}, ResumeChunkCompare, false, 6},
+    {0x8419BF, {0xba,0xf8,0xe0,0x11,0x01}, ResumeChunkLimit, false, 5},
+    {0x8419C4, {0x05,0x00,0x20,0x00,0x00}, ResumeChunkAdvance, false, 5},
+};
+#endif
+
+#ifdef S7_LOCAL_PAIR_LAB
+// Bounded sender-only experiment. The event protocol still carries each real
+// fragment length and the complete world length; no readiness or CRC is changed.
+#include "lab_resume_rng_patches.inc"
+const Patch LabLuaConsolePatch = {0x137E6B0, {0x50,0x15,0x5d,0},
+    reinterpret_cast<const void*>(&ObserveLabLuaConsole), true};
+const Patch LabResumeAiPatches[] = {
+    {0x9B49F2, {0x80,0x5b,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeAiSearch), true},
+    {0x9B4D43, {0x60,0x61,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeAiBuild), true},
+    {0x9B5094, {0x20,0x63,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeAiPlacement), true},
+    {0x9BCD7F, {0xf0,0xe1,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeWorkshopSearch), true},
+    {0x9BCFC4, {0x90,0xe7,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeWorkshopBuild), true},
+    {0x9BD209, {0x20,0xe9,0x9b,0}, reinterpret_cast<const void*>(&ObserveLabResumeWorkshopPlacement), true},
+    {0x9BE80C, {0xe8,0xbf,0xcc,0xff,0xff}, reinterpret_cast<const void*>(&ObserveLabResumeWorkshopSite)},
+};
+void InitializeLabResumeAi() {
+    lab_resume_ai_original[0] = NativeVA(0x9B5B80);
+    lab_resume_ai_original[1] = NativeVA(0x9B6160);
+    lab_resume_ai_original[2] = NativeVA(0x9B6320);
+    lab_resume_ai_original[3] = NativeVA(0x9BE1F0);
+    lab_resume_ai_original[4] = NativeVA(0x9BE790);
+    lab_resume_ai_original[5] = NativeVA(0x9BE920);
+}
+
+#endif
 
 bool ValidateKey(const char* encoded) {
     unsigned char blob[72] = {};
@@ -1219,6 +1310,25 @@ bool Install() {
         for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     if (developer_mode && !lan_game) selected.push_back(&DevelopmentPatch);
     if (local_connect_probe) for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+#ifdef S7_LOCAL_PAIR_LAB
+    if (local_connect_probe) {
+        if (!steam_history) {
+            selected.push_back(&LabLuaConsolePatch);
+            InitializeLabResumeAi();
+            for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);
+            InitializeLabResumeRngPatches();
+            for (const auto& patch : LabResumeRngPatches) selected.push_back(&patch);
+        }
+    }
+#endif
+#ifdef S7_LOCAL_NETWORK_PUMP
+    if (local_connect_probe) {
+        selected.push_back(&ResumeReadinessPatch);
+        const auto maximum = reinterpret_cast<uintptr_t>(&ResumeChunkSize);
+        memcpy(ResumeChunkLimit + 1, &maximum, 4);
+        for (const auto& patch : ResumeChunkPatches) selected.push_back(&patch);
+    }
+#endif
     for (const auto* patch : selected) {
         const bool matches = patch->pointer_slot
             ? *reinterpret_cast<uint32_t*>(PatchAddress(*patch)) == OriginalPointer(*patch)
@@ -1299,6 +1409,14 @@ void PumpOfflineBootstrap() {
     auto* network = *Native<unsigned char**>(0x1379E14);
     auto* owner = LocalUpdateOwner(network);
     if (!owner || !Native<NetworkGetter>(0xE82240)()) return;
+#ifdef S7_LOCAL_PAIR_LAB
+    FlushLabResumeRngTrace();
+    FlushLabResumeAiTrace();
+    FlushLabLuaConsole();
+#endif
+#ifdef S7_LOCAL_NETWORK_PUMP
+    DrainResumeFragments();
+#endif
     unsigned int diagnostic_events = 0;
     const bool observe_callbacks = !desync_diagnostics.finished &&
         desync_diagnostics.Begin(bootstrap_thread, GetCurrentThreadId(),

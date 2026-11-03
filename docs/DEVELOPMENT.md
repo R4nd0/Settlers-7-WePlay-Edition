@@ -19,7 +19,7 @@ deliverables under ignored `outputs/`. Public product screenshots belong in
 - `tests/`: synthetic fixtures and opt-in Windows integration checks.
 
 The packaging entry point is `tools/desktop/build_rc2.py` (historical filename),
-currently building RC3.10. Use its `--help` and the
+currently building RC3.11. Use its `--help` and the
 [build guide](RC2-BUILD.md) for toolchain inputs. It requires a verified base
 package, local .NET SDK/runtime, graphics probe, Inno Setup compiler and the
 matching EasyTier runtime/source. Game data is never included in Setup.
@@ -32,7 +32,22 @@ and verify a separate game copy. Retain executable hashes, exact callsite bytes,
 ownership, lifetime and ABI guards. An accessible menu, working tunnel or packet
 acknowledgement does not establish multiplayer synchronization.
 
-## RC3.10 logistics crash correction
+## RC3.11 multiplayer checkpoints
+
+Version `2.0.0-rc3.11` uses preview sequence 10 and network revision 7.
+The installer applies `tools/multiplayer-resume/interface_patch.py` after the
+existing menu stages. Its owned Lua sources implement host saving, a five-minute
+game-time autosave and validated roster restoration through the session browser.
+The final interface SHA-256 is
+`be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6`.
+The production adapter SHA-256 is
+`dd0be49727dc8561a61098e917c05bb51616322af8c365d086751bfd58ecfd63`.
+Native `resume_transfer.inc` is enabled with `LocalNetworkPump`; it bounds and
+paces actual fragments and restricts readiness while the queue is pending.
+Diagnostic RNG/AI/Lua hooks remain laboratory-only.
+See [checkpoint behavior and acceptance results](RC3.11-MULTIPLAYER-SAVES.md).
+
+## Historical RC3.10 logistics crash correction
 
 Version `2.0.0-rc3.10` uses preview sequence 9 and network revision 7. Two
 guarded native rejection branches skip missing logistics priorities using the

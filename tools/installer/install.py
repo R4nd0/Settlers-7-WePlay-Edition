@@ -21,7 +21,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 # Its different native layout needs the exact Steam-capable adapter below.
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
-STEAM_ADAPTER_SHA256 = '6340582b834082701a1e1e2bf3374d8bbc5aff109dec0cfc3af7cee4970a3c8d'
+STEAM_ADAPTER_SHA256 = 'dd0be49727dc8561a61098e917c05bb51616322af8c365d086751bfd58ecfd63'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -34,6 +34,8 @@ DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_d
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
 CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
+MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
+    ('interface_patch.py', 'runtime.lua', 'session_list.lua', 'host_lobby.lua'))
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
@@ -99,12 +101,16 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('multiplayer_resume', False) and (
+            not manifest.get('cartographer_context', False) or
+            any(('tools/' + name).lower() not in expected for name in MULTIPLAYER_RESUME_TOOLS)):
+        raise ValueError('Die Mehrspieler-Sicherungswerkzeuge im Paket sind unvollstaendig.')
     if manifest.get('standalone_export',False) and (not manifest.get('desktop_launcher',False) or
             any(('tools/'+name).lower() not in expected for name in STANDALONE_PACKAGE_TOOLS)):
         raise ValueError('Die Standalone-Werkzeuge im Paket sind unvollstaendig.')
@@ -309,6 +315,11 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         context=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(context)
         recipe=json.loads((tools/'offline-ui/cartographer-context.json').read_text(encoding='utf-8'))
         target.write_bytes(context.build_archive(target.read_bytes(),recipe))
+    if manifest.get('multiplayer_resume', False):
+        target = destination / 'Base/BBA/Interface.bba'
+        resume_spec = importlib.util.spec_from_file_location('s7_installer_mp_resume', tools / 'multiplayer-resume/interface_patch.py')
+        resume = importlib.util.module_from_spec(resume_spec); resume_spec.loader.exec_module(resume)
+        target.write_bytes(resume.build(target.read_bytes()))
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     shutil.copyfile(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')

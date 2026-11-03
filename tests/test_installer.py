@@ -91,13 +91,25 @@ def prepare(source, output, specification, profile):
             code=f'def build_archive(raw,spec):\n    assert raw=={before!r}\n    return {after!r}\n'
             self.write(self.package,'Tools/installer/'+name+'.py',code.encode())
             self.write(self.package,'Tools/'+recipe,b'{}')
+        for name in install.MULTIPLAYER_RESUME_TOOLS:
+            self.write(self.package, 'Tools/' + name, b'# invented checkpoint fixture\n')
+        self.write(self.package, 'Tools/multiplayer-resume/interface_patch.py',
+            b'def build(raw):\n    assert raw==b"context"\n    return b"resume"\n')
         self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,join_menu_update=True,
             lan_public_creation=True,achievement_notifications_disabled=True,cartographer_context=True,
-            patched_archive_sha256=hashlib.sha256(b'context').hexdigest())
+            multiplayer_resume=True, patched_archive_sha256=hashlib.sha256(b'resume').hexdigest())
         record=self.package/'package.json';record.write_text(json.dumps(self.data))
         self.prepare()
-        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'context')
+        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'resume')
         content.verify(self.destination)
+        self.data['multiplayer_resume']='yes';record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
+        self.data['multiplayer_resume']=True
+        runtime=self.package/'Tools/multiplayer-resume/runtime.lua';runtime.unlink()
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,'Mehrspieler'):install.package_manifest(self.package)
+        runtime.write_bytes(b'# invented checkpoint fixture\n')
+        self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
         self.data['cartographer_context']='yes';record.write_text(json.dumps(self.data))
         with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
         self.data['cartographer_context']=True
