@@ -82,6 +82,16 @@ class LaunchTests(unittest.TestCase):
                 launch.run(self.args, overlay_factory=self.factory)
         self.overlay.close.assert_called_once()
 
+    def test_explicit_browser_switch_closes_old_room_only_after_game_exit(self):
+        switch=self.args.switch_requested=Mock(return_value=True)
+        def run(args,*,picker,network):
+            network();switch.assert_not_called();return 0
+        with patch.object(launch,'create',return_value=ROOM), \
+                patch.object(launch.launch_auto_lan,'run',side_effect=run), \
+                patch.object(launch,'request') as request:
+            self.assertEqual(launch.run(self.args,overlay_factory=self.factory),0)
+        switch.assert_called_once();request.assert_not_called();self.overlay.close.assert_called_once()
+
     def test_renderer_preflight_finishes_before_full_launcher_verification(self):
         preflight=Mock()
         def run(args,*,picker,network):

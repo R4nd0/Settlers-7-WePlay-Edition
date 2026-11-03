@@ -45,7 +45,8 @@ def native_games(value,expected):
 
 class Reporter:
     def __init__(self,state,interface,coordinator,expected,*,warn=None,transport=request,
-                 connection_factory=http.client.HTTPSConnection,clock=time.monotonic):
+                 connection_factory=http.client.HTTPSConnection,clock=time.monotonic,
+                 room_invitation=None,version=None,helper_root=None):
         credential=load(state)
         if credential is None:raise DiscordError('discord_not_connected')
         self.url,self.key=credential;origin(self.url)
@@ -54,6 +55,10 @@ class Reporter:
         self.run_id=uuid.uuid4().hex;self.sequence=0;self.registered=False
         self.stop=threading.Event();self.thread=None;self.active_connection=None
         self.last_payload=None;self.last_send=-1000.;self.last_warning=-1000.
+        self.broker=None
+        if room_invitation is not None:
+            from game_directory import HostBroker
+            self.broker=HostBroker(self.url,self.key,self.run_id,room_invitation,expected,version,root=helper_root)
 
     def send(self,method,games):
         value={'format':'weplay-game-report-v1','run_id':self.run_id,
@@ -78,6 +83,7 @@ class Reporter:
         if payload!=self.last_payload or self.clock()-self.last_send>=60:
             self.sequence+=1;self.send('PUT',games)
             self.last_payload,self.last_send=payload,self.clock()
+        if self.broker:self.broker.poll(games)
 
     def start(self):
         def loop():
@@ -92,10 +98,14 @@ class Reporter:
 
     def close(self):
         self.stop.set()
+        if self.broker:self.broker.stopped=True
         if self.active_connection:
             try:self.active_connection.close()
             except OSError:pass
         if self.thread:self.thread.join(timeout=8)
+        if self.broker:
+            try:self.broker.close()
+            except (ValueError,OSError,http.client.HTTPException):pass
         if self.registered and (not self.thread or not self.thread.is_alive()):
             self.sequence+=1
             try:self.send('DELETE',[])

@@ -1,5 +1,13 @@
 # WePlay external Discord operator
 
+The shared game directory adds migration `0002_join_directory.sql` and
+`src/directory.mjs`. Apply the migration before deploying the new entry point.
+See [protocol, client flow and test limits](../../docs/SHARED-GAME-DIRECTORY.md).
+The existing minute Cron also removes expired encrypted requests, host leases
+and temporary keyed rate buckets. No additional Discord scope or paid plan is
+needed. Reader and join codes are returned only in signed, scoped ephemeral
+interactions; no VPN token is posted in the channel.
+
 This Worker replaces the private-PC Gateway host. Worker, D1 and minute Cron
 are deployed; both private secrets are set and Discord has verified the HTTP
 cutover. The real automatic empty board has been created in #🎮multiplayer.

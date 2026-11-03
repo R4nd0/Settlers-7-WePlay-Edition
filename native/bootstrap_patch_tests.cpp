@@ -1066,9 +1066,14 @@ int main() {
     for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     selected.push_back(&DevelopmentPatch);
     for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+#ifdef S7_GAME_DIRECTORY
+    selected.push_back(&DirectoryConsolePatch);
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     InitializeLabResumeRngPatches();
+#ifndef S7_GAME_DIRECTORY
     selected.push_back(&LabLuaConsolePatch);
+#endif
     for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);
     for (const auto& patch : LabResumeRngPatches) selected.push_back(&patch);
 #endif

@@ -24,6 +24,8 @@ internal static class Program
         Console.OutputEncoding=new UTF8Encoding(false);
         try
         {
+            if(args is ["capabilities"]){Print(new {format="weplay-windows-capabilities-v1",directory_crypto=1});return 0;}
+            if(args is ["directory-crypto",string operation]){Print(DirectoryCrypto.Run(operation));return 0;}
             if(args is ["interfaces"]){Print(Interfaces());return 0;}
             if(args is ["processes"]){Print(Processes());return 0;}
             if(args is ["inspect-firewall",string prefix]){Print(Inspect(prefix));return 0;}

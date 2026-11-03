@@ -248,6 +248,11 @@ class Desktop:
                     result['update_last_error']=code if isinstance(code,str) and re.fullmatch('update_[a-z_]{1,48}',code) else 'update_install_failed'
             except (OSError,ValueError,TypeError):result['update_last_error']='update_invalid'
         result['discord_available']=self.read(self.package/'package.json',{}).get('discord_directory',False) is True
+        result['directory_available']=self.read(self.package/'package.json',{}).get('game_directory',False) is True
+        result['directory_connected']=False
+        if result['directory_available']:
+            from game_directory import configured
+            result['directory_connected']=configured(self.state) is not None
         result['discord_connected']=False;result['discord_publish_enabled']=False
         if result['discord_available']:
             from discord_credentials import connected,public_settings
@@ -551,6 +556,40 @@ class Desktop:
             return self.play({'player_name':request['player_name']},internet=options,
                              invitation_ready=channel.invitation_ready)
 
+    def directory_connect(self,data):
+        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
+        from internet_private_channel import PrivateChannel
+        from game_directory import parse_code,FORMAT
+        with PrivateChannel(data['channel']) as channel:url,game=parse_code(channel.read())
+        self.write(self.state/'game-directory.json',{'format':FORMAT,'origin':url})
+        return {'connected':True,'game_id':game}
+
+    def directory_list(self):
+        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        from game_directory import configured,listing
+        url=configured(self.state)
+        if url is None:return {'connected':False,'games':[]}
+        root=self.game();current=content.load(root/'compatibility.json')['content_id']
+        alternatives=self.alternatives(root);allowed={current,*alternatives.values()}
+        rows=listing(url)
+        for row in rows:row['compatible']=row['content_id'] in allowed
+        return {'connected':True,'games':rows}
+
+    def directory_join(self,data):
+        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        if not isinstance(data,dict) or set(data)!={'game_id','player_name'}:raise ValueError('request_invalid')
+        self.validate_lan({'player_name':data['player_name']});graphics.ensure_closed()
+        if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
+        from game_directory import configured,join
+        url=configured(self.state)
+        if url is None:raise ValueError('directory_not_connected')
+        root=self.game();allowed={content.load(root/'compatibility.json')['content_id'],*self.alternatives(root).values()}
+        invitation=join(url,data['game_id'],allowed,root=self.package,
+            cancel=lambda:self.progress('directory_join'),progress=self.progress)
+        return self.play({'player_name':data['player_name']},internet={'invitation':invitation,
+            'mode':'assisted','direct_endpoint':None,'publish_discord':False})
+
     def align_internet(self,root,interface,coordinator,host):
         if host:return
         from launch_lan import remote_configuration
@@ -582,6 +621,7 @@ class Desktop:
             self.emit('warning',code='memory_physical_warning')
 
     def play(self,request=None,*,internet=None,invitation_ready=None):
+        directory_bridge=[None]
         if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -600,14 +640,23 @@ class Desktop:
                 if game.poll() is None:game.terminate();game.wait(timeout=10)
                 raise
             self.emit('game_started',pid=game.pid)
-            if internet is not None:
-                desktop=self
-                class InternetObserver:
-                    def close(self):
-                        try:observer.close()
-                        finally:desktop.emit('game_finished',exit_code=game.poll())
-                return InternetObserver()
-            return observer
+            if install.package_manifest(self.package).get('game_directory',False):
+                from game_directory import configured
+                from ingame_directory import Bridge
+                try:
+                    url=configured(self.state)
+                    if url:
+                        allowed={content.load(root/'compatibility.json')['content_id'],*self.alternatives(root).values()}
+                        directory_bridge[0]=Bridge(root,url,allowed).start()
+                except (OSError,ValueError):self.emit('warning',code='directory_unavailable')
+            desktop=self
+            class GameObserver:
+                def close(self):
+                    try:observer.close()
+                    finally:
+                        if directory_bridge[0] is not None:directory_bridge[0].close()
+                        if internet is not None:desktop.emit('game_finished',exit_code=game.poll())
+            return GameObserver()
         # Repair saved monitor selections after a real hotplug, before launch.
         probe=self.probe()
         if request is None or internet is not None:mode=self.renderer(root,self.installed()['renderer_policy'],probe)
@@ -623,19 +672,27 @@ class Desktop:
             code=launch_local.run(args)
         elif internet is not None:
             import launch_internet
+            private_room=[internet.get('invitation')]
+            def room_ready(invitation):
+                private_room[0]=invitation
+                if invitation_ready:invitation_ready(invitation)
             def observe(interface,coordinator,expected):
                 if not internet.get('publish_discord',False):return None
                 from discord_directory import Reporter
                 try:
+                    extra={}
+                    if install.package_manifest(self.package).get('game_directory',False) and private_room[0]:
+                        extra=dict(room_invitation=private_room[0],version=self.read(self.app/'desktop-release.json',{}).get('version'),helper_root=self.package)
                     return Reporter(self.state,interface,coordinator,expected,
-                        warn=lambda code:self.emit('warning',code=code)).start()
+                        warn=lambda code:self.emit('warning',code=code),**extra).start()
                 except (OSError,ValueError):
                     self.emit('warning',code='discord_publish_failed');return None
             code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,
+                switch_requested=lambda:directory_bridge[0] is not None and directory_bridge[0].pending is not None,
                 public_observer=observe,**internet),
-                invitation_ready=invitation_ready,
+                invitation_ready=room_ready,
                 policy_ready=lambda mode:self.emit('internet_policy',mode=mode),
                 network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
         else:
@@ -644,6 +701,9 @@ class Desktop:
                 cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor))
         self.emit('game_finished',exit_code=code)
         if code:raise RuntimeError('game_failed')
+        if directory_bridge[0] is not None and directory_bridge[0].pending:
+            self.emit('directory_switch')
+            return self.directory_join({'game_id':directory_bridge[0].pending,'player_name':player_settings.load(root)})
         return {'exit_code':code}
 
     def verify(self):
@@ -805,6 +865,7 @@ def dispatch(desktop,request):
         if sources:return {'sources':sources}
         locations=([Path(previous['source'])] if previous and previous['source'] else [])+game_detection.candidates()
         return {'sources':sources+game_detection.detect(locations,steam_supported=supported)}
+    if action=='directory-list' and not data:return desktop.directory_list()
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
@@ -822,6 +883,8 @@ def dispatch(desktop,request):
         if action in ('internet-create','internet-join'):return desktop.internet_play(data,host=action=='internet-create')
         if action=='discord-connect':return desktop.connect_discord(data)
         if action=='discord-disconnect' and not data:return desktop.disconnect_discord()
+        if action=='directory-connect':return desktop.directory_connect(data)
+        if action=='directory-join':return desktop.directory_join(data)
         if action=='probe' and not data:return desktop.probe(refresh=True)
         if action=='verify' and not data:return desktop.verify()
         if action=='cleanup' and not data:return desktop.clean_old()
@@ -834,6 +897,7 @@ def dispatch(desktop,request):
 
 
 def error_code(error):
+    if re.fullmatch('directory_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('update_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
     if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
@@ -846,6 +910,7 @@ def error_code(error):
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
+    known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text
     if '4 GiB' in text:return 'memory_low'
     if 'laeuft' in text or 'running' in text or 'schliessen' in text:return 'game_running'

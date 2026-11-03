@@ -1,3 +1,4 @@
+import {directoryRequest,directoryGames,expireDirectory,DirectoryRefusal} from "./directory.mjs";
 const encoder = new TextEncoder();
 const MARKER = "WePlay · Automatische Multiplayer-Übersicht";
 const TTL = 180;
@@ -120,12 +121,19 @@ async function discord(env,path,options={}) {
   return value;
 }
 
+async function directoryComponents(env,now){
+  const rows=(await directoryGames(env,now,games)).filter(game=>game.state==="open"&&game.free_slots>0).slice(0,25);
+  return rows.length?[{type:1,components:[{type:3,custom_id:"weplay:join",placeholder:"Offenem Spiel beitreten",
+    options:rows.map(row=>({label:row.title,value:row.id,description:`Spieler ${row.players}/${row.capacity} · ${row.free_slots} freie Plätze`}))}]}]:[];
+}
+
 export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
   const lock=await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1 AND lease_until<=? RETURNING message_id,digest")
     .bind(now+60,now).first();if(!lock)return;
   let retry=5;
   try {
-    const embed=await board(env,now);const digest=await hash(JSON.stringify(embed));
+    const embed=await board(env,now),components=await directoryComponents(env,now);
+    const digest=await hash(JSON.stringify({embed,components}));
     if(lock.digest===digest && lock.message_id)return;
     const app=await discord(env,"/applications/@me");
     if(app.id!==env.APPLICATION_ID)throw new Refusal(503);
@@ -142,7 +150,7 @@ export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
         if(previous.author?.id!==bot.id || !previous.embeds?.[0]?.footer?.text?.startsWith(MARKER))throw new Refusal(503);
       } catch(error){if(error.missing)messageId=null;else throw error;}
     }
-    const payload=JSON.stringify({content:"",embeds:[embed],allowed_mentions:{parse:[]}});
+    const payload=JSON.stringify({content:"",embeds:[embed],components,allowed_mentions:{parse:[]}});
     const sent=await discord(env,"/channels/"+env.CHANNEL_ID+"/messages"+(messageId?"/"+messageId:""),
                              {method:messageId?"PATCH":"POST",body:payload});
     if(!id(sent.id))throw new Refusal(503);
@@ -196,6 +204,11 @@ export default {
     try {
       const url=new URL(request.url);const now=Math.floor(Date.now()/1000);
       if(url.origin!==origin(env) || url.search)throw new Refusal(400);
+      const directory=await directoryRequest(request,env,now,{publisher,games});
+      if(directory){
+        if(url.pathname==="/v1/directory/host")ctx.waitUntil(updateBoard(env,now));
+        return directory;
+      }
       if(url.pathname==="/health" && request.method==="GET"){
         await env.DB.prepare("SELECT slot FROM weplay_board WHERE slot=1").first();
         const ready=typeof env.BOT_TOKEN==="string" && env.BOT_TOKEN.length>=20 && env.BOT_TOKEN.length<=512 &&
@@ -210,16 +223,31 @@ export default {
       if(interaction.application_id!==env.APPLICATION_ID || interaction.guild_id!==env.GUILD_ID ||
          interaction.channel_id!==env.CHANNEL_ID || !interaction.member)throw new Refusal(403);
       if(interaction.type===3 && interaction.data?.custom_id==="weplay:connect")return json(await connect(interaction,env,now));
+      if(interaction.type===3 && interaction.data?.custom_id==="weplay:directory")return json({type:4,data:{flags:64,allowed_mentions:{parse:[]},
+        content:"Im WePlay-Starter unter Öffentliche Spiele → Verzeichnis verbinden einfügen. Dies ist keine Publisher-Freigabe.\n```\nweplay-directory1."+
+          b64(encoder.encode(JSON.stringify({v:1,origin:origin(env)})))+"\n```"}});
+      if(interaction.type===3 && interaction.data?.custom_id==="weplay:join"){
+        const selected=interaction.data.values;
+        if(!Array.isArray(selected)||selected.length!==1||typeof selected[0]!=="string"||!/^([0-9a-f]{32})$/.test(selected[0]))throw new Refusal();
+        const game=(await directoryGames(env,now,games)).find(row=>row.id===selected[0]);
+        if(!game||game.state!=="open"||!game.free_slots)return json({type:4,data:{flags:64,allowed_mentions:{parse:[]},content:"Dieses Spiel ist nicht mehr zum Beitreten verfügbar."}});
+        const code="weplay-join1."+b64(encoder.encode(JSON.stringify({v:1,origin:origin(env),game_id:game.id})));
+        return json({type:4,data:{flags:64,allowed_mentions:{parse:[]},content:
+          "Im WePlay-Starter unter Öffentliche Spiele → Beitrittscode einfügen verwenden. Der Host übermittelt die Einladung erst verschlüsselt an deinen Launcher.\n```\n"+code+"\n```"}});
+      }
       if(interaction.type!==2)throw new Refusal();
       const common={allowed_mentions:{parse:[]}};
-      if(interaction.data?.name==="spiele")return json({type:4,data:{...common,embeds:[await board(env,now)]}});
+      if(interaction.data?.name==="spiele")return json({type:4,data:{...common,embeds:[await board(env,now)],components:await directoryComponents(env,now)}});
       if(interaction.data?.name==="weplay-status")return json({type:4,data:{...common,flags:64,
         content:"Der externe WePlay-Dienst ist erreichbar. Er benötigt keinen laufenden privaten Bot-PC. Spiele werden nur durch verbundene Launcher gemeldet."}});
       if(interaction.data?.name==="weplay-hilfe")return json({type:4,data:{...common,flags:64,
         content:"Verbinde deinen WePlay-Starter und aktiviere dort die öffentliche Spielstatus-Anzeige. Private Raumcodes bleiben privat. Meldungen verfallen nach drei Minuten ohne Lebenszeichen.",
-        components:[{type:1,components:[{type:2,style:1,label:"Launcher verbinden",custom_id:"weplay:connect"}]}]}});
+        components:[{type:1,components:[{type:2,style:1,label:"Launcher verbinden",custom_id:"weplay:connect"},
+          {type:2,style:2,label:"Spieleverzeichnis verbinden",custom_id:"weplay:directory"}]}]}});
       throw new Refusal();
-    } catch(error){return json({error:"request_refused"},error instanceof Refusal?error.status:503);}
+    } catch(error){return json({error:"request_refused"},error instanceof Refusal||error instanceof DirectoryRefusal?error.status:503);}
   },
-  async scheduled(controller,env,ctx){ctx.waitUntil(updateBoard(env));}
+  async scheduled(controller,env,ctx){ctx.waitUntil((async()=>{
+    await expireDirectory(env,Math.floor(Date.now()/1000));await updateBoard(env);
+  })());}
 };

@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -18,7 +18,8 @@ foreach ($line in $compilerEnvironment) {
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS')
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
-if ($LocalNetworkPump) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
+if ($LocalNetworkPump -or $GameDirectory) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
+if ($GameDirectory) { $common += '/DS7_GAME_DIRECTORY' }
 if ($CastlePrototype -or $CastleWirePrototype) { $common += '/DS7_CASTLE_PROTOTYPE' }
 if ($CastleWirePrototype) { $common += '/DS7_CASTLE_WIRE_PROTOTYPE' }
 function Compile-Native([string[]]$Arguments) {
@@ -41,6 +42,7 @@ try {
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'bootstrap_patch_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:bootstrap_patch_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'steam_profile_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:steam_profile_tests.exe')
+    if ($GameDirectory) { Compile-Native @((Join-Path $nativeSource 'game_directory_bridge_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:game_directory_bridge_tests.exe') }
     Compile-Native @((Join-Path $nativeSource 'lobby_team_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:lobby_team_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'logistics_priority_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:logistics_priority_tests.exe')
     Compile-Native @('/LD', (Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'network_guard.cpp'),

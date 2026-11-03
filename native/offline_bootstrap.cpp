@@ -201,6 +201,10 @@ bool __cdecl AcceptLabLocalInterface(const void* address, const char** reason) {
 }
 #endif
 
+#ifdef S7_GAME_DIRECTORY
+#include "game_directory_bridge.inc"
+#endif
+
 // This native qString owns a char allocation whose allocator metadata starts
 // four bytes before data. Never substitute a CRT pointer or CRT destructor.
 struct QString { uintptr_t data; };
@@ -1128,6 +1132,11 @@ const Patch ResumeChunkPatches[] = {
 };
 #endif
 
+#ifdef S7_GAME_DIRECTORY
+const Patch DirectoryConsolePatch = {0x137E6B0, {0x50,0x15,0x5d,0},
+    reinterpret_cast<const void*>(&DirectoryConsole), true};
+#endif
+
 #ifdef S7_LOCAL_PAIR_LAB
 // Bounded sender-only experiment. The event protocol still carries each real
 // fragment length and the complete world length; no readiness or CRC is changed.
@@ -1310,10 +1319,15 @@ bool Install() {
         for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);
     if (developer_mode && !lan_game) selected.push_back(&DevelopmentPatch);
     if (local_connect_probe) for (const auto& patch : ConnectPatches) selected.push_back(&patch);
+#ifdef S7_GAME_DIRECTORY
+    if (local_connect_probe) selected.push_back(&DirectoryConsolePatch);
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     if (local_connect_probe) {
         if (!steam_history) {
+#ifndef S7_GAME_DIRECTORY
             selected.push_back(&LabLuaConsolePatch);
+#endif
             InitializeLabResumeAi();
             for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);
             InitializeLabResumeRngPatches();

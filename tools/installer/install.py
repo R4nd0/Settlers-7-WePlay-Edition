@@ -23,6 +23,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
 STEAM_ADAPTER_SHA256 = 'dd0be49727dc8561a61098e917c05bb51616322af8c365d086751bfd58ecfd63'
+DIRECTORY_ADAPTER_SHA256 = '4461c111d722e88fa21d0b9c191bc38845b93de596de6d7c574373dc489ecd17'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -32,6 +33,8 @@ DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
+DIRECTORY_PACKAGE_TOOLS = ('installer/game_directory.py','installer/join_crypto.py','installer/directory-service.json',
+    'installer/ingame_directory.py','game-directory/interface_patch.py','game-directory/session_list.lua')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
 CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
@@ -102,7 +105,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -123,13 +126,18 @@ def package_manifest(root):
         verify_runtime(root)
     if type(manifest.get('steam_history',False)) is not bool:
         raise ValueError('Unbekannte Steam-Adapterversion.')
-    if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != STEAM_ADAPTER_SHA256:
+    required_adapter=DIRECTORY_ADAPTER_SHA256 if manifest.get('game_directory',False) else STEAM_ADAPTER_SHA256
+    if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
         raise ValueError('Der Steam-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
-    if manifest.get('multiplayer_castles',False) and expected.get('payload/uplay_r1_loader.dll') != STEAM_ADAPTER_SHA256:
+    if manifest.get('multiplayer_castles',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
         raise ValueError('Der Castle-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
     if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
+    if manifest.get('game_directory',False) and (not manifest.get('discord_directory',False) or not manifest.get('windows_helpers',False)
+            or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=DIRECTORY_ADAPTER_SHA256
+            or any(('tools/'+name).lower() not in expected for name in DIRECTORY_PACKAGE_TOOLS)):
+        raise ValueError('Das gemeinsame Spieleverzeichnis im Paket ist unvollstaendig.')
     if manifest.get('update_patcher',False) and (not manifest.get('desktop_launcher',False) or
             any(('tools/'+name).lower() not in expected for name in update_package_tools(manifest))):
         raise ValueError('Der Update-Patcher im Paket ist unvollstaendig.')
@@ -398,6 +406,11 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         resume_spec = importlib.util.spec_from_file_location('s7_installer_mp_resume', tools / 'multiplayer-resume/interface_patch.py')
         resume = importlib.util.module_from_spec(resume_spec); resume_spec.loader.exec_module(resume)
         target.write_bytes(resume.build(target.read_bytes()))
+    if manifest.get('game_directory',False):
+        target=destination/'Base/BBA/Interface.bba'
+        directory_spec=importlib.util.spec_from_file_location('s7_installer_global_directory',tools/'game-directory/interface_patch.py')
+        directory=importlib.util.module_from_spec(directory_spec);directory_spec.loader.exec_module(directory)
+        target.write_bytes(directory.build(target.read_bytes()))
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     shutil.copyfile(package / 'Payload/uplay_r1_loader.dll', destination / 'Base/Bin/uplay_r1_loader.dll')

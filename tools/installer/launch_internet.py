@@ -77,6 +77,8 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         if host and interface is not None:
             deadline = time.monotonic() + 86400
             while time.monotonic() < deadline:
+                if getattr(args,'switch_requested',None) is not None and args.switch_requested():
+                    break
                 if cancel:
                     cancel()
                 try:

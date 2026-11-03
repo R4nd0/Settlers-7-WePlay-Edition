@@ -202,7 +202,7 @@ internal static class Shortcuts
 
 internal sealed record Item(string Key, string Label) { public override string ToString() => Label; }
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private readonly bool testing;
     private bool busy, gameRunning, loading, forceSetup, recoverState, cancelRequested,updateExit;
@@ -259,7 +259,7 @@ internal sealed class MainForm : Form
     private bool discordAvailable, discordConnected;
     private readonly List<Control> internetSetupControls = [];
     private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
-    private bool internetOperation, internetAvailable;
+    private bool internetOperation, internetAvailable,directorySwitch;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
@@ -410,7 +410,8 @@ internal sealed class MainForm : Form
         graphicsPage = new TabPage(); Bind(graphicsPage,"graphics"); graphicsPage.BackColor = Color.White;
         helpPage = new TabPage(); Bind(helpPage,"help"); helpPage.BackColor = Color.White;
         updatesPage=new TabPage();Bind(updatesPage,"updates");updatesPage.BackColor=Color.White;
-        tabs.TabPages.AddRange([homePage,lanPage,internetPage,graphicsPage,helpPage,updatesPage]);
+        directoryPage=BuildDirectory();
+        tabs.TabPages.AddRange([homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage]);
         var homeScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };homePage.Controls.Add(homeScroll);
         var home = Stack(homeScroll); Add(home,homeTitle); Add(home,homeInfo);
         var starts=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=3 };
@@ -418,7 +419,7 @@ internal sealed class MainForm : Form
         starts.Controls.Add(StartCard("startLocalTitle","startLocalInfo",Button("playButton",()=>Play(false),true)),0,0);
         starts.Controls.Add(StartCard("startLanTitle","startLanInfo",Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;})),1,0);
         starts.Controls.Add(StartCard("startInternetTitle","startInternetInfo",Button("openInternet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;})),2,0);
-        Add(home,starts);Add(home,Buttons(Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        Add(home,starts);Add(home,Buttons(Button("directoryTitle",()=>{tabs.SelectedTab=directoryPage;return RefreshDirectory();}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
         Add(home,homeUpdateNotice);
         homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
         Add(home,Buttons(Button("updates",()=>{tabs.SelectedTab=updatesPage;return Task.CompletedTask;}),homeUpdateInstall));
@@ -597,8 +598,12 @@ internal sealed class MainForm : Form
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
         internetAvailable=value.TryGetProperty("internet_available",out var available)&&available.GetBoolean();
-        discordAvailable=value.TryGetProperty("discord_available",out var directoryAvailable)&&directoryAvailable.GetBoolean();
+        discordAvailable=value.TryGetProperty("discord_available",out var discordCapability)&&discordCapability.GetBoolean();
         discordConnected=value.TryGetProperty("discord_connected",out var connected)&&connected.GetBoolean();
+        directoryAvailable=value.TryGetProperty("directory_available",out var directoryCapability)&&directoryCapability.GetBoolean();
+        directoryConnected=value.TryGetProperty("directory_connected",out var directoryConnection)&&directoryConnection.GetBoolean();
+        if(replaceFields)directoryPlayer.Text=player.Text;
+        UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
         activeRenderer.Text=Lang.T("activeRenderer")+": "+Lang.T(value.GetProperty("renderer").GetString()=="dxvk"?"modern":"native");
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
@@ -899,7 +904,12 @@ internal sealed class MainForm : Form
     {
         if(InvokeRequired){BeginInvoke(new Action(()=>Receive(value)));return;}
         string? kind=value.GetProperty("kind").GetString();
-        if(kind=="progress")
+        if(kind=="directory_switch")
+        {
+            directorySwitch=true;internetOperation=true;internetCreating=false;internetStage="connecting";
+            internetInvite.Clear();tabs.SelectedTab=internetPage;SetBusy(true);
+        }
+        else if(kind=="progress")
         {
             string phase=value.GetProperty("phase").GetString()!;long current=value.GetProperty("current").GetInt64(),total=value.GetProperty("total").GetInt64();
             if(internetOperation)
@@ -949,6 +959,7 @@ internal sealed class MainForm : Form
         }
         UpdateInternetControls();
         RefreshUpdateControls();
+        UpdateDirectoryControls();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -958,7 +969,11 @@ internal sealed class MainForm : Form
         SetBusy(true);
         try{await action();}
         catch(Exception error){gameRunning=false;RestoreWindow();ShowError(error);}
-        finally{SetBusy(false);}
+        finally
+        {
+            if(directorySwitch){directorySwitch=false;internetOperation=false;internetInvite.Clear();UpdateInternetControls();}
+            SetBusy(false);
+        }
     }
     private void ShowError(Exception error)
     {
@@ -1079,7 +1094,15 @@ internal sealed class MainForm : Form
                 if(form.discordConnect.Enabled||form.discordPublish.Visible||form.discordNotice.Text!=Lang.T("discordUnavailableInfo"))
                     throw new Exception("Unavailable Discord capability controls failed");
                 form.discordAvailable=true;form.UpdateInternetControls();
-                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.graphicsPage,form.helpPage,form.updatesPage})
+                form.directoryAvailable=true;
+                using(var directory=JsonDocument.Parse("""{"connected":true,"games":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","title":"Community game","state":"open","players":1,"capacity":4,"free_slots":3,"version":"2.0.0-rc3.12","compatible":true}]}"""))
+                    form.ShowDirectory(directory.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                form.tabs.SelectedTab=form.directoryPage;Application.DoEvents();form.UpdateDirectoryControls();
+                if(!form.directoryJoin.Enabled)throw new Exception("Compatible open directory game cannot be selected");
+                form.SetBusy(true);if(form.directoryJoin.Enabled)throw new Exception("Directory join enabled during game operation");form.SetBusy(false);
+                foreach(string row in new[]{"""{"compatible":false,"state":"open","free_slots":3}""","""{"compatible":true,"state":"full","free_slots":0}""","""{"compatible":true,"state":"started","free_slots":0}"""})
+                {using var unavailable=JsonDocument.Parse(row);if(DirectoryJoinable(unavailable.RootElement))throw new Exception("Unavailable directory game enabled");}
+                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.directoryPage,form.graphicsPage,form.helpPage,form.updatesPage})
                 {
                     form.tabs.SelectedTab=page;Application.DoEvents();form.FitMenuHeight();Application.DoEvents();
                     var scroll=page.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
