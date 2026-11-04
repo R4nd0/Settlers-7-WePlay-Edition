@@ -1,6 +1,6 @@
 # Launcher game paths and Internet lobbies
 
-The unreleased launcher presents four equal cards in a two-by-two grid on its
+The RC3.14 launcher presents four equal cards in a two-by-two grid on its
 start page. Each entire card is a keyboard-accessible button with a readable
 title, a distinct symbol, features and a specific action. Color is an additional
 cue, not the only distinction.
@@ -49,7 +49,7 @@ automatically joins the host's bounded room after a player chooses a match.
 Per-room isolation and the existing restrictive network policy are retained;
 this UI change does not widen peer access or deploy a global shared network.
 
-The unreleased directory configuration points to the centrally operated neutral
+The RC3.14 directory configuration points to the centrally operated neutral
 community service. Opening the public tab fetches its game metadata; the visible
 list refreshes every 15 seconds and keeps the selected game when still present.
 Readers need no linking code. Explicit directory/join codes remain available for

@@ -10,7 +10,7 @@ EasyTier network was introduced.
 
 ## Launcher and Discord
 
-The unreleased package configures this address automatically. Opening Public
+The RC3.14 package configures this address automatically. Opening Public
 lobby reads metadata and refreshes the visible list every 15 seconds. Offering
 and joining games do not require a Discord account. Each selected match retains
 its bounded EasyTier room and explicit per-connection consent. Native content,

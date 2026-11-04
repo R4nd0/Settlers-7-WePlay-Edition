@@ -1,8 +1,8 @@
 # Shared game directory and private joining
 
-The directory protocol is included in RC3.13. The central default service and
-Discord-independent public hosting described below are unreleased follow-up
-changes; they are not in the existing RC3.13 downloads. The earlier RC3.12 ZIP
+The directory protocol is included in RC3.13. RC3.14 adds the central default
+service and Discord-independent public hosting described below; these are not
+in the older RC3.13 downloads. The earlier RC3.12 ZIP
 does not contain the directory protocol.
 EasyTier remains the transport; this is original
 WePlay code, with no aLobby code copied into the MIT project.

@@ -1,4 +1,4 @@
-"""Build the RC3.13 public lobby and network isolation preview from pinned inputs."""
+"""Build the RC3.14 global lobby and standalone update preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=12,game_directory=False):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=13,game_directory=False):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -47,15 +47,15 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     guide=REPO/'docs/RC3-INTERNET.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.13-PUBLIC-LOBBY.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.14-GLOBAL-LOBBY.md',app/'RELEASE-NOTES.md')
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.13 Public Lobby and Network Isolation','network_revision':7,'game_bits':32,
-             'version':'2.0.0-rc3.13','update_sequence':update_sequence,'update_channel':'preview',
+    release={'format':'s7-desktop-release-v1','release':'RC3.14 Global Lobby and Standalone Updates','network_revision':7,'game_bits':32,
+             'version':'2.0.0-rc3.14','update_sequence':update_sequence,'update_channel':'preview',
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -99,7 +99,7 @@ def refresh_stage(app,desktop_publish):
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
     if (REPO/'docs/RC3-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3-INTERNET.md',app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.13-PUBLIC-LOBBY.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.14-GLOBAL-LOBBY.md',app/'RELEASE-NOTES.md')
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 
@@ -111,7 +111,7 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=12)
+    parser.add_argument('--update-sequence',type=int,default=13)
     parser.add_argument('--game-directory',action='store_true')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,

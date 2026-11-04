@@ -1,6 +1,6 @@
 # Recoverable installer and managed-game updates
 
-This is an unreleased follow-up to the
+RC3.14 includes this follow-up to the
 [update/patch audit](UPDATE-PATCH-AUDIT.md). Published RC3.13 assets and existing
 private ZIPs have not been replaced. No game executable, native adapter, service
 binary, account check or ABI guard was changed by this work.

@@ -28,13 +28,14 @@ opening the EXE; their direct EXE start can incorrectly show initial setup.
 RC3.13 checks the bundled instance before showing the launcher, including after
 a whole-folder move. An incomplete or inconsistent export shows a standalone
 error instead of requesting an original installation. Re-extract the complete
-private backup to recover it; do not run the public Setup inside the export.
+private backup to recover it. Normal startup needs no Setup; use the maintenance
+instructions below when deliberately updating a complete export.
 
 ## Independent maintenance (RC3.12)
 
 ### Manual Setup and portable folders
 
-**Unreleased installer changes:** future Setup builds show the destination
+**RC3.14 installer:** Setup shows the destination
 folder and a dedicated **Select existing standalone copy** button. They detect
 an export next to Setup, its remembered application directory, or an existing
 WePlay desktop/Start-menu shortcut that points to a portable copy. Other copies
@@ -52,10 +53,10 @@ copy and RepairSource, preserving saves and settings without the original.
 All four EasyTier license/notice files are included in the pinned runtime
 manifest. Earlier RC3.13 preparation omitted them from the manifest; updating
 over RC3.12 left those old files behind and the strict inventory check rejected
-the result. Future packages retain and verify these notices rather than
+the result. RC3.14 packages retain and verify these notices rather than
 loosening the integrity check.
 
-These changes are in development; the published RC3.13 Setup is unchanged.
+These changes are included in RC3.14; the older published RC3.13 Setup is unchanged.
 The follow-up [recovery flow](UPDATE-RECOVERY.md) replaces complete packages,
 journals the active-selection/portable-descriptor pair, tracks interrupted game
 preparations and preserves contained cleanup history when an export is moved.
@@ -64,8 +65,8 @@ Further source hardening gives a parallel-operation preflight a distinct busy
 exit code, so Setup reports that an update is already using the copy rather than
 suggesting it is incomplete. Runtime validation also requires all four notices
 independently of the supplied lock-file inventory, preventing accidental omission
-from being redefined as a valid runtime. These follow-ups have source-only checks;
-they have not been deployed to running copies.
+from being redefined as a valid runtime. Source checks and isolated update tests
+are recorded below; the installer never patches a running game copy.
 Verification passed with a complete prior RC3.12 private export: the actual
 installer selected and adopted its initially unbound copy before replacement,
 then the launcher backend rebuilt the owned game with original discovery

@@ -2,22 +2,29 @@
 
 **The community fixes what Ubisoft left behind.**
 
-Play **The Settlers 7 History Edition** locally, with friends on your home network,
-or in private Internet rooms — from one English/German Windows launcher.
+## [Download Installer — RC3.14 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.14/Setup.exe)
+
+Windows 10/11 x64 · English / Deutsch · Install or update your existing WePlay copy.
+
+[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.14/WePlay-RC3.14.zip) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.14)
+
+Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
+or through the global public lobby — from one English/German Windows launcher.
 WePlay detects your supported game installation, prepares a separate copy and
 keeps the original intact. Each player needs their own supported game files.
 
-**RC3.13** adds a **Public lobby** in the launcher and the in-game **WePlay
-Online** browser. Published games show their player counts, open slots and
-compatibility. Private rooms by invitation remain a separate path and are not
-published automatically.
+**RC3.14** separates these four ways to play into distinct cards with symbols.
+The central **Public lobby** works automatically in the launcher and the in-game
+**WePlay Online** browser, without a Discord account. Public games show player
+counts, open slots and compatibility. Private invitation rooms have their own
+controls; optional Discord publication belongs in Public Internet.
 
 Before each new EasyTier connection, the launcher explains the virtual network,
 address visibility and remaining risks, and asks for explicit consent. Browsing
 the lobby starts no tunnel. The managed tunnel permits the required game/lobby
 ports and their replies, and denies other services and forwarding. It also keeps
 your startup options automatically, removing the repeated reset-options question.
-See [RC3.13 release notes and limits](docs/RC3.13-PUBLIC-LOBBY.md) and
+See [RC3.14 release notes and limits](docs/RC3.14-GLOBAL-LOBBY.md) and
 [directory setup and verification](docs/SHARED-GAME-DIRECTORY.md).
 
 Private standalone exports now also open correctly through **App/S7Launcher.exe**:
@@ -39,7 +46,7 @@ recovery and multiplayer castle corrections. Keep Steam running when using that 
 See [RC3.11 changes and test limits](docs/RC3.11-MULTIPLAYER-SAVES.md) and the
 [Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
 
-**[Download RC3.13 ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.13/WePlay-RC3.13.zip)** · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.13/Setup.exe) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.13) · [Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+[Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
 
 **Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
 managed game files, preserving saves and personal files. The safe switch to a
@@ -50,11 +57,11 @@ new game copy still temporarily needs extra disk space.
 Castle Forge design inside matches, including its appearance on the other
 client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
 
-![WePlay RC3.13 launcher in English](docs/screenshots/launcher-en.png)
+![WePlay RC3.14 launcher in English](docs/screenshots/launcher-en.png)
 
-*English RC3.13 launcher, rendered with demonstration data.*
+*English RC3.14 launcher, rendered with demonstration data.*
 
-### Development changes — not released yet
+### Standalone updates and the central lobby
 
 Existing-installation updates now stage and verify complete packages, recover
 interrupted package/standalone metadata switches, track failed game preparations
@@ -63,7 +70,7 @@ with contained old-version cleanup still pending. See
 [update recovery and qualification](docs/UPDATE-RECOVERY.md).
 
 The start page shows four distinct cards: **Solo**, **LAN**, **Private Internet**
-and **Public Internet**. The next launcher uses the centrally hosted
+and **Public Internet**. The launcher uses the centrally hosted
 [WePlay public directory](https://weplay-multiplayer.weplay-community.workers.dev/health)
 automatically and refreshes the visible game list. Public hosting and joining
 work without linking Discord. **Also publish on Discord** remains an optional
@@ -76,18 +83,16 @@ The service moved to its neutral community address on November 4, 2026. Previous
 Discord publisher links were invalidated with the owner's approval. Use
 `/weplay-hilfe` to obtain a fresh private linking code if you want Discord
 publication. Existing RC3.13 readers can use a fresh directory code from that
-helper; the automatic default and Discord-independent hosting require the
-unreleased launcher/package changes.
-
-These source changes are not included in the RC3.13 downloads above.
+helper; the automatic default and Discord-independent hosting are included in
+RC3.14.
 
 ## What you can do
 
-| Feature | Available in RC3.13 |
+| Feature | Available in RC3.14 |
 | --- | --- |
 | Local play | Start your prepared game with remembered graphics settings and player name. |
 | LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
-| Public lobby | Browse published games in the launcher or S7; join their private room, then select the native match in S7. Initial reader linking uses the Discord helper. |
+| Public lobby | Browse the central directory in the launcher or S7 without Discord; join the selected game's room, then select the native match in S7. |
 | Connection consent and isolation | Read the EasyTier explanation and explicitly agree before each new room connection; unrelated tunnel traffic and forwarding are denied. |
 | Internet rooms | Create a private room or join by invitation, using integrated EasyTier. No separate VPN installation, EasyTier account or rented WePlay server is needed. |
 | Discord community | Find players, share room invitations and optionally report your public games to the board in #🎮multiplayer. |
@@ -101,10 +106,10 @@ These source changes are not included in the RC3.13 downloads above.
 
 ## Install or upgrade
 
-1. Download and unpack the **RC3.13 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading.
-2. Run Setup; for an upgrade, use your existing WePlay application folder.
+1. Download and unpack the **RC3.14 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading. This public ZIP contains no commercial game files.
+2. Run Setup; for an upgrade, use your existing WePlay application folder. For a complete standalone export, choose **Select existing standalone copy** and select its outer folder or App folder. No original installation is needed for that update.
 3. For a first installation, select your original supported History Edition. Existing prepared copies can update from their own retained files. A complete private standalone export opens through App/S7Launcher.exe or WePlay-Starten.cmd and needs no Setup or source installation.
-4. Install the **same RC3.13 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
+4. Install the **same RC3.14 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
 
 You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
 your own supported History Edition and space for a separate game copy.
@@ -148,10 +153,13 @@ templates are not supported. [Save/reload instructions and verification](docs/RC
 ## Play over the Internet
 
 A WePlay room connects the PCs; the actual match is created afterwards inside
-S7. Discord is optional and does not distribute private room invitations.
+S7. Discord is optional. Choose **Public Internet** to find players through the
+central directory, or **Private Internet** to play by invitation.
 For the guided development interface, see the [launcher walkthrough (Deutsch)](docs/LAUNCHER-GUIDE.md).
 
-1. Everyone opens **Internet play** and enters their player name.
+For a private room:
+
+1. Everyone opens **Private Internet** and enters their player name.
 2. The creator selects **Create room and start** and approves the Windows network permission prompt.
 3. Use **Copy invitation**, or **Copy for Discord** to include joining instructions. Share that private invitation only with your intended players.
 4. Friends paste it into **Paste your private invitation** and choose **Join room and start**.
@@ -173,6 +181,13 @@ launcher window keeps it in the system tray.
 
 [Internet room guide](docs/RC3-INTERNET.md)
 
+For public games, open **Public Internet**. Select a compatible open game and
+choose **Join selected game**, or create your own public room. Agree to the
+connection explanation, then create/join the actual match inside S7. Its listing
+appears automatically while the hosting launcher remains connected. Optional
+Discord publication is configured here. The public list refreshes every 15
+seconds while visible. [Central service and test limits](docs/PUBLIC-LOBBY-SERVICE.md).
+
 ## Discord: find players and show public games
 
 Join **[the WePlay Discord server](https://discord.gg/j2eQgVzssc)**. The launcher
@@ -184,8 +199,8 @@ choose where to paste/send it.
 For the optional automatic game board:
 
 1. In **#🎮multiplayer**, run **`/weplay-hilfe`** and choose **Launcher verbinden**.
-2. Paste the private connection code into **Connect to Discord** in the launcher's Internet tab. This code is not a bot token.
-3. Review **Automatically show my public games in #🎮multiplayer** before launch. Connecting initially enables it; you can turn it off or disconnect.
+2. Paste the private connection code into **Connect to Discord** in **Public Internet / Public lobby**. This code is not a bot token.
+3. Enable **Also publish on Discord** if you want this extra publication. Connecting initially leaves it off; you can turn it off or disconnect later.
 
 Connected launchers can report their own public-game titles, player counts/free
 slots and open/full or start/loading signals. Private games and room invitations

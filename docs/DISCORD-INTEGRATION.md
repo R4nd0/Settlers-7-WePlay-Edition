@@ -31,22 +31,20 @@ migration; do not run two production directory writers.
 
 ## Player flow
 
-Discord is optional for creating or joining an Internet room. It is a directory,
-not a game transport or an automatic invitation service. Players obtain the
-private WePlay room invitation directly from its creator, then select the
-actual match inside S7. A Discord community link, a publisher connection code
-and a room invitation have different purposes; see the [launcher walkthrough](LAUNCHER-GUIDE.md).
-The revised development UI places pairing under **Discord: find players
-(optional)** → **Set up / manage automatic match listings** → **Link match
-listings**; the published RC3.5 pairing labels below are unchanged.
+Discord is optional for creating or joining Internet rooms. RC3.14's central
+public directory works without Discord. Private rooms use an invitation shared
+by their creator; public listings obtain room access through the encrypted join
+broker. Players select the actual match inside S7 after connecting. A Discord
+community link, a publisher connection code and a room invitation have different
+purposes; see the [launcher flows](LAUNCHER-LOBBY-FLOWS.md).
 
 1. In #🎮multiplayer run `/weplay-hilfe` and choose **Launcher verbinden**.
 2. Copy the private connection code from Discord's ephemeral response into
-   **Mit Discord verbinden** in the launcher's Internet tab. This is a limited
+   **Mit Discord verbinden** in **Public Internet / Public lobby**. This is a limited
    publisher grant, never the bot token. A new code invalidates the old grant.
-3. Select whether to show your own public games before starting Internet play.
-   The connection action enables this preference initially; the checkbox can
-   disable it before launch. Private games are omitted in all cases.
+3. Explicitly enable **Also publish on Discord** before opening your public room
+   if you want this additional listing. Linking leaves it off initially. Private
+   games are omitted in all cases.
 4. The launcher reports changes while the game is open, sends a heartbeat every
    minute and withdraws its report on normal closure. Missing reports expire
    after three minutes; the minute Cron removes them from the displayed board.
