@@ -54,7 +54,11 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(result).hexdigest(),build_package.DIRECTORY_ARCHIVE_SHA256)
         before,after=self.module.Archive(raw),self.module.Archive(result)
         changed=[name for name,entry in before.entries.items() if entry.values[4]!=256 and before.read(name)!=after.read(name)]
-        self.assertEqual(changed,[self.module.MEMBER])
+        self.assertEqual(set(changed),{self.module.MEMBER,self.module.HOST})
+        self.assertTrue(LuaRuntime().eval('function(s) local f,e=loadstring(s);assert(f,e);return true end')(after.read(self.module.HOST).decode('utf-8-sig')))
+        _,host,_=self.module.decoded_view(after.read(self.module.HOST))
+        self.assertNotIn('["ShowInviteOverlay"]()',host)
+        self.assertNotIn('["InvitePlayerToSession"](',host)
         self.assertTrue(LuaRuntime().eval('function(s) local f,e=loadstring(s);assert(f,e);return true end')(after.read(self.module.MEMBER).decode('utf-8-sig')))
         self.assertEqual(raw,fixture.read_bytes())
 

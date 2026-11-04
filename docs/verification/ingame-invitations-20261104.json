@@ -1,0 +1,29 @@
+{
+  "format": "weplay-invitation-verification-v1",
+  "source_only_full_tests": 233,
+  "final_focused_tests": 92,
+  "invitation_fixtures": 4,
+  "native_test_executables_per_profile": 11,
+  "native_bridge_checks_per_profile": 52,
+  "gui_checks": 25,
+  "gui_private_pipe_roundtrip": true,
+  "package_files": 313,
+  "adapter_sha256": "6196de74455a9e33365c32833ec6fe80f5bc31b5514643dc475a879546399855",
+  "interface_sha256": "2bf000583d8883f1cae595901adef59b37b15f514b498fe794d0331821879cb4",
+  "live_ubisoft_lab": {
+    "button-lan": {
+      "exit_code": 0,
+      "memory_pressure": 0
+    },
+    "button-private": {
+      "exit_code": 0,
+      "memory_pressure": 0
+    }
+  },
+  "live_private_request_handler_verified": true,
+  "live_internet_recipient_join_verified": false,
+  "live_steam_button_verified": false,
+  "test_copy_restored": true,
+  "github_operations_performed": false,
+  "published": false
+}

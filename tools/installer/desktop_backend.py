@@ -754,6 +754,7 @@ class Desktop:
 
     def play(self,request=None,*,internet=None,invitation_ready=None):
         directory_bridge=[None]
+        invitation_bridge=[None]
         if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -771,7 +772,16 @@ class Desktop:
             except BaseException:
                 if game.poll() is None:game.terminate();game.wait(timeout=10)
                 raise
-            self.emit('game_started',pid=game.pid)
+            invitation_run=None
+            if install.package_manifest(self.package).get('game_directory',False):
+                from ingame_invitation import Bridge as InvitationBridge,configuration
+                try:
+                    mode,public_code=configuration(request,internet,self.state)
+                    invitation_bridge[0]=InvitationBridge(root,mode,
+                        lambda **value:self.emit('invitation_requested',**value),public_code=public_code).start()
+                    invitation_run=invitation_bridge[0].nonce
+                except (OSError,ValueError):self.emit('warning',code='invitation_unavailable')
+            self.emit('game_started',pid=game.pid,invitation_run=invitation_run)
             if install.package_manifest(self.package).get('game_directory',False):
                 from game_directory import configured
                 from ingame_directory import Bridge
@@ -786,8 +796,13 @@ class Desktop:
                 def close(self):
                     try:observer.close()
                     finally:
-                        if directory_bridge[0] is not None:directory_bridge[0].close()
-                        if internet is not None:desktop.emit('game_finished',exit_code=game.poll())
+                        try:
+                            if invitation_bridge[0] is not None:invitation_bridge[0].close()
+                        finally:
+                            try:
+                                if directory_bridge[0] is not None:directory_bridge[0].close()
+                            finally:
+                                if internet is not None:desktop.emit('game_finished',exit_code=game.poll())
             return GameObserver()
         # Repair saved monitor selections after a real hotplug, before launch.
         probe=self.probe()

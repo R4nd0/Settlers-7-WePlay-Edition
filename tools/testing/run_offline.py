@@ -18,7 +18,7 @@ import uuid
 SUITES = ('test_update_recovery','test_standalone','test_installer','test_update_backend','test_network_content','test_standalone_preflight','test_game_directory','test_public_directory',
           'test_lan_diagnostics','test_lan_launcher','test_auto_lan_launcher',
           'test_lan_autoconnect','test_graphics_launcher','test_desktop_backend',
-          'test_internet_backend','test_ingame_directory','test_easytier_runtime')
+          'test_internet_backend','test_ingame_directory','test_ingame_invitation','test_easytier_runtime')
 FOCUSED = ('test_network_content','test_standalone_preflight','test_easytier_runtime')
 CHILD_IMPORT_CHECKS = frozenset((
     'test_auto_lan_launcher.AutomaticLauncherTests.test_hub_entrypoint_boots_with_isolated_python_module_search',

@@ -894,7 +894,7 @@ internal sealed partial class MainForm : Form
         {
             channel.Dispose();
             try{await privateTask;}catch(Exception){/* No private bytes enter exception details. */}
-            internetInvite.Clear();internetOperation=false;publicRoomOperation=false;UpdateInternetControls();
+            CloseGameInvitation();internetInvite.Clear();internetOperation=false;publicRoomOperation=false;UpdateInternetControls();
         }
     }
     private void Receive(JsonElement value)
@@ -924,14 +924,18 @@ internal sealed partial class MainForm : Form
         }
         else if(kind=="game_started")
         {
+            CloseGameInvitation();
+            if(value.TryGetProperty("invitation_run",out var run)&&run.ValueKind==JsonValueKind.String)invitationRun=run.GetString();
             gameRunning=true;homeTitle.Text=Lang.T("running");homeInfo.Text=Lang.T("runningInfo");status.Text=Lang.T("running");progress.Visible=false;
             if(internetOperation)internetStage="playing";UpdateInternetControls();
         }
         else if(kind=="game_finished")
         {
+            CloseGameInvitation();
             gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");
             if(internetOperation)internetStage="hosting";status.Text=Lang.T("ready");UpdateInternetControls();
         }
+        else if(kind=="invitation_requested")OpenGameInvitation(value);
         else if(kind=="internet_policy")
         {
             internetMode.SelectedIndex=value.GetProperty("mode").GetString()=="direct"?1:0;
@@ -1036,6 +1040,7 @@ internal sealed partial class MainForm : Form
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
                 if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
                 form.LoadSnapshot(json.RootElement);form.ShowMain();form.Show();Application.DoEvents();
+                form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
                     throw new Exception("Four distinct play modes are required");
@@ -1206,7 +1211,8 @@ internal sealed partial class MainForm : Form
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
-                    "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size","public_hosting_without_discord_and_optional_listing"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size","public_hosting_without_discord_and_optional_listing",
+                    "ingame_invitation_run_and_role_guards","invitation_clipboard_failure_and_private_public_separation"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

@@ -1,5 +1,11 @@
 {
   "app": "Settlers 7: WePlay Edition",
+  "gameInvitationTitle": "Invite players",
+  "gameInvitationPrivate": "Copy the private room invitation and send it to your friends. They paste it under Private Internet in WePlay. The invitation grants access to this room; share it only with people you trust.",
+  "gameInvitationPublic": "Copy the public lobby code. Recipients paste it under Public Internet → Connect directory, then select your game from the list. This code opens the shared directory, not a specific game.",
+  "gameInvitationCopy": "Copy invitation code",
+  "gameInvitationClipboardFailed": "The clipboard is busy. Try copying again.",
+  "invitation_unavailable": "In-game invitations are unavailable. Share the invitation through the launcher.",
   "setupTitle": "Set up WePlay Edition",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "WePlay maintains its own game copy. The original installation is needed only for the first preparation.",

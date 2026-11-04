@@ -181,6 +181,14 @@ launcher window keeps it in the system tray.
 
 [Internet room guide](docs/RC3-INTERNET.md)
 
+**Development candidate:** the in-game **Invite / Einladen** button now opens
+the launcher invitation flow instead of the unavailable Ubisoft overlay.
+Private hosts copy their room invitation; public hosts copy a code to the
+shared directory; LAN players see joining instructions. The Ubisoft lab button
+and local request dispatch are verified; an Internet recipient join is still
+pending. This change is not in the published RC3.14 download.
+[Behavior and verification limits](docs/INGAME-INVITATIONS.md).
+
 For public games, open **Public Internet**. Select a compatible open game and
 choose **Join selected game**, or create your own public room. Agree to the
 connection explanation, then create/join the actual match inside S7. Its listing

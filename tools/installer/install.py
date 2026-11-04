@@ -23,7 +23,7 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
 STEAM_ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
-DIRECTORY_ADAPTER_SHA256 = 'e58235da961c6de60ea2e2ffb42ec6749d2e11d498b0629783b520deabcf70ff'
+DIRECTORY_ADAPTER_SHA256 = '6196de74455a9e33365c32833ec6fe80f5bc31b5514643dc475a879546399855'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -35,7 +35,8 @@ STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 PUBLIC_DIRECTORY_PACKAGE_TOOLS = ('installer/public_directory.py',)
 DIRECTORY_PACKAGE_TOOLS = ('installer/game_directory.py','installer/join_crypto.py','installer/directory-service.json',
-    'installer/ingame_directory.py','game-directory/interface_patch.py','game-directory/session_list.lua')
+    'installer/ingame_directory.py','installer/ingame_invitation.py','game-directory/interface_patch.py',
+    'game-directory/session_list.lua','game-directory/host_invitation.lua')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
 ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-ui/achievement-notifications.json')
 CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
