@@ -1,4 +1,5 @@
 // Guarded multiplayer checkpoint transfer; no simulation or checksum changes.
+#include "resume_pacing.h"
 struct ResumeFragment {
     void* manager;
     uint32_t source, checksum, total, target, mode, reliable, extra;
@@ -6,7 +7,12 @@ struct ResumeFragment {
 };
 std::deque<ResumeFragment> resume_fragments;
 size_t resume_fragment_bytes = 0;
-ULONGLONG resume_next_send = 0;
+#ifdef S7_RESUME_CATCHUP
+constexpr bool ResumeCatchupEnabled = true;
+#else
+constexpr bool ResumeCatchupEnabled = false;
+#endif
+ResumeTransferPacer resume_pacer(ResumeCatchupEnabled);
 bool resume_readiness_held = false;
 // A peer's Ready click cannot make an owned, still-queued world transferable.
 // Restrict the existing Lua readiness getter until the real sender drains;
@@ -36,7 +42,7 @@ void CancelResumeFragments() {
     const DWORD incoming = GetLastError();
     if (GetCurrentThreadId() == bootstrap_thread.load(std::memory_order_acquire)) {
         const bool pending = !resume_fragments.empty();
-        resume_fragments.clear(); resume_fragment_bytes = 0; resume_next_send = 0;
+        resume_fragments.clear(); resume_fragment_bytes = 0; resume_pacer.Reset();
         resume_readiness_held = false;
         if (pending) ReportLocalStatus("local-mp-resume-transfer-cancelled");
     }
@@ -64,11 +70,13 @@ void __fastcall QueueResumeFragment(void* self, void*, const void* value,
         *reinterpret_cast<const uint32_t*>(event + 0x14),
         *reinterpret_cast<const uint32_t*>(event + 0x1c), target, mode, reliable, extra, {}};
     if (length) fragment.bytes.assign(data, data + length);
+    if (resume_fragments.empty() && (ResumeCatchupEnabled || !resume_pacer.Armed()))
+        resume_pacer.Arm(GetTickCount64());
     resume_fragments.push_back(std::move(fragment));
     resume_fragment_bytes += length;
     SetLastError(incoming);
 }
-void DrainResumeFragments() {
+void DrainResumeFragmentsAt(ULONGLONG now) {
     if (resume_fragments.empty() || initialization != 2 || !local_connect_probe
         || GetCurrentThreadId() != bootstrap_thread.load(std::memory_order_acquire)) return;
     const DWORD incoming = GetLastError();
@@ -76,15 +84,15 @@ void DrainResumeFragments() {
     void* manager = main && *reinterpret_cast<uintptr_t*>(main) == NativeVA(0x113F2C0)
         ? *reinterpret_cast<void**>(main + 0x10) : nullptr;
     if (!manager || manager != resume_fragments.front().manager) {
-        resume_fragments.clear(); resume_fragment_bytes = 0;
+        resume_fragments.clear(); resume_fragment_bytes = 0; resume_pacer.Reset();
+        resume_readiness_held = false;
         SetLastError(incoming); return;
     }
-    const auto now = GetTickCount64();
-    if (now < resume_next_send) { SetLastError(incoming); return; }
-    resume_next_send = now + 20;
+    const unsigned int budget = resume_pacer.Take(now);
+    if (!budget) { SetLastError(incoming); return; }
     using Construct = void* (__thiscall*)(void*, uint32_t, uint32_t, const void*, uint32_t, uint32_t, uint32_t);
     using Destroy = void (__thiscall*)(void*);
-    for (unsigned int count = 0; count < 8 && !resume_fragments.empty(); ++count) {
+    for (unsigned int count = 0; count < budget && !resume_fragments.empty(); ++count) {
         const auto& fragment = resume_fragments.front();
         if (fragment.manager != manager) Stop(NativeGameObjectMismatch);
         alignas(4) unsigned char event[0x20]{};
@@ -96,10 +104,17 @@ void DrainResumeFragments() {
         resume_fragments.pop_front();
     }
     if (resume_fragments.empty()) {
+        if (ResumeCatchupEnabled) resume_pacer.Reset();
         resume_readiness_held = false;
         ReportLocalStatus("local-mp-resume-send-queue-drained");
     }
     SetLastError(incoming);
+}
+void DrainResumeFragments() {
+    const DWORD incoming = GetLastError();
+    const auto now = GetTickCount64();
+    SetLastError(incoming);
+    DrainResumeFragmentsAt(now);
 }
 void __fastcall DeserializeResumeEvent(void* self, void*, const void* data, uint32_t length) {
     const DWORD incoming = GetLastError();

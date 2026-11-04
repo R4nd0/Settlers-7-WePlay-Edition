@@ -848,15 +848,15 @@ int main() {
         bootstrap_thread = GetCurrentThreadId(); initialization = 2; local_connect_probe = true;
         for (unsigned int i = 0; i < 10; ++i) QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
         check(resume_fragments.size() == 10 && resume_fragment_bytes == 40 && !resume_fragment_sends);
-        bytes[0] = 99; resume_next_send = 0; SetLastError(4444);
-        DrainResumeFragments();
+        bytes[0] = 99; resume_pacer.Arm(1000); SetLastError(4444);
+        DrainResumeFragmentsAt(1000);
         check(resume_fragments.size() == 2 && resume_fragment_bytes == 8);
         check(resume_fragment_sends == 8 && resume_fragment_destroys == 8 && GetLastError() == 4444);
         check(resume_fragment_seen == std::vector<unsigned char>({1,2,3,4}));
         check(resume_fragment_source == 2 && resume_fragment_checksum == 456 && resume_fragment_total == 9876);
-        resume_next_send = GetTickCount64() + 10000; DrainResumeFragments();
+        DrainResumeFragmentsAt(1019);
         check(resume_fragment_sends == 8 && resume_fragments.size() == 2);
-        main[4] = 0; DrainResumeFragments();
+        main[4] = 0; DrainResumeFragmentsAt(1020);
         check(resume_fragments.empty() && !resume_fragment_bytes && resume_fragment_sends == 8);
         main[4] = reinterpret_cast<uintptr_t>(&manager);
         QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
@@ -864,8 +864,32 @@ int main() {
         CancelResumeFragments();
         check(resume_fragments.size() == 1 && resume_fragment_bytes == 4 && GetLastError() == 4444);
         bootstrap_thread = GetCurrentThreadId(); CancelResumeFragments();
-        check(resume_fragments.empty() && !resume_fragment_bytes && !resume_next_send
+        check(resume_fragments.empty() && !resume_fragment_bytes && !resume_pacer.Armed()
             && resume_fragment_sends == 8 && GetLastError() == 4444);
+        if constexpr (ResumeCatchupEnabled) {
+            // Slow owner ticks catch up at most four intervals, not the whole save.
+            for (unsigned int i = 0; i < 40; ++i) QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
+            resume_pacer.Arm(1000);
+            DrainResumeFragmentsAt(1080);
+            check(resume_fragments.size() == 8 && resume_fragment_bytes == 32
+                && resume_fragment_sends == 40 && resume_pacer.Next() == 1100);
+            DrainResumeFragmentsAt(1080);
+            check(resume_fragments.size() == 8 && resume_fragment_sends == 40);
+            DrainResumeFragmentsAt(1100);
+            check(resume_fragments.empty() && !resume_fragment_bytes && !resume_pacer.Armed()
+                && resume_fragment_sends == 48 && resume_fragment_destroys == 48 && GetLastError() == 4444);
+        } else {
+            QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
+            resume_pacer.Arm(1000); DrainResumeFragmentsAt(1000);
+            check(resume_fragments.empty() && resume_pacer.Next() == 1020);
+            // Separate saves in the same session retain the old pacing deadline.
+            QueueResumeFragment(&manager, nullptr, event, 1, 1, 0, 123);
+            DrainResumeFragmentsAt(1019);
+            check(resume_fragments.size() == 1 && resume_fragment_sends == 9);
+            DrainResumeFragmentsAt(1020);
+            check(resume_fragments.empty() && resume_fragment_sends == 10 && resume_fragment_destroys == 10);
+        }
+        CancelResumeFragments();
         *Native<uintptr_t*>(0x13A5210) = old_main;
         bootstrap_thread = old_thread; initialization = old_initialization; local_connect_probe = old_probe;
     }

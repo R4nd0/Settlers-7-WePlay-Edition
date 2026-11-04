@@ -1,5 +1,12 @@
 # Experimental native local start, 2026-10-26
 
+Resume transfer investigation (2026-11-04): `-ResumeCatchup` is an opt-in build
+candidate for slow lobby updates. It retains the nominal eight 1-KiB fragments
+per 20 ms while bounding catch-up to 32 fragments per update. Normal builds keep
+the existing pacing policy; published adapter pins are unchanged. Scheduling and
+native ABI fixtures pass, but a healthy-memory live performance comparison is
+still pending. See [transfer findings and qualification](MULTIPLAYER-RESUME-TRANSFER.md).
+
 RC3.11 checkpoint integration (2026-11-03): `resume_transfer.inc` implements
 bounded, paced native save fragments and restricts the original readiness
 getter while the owned send queue is pending. Ubisoft and Steam retain

@@ -1,0 +1,62 @@
+{
+  "format": "weplay-resume-pacing-investigation-v1",
+  "date": "2026-11-04",
+  "status": "opt-in-candidate-live-comparison-pending",
+  "existing_policy": {
+    "fragment_bytes": 1024,
+    "maximum_fragments_per_update": 8,
+    "deadline_after_batch_ms": 20,
+    "unused_intervals_discarded": true
+  },
+  "candidate": {
+    "build_flag": "ResumeCatchup",
+    "enabled_by_default": false,
+    "nominal_fragments_per_interval": 8,
+    "interval_ms": 20,
+    "maximum_fragments_per_update": 32,
+    "excess_stall_credit_discarded": true,
+    "session_cancellation_resets_credit": true,
+    "wire_payload_and_original_readiness_checks_preserved": true,
+    "published_adapter_pins_changed": false,
+    "installed_game_copies_updated": false
+  },
+  "offline_verification": {
+    "all_passed": true,
+    "profiles": ["opt-in lab", "default lab", "production with default pacing"],
+    "test_executables_per_profile": 11,
+    "compiler_warnings_as_errors": true,
+    "original_pacing_deadline_between_separate_queues_checked": true,
+    "native_ubisoft_and_steam_dispatch_and_readiness_fixtures": true,
+    "synthetic_world_mib": 21,
+    "model_timings_ms": [
+      {"menu_update_ms": 20, "existing": 53740, "candidate": 53740},
+      {"menu_update_ms": 63, "existing": 169281, "candidate": 53802},
+      {"menu_update_ms": 125, "existing": 335875, "candidate": 84000}
+    ],
+    "model_is_real_game_measurement": false
+  },
+  "actual_baseline": {
+    "clients": 2,
+    "edition": "Ubisoft laboratory aliases",
+    "native_lobby_roster": {"human": 2, "ai": 2},
+    "guest_selected_ready_once": true,
+    "host_start_blocked_during_owned_transfer": true,
+    "host_start_enabled_after_queue_drained": true,
+    "held_to_drained_seconds_observed": 169.281,
+    "clean_performance_baseline": false,
+    "host_ram_recovery_threshold_reached": true,
+    "one_memory_monitor_failed": true,
+    "world_started": false,
+    "normal_exit_codes": [0, 0],
+    "test_adapters_and_archives_restored": true,
+    "source_checkpoint_unchanged": true
+  },
+  "limits": {
+    "candidate_live_transfer_tested": false,
+    "candidate_world_continuation_tested": false,
+    "two_physical_pcs_tested": false,
+    "new_desync_or_long_match_claim": false,
+    "real_game_speedup_established": false,
+    "github_changed": false
+  }
+}

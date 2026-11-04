@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -20,6 +20,10 @@ $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
 if ($LocalNetworkPump -or $GameDirectory) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
 if ($GameDirectory) { $common += '/DS7_GAME_DIRECTORY' }
+if ($ResumeCatchup) {
+    if (!$LocalNetworkPump -and !$LocalPairLab -and !$GameDirectory) { throw 'ResumeCatchup requires the native network pump.' }
+    $common += '/DS7_RESUME_CATCHUP'
+}
 if ($CastlePrototype -or $CastleWirePrototype) { $common += '/DS7_CASTLE_PROTOTYPE' }
 if ($CastleWirePrototype) { $common += '/DS7_CASTLE_WIRE_PROTOTYPE' }
 function Compile-Native([string[]]$Arguments) {
@@ -39,6 +43,7 @@ try {
     Compile-Native @((Join-Path $nativeSource 'lan_membership_tests.cpp'), '/Fe:lan_membership_tests.exe', '/link','network_guard_test.lib','ws2_32.lib')
     Compile-Native @((Join-Path $nativeSource 'adapter_rejection_test.cpp'), '/Fe:adapter_rejection_test.exe', '/link','ws2_32.lib')
     Compile-Native @((Join-Path $nativeSource 'local_connect_tests.cpp'), '/Fe:local_connect_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'resume_pacing_tests.cpp'), '/Fe:resume_pacing_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'bootstrap_patch_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:bootstrap_patch_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'steam_profile_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:steam_profile_tests.exe')
