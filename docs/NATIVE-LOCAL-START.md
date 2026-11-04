@@ -1,5 +1,11 @@
 # Experimental native local start, 2026-10-26
 
+Resume terrain-search correction (2026-11-04): an extreme finite AI footprint
+angle could overflow native rotation/raster bounds and stall the host after
+loading. The guarded constructor bridge reduces only extreme finite degrees
+with bounded integer modulo; ordinary inputs and native checks stay intact.
+See [failure mechanism, ABI protection and verification](MULTIPLAYER-RESUME-TERRAIN.md).
+
 Resume transfer investigation (2026-11-04): `-ResumeCatchup` is an opt-in build
 candidate for slow lobby updates. It retains the nominal eight 1-KiB fragments
 per 20 ms while bounding catch-up to 32 fragments per update. Normal builds keep
@@ -7,7 +13,8 @@ the existing pacing policy. Scheduling/native ABI fixtures pass. A healthy-memor
 two-client comparison measured 169.308 s existing versus 54.690 s candidate for the
 sender queue gate, but the candidate's subsequent world-start check stalled.
 It remains unqualified for release. Published RC3.14 assets are unchanged;
-source adapter pins advanced separately for the safe invitation button.
+source adapter pins advanced separately for the safe invitation button and
+the terrain-search correction.
 See [transfer findings and qualification](MULTIPLAYER-RESUME-TRANSFER.md).
 
 RC3.11 checkpoint integration (2026-11-03): `resume_transfer.inc` implements

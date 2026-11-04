@@ -31,8 +31,8 @@ Build the candidate explicitly with `native/build.ps1 -LocalPairLab
 -GameDirectory -ResumeCatchup -OutputDirectory <private-work-folder>`. The
 normal build retains the existing eight-fragment pacing policy. Published
 RC3.14 assets and existing installed copies have not been changed. Current
-source adapter pins advanced separately for the in-game invitation replacement;
-that build still leaves catch-up disabled.
+source adapter pins advanced separately for the in-game invitation replacement
+and the AI terrain-search correction; those builds still leave catch-up disabled.
 
 ## Verification so far
 
@@ -86,7 +86,10 @@ Only the two verified test clients were stopped under the user's standing
 authorization. Their original adapter/UI files were restored and the source
 checkpoint hash remained unchanged.
 
-The candidate is therefore **not qualified for release or successful continued
-multiplayer gameplay**. Catch-up remains opt-in. The world-start stall needs
-diagnosis and a comparable baseline world check before promotion. No new
-desync-free, Steam live-game or two-PC claim follows from this measurement.
+That candidate run therefore **did not qualify successful continued multiplayer
+gameplay**. Catch-up remains opt-in. Subsequent investigation found an extreme
+AI angle and overflowing native terrain-search bounds in the stalled host. The
+same loop also occurred in an older run before the pacing candidate existed;
+repeat world starts with both pacing policies progressed. See the separate
+[terrain-search correction and verification](MULTIPLAYER-RESUME-TERRAIN.md).
+No desync-free, Steam live-game or two-PC claim follows from the timing comparison.

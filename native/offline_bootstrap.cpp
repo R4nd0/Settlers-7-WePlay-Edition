@@ -151,6 +151,7 @@ template<typename T> T Native(uintptr_t va) {
 
 #ifdef S7_LOCAL_NETWORK_PUMP
 #include "resume_transfer.inc"
+#include "terrain_angle_bridge.inc"
 #endif
 
 #ifdef S7_LOCAL_PAIR_LAB
@@ -1072,6 +1073,7 @@ const Patch ConnectPatches[] = {
     {0xED673B, {0xe8,0x30,0x0b,0x00,0x00}, reinterpret_cast<const void*>(&QueryLocalSessionJoin)},
     {0xC8DCC5, {0xe8,0x86,0x62,0x0b,0x00}, reinterpret_cast<const void*>(&GetLocalSearchSandbox)},
 #ifdef S7_LOCAL_NETWORK_PUMP
+    {0x717807, {0xe8,0x94,0xd6,0x17,0x00}, reinterpret_cast<const void*>(&ConstructLocalTerrainFootprint)},
     {0x795929, {0x73,0x1c}, MissingPriorityBounds, false, 2},
     {0x79593A, {0x75,0x0b}, MissingPriorityGeneration, false, 2},
     {0xED9D26, {0xe8,0xe5,0xc5,0x6a,0xff}, reinterpret_cast<const void*>(&SetLocalLobbyTeam)},
@@ -1345,6 +1347,7 @@ bool Install() {
 #endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (local_connect_probe) {
+        terrain_footprint_constructor = NativeVA(0x894EA0);
         selected.push_back(&ResumeReadinessPatch);
         const auto maximum = reinterpret_cast<uintptr_t>(&ResumeChunkSize);
         memcpy(ResumeChunkLimit + 1, &maximum, 4);

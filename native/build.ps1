@@ -44,6 +44,7 @@ try {
     Compile-Native @((Join-Path $nativeSource 'adapter_rejection_test.cpp'), '/Fe:adapter_rejection_test.exe', '/link','ws2_32.lib')
     Compile-Native @((Join-Path $nativeSource 'local_connect_tests.cpp'), '/Fe:local_connect_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'resume_pacing_tests.cpp'), '/Fe:resume_pacing_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'terrain_angle_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:terrain_angle_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'bootstrap_patch_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:bootstrap_patch_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'steam_profile_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:steam_profile_tests.exe')
