@@ -1,0 +1,122 @@
+{
+  "format": "weplay-rc314-release-verification-v1",
+  "date": "2026-11-04",
+  "version": "2.0.0-rc3.14",
+  "update_sequence": 13,
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.14",
+  "source_commit": "31dd8ce4416c6df54ac096fa64b36aed8d73cc51",
+  "source_regression": {
+    "tests": 230,
+    "passed": true,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "forbidden_api_attempts": 0,
+    "intentionally_omitted_child_import_checks": 2
+  },
+  "worker_tests": {
+    "tests": 24,
+    "passed": true
+  },
+  "packaged_launcher": {
+    "checks": 23,
+    "passed": true,
+    "languages": [
+      "en",
+      "de"
+    ],
+    "full_page_layouts": 14,
+    "overflow": 0,
+    "private_pipe_roundtrip": true,
+    "bundled_isolated_python": true
+  },
+  "package": {
+    "files": 311,
+    "id": "425b57ac77bc8c1b4498fc1b9e2d3d5fee735218125bc083d627389dbe7ec174",
+    "source_tools_equal": true,
+    "public_directory_enabled": true,
+    "privacy_scan_passed": true,
+    "no_commercial_game_or_private_state": true,
+    "easytier_corresponding_source_included": true
+  },
+  "standalone_update": {
+    "passed": true,
+    "mode": "InstallerTest: isolated identity, production installer code and payload",
+    "production_setup_sha256": "5133217825ee45b1c712fd1f8bf4bae836bacb7f143325544ccf528f8369f91a",
+    "test_setup_sha256": "f1a83c1bb9100c1151b6cde1f3c99acfda43eda28bd0adcbda87328f9d7886a5",
+    "old_version": "2.0.0-rc3.13",
+    "new_version": "2.0.0-rc3.14",
+    "setup_exit": 0,
+    "old_export_unbound": true,
+    "package_and_owned_game_refreshed": true,
+    "original_game_discovery_forbidden": true,
+    "synthetic_save_and_profile_preserved": true,
+    "relocated_bundled_python_restart_passed": true,
+    "game_started": false
+  },
+  "update_manifest": {
+    "python_signature_valid": true,
+    "compiled_windows_signature_and_setup_valid": true,
+    "installer_executed": false,
+    "sequence": 13,
+    "sha256": "5133217825ee45b1c712fd1f8bf4bae836bacb7f143325544ccf528f8369f91a",
+    "bytes": 105808988
+  },
+  "publication": {
+    "prerelease": true,
+    "asset_digests_match": true,
+    "downloaded_zip_matches": true,
+    "tag_matches_source_commit": true,
+    "rc313_client_sees_rc314_update": false,
+    "anonymous_update_feed_http_status": 404,
+    "anonymous_access_note": "Direct anonymous requests from this machine returned 404 for the repository, RC3.14 manifest and previous RC3.13 manifest. GitHub authenticated metadata says public=true/private=false/disabled=false. An unrelated public EasyTier repository returned 200. Cause and access from other networks remain unverified.",
+    "assets": [
+      {
+        "name": "EasyTier-corresponding-source.zip",
+        "size": 4876165,
+        "digest": "sha256:fab102bad20ad98779a4faeea6bc289a754e31aacb1eb75c80d918c8d4133cd6"
+      },
+      {
+        "name": "RELEASE-NOTES.md",
+        "size": 3502,
+        "digest": "sha256:e23ed68e59100f267ba231479a36d397f1a94bd1f52a8cc10ee9df61da89e755"
+      },
+      {
+        "name": "Setup.exe",
+        "size": 105808988,
+        "digest": "sha256:5133217825ee45b1c712fd1f8bf4bae836bacb7f143325544ccf528f8369f91a"
+      },
+      {
+        "name": "Setup.exe.sha256",
+        "size": 77,
+        "digest": "sha256:c48a07aaaf67777cf26cfa450ccc7a53bfeba71e4d809b1c3d15a81051d15252"
+      },
+      {
+        "name": "WePlay-RC3.14.zip",
+        "size": 110082551,
+        "digest": "sha256:a50b09c574779a21d630f102f2952722a64716745c21b0767d257a63782d4dab"
+      },
+      {
+        "name": "WePlay-RC3.14.zip.sha256",
+        "size": 85,
+        "digest": "sha256:30f71ea049bfac0a648759f7c262f82c5dbb993095fdcf4089d002f5be2e543f"
+      },
+      {
+        "name": "weplay-update.json",
+        "size": 5921,
+        "digest": "sha256:13d312a6acb2172cc42caa060c157541ee3531d1324d41ddb76bc4f585402710"
+      }
+    ]
+  },
+  "limits": {
+    "installer_execution": "InstallerTest identity with production code and payload; normal installed application identity was not overwritten",
+    "standalone_save": "Synthetic byte-preservation marker, not in-game save loading",
+    "game_started_in_this_release_run": false,
+    "native_and_easytier_binaries_changed": false,
+    "two_client_evidence": "global-public-lobby-20261104.json: real Ubisoft clients, same-PC native loopback, EasyTier no-TUN",
+    "two_remote_pcs_verified": false,
+    "new_steam_live_test": false,
+    "full_internet_world_or_long_match_desync_verified": false,
+    "authenticode_signed": false
+  }
+}
