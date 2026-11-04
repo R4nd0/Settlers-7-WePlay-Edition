@@ -3,9 +3,12 @@
 Resume transfer investigation (2026-11-04): `-ResumeCatchup` is an opt-in build
 candidate for slow lobby updates. It retains the nominal eight 1-KiB fragments
 per 20 ms while bounding catch-up to 32 fragments per update. Normal builds keep
-the existing pacing policy; published adapter pins are unchanged. Scheduling and
-native ABI fixtures pass, but a healthy-memory live performance comparison is
-still pending. See [transfer findings and qualification](MULTIPLAYER-RESUME-TRANSFER.md).
+the existing pacing policy. Scheduling/native ABI fixtures pass. A healthy-memory
+two-client comparison measured 169.308 s existing versus 54.690 s candidate for the
+sender queue gate, but the candidate's subsequent world-start check stalled.
+It remains unqualified for release. Published RC3.14 assets are unchanged;
+source adapter pins advanced separately for the safe invitation button.
+See [transfer findings and qualification](MULTIPLAYER-RESUME-TRANSFER.md).
 
 RC3.11 checkpoint integration (2026-11-03): `resume_transfer.inc` implements
 bounded, paced native save fragments and restricts the original readiness

@@ -30,7 +30,9 @@ checksum, recipient and readiness checks remain in place.
 Build the candidate explicitly with `native/build.ps1 -LocalPairLab
 -GameDirectory -ResumeCatchup -OutputDirectory <private-work-folder>`. The
 normal build retains the existing eight-fragment pacing policy. Published
-RC3.14 assets, adapter pins and existing installed copies have not been changed.
+RC3.14 assets and existing installed copies have not been changed. Current
+source adapter pins advanced separately for the in-game invitation replacement;
+that build still leaves catch-up disabled.
 
 ## Verification so far
 
@@ -55,6 +57,36 @@ RAM reached the recovery threshold and one memory monitor failed. Both clients
 were closed normally with exit code 0 before starting a world. This run is not
 a clean performance baseline or a verification of the faster candidate.
 
-A healthy-memory baseline/candidate comparison and continued-world checks are
-still required. No faster real-game result or new desync claim is established
-by the model or fixture tests.
+## Healthy-memory two-client comparison
+
+A subsequent cold-start comparison used the same protected checkpoint and
+two isolated Ubisoft clients on one PC, with two human slots and two AI slots.
+The guest selected Ready once. Start stayed disabled during the queue and
+became enabled normally when it drained.
+
+| Measured native hold-to-queue-drained interval | Duration |
+| --- | ---: |
+| Existing pacing | 169.308 s |
+| Opt-in bounded catch-up | 54.690 s |
+
+The measured queue wait was about 68% shorter. These are actual game-process
+observations, distinct from the scheduling model. They measure the sender
+queue gate, not total load time or network throughput. Both runs kept healthy
+memory sentinels: the minimum free host RAM was 8,696 MiB in the baseline and
+6,220 MiB in the candidate.
+
+The baseline clients closed normally before world start. The candidate then
+loaded the saved world, but its subsequent readiness/progress check stalled:
+the guest displayed the host as blocked at 100%, and window activation timed
+out for both clients. A five-second passive sample measured approximately
+4.8 CPU seconds on the host and 0.17 on the guest. This does not establish the
+cause or show that the pacing change caused it; the baseline world was not
+tested in this comparison. Private dumps and status records were preserved.
+Only the two verified test clients were stopped under the user's standing
+authorization. Their original adapter/UI files were restored and the source
+checkpoint hash remained unchanged.
+
+The candidate is therefore **not qualified for release or successful continued
+multiplayer gameplay**. Catch-up remains opt-in. The world-start stall needs
+diagnosis and a comparable baseline world check before promotion. No new
+desync-free, Steam live-game or two-PC claim follows from this measurement.

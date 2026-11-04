@@ -1,0 +1,40 @@
+{
+  "format": "weplay-resume-live-comparison-v1",
+  "clients": 2,
+  "editions": [
+    "Ubisoft",
+    "Ubisoft"
+  ],
+  "human_slots": 2,
+  "ai_slots": 2,
+  "same_pc_lab": true,
+  "same_protected_checkpoint": true,
+  "results": {
+    "baseline-healthy": {
+      "held_to_drained_seconds": 169.308,
+      "minimum_free_host_mib": 8696,
+      "exit_codes": {
+        "A": 0,
+        "B": 0
+      }
+    },
+    "candidate-healthy": {
+      "held_to_drained_seconds": 54.69,
+      "minimum_free_host_mib": 6220,
+      "exit_codes": {
+        "A": 124,
+        "B": 124
+      }
+    }
+  },
+  "baseline_world_checked": false,
+  "candidate_world_rendered": true,
+  "candidate_continued_gameplay_verified": false,
+  "candidate_world_wait_stall_observed": true,
+  "candidate_promoted": false,
+  "default_catchup_enabled": false,
+  "private_diagnostics_preserved": true,
+  "test_adapters_and_ui_restored": true,
+  "source_checkpoint_unchanged": true,
+  "github_operations": false
+}
