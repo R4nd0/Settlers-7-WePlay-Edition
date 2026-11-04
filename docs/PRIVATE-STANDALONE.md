@@ -142,6 +142,40 @@ preserved as a local backup and replaced only after checking the new native
 baseline and exact renderer hashes; interrupted recovery can resume. Unknown
 renderer changes and external managed instances remain rejected.
 
+## Private correction build, 2026-11-04
+
+A complete private ZIP was built from source `e536ce5`, including the current
+launcher, update/recovery helpers, bundled runtimes and repair inputs. The
+corrected production installer is included separately under `Wartung`; it is
+optional and is not the normal game entry point. No public release asset was
+created or replaced.
+
+This qualification uses the previously authorized private Steam-data copy with
+the unchanged owned Ubisoft executable as its startup basis. The pristine ZIP
+contains no player identity or saves. All 1,142 extracted files and ZIP CRCs were
+verified before testing. After opening the EXE directly, the entire bound export
+was moved again and opened from its new location. The ordinary launcher button
+then reached the visible S7 main menu while exclusive read-only handles made all
+54 original Base files inaccessible. A separate process confirmed the sharing
+violations. The expected local adapter was loaded, with no Steam API, legacy
+Orbit API or modules from the original installation. Game and launcher exited
+normally with code 0; every original file was accessible again after releasing
+the test handles. Original contents, ACLs and OS security settings were retained.
+
+Use a **short local destination**, for example `D:\WePlay`. The native save-root
+guard requires fewer than 196 UTF-16 units, including `LocalData\saves`. An overly
+nested laboratory path exceeded that unchanged guard and exited before the menu;
+the successful relocated test used 127 units. This is a path constraint, not a
+reason to reinstall the original game or relax the guard.
+
+The [startup verification record](verification/standalone-start-20261104.json)
+qualifies this same-PC main-menu test. It does not qualify a second physical PC,
+a running world, multiplayer synchronization or memory stability. The memory
+sentinel failed during the successful run, so its partial measurements cannot
+establish healthy sustained memory behavior. An earlier restricted execution
+attempt was blocked from loopback with WinError 10013; the successful run used
+normal process rights, without changing the firewall.
+
 ## Build locally
 
 Use a clean, unpacked release App with no State or Instances directory and
