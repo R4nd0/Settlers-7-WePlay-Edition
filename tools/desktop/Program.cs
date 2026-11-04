@@ -374,14 +374,6 @@ internal sealed partial class MainForm : Form
     {
         control.Anchor = AnchorStyles.Left | AnchorStyles.Right; stack.RowStyles.Add(new RowStyle(SizeType.AutoSize)); stack.Controls.Add(control,0,stack.RowCount++);
     }
-    private GroupBox StartCard(string title,string description,Button action)
-    {
-        var card=new GroupBox { AutoSize=true,Dock=DockStyle.Fill,MinimumSize=new Size(0,180),Margin=new Padding(0,8,12,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
-        Bind(card,title);var content=Stack(card);content.Font=Font;content.Padding=new Padding(12,8,12,8);
-        var explanation=Label(description);explanation.MaximumSize=new Size(230,0);Add(content,explanation);Add(content,Buttons(action));
-        card.SizeChanged+=(_,_)=>explanation.MaximumSize=new Size(Math.Max(160,card.ClientSize.Width-36),0);
-        return card;
-    }
     private Control Field(string key,Control value,Control? extra = null)
     {
         accessibleFields[value]=key;value.AccessibleName=Lang.T(key);
@@ -414,12 +406,10 @@ internal sealed partial class MainForm : Form
         tabs.TabPages.AddRange([homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage]);
         var homeScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };homePage.Controls.Add(homeScroll);
         var home = Stack(homeScroll); Add(home,homeTitle); Add(home,homeInfo);
-        var starts=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=3 };
-        for(int column=0;column<3;column++)starts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/3));
-        starts.Controls.Add(StartCard("startLocalTitle","startLocalInfo",Button("playButton",()=>Play(false),true)),0,0);
-        starts.Controls.Add(StartCard("startLanTitle","startLanInfo",Button("openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;})),1,0);
-        starts.Controls.Add(StartCard("startInternetTitle","startInternetInfo",Button("openInternet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;})),2,0);
-        Add(home,starts);Add(home,Buttons(Button("directoryTitle",()=>{tabs.SelectedTab=directoryPage;return RefreshDirectory();}),Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        Add(home,BuildPlayModes());Add(home,Label("modeConsentInfo"));
+        homeScroll.ClientSizeChanged+=(_,_)=>ResizePlayModes(homeScroll);
+        ResizePlayModes(homeScroll);
+        Add(home,Buttons(Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
         Add(home,homeUpdateNotice);
         homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
         Add(home,Buttons(Button("updates",()=>{tabs.SelectedTab=updatesPage;return Task.CompletedTask;}),homeUpdateInstall));
@@ -533,6 +523,7 @@ internal sealed partial class MainForm : Form
     private void ApplyLanguage()
     {
         foreach (var item in labels) item.Key.Text = Lang.T(item.Value);
+        ApplyPlayModeLanguage();
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
         Text=Lang.T("app"); tray.Text=Lang.T("app");
         loading=true;
@@ -1034,6 +1025,25 @@ internal sealed partial class MainForm : Form
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
                 if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
                 form.LoadSnapshot(json.RootElement);form.ShowMain();form.Show();Application.DoEvents();
+                form.tabs.SelectedTab=form.homePage;Application.DoEvents();
+                if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
+                    throw new Exception("Four distinct play modes are required");
+                foreach(var entry in form.playModes)
+                {
+                    var cell=form.modeGrid.GetCellPosition(entry.Card);
+                    if(cell.Column!=(int)entry.Card.Mode%2||cell.Row!=(int)entry.Card.Mode/2||!entry.Card.TextFits())
+                        throw new Exception("Play mode card layout or translated text does not fit: "+entry.Card.Mode);
+                    if(!entry.Card.TabStop||entry.Card.AccessibleRole!=AccessibleRole.PushButton||
+                        entry.Card.AccessibleName!=entry.Card.Text||string.IsNullOrWhiteSpace(entry.Card.AccessibleDescription))
+                        throw new Exception("Play mode card lost keyboard/accessibility semantics");
+                }
+                foreach(var route in new[]{(PlayMode.Lan,form.lanPage),(PlayMode.PrivateInternet,form.internetPage),(PlayMode.PublicInternet,form.directoryPage)})
+                {
+                    form.playModes.Single(x=>x.Card.Mode==route.Item1).Card.PerformClick();Application.DoEvents();
+                    if(form.tabs.SelectedTab!=route.Item2||form.internetOperation||form.publicRoomOperation)
+                        throw new Exception("Mode card routed to the wrong page or joined a network");
+                    form.tabs.SelectedTab=form.homePage;
+                }
                 using var request=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 var output=request.RootElement.GetProperty("choice").GetProperty("display");
                 if(output.GetProperty("mode").GetString()!="borderless"||output.GetProperty("width").GetInt32()!=1920||form.resolution.Enabled)throw new Exception("Borderless controls failed");
@@ -1150,7 +1160,17 @@ internal sealed partial class MainForm : Form
                 graphicsScroll.ScrollControlIntoView(form.anisotropicFiltering);Capture("graphics-effects");
                 Size normalSize=form.Size;form.automaticMenuHeight=false;form.Size=form.MinimumSize;
                 foreach(var page in new[]{form.homePage,form.internetPage,form.graphicsPage})
-                {form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);}
+                {
+                    form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);
+                    if(page==form.homePage)
+                    {
+                        var viewport=(Panel)page.Controls[0];
+                        foreach(var entry in form.playModes)
+                            if(!viewport.ClientRectangle.Contains(viewport.RectangleToClient(entry.Card.RectangleToScreen(entry.Card.ClientRectangle))))
+                                throw new Exception("A play mode requires scrolling at the minimum window size: "+entry.Card.Mode);
+                    }
+                }
+                if(form.playModes.Any(x=>!x.Card.TextFits()))throw new Exception("Mode card text clips at the minimum window width");
                 form.Size=normalSize;form.automaticMenuHeight=true;
                 form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
                 using(var supportImage=new Bitmap(form.Width,form.Height))
@@ -1170,7 +1190,8 @@ internal sealed partial class MainForm : Form
                 passed=true,checks=new[]{"translation_keys","release_version_from_assembly","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
-                    "easytier_consent_defaults_denied","room_switch_requires_fresh_consent"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
+                    "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

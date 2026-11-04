@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-04",
+  "scope": "Unreleased launcher UI: four game paths with symbols and integration branding",
+  "build": {
+    "configuration": "Release",
+    "target": "net10.0-windows/win-x64",
+    "publish_exit_code": 0
+  },
+  "verification": {
+    "method": "Offscreen WinForms --self-test with synthetic installed-game snapshot",
+    "exit_code": 0,
+    "passed_checks": 22,
+    "languages": ["de", "en"],
+    "rendered_pages_per_language": 7,
+    "full_size_page_overflow": 0,
+    "minimum_window_size": [880, 620],
+    "all_four_cards_visible_at_minimum_size": true,
+    "card_text_fit": true,
+    "accessible_button_names_and_descriptions": true,
+    "lan_private_public_navigation_without_network_join": true,
+    "internet_consent_default_denial_and_room_switch_guards": true,
+    "visual_review": "German and English full and compact home layouts inspected"
+  },
+  "limits": [
+    "No live game, multiplayer or EasyTier connection was started by these UI checks.",
+    "No public directory service was deployed.",
+    "No new release or replacement of the previous complete standalone ZIP was created."
+  ]
+}
