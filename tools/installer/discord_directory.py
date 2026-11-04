@@ -44,10 +44,15 @@ def native_games(value,expected):
 
 
 class Reporter:
+    report_path='/v1/report'
+    warning_code='discord_publish_failed'
+
+    def credentials(self,state):return load(state)
+
     def __init__(self,state,interface,coordinator,expected,*,warn=None,transport=request,
                  connection_factory=http.client.HTTPSConnection,clock=time.monotonic,
                  room_invitation=None,version=None,helper_root=None):
-        credential=load(state)
+        credential=self.credentials(state)
         if credential is None:raise DiscordError('discord_not_connected')
         self.url,self.key=credential;origin(self.url)
         self.interface,self.coordinator,self.expected=interface,coordinator,expected
@@ -66,12 +71,12 @@ class Reporter:
         connection=self.connection_factory(urlsplit(self.url).hostname,timeout=5)
         self.active_connection=connection
         try:
-            connection.request(method,'/v1/report',body=json.dumps(value,separators=(',',':')).encode('utf-8'),
+            connection.request(method,self.report_path,body=json.dumps(value,separators=(',',':')).encode('utf-8'),
                                headers={'Content-Type':'application/json','Authorization':'Bearer '+self.key})
             response=connection.getresponse();raw=response.read(4097)
             if response.status==409:self.registered=False
             if response.status!=200 or len(raw)>4096 or json.loads(raw)!={'ok':True}:
-                raise DiscordError('discord_publish_failed')
+                raise DiscordError(self.warning_code)
         finally:connection.close();self.active_connection=None
 
     def poll(self):
@@ -91,7 +96,7 @@ class Reporter:
                 try:self.poll()
                 except (OSError,ValueError,TimeoutError,http.client.HTTPException):
                     if self.warn and self.clock()-self.last_warning>=60:
-                        self.last_warning=self.clock();self.warn('discord_publish_failed')
+                        self.last_warning=self.clock();self.warn(self.warning_code)
                 self.stop.wait(5)
         self.thread=threading.Thread(target=loop,name='WePlay-public-status',daemon=True);self.thread.start()
         return self

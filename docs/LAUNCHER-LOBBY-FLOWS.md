@@ -13,7 +13,7 @@ cue, not the only distinction.
 | Public Internet | Globe with players | EasyTier and Discord publishing; opens the public game directory. |
 
 The two Internet cards show the embedded EasyTier symbol beside its name.
-The public card also shows Discord's official symbol beside its publishing
+The public card also shows Discord's official symbol beside its optional publishing
 feature. Discord is not presented as the game transport or a requirement for
 joining a public match. Symbol provenance is recorded in
 [`assets/integrations/README.md`](../assets/integrations/README.md).
@@ -33,7 +33,8 @@ settings and private invitation controls. It does not publish matches to the
 directory or Discord. Public directory and publisher setup are absent here.
 
 **Public lobby** lists publicly offered matches and provides public hosting and
-joining. Host access and Discord board configuration live here. Public
+joining. Public hosting needs no Discord account. Additional Discord publication
+and its account-linking controls live here. Public
 connections keep their progress and leave controls on this tab; the launcher
 does not switch to a private invitation screen or expose its secret invitation
 controls for a public operation. Joining needs no publisher credential.
@@ -48,15 +49,18 @@ automatically joins the host's bounded room after a player chooses a match.
 Per-room isolation and the existing restrictive network policy are retained;
 this UI change does not widen peer access or deploy a global shared network.
 
-The shipped directory configuration currently has `origin: null`. A reachable
-public directory service must be configured before an automatic worldwide list
-can be offered. Existing directory codes and publisher linking remain supported.
-The UI says when that service is not configured; an empty local fixture list is
-not evidence of an operational public service. No new service was deployed as
-part of the update repairs.
+The unreleased directory configuration points to the centrally operated neutral
+community service. Opening the public tab fetches its game metadata; the visible
+list refreshes every 15 seconds and keeps the selected game when still present.
+Readers need no linking code. Explicit directory/join codes remain available for
+older clients and alternative configured directories. Published RC3.13 packages
+still have no automatic default. Service deployment, the one-time address and
+publisher-grant migration, and actual two-client test limits are recorded in
+[public service operations](PUBLIC-LOBBY-SERVICE.md).
 
 The offscreen WinForms self-test verifies the four cards, their navigation to
 LAN/private/public pages without joining a network, text fit and accessible
 button semantics. It also checks that all four cards remain within the home
 viewport at the minimum window size. These are UI fixture checks; they do not
-establish a live multiplayer connection or a deployed directory service.
+establish a live multiplayer connection. The deployed service and actual native
+client checks are separately documented.

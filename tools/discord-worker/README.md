@@ -1,7 +1,8 @@
-# WePlay external Discord operator
+# WePlay public lobby and Discord operator
 
-The shared game directory adds migration `0002_join_directory.sql` and
-`src/directory.mjs`. Apply the migration before deploying the new entry point.
+The shared game directory uses `0002_join_directory.sql` and
+`src/directory.mjs`. Independent public hosting adds `0003_public_hosts.sql` and
+`src/public-publisher.mjs`. Apply both migrations before deploying the entry point.
 See [protocol, client flow and test limits](../../docs/SHARED-GAME-DIRECTORY.md).
 The existing minute Cron also removes expired encrypted requests, host leases
 and temporary keyed rate buckets. No additional Discord scope or paid plan is
@@ -12,11 +13,17 @@ This Worker replaces the private-PC Gateway host. Worker, D1 and minute Cron
 are deployed; both private secrets are set and Discord has verified the HTTP
 cutover. The real automatic empty board has been created in #🎮multiplayer.
 The original local Gateway bot was gracefully stopped. Launcher pairing and
-actual public game reports still require validation; do not fabricate games.
+additional live Discord game posts still require validation; do not fabricate games.
 The owner confirmed that `/weplay-hilfe` responds with Launcher verbinden after
 the HTTP cutover.
 Only use Workers/D1 Free
 for this initial setup. Do not enable paid plans or create a duplicate app.
+
+The existing service now uses the neutral community address. Actual native public
+reporting and encrypted joining without Discord credentials passed with two
+local game clients. The old single publisher grant was invalidated during the
+owner-approved address change, and Discord confirmed the new interaction endpoint.
+See [current service operations and test limits](../../docs/PUBLIC-LOBBY-SERVICE.md).
 
 ## Public configuration
 
@@ -87,11 +94,16 @@ Do not change bot scopes/intents or add Administrator permissions for hosting.
 
 ## Bounds, recovery and privacy
 
-One account has one grant and one active run. A new signed pairing invalidates
+Paired Discord publication uses one grant and one active run per account. A new signed pairing invalidates
 the previous grant and closes its report. Normal closure withdraws a run; stale
 updates cannot revive it. Reports expire after 180 seconds and Cron refreshes
 the board each minute. Up to 256 paired accounts and 16 concurrent publishers
 are allowed; each report has up to eight games, with 16 board fields displayed.
+Independent public hosting has separate five-minute grants, at most 64 retained
+credentials and six registrations per source per minute. It needs no Discord
+pairing and cannot access Discord publishing routes. The 16 active report limit
+is shared. New launcher linking leaves the additional Discord publication checkbox
+off until the player explicitly enables it.
 These are intentional initial service bounds, not a gameplay limit.
 
 At the researched Free limits Workers allows 100,000 requests/day and 10ms CPU

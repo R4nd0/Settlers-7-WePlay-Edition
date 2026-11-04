@@ -33,6 +33,7 @@ DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
+PUBLIC_DIRECTORY_PACKAGE_TOOLS = ('installer/public_directory.py',)
 DIRECTORY_PACKAGE_TOOLS = ('installer/game_directory.py','installer/join_crypto.py','installer/directory-service.json',
     'installer/ingame_directory.py','game-directory/interface_patch.py','game-directory/session_list.lua')
 UPDATE_PACKAGE_TOOLS = ('installer/update_client.py','installer/update_handoff.ps1','installer/update-key.json')
@@ -105,7 +106,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -138,6 +139,9 @@ def package_manifest(root):
             or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=DIRECTORY_ADAPTER_SHA256
             or any(('tools/'+name).lower() not in expected for name in DIRECTORY_PACKAGE_TOOLS)):
         raise ValueError('Das gemeinsame Spieleverzeichnis im Paket ist unvollstaendig.')
+    if manifest.get('public_game_directory',False) and (not manifest.get('game_directory',False) or
+            any(('tools/'+name).lower() not in expected for name in PUBLIC_DIRECTORY_PACKAGE_TOOLS)):
+        raise ValueError('Die oeffentliche Lobby im Paket ist unvollstaendig.')
     if manifest.get('update_patcher',False) and (not manifest.get('desktop_launcher',False) or
             any(('tools/'+name).lower() not in expected for name in update_package_tools(manifest))):
         raise ValueError('Der Update-Patcher im Paket ist unvollstaendig.')

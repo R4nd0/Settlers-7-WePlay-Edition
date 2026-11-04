@@ -50,15 +50,25 @@ def parse_code(code):
 
 def configured(state):
     state=compatibility.plain(state)
-    for path,expected in ((state/'game-directory.json',FORMAT),
-                          (state/'discord-directory.json','weplay-discord-connection-v1'),
-                          (Path(__file__).with_name('directory-service.json'),'weplay-directory-service-v1')):
+    def read(path,expected):
         path=compatibility.plain(path)
-        if not path.is_file():continue
+        if not path.is_file():return None
         if path.stat().st_size>4096:raise DirectoryError('directory_invalid')
         value=record(path.read_bytes())
         if not isinstance(value,dict) or value.get('format')!=expected:raise DirectoryError('directory_invalid')
-        if value.get('origin') is not None:return origin(value['origin'])
+        if value.get('origin') is not None:origin(value['origin'])
+        return value
+    selected=read(state/'game-directory.json',FORMAT)
+    if selected and type(selected.get('explicit_override',False)) is not bool:raise DirectoryError('directory_invalid')
+    if selected and selected.get('explicit_override') is True and selected.get('origin') is not None:
+        return origin(selected['origin'])
+    default=read(Path(__file__).with_name('directory-service.json'),'weplay-directory-service-v1')
+    if default and default.get('origin') is not None:return origin(default['origin'])
+    # Legacy reader profiles followed the old central address. Keep them as a
+    # fallback for unconfigured packages, without pinning upgrades to that address.
+    if selected and selected.get('origin') is not None:return origin(selected['origin'])
+    paired=read(state/'discord-directory.json','weplay-discord-connection-v1')
+    if paired and paired.get('origin') is not None:return origin(paired['origin'])
     return None
 
 

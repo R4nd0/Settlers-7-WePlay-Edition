@@ -62,11 +62,22 @@ and budget archive/save migration space. Complete standalone exports can move
 with contained old-version cleanup still pending. See
 [update recovery and qualification](docs/UPDATE-RECOVERY.md).
 
-The launcher separates **Private Internet play** from **Public lobby**, including
-their connection status and publisher settings. Per-room consent and network
-isolation remain enabled. A default worldwide directory still needs a configured
-public service; the package currently has no default service address. See
-[the two launcher flows](docs/LAUNCHER-LOBBY-FLOWS.md).
+The start page shows four distinct cards: **Solo**, **LAN**, **Private Internet**
+and **Public Internet**. The next launcher uses the centrally hosted
+[WePlay public directory](https://weplay-multiplayer.weplay-community.workers.dev/health)
+automatically and refreshes the visible game list. Public hosting and joining
+work without linking Discord. **Also publish on Discord** remains an optional
+setting in Public lobby; private rooms keep their invitation-sharing controls.
+Per-room consent and network isolation remain enabled. See
+[the launcher flows](docs/LAUNCHER-LOBBY-FLOWS.md) and
+[central-service verification and test limits](docs/PUBLIC-LOBBY-SERVICE.md).
+
+The service moved to its neutral community address on November 4, 2026. Previous
+Discord publisher links were invalidated with the owner's approval. Use
+`/weplay-hilfe` to obtain a fresh private linking code if you want Discord
+publication. Existing RC3.13 readers can use a fresh directory code from that
+helper; the automatic default and Discord-independent hosting require the
+unreleased launcher/package changes.
 
 These source changes are not included in the RC3.13 downloads above.
 

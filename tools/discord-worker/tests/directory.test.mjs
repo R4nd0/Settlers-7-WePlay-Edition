@@ -9,7 +9,7 @@ const NOW=1793700000,ORIGIN="https://weplay-multiplayer.testing.workers.dev";
 const run="a".repeat(32),content="b".repeat(64),owner="c".repeat(64),token=Buffer.alloc(32,9).toString("base64url");
 const hash=async text=>Buffer.from(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text))).toString("hex");
 class D1{
-  constructor(){this.db=new DatabaseSync(":memory:");for(const name of ["0001_directory.sql","0002_join_directory.sql"])
+  constructor(){this.db=new DatabaseSync(":memory:");for(const name of ["0001_directory.sql","0002_join_directory.sql","0003_public_hosts.sql"])
     this.db.exec(readFileSync(new URL("../migrations/"+name,import.meta.url),"utf8"));}
   prepare(sql){const db=this.db;const wrap=args=>({bind:(...values)=>wrap(values),first:async()=>db.prepare(sql).get(...args)||null,
     all:async()=>({results:db.prepare(sql).all(...args)}),run:async()=>({meta:{changes:Number(db.prepare(sql).run(...args).changes)}}),

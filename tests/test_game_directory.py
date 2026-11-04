@@ -120,7 +120,7 @@ class BackendTests(unittest.TestCase):
         channel.read.return_value='weplay-directory1.'+join_crypto.encoded(json.dumps(dict(v=1,origin=ORIGIN)).encode())
         with patch.object(internet_private_channel,'PrivateChannel',return_value=channel):
             self.assertEqual(self.backend.directory_connect({'channel':'private-fixture'}),{'connected':True,'game_id':None})
-        self.assertEqual(self.backend.write.call_args.args[1],dict(format=directory.FORMAT,origin=ORIGIN))
+        self.assertEqual(self.backend.write.call_args.args[1],dict(format=directory.FORMAT,origin=ORIGIN,explicit_override=True))
 
     def test_join_delegates_only_resolved_private_room_to_existing_internet_launcher(self):
         with patch.object(directory,'join',return_value='weplay1.private-fixture') as resolve:

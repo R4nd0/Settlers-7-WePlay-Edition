@@ -1,4 +1,5 @@
 import {directoryRequest,directoryGames,expireDirectory,DirectoryRefusal} from "./directory.mjs";
+import {registerPublicPublisher,expirePublicPublishers,PUBLIC_TTL} from "./public-publisher.mjs";
 const encoder = new TextEncoder();
 const MARKER = "WePlay · Automatische Multiplayer-Übersicht";
 const TTL = 180;
@@ -79,7 +80,7 @@ async function connect(interaction,env,now) {
     env.DB.prepare("UPDATE weplay_reports SET closed=1,expires_at=? WHERE owner=? AND EXISTS(SELECT 1 FROM weplay_publishers WHERE owner=? AND token_hash<>? AND last_interaction<?)")
       .bind(now,owner,owner,tokenHash,event),
     env.DB.prepare(`INSERT INTO weplay_publishers(owner,token_hash,last_interaction,issued_at)
-      SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM weplay_publishers)<? OR EXISTS(SELECT 1 FROM weplay_publishers WHERE owner=?)
+      SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM weplay_publishers WHERE last_interaction<>'public')<? OR EXISTS(SELECT 1 FROM weplay_publishers WHERE owner=?)
       ON CONFLICT(owner) DO UPDATE SET token_hash=excluded.token_hash,last_interaction=excluded.last_interaction,issued_at=excluded.issued_at
       WHERE excluded.last_interaction>=weplay_publishers.last_interaction`).bind(owner,tokenHash,event,now,MAX_PUBLISHERS,owner)
   ]);
@@ -92,7 +93,8 @@ async function connect(interaction,env,now) {
 }
 
 export async function board(env,now) {
-  const result=await env.DB.prepare("SELECT payload FROM weplay_reports WHERE closed=0 AND expires_at>? ORDER BY owner LIMIT 16").bind(now).all();
+  const result=await env.DB.prepare(`SELECT payload FROM weplay_reports WHERE closed=0 AND expires_at>?
+    AND NOT EXISTS(SELECT 1 FROM weplay_public_publishers a WHERE a.owner=weplay_reports.owner) ORDER BY owner LIMIT 16`).bind(now).all();
   const rows=[];for(const row of result.results){rows.push(...games(JSON.parse(row.payload)));}
   const rank={open:0,full:1,started:2};rows.sort((a,b)=>rank[a.state]-rank[b.state] || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
   const counts={open:0,full:0,started:0};for(const row of rows)counts[row.state]++;
@@ -122,7 +124,7 @@ async function discord(env,path,options={}) {
 }
 
 async function directoryComponents(env,now){
-  const rows=(await directoryGames(env,now,games)).filter(game=>game.state==="open"&&game.free_slots>0).slice(0,25);
+  const rows=(await directoryGames(env,now,games)).filter(game=>!game._host.anonymous&&game.state==="open"&&game.free_slots>0).slice(0,25);
   return rows.length?[{type:1,components:[{type:3,custom_id:"weplay:join",placeholder:"Offenem Spiel beitreten",
     options:rows.map(row=>({label:row.title,value:row.id,description:`Spieler ${row.players}/${row.capacity} · ${row.free_slots} freie Plätze`}))}]}]:[];
 }
@@ -159,15 +161,18 @@ export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
   finally {await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1").bind(now+retry).run();}
 }
 
-async function publisher(request,env) {
+async function publisher(request,env,allowPublic=false) {
   const auth=request.headers.get("Authorization") || "";
   if(!/^Bearer [A-Za-z0-9_-]{43}$/.test(auth))throw new Refusal(401);
-  const value=await env.DB.prepare("SELECT owner FROM weplay_publishers WHERE token_hash=?").bind(await hash(auth.slice(7))).first();
-  if(!value)throw new Refusal(401);return value;
+  const value=await env.DB.prepare(`SELECT p.owner,a.expires_at AS public_expiry FROM weplay_publishers p
+    LEFT JOIN weplay_public_publishers a ON a.owner=p.owner WHERE p.token_hash=?`).bind(await hash(auth.slice(7))).first();
+  if(!value||(value.public_expiry!=null&&(!allowPublic||value.public_expiry<=Math.floor(Date.now()/1000))))throw new Refusal(401);
+  return {...value,public:value.public_expiry!=null};
 }
 
-async function report(request,env,ctx,now) {
-  const identity=await publisher(request,env);
+async function report(request,env,ctx,now,publicOnly=false) {
+  const identity=await publisher(request,env,publicOnly);
+  if(publicOnly&&!identity.public)throw new Refusal(403);
   const value=parse(await body(request,8192));
   if(!exact(value,["format","run_id","sequence","games"]) || value.format!=="weplay-game-report-v1" ||
      typeof value.run_id!=="string" || !/^[0-9a-f]{32}$/.test(value.run_id) || !Number.isInteger(value.sequence) || value.sequence<0 || value.sequence>2147483647)throw new Refusal();
@@ -195,7 +200,9 @@ async function report(request,env,ctx,now) {
   if(!current || current.run_id!==value.run_id ||
      (request.method==="PUT" && (current.sequence!==value.sequence || current.payload!==payload || current.closed || current.expires_at<=now)) ||
      (request.method==="POST" && (current.closed || current.expires_at<=now)) || (request.method==="DELETE" && !current.closed))throw new Refusal(409);
-  ctx.waitUntil(updateBoard(env,now));
+  if(identity.public&&request.method!=="DELETE")
+    await env.DB.prepare("UPDATE weplay_public_publishers SET expires_at=? WHERE owner=? AND expires_at>?").bind(now+PUBLIC_TTL,identity.owner,now).run();
+  if(!identity.public)ctx.waitUntil(updateBoard(env,now));
   return json({ok:true});
 }
 
@@ -204,9 +211,11 @@ export default {
     try {
       const url=new URL(request.url);const now=Math.floor(Date.now()/1000);
       if(url.origin!==origin(env) || url.search)throw new Refusal(400);
-      const directory=await directoryRequest(request,env,now,{publisher,games});
+      if(url.pathname==="/v1/directory/register")return json(await registerPublicPublisher(request,env,now,body));
+      if(url.pathname==="/v1/directory/report")return await report(request,env,ctx,now,true);
+      const directory=await directoryRequest(request,env,now,{publisher:(r,e)=>publisher(r,e,true),games});
       if(directory){
-        if(url.pathname==="/v1/directory/host")ctx.waitUntil(updateBoard(env,now));
+        if(url.pathname==="/v1/directory/host"&&!(await publisher(request,env,true)).public)ctx.waitUntil(updateBoard(env,now));
         return directory;
       }
       if(url.pathname==="/health" && request.method==="GET"){
@@ -248,6 +257,7 @@ export default {
     } catch(error){return json({error:"request_refused"},error instanceof Refusal||error instanceof DirectoryRefusal?error.status:503);}
   },
   async scheduled(controller,env,ctx){ctx.waitUntil((async()=>{
-    await expireDirectory(env,Math.floor(Date.now()/1000));await updateBoard(env);
+    const now=Math.floor(Date.now()/1000);
+    await expirePublicPublishers(env,now);await expireDirectory(env,now);await updateBoard(env,now);
   })());}
 };

@@ -583,6 +583,7 @@ internal sealed partial class MainForm : Form
         discordAvailable=value.TryGetProperty("discord_available",out var discordCapability)&&discordCapability.GetBoolean();
         discordConnected=value.TryGetProperty("discord_connected",out var connected)&&connected.GetBoolean();
         directoryAvailable=value.TryGetProperty("directory_available",out var directoryCapability)&&directoryCapability.GetBoolean();
+        publicHostingAvailable=value.TryGetProperty("public_directory_available",out var publicCapability)&&publicCapability.GetBoolean();
         directoryConnected=value.TryGetProperty("directory_connected",out var directoryConnection)&&directoryConnection.GetBoolean();
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
@@ -857,17 +858,17 @@ internal sealed partial class MainForm : Form
         await Backend.Run("discord-disconnect",new {},Receive);
         LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordNotConnected");
     }
-    private async Task PlayInternet(bool create,bool publish=false)
+    private async Task PlayInternet(bool create,bool publish=false,bool publicLobby=false)
     {
         player.Text=internetPlayer.Text;string name=ValidName();
         string? invitation=create?null:Community.InvitationCode(internetJoin.Text);
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
-        if(!ConfirmInternetConnection(publish))return;
-        publicRoomOperation=publish;
+        if(!ConfirmInternetConnection(publicLobby||publish))return;
+        publicRoomOperation=publicLobby||publish;
         internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);
-        tabs.SelectedTab=publish?directoryPage:internetPage;
+        tabs.SelectedTab=publicRoomOperation?directoryPage:internetPage;
         using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
         {
@@ -877,7 +878,13 @@ internal sealed partial class MainForm : Form
         try
         {
             JsonElement result;
-            if(create)result=await Backend.Run("internet-create",new {player_name=name,channel=channel.Name,mode=direct?"direct":"assisted",direct_endpoint=endpoint,publish_discord=publish,internet_consent=1},Receive);
+            if(create)
+            {
+                var request=new Dictionary<string,object?> { ["player_name"]=name,["channel"]=channel.Name,["mode"]=direct?"direct":"assisted",
+                    ["direct_endpoint"]=endpoint,["publish_discord"]=publish,["internet_consent"]=1 };
+                if(publicHostingAvailable)request["public_lobby"]=publicLobby;
+                result=await Backend.Run("internet-create",request,Receive);
+            }
             else result=await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=false,internet_consent=1},Receive);
             QueueDirectorySwitch(result);
             channel.Dispose();await privateTask;
@@ -954,12 +961,16 @@ internal sealed partial class MainForm : Form
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
-    private async Task Guard(Func<Task> action)
+    private async Task Guard(Func<Task> action,bool showErrors=true)
     {
         if(busy)return;
         SetBusy(true);
         try{await action();}
-        catch(Exception error){gameRunning=false;RestoreWindow();ShowError(error);}
+        catch(Exception error)
+        {
+            if(showErrors){gameRunning=false;RestoreWindow();ShowError(error);}
+            else status.Text=Lang.T(error is BackendError backend?backend.Code:"operation_failed");
+        }
         finally
         {
             SetBusy(false);
@@ -1125,10 +1136,14 @@ internal sealed partial class MainForm : Form
                     throw new Exception("Unavailable Discord capability controls failed");
                 form.discordAvailable=true;form.UpdateInternetControls();
                 form.directoryAvailable=true;
+                form.publicHostingAvailable=true;form.discordConnected=false;form.UpdateInternetControls();
                 using(var directory=JsonDocument.Parse("""{"connected":true,"games":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","title":"Community game","state":"open","players":1,"capacity":4,"free_slots":3,"version":"2.0.0-rc3.12","compatible":true}]}"""))
                     form.ShowDirectory(directory.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
                 form.tabs.SelectedTab=form.directoryPage;Application.DoEvents();form.UpdateDirectoryControls();
                 if(!form.directoryJoin.Enabled)throw new Exception("Compatible open directory game cannot be selected");
+                if(!form.directoryHost.Enabled||form.discordPublish.Checked||form.discordPublish.Enabled||!form.discordPublish.Visible)
+                    throw new Exception("Public hosting requires Discord or silently enables Discord publication");
+                Capture("public-no-discord");
                 form.publicRoomOperation=true;form.internetOperation=true;form.internetStage="ready";
                 form.internetInvite.Text="weplay1.synthetic-private-bytes";form.SetBusy(true);Application.DoEvents();
                 if(!form.directoryPage.Enabled||form.internetPage.Enabled||!form.directoryProgress.Visible||form.internetCopy.Enabled||form.internetShare.Enabled||form.internetInviteField!.Visible)
@@ -1191,7 +1206,7 @@ internal sealed partial class MainForm : Form
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
-                    "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size","public_hosting_without_discord_and_optional_listing"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

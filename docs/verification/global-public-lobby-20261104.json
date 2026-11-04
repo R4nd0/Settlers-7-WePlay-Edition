@@ -1,0 +1,71 @@
+{
+  "format": "weplay-global-lobby-verification-v1",
+  "date": "2026-11-04",
+  "deployment": {
+    "origin": "https://weplay-multiplayer.weplay-community.workers.dev",
+    "worker_version": "f2860fe0-2741-458d-a561-5d96b928490a",
+    "existing_worker_and_database_reused": true,
+    "new_paid_resources": false,
+    "normal_verified_https": true,
+    "discord_endpoint_verified": true,
+    "temporary_activation_entry_removed": true,
+    "previous_publisher_grant_revoked_with_explicit_approval": true,
+    "health_and_public_directory_passed": true,
+    "unsigned_and_uncredentialed_writes_refused": true
+  },
+  "local_checks": {
+    "worker_tests_passed": 24,
+    "source_only_tests_passed": 230,
+    "source_failures": 0,
+    "source_errors": 0,
+    "source_skipped": 0,
+    "forbidden_source_access_attempts": 0,
+    "isolated_child_import_checks_omitted": 2,
+    "gui_checks_passed": 23,
+    "gui_languages": [
+      "de",
+      "en"
+    ],
+    "full_page_layouts": 14,
+    "workerd_d1_two_independent_dotnet_crypto_clients": true,
+    "legacy_package_valid": true,
+    "new_public_package_valid": true,
+    "package_files": 311,
+    "missing_required_host_module_rejected": true,
+    "bundled_isolated_python_import": true,
+    "legacy_reader_default_migration_and_explicit_override": true,
+    "discord_linking_does_not_enable_publication": true,
+    "additional_discord_fixture_tests_passed": 10,
+    "native_temporary_credential_test_skipped": 1
+  },
+  "actual_clients": {
+    "count": 2,
+    "edition": "Guarded Ubisoft laboratory aliases",
+    "real_native_game_reported_to_production_https": true,
+    "guest_global_view_showed_actual_host": true,
+    "ingame_restart_explicitly_confirmed": true,
+    "encrypted_grant_delivered_by_production_broker": true,
+    "anonymous_public_host_without_discord_credential": true,
+    "two_real_easytier_peers_mutual_p2p": true,
+    "guest_restarted_and_joined_native_lobby": true,
+    "two_players_visible_and_projected": true,
+    "initial_host_exit_code": 0,
+    "initial_guest_exit_code": 0,
+    "restarted_guest_closed_through_game_menu": true,
+    "all_memory_monitors_healthy": true,
+    "test_publication_withdrawn": true,
+    "owned_test_copies_restored": true
+  },
+  "boundaries": {
+    "native_game_transport": "Existing guarded same-PC loopback laboratory",
+    "easytier_tun": false,
+    "public_easytier_nodes_used": false,
+    "two_remote_pcs_verified": false,
+    "complete_packaged_launcher_flow_over_tun_verified": false,
+    "steam_live_ui_verified": false,
+    "active_world_or_simulation_stability_verified": false,
+    "live_discord_game_post_sent": false,
+    "new_github_release_created": false,
+    "previous_standalone_zip_replaced": false
+  }
+}

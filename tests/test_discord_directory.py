@@ -136,7 +136,7 @@ class BackendPairingTests(unittest.TestCase):
             self.assertEqual(desktop_backend.Desktop.connect_discord(desktop,{'channel':'weplay-internet-'+'c'*32}),{'connected':True})
         check.assert_called_once_with(ORIGIN,KEY);store.assert_called_once_with(ORIGIN,KEY)
         self.assertNotIn(KEY,repr(desktop.write.call_args))
-        self.assertEqual(desktop.write.call_args.args[1],dict(format=credentials.FORMAT,origin=ORIGIN,publish_enabled=True))
+        self.assertEqual(desktop.write.call_args.args[1],dict(format=credentials.FORMAT,origin=ORIGIN,publish_enabled=False))
 
     def test_failed_validation_never_saves_grant_and_legacy_packages_never_gain_capability(self):
         from types import SimpleNamespace

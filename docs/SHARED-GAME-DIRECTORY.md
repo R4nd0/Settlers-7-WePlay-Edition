@@ -1,26 +1,32 @@
 # Shared game directory and private joining
 
-Included in RC3.13. The earlier RC3.12 ZIP does not contain these features.
+The directory protocol is included in RC3.13. The central default service and
+Discord-independent public hosting described below are unreleased follow-up
+changes; they are not in the existing RC3.13 downloads. The earlier RC3.12 ZIP
+does not contain the directory protocol.
 EasyTier remains the transport; this is original
 WePlay code, with no aLobby code copied into the MIT project.
 
 ## Player flow
 
 The launcher has a **Public lobby / Öffentliche Lobby** tab. It lists the same
-public native matches as Discord, including player counts, open/full/started
+public native matches, including player counts, open/full/started
 state, version and content compatibility. Refresh the list, select an open
 compatible match and choose **Join**. WePlay obtains the host's private room
 invitation, joins its EasyTier room and starts the game. Select the actual LAN
 match inside S7. A directory entry does not itself admit a native game player.
 
-In Discord, `/weplay-hilfe` provides **Spieleverzeichnis verbinden** for readers
+The new launcher reads the central directory automatically. In Discord,
+`/weplay-hilfe` still provides **Spieleverzeichnis verbinden** for older readers
 and the existing **Launcher verbinden** for publishers. Reader configuration
 does not require a publisher credential. The board and `/spiele` offer a menu
 of open games; selecting one returns an ephemeral `weplay-join1.` code to paste
 into the launcher. No VPN invitation is posted in the channel.
 
-To publish, link the host launcher with Discord, enable its existing publication
-checkbox, create an Internet room and create a public native match inside S7.
+To publish, choose **Offer a public game** and create a public native match inside
+S7. The new package requires no Discord account for hosting. To also publish on
+Discord, link the launcher and enable the additional publication checkbox in
+Public lobby before opening the room. Legacy hosts still use paired publishing.
 Nothing is published just because a launcher or an empty room is open. Private
 native sessions remain excluded by the local owner-filtered projection.
 
@@ -48,7 +54,13 @@ operations; no new cryptographic primitive is implemented here. Request ID,
 game ID, challenge and expiry are authenticated as associated data. The guest
 verifies them and rechecks the live compatible listing before using the room.
 
-The existing Discord publisher credential remains in Windows Credential
+An independent public host obtains a short-lived hosting grant. Its random secret
+stays in launcher memory; the service stores only its digest and a derived owner.
+It cannot access Discord publication routes. Grants expire after five minutes
+without renewal, registration is limited to six new grants per source per minute,
+and at most 64 such grants and 16 active reports are retained initially. Closed
+reports and expiring host leases continue to withdraw listings. The optional
+Discord publisher credential remains in Windows Credential
 Manager. Transient private keys and decrypted invitations travel through private
 inherited stdin/stdout pipes, not command arguments or diagnostic output. The
 server stores only an encrypted room envelope; the native game never receives
@@ -81,27 +93,36 @@ and archive fingerprints. Old RC packages keep their existing fingerprints and
 do not gain the feature accidentally. The hash-locked interface extension runs
 after the existing multiplayer save/autosave patch.
 
-`tools/installer/directory-service.json` deliberately has a null origin. An
-operator can supply the configured HTTPS service in the private build, or a
-player can paste a reader/join code. Existing host pairing metadata also supplies
-the origin. Do not commit operator configuration, credentials or a hostname
-containing personal identity. Use the existing Worker/D1 and Free plan.
+`tools/installer/directory-service.json` now defaults to
+`https://weplay-multiplayer.weplay-community.workers.dev`. Explicit reader/join
+codes remain supported. The default service takes precedence over legacy reader
+profiles and saved Discord connection metadata. Newly explicit directory selection
+still takes priority; users of an old alternative directory can select it once
+again after updating. Do not
+commit operator account configuration, credentials or a hostname containing
+personal identity. The existing Worker/D1 and Free plan are reused. The new
+`public_game_directory` package capability includes the independent public host
+module; previous package manifests remain valid without that new capability.
 
-Apply `0002_join_directory.sql` before deploying the new Worker. Existing report
+Apply `0002_join_directory.sql` and `0003_public_hosts.sql` before deploying the
+new Worker. Existing report
 and publisher routes remain compatible with old clients. The new routes are:
 
 | Route | Access and purpose |
 | --- | --- |
 | `GET /v1/directory/games` | Public, bounded metadata only |
-| `PUT/DELETE /v1/directory/host` | Existing authenticated publisher; lease/poll/withdraw |
+| `POST /v1/directory/register` | Obtain/renew a short-lived independent public-host grant |
+| `POST/PUT/DELETE /v1/directory/report` | Public-host credential; own native metadata lifecycle |
+| `PUT/DELETE /v1/directory/host` | Paired or independent owning host; lease/poll/withdraw |
 | `PUT /v1/directory/host/<run>/requests/<id>` | Owning publisher; encrypted reply or rejection |
 | `POST /v1/directory/join` | Public, compatible bounded guest request |
 | `GET/DELETE /v1/directory/join/<id>` | Request-specific private token; delivery/consume |
 
-Migration and Worker version `d37c0921-8814-4c0f-b70f-9b1fc30fa7e6` are deployed
-to the existing service. Health and the public directory schema were checked;
-unauthenticated host publication is rejected. No synthetic game was published
-to the real Discord channel or public service. The existing minute Cron remains.
+All three migrations and the regular production Worker are deployed to the
+existing service at its neutral community address. Hosting requires an owning
+credential; anonymous registration never authorizes Discord posts. The existing
+minute Cron also removes expired independent host credentials. See
+[deployment, address migration and current verification](PUBLIC-LOBBY-SERVICE.md).
 
 ## Verification status
 

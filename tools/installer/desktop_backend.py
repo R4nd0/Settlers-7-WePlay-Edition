@@ -253,6 +253,7 @@ class Desktop:
             except (OSError,ValueError,TypeError):result['update_last_error']='update_invalid'
         result['discord_available']=self.read(self.package/'package.json',{}).get('discord_directory',False) is True
         result['directory_available']=self.read(self.package/'package.json',{}).get('game_directory',False) is True
+        result['public_directory_available']=self.read(self.package/'package.json',{}).get('public_game_directory',False) is True
         result['directory_connected']=False
         if result['directory_available']:
             from game_directory import configured
@@ -621,7 +622,7 @@ class Desktop:
             url,key=parse(channel.read())
             check_connection(url,key)
             store(url,key)
-            self.write(self.state/'discord-directory.json',{'format':FORMAT,'origin':url,'publish_enabled':True})
+            self.write(self.state/'discord-directory.json',{'format':FORMAT,'origin':url,'publish_enabled':False})
         return {'connected':True}
 
     def check_updates(self):
@@ -653,15 +654,19 @@ class Desktop:
         if not install.package_manifest(self.package).get('internet_easytier',False):
             raise ValueError('package_invalid')
         required={'player_name','channel','mode','direct_endpoint','internet_consent'} if host else {'player_name','channel','internet_consent'}
-        if not isinstance(request,dict) or set(request) not in (required,required|{'publish_discord'}):raise ValueError('request_invalid')
+        optional={'publish_discord','public_lobby'} if host else {'publish_discord'}
+        if not isinstance(request,dict) or not required<=set(request) or set(request)-required-optional:raise ValueError('request_invalid')
         if type(request['internet_consent']) is not int or request['internet_consent']!=1:raise ValueError('internet_consent_required')
         publish=request.get('publish_discord',False)
         if type(publish) is not bool:raise ValueError('request_invalid')
+        public=request.get('public_lobby',publish)
+        if type(public) is not bool or (publish and not public) or (public and not host):raise ValueError('request_invalid')
+        if public and not publish and not install.package_manifest(self.package).get('public_game_directory',False):raise ValueError('directory_unavailable')
         if publish:
             from discord_credentials import connected
             if not install.package_manifest(self.package).get('discord_directory',False) or not connected(self.state):
                 raise ValueError('discord_not_connected')
-        if 'publish_discord' in request and install.package_manifest(self.package).get('discord_directory',False):
+        if public and 'publish_discord' in request and install.package_manifest(self.package).get('discord_directory',False):
             from discord_credentials import public_settings
             preferences=public_settings(self.state)
             if preferences:
@@ -678,7 +683,7 @@ class Desktop:
             if not host:parse(invitation)
             elif request['mode']=='direct':endpoint(request['direct_endpoint'])
             options={'invitation':invitation,'mode':request.get('mode','assisted'),
-                     'direct_endpoint':request.get('direct_endpoint'),'publish_discord':publish,'internet_consent':1}
+                     'direct_endpoint':request.get('direct_endpoint'),'publish_discord':publish,'public_lobby':public,'internet_consent':1}
             return self.play({'player_name':request['player_name']},internet=options,
                              invitation_ready=channel.invitation_ready)
 
@@ -688,7 +693,7 @@ class Desktop:
         from internet_private_channel import PrivateChannel
         from game_directory import parse_code,FORMAT
         with PrivateChannel(data['channel']) as channel:url,game=parse_code(channel.read())
-        self.write(self.state/'game-directory.json',{'format':FORMAT,'origin':url})
+        self.write(self.state/'game-directory.json',{'format':FORMAT,'origin':url,'explicit_override':True})
         return {'connected':True,'game_id':game}
 
     def directory_list(self):
@@ -804,16 +809,24 @@ class Desktop:
                 private_room[0]=invitation
                 if invitation_ready:invitation_ready(invitation)
             def observe(interface,coordinator,expected):
-                if not internet.get('publish_discord',False):return None
-                from discord_directory import Reporter
+                public=internet.get('public_lobby',internet.get('publish_discord',False))
+                if not public:return None
+                if internet.get('publish_discord',False):from discord_directory import Reporter
+                else:from public_directory import PublicReporter as Reporter
+                reporter=None
                 try:
                     extra={}
                     if install.package_manifest(self.package).get('game_directory',False) and private_room[0]:
                         extra=dict(room_invitation=private_room[0],version=self.read(self.app/'desktop-release.json',{}).get('version'),helper_root=self.package)
-                    return Reporter(self.state,interface,coordinator,expected,
-                        warn=lambda code:self.emit('warning',code=code),**extra).start()
-                except (OSError,ValueError):
-                    self.emit('warning',code='discord_publish_failed');return None
+                    reporter=Reporter(self.state,interface,coordinator,expected,
+                        warn=lambda code:self.emit('warning',code=code),**extra)
+                    # Confirm hosting access before starting S7. A failed
+                    # registration must not silently open an unlisted game.
+                    reporter.poll()
+                    return reporter.start()
+                except (OSError,ValueError,http.client.HTTPException):
+                    if reporter:reporter.close()
+                    raise ValueError('discord_not_connected' if internet.get('publish_discord',False) else 'directory_unavailable') from None
             code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,

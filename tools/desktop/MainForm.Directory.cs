@@ -5,7 +5,8 @@ namespace S7Desktop;
 internal sealed partial class MainForm
 {
     private TabPage directoryPage=null!;
-    private bool directoryAvailable,directoryConnected;
+    private bool directoryAvailable,directoryConnected,publicHostingAvailable,directoryLoadFailed;
+    private readonly System.Windows.Forms.Timer directoryTimer=new() {Interval=15000};
     private readonly TextBox directoryPlayer=new() { Dock=DockStyle.Fill,MaxLength=24 };
     private readonly Label directoryNotice=new() { AutoSize=true,MaximumSize=new Size(850,0) };
     private readonly ListView directoryGames=new() { Dock=DockStyle.Top,Height=290,View=View.Details,FullRowSelect=true,MultiSelect=false,HideSelection=false };
@@ -36,9 +37,10 @@ internal sealed partial class MainForm
         Add(stack,directoryGames);Add(stack,Buttons(directoryRefresh,directoryJoin,directoryConnect));Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
         directoryHost=Button("directoryHost",async()=>{
-            if(!discordConnected)throw new BackendError("discord_not_connected","");
+            bool publish=publicHostingAvailable?discordPublish.Checked:true;
+            if(publish&&!discordConnected)throw new BackendError("discord_not_connected","");
             internetPlayer.Text=directoryPlayer.Text;internetMode.SelectedIndex=0;internetHostChoice.Checked=true;
-            await PlayInternet(true,publish:true);
+            await PlayInternet(true,publish:publish,publicLobby:true);
         });
         Add(stack,Buttons(directoryHost));
         Add(stack,directoryProgress);
@@ -50,14 +52,24 @@ internal sealed partial class MainForm
         var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
         Bind(discordSection,"directoryPublisherTitle");var discord=Stack(discordSection);discord.Font=Font;
         Add(discord,Label("directoryPublisherInfo"));Add(discord,discordNotice);
+        Bind(discordPublish,"discordPublish");Add(discord,discordPublish);
         Bind(discordOptions,"discordOptions");Add(discord,Buttons(Button("discordFindPlayers",()=>{Community.OpenDiscord();return Task.CompletedTask;}),discordOptions));
         discordOptionsPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };discordOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         accessibleFields[discordOptionsPanel]="discordOptions";
         Add(discordOptionsPanel,Label("discordSetupSteps"));
         discordConnect=Button("discordConnect",ConnectDiscord);discordDisconnect=Button("discordDisconnect",DisconnectDiscord);
-        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));Bind(discordPublish,"discordPublish");
+        Add(discordOptionsPanel,Buttons(discordConnect,discordDisconnect));
         Add(discord,discordOptionsPanel);Add(stack,discordSection);
         discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(discordOptions.Checked)scroll.ScrollControlIntoView(discordOptionsPanel);};
+        async Task RefreshVisible()
+        {
+            if(testing||busy||!Visible||WindowState==FormWindowState.Minimized||tabs.SelectedTab!=directoryPage||!directoryAvailable)return;
+            await Guard(RefreshDirectory,showErrors:false);
+        }
+        directoryTimer.Tick+=async(_,_)=>await RefreshVisible();
+        tabs.SelectedIndexChanged+=async(_,_)=>await RefreshVisible();
+        Shown+=(_,_)=>{if(!testing)directoryTimer.Start();};
+        FormClosed+=(_,_)=>directoryTimer.Dispose();
         return page;
     }
 
@@ -76,8 +88,8 @@ internal sealed partial class MainForm
         directoryJoin.Enabled=!busy&&directoryAvailable&&directoryConnected&&selected.HasValue&&DirectoryJoinable(selected.Value);
         string[] headings=["directoryGame","directoryState","directoryPlayers","directoryVersion"];
         for(int i=0;i<headings.Length;i++)directoryGames.Columns[i].Text=Lang.T(headings[i]);
-        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
-        if(directoryHost!=null)directoryHost.Enabled=!busy&&directoryAvailable&&internetAvailable&&discordConnected;
+        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":directoryLoadFailed?"directory_unavailable":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
+        if(directoryHost!=null)directoryHost.Enabled=!busy&&directoryAvailable&&internetAvailable&&directoryConnected&&(publicHostingAvailable||discordConnected);
         bool active=publicRoomOperation&&internetOperation;
         directoryProgress.Visible=active;
         directoryProgress.Text=Lang.T(cancelRequested?"cancelRequested":gameRunning?"directoryPlaying":
@@ -102,9 +114,12 @@ internal sealed partial class MainForm
     private async Task RefreshDirectory()
     {
         if(!directoryAvailable){UpdateDirectoryControls();return;}
+        var selected=SelectedDirectoryGame();
+        string? identifier=selected.HasValue?selected.Value.GetProperty("id").GetString():null;
         // Clear stale selectable rows before any network request can fail.
         directoryRows.Clear();directoryGames.Items.Clear();
-        ShowDirectory(await Backend.Run("directory-list",new {},Receive));
+        try{ShowDirectory(await Backend.Run("directory-list",new {},Receive),identifier);directoryLoadFailed=false;UpdateDirectoryControls();}
+        catch{directoryLoadFailed=true;UpdateDirectoryControls();throw;}
     }
 
     private async Task ConnectDirectory()

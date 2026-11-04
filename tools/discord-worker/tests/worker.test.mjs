@@ -10,7 +10,7 @@ const hex=value=>Buffer.from(value).toString("hex");
 const game=(change={})=>({id:"00000001",title:"Community",state:"open",players:1,capacity:4,free_slots:3,...change});
 
 class D1 {
-  constructor(){this.db=new DatabaseSync(":memory:");for(const name of ["0001_directory.sql","0002_join_directory.sql"])
+  constructor(){this.db=new DatabaseSync(":memory:");for(const name of ["0001_directory.sql","0002_join_directory.sql","0003_public_hosts.sql"])
     this.db.exec(readFileSync(new URL("../migrations/"+name,import.meta.url),"utf8"));}
   prepare(sql){
     const db=this.db;

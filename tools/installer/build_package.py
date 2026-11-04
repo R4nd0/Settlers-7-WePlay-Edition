@@ -13,7 +13,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
-from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, STANDALONE_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, DIRECTORY_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, MULTIPLAYER_RESUME_TOOLS, WINDOWS_API_TOOLS
+from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, STANDALONE_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, DIRECTORY_PACKAGE_TOOLS, PUBLIC_DIRECTORY_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, MULTIPLAYER_RESUME_TOOLS, WINDOWS_API_TOOLS
 from install import DIRECTORY_ADAPTER_SHA256
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
@@ -129,7 +129,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         names += list(STANDALONE_PACKAGE_TOOLS)
         names += list(UPDATE_PACKAGE_TOOLS)
         if easytier_runtime is not None:names += list(DISCORD_PACKAGE_TOOLS)
-        if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)
+        if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)+list(PUBLIC_DIRECTORY_PACKAGE_TOOLS)
     names += [original for original,_ in WINDOWS_API_TOOLS]
     names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
@@ -150,6 +150,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'standalone_export': graphics_probe is not None,
         'discord_directory': graphics_probe is not None and easytier_runtime is not None,
         'game_directory':game_directory,
+        'public_game_directory':game_directory,
         'update_patcher': graphics_probe is not None,
         'achievement_notifications_disabled': True,
         'cartographer_context': True,

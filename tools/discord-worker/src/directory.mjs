@@ -23,8 +23,9 @@ async function input(request,limit=8192){
 }
 
 export async function directoryGames(env,now,validateGames){
-  const result=await env.DB.prepare(`SELECT h.*,r.payload FROM weplay_directory_hosts h
+  const result=await env.DB.prepare(`SELECT h.*,r.payload,p.owner IS NOT NULL AS anonymous FROM weplay_directory_hosts h
     JOIN weplay_reports r ON r.owner=h.owner AND r.run_id=h.run_id
+    LEFT JOIN weplay_public_publishers p ON p.owner=h.owner
     WHERE h.expires_at>? AND r.expires_at>? AND r.closed=0 ORDER BY h.owner LIMIT 16`).bind(now,now).all();
   const rows=[];
   for(const host of result.results){
@@ -68,18 +69,19 @@ async function guest(env,request,id,now){
   await liveHost(env,row.owner,row.run_id,now);
   return row;
 }
-async function rate(env,request,now){
+export async function directoryRate(env,request,now,scope="join",window=60,limit=12){
   // Only a short-lived keyed source bucket is retained, never the source address.
   const source=request.headers.get("CF-Connecting-IP")||"local";
   if(source.length>64||/[\s\x00-\x1f]/.test(source))fail(400);
-  const key=await crypto.subtle.importKey("raw",encode.encode(env.PUBLISHER_MASTER_KEY||""),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-  const bucket=hex(await crypto.subtle.sign("HMAC",key,encode.encode("join:"+Math.floor(now/60)+":"+source)));
+  if(!/^[A-Za-z0-9_-]{43}$/.test(env.PUBLISHER_MASTER_KEY||""))fail(503);
+  const key=await crypto.subtle.importKey("raw",encode.encode(env.PUBLISHER_MASTER_KEY),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  const bucket=hex(await crypto.subtle.sign("HMAC",key,encode.encode(scope+":"+Math.floor(now/window)+":"+source)));
   await env.DB.batch([
     env.DB.prepare("DELETE FROM weplay_join_rates WHERE expires_at<=?").bind(now),
-    env.DB.prepare(`INSERT INTO weplay_join_rates VALUES(?,1,?) ON CONFLICT(bucket) DO UPDATE SET count=count+1`).bind(bucket,now+120)
+    env.DB.prepare(`INSERT INTO weplay_join_rates VALUES(?,1,?) ON CONFLICT(bucket) DO UPDATE SET count=count+1`).bind(bucket,now+window*2)
   ]);
   const value=await env.DB.prepare("SELECT count FROM weplay_join_rates WHERE bucket=?").bind(bucket).first();
-  if(value.count>12)fail(429);
+  if(value.count>limit)fail(429);
 }
 
 export async function directoryRequest(request,env,now,{publisher,games}){
@@ -135,7 +137,7 @@ export async function directoryRequest(request,env,now,{publisher,games}){
     return reply({ok:true});
   }
   if(path==="/v1/directory/join"&&request.method==="POST"){
-    await rate(env,request,now);const value=await input(request,4096);
+    await directoryRate(env,request,now);const value=await input(request,4096);
     if(!exact(value,["format","game_id","content_id","network_revision","public_key","challenge","token"])||
        value.format!=="weplay-join-request-v1"||!isHex(value.game_id,32)||!isHex(value.content_id,64)||
        value.network_revision!==7||!b64(value.public_key,500,700)||!isHex(value.challenge,32)||!b64(value.token,43,43))fail(400);

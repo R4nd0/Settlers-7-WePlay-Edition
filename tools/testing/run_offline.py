@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 import uuid
 
-SUITES = ('test_update_recovery','test_standalone','test_installer','test_update_backend','test_network_content','test_standalone_preflight','test_game_directory',
+SUITES = ('test_update_recovery','test_standalone','test_installer','test_update_backend','test_network_content','test_standalone_preflight','test_game_directory','test_public_directory',
           'test_lan_diagnostics','test_lan_launcher','test_auto_lan_launcher',
           'test_lan_autoconnect','test_graphics_launcher','test_desktop_backend',
           'test_internet_backend','test_ingame_directory','test_easytier_runtime')

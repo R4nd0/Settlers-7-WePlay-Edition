@@ -11,6 +11,7 @@ const app='1565350833854353459',guild='1565306702356815962',channel='15653067055
 const mf=new Miniflare(convertV4MiniflareOptions({cf:false,modules:[
  {type:'ESModule',path:resolve('tools/discord-worker/tests/workerd-entry.mjs')},
  {type:'ESModule',path:resolve('tools/discord-worker/src/worker.mjs')},
+ {type:'ESModule',path:resolve('tools/discord-worker/src/public-publisher.mjs')},
  {type:'ESModule',path:resolve('tools/discord-worker/src/directory.mjs')}],
  compatibilityDate:'2026-10-29',d1Databases:['DB'],
  bindings:{PUBLIC_ORIGIN:origin,APPLICATION_ID:'1565350833854353459',GUILD_ID:'1565306702356815962',CHANNEL_ID:'1565306705535959042',
@@ -30,7 +31,7 @@ const mf=new Miniflare(convertV4MiniflareOptions({cf:false,modules:[
  }}));
 try{
  const db=await mf.getD1Database('DB');
- for(const file of ['0001_directory.sql','0002_join_directory.sql'])
+ for(const file of ['0001_directory.sql','0002_join_directory.sql','0003_public_hosts.sql'])
   for(const sql of readFileSync('tools/discord-worker/migrations/'+file,'utf8').split(';'))if(sql.trim())await db.prepare(sql).run();
  await mf.dispatchFetch(origin+'/__test_board',{method:'POST'});
  assert.equal((await db.prepare('SELECT message_id FROM weplay_board').first()).message_id,message);
@@ -68,7 +69,20 @@ try{
  const privateJoin=await (await interaction(joinInteraction)).json();
  assert.equal(privateJoin.data.flags,64);assert.match(privateJoin.data.content,/weplay-join1\./);
  assert.equal(privateJoin.data.content.includes('weplay1.'),false);
+ const publicToken=Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+ const previousOutbound=outbound.length;
+ await api('/v1/directory/register','POST',{format:'weplay-public-host-v1',token:publicToken});
+ const publicReport={format:'weplay-game-report-v1',run_id:'e'.repeat(32),sequence:0,games:[]};
+ await api('/v1/directory/report','POST',publicReport,'Bearer '+publicToken);
+ publicReport.sequence=1;publicReport.games=[{...report.games[0],title:'Anonymous public native fixture'}];
+ await api('/v1/directory/report','PUT',publicReport,'Bearer '+publicToken);
+ const publicHost={...host,run_id:publicReport.run_id};
+ await api('/v1/directory/host','PUT',publicHost,'Bearer '+publicToken);
+ const publicGame=(await api('/v1/directory/games')).games.find(row=>row.title===publicReport.games[0].title);
+ assert.ok(publicGame);assert.equal(outbound.length,previousOutbound,'public-only hosting must not call Discord');
+ assert.equal((await mf.dispatchFetch(origin+'/v1/publisher',{headers:{Authorization:'Bearer '+publicToken}})).status,401);
  if(process.env.S7_TEST_DIRECTORY_CRYPTO){
+  const host=publicHost,game=publicGame,grant={key:publicToken};
   const helper=resolve(process.env.S7_TEST_DIRECTORY_CRYPTO),dotnet=resolve('work/dotnet/dotnet.exe');
   const cryptoOperation=(action,value)=>new Promise((accept,reject)=>{
    const child=spawn(dotnet,[helper,'directory-crypto',action],{windowsHide:true,stdio:['pipe','pipe','pipe']});let output='';
@@ -105,7 +119,7 @@ try{
    await api('/v1/directory/join/'+item.id,'DELETE',null,'Join '+client.token);
    assert.equal((await mf.dispatchFetch(origin+'/v1/directory/join/'+item.id,{headers:{Authorization:'Join '+client.token}})).status,410);
   }
-  console.log('PASS: two independent .NET crypto clients through real workerd/D1; wrong keys/context rejected; WebCrypto interoperability; private Discord join code.');
+  console.log('PASS: anonymous public host and two independent .NET crypto clients through real workerd/D1; wrong keys/context rejected; WebCrypto interoperability; separate private Discord join code.');
  }
  console.log('PASS: real workerd/D1 signed ping, private pairing, reports and board HTTP construction; redirects blocked and all Discord traffic mocked.');
 }finally{await mf.dispose();}
