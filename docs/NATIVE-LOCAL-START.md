@@ -1,9 +1,11 @@
 # Experimental native local start, 2026-10-26
 
-NEO-Logistics (2026-11-05): the transport-request FIFO candidate is an explicit
-`-NeoFifoLab` laboratory build, with separate variants preserving or ignoring
-deliberate group priorities. Normal builds exclude its hooks. The intent ledger
-requires a fresh replay and is not saved. See [ordering, comparison and limits](NEO-LOGISTICS-FIFO.md).
+NEO-Logistics (2026-11-05): the explicit `-NeoLogistics` candidate adds a map
+option, disabled group controls/commands, saved intent and a multiplayer setup
+protocol. Native save/load and two-client qualification remain incomplete; see
+[candidate status and guards](NEO-LOGISTICS-MAP-OPTION.md). Ordinary builds exclude
+these hooks. The earlier `-NeoFifoLab` comparison build remains separate; its
+intent ledger is not saved. See [measured comparison and limits](NEO-LOGISTICS-FIFO.md).
 
 Resume terrain-search correction (2026-11-04): an extreme finite AI footprint
 angle could overflow native rotation/raster bounds and stall the host after

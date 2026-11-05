@@ -76,6 +76,9 @@ bool RequestInvitation(const char* command, size_t length) {
     CloseHandle(file); return okay;
 }
 int __cdecl DirectoryConsole(void* state) {
+#ifdef S7_NEO_LOGISTICS
+    if(const auto handled=TryNeoLogisticsConsole(state))return handled;
+#endif
     const DWORD incoming = GetLastError();
     if (state && initialization == 2 && local_connect_probe
         && GetCurrentThreadId() == bootstrap_thread.load(std::memory_order_acquire)) {

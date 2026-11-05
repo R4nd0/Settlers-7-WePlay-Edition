@@ -46,11 +46,22 @@ int main() {
 #ifdef S7_GAME_DIRECTORY
     selected.push_back(&DirectoryConsolePatch);
 #endif
+#ifdef S7_NEO_LOGISTICS
+    for(const auto& patch:NeoMapPatches)selected.push_back(&patch);
+#ifndef S7_GAME_DIRECTORY
+    selected.push_back(&NeoMapConsolePatch);
+#endif
+#endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     selected.push_back(&ResumeReadinessPatch);
     for (const auto& patch : ResumeChunkPatches) selected.push_back(&patch);
 #endif
     auto reset = [&]() {
+#ifdef S7_NEO_LOGISTICS
+        memcpy(Native<void*>(0x782ee0),NeoMapTaskSteamGuard,sizeof(NeoMapTaskSteamGuard));
+        memcpy(Native<void*>(0x782280),NeoMapGroupSteamGuard,sizeof(NeoMapGroupSteamGuard));
+        memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
+#endif
         for (const auto* patch : selected) {
             if (patch->pointer_slot) {
                 const uint32_t pointer = OriginalPointer(*patch);

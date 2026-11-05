@@ -81,6 +81,12 @@ def prepare(source, output, specification, profile):
         with self.assertRaisesRegex(ValueError, 'veraendert'): content.verify(self.destination)
 
     def test_cartographer_stage_runs_after_existing_archive_stages_and_is_required_when_declared(self):
+        self._check_archive_stages()
+
+    def test_neo_stage_requires_exact_adapter_complete_fragments_and_resume(self):
+        self._check_archive_stages(neo=True)
+
+    def _check_archive_stages(self,neo=False):
         for original,_ in (*install.GRAPHICS_TOOLS,*install.LAN_LOBBY_TOOLS):
             if original!='lan/prepare.py':self.write(self.package,'Tools/'+original,b'# fixture')
         stages=[('update_join_menu','offline-ui/join-menu-update.json',b'invented patched archive',b'join'),
@@ -95,13 +101,35 @@ def prepare(source, output, specification, profile):
             self.write(self.package, 'Tools/' + name, b'# invented checkpoint fixture\n')
         self.write(self.package, 'Tools/multiplayer-resume/interface_patch.py',
             b'def build(raw):\n    assert raw==b"context"\n    return b"resume"\n')
+        if neo:
+            for name in install.NEO_LOGISTICS_TOOLS:self.write(self.package,'Tools/'+name,b'# NEO fixture\n')
+            self.write(self.package,'Tools/neo-logistics/interface_patch.py',
+                b'def build(raw):\n    assert raw==b"resume"\n    return b"neo"\n')
         self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,join_menu_update=True,
             lan_public_creation=True,achievement_notifications_disabled=True,cartographer_context=True,
-            multiplayer_resume=True, patched_archive_sha256=hashlib.sha256(b'resume').hexdigest())
+            multiplayer_resume=True, patched_archive_sha256=hashlib.sha256(b'neo' if neo else b'resume').hexdigest())
+        if neo:
+            self.data['neo_logistics']=True
+            adapter=patch.object(install,'NEO_ADAPTER_SHA256',self.data['files']['payload/uplay_r1_loader.dll'])
+            adapter.start();self.addCleanup(adapter.stop)
         record=self.package/'package.json';record.write_text(json.dumps(self.data))
         self.prepare()
-        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'resume')
+        self.assertEqual((self.destination/'Base/BBA/Interface.bba').read_bytes(),b'neo' if neo else b'resume')
         content.verify(self.destination)
+        if neo:
+            with patch.object(install,'NEO_ADAPTER_SHA256','0'*64):
+                with self.assertRaisesRegex(ValueError,'NEO-Logistics'):install.package_manifest(self.package)
+            self.data['neo_logistics']='yes';record.write_text(json.dumps(self.data))
+            with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
+            self.data['neo_logistics']=True
+            fragment=self.package/'Tools/neo-logistics/map_setup.lua';fragment.unlink()
+            self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
+            with self.assertRaisesRegex(ValueError,'NEO-Logistics'):install.package_manifest(self.package)
+            fragment.write_bytes(b'# restored NEO fixture\n')
+            self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'))
+            self.data['multiplayer_resume']=False;record.write_text(json.dumps(self.data))
+            with self.assertRaisesRegex(ValueError,'NEO-Logistics'):install.package_manifest(self.package)
+            self.data['multiplayer_resume']=True
         self.data['multiplayer_resume']='yes';record.write_text(json.dumps(self.data))
         with self.assertRaisesRegex(ValueError,'Paketfunktion'):install.package_manifest(self.package)
         self.data['multiplayer_resume']=True

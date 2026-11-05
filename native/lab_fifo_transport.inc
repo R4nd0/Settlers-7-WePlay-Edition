@@ -1,6 +1,5 @@
 #include "neo_fifo_policy.h"
-// Experimental fresh-replay-only integration. No original installation or save
-// format is modified; the sidecar intent ledger is deliberately not persistent.
+// Shared transport policy; the map-option build supplies a saved-state bridge.
 neo_fifo::Mark neo_fifo_marks[65536]{};
 bool neo_fifo_group_deliberate[25]{};
 bool neo_fifo_enabled=false,neo_fifo_groups=false,neo_fifo_fresh=false;
@@ -8,13 +7,21 @@ uintptr_t neo_fifo_priority=0;
 uint32_t neo_fifo_last_turn=0,neo_fifo_stats_turn=0,neo_fifo_trace_count=0;
 uint64_t neo_fifo_comparisons=0,neo_fifo_changed=0,neo_fifo_explicit=0,neo_fifo_mark_count=0;
 uint64_t neo_fifo_intent_errors=0,neo_fifo_compare_errors=0;
+#ifdef S7_NEO_LOGISTICS
+constexpr uint32_t NeoFifoStartTurn=0;
+#else
 constexpr uint32_t NeoFifoStartTurn=58000;
+#endif
 void NeoFifoLog(const char* value,int length) {
+#ifdef S7_NEO_LOGISTICS
+    (void)value; (void)length;
+#else
     if(length>0 && static_cast<size_t>(length)<sizeof(lab_lua_console_records[0].bytes)
         && lab_lua_console_count<_countof(lab_lua_console_records)) {
         auto& out=lab_lua_console_records[lab_lua_console_count++];
         memcpy(out.bytes,value,static_cast<size_t>(length));out.length=static_cast<DWORD>(length);
     }
+#endif
 }
 uintptr_t NeoFifoWorld(uint32_t& turn,uintptr_t* transfers=nullptr) {
     const auto replay=LabPriorityWord(NativeVA(0x13a5200));
@@ -30,15 +37,24 @@ uintptr_t NeoFifoWorld(uint32_t& turn,uintptr_t* transfers=nullptr) {
     return priority;
 }
 bool NeoFifoOwner() {
+#ifdef S7_NEO_LOGISTICS
+    return initialization==2 && local_connect_probe
+        && GetCurrentThreadId()==bootstrap_thread.load(std::memory_order_acquire);
+#else
     return !steam_history && initialization==2 && local_connect_probe && lab_priority_audit_enabled
         && GetCurrentThreadId()==bootstrap_thread.load(std::memory_order_acquire);
+#endif
 }
 void NeoFifoEpoch(uintptr_t priority,uint32_t turn) {
+#ifdef S7_NEO_LOGISTICS
+    NeoLogisticsEpoch(priority,turn);
+#else
     if(priority!=neo_fifo_priority || turn<neo_fifo_last_turn) {
         memset(neo_fifo_marks,0,sizeof(neo_fifo_marks));memset(neo_fifo_group_deliberate,0,sizeof(neo_fifo_group_deliberate));
         neo_fifo_priority=priority;neo_fifo_fresh=turn<=1000;
     }
     neo_fifo_last_turn=turn;
+#endif
 }
 bool NeoFifoKnownIntent(uint32_t caller) {
     switch(caller) {
@@ -65,7 +81,7 @@ void TrackNeoFifoIntent(const uint32_t* frame,uint32_t kind) {
         uint32_t turn=0;const auto priority=NeoFifoWorld(turn);
         if(!priority || priority!=frame[6])return;
         NeoFifoEpoch(priority,turn);if(!neo_fifo_fresh)return;
-        const auto caller=frame[9]-static_cast<uint32_t>(image_base)+0x400000u;
+        const auto caller=NeoLogisticsCaller(frame[9]);
         if(kind) {
             if(caller!=0xa13f39 && caller!=0x7bc59f)return;
             const uint32_t player=frame[11]&255u;
@@ -89,7 +105,7 @@ void TrackNeoFifoIntent(const uint32_t* frame,uint32_t kind) {
             // Native construction priority propagation recursively reorders its
             // supply tasks. Inherit the already tracked outer explicit intent.
             const auto outer=frame[2];
-            if(outer>=0x10000 && NeoFifoKnownIntent(LabPriorityWord(outer+4)-static_cast<uint32_t>(image_base)+0x400000u)) {
+            if(outer>=0x10000 && NeoFifoKnownIntent(NeoLogisticsCaller(LabPriorityWord(outer+4)))) {
                 const auto outer_id=LabPriorityWord(outer+8),outer_task=LabPriorityResolve(priority,outer_id);
                 if(outer_task) {
                     const auto& mark=neo_fifo_marks[outer_id&65535u];
@@ -142,6 +158,9 @@ neo_fifo::Key NeoFifoKey(uintptr_t priority,uintptr_t transfers,uintptr_t record
     }
     if(node || group<0)return key;
     key.group_order=group>=6?group-8:group;
+#ifdef S7_NEO_LOGISTICS
+    key.group_order=0; // no default group precedence, including explicit bands
+#endif
     if(neo_fifo_groups) {
         const auto v=priority+8+player*0xacu,beg=LabPriorityWord(v),end=LabPriorityWord(v+4);
         if(beg>=0x10000 && end-beg==32) {
@@ -153,12 +172,21 @@ neo_fifo::Key NeoFifoKey(uintptr_t priority,uintptr_t transfers,uintptr_t record
     key.intent=intent;return key;
 }
 uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right) {
+#ifdef S7_NEO_LOGISTICS
+    const DWORD error=GetLastError();uint32_t decision=2; // execute original comparator
+#else
     const DWORD error=GetLastError();uint32_t decision=0;
+#endif
     __try {
         uint32_t turn=0;uintptr_t transfers=0;const auto priority=NeoFifoWorld(turn,&transfers);
         if(priority) {
             const auto a=NeoFifoTask(priority,left),b=NeoFifoTask(priority,right);
             if(a && b) {
+#ifdef S7_NEO_LOGISTICS
+                if(!NeoFifoOwner()) {SetLastError(error);return 2;}
+                NeoFifoEpoch(priority,turn);
+                if(!neo_fifo_enabled || !neo_fifo_fresh) {SetLastError(error);return 2;}
+#endif
                 const bool original=static_cast<int32_t>(LabPriorityWord(a+0x14))<static_cast<int32_t>(LabPriorityWord(b+0x14));decision=original?1u:0u;
                 if(NeoFifoOwner()) {
                     NeoFifoEpoch(priority,turn);++neo_fifo_comparisons;
@@ -168,11 +196,13 @@ uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right) {
                         if(ka.intent!=neo_fifo::Intent::Ordinary || kb.intent!=neo_fifo::Intent::Ordinary || ka.grouped || kb.grouped)++neo_fifo_explicit;
                         if((decision!=0)!=original) {
                             ++neo_fifo_changed;
+#ifndef S7_NEO_LOGISTICS
                             if(neo_fifo_trace_count<128 && LabPriorityWord(left+0xc)==14 && LabPriorityWord(left+0x10)==65547
                                 && LabPriorityWord(right+0xc)==14 && LabPriorityWord(right+0x10)==65547) {
                                 ++neo_fifo_trace_count;char line[256]{};
                                 const int n=std::snprintf(line,sizeof(line),"NEO1|fifo-choice|%u|%u|%u|%d|%d|%d|%d|%u|%u",turn,ka.request,kb.request,ka.created,kb.created,static_cast<int>(ka.intent),static_cast<int>(kb.intent),original?1u:0u,decision);NeoFifoLog(line,n);
                             }
+#endif
                         }
                     }
                     if(turn>=neo_fifo_stats_turn+1000) {
@@ -182,7 +212,14 @@ uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right) {
                 }
             }
         }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {++neo_fifo_compare_errors;decision=0;}
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        ++neo_fifo_compare_errors;
+#ifdef S7_NEO_LOGISTICS
+        decision=2;
+#else
+        decision=0;
+#endif
+    }
     SetLastError(error);return decision;
 }
 #include "lab_fifo_compare_bridge.inc"

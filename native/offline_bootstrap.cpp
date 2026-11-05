@@ -39,6 +39,11 @@
 #pragma comment(lib, "crypt32.lib")
 
 namespace {
+#ifdef S7_NEO_LOGISTICS
+extern std::atomic<uint32_t> neo_wire_received;
+extern std::atomic<bool> neo_wire_confirmed;
+void VisitNeoWire(void* visitor,bool setup);
+#endif
 constexpr uintptr_t PreferredBase = 0x400000;
 constexpr DWORD ExpectedImageSize = 0x10e7000;
 constexpr DWORD ExpectedTimestamp = 0x5d1b15c1;
@@ -162,6 +167,7 @@ template<typename T> T Native(uintptr_t va) {
 #include "lab_resume_ai_trace.inc"
 #include "lab_lua_console.inc"
 #ifdef S7_NEO_FIFO_LAB
+uint32_t NeoLogisticsCaller(uint32_t caller) { return caller-static_cast<uint32_t>(image_base)+0x400000u; }
 void TrackNeoFifoIntent(const uint32_t*, uint32_t);
 #include "lab_priority_audit.inc"
 bool lab_priority_audit_enabled = false;
@@ -209,6 +215,13 @@ bool __cdecl AcceptLabLocalInterface(const void* address, const char** reason) {
         && ip == _byteswap_ulong(slot);
     SetLastError(error); return accepted || own;
 }
+#endif
+
+#ifdef S7_NEO_LOGISTICS
+#include "neo_logistics_platform.inc"
+#include "lab_fifo_transport.inc"
+#include "neo_logistics_wire.inc"
+#include "neo_logistics_bridge.inc"
 #endif
 
 #ifdef S7_GAME_DIRECTORY
@@ -1230,9 +1243,15 @@ bool ValidateKey(const char* encoded) {
 
 bool AcceptExecutableDigest(const unsigned char (&actual)[32]) {
 #ifdef S7_LOCAL_PAIR_LAB
-#ifdef S7_NEO_FIFO_LAB
+#if defined(S7_NEO_FIFO_LAB) || defined(S7_NEO_LOGISTICS)
     static const unsigned char neo[32] = {0xc8,0x53,0xe8,0xa4,0xd4,0x38,0x6a,0x6b,0xea,0xf6,0x74,0xda,0xc8,0x68,0x82,0xfa,0xf4,0x92,0x0a,0x0f,0x02,0x88,0x14,0x8d,0x36,0x59,0x40,0xd0,0x23,0x08,0x19,0xb9};
-    if (!steam_history && memcmp(actual, neo, 32) == 0) { local_pair_bind.store(0x7f000002u); lab_priority_audit_enabled = true; return true; }
+    if (!steam_history && memcmp(actual, neo, 32) == 0) {
+        local_pair_bind.store(0x7f000002u);
+#ifdef S7_NEO_FIFO_LAB
+        lab_priority_audit_enabled = true;
+#endif
+        return true;
+    }
 #endif
     // Development-only builds accept exactly the two isolated profile variants
     // produced by tools/local-pair/lab_executable.py. Normal builds retain
@@ -1351,6 +1370,9 @@ bool WritePatch(const Patch& patch, bool restore) {
     return flushed;
 }
 
+#ifdef S7_NEO_LOGISTICS
+#include "neo_logistics_patches.inc"
+#endif
 bool Install() {
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (local_connect_probe && memcmp(Native<const void*>(0x795967), PriorityNextEntryGuard,
@@ -1373,10 +1395,19 @@ bool Install() {
 #ifdef S7_GAME_DIRECTORY
     if (local_connect_probe) selected.push_back(&DirectoryConsolePatch);
 #endif
+#ifdef S7_NEO_LOGISTICS
+    if(local_connect_probe) {
+        if(!InitializeNeoMapPatches()) {SetError(ChangedCallsite);return false;}
+        for(const auto& patch:NeoMapPatches)selected.push_back(&patch);
+#ifndef S7_GAME_DIRECTORY
+        selected.push_back(&NeoMapConsolePatch);
+#endif
+    }
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     if (local_connect_probe) {
         if (!steam_history) {
-#ifndef S7_GAME_DIRECTORY
+#if !defined(S7_GAME_DIRECTORY) && !defined(S7_NEO_LOGISTICS)
             selected.push_back(&LabLuaConsolePatch);
 #endif
 #ifdef S7_NEO_FIFO_LAB
@@ -1429,6 +1460,9 @@ bool Install() {
             SetError(PatchFailure); return false;
         }
     }
+ #ifdef S7_NEO_LOGISTICS
+    neo_map_installed=local_connect_probe;
+ #endif
     return true;
 }
 }

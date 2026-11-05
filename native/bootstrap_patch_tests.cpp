@@ -1114,9 +1114,18 @@ int main() {
 #ifdef S7_GAME_DIRECTORY
     selected.push_back(&DirectoryConsolePatch);
 #endif
+#ifdef S7_NEO_LOGISTICS
+    for(const auto& patch:NeoMapPatches)selected.push_back(&patch);
+#ifndef S7_GAME_DIRECTORY
+    selected.push_back(&NeoMapConsolePatch);
+#endif
+    memcpy(Native<void*>(0x782ee0),NeoMapTaskUbiGuard,sizeof(NeoMapTaskUbiGuard));
+    memcpy(Native<void*>(0x782280),NeoMapGroupUbiGuard,sizeof(NeoMapGroupUbiGuard));
+    memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     InitializeLabResumeRngPatches();
-#ifndef S7_GAME_DIRECTORY
+#if !defined(S7_GAME_DIRECTORY) && !defined(S7_NEO_LOGISTICS)
     selected.push_back(&LabLuaConsolePatch);
 #endif
     for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);
@@ -1127,6 +1136,11 @@ int main() {
     for (const auto& patch : ResumeChunkPatches) selected.push_back(&patch);
 #endif
     auto occupied_patch_byte = [&](const unsigned char* byte) {
+#ifdef S7_NEO_LOGISTICS
+        if((byte>=Native<unsigned char*>(0x782ee0) && byte<Native<unsigned char*>(0x782ee0)+sizeof(NeoMapTaskUbiGuard))
+            || (byte>=Native<unsigned char*>(0x782280) && byte<Native<unsigned char*>(0x782280)+sizeof(NeoMapGroupUbiGuard))
+            || (byte>=Native<unsigned char*>(0x78f380)+5 && byte<Native<unsigned char*>(0x78f380)+5+sizeof(NeoMapTailGuard)))return true;
+#endif
         for (const auto* candidate : selected) {
             const auto* begin = PatchAddress(*candidate);
             const size_t length = candidate->pointer_slot ? 4 : (candidate->raw_length ? candidate->raw_length : 5);

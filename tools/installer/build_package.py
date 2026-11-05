@@ -14,13 +14,15 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
 from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, STANDALONE_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, DIRECTORY_PACKAGE_TOOLS, PUBLIC_DIRECTORY_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, MULTIPLAYER_RESUME_TOOLS, WINDOWS_API_TOOLS
-from install import DIRECTORY_ADAPTER_SHA256
+from install import DIRECTORY_ADAPTER_SHA256,adapter_fingerprint,NEO_LOGISTICS_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
 SERVICE_SHA256 = '1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438'
 ARCHIVE_SHA256 = 'be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6'
 DIRECTORY_ARCHIVE_SHA256 = '2bf000583d8883f1cae595901adef59b37b15f514b498fe794d0331821879cb4'
+NEO_ARCHIVE_SHA256='aeed2572ac2ccd41bf8f99f1bcf8d0c4955d2632d3f46e0ad123bbbd8fddcb16'
+NEO_DIRECTORY_ARCHIVE_SHA256='4e508f3b7a2f4af670605118052591f6892f4231dbf1905bb4a330b8d6983eec'
 
 
 def check_output_location(repo, output, inputs):
@@ -34,12 +36,13 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
         raise ValueError('Output must be a new directory with an existing parent')
     if type(game_directory) is not bool:raise ValueError('Invalid directory capability')
+    if type(neo_logistics) is not bool:raise ValueError('Invalid NEO-Logistics capability')
     if game_directory:
         if graphics_probe is None or easytier_runtime is None or windows_helpers is None:raise ValueError('Directory requires desktop, EasyTier and current Windows helpers')
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
@@ -48,7 +51,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig'))!={'format':'weplay-windows-capabilities-v1','directory_crypto':1,'internet_firewall':2}:
             raise ValueError('Directory cryptography or restricted Internet firewall helper is missing')
     check_output_location(repo, output, (service, dotnet, python_zip.parent, adapter.parent))
-    if content.digest(adapter) != (DIRECTORY_ADAPTER_SHA256 if game_directory else ADAPTER_SHA256) or content.digest(python_zip) != PYTHON_SHA256:
+    if content.digest(adapter) != adapter_fingerprint(game_directory,neo_logistics) or content.digest(python_zip) != PYTHON_SHA256:
         raise ValueError('Adapter or Python distribution fingerprint mismatch')
     if content.digest(service / 'S7Patcher.dll') != SERVICE_SHA256:
         raise ValueError('Service fingerprint does not match the tested LAN build')
@@ -120,6 +123,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names += list(ACHIEVEMENT_PACKAGE_TOOLS)
     names += list(CARTOGRAPHER_PACKAGE_TOOLS)
     names += list(MULTIPLAYER_RESUME_TOOLS)
+    if neo_logistics:names+=list(NEO_LOGISTICS_TOOLS)
     if easytier_runtime is not None:
         names += [original for original,_ in INTERNET_TOOLS]
     if dxvk_dll is not None:
@@ -151,12 +155,13 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'discord_directory': graphics_probe is not None and easytier_runtime is not None,
         'game_directory':game_directory,
         'public_game_directory':game_directory,
+        'neo_logistics':neo_logistics,
         'update_patcher': graphics_probe is not None,
         'achievement_notifications_disabled': True,
         'cartographer_context': True,
         'multiplayer_resume': True,
         'windows_helpers': True,
-        'patched_archive_sha256': DIRECTORY_ARCHIVE_SHA256 if game_directory else ARCHIVE_SHA256,
+        'patched_archive_sha256': (NEO_DIRECTORY_ARCHIVE_SHA256 if game_directory else NEO_ARCHIVE_SHA256) if neo_logistics else (DIRECTORY_ARCHIVE_SHA256 if game_directory else ARCHIVE_SHA256),
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')
     (output / 'LIESMICH.txt').write_text(
@@ -197,6 +202,12 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'License: Runtime/python/LICENSE.txt\n\n'
         '.NET 10.0.13 Windows x64 runtime from the development SDK runtime.\n'
         'Licenses: Runtime/dotnet/LICENSE.txt and ThirdPartyNotices.txt\n', encoding='utf-8')
+    if neo_logistics:
+        with (output/'LIESMICH.txt').open('a',encoding='utf-8') as stream:
+            stream.write('\nNEO-Logistics (experimentell): In der Kartenkonfiguration einschalten. '
+                'FIFO richtet sich nach dem Auftragsalter. Gruppenprioritaeten sind deaktiviert; '
+                'Einzelprioritaeten bleiben aktiv. Im Mehrspieler benoetigen alle denselben Kandidaten. '
+                'Die abschliessenden Speicher-/Lade- und Mehrspielertests sind noch offen.\n')
     if dxvk_dll is not None:
         shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
         for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):
@@ -218,7 +229,8 @@ if __name__ == '__main__':
     parser.add_argument('--easytier-runtime')
     parser.add_argument('--windows-helpers',required=True)
     parser.add_argument('--game-directory',action='store_true')
+    parser.add_argument('--neo-logistics',action='store_true',help='Include the experimental NEO-Logistics map mode (matching adapter required)')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics))

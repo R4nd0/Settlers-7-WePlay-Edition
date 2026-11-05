@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -19,10 +19,13 @@ $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_W
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
 if ($NeoFifoLab) {
+    if ($NeoLogistics) { throw 'NeoFifoLab and NeoLogistics are different candidates; select one.' }
     if (!$LocalPairLab -or $GameDirectory) { throw 'NeoFifoLab requires an isolated LocalPairLab build without GameDirectory.' }
     $common += '/DS7_NEO_FIFO_LAB'
+} elseif ($NeoLogistics) {
+    $common += '/DS7_NEO_LOGISTICS'
 }
-if ($LocalNetworkPump -or $GameDirectory) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
+if ($LocalNetworkPump -or $GameDirectory -or $NeoLogistics) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
 if ($GameDirectory) { $common += '/DS7_GAME_DIRECTORY' }
 if ($ResumeCatchup) {
     if (!$LocalNetworkPump -and !$LocalPairLab -and !$GameDirectory) { throw 'ResumeCatchup requires the native network pump.' }
@@ -40,6 +43,8 @@ function Compile-Native([string[]]$Arguments) {
 Push-Location $nativeOutput
 try {
     Compile-Native @((Join-Path $nativeSource 'neo_fifo_policy_tests.cpp'), '/Fe:neo_fifo_policy_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'neo_logistics_state_tests.cpp'), '/Fe:neo_logistics_state_tests.exe')
+    if ($NeoLogistics) { Compile-Native @((Join-Path $nativeSource 'neo_logistics_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_logistics_tests.exe') }
     if ($NeoFifoLab) {
         Compile-Native @((Join-Path $nativeSource 'neo_fifo_integration_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_fifo_integration_tests.exe')
         Compile-Native @((Join-Path $nativeSource 'neo_fifo_bridge_tests.cpp'), '/Fe:neo_fifo_bridge_tests.exe')

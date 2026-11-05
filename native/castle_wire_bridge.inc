@@ -154,11 +154,18 @@ void __fastcall VisitCastlePlayerField(void* self, void*, void* visitor) {
         CastleWireField field{table, 1, &touched, &context};
         SetLastError(incoming_error);
         Native<Original>(0xCB16D0)(&field, visitor);
+#ifdef S7_NEO_LOGISTICS
+        VisitNeoWire(visitor,true);
+#endif
     }
     SetLastError(result_error);
 }
 
 void* __fastcall ConstructCastleJoinMessage(void* self, void*) {
+#ifdef S7_NEO_LOGISTICS
+    neo_wire_received=2;
+    neo_wire_confirmed=false;
+#endif
     const auto incoming = GetLastError();
     // Native message storage can be reused for a later join. A newly
     // constructed request must not inherit an older received/copied sidecar.
@@ -192,6 +199,9 @@ void __fastcall VisitCastleJoinMessage(void* self, void*, void* visitor) {
         table[4] = reinterpret_cast<uintptr_t>(&WriteCastleField); table[5] = reinterpret_cast<uintptr_t>(&ReadCastleField);
         bool touched = true; CastleWireField field{table, 1, &touched, &context};
         Native<Visit>(0xCB16D0)(&field, visitor);
+#ifdef S7_NEO_LOGISTICS
+        VisitNeoWire(visitor,false);
+#endif
     }
     SetLastError(error);
 }

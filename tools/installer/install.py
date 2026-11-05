@@ -24,6 +24,8 @@ UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe03
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
 STEAM_ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
 DIRECTORY_ADAPTER_SHA256 = 'b5a363eddd41d66fff02177f1fb036a99248e8bdfd726eed77d984de6e47955f'
+NEO_ADAPTER_SHA256='75e38b38f514414a8acaf624977698398db647f9642b5307e987e694c13fdfef'
+NEO_DIRECTORY_ADAPTER_SHA256='14934e95e07dc916eb833b46d4fee20a0694ae741db5984aa7b31bec1319d4f3'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -42,6 +44,8 @@ ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-u
 CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
 MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
     ('interface_patch.py', 'runtime.lua', 'session_list.lua', 'host_lobby.lua'))
+NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
+    ('interface_patch.py','runtime.lua','map_setup.lua','session_creation.lua','lobby_ui.lua','logistics_ui.lua'))
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
@@ -50,6 +54,10 @@ LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
 INTERNET_TOOLS = tuple(('installer/' + name, name) for name in (
     'internet_room.py', 'easytier_runtime.py', 'easytier_elevation.py', 'easytier-runtime.json',
     'launch_internet.py', 'internet_private_channel.py', 'Configure-Internet-Firewall.ps1'))
+
+def adapter_fingerprint(game_directory=False,neo_logistics=False):
+    if neo_logistics:return NEO_DIRECTORY_ADAPTER_SHA256 if game_directory else NEO_ADAPTER_SHA256
+    return DIRECTORY_ADAPTER_SHA256 if game_directory else STEAM_ADAPTER_SHA256
 
 
 def lan_tools(manifest):
@@ -107,7 +115,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -128,7 +136,11 @@ def package_manifest(root):
         verify_runtime(root)
     if type(manifest.get('steam_history',False)) is not bool:
         raise ValueError('Unbekannte Steam-Adapterversion.')
-    required_adapter=DIRECTORY_ADAPTER_SHA256 if manifest.get('game_directory',False) else STEAM_ADAPTER_SHA256
+    required_adapter=adapter_fingerprint(manifest.get('game_directory',False),manifest.get('neo_logistics',False))
+    if manifest.get('neo_logistics',False) and (not manifest.get('multiplayer_resume',False)
+            or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
+            or any(('tools/'+name).lower() not in expected for name in NEO_LOGISTICS_TOOLS)):
+        raise ValueError('Die NEO-Logistics-Integration im Paket ist unvollstaendig.')
     if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
         raise ValueError('Der Steam-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
     if manifest.get('multiplayer_castles',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
@@ -137,7 +149,7 @@ def package_manifest(root):
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
     if manifest.get('game_directory',False) and (not manifest.get('discord_directory',False) or not manifest.get('windows_helpers',False)
-            or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=DIRECTORY_ADAPTER_SHA256
+            or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
             or any(('tools/'+name).lower() not in expected for name in DIRECTORY_PACKAGE_TOOLS)):
         raise ValueError('Das gemeinsame Spieleverzeichnis im Paket ist unvollstaendig.')
     if manifest.get('public_game_directory',False) and (not manifest.get('game_directory',False) or
@@ -438,6 +450,12 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         directory_spec=importlib.util.spec_from_file_location('s7_installer_global_directory',tools/'game-directory/interface_patch.py')
         directory=importlib.util.module_from_spec(directory_spec);directory_spec.loader.exec_module(directory)
         target.write_bytes(directory.build(target.read_bytes()))
+        record_archive()
+    if manifest.get('neo_logistics',False):
+        target=destination/'Base/BBA/Interface.bba'
+        neo_spec=importlib.util.spec_from_file_location('s7_installer_neo_logistics',tools/'neo-logistics/interface_patch.py')
+        neo=importlib.util.module_from_spec(neo_spec);neo_spec.loader.exec_module(neo)
+        target.write_bytes(neo.build(target.read_bytes()))
         record_archive()
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
