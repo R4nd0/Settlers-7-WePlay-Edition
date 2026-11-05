@@ -16,6 +16,7 @@ function G.UI.WriteToConsole(command)
  if cmd=='capabilities' then return 'NEO1' end
  if cmd=='selection' then return C.configured and '1' or '0' end
  if cmd=='network-state' then return C.networkChoice end
+ if cmd=='start-event' then C.startEvents=(C.startEvents or 0)+1;return C.networkChoice=='0' or C.networkChoice=='1' end
  if cmd=='stage:1' then C.configured=true;return true end
  if cmd=='stage:0' then C.configured=false;return true end
  if cmd=='begin:1' then C.configured=true;return true end
@@ -68,6 +69,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(self.c.started,0)
         self.c.networkChoice='1';self.m.select(True);self.p.startNetwork()
         self.assertTrue(self.m.active());self.assertEqual(self.c.started,1)
+    def test_native_start_event_requires_received_choice_before_locking(self):
+        self.c.network=True
+        self.assertFalse(self.m.acceptNetworkStart());self.assertIsNone(self.c.startEvents)
+        self.c.networkChoice='1'
+        self.assertTrue(self.m.acceptNetworkStart());self.assertEqual(self.c.startEvents,1)
     def test_multiplayer_resume_refuses_missing_enabled_state(self):
         self.c.network=True;self.c.networkChoice='1'
         with self.assertRaises(Exception):self.p.startNetwork(1000)

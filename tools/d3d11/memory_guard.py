@@ -113,6 +113,17 @@ def pressure(sample):
     return max(process_pressure(sample),host_pressure(sample))
 
 
+def allocation_pressure(sample):
+    """Allocation headroom for owned tests; physical availability stays telemetry.
+
+    Windows may trim/page working sets. The finite system commit budget and the
+    game's 32-bit virtual address space remain relevant allocation constraints.
+    """
+    commit = sample.get('host_commit_free',LIMIT)
+    commit_level = 2 if commit <= 1024*MIB else 1 if commit <= 2048*MIB else 0
+    return max(process_pressure(sample),commit_level)
+
+
 def save(path, value):
     # Caller validates the private LocalData path before starting the sentinel.
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
@@ -206,8 +217,9 @@ def notify(level):
 
 
 class Sentinel:
-    def __init__(self, child, path, probe, *, warn=notify, sticky=False):
+    def __init__(self, child, path, probe, *, warn=notify, sticky=False, pressure_policy=None):
         self.child, self.path, self.probe, self.warn = child, path, probe, warn
+        self.pressure_policy = pressure_policy
         self.stop = threading.Event()
         self.summary = {'format':'s7-memory-summary-v1','recovery_required':sticky,
                         'max_pressure':0,'samples':0,'peak_private_mib':0,
@@ -231,7 +243,7 @@ class Sentinel:
         self.observe(sample)
 
     def observe(self, sample):
-        level = pressure(sample)
+        level = pressure(sample) if self.pressure_policy is None else self.pressure_policy(sample)
         self.summary['samples'] += 1
         self.summary['peak_private_mib'] = max(self.summary['peak_private_mib'],sample['private']//MIB)
         for target, key in [('min_free_mib','free'),('min_largest_mib','largest')]:

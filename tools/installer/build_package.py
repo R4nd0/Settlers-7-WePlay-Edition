@@ -21,8 +21,8 @@ ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acf
 SERVICE_SHA256 = '1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438'
 ARCHIVE_SHA256 = 'be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6'
 DIRECTORY_ARCHIVE_SHA256 = '2bf000583d8883f1cae595901adef59b37b15f514b498fe794d0331821879cb4'
-NEO_ARCHIVE_SHA256='aeed2572ac2ccd41bf8f99f1bcf8d0c4955d2632d3f46e0ad123bbbd8fddcb16'
-NEO_DIRECTORY_ARCHIVE_SHA256='4e508f3b7a2f4af670605118052591f6892f4231dbf1905bb4a330b8d6983eec'
+NEO_ARCHIVE_SHA256='fcea23bb65502446bae00296bf70d0a43a8fee95dee494d3b1ca2a01fc5ae67e'
+NEO_DIRECTORY_ARCHIVE_SHA256='55285554d63fe2742ece9381756b0a0c0ba35a317615d8f14b9872db2fff1470'
 
 
 def check_output_location(repo, output, inputs):
@@ -207,7 +207,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
             stream.write('\nNEO-Logistics (experimentell): In der Kartenkonfiguration einschalten. '
                 'FIFO richtet sich nach dem Auftragsalter. Gruppenprioritaeten sind deaktiviert; '
                 'Einzelprioritaeten bleiben aktiv. Im Mehrspieler benoetigen alle denselben Kandidaten. '
-                'Die abschliessenden Speicher-/Lade- und Mehrspielertests sind noch offen.\n')
+                'Einzelspieler-Speichern/Laden ist geprueft; die abschliessenden Mehrspielertests sind noch offen.\n')
     if dxvk_dll is not None:
         shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
         for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):

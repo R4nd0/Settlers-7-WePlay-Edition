@@ -42,6 +42,7 @@ namespace {
 #ifdef S7_NEO_LOGISTICS
 extern std::atomic<uint32_t> neo_wire_received;
 extern std::atomic<bool> neo_wire_confirmed;
+extern std::atomic<uint32_t> neo_wire_start_choice;
 void VisitNeoWire(void* visitor,bool setup);
 #endif
 constexpr uintptr_t PreferredBase = 0x400000;

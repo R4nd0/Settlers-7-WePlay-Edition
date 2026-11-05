@@ -51,7 +51,7 @@ int main() {
     for(bool steam:{false,true}) {
         steam_history=steam;
         Stub(NativeVA(0x6679e0),&WriteWord);Stub(NativeVA(0x667a10),&ReadWord);Stub(NativeVA(0xcb16d0),&VisitField);
-        Stub(NativeVA(0x6b0520),&VisitOriginal);Stub(NativeVA(0x668060),&VisitOriginal);Stub(NativeVA(0x668ac0),&ConstructOriginal);
+        Stub(NativeVA(0x668060),&VisitOriginal);Stub(NativeVA(0x668ac0),&ConstructOriginal);
         Stub(NativeVA(0xed2b30),&GetSession);Stub(NativeVA(0xed2af0),&IsHost);
         uint32_t replay[16]{},logic[0x160/4]{},main[4]{},priority[0x1140/4]{},transfers[0x160/4]{};
         uint32_t req_a[0xdc/4]{},req_b[0xdc/4]{},root_a[0x48/4]{},root_b[0x48/4]{},moved[0x48/4]{};
@@ -93,31 +93,42 @@ int main() {
         moved[0x2c/4]--;check(command("restore:"+snapshot));
         check(command("load"));check(command("legacy"));check(!neo_fifo_enabled);
         network_state[0x28/4]=0;check(command("stage:1"));check(!neo_fifo_enabled); // menu staging is independent of stale world clocks
+#ifdef S7_LOCAL_PAIR_LAB
+        std::string instance;
+        local_pair_bind=0x7f000002u;check(command("probe-instance",&instance)&&instance=="A");
+        local_pair_bind=0x7f000003u;check(command("probe-instance",&instance)&&instance=="B");
+        local_pair_bind=0;check(!command("probe-instance",&instance));
+#endif
         std::string menu_choice;check(!command("selection",&menu_choice));check(!command("begin:1"));
         network_state[0x28/4]=1;replay[11]=0;
         check(command("selection",&menu_choice)&&menu_choice=="1");check(command("begin:1"));check(command("ready"));check(neo_fifo_enabled);
         command("end");check(command("stage:1"));
         network_state[0x28/4]=2;replay[11]=0;test_host=false;neo_wire_received=2;
         check(!command("begin:1")); // no unsynchronized guest activation
-        uint32_t message[4]{static_cast<uint32_t>(NativeVA(0x1140e78))};
-        TestStream wire;SetLastError(1234);VisitNeoSetup(message,nullptr,&wire);
-        check(wire.words==std::vector<uint32_t>({NeoWireVersion,1}) && wire.result==1 && GetLastError()==5678);
-        wire.writing=false;VisitNeoWire(&wire,true);check(neo_wire_received==1 && wire.result==1);
-        check(!command("begin:1")); // lobby display is not a world-start confirmation
-        wire.at=0;VisitNeoSetup(message,nullptr,&wire);check(neo_wire_confirmed && wire.result==1);
+        uint32_t message[4]{};
+        check(!command("start-event")); // unknown lobby choice cannot lock
+        TestStream wire;VisitNeoWire(&wire,true);
+        check(wire.words==std::vector<uint32_t>({NeoWireVersion,1}) && wire.result==1);
+        wire.writing=false;wire.at=0;VisitNeoWire(&wire,true);
+        check(neo_wire_received==1 && wire.result==1 && !neo_wire_confirmed);
+        check(!command("begin:1")); // lobby receipt alone is not a start event
+        check(command("start-event") && neo_wire_confirmed && neo_wire_start_choice==1);
         std::string state;check(command("network-state",&state)&&state=="1");
         check(command("begin:1"));check(command("ready"));check(neo_fifo_enabled);
-        TestStream invalid{{NeoWireVersion,2},0,false};VisitNeoSetup(message,nullptr,&invalid);
-        check(invalid.result<0 && neo_wire_received==2);
+        TestStream invalid{{NeoWireVersion,2},0,false};VisitNeoWire(&invalid,true);
+        check(invalid.result<0 && neo_wire_received==2 && !neo_wire_confirmed && neo_wire_start_choice==2);
         TestStream missing{{},0,false};VisitNeoWire(&missing,false);check(missing.result<0);
-        TestStream wrong{{NeoWireVersion+1},0,false};VisitNeoWire(&wrong,false);check(wrong.result<0);
+        TestStream wrong{{0x314f454e},0,false};VisitNeoWire(&wrong,false);check(wrong.result<0);
         TestStream compatible{{NeoWireVersion},0,false};VisitNeoWire(&compatible,false);check(compatible.result==1);
         neo_wire_received=1;check(ConstructNeoJoin(message,nullptr)==message && neo_wire_received==2);
         test_host=true;check(command("network-state",&state)&&state=="1");
-        check(!command("begin:0"));check(command("stage:0"));check(command("begin:0"));check(command("ready"));check(!neo_fifo_enabled);
-        test_host=false;check(!command("begin:0"));
-        TestStream off{{NeoWireVersion,0},0,false};VisitNeoWire(&off,true);off.at=0;VisitNeoSetup(message,nullptr,&off);
-        check(command("begin:0"));check(command("ready"));
+        check(!command("begin:1"));check(command("start-event"));check(command("begin:1"));
+        check(command("stage:0"));check(!command("begin:0")); // cannot change the locked start choice
+        command("end");check(command("stage:0"));check(command("start-event"));
+        check(command("begin:0"));check(command("ready"));check(!neo_fifo_enabled);
+        command("end");test_host=false;check(!command("begin:0"));
+        TestStream off{{NeoWireVersion,0},0,false};VisitNeoWire(&off,true);
+        check(!command("begin:0"));check(command("start-event"));check(command("begin:0"));check(command("ready"));
         network_state[0x28/4]=1;command("end");
         const unsigned char task_bytes[][10]={{0x55,0x8b,0xec,0x6a,0xff,0x68,0x70,0x15,0xf9,0},{0x55,0x8b,0xec,0x6a,0xff,0x68,0xe0,0x07,0xf9,0}};
         memcpy(Native<void*>(0x782ee0),task_bytes[steam?1:0],10);

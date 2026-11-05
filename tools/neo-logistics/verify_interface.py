@@ -20,7 +20,7 @@ def verify(source):
         if name.endswith('.lua') and original.read(name)!=patched.read(name):
             lua.compile(patched.read(name).decode('utf-8-sig'),name=name)
             changed.append(name)
-    assert len(changed)==8,changed
+    assert len(changed)==9,changed
     print(f'PASS: {len(changed)} complete Lua 5.1 scripts; unrelated archive members unchanged')
     print('Candidate SHA256:',hashlib.sha256(result).hexdigest())
     return result

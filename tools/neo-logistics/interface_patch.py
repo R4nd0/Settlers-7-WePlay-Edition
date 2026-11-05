@@ -46,6 +46,14 @@ def build(raw):
         '    if not G.require("local.tools.settings").weplayNeoLogistics.selectSaved(slot) then\n'
         '        G.ui.messageBox("NEO-Logistics", "Die Logistikeinstellung des Spielstands konnte nicht uebernommen werden.");return\n'
         '    end\n    local savePath = G.Game.GetSaveGameFileName(slot)')
+    # This branch is reached only for the engine's real start event while a
+    # lobby is active. It preserves native readiness/event delivery and locks
+    # the already received match choice before the local Lua state is recreated.
+    change('Script/local/menu/panel/menu/control/mainState.lua',
+        'local n=i["data"]["savegame"]L(n)',
+        'local n=i["data"]["savegame"];'
+        '_G.assert(e.require("local.tools.settings").weplayNeoLogistics.acceptNetworkStart(),'
+        '"NEO-Logistics native start event rejected");L(n)')
     member = 'Script/local/menu/game.lua'
     source, _, _ = decoder.decoded_view(archive.read(member))
     replacements[member] = (source + '\n' +

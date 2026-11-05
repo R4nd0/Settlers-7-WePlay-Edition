@@ -20,9 +20,18 @@ uint32_t NeoLogisticsMode() {
 }
 bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is_string) {
     if(command=="capabilities") {output="NEO1"; is_string=true;return neo_map_installed;}
+#ifdef S7_LOCAL_PAIR_LAB
+    // Deterministic test roles without relying on profile/persona names. This
+    // command is absent from original-executable production builds.
+    if(command=="probe-instance") {
+        const auto slot=local_pair_bind.load();
+        if(slot!=0x7f000002u && slot!=0x7f000003u)return false;
+        output=slot==0x7f000002u?"A":"B";is_string=true;return true;
+    }
+#endif
     if(command=="end") {
         NeoLogisticsClear();neo_map_pending_valid=false;neo_map_loading=false;
-        neo_wire_local=0;neo_wire_received=2;neo_wire_confirmed=false;return true;
+        neo_wire_local=0;neo_wire_received=2;neo_wire_confirmed=false;neo_wire_start_choice=2;return true;
     }
     if(command=="stage:0" || command=="stage:1") {
         // A menu may retain the previous world's priority system. Staging
@@ -34,6 +43,7 @@ bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is
         NeoLogisticsClear();neo_map_pending_valid=false;neo_map_loading=true;return true;
     }
     const auto mode=NeoLogisticsMode();if(mode!=1 && mode!=2)return false;
+    if(command=="start-event")return mode==2 && AcceptNeoNetworkStart();
     if(command=="network-state") {
         uint32_t choice=2;if(mode!=2 || !NeoNetworkChoice(choice))return false;
         output=choice?"1":"0";is_string=true;return true;

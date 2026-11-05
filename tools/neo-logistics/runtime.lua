@@ -34,6 +34,10 @@ local function failed()
     G.ui.messageBox("NEO-Logistics", "Die Logistikeinstellung konnte nicht sicher uebernommen werden. Der Vorgang wurde abgebrochen.")
     return false
 end
+function M.acceptNetworkStart()
+    if not M.networkReady() or bridge("start-event")~=true then return failed() end
+    return true
+end
 function M.beforeStart()
     loading = false
     -- Starting a map recreates the local Lua state. The native adapter owns
