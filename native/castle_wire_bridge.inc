@@ -166,6 +166,7 @@ void* __fastcall ConstructCastleJoinMessage(void* self, void*) {
     neo_wire_received=2;
     neo_wire_confirmed=false;
     neo_wire_start_choice=2;
+    ResetNeoWireReceived();
 #endif
     const auto incoming = GetLastError();
     // Native message storage can be reused for a later join. A newly

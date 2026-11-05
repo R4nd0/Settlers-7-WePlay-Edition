@@ -9,6 +9,10 @@ int main() {
     auto encoded=Encode(state);check(Decode(encoded,decoded));check(decoded.enabled&&decoded.turn==60000&&decoded.marks.size()==2);
     check(decoded.marks[0].id==65537&&decoded.marks[1].intent==neo_fifo::Intent::Defer);
     auto invalid=state;invalid.marks[0].created=60001;check(Encode(invalid).empty());
+    auto network=state;network.turn=60001;network.logic_turn=60000;network.marks[0].created=60001;
+    auto networkEncoded=Encode(network);check(Decode(networkEncoded,decoded) && decoded.logic_turn==60000 && decoded.marks[0].created==60001);
+    network.logic_turn=59999;check(Encode(network).empty());
+    check(!Decode("NEO2\n601\n599\n0\n",decoded));check(!Decode("NEO2\n600\n601\n0\n",decoded));
     invalid=state;invalid.marks[1].id=131073;check(Encode(invalid).empty());
     for(const auto& bad:std::vector<std::string>{"","NEO0","NEO0\nx","NEO1\n01\n0\n","NEO1\n-1\n0\n",
         "NEO1\n0\n65537\n","NEO1\n4\n1\n1,5,1\n","NEO1\n4\n1\n1,0,0\n",

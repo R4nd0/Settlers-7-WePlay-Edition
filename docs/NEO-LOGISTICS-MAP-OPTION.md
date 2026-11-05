@@ -4,7 +4,8 @@ Runtime qualification is incomplete. This is an explicit candidate build, not a
 replacement for the currently distributed adapters. Real single-player starts
 and save/load cycles now pass with the mode both enabled and disabled. Two-client
 qualification has a successful fresh-session loopback run with matching native
-checksums; resume and broader compatibility checks are still in progress.
+checksums. Restoring saved individual intents now succeeds on both peers;
+a subsequent native simulation desync still prevents full resume qualification.
 
 ## Behavior
 
@@ -34,26 +35,39 @@ new map option, which also suppresses group commands and adds lifecycle handling
 ## Saved state and multiplayer protocol
 
 The existing save-game pickle cache carries `weplay_neo_logistics_v1`: a version
-and a bounded ASCII payload containing the enabled flag, saved turn and explicit
-task intents. Full task handles and birth turns are serialized; process addresses
-are rebound only after validation against the loaded world. Invalid, stale or
-incomplete state is rejected. Saves without this field load with NEO disabled.
+and a bounded ASCII payload containing the enabled flag and full individual
+intents. NEO1 payloads retain the replay turn. NEO2 payloads additionally record
+the persisted logic turn, exactly one below the next replay turn in multiplayer.
+Task handles, birth turns and intent are preserved, including a task created for
+that next turn. Native restoration checks the persisted turn and every loaded
+handle/birth pair before rebinding any process address.
 
-For multiplayer resume, the existing validated slot metadata also records the
-NEO choice, bound to the existing slot/date/map checks. That choice is staged
-before creating the resumed session. Intent restoration still requires the
-state embedded in the transferred native save; metadata alone cannot enable it.
+The multiplayer native load path leaves this Lua cache unavailable. The data was
+not lost at save: the previous failing checkpoint contains it in the embedded
+`SaveGameCache.s7` member. Resume now reads only that member and
+`SavegameInfo.xml` from the selected numbered save in the active native save
+filesystem. It never scans profiles. Slot/date/map validation remains in use.
+The bounded BAF reader checks the directory CRC, complete gzip stream/CRC and
+decoded member sizes/CRCs. It parses the serializer's small data grammar without
+executing save-supplied Lua. It does not inflate the native world member.
+As in the existing BBA reader, the native producer's stale compressed-CRC field
+is not treated as authoritative. The decoder is upstream puff 2.3 (zlib 1.3.1);
+its license and the S7Packer format-code license accompany NEO packages.
 
-The candidate extends the existing Storm join and player-data serialization.
-Wire revision NEO2 carries a fixed protocol version and the host's lobby choice.
-The original `receivedStartGameMessage` engine-event branch then locks that
-choice before recreating the local Lua state. Both host and guest must have this
-start lock, and the selected choice must still match it when a world starts.
-A guest cannot use Ready without the lobby configuration. Original readiness,
-start packets and world-transfer checks remain in use; no native Ready bit,
-acknowledgement or checksum is fabricated.
-Transport callbacks modify only atomics; world/intent changes remain on the
-guarded owner thread. No sockets, service ports or chat messages are added.
+The archive's own `LogicTurn` binds legacy NEO1 state to the correct loaded turn;
+only the verified replay-turn = LogicTurn + 1 relationship is accepted.
+This conversion retains all marks. New multiplayer saves store both counters
+explicitly. A cache missing enabled state is rejected; an empty replacement
+intent ledger is never fabricated.
+
+Wire revision NEO3 carries the host's choice and complete bounded saved state
+through the existing reliable player-data serializer. Choice and payload are
+staged atomically after the selected file is validated. The original
+`receivedStartGameMessage` event locks them before local Lua-state recreation.
+Native Ready, start packets, transfer checks and simulation checksums stay native.
+Transport callbacks update owned immutable snapshots under a mutex and atomics;
+only the guarded owner thread binds the intents to a world. No socket, service
+port or chat message is added. Older NEO1/NEO2 wire adapters are rejected.
 The earlier NEO1 prototype waited for a setup visitor that was not called on the
 observed start path. The guest received the real start event but its additional
 NEO gate rejected it. That unused visitor hook was removed. The new lock follows
@@ -92,7 +106,7 @@ Verified checks include:
   comparator fallback, individual intent, group-command suppression and native
   initialization, save-state rebinding, protocol mismatch, actual-start locking
   and rejection of a changed choice after that lock.
-- 65,558 save-codec checks, including a full 65,536-entry round trip.
+- 65,562 save-codec checks, including a full 65,536-entry round trip.
 - Full modified Lua 5.1 scripts compile for both fingerprinted input interfaces;
   unrelated archive members are byte-for-byte preserved.
 - Lua lifecycle/UI tests and installer pipeline/capability tests pass. Bootstrap,
@@ -156,21 +170,45 @@ contained 600 common native simulation-checksum records with zero mismatches.
 The owning runner restored both test copies and profiles. This supports using the normal desktop for the
 next qualification runs. It does not isolate visibility from desktop composition
 or establish a general DXVK defect. A fully invisible two-client runner remains
-unqualified. Cold multiplayer resume remains unsuccessful.
+unqualified. The original cold-resume missing-state failure is corrected as described below.
 
-Cold-resume pair-19 loaded the actual host checkpoint at native turn 600 on both
-peers, but `pickleJar.isPickled("weplay_neo_logistics_v1")` was false on each.
-The Lua guard rejected the missing enabled-state payload before attempting native
-ledger rebinding. Pair-20 deferred that check to the original `game.unpickle`
-step after GD-state creation; the key was still absent. That timing experiment
-was not adopted into production. These observations do not yet distinguish
-missing serialization from transfer/cache restoration loss. The enabled-state
-guard must remain: resuming with a reconstructed empty intent ledger would lose
-explicit individual priorities. A complete multiplayer saved-state carrier needs
-further work. Both failure runners stopped promptly and restored their test
-copies; no test clients or local services remain running.
+Cold-resume pair-19/20 originally found the Lua NEO pickle key unavailable on
+both peers, including after original game unpickling. Offline inspection proved
+that the selected native save did contain all four saved individual intents.
+The new reader and NEO3 state carrier restore those exact handle/birth/intent
+triples on both clients before the first resumed simulation step (pair-25).
+Both worlds passed turn 1600 from the turn-600 checkpoint. The host also wrote
+a new native save at logic turn 1200; it contains NEO2 counters 1201/1200 and
+13 individual intents. A second cold resume restored all 13 exactly on both
+clients (pair-26). This fixes the demonstrated missing-priority-data failure.
+Synthetic checks cover both preferred and deferred intent; the live snapshots
+in these checkpoints contain AI preferred intent.
 
-Outstanding qualification: check populated individual priority controls in game,
-finish two-client checksum, mismatch and resume checks, and repeat the fixed-cohort
-delivery comparison on this final policy. No new delivery-speed improvement is
+The final cold-resume repeat (pair-28) restored the original four intents exactly
+on both clients, saved again at turn 1200, and reached turn 1600 on both. Both
+then exited normally. Their complete native replay streams contain 600 common
+checksum records with zero mismatches. This qualifies the observed load and
+bounded continuation window, not arbitrary later gameplay or another reload.
+The runner restored both source copies and profiles; memory sentinels were healthy.
+
+The final adapter also passed fresh single-player start/save/restart/load
+regressions on Grassland Mesa with three hard AIs at native x20. NEO-on saved
+at turn 2000 and restored all 25 individual intents exactly; NEO-off saved and
+loaded at turn 2002 with ordinary group controls enabled (live-24/25). Both
+exited normally and restored their private source copies/profiles.
+
+A later native desync remains. Pair-26 generated new desync saves after loading
+the turn-1200 checkpoint. The controlled pair-27 loaded the exact same native
+world and info bytes with NEO disabled on both peers; only its NEO cache record
+and the private fixture choice were changed. Its complete native replay streams
+contain 429 common checksum records: the first 427 match, the final two differ.
+Both clients exited normally and the source copies/profiles were restored.
+Thus this later failure also occurs without the FIFO/individual-intent policy.
+Its cause is not established, and successful data restoration must not be
+reported as fully stable resumed multiplayer. These were two local Ubisoft
+clients with two hard AIs; separate-PC or Steam resume is not qualified here.
+
+Outstanding qualification: investigate this later native desync, check
+populated individual priority controls in game, and repeat the fixed-cohort
+delivery comparison on the final policy. No new delivery-speed improvement is
 claimed for this map-option build yet.

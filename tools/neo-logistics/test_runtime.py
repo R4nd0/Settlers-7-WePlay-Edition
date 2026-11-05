@@ -8,7 +8,7 @@ from lupa.lua51 import LuaRuntime
 
 BACKEND=r'''
 C={network=false,supported=true,configured=false,started=0,loaded=0,pickled=0,destroyed=0,cache={},commands={},messages=0}
-G={Network={InNetworkMode=function() return C.network end},UI={},ui={messageBox=function() C.messages=C.messages+1 end}}
+G={Game={GetCurrentTurn=function() return 10 end,GetSaveGameFileName=function(s) return "s"..s end},Network={InNetworkMode=function() return C.network end},UI={},ui={messageBox=function() C.messages=C.messages+1 end}}
 function G.UI.WriteToConsole(command)
  C.commands[#C.commands+1]=command
  local cmd=command:sub(15)
@@ -22,7 +22,9 @@ function G.UI.WriteToConsole(command)
  if cmd=='begin:1' then C.configured=true;return true end
  if cmd=='begin:0' or cmd=='load' or cmd=='legacy' or cmd=='end' then C.configured=false;return true end
  if cmd=='status' then return C.configured and '1' or '0' end
- if cmd=='snapshot' then return C.configured and 'NEO1\n10\n0\n' or 'NEO0\n' end
+ if cmd:sub(1,11)=='stage-file:' then if C.reject then return false end;C.configured=cmd:sub(12,12)=='1';return true end
+ if cmd=='restore-network' then if not C.receivedPayload or C.reject then return false end;C.configured=C.receivedPayload:sub(1,4)~='NEO0';return true end
+ if cmd=='snapshot' or cmd:sub(1,14)=='save-snapshot:' then return C.configured and 'NEO1\n10\n0\n' or 'NEO0\n' end
  if cmd:sub(1,8)=='restore:' then if C.reject then return false end; C.configured=cmd:sub(9,12)=='NEO1';return true end
  if cmd=='ready' then return not C.reject end
  return false
@@ -74,6 +76,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse(self.m.acceptNetworkStart());self.assertIsNone(self.c.startEvents)
         self.c.networkChoice='1'
         self.assertTrue(self.m.acceptNetworkStart());self.assertEqual(self.c.startEvents,1)
+    def test_multiplayer_restores_transferred_complete_state_without_local_cache(self):
+        self.c.network=True;self.c.networkChoice='1';self.c.receivedPayload='NEO2\n601\n600\n1\n65537,601,-1\n'
+        self.p.startNetwork(1000)
+        self.assertTrue(self.m.active())
+        self.assertIsNone(self.c.cache['weplay_neo_logistics_v1'])
+        self.assertIn('weplay-neo-v1:restore-network',list(self.c.commands.values()))
+    def test_multiplayer_cannot_fall_back_to_stale_local_cache_on_rejected_transfer(self):
+        self.c.network=True;self.c.networkChoice='1';self.c.reject=True
+        self.lua.execute("C.cache.weplay_neo_logistics_v1={version=1,payload='NEO1\\n600\\n0\\n'}")
+        with self.assertRaises(Exception):self.p.startNetwork(1000)
+        self.assertFalse(self.m.active())
     def test_multiplayer_resume_refuses_missing_enabled_state(self):
         self.c.network=True;self.c.networkChoice='1'
         with self.assertRaises(Exception):self.p.startNetwork(1000)
@@ -91,6 +104,9 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(self.lua.globals().S.weplayMPResumeSlots['1002'].neoLogistics)
         self.assertTrue(q.selectSaved(1002));self.assertEqual(self.c.stores,1)
         self.assertFalse(q.selectSaved(1003))
+        self.c.reject=True
+        self.assertFalse(q.selectSaved(1002));self.assertFalse(self.c.configured)
+        self.c.reject=False
         self.lua.execute("S.weplayMPResumeSlots['1002'].neoLogistics='wrong'")
         self.assertFalse(q.selectSaved(1002))
     def test_supported_adapter_rejects_failed_off_configuration_before_start(self):

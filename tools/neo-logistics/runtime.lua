@@ -15,7 +15,12 @@ function M.selectSaved(slot)
     local saved=settings.weplayMPResumeSlots[_G.tostring(slot)]
     if saved.neoLogistics~=nil and _G.type(saved.neoLogistics)~="boolean" then return false end
     local enabled=saved.neoLogistics==true
-    return M.select(enabled)==enabled
+    if bridge("stage-file:" .. (enabled and "1:" or "0:") .. G.Game.GetSaveGameFileName(slot))==true then
+        selected=enabled
+        return true
+    end
+    M.select(false)
+    return false
 end
 function M.active() return active end
 function M.setup(map)
@@ -60,6 +65,17 @@ end
 function M.restore(jar)
     if not loading then return true end
     loading = false
+    if G.Network.InNetworkMode() then
+        if bridge("restore-network")==true then
+            local state=bridge("status")
+            if state~="0" and state~="1" then return failed() end
+            active=state=="1"
+            return true
+        end
+        -- An enabled match must have the full host-file state locked by the
+        -- real start event; never rebuild an empty individual-intent ledger.
+        if M.networkState()=="1" then return failed() end
+    end
     if not jar.isPickled(key) then
         if G.Network.InNetworkMode() and M.networkState()=="1" then return failed() end
         active = false
@@ -76,7 +92,7 @@ function M.restore(jar)
     return true
 end
 function M.save(jar)
-    local payload = bridge("snapshot")
+    local payload = bridge("save-snapshot:" .. G.Game.GetCurrentTurn())
     if _G.type(payload) ~= "string" or #payload > 2097152 then
         if active then return failed() end
         return true

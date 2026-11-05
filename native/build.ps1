@@ -34,6 +34,7 @@ if ($ResumeCatchup) {
 if ($CastlePrototype -or $CastleWirePrototype) { $common += '/DS7_CASTLE_PROTOTYPE' }
 if ($CastleWirePrototype) { $common += '/DS7_CASTLE_WIRE_PROTOTYPE' }
 function Compile-Native([string[]]$Arguments) {
+    if ($NeoLogistics) { $Arguments += (Join-Path $nativeOutput 'neo_puff.obj') }
     if ($Arguments -notcontains '/link') { $Arguments += '/link' }
     # Avoid Windows' filename-based installer detection for test executables.
     $Arguments += @('/MANIFEST:EMBED', "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
@@ -42,6 +43,11 @@ function Compile-Native([string[]]$Arguments) {
 }
 Push-Location $nativeOutput
 try {
+    if ($NeoLogistics) {
+        & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $nativeSource 'third_party/puff/puff.c') /Fo:neo_puff.obj
+        if ($LASTEXITCODE -ne 0) { throw 'NEO saved-cache inflater build failed.' }
+        Compile-Native @((Join-Path $nativeSource 'neo_save_archive_tests.cpp'), '/Fe:neo_save_archive_tests.exe')
+    }
     Compile-Native @((Join-Path $nativeSource 'neo_fifo_policy_tests.cpp'), '/Fe:neo_fifo_policy_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'neo_logistics_state_tests.cpp'), '/Fe:neo_logistics_state_tests.exe')
     if ($NeoLogistics) { Compile-Native @((Join-Path $nativeSource 'neo_logistics_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_logistics_tests.exe') }

@@ -61,6 +61,7 @@ int main() {
         memcpy(Native<void*>(0x782ee0),NeoMapTaskSteamGuard,sizeof(NeoMapTaskSteamGuard));
         memcpy(Native<void*>(0x782280),NeoMapGroupSteamGuard,sizeof(NeoMapGroupSteamGuard));
         memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
+    memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
 #endif
         for (const auto* patch : selected) {
             if (patch->pointer_slot) {

@@ -11,11 +11,16 @@ struct SavedState {
     bool enabled = false;
     uint32_t turn = 0;
     std::vector<SavedMark> marks;
+    int64_t logic_turn = -1; // NEO2: persisted world turn, separate from the next replay turn
 };
 inline std::string Encode(const SavedState& state) {
     if (!state.enabled) return "NEO0\n";
     if (state.marks.size() > 65536) return {};
-    std::string result = "NEO1\n" + std::to_string(state.turn) + "\n" + std::to_string(state.marks.size()) + "\n";
+    if(state.logic_turn < -1 || state.logic_turn>state.turn
+        || (state.logic_turn>=0 && uint64_t(state.turn)!=uint64_t(state.logic_turn)+1))return {};
+    std::string result = std::string(state.logic_turn<0?"NEO1\n":"NEO2\n") + std::to_string(state.turn) + "\n";
+    if(state.logic_turn>=0)result+=std::to_string(state.logic_turn)+"\n";
+    result+=std::to_string(state.marks.size())+"\n";
     uint32_t previous = 0;
     bool slots[65536]{};
     for (const auto& mark : state.marks) {
@@ -48,10 +53,14 @@ inline bool Number(const std::string& text, size_t& pos, char delimiter, int64_t
 inline bool Decode(const std::string& text, SavedState& output) {
     output = {};
     if (text == "NEO0\n") return true;
-    if (text.size() > MaximumStateBytes || text.compare(0,5,"NEO1\n")) return false;
+    const bool version2=text.compare(0,5,"NEO2\n")==0;
+    if (text.size() > MaximumStateBytes || (!version2 && text.compare(0,5,"NEO1\n"))) return false;
     SavedState candidate; candidate.enabled = true;
     size_t pos = 5; int64_t turn = 0, count = 0;
-    if (!Number(text,pos,'\n',0,UINT32_MAX,turn) || !Number(text,pos,'\n',0,65536,count)) return false;
+    if (!Number(text,pos,'\n',0,UINT32_MAX,turn)) return false;
+    if(version2 && (!Number(text,pos,'\n',0,UINT32_MAX,candidate.logic_turn)
+        || candidate.logic_turn+1!=turn))return false;
+    if(!Number(text,pos,'\n',0,65536,count)) return false;
     candidate.turn = static_cast<uint32_t>(turn);
     uint32_t previous = 0;
     bool slots[65536]{};

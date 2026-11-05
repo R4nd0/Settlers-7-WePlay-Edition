@@ -3,7 +3,8 @@
 NEO-Logistics (2026-11-05): the explicit `-NeoLogistics` candidate adds a map
 option, disabled group controls/commands, saved intent and a multiplayer setup
 protocol. Native single-player start/save/load passed with NEO on and off;
-two-client play/resume qualification remains incomplete; see
+saved individual priorities now restore exactly on both clients, but a later
+native desync also occurs with NEO off, so resume qualification remains incomplete; see
 [candidate status and guards](NEO-LOGISTICS-MAP-OPTION.md). Ordinary builds exclude
 these hooks. The earlier `-NeoFifoLab` comparison build remains separate; its
 intent ledger is not saved. See [measured comparison and limits](NEO-LOGISTICS-FIFO.md).

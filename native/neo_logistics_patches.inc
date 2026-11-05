@@ -15,8 +15,10 @@ const unsigned char NeoMapTaskSteamGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0xe0,0
 const unsigned char NeoMapGroupUbiGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0x56,0xe9,0xf7,0};
 const unsigned char NeoMapGroupSteamGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0xc6,0xdb,0xf7,0};
 const unsigned char NeoMapTailGuard[]={0x56,0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
+const unsigned char NeoMapClockGuard[]={0x8b,0x40,0x2c,0x48,0x50,0xe8};
 bool InitializeNeoMapPatches() {
-    if(memcmp(Native<const void*>(0x782ee0),steam_history?NeoMapTaskSteamGuard:NeoMapTaskUbiGuard,sizeof(NeoMapTaskUbiGuard))
+    if(memcmp(Native<const void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard))
+        || memcmp(Native<const void*>(0x782ee0),steam_history?NeoMapTaskSteamGuard:NeoMapTaskUbiGuard,sizeof(NeoMapTaskUbiGuard))
         || memcmp(Native<const void*>(0x782280),steam_history?NeoMapGroupSteamGuard:NeoMapGroupUbiGuard,sizeof(NeoMapGroupUbiGuard))
         || memcmp(reinterpret_cast<const unsigned char*>(NativeVA(0x78f380))+5,NeoMapTailGuard,sizeof(NeoMapTailGuard)))return false;
     lab_priority_task_resume=NativeVA(0x782ee0)+5;

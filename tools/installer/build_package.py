@@ -21,8 +21,8 @@ ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acf
 SERVICE_SHA256 = '1b06505d0356520bba3d8b99e363a72417f02f971b98b3cbce844fbce9944438'
 ARCHIVE_SHA256 = 'be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6'
 DIRECTORY_ARCHIVE_SHA256 = '2bf000583d8883f1cae595901adef59b37b15f514b498fe794d0331821879cb4'
-NEO_ARCHIVE_SHA256='fcea23bb65502446bae00296bf70d0a43a8fee95dee494d3b1ca2a01fc5ae67e'
-NEO_DIRECTORY_ARCHIVE_SHA256='55285554d63fe2742ece9381756b0a0c0ba35a317615d8f14b9872db2fff1470'
+NEO_ARCHIVE_SHA256='a4e398a872d851c416aad632dcfee7c107fedd2d8d080b3a2b9b5af4e59d4276'
+NEO_DIRECTORY_ARCHIVE_SHA256='f70ccb40f72641196dd3d130032fc14fe7672fb5f789a57b255a886fd11861e6'
 
 
 def check_output_location(repo, output, inputs):
@@ -140,6 +140,10 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
     shutil.copyfile(repo / 'LICENSE', output / 'Tools/LICENSE.txt')
+    if neo_logistics:
+        licenses=output/'Tools/Licenses';licenses.mkdir(exist_ok=True)
+        shutil.copyfile(repo/'native/third_party/puff/puff.h',licenses/'NEO-Logistics-puff.txt')
+        shutil.copyfile(repo/'tools/lan/LICENSE.S7Packer.txt',licenses/'NEO-Logistics-S7Packer.txt')
     write_json(output / 'package.json', {'format': FORMAT,
         'steam_history': True,
         'multiplayer_castles': True,
@@ -207,7 +211,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
             stream.write('\nNEO-Logistics (experimentell): In der Kartenkonfiguration einschalten. '
                 'FIFO richtet sich nach dem Auftragsalter. Gruppenprioritaeten sind deaktiviert; '
                 'Einzelprioritaeten bleiben aktiv. Im Mehrspieler benoetigen alle denselben Kandidaten. '
-                'Einzelspieler-Speichern/Laden ist geprueft; die abschliessenden Mehrspielertests sind noch offen.\n')
+                'Einzelspieler-Speichern/Laden ist geprueft. Mehrspieler-Prioritaeten werden wiederhergestellt; ein spaeterer Desync tritt auch ohne NEO auf.\n')
     if dxvk_dll is not None:
         shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
         for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):

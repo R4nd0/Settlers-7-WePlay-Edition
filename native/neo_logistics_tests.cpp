@@ -86,6 +86,7 @@ int main() {
         ObserveNeoLogisticsPriority(frame,0);check(neo_fifo_marks[3].intent==neo_fifo::Intent::Prefer);
         check(CompareNeoFifoTransfers(addr(rec_a),addr(rec_b))==0);
         std::string snapshot;check(command("snapshot",&snapshot));check(snapshot.find(std::to_string(addr(root_b)))==std::string::npos);
+        std::string spSaved;check(command("save-snapshot:99",&spSaved) && spSaved==snapshot);check(!command("save-snapshot:100"));
         memcpy(moved,root_b,sizeof(moved));tasks[7]=addr(moved);req_b[0x38/4]=addr(moved);
         check(command("load"));check(!neo_fifo_enabled);check(command("restore:"+snapshot));
         check(neo_fifo_marks[3].object==addr(moved));check(CompareNeoFifoTransfers(addr(rec_a),addr(rec_b))==0);
@@ -108,7 +109,7 @@ int main() {
         uint32_t message[4]{};
         check(!command("start-event")); // unknown lobby choice cannot lock
         TestStream wire;VisitNeoWire(&wire,true);
-        check(wire.words==std::vector<uint32_t>({NeoWireVersion,1}) && wire.result==1);
+        check(wire.words==std::vector<uint32_t>({NeoWireVersion,1,0}) && wire.result==1);
         wire.writing=false;wire.at=0;VisitNeoWire(&wire,true);
         check(neo_wire_received==1 && wire.result==1 && !neo_wire_confirmed);
         check(!command("begin:1")); // lobby receipt alone is not a start event
@@ -120,6 +121,7 @@ int main() {
         TestStream missing{{},0,false};VisitNeoWire(&missing,false);check(missing.result<0);
         TestStream wrong{{0x314f454e},0,false};VisitNeoWire(&wrong,false);check(wrong.result<0);
         TestStream compatible{{NeoWireVersion},0,false};VisitNeoWire(&compatible,false);check(compatible.result==1);
+        TestStream previous{{0x324f454e},0,false};VisitNeoWire(&previous,false);check(previous.result<0);
         neo_wire_received=1;check(ConstructNeoJoin(message,nullptr)==message && neo_wire_received==2);
         test_host=true;check(command("network-state",&state)&&state=="1");
         check(!command("begin:1"));check(command("start-event"));check(command("begin:1"));
@@ -127,12 +129,42 @@ int main() {
         command("end");check(command("stage:0"));check(command("start-event"));
         check(command("begin:0"));check(command("ready"));check(!neo_fifo_enabled);
         command("end");test_host=false;check(!command("begin:0"));
-        TestStream off{{NeoWireVersion,0},0,false};VisitNeoWire(&off,true);
+        TestStream off{{NeoWireVersion,0,0},0,false};VisitNeoWire(&off,true);
         check(!command("begin:0"));check(command("start-event"));check(command("begin:0"));check(command("ready"));
+        network_state[0x28/4]=1;command("end");
+        // Resume carries the complete immutable state, not only its enabled bit.
+        network_state[0x28/4]=2;test_host=true;check(command("stage:1"));
+        neo_wire_local_state=snapshot;TestStream resumeWire;VisitNeoWire(&resumeWire,true);
+        check(resumeWire.result==1 && resumeWire.words[2]==snapshot.size());
+        test_host=false;ResetNeoWireReceived();neo_wire_received=2;neo_wire_confirmed=false;
+        resumeWire.writing=false;VisitNeoWire(&resumeWire,true);
+        check(resumeWire.result==1 && neo_wire_received_state==snapshot);
+        check(command("start-event"));check(command("load"));replay[11]=100;
+        check(command("restore-network"));check(neo_fifo_marks[3].intent==neo_fifo::Intent::Prefer && neo_fifo_marks[3].object==addr(moved));
+        std::string savedClock;replay[11]=101;check(command("save-snapshot:100",&savedClock));
+        neo_logistics::SavedState decoded;check(neo_logistics::Decode(savedClock,decoded) && decoded.turn==101 && decoded.logic_turn==100);
+        check(!command("save-snapshot:99"));check(!command("save-snapshot:102"));
+        check(command("load"));replay[11]=100;check(!command("restore:"+savedClock));replay[11]=101;check(command("restore:"+savedClock));
+        // Native tasks may already belong to the next replay turn. Keep them.
+        moved[0x2c/4]=101;neo_fifo_marks[3]={root_b[2],101,addr(moved),neo_fifo::Intent::Defer};
+        check(command("save-snapshot:100",&savedClock));check(neo_logistics::Decode(savedClock,decoded) && decoded.turn==101 && decoded.marks[0].created==101);
+        check(command("load"));check(command("restore:"+savedClock));check(neo_fifo_marks[3].intent==neo_fifo::Intent::Defer);
+        moved[0x2c/4]=2;command("end");
+        TestStream excessive{{NeoWireVersion,1,static_cast<uint32_t>(neo_logistics::MaximumStateBytes+1)},0,false};
+        VisitNeoWire(&excessive,true);check(excessive.result<0 && neo_wire_received==2);
+        // Resolve only numbered MP saves inside the already active native root.
+        uint32_t fileRoot[0x174/4]{};const char folder[]="C:\\owned\\Savegames";
+        put(NativeVA(0x13789a8),addr(fileRoot));fileRoot[0]=NativeVA(0x11337c4);
+        fileRoot[0x74/4]=NativeVA(0x113652c);fileRoot[0x7c/4]=addr(folder);fileRoot[0x84/4]=sizeof(folder)-1;
+        std::string path;check(NeoSavePath("s1002.s7s",path) && path=="C:\\owned\\Savegames\\s1002.s7s");
+        check(NeoSavePath("s1002",path) && path=="C:\\owned\\Savegames\\s1002.s7s");
+        check(!NeoSavePath("../s1002.s7s",path));check(!NeoSavePath("s1000.s7s",path));check(!NeoSavePath("Options.ini",path));
+        fileRoot[0x74/4]=0;check(!NeoSavePath("s1002.s7s",path));put(NativeVA(0x13789a8),0);
         network_state[0x28/4]=1;command("end");
         const unsigned char task_bytes[][10]={{0x55,0x8b,0xec,0x6a,0xff,0x68,0x70,0x15,0xf9,0},{0x55,0x8b,0xec,0x6a,0xff,0x68,0xe0,0x07,0xf9,0}};
         memcpy(Native<void*>(0x782ee0),task_bytes[steam?1:0],10);
         memcpy(Native<void*>(0x782280),steam?NeoMapGroupSteamGuard:NeoMapGroupUbiGuard,10);
+        memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
         const unsigned char tail[]={0x56,0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
         memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),tail,sizeof(tail));check(InitializeNeoMapPatches());
         *reinterpret_cast<unsigned char*>(NativeVA(0x78f380)+5)=0;check(!InitializeNeoMapPatches());

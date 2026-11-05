@@ -1122,6 +1122,7 @@ int main() {
     memcpy(Native<void*>(0x782ee0),NeoMapTaskUbiGuard,sizeof(NeoMapTaskUbiGuard));
     memcpy(Native<void*>(0x782280),NeoMapGroupUbiGuard,sizeof(NeoMapGroupUbiGuard));
     memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
+    memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
     InitializeLabResumeRngPatches();
