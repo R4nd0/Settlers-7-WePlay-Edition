@@ -1,7 +1,7 @@
-# NEO-Logistics map option — candidate, 2026-11-05
+# NEO-Logistics map option — RC3.15 candidate, 2026-11-05
 
-Runtime qualification is incomplete. This is an explicit candidate build, not a
-replacement for the currently distributed adapters. Real single-player starts
+Runtime qualification is incomplete. This option ships disabled by default in
+the experimental RC3.15 prerelease. Real single-player starts
 and save/load cycles now pass with the mode both enabled and disabled. Two-client
 qualification has a successful fresh-session loopback run with matching native
 checksums. Restoring saved individual intents now succeeds on both peers;

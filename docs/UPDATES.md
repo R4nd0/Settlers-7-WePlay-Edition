@@ -134,6 +134,8 @@ RC3.7 Castle Restoration uses sequence 5; RC3.7.1 maintenance uses sequence 6.
 RC3.8 Standalone and Castles is published as v2.0.0-rc3.8 with sequence 7.
 RC3.9 Lobby Desync Fix uses v2.0.0-rc3.9 and sequence 8. RC3.10 Logistics
 Crash Fix uses v2.0.0-rc3.10 and sequence 9, retaining network revision 7.
+RC3.14 uses sequence 13. RC3.15 NEO-Logistics and Resume Fixes uses sequence 14;
+its NEO3 session carrier additionally requires matching adapters on all peers.
 The release ZIP includes the separately downloadable Setup
 and signed manifest; the updater continues to validate and download Setup.
 Building/signing a local candidate does not publish it

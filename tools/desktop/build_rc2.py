@@ -1,4 +1,4 @@
-"""Build the RC3.14 global lobby and standalone update preview from pinned inputs."""
+"""Build the RC3.15 NEO-Logistics preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=13,game_directory=False):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=14,game_directory=False,neo_logistics=False):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -34,28 +34,34 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     for relative in ('host/fxr/'+version,'shared/Microsoft.NETCore.App/'+version,'shared/Microsoft.WindowsDesktop.App/'+version):
         shutil.copytree(dotnet/relative,runtime/relative)
     old=content.plain(base_package or REPO/'outputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
-    install.package_manifest(old)
-    build_package.build(old/'Payload/uplay_r1_loader.dll',service or old/'Payload/Server',old/'Runtime/dotnet',
+    # The base supplies previously verified runtime/server inputs, not the new
+    # feature contract. Its historical adapter may have a different valid pin.
+    previous=json.loads((old/'package.json').read_text(encoding='utf-8'))
+    if previous.get('format')!=install.FORMAT or content.inventory(old,('Payload','Runtime','Tools'))!=previous.get('files'):
+        raise ValueError('Base package inventory does not match its manifest')
+    build_package.build(adapter or old/'Payload/uplay_r1_loader.dll',service or old/'Payload/Server',old/'Runtime/dotnet',
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
-        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory)
+        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics)
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
-    guide=REPO/'docs/RC3-INTERNET.md'
+    guide=REPO/'docs/RC3.15-NEO-LOGISTICS.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.14-GLOBAL-LOBBY.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(guide,app/'RELEASE-NOTES.md')
+    for name in ('README.md','CREDITS.md','LICENSE'):shutil.copyfile(REPO/name,app/name)
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.14 Global Lobby and Standalone Updates','network_revision':7,'game_bits':32,
-             'version':'2.0.0-rc3.14','update_sequence':update_sequence,'update_channel':'preview',
+    release={'format':'s7-desktop-release-v1','release':'RC3.15 NEO-Logistics and Resume Fixes','network_revision':7,'game_bits':32,
+             'version':'2.0.0-rc3.15','update_sequence':update_sequence,'update_channel':'preview',
+             'neo_logistics':neo_logistics,'neo_wire_revision':3 if neo_logistics else None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -88,18 +94,21 @@ def refresh_stage(app,desktop_publish):
         raise ValueError('Only an uninstalled private stage can be refreshed')
     package=app/'Package'
     manifest=install.package_manifest(package)
+    license_sources={'tools/licenses/neo-logistics-puff.txt':REPO/'native/third_party/puff/puff.h',
+                     'tools/licenses/neo-logistics-s7packer.txt':REPO/'tools/lan/LICENSE.S7Packer.txt'}
     for name in manifest['files']:
         if name.startswith('tools/') and name!='tools/license.txt':
-            source=content.plain(REPO/name)
+            source=content.plain(license_sources.get(name,REPO/name))
             shutil.copyfile(source,package/name)
     manifest['files']=content.inventory(package,('Payload','Runtime','Tools'))
     (package/'package.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(package)
     for path in desktop_publish.iterdir():
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
-    if (REPO/'docs/RC3-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3-INTERNET.md',app/'LIESMICH.txt')
+    if (REPO/'docs/RC3.15-NEO-LOGISTICS.md').is_file():shutil.copyfile(REPO/'docs/RC3.15-NEO-LOGISTICS.md',app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.14-GLOBAL-LOBBY.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.15-NEO-LOGISTICS.md',app/'RELEASE-NOTES.md')
+    for name in ('README.md','CREDITS.md','LICENSE'):shutil.copyfile(REPO/name,app/name)
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 
@@ -107,13 +116,14 @@ def refresh_stage(app,desktop_publish):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('stage','output','desktop-publish','dotnet','probe','compiler'):parser.add_argument('--'+name,required=True)
-    for name in ('base-package','service','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
+    for name in ('base-package','service','adapter','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=13)
+    parser.add_argument('--update-sequence',type=int,default=14)
     parser.add_argument('--game-directory',action='store_true')
+    parser.add_argument('--neo-logistics',action='store_true')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
-        base_package=values.base_package,service=values.service,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory)
+        base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics)

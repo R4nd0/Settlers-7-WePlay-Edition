@@ -1,8 +1,8 @@
-# In-game invitations (development candidate)
+# In-game invitations (RC3.15 candidate)
 
 The session lobby's **Invite / Einladen** button previously called
 `Network.ShowInviteOverlay`, which depends on the unavailable Ubisoft overlay.
-The candidate replaces that callback and the legacy friend-invite callback in
+RC3.15 replaces that callback and the legacy friend-invite callback in
 the hash-locked host-lobby Lua member. Unsupported SDK exports remain guarded.
 
 The replacement behaves as follows:
@@ -52,5 +52,5 @@ Python handler. Both clients closed normally with exit code 0 and healthy
 memory sentinels. The private-mode test stayed loopback-only and did not
 establish an Internet room. The launcher dialog and copy action were tested
 separately with synthetic credentials. A real Internet recipient join and a
-Steam game-button click remain unverified. This candidate is not a published
-RC and has not been installed over the user's active game copy.
+Steam game-button click remain unverified. This replacement is included in the
+RC3.15 prerelease; its original live evidence remains limited to those lab runs.

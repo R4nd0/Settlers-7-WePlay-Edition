@@ -2,276 +2,222 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Installer — RC3.14 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.14/Setup.exe)
+## [Download Installer — RC3.15 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15/Setup.exe)
 
-Windows 10/11 x64 · English / Deutsch · Install or update your existing WePlay copy.
+Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.14/WePlay-RC3.14.zip) · [Release notes and checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.14)
+[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15/WePlay-RC3.15.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.15) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**Experimental prerelease: a later desync after reloading a multiplayer save is
+still reproducible, including with NEO disabled. Its cause is not established.
+RC3.15 does not promise fully stable resumed multiplayer. Keep separate backups
+of important saves and their host profile.**
 
 Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
-or through the global public lobby — from one English/German Windows launcher.
-WePlay detects your supported game installation, prepares a separate copy and
-keeps the original intact. Each player needs their own supported game files.
+or through the global public lobby from one Windows launcher. WePlay prepares
+its own copy and preserves your original installation. Each player supplies
+their own supported game files; the public installer/ZIP contains no game data.
 
-**RC3.14** separates these four ways to play into distinct cards with symbols.
-The central **Public lobby** works automatically in the launcher and the in-game
-**WePlay Online** browser, without a Discord account. Public games show player
-counts, open slots and compatibility. Private invitation rooms have their own
-controls; optional Discord publication belongs in Public Internet.
+RC3.15 includes the new **NEO-Logistics** map option, restored individual
+priorities when loading NEO multiplayer saves, a correction for a resumed-world
+AI terrain-search stall, and the replacement for the crashing in-game Invite
+button. The global lobby, standalone/update recovery, multiplayer castles,
+manual multiplayer saves and five-minute host autosave remain included.
 
-Before each new EasyTier connection, the launcher explains the virtual network,
-address visibility and remaining risks, and asks for explicit consent. Browsing
-the lobby starts no tunnel. The managed tunnel permits the required game/lobby
-ports and their replies, and denies other services and forwarding. It also keeps
-your startup options automatically, removing the repeated reset-options question.
-See [RC3.14 release notes and limits](docs/RC3.14-GLOBAL-LOBBY.md) and
-[directory setup and verification](docs/SHARED-GAME-DIRECTORY.md).
+## Install or update
 
-Private standalone exports now also open correctly through **App/S7Launcher.exe**:
-the launcher recognizes the bundled game before setup, including after moving
-the complete folder. No original installation is needed for a complete export.
+1. Download **Setup.exe**, or fully extract the ZIP and run its Setup. Close
+   WePlay and S7 before updating. Python and .NET are included.
+2. For an ordinary update, choose the existing WePlay application folder.
+   For a complete private standalone export, use **Select existing standalone
+   copy** and select its outer folder or its **App** folder.
+3. For a first installation, select your supported Ubisoft Connect/Uplay or
+   Steam History Edition installation. The launcher prepares a separate copy.
+   An existing prepared copy can be repaired and updated from its retained
+   files after the original folder has been removed.
+4. Install the **same RC3.15 build on every participant's PC**, even when NEO
+   is off. Its NEO3 session data is incompatible with older adapters.
 
-Includes **RC3.12** independent maintenance for both Ubisoft and Steam copies:
-WePlay detects, repairs and updates its own prepared game after the original
-installation is removed. The launcher opens taller menus and expands within
-the available screen height. Keep Steam running when using that edition.
-See [RC3.12 changes and verification](docs/RC3.12-STANDALONE-MAINTENANCE.md)
-and [standalone maintenance](docs/PRIVATE-STANDALONE.md#independent-maintenance-rc312).
+Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
+supported History Edition and enough disk space for the separate game copy.
+A game-content update temporarily needs room for another copy. Modern graphics
+uses DXVK and requires Vulkan support; Native graphics remains available.
+The supported Steam edition still requires its running Steam client.
 
-Includes **RC3.11** multiplayer saving, continuing saved matches and a host autosave
-every five minutes of game time.
-It supports the fingerprinted Ubisoft Connect/Uplay and Steam History Edition
-builds and includes the logistics crash fix, lobby-alliance correction, standalone startup
-recovery and multiplayer castle corrections. Keep Steam running when using that edition.
-See [RC3.11 changes and test limits](docs/RC3.11-MULTIPLAYER-SAVES.md) and the
-[Steam verification and remaining limits](docs/STEAM-COMPATIBILITY.md).
+Automatic updates verify signed metadata and the complete installer. The
+launcher offers a visible update action; checking alone does not install it.
+If that handoff fails, run Setup directly. The preview's Windows executables
+are not Authenticode-signed; WePlay does not disable Windows security policies.
 
-[Join WePlay on Discord](https://discord.gg/j2eQgVzssc)
+## Choose how to play
 
-**Includes RC3.7.1 maintenance:** correct version display and automatic cleanup of older
-managed game files, preserving saves and personal files. The safe switch to a
-new game copy still temporarily needs extra disk space.
-[Maintenance notes](docs/RC3.7.1-MAINTENANCE.md).
-
-**Your castle is back in multiplayer.** RC3.7 restores each player's customized
-Castle Forge design inside matches, including its appearance on the other
-client. [Castle Restoration: changes and verification](docs/RC3.7-CASTLES.md).
-
-![WePlay RC3.14 launcher in English](docs/screenshots/launcher-en.png)
-
-*English RC3.14 launcher, rendered with demonstration data.*
-
-### Standalone updates and the central lobby
-
-Existing-installation updates now stage and verify complete packages, recover
-interrupted package/standalone metadata switches, track failed game preparations
-and budget archive/save migration space. Complete standalone exports can move
-with contained old-version cleanup still pending. See
-[update recovery and qualification](docs/UPDATE-RECOVERY.md).
-
-The start page shows four distinct cards: **Solo**, **LAN**, **Private Internet**
-and **Public Internet**. The launcher uses the centrally hosted
-[WePlay public directory](https://weplay-multiplayer.weplay-community.workers.dev/health)
-automatically and refreshes the visible game list. Public hosting and joining
-work without linking Discord. **Also publish on Discord** remains an optional
-setting in Public lobby; private rooms keep their invitation-sharing controls.
-Per-room consent and network isolation remain enabled. See
-[the launcher flows](docs/LAUNCHER-LOBBY-FLOWS.md) and
-[central-service verification and test limits](docs/PUBLIC-LOBBY-SERVICE.md).
-
-The service moved to its neutral community address on November 4, 2026. Previous
-Discord publisher links were invalidated with the owner's approval. Use
-`/weplay-hilfe` to obtain a fresh private linking code if you want Discord
-publication. Existing RC3.13 readers can use a fresh directory code from that
-helper; the automatic default and Discord-independent hosting are included in
-RC3.14.
-
-## What you can do
-
-| Feature | Available in RC3.14 |
+| Launcher card | How it works |
 | --- | --- |
-| Local play | Start your prepared game with remembered graphics settings and player name. |
-| LAN multiplayer | Discover your LAN group automatically; create or join the actual match inside S7. |
-| Public lobby | Browse the central directory in the launcher or S7 without Discord; join the selected game's room, then select the native match in S7. |
-| Connection consent and isolation | Read the EasyTier explanation and explicitly agree before each new room connection; unrelated tunnel traffic and forwarding are denied. |
-| Internet rooms | Create a private room or join by invitation, using integrated EasyTier. No separate VPN installation, EasyTier account or rented WePlay server is needed. |
-| Discord community | Find players, share room invitations and optionally report your public games to the board in #🎮multiplayer. |
-| Graphics | Native or Modern (DXVK) graphics, GPU/display selection where supported, window modes and quality settings. |
-| Updates | Automatic checks at launcher startup, a visible version/install button and a manual Updates tab. Downloads are verified against a signed manifest. |
-| Windows integration | Built-in helpers for discovery, firewall configuration, update installation and cleanup; no PowerShell scripts or execution-policy changes in normal use. |
-| Achievement notifications | Repeated achievement popups are suppressed; the achievement catalogue and rewards remain available. |
-| Multiplayer castles | Your selected Castle Forge design appears in the match and is transferred to the other players. |
-| Multiplayer saves | Host manual saves, an automatic save every five game minutes, and continuing matches from the multiplayer browser. |
-| Standalone maintenance | Update and repair your owned Ubisoft/Steam copy without the original installation; local repair inputs stay with the game. |
+| **Solo** | Start your copy, then choose the campaign or a skirmish. |
+| **LAN** | Discover the group on your trusted home network; create/join the actual match in S7 Multiplayer. |
+| **Private Internet** | Create a private EasyTier room or paste an invitation. Share its invitation only with your intended players. |
+| **Public Internet** | Browse all advertised games in the central public directory or host a public room. Discord is optional. |
 
-## Install or upgrade
+The central directory also appears in S7's **WePlay Online** browser. Joining
+a directory entry connects the relevant room; select the actual match in S7
+afterwards. The public list refreshes while visible. Browsing starts no tunnel.
+The host's launcher and PC must remain connected while guests use the room.
 
-1. Download and unpack the **RC3.14 ZIP**, or download **Setup.exe** directly. Close S7 and WePlay before upgrading. This public ZIP contains no commercial game files.
-2. Run Setup; for an upgrade, use your existing WePlay application folder. For a complete standalone export, choose **Select existing standalone copy** and select its outer folder or App folder. No original installation is needed for that update.
-3. For a first installation, select your original supported History Edition. Existing prepared copies can update from their own retained files. A complete private standalone export opens through App/S7Launcher.exe or WePlay-Starten.cmd and needs no Setup or source installation.
-4. Install the **same RC3.14 build on every player's PC** before playing together. Clients predating RC3.7 use a different castle message format.
+Before a new EasyTier connection, the launcher explains the virtual network,
+visible addresses and remaining risks and asks for explicit consent. The managed
+tunnel restricts traffic to required game/lobby ports and replies, denying other
+services and forwarding. Public bootstrap/NAT traversal and, if needed, relays
+help connect PCs. Direct-only mode requires a reachable endpoint and does not
+work with every NAT/firewall. Windows may request permission for its adapter or
+firewall changes; the game runs without elevation.
 
-You need Windows x64 (Windows 10 22H2/build 19045 or newer, including Windows 11),
-your own supported History Edition and space for a separate game copy.
-Python and .NET are bundled. Modern graphics requires a compatible Vulkan GPU;
-Native graphics is also available.
+[LAN guide](docs/LAN-PLAYERS.md) · [LAN auf Deutsch](docs/LAN-SPIELER.md) ·
+[Internet guide](docs/RC3-INTERNET.md) · [Public service and test limits](docs/PUBLIC-LOBBY-SERVICE.md)
 
-Saves and settings are preserved during managed updates. New releases appear
-automatically when you open the launcher; install them with **Install update**.
-Older launchers need this Setup once. If RC3.4's old update handoff is blocked by
-your script policy, run the current Setup directly — **do not change the policy**.
+## NEO-Logistics: optional per match
 
-RC3.7 retains clearer start/room guidance, optional DXVK landscape presets
-and the simple-menu Kartograph correction. Before switching host roles after
-a match, restart both games. Mixed Steam/Ubisoft castle matches passed locally
-with either edition hosting. Two physical PCs, Internet castle transfer and
-extended/endgame sessions remain unqualified. RC3.10 includes RC3.9's stale
-lobby-alliance desync correction and the subsequent native logistics crash fix.
-The original replay passed its earlier crash region; a new mixed Ubisoft/Steam
-live match had **20,525 matching native turn checksums** and normal exits.
-The live memory monitors failed, so continuous memory monitoring remains
-unqualified. See [RC3.10 verification and limits](docs/RC3.10-LOGISTICS-CRASH.md).
+In S7's **map setup**, tick **NEO-Logistics** before starting a skirmish or
+multiplayer match. It starts **off**; changing the map resets the choice.
+The multiplayer host chooses it, the lobby displays it, and the choice stays
+fixed for that match. Loading a compatible save restores its recorded policy.
 
-Windows asks for administrator consent when network adapters or firewall rules
-need changing; the game runs without elevation. This preview's installer and
-helpers do not yet carry a trusted Windows publisher signature. Windows may
-warn or block them; WePlay does not disable SmartScreen, App Control or other
-security policies.
+With NEO enabled:
+
+- Supported warehouse transport requests are selected by **order creation age**
+  (FIFO); equal-age requests retain the native stable order.
+- **Group priorities have no effect.** Their panels stay visible but their
+  ranking/drag controls are disabled.
+- Explicit **individual player and AI priorities remain effective** and are
+  stored and restored with their task identities.
+- Production scheduling and pathfinding otherwise retain their native behavior.
+
+With NEO off, ordinary native comparison and group controls are used. This is
+an experimental policy choice, **not a new measured delivery-speed guarantee**.
+The earlier laboratory FIFO benchmark used a different build.
+
+Single-player Grassland Mesa tests with three hard AIs at native x20 passed
+start/save/restart/load with NEO on and off; the final on-run restored all 25
+recorded individual intents exactly. Two local multiplayer clients restored
+both an older four-intent save and a newer 13-intent save exactly before play.
+One final resume run reached turn 1600 on both clients, saved again at turn 1200
+and closed normally, with **600 common native checksums and no mismatch**.
+
+**The newer turn-1200 checkpoint still produces a later desync.** A controlled
+NEO-off run with the identical native world matched its first 427 checksums,
+then differed on two. This does not establish a NEO-independent root cause or
+complete multiplayer stability. Separate-PC/Steam NEO resume, populated human
+individual-priority controls and a delivery benchmark of the final policy
+remain unqualified. [Full NEO behavior and evidence](docs/NEO-LOGISTICS-MAP-OPTION.md).
 
 ## Save and continue multiplayer
 
-The host can use **Save game** in the in-game menu; an automatic checkpoint is
-also written every five game minutes. To continue after closing the games,
-the same host selects **Multiplayer → Load game**. The other players join in
-their original slots and select **Ready**. Wait for the host's **Start** button
-to become available while the checkpoint transfers.
+The host can use **Save game** in the game menu. Host autosave runs every five
+minutes of game time in its own slot; manual saving does not postpone it.
+After restarting, the same host selects **Multiplayer → Load game**. Other
+humans join in their original slots and select **Ready**. The host waits for
+**Start** to become available while the real checkpoint transfers.
 
-Keep the host's profile and save data together. Individual saves copied to a
-different profile, older saves without WePlay checkpoint data and Map Forge
-templates are not supported. [Save/reload instructions and verification](docs/RC3.11-MULTIPLAYER-SAVES.md).
+Keep the host profile, save folder and save-file timestamps together. A lone
+`.s7s` copied into another profile is not a supported migration. Older saves
+without WePlay multiplayer metadata and Map Forge templates are unsupported.
+Missing or inconsistent enabled NEO state is rejected rather than replaced
+with an empty priority list. Keep a backup before using an older checkpoint.
 
-## Play over the Internet
+The separate AI terrain-search correction prevents the demonstrated hang from
+an extreme finite angle producing enormous search bounds. A two-client/two-AI
+resume run exercised the correction, passed the next autosave and produced
+**3924 matching common native checksums**, with normal exits. This is distinct
+from the later NEO checkpoint desync above. The faster transfer-pacing prototype
+remains opt-in for development; RC3.15 retains normal pacing, so a lobby wait
+can still take minutes.
 
-A WePlay room connects the PCs; the actual match is created afterwards inside
-S7. Discord is optional. Choose **Public Internet** to find players through the
-central directory, or **Private Internet** to play by invitation.
-For the guided development interface, see the [launcher walkthrough (Deutsch)](docs/LAUNCHER-GUIDE.md).
+[Save/load guide](docs/RC3.11-MULTIPLAYER-SAVES.md) ·
+[Terrain-stall correction](docs/MULTIPLAYER-RESUME-TERRAIN.md) ·
+[Transfer timing](docs/MULTIPLAYER-RESUME-TRANSFER.md)
 
-For a private room:
+## Invitations and Discord
 
-1. Everyone opens **Private Internet** and enters their player name.
-2. The creator selects **Create room and start** and approves the Windows network permission prompt.
-3. Use **Copy invitation**, or **Copy for Discord** to include joining instructions. Share that private invitation only with your intended players.
-4. Friends paste it into **Paste your private invitation** and choose **Join room and start**.
-5. Inside S7, open **Multiplayer**. One player creates the match and the others join it there.
+S7's **Invite / Einladen** button opens the launcher invitation flow instead of
+the unavailable Ubisoft overlay. A private host can copy its room invitation;
+a public host copies the shared directory code; LAN players see joining guidance.
+Copying does not post to Discord or connect another PC automatically.
+[Invitation behavior and test scope](docs/INGAME-INVITATIONS.md).
 
-Keep **Private session** off so the other room members can find the match.
-That setting alone does not publish anything on Discord.
+**Also publish on Discord** belongs in **Public Internet / Public lobby**.
+For the optional game board, run `/weplay-hilfe` in **#🎮multiplayer**, obtain a
+private launcher-linking code, paste it into **Connect to Discord**, then enable
+publication. Private room invitations are not published. `/spiele` and
+`/weplay-status` show board/status information. The externally hosted bot does
+not require your PC to stay on; your own game room still does.
+[Discord instructions](docs/DISCORD-INTEGRATION.md).
 
-The default **No own server · public-assisted** mode uses public EasyTier nodes
-for discovery/NAT traversal. Traffic connects directly where possible and may
-use a relay when needed. **Direct connections only** avoids public bootstrap,
-STUN and relay nodes, but needs a reachable numeric endpoint and will not work
-with every NAT/firewall combination.
+## Standalone, recovery and uninstall
 
-**Keep the creator PC and WePlay connected while guests use the room.** If the
-creator finishes their own game first, WePlay keeps the room open for active
-guests. **Close Internet room** closes an idle room. During play, closing the
-launcher window keeps it in the system tray.
+A **complete private standalone export** contains your owned game copy and the
+launcher/runtime. Move the **whole export**, then start **App/S7Launcher.exe**
+or **WePlay-Starten.cmd**. A complete export needs no original game directory
+or separately installed Python/.NET. This does not remove Steam's client
+requirement. Do not confuse the public installer ZIP with a private full-game
+export, and do not upload private exports, saves or profiles to GitHub.
 
-[Internet room guide](docs/RC3-INTERNET.md)
+For a failed update, close the game/launcher and rerun Setup against the same
+application or standalone folder. Keep the complete folder together; do not mix
+individual files from different RCs. The launcher can repair a recognized owned
+copy without rediscovering the removed original. Incomplete or changed copies
+are rejected safely. Previous managed content stays available until replacement
+verification succeeds; busy cleanup is retried later. Never delete retained
+copies or recovery inputs to force an update through.
 
-**Development candidate:** the in-game **Invite / Einladen** button now opens
-the launcher invitation flow instead of the unavailable Ubisoft overlay.
-Private hosts copy their room invitation; public hosts copy a code to the
-shared directory; LAN players see joining instructions. The Ubisoft lab button
-and local request dispatch are verified; an Internet recipient join is still
-pending. This change is not in the published RC3.14 download.
-[Behavior and verification limits](docs/INGAME-INVITATIONS.md).
+Back up saves/profile data before uninstalling. Use Windows **Installed apps →
+Settlers 7: WePlay Edition → Uninstall** for a normal installation, with WePlay
+and S7 closed. Managed cleanup preserves personal/unknown files; the original
+installation is untouched. Private portable exports are separate folders: retain
+their saves before removing them yourself.
 
-For public games, open **Public Internet**. Select a compatible open game and
-choose **Join selected game**, or create your own public room. Agree to the
-connection explanation, then create/join the actual match inside S7. Its listing
-appears automatically while the hosting launcher remains connected. Optional
-Discord publication is configured here. The public list refreshes every 15
-seconds while visible. [Central service and test limits](docs/PUBLIC-LOBBY-SERVICE.md).
+[Standalone details](docs/PRIVATE-STANDALONE.md) ·
+[Update recovery](docs/UPDATE-RECOVERY.md) · [Graphics help](docs/GRAPHICS-START.md)
 
-## Discord: find players and show public games
+## Changelog and compatibility
 
-Join **[the WePlay Discord server](https://discord.gg/j2eQgVzssc)**. The launcher
-opens this community with **WePlay on Discord** and suggests invitation code
-`j2eQgVzssc`. The community link and a private game-room invitation are different
-things. **Copy for Discord** copies a room invitation and instructions; you
-choose where to paste/send it.
+| Release | Main additions |
+| --- | --- |
+| **RC3.15** | Optional NEO map policy and saved-priority restoration; AI terrain-stall fix; in-game invitation replacement; known later multiplayer reload desync documented. |
+| RC3.14 | Global public lobby, four launcher play cards, direct standalone launcher binding and transactional standalone/update recovery. |
+| RC3.13 | Public directory, EasyTier isolation and explicit connection consent. |
+| RC3.12 | Independent copy repair/maintenance and taller launcher menus. |
+| RC3.11 | Multiplayer saves/resume and five-minute host autosave. |
+| RC3.7–3.10 | Multiplayer castles, lobby-alliance correction and logistics crash fix. |
 
-For the optional automatic game board:
+Use matching builds on all peers and restart both games before switching hosts.
+WePlay supports the fingerprinted Ubisoft Connect/Uplay and Steam History builds;
+other executables are rejected. Existing Steam/Ubisoft tests do not qualify every
+new NEO feature. Same-PC tests do not establish physical-PC LAN, Internet or
+extended/endgame stability. Native aggregate checksums cover selected simulation
+state, not every byte. [RC3.15 notes](docs/RC3.15-NEO-LOGISTICS.md) ·
+[Steam scope](docs/STEAM-COMPATIBILITY.md).
 
-1. In **#🎮multiplayer**, run **`/weplay-hilfe`** and choose **Launcher verbinden**.
-2. Paste the private connection code into **Connect to Discord** in **Public Internet / Public lobby**. This code is not a bot token.
-3. Enable **Also publish on Discord** if you want this extra publication. Connecting initially leaves it off; you can turn it off or disconnect later.
-
-Connected launchers can report their own public-game titles, player counts/free
-slots and open/full or start/loading signals. Private games and room invitations
-are not published. A start/loading signal is not confirmation of an ongoing
-simulation. **`/spiele`**, **`/weplay-status`** and **`/weplay-hilfe`** provide the
-bot's game/status/help commands. Listings depend on connected launchers and the
-external service; a Discord outage does not stop your game.
-
-**The bot runs externally — your PC does not have to stay on to host the bot.**
-The creator's PC still needs to stay connected for its actual Internet room.
-[Discord setup and listing details](docs/DISCORD-INTEGRATION.md)
-
-## Play on your home network
-
-Connect all PCs to the same trusted private LAN. Open **LAN play**, enter a name
-and select **Start LAN play** on each PC. Allow private LAN access if Windows
-asks. In S7 **Multiplayer**, one player creates the match and the others join it;
-Private game is locked off for LAN creation.
-
-Use matching versions. If graphics profiles differ, start one PC first, then
-the others so supported differences can be aligned. If no shared group appears,
-check private LAN permission on each PC.
-
-[LAN player guide: English](docs/LAN-PLAYERS.md) · [Deutsch](docs/LAN-SPIELER.md) · [Graphics help](docs/GRAPHICS-START.md)
-
-## Current status
-
-**RC3.8 is an experimental preview; LAN desync remains open.** Two local
-Ubisoft/Steam clients played Feuerschlucht with one AI in both host directions,
-to turns 3489 and 2858, with matching castle values and no observed desync.
-Subsequent local logs from the user's RC3.8 installation confirm another desync
-at turn 2122 with four active players on Throne of Tandria.
-These same-PC tests do not qualify two humans versus two AI, physical-PC LAN,
-Internet gameplay, multiplayer save/reload or extended/endgame synchronization.
-The memory monitors reported failures, so clean memory stability is also
-unqualified. See [RC3.8 verification and limits](docs/RC3.8-STANDALONE-CASTLES.md).
-
-The Windows helpers, signed updater, real scoped firewall/adapter lifecycle,
-separate-copy preparation and save-preserving cleanup have been tested. Those
-checks do not establish multiplayer simulation stability.
-
-## Credits
+## Credits and licenses
 
 With love and thanks to **[Eisenmonoxid](https://github.com/Eisenmonoxid)**:
-your **[S7Patcher](https://github.com/Eisenmonoxid/S7Patcher)** and
-**[S7Packer](https://github.com/Eisenmonoxid/S7Packer)** laid the groundwork for
-WePlay. ❤️ [Credits and licenses](CREDITS.md) · [MIT license](LICENSE)
+**[S7Patcher](https://github.com/Eisenmonoxid/S7Patcher)** and
+**[S7Packer](https://github.com/Eisenmonoxid/S7Packer)** laid the groundwork. ❤️
+
+[MIT license](LICENSE) · [Credits and third-party notices](CREDITS.md).
+NEO's save reader includes Mark Adler's puff 2.3 (zlib 1.3.1); puff and S7Packer
+notices are included in the ZIP's **Licenses** folder and installed package.
+Python, .NET, DXVK and EasyTier retain their licenses/notices. Matching EasyTier
+corresponding source accompanies the release. **SHA256SUMS** and per-asset hash
+files are available on the release; signed update metadata authenticates Setup.
+
+Public maintainer: **R4nd0 / WePlay Community**. This independent community project
+does not own the game's names or trademarks. Each player supplies a supported copy.
 
 <details>
-<summary>Technical documentation and development</summary>
+<summary>Development and verification</summary>
 
-[Development and verification](docs/DEVELOPMENT.md) ·
-[Windows helpers](docs/WINDOWS-HELPERS.md) ·
-[Signed updates and publishing](docs/UPDATES.md) ·
-[Native adapter](docs/NATIVE-LOCAL-START.md) ·
-[Research and original patcher](docs/LEGACY-PATCHER.md)
-
-Source builds use the .NET 10 SDK and the documented packaging toolchain.
-Copied games, runtimes, credentials, agent journals and build outputs are not
-source files and must not be committed. EasyTier corresponding source and build
-instructions accompany the release.
+[Development](docs/DEVELOPMENT.md) · [Native adapter](docs/NATIVE-LOCAL-START.md) ·
+[Signed updates/publishing](docs/UPDATES.md) · [Windows helpers](docs/WINDOWS-HELPERS.md).
+Source builds use .NET 10 and the documented packaging toolchain. Game data,
+runtimes, private configurations, credentials and test recordings stay outside Git.
 
 </details>
-
-This is an independent community project. Game names and trademarks belong to
-their respective owners. Each player supplies their own supported game copy.
