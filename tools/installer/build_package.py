@@ -211,7 +211,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
             stream.write('\nNEO-Logistics (experimentell): In der Kartenkonfiguration einschalten. '
                 'FIFO richtet sich nach dem Auftragsalter. Gruppenprioritaeten sind deaktiviert; '
                 'Einzelprioritaeten bleiben aktiv. Im Mehrspieler benoetigen alle denselben Kandidaten. '
-                'Einzelspieler-Speichern/Laden ist geprueft. Mehrspieler-Prioritaeten werden wiederhergestellt; ein spaeterer Desync tritt auch ohne NEO auf.\n')
+                'Einzelspieler-Speichern/Laden ist geprueft. Mehrspieler-Prioritaeten werden wiederhergestellt; der nachgewiesene KI-Desync nach dem Laden ist korrigiert. Langzeit- und separate-PC-Tests bleiben begrenzt.\n')
     if dxvk_dll is not None:
         shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
         for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):

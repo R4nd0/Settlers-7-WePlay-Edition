@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-05",
+  "scope": "source correction after published RC3.15; no replacement of release assets",
+  "cause": "Uninitialized invariant rotation table in restored EAI::CPlanPlaceWorkshop searches",
+  "invariant_degrees": [
+    0,
+    30,
+    60,
+    90,
+    120,
+    150,
+    180
+  ],
+  "old_code": {
+    "loaded_logic_turn": 1200,
+    "common_checksums": 429,
+    "mismatches": 2,
+    "first_mismatch_index": 427,
+    "different_uninitialized_arrays_observed_on_first_resumed_update": true,
+    "early_candidate_count_difference_turn": 1216,
+    "identical_late_rng_rows": 2545
+  },
+  "live": {
+    "editions": [
+      "Ubisoft",
+      "Ubisoft"
+    ],
+    "transport": "loopback",
+    "map": "Grassland Mesa",
+    "hard_ai_opponents": 2,
+    "runs": [
+      {
+        "neo_enabled": true,
+        "loaded_logic_turn": 1200,
+        "restored_individual_intents": 13,
+        "reached_turn": 2100,
+        "common_native_checksums": 600,
+        "checksum_mismatches": 0,
+        "complete_replay_streams": true,
+        "normal_exits": true,
+        "source_restored": true,
+        "allocation_monitors_healthy": true
+      },
+      {
+        "neo_enabled": true,
+        "loaded_logic_turn": 1850,
+        "restored_individual_intents": 18,
+        "reached_turn": 2750,
+        "common_native_checksums": 550,
+        "checksum_mismatches": 0,
+        "complete_replay_streams": true,
+        "normal_exits": true,
+        "source_restored": true,
+        "allocation_monitors_healthy": true
+      },
+      {
+        "neo_enabled": false,
+        "loaded_logic_turn": 1200,
+        "restored_individual_intents": 0,
+        "reached_turn": 2100,
+        "common_native_checksums": 600,
+        "checksum_mismatches": 0,
+        "complete_replay_streams": true,
+        "normal_exits": true,
+        "source_restored": true,
+        "allocation_monitors_healthy": true
+      }
+    ]
+  },
+  "synthetic": {
+    "workshop_rotation_checks_per_supported_build": 331,
+    "independently_mapped_editions": [
+      "Ubisoft",
+      "Steam History"
+    ],
+    "complete_constructor_return_abi_and_fp_preservation": true,
+    "poisoned_field_bounds_and_negative_guards": true,
+    "patch_rollback": true,
+    "neo_codec_checks": 65562,
+    "fifo_policy_checks": 1135917
+  },
+  "adapters_sha256": {
+    "default": "e36f48399f652a8063142db82164b4b78b964c4440df6797813294b2272f3bcc",
+    "directory": "b8c1eb65b3440b7741288b13c621d942b790a879b201dacd7a9dca7802e6372f",
+    "directory-ordinary": "c6fb501aa22ed71f429a3d0046a0b7bf60f190f7f6990e03048f0ebbdba66ab1"
+  },
+  "limits": {
+    "published_rc315_contains_fix": false,
+    "steam_live_resume": false,
+    "separate_pc_trial": false,
+    "extended_match_qualification": false
+  }
+}

@@ -8,9 +8,10 @@ Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay c
 
 [Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15/WePlay-RC3.15.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.15) · [Discord community](https://discord.gg/j2eQgVzssc)
 
-**Experimental prerelease: a later desync after reloading a multiplayer save is
-still reproducible, including with NEO disabled. Its cause is not established.
-RC3.15 does not promise fully stable resumed multiplayer. Keep separate backups
+**RC3.15 still contains a later multiplayer-resume desync, including with NEO
+disabled. Its cause has now been identified and corrected in newer source:
+[uninitialized AI workshop rotations](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
+The RC3.15 downloads above do not contain that correction. Keep separate backups
 of important saves and their host profile.**
 
 Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
@@ -102,10 +103,13 @@ both an older four-intent save and a newer 13-intent save exactly before play.
 One final resume run reached turn 1600 on both clients, saved again at turn 1200
 and closed normally, with **600 common native checksums and no mismatch**.
 
-**The newer turn-1200 checkpoint still produces a later desync.** A controlled
-NEO-off run with the identical native world matched its first 427 checksums,
-then differed on two. This does not establish a NEO-independent root cause or
-complete multiplayer stability. Separate-PC/Steam NEO resume, populated human
+**That turn-1200 desync is corrected in source after RC3.15.** The workshop AI
+used an uninitialized rotation table after load, including with NEO disabled.
+The fixed source passed the previously failing checkpoint and a second cold
+reload, with 600 and 550 matching common checksums and normal exits. The
+RC3.15 downloads still contain the old adapter.
+[Cause and comparison results](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
+Separate-PC/Steam NEO resume, populated human
 individual-priority controls and a delivery benchmark of the final policy
 remain unqualified. [Full NEO behavior and evidence](docs/NEO-LOGISTICS-MAP-OPTION.md).
 

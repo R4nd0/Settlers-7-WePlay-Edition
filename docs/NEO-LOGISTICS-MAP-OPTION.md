@@ -4,8 +4,10 @@ Runtime qualification is incomplete. This option ships disabled by default in
 the experimental RC3.15 prerelease. Real single-player starts
 and save/load cycles now pass with the mode both enabled and disabled. Two-client
 qualification has a successful fresh-session loopback run with matching native
-checksums. Restoring saved individual intents now succeeds on both peers;
-a subsequent native simulation desync still prevents full resume qualification.
+checksums. Restoring saved individual intents succeeds on both peers. The later
+native AI desync is corrected in source after RC3.15 by the
+[workshop rotation initialization](MULTIPLAYER-RESUME-WORKSHOP.md).
+Separate-PC, Steam-runtime and extended-match qualification remain limited.
 
 ## Behavior
 
@@ -197,18 +199,19 @@ at turn 2000 and restored all 25 individual intents exactly; NEO-off saved and
 loaded at turn 2002 with ordinary group controls enabled (live-24/25). Both
 exited normally and restored their private source copies/profiles.
 
-A later native desync remains. Pair-26 generated new desync saves after loading
+A later native desync was subsequently isolated. Pair-26 generated new desync saves after loading
 the turn-1200 checkpoint. The controlled pair-27 loaded the exact same native
 world and info bytes with NEO disabled on both peers; only its NEO cache record
 and the private fixture choice were changed. Its complete native replay streams
 contain 429 common checksum records: the first 427 match, the final two differ.
 Both clients exited normally and the source copies/profiles were restored.
 Thus this later failure also occurs without the FIFO/individual-intent policy.
-Its cause is not established, and successful data restoration must not be
-reported as fully stable resumed multiplayer. These were two local Ubisoft
+Its cause was unknown in those runs; the newer
+[workshop investigation and fix](MULTIPLAYER-RESUME-WORKSHOP.md) identifies
+uninitialized AI rotation constants after load. These were two local Ubisoft
 clients with two hard AIs; separate-PC or Steam resume is not qualified here.
 
-Outstanding qualification: investigate this later native desync, check
+Outstanding qualification: check
 populated individual priority controls in game, and repeat the fixed-cohort
 delivery comparison on the final policy. No new delivery-speed improvement is
 claimed for this map-option build yet.

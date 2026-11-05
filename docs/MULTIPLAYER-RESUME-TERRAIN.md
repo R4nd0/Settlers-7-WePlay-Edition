@@ -19,6 +19,11 @@ The captured angle is approximately 1.212669e28 degrees. Its exact binary32
 integer value modulo 360 is 24 degrees. Why the AI produced that input remains
 unproven; this correction prevents the demonstrated geometry/search failure.
 
+A later investigation identified an uninitialized constant rotation table in
+restored workshop searches as a concrete source of invalid AI angles. The newer
+[workshop constructor correction](MULTIPLAYER-RESUME-WORKSHOP.md) restores that
+invariant. The range guard described here remains as a defensive check.
+
 ## Correction
 
 `terrain_angle_bridge.inc` guards only the identified footprint-constructor

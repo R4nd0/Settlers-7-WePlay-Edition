@@ -1,10 +1,18 @@
 # Experimental native local start, 2026-10-26
 
+Workshop resume correction (source after RC3.15, 2026-11-05): the constructor
+left a constant AI rotation table uninitialized, and saved active searches
+skipped its normal setup. The guarded factory now initializes those seven
+values after the original constructor. See
+[cause, ABI guards and comparison results](MULTIPLAYER-RESUME-WORKSHOP.md).
+The already-published RC3.15 downloads do not include this newer correction.
+
 NEO-Logistics (2026-11-05): the explicit `-NeoLogistics` candidate adds a map
 option, disabled group controls/commands, saved intent and a multiplayer setup
 protocol. Native single-player start/save/load passed with NEO on and off;
-saved individual priorities now restore exactly on both clients, but a later
-native desync also occurs with NEO off, so resume qualification remains incomplete; see
+saved individual priorities restore exactly on both clients. The later native
+desync reproduced with NEO on and off is corrected in newer source by the
+workshop initialization fix above. Broader resume qualification remains limited; see
 [candidate status and guards](NEO-LOGISTICS-MAP-OPTION.md). Ordinary builds exclude
 these hooks. The earlier `-NeoFifoLab` comparison build remains separate; its
 intent ledger is not saved. See [measured comparison and limits](NEO-LOGISTICS-FIFO.md).
