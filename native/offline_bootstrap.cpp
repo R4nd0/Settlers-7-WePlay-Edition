@@ -154,10 +154,19 @@ template<typename T> T Native(uintptr_t va) {
 #include "terrain_angle_bridge.inc"
 #endif
 
+#if defined(S7_NEO_FIFO_LAB) && (!defined(S7_LOCAL_PAIR_LAB) || defined(S7_GAME_DIRECTORY))
+#error NEO FIFO requires an isolated local-pair laboratory build
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
 #include "lab_resume_rng_trace.inc"
 #include "lab_resume_ai_trace.inc"
 #include "lab_lua_console.inc"
+#ifdef S7_NEO_FIFO_LAB
+void TrackNeoFifoIntent(const uint32_t*, uint32_t);
+#include "lab_priority_audit.inc"
+bool lab_priority_audit_enabled = false;
+#include "lab_fifo_transport.inc"
+#endif
 // Laboratory-only validation experiment for the unfinished multiplayer resume
 // path. A zero-byte event cannot contain the required native class identifier.
 // Reject it before deserialization; retain the original callback for all data.
@@ -1151,6 +1160,34 @@ const Patch DirectoryConsolePatch = {0x137E6B0, {0x50,0x15,0x5d,0},
 // Bounded sender-only experiment. The event protocol still carries each real
 // fragment length and the complete world length; no readiness or CRC is changed.
 #include "lab_resume_rng_patches.inc"
+#ifdef S7_NEO_FIFO_LAB
+unsigned char LabPriorityBytes[2][5]{};
+const Patch LabPriorityPatches[] = {
+    {0x782ee0, {0x55,0x8b,0xec,0x6a,0xff}, LabPriorityBytes[0], false, 5},
+    {0x782280, {0x55,0x8b,0xec,0x6a,0xff}, LabPriorityBytes[1], false, 5},
+};
+void InitializeLabPriorityPatches() {
+    lab_priority_task_resume = NativeVA(0x782ee0) + 5;
+    lab_priority_group_resume = NativeVA(0x782280) + 5;
+    const uintptr_t bridges[] = { reinterpret_cast<uintptr_t>(&LabPriorityTaskBridge), reinterpret_cast<uintptr_t>(&LabPriorityGroupBridge) };
+    for (size_t i=0; i<2; ++i) {
+        const uint32_t relative = static_cast<uint32_t>(bridges[i] - (NativeVA(LabPriorityPatches[i].va)+5));
+        LabPriorityBytes[i][0] = 0xe9; memcpy(LabPriorityBytes[i]+1, &relative, 4);
+    }
+}
+#ifdef S7_NEO_FIFO_LAB
+unsigned char NeoFifoCompareBytes[5]{};
+const Patch NeoFifoComparePatch = {0x78f380, {0xa1,0x20,0x52,0x3a,0x01}, NeoFifoCompareBytes, false, 5};
+void InitializeNeoFifoComparePatch() {
+    wchar_t enabled[3]{},groups[3]{};
+    if(GetEnvironmentVariableW(L"S7_NEO_FIFO_ENABLE",enabled,3)!=1 || (enabled[0]!=L'0' && enabled[0]!=L'1')
+        || GetEnvironmentVariableW(L"S7_NEO_FIFO_GROUPS",groups,3)!=1 || (groups[0]!=L'0' && groups[0]!=L'1'))Stop(InvalidConfiguration);
+    neo_fifo_enabled=enabled[0]==L'1';neo_fifo_groups=groups[0]==L'1';
+    const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&CompareNeoFifoTransfersBridge)-(NativeVA(0x78f380)+5));
+    NeoFifoCompareBytes[0]=0xe9;memcpy(NeoFifoCompareBytes+1,&relative,4);
+}
+#endif
+#endif
 const Patch LabLuaConsolePatch = {0x137E6B0, {0x50,0x15,0x5d,0},
     reinterpret_cast<const void*>(&ObserveLabLuaConsole), true};
 const Patch LabResumeAiPatches[] = {
@@ -1193,6 +1230,10 @@ bool ValidateKey(const char* encoded) {
 
 bool AcceptExecutableDigest(const unsigned char (&actual)[32]) {
 #ifdef S7_LOCAL_PAIR_LAB
+#ifdef S7_NEO_FIFO_LAB
+    static const unsigned char neo[32] = {0xc8,0x53,0xe8,0xa4,0xd4,0x38,0x6a,0x6b,0xea,0xf6,0x74,0xda,0xc8,0x68,0x82,0xfa,0xf4,0x92,0x0a,0x0f,0x02,0x88,0x14,0x8d,0x36,0x59,0x40,0xd0,0x23,0x08,0x19,0xb9};
+    if (!steam_history && memcmp(actual, neo, 32) == 0) { local_pair_bind.store(0x7f000002u); lab_priority_audit_enabled = true; return true; }
+#endif
     // Development-only builds accept exactly the two isolated profile variants
     // produced by tools/local-pair/lab_executable.py. Normal builds retain
     // the original-only guard. All PE, callsite, ABI and thread guards remain.
@@ -1337,6 +1378,23 @@ bool Install() {
         if (!steam_history) {
 #ifndef S7_GAME_DIRECTORY
             selected.push_back(&LabLuaConsolePatch);
+#endif
+#ifdef S7_NEO_FIFO_LAB
+            if (lab_priority_audit_enabled) {
+                const unsigned char task_guard[] = {0x55,0x8b,0xec,0x6a,0xff,0x68,0x70,0x15,0xf9,0};
+                const unsigned char group_guard[] = {0x55,0x8b,0xec,0x6a,0xff,0x68,0x56,0xe9,0xf7,0};
+                if (memcmp(Native<const void*>(0x782ee0), task_guard, sizeof(task_guard))
+                    || memcmp(Native<const void*>(0x782280), group_guard, sizeof(group_guard))) {
+                    SetError(ChangedCallsite); return false;
+                }
+#ifdef S7_NEO_FIFO_LAB
+                const unsigned char compare_tail[]={0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
+                if(memcmp(Native<const void*>(0x78f386),compare_tail,sizeof(compare_tail))) { SetError(ChangedCallsite);return false; }
+                InitializeNeoFifoComparePatch();selected.push_back(&NeoFifoComparePatch);
+#endif
+                InitializeLabPriorityPatches();
+                for (const auto& patch : LabPriorityPatches) selected.push_back(&patch);
+            }
 #endif
             InitializeLabResumeAi();
             for (const auto& patch : LabResumeAiPatches) selected.push_back(&patch);

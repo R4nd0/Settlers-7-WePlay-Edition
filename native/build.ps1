@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -18,6 +18,10 @@ foreach ($line in $compilerEnvironment) {
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS')
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
+if ($NeoFifoLab) {
+    if (!$LocalPairLab -or $GameDirectory) { throw 'NeoFifoLab requires an isolated LocalPairLab build without GameDirectory.' }
+    $common += '/DS7_NEO_FIFO_LAB'
+}
 if ($LocalNetworkPump -or $GameDirectory) { $common += '/DS7_LOCAL_NETWORK_PUMP' }
 if ($GameDirectory) { $common += '/DS7_GAME_DIRECTORY' }
 if ($ResumeCatchup) {
@@ -35,6 +39,13 @@ function Compile-Native([string[]]$Arguments) {
 }
 Push-Location $nativeOutput
 try {
+    Compile-Native @((Join-Path $nativeSource 'neo_fifo_policy_tests.cpp'), '/Fe:neo_fifo_policy_tests.exe')
+    if ($NeoFifoLab) {
+        Compile-Native @((Join-Path $nativeSource 'neo_fifo_integration_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_fifo_integration_tests.exe')
+        Compile-Native @((Join-Path $nativeSource 'neo_fifo_bridge_tests.cpp'), '/Fe:neo_fifo_bridge_tests.exe')
+        Compile-Native @((Join-Path $nativeSource 'lab_priority_capture_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:lab_priority_capture_tests.exe')
+        Compile-Native @((Join-Path $nativeSource 'lab_priority_audit_tests.cpp'), '/Fe:lab_priority_audit_tests.exe')
+    }
     Compile-Native @((Join-Path $nativeSource 'castle_profile_tests.cpp'), '/Fe:castle_profile_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'castle_wire_tests.cpp'), '/Fe:castle_wire_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'local_platform_tests.cpp'), '/Fe:local_platform_tests.exe')
