@@ -136,6 +136,9 @@ RC3.9 Lobby Desync Fix uses v2.0.0-rc3.9 and sequence 8. RC3.10 Logistics
 Crash Fix uses v2.0.0-rc3.10 and sequence 9, retaining network revision 7.
 RC3.14 uses sequence 13. RC3.15 NEO-Logistics and Resume Fixes uses sequence 14;
 its NEO3 session carrier additionally requires matching adapters on all peers.
+RC3.15b Workshop Resume Fix uses sequence 15 and tag `v2.0.0-rc3.15b`.
+The original RC3.15 assets/tag remain unchanged; all peers need matching adapter
+content for RC3.15b, even when NEO is disabled.
 The release ZIP includes the separately downloadable Setup
 and signed manifest; the updater continues to validate and download Setup.
 Building/signing a local candidate does not publish it

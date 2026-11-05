@@ -1,11 +1,11 @@
 # Experimental native local start, 2026-10-26
 
-Workshop resume correction (source after RC3.15, 2026-11-05): the constructor
+Workshop resume correction (RC3.15b, 2026-11-05): the constructor
 left a constant AI rotation table uninitialized, and saved active searches
 skipped its normal setup. The guarded factory now initializes those seven
 values after the original constructor. See
 [cause, ABI guards and comparison results](MULTIPLAYER-RESUME-WORKSHOP.md).
-The already-published RC3.15 downloads do not include this newer correction.
+RC3.15b includes this correction. The original RC3.15 assets remain unchanged.
 
 NEO-Logistics (2026-11-05): the explicit `-NeoLogistics` candidate adds a map
 option, disabled group controls/commands, saved intent and a multiplayer setup

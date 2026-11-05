@@ -80,8 +80,9 @@ Actual Steam resume, separate PCs and arbitrary long matches are separate
 qualification work; synthetic layout/ABI checks do not establish those results.
 
 RC3.15's already-published installer and ZIP predate this correction. They are
-not modified in place. A future package must include the new verified adapter;
-all participants need matching builds. Adapter fingerprints are part of the
+not modified in place. RC3.15b includes the new verified adapter;
+all participants need matching builds, including the same RC3.15b revision.
+Adapter fingerprints are part of the
 existing network content identity.
 
 [Structured verification receipt](verification/workshop-resume-20261105.json)

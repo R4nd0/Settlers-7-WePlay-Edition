@@ -2,25 +2,27 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Installer — RC3.15 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15/Setup.exe)
+## [Download Installer — RC3.15b · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15b/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15/WePlay-RC3.15.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.15) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15b/WePlay-RC3.15b.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.15b) · [Discord community](https://discord.gg/j2eQgVzssc)
 
-**RC3.15 still contains a later multiplayer-resume desync, including with NEO
-disabled. Its cause has now been identified and corrected in newer source:
-[uninitialized AI workshop rotations](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
-The RC3.15 downloads above do not contain that correction. Keep separate backups
-of important saves and their host profile.**
+**RC3.15b fixes the reproduced workshop-AI desync after loading a multiplayer
+save.** The restored AI search used uninitialized rotation constants; the fix
+initializes only those constants and preserves saved search work and priorities.
+Three completed local two-client runs passed with **1750 matching common native
+checksums**. This remains an experimental prerelease: Steam/separate-PC reloads
+and long matches are not yet qualified. Keep backups of saves and host profiles.
+[Cause, guards and evidence](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
 
 Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
 or through the global public lobby from one Windows launcher. WePlay prepares
 its own copy and preserves your original installation. Each player supplies
 their own supported game files; the public installer/ZIP contains no game data.
 
-RC3.15 includes the new **NEO-Logistics** map option, restored individual
-priorities when loading NEO multiplayer saves, a correction for a resumed-world
+RC3.15b includes the workshop-load correction and the **NEO-Logistics** map
+option, restored individual priorities when loading NEO multiplayer saves, a correction for a resumed-world
 AI terrain-search stall, and the replacement for the crashing in-game Invite
 button. The global lobby, standalone/update recovery, multiplayer castles,
 manual multiplayer saves and five-minute host autosave remain included.
@@ -36,7 +38,7 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install the **same RC3.15 build on every participant's PC**, even when NEO
+4. Install the **same RC3.15b build on every participant's PC**, even when NEO
    is off. Its NEO3 session data is incompatible with older adapters.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
@@ -103,11 +105,14 @@ both an older four-intent save and a newer 13-intent save exactly before play.
 One final resume run reached turn 1600 on both clients, saved again at turn 1200
 and closed normally, with **600 common native checksums and no mismatch**.
 
-**That turn-1200 desync is corrected in source after RC3.15.** The workshop AI
-used an uninitialized rotation table after load, including with NEO disabled.
-The fixed source passed the previously failing checkpoint and a second cold
-reload, with 600 and 550 matching common checksums and normal exits. The
-RC3.15 downloads still contain the old adapter.
+**The reproduced turn-1200 workshop-load desync is fixed in RC3.15b.** Three
+completed runs with two local Ubisoft clients and two hard AI passed: the old
+failing save, another cold load of the newly written save, and an NEO-off control.
+All **1750 common complete native checksums matched** (600 + 550 + 600), with
+normal exits. Both peers restored all 13 or 18 saved individual intents before
+their first simulation step. Only the seven invariant AI angles are initialized;
+saved search work, priorities, RNG and native desync checks remain intact.
+This does not generally explain older separate-PC/PC2-host desync reports.
 [Cause and comparison results](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
 Separate-PC/Steam NEO resume, populated human
 individual-priority controls and a delivery benchmark of the final policy
@@ -130,9 +135,10 @@ with an empty priority list. Keep a backup before using an older checkpoint.
 The separate AI terrain-search correction prevents the demonstrated hang from
 an extreme finite angle producing enormous search bounds. A two-client/two-AI
 resume run exercised the correction, passed the next autosave and produced
-**3924 matching common native checksums**, with normal exits. This is distinct
-from the later NEO checkpoint desync above. The faster transfer-pacing prototype
-remains opt-in for development; RC3.15 retains normal pacing, so a lobby wait
+**3924 matching common native checksums**, with normal exits. The workshop
+initialization in RC3.15b addresses the proven source of invalid workshop
+rotations and the later load desync. The faster transfer-pacing prototype
+remains opt-in for development; RC3.15b retains normal pacing, so a lobby wait
 can still take minutes.
 
 [Save/load guide](docs/RC3.11-MULTIPLAYER-SAVES.md) ·
@@ -185,7 +191,8 @@ their saves before removing them yourself.
 
 | Release | Main additions |
 | --- | --- |
-| **RC3.15** | Optional NEO map policy and saved-priority restoration; AI terrain-stall fix; in-game invitation replacement; known later multiplayer reload desync documented. |
+| **RC3.15b** | Correctly initialize restored workshop-AI search rotations; reproduced load desync fixed, including repeated cold load and NEO-off control. |
+| RC3.15 | Optional NEO policy and saved-priority restoration, terrain-stall guard and invitation replacement; its original assets predate the workshop fix. |
 | RC3.14 | Global public lobby, four launcher play cards, direct standalone launcher binding and transactional standalone/update recovery. |
 | RC3.13 | Public directory, EasyTier isolation and explicit connection consent. |
 | RC3.12 | Independent copy repair/maintenance and taller launcher menus. |
@@ -197,7 +204,7 @@ WePlay supports the fingerprinted Ubisoft Connect/Uplay and Steam History builds
 other executables are rejected. Existing Steam/Ubisoft tests do not qualify every
 new NEO feature. Same-PC tests do not establish physical-PC LAN, Internet or
 extended/endgame stability. Native aggregate checksums cover selected simulation
-state, not every byte. [RC3.15 notes](docs/RC3.15-NEO-LOGISTICS.md) ·
+state, not every byte. [RC3.15b notes](docs/RC3.15b-WORKSHOP-RESUME.md) ·
 [Steam scope](docs/STEAM-COMPATIBILITY.md).
 
 ## Credits and licenses

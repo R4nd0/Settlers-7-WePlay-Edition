@@ -1,13 +1,19 @@
-# NEO-Logistics map option — RC3.15 candidate, 2026-11-05
+# NEO-Logistics map option — RC3.15b candidate, 2026-11-05
 
 Runtime qualification is incomplete. This option ships disabled by default in
-the experimental RC3.15 prerelease. Real single-player starts
+the experimental RC3.15b prerelease. Real single-player starts
 and save/load cycles now pass with the mode both enabled and disabled. Two-client
 qualification has a successful fresh-session loopback run with matching native
 checksums. Restoring saved individual intents succeeds on both peers. The later
-native AI desync is corrected in source after RC3.15 by the
+native AI desync is corrected in RC3.15b by the
 [workshop rotation initialization](MULTIPLAYER-RESUME-WORKSHOP.md).
 Separate-PC, Steam-runtime and extended-match qualification remain limited.
+
+The RC3.15b correction passed three completed resumed-world runs (NEO on,
+another cold reload, NEO off): 1750 common complete native checksums all match,
+with normal exits. All 13 or 18 saved individual intents restore exactly on
+both peers before simulation. Saved search work is retained. This does not
+generally explain older PC2-host desync reports or qualify arbitrary long games.
 
 ## Behavior
 
