@@ -178,3 +178,9 @@ All participants must update for NEO5, including with NEO off. Its signed update
 metadata covers the exact installer. Old assisted invitations require recreation
 to use the replacement relay. Existing public release assets remain unchanged.
 See [release notes](RC3.18-LOGISTICS-INTERNET.md).
+
+RC3.18 is published with 14 assets. Public downloads, exact SHA-256 values,
+README/document links and the signed live update feed were checked after
+publication. Older releases remain unchanged. The
+[publication receipt](verification/rc318-publication-20261106.json) records the
+build commit and test scope, including the protected portable-update busy case.

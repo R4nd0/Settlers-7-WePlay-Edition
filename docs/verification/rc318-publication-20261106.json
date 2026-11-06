@@ -1,0 +1,106 @@
+{
+  "date": "2026-11-06",
+  "release": "2.0.0-rc3.18",
+  "tag": "v2.0.0-rc3.18",
+  "prerelease": true,
+  "source_commit": "dc53d12bbf22920bae89c3a6502e29a70cb83f13",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.18",
+  "native_adapter_sha256": "976d1834f5f5a1580d1936d82f89be7a54bdf9c069a6f2dbb57562d0ff6278c7",
+  "server_fix_commit": "f031f9747e4ee7f821fe4dc29a049c1e4c28f8d8",
+  "neo_wire_revision": 5,
+  "verification": {
+    "source_test_groups": 21,
+    "native_suites": 23,
+    "packaged_ui_passed": true,
+    "signed_update_and_installer_valid": true,
+    "actual_fresh_installer": true,
+    "actual_portable_upgrade_completed": false,
+    "portable_busy_guard": "An active S7 process correctly rejected portable upgrade before launcher replacement; existing synthetic update/preservation tests pass.",
+    "linux_native_service_and_boundary_tests": true,
+    "linux_exact_archive_extraction": true,
+    "windows_linux_crypto_operations": 8,
+    "exact_source_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42302628009",
+    "public_asset_digests_match": true,
+    "anonymous_downloads_verified": true,
+    "readme_asset_and_document_links_verified": true,
+    "signed_live_update_feed_verified": true,
+    "previous_releases_unchanged": 18
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2056,
+      "sha256": "2ba873ec110e42d25726d6eeb77666818486e921bd6e0f0b68a94e56c3b23537"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 1432,
+      "sha256": "4bb91f1ce3210d234c2399fb1338d0d55b12c8ef9b3d2a39ceaee403cb922675"
+    },
+    {
+      "name": "README.md",
+      "size": 18445,
+      "sha256": "ef2c4c18bf2f9e170cddaa5989778a673963d8a4ee5931f40e2b4d58e6639460"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 3630,
+      "sha256": "c8acd5d358efc5797f67f8b663d6ba79661af019e0e221a5e955579e7ca69f30"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 105880634,
+      "sha256": "c0c4a5f72d520152eee32f3e8f5199d3185174881d7b37070a746740f6cf6599"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "055509c5c1c25864c8b2a627095b1658eb4a78a909f0f690c7cc6f1969b0061f"
+    },
+    {
+      "name": "WePlay-RC3.18-Linux-x64.tar.gz",
+      "size": 55139802,
+      "sha256": "5067241ee10e18c1a5f3ba11b53feffa231ea7f68705bc55e3480926d2a49fcc"
+    },
+    {
+      "name": "WePlay-RC3.18-Linux-x64.tar.gz.sha256",
+      "size": 98,
+      "sha256": "b75ae5ff67b8bcc258c20cae9c431bc597566b9a82f43cc51d584263ad7c035e"
+    },
+    {
+      "name": "WePlay-RC3.18.zip",
+      "size": 110165612,
+      "sha256": "58be282d253c0fd51dd4011e6a0f0457256bf012d0983a7a717536355c3e4432"
+    },
+    {
+      "name": "WePlay-RC3.18.zip.sha256",
+      "size": 84,
+      "sha256": "84490f6a4be26a676e0307be69c6f6f479ce1deec3edadf7c347a706b90c5770"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 5612,
+      "sha256": "7703cd1b58832a8e3a506064e088e9c4d4047f00836e5d9cd037e05f8c691a6e"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1124,
+      "sha256": "647edc83eb61db97869bba544666d07f20660768ef1e948ff2dfb43218ad4d73"
+    }
+  ],
+  "limitations": [
+    "New NEO gameplay checks used local Windows clients; no new separate-PC or Linux gameplay qualification.",
+    "Relay verification proves rendezvous; it does not establish Internet game or TUN/firewall data-plane qualification.",
+    "Runtime community relay availability is not guaranteed."
+  ]
+}
