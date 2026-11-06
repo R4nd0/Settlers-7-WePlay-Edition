@@ -32,6 +32,15 @@ def command(action,*arguments,root=None,timeout=30):
 
 def process_names():
     """Read process names directly before installation, without loading an installed helper."""
+    if os.name == 'posix':
+        names = []
+        for process in Path('/proc').iterdir():
+            if process.name.isdecimal():
+                try:
+                    names.append((process / 'comm').read_text().strip().casefold())
+                except (FileNotFoundError, ProcessLookupError, PermissionError):
+                    continue
+        return names
     if os.name!='nt':raise ValueError('Process inspection requires Windows')
     class Entry(ctypes.Structure):
         _fields_=[('size',wintypes.DWORD),('usage',wintypes.DWORD),('pid',wintypes.DWORD),

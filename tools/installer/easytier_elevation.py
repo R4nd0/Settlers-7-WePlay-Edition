@@ -263,6 +263,9 @@ class ElevatedEasyTier:
 
 
 def open_overlay(*args, **kwargs):
+    if sys.platform == 'linux':
+        from linux_elevation import ElevatedEasyTier as LinuxEasyTier
+        return LinuxEasyTier(*args, **kwargs)
     if os.name != 'nt':
         raise InternetError('internet_windows_required')
     # Use the same scoped firewall and parent-lifetime worker even when the

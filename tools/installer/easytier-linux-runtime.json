@@ -1,0 +1,17 @@
+{
+  "format": "weplay-easytier-runtime-v1",
+  "version": "2.6.4-weplay-npcap-free-acl1",
+  "upstream": "https://github.com/EasyTier/EasyTier",
+  "source_sha256": "57eb069465ad52bc328bec597c820163afc94d85469e9299f2b8b210c71897b4",
+  "patch_sha256": "2b33471d1259ce5f0a2e270b6d427def7bef41eb58661343fae6e80dfa4c2307",
+  "files": {
+    "GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "SOURCE.txt": "1a07390b4d6a3cf12356714fbe9c8f9cfdb5798217514d50b63cb5dd019e9a7a",
+    "THIRD-PARTY-NOTICES.txt": "803f3c858ca2513357d1bfdc8434cbb2dc5222ca8512f517db8ecb7f91fa4cad",
+    "easytier-cli": "fc26273f72ccf2af1d02306c8e073a66590b44f36f4da1dbb2242143ce8409d0",
+    "easytier-core": "11c95b7879688ddb95245c0c7b7f9abbf3b9e95d8f53dbae214c3b20006e7114"
+  },
+  "security_patch_sha256": "430e6400d8bd7b04de027750dbb778db7df1b869612d4f32c53888bde657d76e",
+  "target": "x86_64-unknown-linux-musl"
+}

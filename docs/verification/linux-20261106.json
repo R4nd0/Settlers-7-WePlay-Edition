@@ -1,0 +1,725 @@
+{
+  "format": "weplay-linux-qualification-v1",
+  "date": "2026-11-06",
+  "release": "2.0.0-rc3.17",
+  "environment": {
+    "linux": "Ubuntu 24.04 under WSL2/WSLg",
+    "wine": "WineHQ 11, classic win32 prefix",
+    "renderer": "WineD3D, software OpenGL",
+    "windows": "Windows x64; same physical host"
+  },
+  "synthetic": {
+    "linux_boundary_tests": 20,
+    "native_linux_service_checks": 8951,
+    "windows_service_checks": 8957,
+    "wine_x86_suites": [
+      {
+        "test": "public_key_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "114ff3bd619deb383bff55fbda1319f51a77cec35e779076a256f75b5bc9a690"
+      },
+      {
+        "test": "cpu_affinity_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "8904bd3ce4cdee8d21815c667a71ecec64032f86493bebd24c01d8c7141be8e1"
+      },
+      {
+        "test": "local_platform_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "40b3be04a30d96c6dda05a4577d8db518a0a714b6e4b09133ba8071894c7ea45"
+      },
+      {
+        "test": "local_connect_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "c9f42f0593a69ce005e5b09b881125e60ccb9904d9050bfb1847901c497111da"
+      },
+      {
+        "test": "bootstrap_patch_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "9b58de0df348de4211655210f7557fa42d0f10f3976398f6d2b5f7719edc5e77"
+      },
+      {
+        "test": "steam_profile_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "59da3eb0082e488186538d211528448a0c9eb88ee367fbd5c4b3f256fdf6f867"
+      },
+      {
+        "test": "network_guard_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "fe8733f6eacf9c6a39d5e39f0b9bffac8da2f40ffb7d8a6346009b6ade16b45c"
+      },
+      {
+        "test": "lan_membership_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "d3678293e47fa6e29657ba1228fce06fce1e6cd6ea5ff358e71889a27ea85703"
+      },
+      {
+        "test": "castle_profile_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "0979b1e396cc50a783f9ed461edbc6faf2d82e52fba2a6f3e951d9fb179e6f67"
+      },
+      {
+        "test": "castle_wire_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "e403860ee7f7cfbb20330586f61c2efee8a3d497a01e07b61955d7902f88353b"
+      },
+      {
+        "test": "lobby_team_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "f3ace9258a38e49c43082ab3cad6655b699e1c1a8404263565e67f7ca2aebb49"
+      },
+      {
+        "test": "logistics_priority_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "c9362f76083403254bf83be0060bcc1e9ccacb1fdc18781e088613741f2aacb9"
+      },
+      {
+        "test": "neo_fifo_policy_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "bb6befc05cd970f70220e3c12df17aaecdae73386c955c599b3241f5575affd1"
+      },
+      {
+        "test": "neo_logistics_state_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "f5b17870501f086bbd6629db0c1cbe57b8337627ce10fae43a547fdeae74374a"
+      },
+      {
+        "test": "neo_logistics_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "e53d5d8c6e22188b6f7ceea24206b9bae21d18bf96bcee85bedef05fdb2e9b18"
+      },
+      {
+        "test": "resume_pacing_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "288f958f55dbf0bb55e3875e30a9d9e3000c5ea44c26a54f02cbc874ed01449b"
+      },
+      {
+        "test": "terrain_angle_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "810443827f72d8760f41698a3d59dbd53f18d3ba447aee7d54f7af6694a08131"
+      },
+      {
+        "test": "workshop_angles_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "37780fdec379de4f7e5187200e4ec62db6bdd898483cf494314dedac929c8d5f"
+      },
+      {
+        "test": "map_template_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "1114c461e5352698d13a8d28f42ecb41240dfee336aea03c73eabb7c85aef3f0"
+      },
+      {
+        "test": "game_directory_bridge_tests",
+        "exit": 0,
+        "skipped": false,
+        "sha256": "3b988bc853e2c344ce16e2f0d58d9d53a76aba1aef1d188dc814417da3697cc5"
+      }
+    ],
+    "windows_x86_suite_executions": [
+      {
+        "build": "native-key-fix-directory",
+        "test": "public_key_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "cpu_affinity_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "map_template_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "bootstrap_patch_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "steam_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "workshop_angles_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "terrain_angle_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "castle_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "castle_wire_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "local_connect_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "resume_pacing_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "lobby_team_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-directory",
+        "test": "logistics_priority_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "public_key_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "cpu_affinity_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "map_template_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "bootstrap_patch_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "steam_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "workshop_angles_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "terrain_angle_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "castle_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "castle_wire_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "local_connect_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "resume_pacing_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "lobby_team_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-neo",
+        "test": "logistics_priority_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "public_key_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "cpu_affinity_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "map_template_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "bootstrap_patch_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "steam_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "workshop_angles_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "terrain_angle_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "castle_profile_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "castle_wire_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "local_connect_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "resume_pacing_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "lobby_team_tests",
+        "exit": 0
+      },
+      {
+        "build": "native-key-fix-ordinary",
+        "test": "logistics_priority_tests",
+        "exit": 0
+      }
+    ],
+    "cross_platform_crypto_operations": 8,
+    "transport_namespace_services": {
+      "allowed": 6,
+      "denied": 2,
+      "eof_cleanup": true,
+      "heartbeat_cleanup": true,
+      "tun_removed": true
+    },
+    "windows_python_regression_groups": [
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_installer.py"
+        ],
+        "tests": 33,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_package_location.py"
+        ],
+        "tests": 3,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_standalone.py"
+        ],
+        "tests": 20,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_standalone_preflight.py"
+        ],
+        "tests": 4,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_update_recovery.py"
+        ],
+        "tests": 16,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_update_client.py"
+        ],
+        "tests": 19,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_update_backend.py"
+        ],
+        "tests": 9,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_desktop_backend.py"
+        ],
+        "tests": 44,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_neo_save_archive.py"
+        ],
+        "tests": 7,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools/neo-logistics",
+          "-p",
+          "test_*.py"
+        ],
+        "tests": 18,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tools/multiplayer-resume",
+          "-p",
+          "test_*.py"
+        ],
+        "tests": 32,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_linux_support.py"
+        ],
+        "tests": 20,
+        "skipped": 8,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_linux_replays.py"
+        ],
+        "tests": 5,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_network_content.py"
+        ],
+        "tests": 13,
+        "skipped": 0,
+        "passed": true
+      },
+      {
+        "command": [
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_graphics_launcher.py"
+        ],
+        "tests": 10,
+        "skipped": 0,
+        "passed": true
+      }
+    ],
+    "replay_parser_regressions": 5,
+    "windows_python_test_cases": 253,
+    "canonical_compressor": {
+      "public_portable_recipe_rebuild": true,
+      "pinned_library_byte_identical": true,
+      "independent_vectors": 3,
+      "full_game_ui_archive_matches_windows": true
+    }
+  },
+  "actual_game": {
+    "solo": {
+      "native_install_and_full_verification": true,
+      "visible_world": true,
+      "quick_and_auto_save": true,
+      "full_process_exit": true,
+      "cold_load": true,
+      "continued_save": true,
+      "profile_migration": {
+        "files": 8,
+        "saves": 2,
+        "bytes_and_times_preserved": true,
+        "account_caches_imported": false
+      }
+    },
+    "linux_host_windows_guest": {
+      "map": "Forest Realm",
+      "neo_logistics": true,
+      "manual_save": true,
+      "full_process_exit": true,
+      "complete_replay_streams": true,
+      "common_native_crcs": 1379,
+      "mismatches": 0,
+      "all_gzip_members_read": true
+    },
+    "cold_multiplayer_resume": {
+      "passed": true,
+      "full_process_restart": true,
+      "roster_and_neo_preserved": true,
+      "continued_manual_save": true,
+      "complete_replay_streams": true,
+      "common_native_crcs": 1200,
+      "mismatches": 0,
+      "all_gzip_members_read": true
+    },
+    "windows_host_linux_guest": {
+      "passed": true,
+      "map": "Forest Realm",
+      "neo_logistics": false,
+      "complete_replay_streams": true,
+      "common_native_crcs": 1104,
+      "mismatches": 0,
+      "manual_host_save": true,
+      "windows_return_to_menu": true,
+      "windows_exit": 0,
+      "linux_exit": 0,
+      "passive_exception_watch_no_access_violation": true,
+      "all_gzip_members_read": true
+    },
+    "updated_and_relocated_generation": {
+      "update_passed": true,
+      "real_game_documents": 13,
+      "actual_solo_and_multiplayer_saves_preserved": true,
+      "bytes_and_nanosecond_times_preserved": true,
+      "full_verification": true,
+      "relocation_passed": true,
+      "relocated_real_documents": 15,
+      "rebased_owned_wine_links": 1,
+      "all_save_bytes_and_times_preserved": true,
+      "cold_gui_launch_from_path_with_spaces": true,
+      "migrated_multiplayer_checkpoint_loaded_into_visible_world": true
+    },
+    "shutdown_investigation": {
+      "earlier_windows_abort": "0xc0000005 after resumed-match disconnect and Linux coordinator loss",
+      "reproduced_defect": "WSL creator-session teardown killed coordinator despite an active Windows peer lease",
+      "correction": "Linux coordinator uses a new session and closed standard input",
+      "real_native_service_and_windows_lease_verified": true,
+      "active_peer_samples_after_creator_exit": 12,
+      "automatic_last_peer_cleanup": true,
+      "hub_and_native_service_gone": true,
+      "later_reverse_and_extended_match_windows_exit": 0,
+      "arbitrary_service_loss_recovery_qualified": false
+    },
+    "linux_gui": {
+      "visible": true,
+      "verify_rejects_active_copy": true,
+      "verify_succeeds_after_game_exit": true,
+      "actual_lan_game_launch": true,
+      "persisted_player_name_restored": true
+    },
+    "five_minute_host_autosave": {
+      "passed": true,
+      "actual_production_slot": 1001,
+      "baseline_absent": true,
+      "guest_auto_slot_absent": true,
+      "stable_native_file": true,
+      "persistent_checkpoints": true,
+      "cold_autosave_load": {
+        "passed": true,
+        "actual_production_slot": 1001,
+        "both_game_processes_restarted": true,
+        "source_save_and_index_persisted": true,
+        "browser_recognized_autosave": true,
+        "verified_lobby_restored": true,
+        "real_guest_joined": true,
+        "native_transfer_completed_without_bypass": true,
+        "visible_world_both_clients": true,
+        "continued_native_crcs": 201,
+        "mismatches": 0,
+        "all_gzip_members_read": true,
+        "incomplete_single_save_backup_correctly_rejected": true,
+        "original_windows_profile_restored": true,
+        "windows_exit": 0,
+        "linux_graceful_exit_observed": true
+      }
+    },
+    "moved_extended_match": {
+      "common_native_crcs": 4281,
+      "mismatches": 0,
+      "all_gzip_members_read": true,
+      "complete_replay_streams": true,
+      "linux_gzip_members": 8,
+      "windows_gzip_members": 8,
+      "unmatched_tail": {
+        "left": 0,
+        "right": 1
+      },
+      "windows_exit": 0,
+      "both_game_processes_ended": true,
+      "human_observer_reported_stable_until_session_end": true
+    },
+    "original_windows_profile_restored": true,
+    "renderer_file_roundtrip": {
+      "passed": true,
+      "real_native_filesystem": true,
+      "pinned_dxvk_install_verified": true,
+      "wined3d_restored": true,
+      "complete_inventory_before_after_identical": true,
+      "network_identity_restored": true,
+      "no_game_started": true,
+      "vulkan_gameplay_not_qualified": true
+    },
+    "complete_replay_comparison": {
+      "pairs": 6,
+      "common_native_crcs": 11305,
+      "mismatches": 0,
+      "all_gzip_members_read": true
+    },
+    "autosave_generation_match": {
+      "common_native_crcs": 3140,
+      "mismatches": 0,
+      "all_gzip_members_read": true,
+      "complete_replays": true,
+      "whole_profile_files_persisted": 12,
+      "save_and_index_bytes_and_ns_times_preserved": true
+    }
+  },
+  "unavailable": [
+    "Linux Mint VM (not available)",
+    "Genuine Linux Steam/Proton live run",
+    "Graphical Polkit authentication agent under WSLg"
+  ],
+  "limits": [
+    "Bounded Windows/WSL qualification on one physical host; no separate-PC or long-session endurance proof",
+    "Software rendering; no performance qualification",
+    "Synthetic checks are not game observations"
+  ],
+  "privacy": {
+    "game_files_included": false,
+    "profiles_or_keys_included": false,
+    "raw_replays_or_packets_included": false
+  }
+}

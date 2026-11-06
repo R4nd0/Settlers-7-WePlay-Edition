@@ -2,6 +2,10 @@
 import ctypes
 from ctypes import wintypes
 import subprocess
+import os
+from pathlib import Path
+import signal
+import sys
 
 
 class BasicLimits(ctypes.Structure):
@@ -39,6 +43,10 @@ def kernel_api():
 class ServiceJob:
     """Noninheritable unnamed job. Never assign the game or an existing service."""
     def __init__(self, *, api=None):
+        self.posix = os.name == 'posix' and api is None
+        if self.posix:
+            self.handle, self.child = True, None
+            return
         self.api = kernel_api() if api is None else api
         self.handle = self.api.CreateJobObjectW(None, None)
         self.child = None
@@ -54,6 +62,11 @@ class ServiceJob:
     def start(self, arguments, **options):
         if not self.handle or self.child is not None:
             raise RuntimeError('Der Lobby-Dienst wurde bereits gestartet oder beendet.')
+        if self.posix:
+            child = subprocess.Popen([sys.executable, '-I', '-B', str(Path(__file__).resolve()),
+                                      '--parent', str(os.getpid()), *map(str, arguments)], **options)
+            self.child = child
+            return child
         child = subprocess.Popen(arguments, **options)
         self.child = child
         try:
@@ -69,7 +82,25 @@ class ServiceJob:
         return child
 
     def close(self):
+        if self.posix:
+            self.handle = None
+            if self.child is not None:
+                if self.child.poll() is None:
+                    self.child.terminate()
+                self.child.wait(timeout=10)
+            return
         if self.handle:
             handle, self.handle = self.handle, None
             if not self.api.CloseHandle(handle):
                 raise ctypes.WinError(ctypes.get_last_error())
+
+
+if __name__ == '__main__' and sys.platform == 'linux':
+    # A separate, single-threaded exec wrapper avoids preexec_fn in a GUI/hub.
+    if len(sys.argv) < 4 or sys.argv[1] != '--parent':
+        raise SystemExit(2)
+    parent = int(sys.argv[2])
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, signal.SIGTERM, 0, 0, 0) != 0 or os.getppid() != parent:
+        raise SystemExit(2)
+    os.execv(sys.argv[3], sys.argv[3:])

@@ -7,8 +7,8 @@ internal static class PrudpDataPacketEncoderChecks
 {
     internal static int Run()
     {
-        if (!OperatingSystem.IsWindows())
-        { Console.WriteLine("SKIP: DATA encoder BCrypt interoperability requires Windows."); return 0; }
+        if (!ClientCryptoFixtures.Supported)
+        { Console.WriteLine("SKIP: DATA encoder BCrypt interoperability requires Windows BCrypt or Linux OpenSSL."); return 0; }
         int passed = 0;
         void Check(bool valid, string message) { if (!valid) throw new Exception(message); passed++; }
         void Reject(Action action)
@@ -37,7 +37,7 @@ internal static class PrudpDataPacketEncoderChecks
                     && decoded.PayloadLength == packet.Length - 15, "Decoder did not consume exact encoder output");
                 Check(decoded.PayloadLength >= 32 && (decoded.PayloadLength - 16) % 16 == 0 && packet.Length <= 991, "Invalid encrypted body size");
                 byte[] iv = packet.AsSpan(11, 16).ToArray();
-                byte[] envelope = NativeCngFixtures.Decrypt(packet.AsSpan(27, decoded.PayloadLength - 16).ToArray(), key, iv);
+                byte[] envelope = ClientCryptoFixtures.Decrypt(packet.AsSpan(27, decoded.PayloadLength - 16).ToArray(), key, iv);
                 byte[] expanded = null;
                 try
                 {

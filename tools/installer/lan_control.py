@@ -89,6 +89,9 @@ def validate_peers(value, local, coordinator, expected):
 
 
 def tick_ms():
+    if os.name == 'posix':
+        # Wine's GetTickCount64 uses CLOCK_MONOTONIC, including its boot offset.
+        return time.clock_gettime_ns(time.CLOCK_MONOTONIC) // 1000000
     # Same boot-relative clock as the native GetTickCount64 validator.
     function = ctypes.WinDLL('kernel32', use_last_error=True).GetTickCount64
     function.argtypes, function.restype = [], ctypes.c_ulonglong

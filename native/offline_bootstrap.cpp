@@ -1237,9 +1237,18 @@ void InitializeLabResumeAi() {
 #endif
 
 bool ValidateKey(const char* encoded) {
+    // A 72-byte ECC blob has exactly 96 canonical base64 characters, without
+    // padding. Validate that representation ourselves: Wine 11 rejects even
+    // valid input when CRYPT_STRING_STRICT is supplied (ERROR_INVALID_DATA).
+    if (!encoded || strnlen_s(encoded, 97) != 96) return false;
+    for (size_t i = 0; i < 96; ++i) {
+        const unsigned char c = static_cast<unsigned char>(encoded[i]);
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == '+' || c == '/')) return false;
+    }
     unsigned char blob[72] = {};
     DWORD size = sizeof(blob);
-    if (!CryptStringToBinaryA(encoded, 96, CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT,
+    if (!CryptStringToBinaryA(encoded, 96, CRYPT_STRING_BASE64,
                              blob, &size, nullptr, nullptr) || size != sizeof(blob)) return false;
     const unsigned char header[8] = {'E','C','S','1',32,0,0,0};
     if (memcmp(blob, header, sizeof(header)) != 0) return false;

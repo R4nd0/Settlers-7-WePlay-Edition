@@ -2,7 +2,7 @@
 import argparse
 import http.client
 import json
-import msvcrt
+import portable_lock as msvcrt
 from pathlib import Path
 import socket
 import subprocess

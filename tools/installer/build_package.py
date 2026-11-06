@@ -135,6 +135,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if easytier_runtime is not None:names += list(DISCORD_PACKAGE_TOOLS)
         if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)+list(PUBLIC_DIRECTORY_PACKAGE_TOOLS)
     names += [original for original,_ in WINDOWS_API_TOOLS]
+    names += ['installer/portable_lock.py', 'installer/host_runtime.py']
     names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)

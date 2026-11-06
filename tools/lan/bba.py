@@ -8,6 +8,26 @@ from dataclasses import dataclass
 import gzip
 import struct
 import zlib
+from pathlib import Path
+
+
+def canonical_gzip(data):
+    """Keep the release byte stream identical across Python/OS versions.
+
+    Python 3.11/3.12 may delegate mtime=0 to zlib, whose gzip OS byte is 3
+    on Linux. The verified Windows/CPython stream uses 255 (unspecified).
+    This header field is outside gzip's data CRC; BBA's encoded CRC is computed
+    after normalization as usual. All executable/archive fingerprints remain.
+    """
+    folder = Path(__file__).resolve().parent
+    root = folder.parent.parent if folder.name == 'lan' else folder.parent
+    library = root / 'Runtime/compression/libweplay-zlib.so'
+    if library.is_file():
+        from canonical_deflate import compress
+        return compress(data, library)
+    encoded = bytearray(gzip.compress(data, compresslevel=9, mtime=0))
+    encoded[9] = 255
+    return bytes(encoded)
 
 MASK = 0xFFFFFFFF
 MIB = 1048576
@@ -168,7 +188,7 @@ class Archive:
             v = list(entry.values)
             if v[4] not in (0, 17):
                 raise ValueError("Replacing this BBA file type is not supported: " + name)
-            encoded = _gzip_xor(gzip.compress(data, compresslevel=9, mtime=0), v[12], True) if v[4] == 17 else data
+            encoded = _gzip_xor(canonical_gzip(data), v[12], True) if v[4] == 17 else data
             v[2], v[3], v[6], v[8], v[9] = len(data), crc32(data), len(result), len(encoded), crc32(encoded)
             if any(value > MASK for value in v):
                 raise ValueError("Replacement exceeds the BBA 32-bit limit")

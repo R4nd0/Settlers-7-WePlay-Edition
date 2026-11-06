@@ -5,6 +5,18 @@
 int main() {
     unsigned checks = 0, failures = 0;
     auto check = [&](bool result) { ++checks; if (!result) ++failures; };
+    const std::vector<LocalCpuGroupMask> single{{3,0},{12,0}};
+    check(ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, single));
+    check(!ValidateWineSingleCpuGroup(false, ERROR_CALL_NOT_IMPLEMENTED, 15, single));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_ACCESS_DENIED, 15, single));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_SUCCESS, 15, single));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 0, single));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, {}));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, {{3,0}}));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 7, single));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, {{3,0},{12,1}}));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, {{3,0},{14,0}}));
+    check(!ValidateWineSingleCpuGroup(true, ERROR_CALL_NOT_IMPLEMENTED, 15, {{0,0},{15,0}}));
     check(SelectLocalCpuMask({}, 0xffff) == 0);
     check(SelectLocalCpuMask({{0,0}}, 0xffff) == 0);
     check(SelectLocalCpuMask({{3,0},{2,0}}, 0xffff) == 0);

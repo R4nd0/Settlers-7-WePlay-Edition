@@ -2,13 +2,28 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Installer — RC3.16 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.16/Setup.exe)
+## [Download Windows Installer — RC3.17 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.16/WePlay-RC3.16.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.16) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/WePlay-RC3.17-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
+WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
+remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-**RC3.16 fixes lost Kartograph variant names and restores variant multiplayer
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/WePlay-RC3.17.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.17) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.17 adds native Linux tools and Windows/Linux multiplayer.** Actual tests
+covered both host roles, NEO on/off, cold multiplayer resume, solo saves/load,
+updating and moving the Linux copy. Six complete replay pairs contain
+**11,305 common native checksums, zero mismatches**. The user reported stability
+until the extended match ended. A real five-minute host autosave passed a
+complete-process restart, native transfer and resumed play on both clients.
+A reproduced WSL coordinator-lifetime defect is corrected, with actual native
+service continuity and last-peer cleanup verified. See the
+[verification receipt](docs/verification/linux-20261106.json) for scope and limits.
+
+The RC3.16 correction for lost Kartograph variant names also restores variant multiplayer
 checkpoints.** A native string-lifetime error made the guest load standard
 6-point rules while the host required 25 points. The corrected Grassland Mesa
 variant passed fresh play and a complete-process restart, six further game
@@ -18,11 +33,11 @@ matches remain unqualified. Keep backups and identical templates on all peers.
 [Cause, guards and evidence](docs/MULTIPLAYER-MAP-VARIANTS.md).
 
 Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
-or through the global public lobby from one Windows launcher. WePlay prepares
+or through the global public lobby from the WePlay launcher. WePlay prepares
 its own copy and preserves your original installation. Each player supplies
 their own supported game files; the public installer/ZIP contains no game data.
 
-RC3.16 also retains the workshop-load correction and the **NEO-Logistics** map
+RC3.17 also retains the workshop-load correction and the **NEO-Logistics** map
 option, restored individual priorities when loading NEO multiplayer saves, a correction for a resumed-world
 AI terrain-search stall, and the replacement for the crashing in-game Invite
 button. The global lobby, standalone/update recovery, multiplayer castles,
@@ -39,8 +54,8 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install the **same RC3.16 build on every participant's PC**, even when NEO
-   is off. Its NEO3 session data is incompatible with older adapters.
+4. Install **RC3.17 on every participant's PC**, including Windows peers and
+   when NEO is off. The cross-platform content contract requires this release.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
 supported History Edition and enough disk space for the separate game copy.

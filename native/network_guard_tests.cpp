@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <atomic>
+#include <thread>
 
 extern "C" __declspec(dllimport) bool __cdecl S7TestInstallGuard();
 extern "C" __declspec(dllimport) bool __cdecl S7TestEndpoint(const sockaddr*, int);
@@ -30,6 +32,48 @@ static sockaddr_in Address(unsigned long number, unsigned short port = 0) {
 }
 static int Bound(SOCKET socket, sockaddr_in& address) {
     int length = sizeof(address); return getsockname(socket, reinterpret_cast<sockaddr*>(&address), &length);
+}
+static bool RedirectIsNotFollowed() {
+    SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    auto address = Address(0x7f000001);
+    if (listener == INVALID_SOCKET) return false;
+    if (bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) ||
+        listen(listener, 2) || Bound(listener, address)) { closesocket(listener); return false; }
+    std::atomic<unsigned> requests{0};
+    std::thread server([&]() {
+        for (unsigned attempt = 0; attempt < 2; ++attempt) {
+            fd_set readable; FD_ZERO(&readable); FD_SET(listener, &readable);
+            timeval timeout{attempt ? 1L : 5L, 0};
+            if (select(0, &readable, nullptr, nullptr, &timeout) != 1) break;
+            SOCKET peer = accept(listener, nullptr, nullptr);
+            if (peer == INVALID_SOCKET) break;
+            DWORD receive_timeout = 3000;
+            setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&receive_timeout), sizeof(receive_timeout));
+            char input[4096]{};
+            if (recv(peer, input, sizeof(input), 0) > 0) {
+                ++requests;
+                char response[512]{};
+                int size = std::snprintf(response, sizeof(response),
+                    "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:%u/followed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    static_cast<unsigned>(ntohs(address.sin_port)));
+                if (size > 0 && size < static_cast<int>(sizeof(response))) send(peer, response, size, 0);
+            }
+            closesocket(peer);
+        }
+    });
+    HINTERNET session = WinHttpOpen(L"WePlay redirect fixture", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0);
+    if (session) WinHttpSetTimeouts(session, 3000, 3000, 3000, 3000);
+    HINTERNET connection = session ? WinHttpConnect(session, L"127.0.0.1", ntohs(address.sin_port), 0) : nullptr;
+    HINTERNET request = connection ? WinHttpOpenRequest(connection, L"GET", L"/redirect", nullptr, nullptr, nullptr, 0) : nullptr;
+    DWORD always = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS, status = 0, length = sizeof(status);
+    bool okay = request && WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &always, sizeof(always)) &&
+        WinHttpSendRequest(request, nullptr, 0, nullptr, 0, 0, 0) && WinHttpReceiveResponse(request, nullptr) &&
+        WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &status, &length, nullptr) && status == 302;
+    if (request) WinHttpCloseHandle(request);
+    if (connection) WinHttpCloseHandle(connection);
+    if (session) WinHttpCloseHandle(session);
+    server.join(); closesocket(listener);
+    return okay && requests == 1;
 }
 int main() {
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -189,8 +233,16 @@ int main() {
     HINTERNET request = WinHttpOpenRequest(connection, L"GET", L"/", nullptr, nullptr, nullptr, 0);
     DWORD redirect = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS, length = sizeof(redirect);
     Check(request && WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, sizeof(redirect)), "redirect setting intercepted");
-    Check(request && WinHttpQueryOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, &length) && redirect == WINHTTP_OPTION_REDIRECT_POLICY_NEVER,
-          "redirect remains disabled");
+    SetLastError(ERROR_SUCCESS);
+    bool query = request && WinHttpQueryOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, &length);
+    DWORD query_error = GetLastError();
+    bool wine_query_unavailable = !query && query_error == ERROR_INVALID_PARAMETER &&
+        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version");
+    Check((query && redirect == WINHTTP_OPTION_REDIRECT_POLICY_NEVER) || wine_query_unavailable,
+          "redirect policy query or known Wine unsupported option");
+    // Wine's QueryOption does not implement this property. Prove the actual
+    // network behavior on every platform, including an attempted re-enable.
+    Check(RedirectIsNotFollowed(), "real HTTP 302 cannot follow its loopback target");
     if (request) WinHttpCloseHandle(request);
     if (connection) WinHttpCloseHandle(connection);
     if (session) WinHttpCloseHandle(session);

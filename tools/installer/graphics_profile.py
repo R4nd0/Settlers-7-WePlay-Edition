@@ -208,12 +208,12 @@ def atomic_create(path, value, staging):
         temporary = Path(stream.name)
         stream.write(value); stream.flush(); os.fsync(stream.fileno())
     try:
-        # On Windows os.rename is same-volume, atomic and fails if the target
-        # already exists; os.replace would overwrite it. This module already
-        # requires Windows through the shared msvcrt launcher lock.
-        if os.name != 'nt':
-            raise RuntimeError('Das Grafikprofil benoetigt Windows-Dateisemantik.')
-        os.rename(temporary, path)
+        if os.name == 'nt':
+            os.rename(temporary, path)
+        else:
+            # link() publishes these bytes atomically and fails if occupied.
+            # The temporary's other name is unlinked immediately below.
+            os.link(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 

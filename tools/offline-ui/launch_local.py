@@ -9,7 +9,6 @@ import hashlib
 import http.client
 import ipaddress
 import json
-import msvcrt
 import os
 from pathlib import Path
 import re
@@ -17,6 +16,12 @@ import subprocess
 import sys
 import time
 import uuid
+
+_installer = Path(__file__).resolve().parent.parent / 'installer'
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+if _installer.is_dir():
+    sys.path.insert(0, str(_installer))
+import portable_lock as msvcrt
 
 EXE_HASH = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
 STEAM_EXE_HASH = "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410"
@@ -93,7 +98,7 @@ def plain_path(path, root):
         raise ValueError("Dateipfad liegt ausserhalb der Testversion.")
     cursor = path
     while True:
-        if cursor.is_symlink() or cursor.is_junction():
+        if cursor.is_symlink() or (hasattr(cursor, 'is_junction') and cursor.is_junction()):
             raise ValueError("Verknuepfungen werden in der Testversion nicht verwendet.")
         if cursor == root:
             break
@@ -101,8 +106,8 @@ def plain_path(path, root):
 
 
 def digest(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+    import compatibility
+    return compatibility.digest(path)
 
 
 def verify_bundle(root):
@@ -280,7 +285,7 @@ def run(args):
                     "--local-config-server", "--local-session-display-probe" if display_probe else (
                         "--local-keepalive-probe" if args.local_connect_probe else "--local-login-probe"),
                     "--http-port", "0", "--udp-port", "0", "--seconds", "3600"],
-                    stdout=output, stderr=error_output, creationflags=subprocess.CREATE_NO_WINDOW)
+                    stdout=output, stderr=error_output, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                 configuration, udp_port = service_ready(service, log)
                 runtime = write_configuration(data, configuration, udp_port, args.local_connect_probe)
                 if service.poll() is not None:
@@ -297,7 +302,13 @@ def run(args):
                     game_options['env'] = game_environment
                 if getattr(args, 'before_game', None) is not None:
                     args.before_game()
-                game = subprocess.Popen([str(root / "Base/Bin/Settlers7R.exe"), *game_arguments], **game_options)
+                if os.name == 'posix':
+                    import linux_runtime
+                    command, game_environment = linux_runtime.game_command(root, game_arguments, game_environment)
+                    game_options['env'] = game_environment
+                else:
+                    command = [str(root / "Base/Bin/Settlers7R.exe"), *game_arguments]
+                game = subprocess.Popen(command, **game_options)
                 code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True),
                                              monitor=getattr(args, 'game_monitor', None))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:

@@ -23,9 +23,9 @@ EXPECTED_EXE = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f
 UNSUPPORTED_STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 STEAM_EXE = UNSUPPORTED_STEAM_EXE
 STEAM_ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
-DIRECTORY_ADAPTER_SHA256 = '3bf08d1f2519863745dce4d0b4a70e6a05a6900882b8200cfc53ca6687e3385f'
-NEO_ADAPTER_SHA256 = '34a5a89736940730c7f83c7decd6ffbaeae0dc099baa22c8f06df2641f7ab03d'
-NEO_DIRECTORY_ADAPTER_SHA256 = '38d42073a5a3f64f738d7aa4b27845709653038402ee9e0e78281eeb5f6ce8d4'
+DIRECTORY_ADAPTER_SHA256 = '78cc5c8843ee3a8095b9b282551907765f6a0c237962c19b3c3cb0a332d39e97'
+NEO_ADAPTER_SHA256 = '5015ea8747324d5fb703bf85cb9d9b2a60a059d3ab7dca71770b16dd65de64c2'
+NEO_DIRECTORY_ADAPTER_SHA256 = '5339ea4220deab1245e428646fcf17747999894793edfbff7888da647bdcbd69'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -67,7 +67,7 @@ def lan_tools(manifest):
 
 
 def script_tools(items,manifest):
-    return tuple(item for item in items if not (manifest.get('windows_helpers',False) and item[0].endswith('.ps1')))
+    return tuple(item for item in items if not ((manifest.get('windows_helpers',False) or manifest.get('linux_native',False)) and item[0].endswith('.ps1')))
 
 
 def update_package_tools(manifest):
@@ -77,6 +77,25 @@ def update_package_tools(manifest):
 def launcher_sources(manifest):
     files=[('offline-ui/launch_local.py','launch_local.py'),('installer/compatibility.py','compatibility.py'),
            ('installer/launch_lan.py','launch_lan.py'),('installer/start.py','start.py')]
+    if 'tools/installer/portable_lock.py' in manifest['files']:
+        files.append(('installer/portable_lock.py','portable_lock.py'))
+    if 'tools/installer/host_runtime.py' in manifest['files']:
+        files.append(('installer/host_runtime.py','host_runtime.py'))
+    if manifest.get('linux_native', False):
+        files.append(('installer/internet_room.py','internet_room.py'))
+        files.append(('linux/linux_runtime.py','linux_runtime.py'))
+        files.append(('linux/launcher.py','linux_launcher.py'))
+        files.append(('installer/windows_system.py','windows_system.py'))
+        for name in (*DIRECTORY_PACKAGE_TOOLS, *PUBLIC_DIRECTORY_PACKAGE_TOOLS, *DISCORD_PACKAGE_TOOLS):
+            if name.startswith('installer/') and name.endswith(('.py', '.json')):
+                files.append((name, name.split('/')[-1]))
+        for name in ('linux_network.py', 'linux_elevation.py', 'linux_profiles.py'):
+            if ('tools/linux/' + name) in manifest['files']:
+                files.append(('linux/' + name, name))
+        if 'tools/installer/easytier-linux-runtime.json' in manifest['files']:
+            files.append(('installer/easytier-linux-runtime.json','easytier-linux-runtime.json'))
+        files.extend((('lan/canonical_deflate.py','canonical_deflate.py'),
+                      ('lan/compression-runtime.json','compression-runtime.json')))
     for capability,items in (('graphics_choice',GRAPHICS_TOOLS),('display_selection',DISPLAY_TOOLS),
                              ('desktop_launcher',DESKTOP_TOOLS),('automatic_lan',lan_tools(manifest)),
                              ('internet_easytier',INTERNET_TOOLS)):
@@ -115,7 +134,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -148,7 +167,15 @@ def package_manifest(root):
     if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
         raise ValueError('Die Discord-Verzeichnisintegration im Paket ist unvollstaendig.')
-    if manifest.get('game_directory',False) and (not manifest.get('discord_directory',False) or not manifest.get('windows_helpers',False)
+    if manifest.get('linux_native',False):
+        required = ('payload/server/s7patcher', 'tools/linux/launcher.py', 'tools/linux/linux_runtime.py',
+                    'tools/installer/portable_lock.py', 'tools/installer/host_runtime.py',
+                    'runtime/compression/libweplay-zlib.so','tools/lan/canonical_deflate.py',
+                    'tools/lan/compression-runtime.json')
+        if manifest.get('windows_helpers',False) or any(name not in expected for name in required):
+            raise ValueError('Die nativen Linux-Werkzeuge im Paket sind unvollstaendig.')
+    if manifest.get('game_directory',False) and ((not manifest.get('linux_native',False) and
+            (not manifest.get('discord_directory',False) or not manifest.get('windows_helpers',False)))
             or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
             or any(('tools/'+name).lower() not in expected for name in DIRECTORY_PACKAGE_TOOLS)):
         raise ValueError('Das gemeinsame Spieleverzeichnis im Paket ist unvollstaendig.')
@@ -243,7 +270,7 @@ def repair_source(root, *, steam_supported=False, tools=None):
         if any(not name.startswith('base/') or name in GENERATED_BASE
                or Path(name).as_posix()!=name for name in files):
             raise ValueError('Ungueltige lokale Reparaturdaten.')
-        inputs = {name: content.plain(saved / name).read_bytes() for name in REPAIR_INPUTS}
+        inputs = {name: content.member(saved, name).read_bytes() for name in REPAIR_INPUTS}
     else:
         files = {name: digest for name, digest in content.load(root / 'compatibility.json')['files'].items()
                  if name.startswith('base/') and name not in GENERATED_BASE}
@@ -336,6 +363,11 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if progress: progress('source',0,0)
     recovery = repair_source(source,steam_supported=manifest.get('steam_history',False),tools=package/'Tools') if managed else None
     base = content.plain(source/'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
+    input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
+    def retained_path(name):
+        # These two original inputs may be missing/corrupt in an owned copy;
+        # their independently fingerprinted RepairSource bytes rebuild them.
+        return input_paths[name] if name in REPAIR_INPUTS else content.member(source,name)
     source_exe_hash = hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe')
     accepted_executables = (EXPECTED_EXE, STEAM_EXE) if manifest.get('steam_history', False) else (EXPECTED_EXE,)
     if source_exe_hash not in accepted_executables:
@@ -346,7 +378,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     stack = [] if managed else [base]
     if managed:
         for name,digest in recovery[0].items():
-            path=content.plain(source/name)
+            path=retained_path(name)
             if name not in REPAIR_INPUTS and not path.is_file():
                 raise ValueError('Unveraenderte Spieldatei fehlt oder ist beschaedigt: '+name)
             files.append(path)
@@ -357,7 +389,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             elif path.is_file(): files.append(path)
             else: raise ValueError('Unbekannter Dateityp in der Spielinstallation.')
     if type(additional_bytes) is not int or additional_bytes<0:raise ValueError('Ungueltige Speicherreservierung.')
-    input_sizes={name:len(recovery[1][name]) if managed else (base/name.removeprefix('base/')).stat().st_size
+    input_sizes={name:len(recovery[1][name]) if managed else content.member(base,name.removeprefix('base/')).stat().st_size
                  for name in REPAIR_INPUTS}
     required = (sum(len(recovery[1][name]) if managed and name in REPAIR_INPUTS else p.stat().st_size
                     for p in files for name in [('base/'+p.relative_to(base).as_posix()).lower()])
@@ -375,12 +407,13 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
     inputs=recovery[1] if managed else {name:content.plain(path).read_bytes() for name,path in input_paths.items()}
     for name,raw in inputs.items():
-        target=content.plain(saved/name);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+        layout = dict(zip(REPAIR_INPUTS, ('Base/Bin/Settlers7R.exe', 'Base/BBA/Interface.bba')))
+        target=content.plain(saved/layout[name]);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
         if tracker:tracker(target,hashlib.sha256(raw).hexdigest())
     source_base(saved,steam_supported=manifest.get('steam_history',False))
-    overrides={source/name:saved/name for name in REPAIR_INPUTS} if managed else None
+    overrides={retained_path(name):content.member(saved,name) for name in REPAIR_INPUTS} if managed else None
     # Missing/corrupt generated files are rebuilt from the package/repair inputs.
-    expected={source/name:digest for name,digest in recovery[0].items()} if managed else {
+    expected={retained_path(name):digest for name,digest in recovery[0].items()} if managed else {
         input_paths[name]:hashlib.sha256(raw).hexdigest() for name,raw in inputs.items()}
     copied=_copy_sources(files,base,destination,emit,progress,overrides,expected,tracker)
     original_files={name:digest for name,digest in copied.items() if name not in GENERATED_BASE}

@@ -10,6 +10,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility
+import host_runtime
 from lan_control import request
 from lan_child_job import ServiceJob
 from lan_discovery import LanBeacon
@@ -65,11 +66,11 @@ def serve(root, interface, name, expected, room_id):
         job = ServiceJob()
         with (data / (run_id + '-lan-server.jsonl')).open('xb') as output, \
                 (data / (run_id + '-lan-errors.txt')).open('xb') as error:
-            service = job.start([str(root / 'Runtime/dotnet/dotnet.exe'), str(root / 'Server/S7Patcher.dll'),
+            service = job.start([*host_runtime.server_command(root),
                 '--local-config-server', '--local-catalogue-probe', '--lan-lobby',
                 '--lan-address', interface.address, '--content-id', expected,
                 '--http-port', str(HTTP_PORT), '--udp-port', str(GAME_SERVICE_PORT), '--seconds', '86400'],
-                stdout=output, stderr=error, creationflags=subprocess.CREATE_NO_WINDOW)
+                stdout=output, stderr=error, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             deadline = time.monotonic() + 20
             while True:
                 if service.poll() is not None:

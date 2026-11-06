@@ -43,19 +43,24 @@ class NetworkContentTests(unittest.TestCase):
         for name in content.NETWORK_AUXILIARIES:aux[name]='b'*64
         self.assertEqual(content.network_id(bare),content.network_id(manifest(aux)))
 
-    def test_game_adapter_archive_server_and_helpers_still_change_identity(self):
+    def test_every_game_asset_changes_identity_but_host_tools_are_platform_specific(self):
         expected=content.network_id(manifest(self.files))
         for name in self.files:
             changed=dict(self.files);changed[name]='f'*64
-            with self.subTest(file=name):self.assertNotEqual(expected,content.network_id(manifest(changed)))
+            with self.subTest(file=name):
+                if name.startswith('base/'):
+                    self.assertNotEqual(expected,content.network_id(manifest(changed)))
+                else:
+                    self.assertEqual(expected,content.network_id(manifest(changed)))
         for name in ('base/support/custom.dll','base/bin/vc_redist.x64.exe',
-                     'base/support/vc_redist.x64.exe.bak','launcher/vc_redist.x86.exe'):
+                     'base/support/vc_redist.x64.exe.bak'):
             with self.subTest(extra=name):
                 self.assertNotEqual(expected,content.network_id(manifest(dict(self.files,**{name:'c'*64}))))
 
     def test_network_contract_is_domain_separated_and_does_not_mutate_manifest(self):
         value=manifest(dict(self.files));before=copy.deepcopy(value)
-        expected=hashlib.sha256(json.dumps({'format':'s7-play-content-v1','files':self.files},
+        expected=hashlib.sha256(json.dumps({'format':'s7-play-content-v2','protocol':'prudp7-neo3',
+            'files':{name:digest for name,digest in self.files.items() if name.startswith('base/')}},
             sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')).hexdigest()
         self.assertEqual(content.network_id(value),expected)
         self.assertNotEqual(value['content_id'],expected)

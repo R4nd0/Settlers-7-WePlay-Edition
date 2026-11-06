@@ -7,7 +7,7 @@ internal static class ReliableResponseQueueChecks
     private static ushort Sequence(byte[] packet) => BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(8));
     internal static int Run()
     {
-        if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP: response fragmentation checks require Windows CNG."); return 0; }
+        if (!ClientCryptoFixtures.Supported) { Console.WriteLine("SKIP: response fragmentation checks require Windows CNG."); return 0; }
         int passed = 0;
         void Check(bool value, string label) { if (!value) throw new Exception(label); passed++; }
         byte[] key = Enumerable.Range(0, 16).Select(i => (byte)i).ToArray();

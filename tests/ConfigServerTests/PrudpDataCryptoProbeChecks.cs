@@ -58,13 +58,13 @@ internal static class PrudpDataCryptoProbeChecks
     }
 
     private static byte[] Encrypt(byte[] envelope, byte[] key) =>
-        [.. FixtureIv, .. NativeCngFixtures.Encrypt(envelope, key, FixtureIv)];
+        [.. FixtureIv, .. ClientCryptoFixtures.Encrypt(envelope, key, FixtureIv)];
 
     internal static async Task<int> RunAsync()
     {
-        if (!OperatingSystem.IsWindows())
+        if (!ClientCryptoFixtures.Supported)
         {
-            Console.WriteLine("SKIP: independent BCrypt DATA crypto interoperability requires Windows.");
+            Console.WriteLine("SKIP: independent BCrypt DATA crypto interoperability requires Windows BCrypt or Linux OpenSSL.");
             return 0;
         }
         int passed = 0;
@@ -77,22 +77,22 @@ internal static class PrudpDataCryptoProbeChecks
         using PrudpProbePeer peer = new() { Cookie = serverCookie, SourceVirtualPort = 0x3a, SynReplySent = true,
             ConnectReplySent = true, Connect = new PrudpConnectProbe(connect, metadata, signing) };
         Check(peer.Connect.TryGetReply(connect, metadata, out byte[] reply), "No fixture CONNECT reply");
-        byte[] nativeKey = NativeCngFixtures.Derive(client, reply.AsSpan(82, 72).ToArray());
+        byte[] nativeKey = ClientCryptoFixtures.Derive(client, reply.AsSpan(82, 72).ToArray());
         byte[] managedKey = peer.Connect.DeriveDataKey();
         try
         {
             Check(nativeKey.Length == 16 && CryptographicOperations.FixedTimeEquals(nativeKey, managedKey),
-                "Actual BCrypt HASH/NULL/16 KDF differs from managed SHA1 first16");
+                "Independent peer HASH/NULL/16 KDF differs from managed SHA1 first16");
             // Both directions use native BCrypt with BCRYPT_BLOCK_PADDING, including
             // empty plaintext and exact AES-block boundaries. No managed mirror oracle.
             using Aes aes = Aes.Create(); aes.SetKey(managedKey);
             foreach (int length in new[] { 0, 1, 15, 16, 17, 31, 32, 33 })
             {
                 byte[] plain = Enumerable.Range(0, length).Select(value => (byte)value).ToArray();
-                byte[] nativeCipher = NativeCngFixtures.Encrypt(plain, nativeKey, FixtureIv);
+                byte[] nativeCipher = ClientCryptoFixtures.Encrypt(plain, nativeKey, FixtureIv);
                 byte[] managedPlain = aes.DecryptCbc(nativeCipher, FixtureIv, PaddingMode.PKCS7);
                 byte[] managedCipher = aes.EncryptCbc(plain, FixtureIv, PaddingMode.PKCS7);
-                byte[] nativePlain = NativeCngFixtures.Decrypt(managedCipher, nativeKey, FixtureIv);
+                byte[] nativePlain = ClientCryptoFixtures.Decrypt(managedCipher, nativeKey, FixtureIv);
                 Check(nativeCipher.Length == ((length / 16) + 1) * 16 && managedPlain.SequenceEqual(plain), "Native CBC padding incompatible with managed PKCS7");
                 Check(nativePlain.SequenceEqual(plain), "Managed PKCS7 incompatible with native CBC padding");
                 CryptographicOperations.ZeroMemory(plain); CryptographicOperations.ZeroMemory(managedPlain); CryptographicOperations.ZeroMemory(nativePlain);
@@ -178,7 +178,7 @@ internal static class PrudpDataCryptoProbeChecks
             uint cookie = BinaryPrimitives.ReadUInt32LittleEndian((await Exchange(syn)).AsSpan(10));
             byte[] ack = await Exchange(Connect(cookie, client));
             Check(ack.Length == 158, "Crypto mode did not imply handshake probes");
-            liveKey = NativeCngFixtures.Derive(client, ack.AsSpan(82, 72).ToArray());
+            liveKey = ClientCryptoFixtures.Derive(client, ack.AsSpan(82, 72).ToArray());
             foreach (bool compressed in new[] { false, true })
             {
                 byte[] content = [.. Encoding.ASCII.GetBytes("test-secret-live-crypto"), 0x67, 0x45];

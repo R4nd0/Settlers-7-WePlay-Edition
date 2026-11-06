@@ -8,7 +8,7 @@ import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-import msvcrt
+import portable_lock as msvcrt
 import os
 from pathlib import Path
 import subprocess

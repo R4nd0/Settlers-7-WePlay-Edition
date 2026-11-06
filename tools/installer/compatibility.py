@@ -10,7 +10,10 @@ from pathlib import Path, PurePosixPath
 
 FORMAT = 's7-content-v1'
 ROOTS = ('Base', 'Server', 'Launcher')
-NETWORK_FORMAT = 's7-play-content-v1'
+NETWORK_FORMAT = 's7-play-content-v2'
+# Change this when incompatible service/carrier semantics change. Native ABI
+# and every game asset remain identified by their actual bytes below.
+NETWORK_PROTOCOL = 'prudp7-neo3'
 # These installers are never loaded by S7. They remain in the full local
 # inventory and repair inputs, but do not determine whether two games match.
 NETWORK_AUXILIARIES = frozenset(('base/support/vc_redist.x64.exe',
@@ -19,7 +22,28 @@ NETWORK_AUXILIARIES = frozenset(('base/support/vc_redist.x64.exe',
 
 def digest(path):
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        result = hashlib.sha256()
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            result.update(block)
+        return result.hexdigest()
+
+
+def member(root, relative):
+    """Resolve a lower-case manifest name on a case-sensitive filesystem.
+
+    Ambiguous names and links are rejected, just as in the full inventory.
+    This does not rename or rewrite the user's source installation.
+    """
+    parts = PurePosixPath(relative).parts
+    if not parts or '..' in parts or relative.startswith('/') or '\\' in relative or ':' in relative:
+        raise ValueError('Ungueltiger Dateipfad.')
+    current = plain(root)
+    for part in parts:
+        matches = [p for p in current.iterdir() if p.name.casefold() == part.casefold()]
+        if len(matches) != 1:
+            raise ValueError('Datei fehlt oder hat einen mehrdeutigen Namen: ' + relative)
+        current = plain(matches[0])
+    return current
 
 
 def plain(path):
@@ -96,10 +120,10 @@ def network_id(value):
     """
     files = validate(value)['files']
     gameplay = {name: digest for name, digest in files.items()
-                if name not in NETWORK_AUXILIARIES}
+                if name.startswith('base/') and name not in NETWORK_AUXILIARIES}
     if not gameplay:
         raise ValueError('Keine Spiel- oder Patchdateien fuer den Netzwerkvergleich.')
-    return fingerprint({'format': NETWORK_FORMAT, 'files': gameplay})
+    return fingerprint({'format': NETWORK_FORMAT, 'protocol': NETWORK_PROTOCOL, 'files': gameplay})
 
 
 def compare(left, right):

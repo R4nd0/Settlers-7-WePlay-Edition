@@ -28,13 +28,32 @@ DWORD_PTR SelectLocalCpuMask(std::vector<LocalCpuCore> cores, DWORD_PTR allowed,
     return selected;
 }
 
+bool ValidateWineSingleCpuGroup(bool wine, DWORD error, DWORD_PTR system,
+                               const std::vector<LocalCpuGroupMask>& topology) {
+    if (!wine || error != ERROR_CALL_NOT_IMPLEMENTED || !system || topology.empty()) return false;
+    DWORD_PTR seen = 0;
+    for (const auto& item : topology) {
+        if (item.group != 0 || !item.mask || (item.mask & seen) || (item.mask & ~system)) return false;
+        seen |= item.mask;
+    }
+    return seen == system;
+}
+
 bool ApplyLocalCpuAffinity(unsigned maximum) {
     if (maximum != 2 && maximum != 4) return false;
     HANDLE process = GetCurrentProcess();
     DWORD_PTR previous = 0, system = 0;
     if (!GetProcessAffinityMask(process, &previous, &system)) return false;
     USHORT groups = 1, group = 0;
-    if (!GetProcessGroupAffinity(process, &groups, &group) || groups != 1) return false;
+    DWORD group_error = ERROR_SUCCESS;
+    if (!GetProcessGroupAffinity(process, &groups, &group)) {
+        group_error = GetLastError();
+        // Wine 11 implements the topology/mask APIs, but not this group API.
+        // Accept no inferred group until the complete topology proves group 0.
+        if (group_error != ERROR_CALL_NOT_IMPLEMENTED ||
+            !GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version")) return false;
+        group = 0;
+    } else if (groups != 1) return false;
     DWORD length = 0;
     if (GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length) ||
         GetLastError() != ERROR_INSUFFICIENT_BUFFER || !length || length > 1024 * 1024) return false;
@@ -42,6 +61,7 @@ bool ApplyLocalCpuAffinity(unsigned maximum) {
     if (!GetLogicalProcessorInformationEx(RelationProcessorCore,
             reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(bytes.data()), &length)) return false;
     std::vector<LocalCpuCore> cores;
+    std::vector<LocalCpuGroupMask> topology;
     size_t offset = 0;
     while (offset < length) {
         if (length - offset < 8) return false;
@@ -52,11 +72,13 @@ bool ApplyLocalCpuAffinity(unsigned maximum) {
         const auto& cpu = item->Processor;
         if (!cpu.GroupCount || cpu.GroupCount > (item->Size - prefix) / sizeof(GROUP_AFFINITY)) return false;
         for (WORD i = 0; i < cpu.GroupCount; ++i) {
+            topology.push_back({cpu.GroupMask[i].Mask, cpu.GroupMask[i].Group});
             if (cpu.GroupMask[i].Group == group && cpu.GroupMask[i].Mask)
                 cores.push_back({cpu.GroupMask[i].Mask, cpu.EfficiencyClass});
         }
         offset += item->Size;
     }
+    if (group_error != ERROR_SUCCESS && !ValidateWineSingleCpuGroup(true, group_error, system, topology)) return false;
     DWORD_PTR selected = SelectLocalCpuMask(cores, previous & system, maximum);
     if (!selected || !SetProcessAffinityMask(process, selected)) return false;
     DWORD_PTR old_thread = SetThreadAffinityMask(GetCurrentThread(), selected);

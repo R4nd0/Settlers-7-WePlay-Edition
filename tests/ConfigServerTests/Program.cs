@@ -36,6 +36,7 @@ if (args.Length == 1 && args[0] == "--login-network-only")
     return;
 }
 if (args.Length != 2) throw new ArgumentException("Supply dotnet path and the built S7Patcher.dll path.");
+Console.WriteLine("Independent synthetic peer: " + ClientCryptoFixtures.Provider);
 string dotnet = Path.GetFullPath(args[0]);
 string patcher = Path.GetFullPath(args[1]);
 string scratch = Path.Combine(AppContext.BaseDirectory, "cases-" + Guid.NewGuid().ToString("N"));

@@ -140,8 +140,10 @@ RC3.15b Workshop Resume Fix uses sequence 15 and tag `v2.0.0-rc3.15b`.
 The original RC3.15 assets/tag remain unchanged; all peers need matching adapter
 content for RC3.15b, even when NEO is disabled.
 RC3.16 Map Variant Multiplayer Fix uses sequence 16 and tag `v2.0.0-rc3.16`.
-RC3.15b and earlier assets/tags remain unchanged. Use matching RC3.16 content
-on all peers; the update includes both the native getter and UI loading fix.
+RC3.17 Native Linux Preview uses sequence 17 and tag `v2.0.0-rc3.17`.
+All Windows/Linux peers need RC3.17 for its cross-platform content contract.
+RC3.16 and earlier assets/tags remain unchanged. RC3.16 included both the native
+getter and UI loading fix; RC3.17 retains those corrections.
 The release ZIP includes the separately downloadable Setup
 and signed manifest; the updater continues to validate and download Setup.
 Building/signing a local candidate does not publish it

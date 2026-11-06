@@ -1,0 +1,13 @@
+{
+  "format": "weplay-canonical-compressor-v1",
+  "version": "2.2.4",
+  "architecture": "linux-x64",
+  "source": "https://github.com/zlib-ng/zlib-ng/tree/2.2.4",
+  "source_sha256": "a73343c3093e5cdc50d9377997c3815b878fd110bf6511c2c7759f2afb90f5a3",
+  "wrapper_sha256": "f782f412e88fe08a44d05a6b5cbc51c8e3a81ade84ef9e67b96571859b3cb16c",
+  "files": {
+    "libweplay-zlib.so": "76d24f07d96f8b6d331e8c6f933195c15fef2d36b54f7a06bc7f088905bcb43f",
+    "LICENSE.txt": "6c9f0d975b41afaa34d22f55bb8986ce69e5cb7ad327cb2b28820cd425edf5ee",
+    "SOURCE.txt": "d51d9ddb4b39088b3a2d03d51b63505169fc5796dcec6e2ca9b170814ae0e895"
+  }
+}

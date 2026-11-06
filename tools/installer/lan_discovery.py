@@ -7,6 +7,7 @@ import math
 import socket
 import threading
 import time
+import sys
 
 from lobby_directory import (BEACON_TTL, DISCOVERY_FORMAT, DISCOVERY_PORT, HTTP_PORT,
     GAME_SERVICE_PORT, MAX_DATAGRAM, MAX_MEMBERS, LobbyEndpoint, LobbyRoom, RoomCache,
@@ -43,6 +44,15 @@ def interface_index_from_table(data, address):
 
 
 def select_outgoing_interface(sock, interface):
+    if sys.platform == 'linux':
+        from lan_interfaces import enumerate_interfaces
+        matches = [row for row in enumerate_interfaces() if row.address == interface.address]
+        if len(matches) != 1:
+            raise ValueError('Das ausgewaehlte LAN ist nicht mehr eindeutig verfuegbar.')
+        index = socket.if_nametoindex(matches[0].name)
+        # Linux IP_UNICAST_IF (50), network byte order; affects this socket only.
+        sock.setsockopt(socket.IPPROTO_IP, 50, index.to_bytes(4, 'big'))
+        return
     # Only this UDP socket changes. IP_UNICAST_IF expects the DWORD in network
     # byte order; GetIpAddrTable does not expose or alter system routes.
     function = ctypes.WinDLL('iphlpapi', use_last_error=True).GetIpAddrTable

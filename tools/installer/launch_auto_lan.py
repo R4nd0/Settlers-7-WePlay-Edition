@@ -2,7 +2,7 @@
 import argparse
 from contextlib import contextmanager
 import http.client
-import msvcrt
+import portable_lock as msvcrt
 from pathlib import Path
 import subprocess
 import sys
@@ -19,6 +19,7 @@ from lan_interfaces import enumerate_interfaces
 from lobby_directory import GAME_SERVICE_PORT
 import lan_autoconnect
 import player_settings
+import host_runtime
 
 
 @contextmanager
@@ -42,12 +43,16 @@ def session_lock(root):
 def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
     room_id = uuid.uuid4().hex
     log_path = root / 'LocalData' / ('lobby-hub-' + room_id + '.txt')
+    # The coordinator belongs to all admitted peers. WSL tears down the
+    # creator's process session when its CLI exits; keep this normal-user hub
+    # independent. Its own lease/grace timer still closes the native service.
+    lifetime = dict(start_new_session=True, stdin=subprocess.DEVNULL) if sys.platform == 'linux' else {}
     with log_path.open('xb') as log:
-        process = subprocess.Popen([str(root / 'Runtime/python/python.exe'), '-B',
+        process = subprocess.Popen([host_runtime.python_command(root), '-B',
             str(root / 'Launcher/lan_hub.py'), '--bundle', str(root),
             '--address', interface.address, '--prefix', str(interface.prefix_length),
             '--name', name, '--content-id', expected, '--room-id', room_id],
-            stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW)
+            stdout=log, stderr=log, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), **lifetime)
     try:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
@@ -98,12 +103,16 @@ def run(args, *, picker=None, network=None):
             return 0
         name = (choice['display_name'] if choice is not None else
                 player_settings.player_name(getattr(args, 'player_name', None) or player_settings.load(root)))
-        environment = (launch_local.saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
+        if sys.platform == 'linux':
+            import linux_runtime
+            environment = linux_runtime.graphics_environment(root)
+        else:
+            environment = (launch_local.saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
                        else launch_local.choose_graphics_environment(root))
         if environment is None:
             return 0
         environment = launch_local.game_launch_environment(root, environment)
-        game_arguments = launch_local.graphics_game_arguments(root)
+        game_arguments = ('-vSynch', '-noMapInMainMenu') if sys.platform == 'linux' else launch_local.graphics_game_arguments(root)
         player_settings.save(root, name)
         if choice is None:
             interface = interfaces[0]  # Active private default route first.
@@ -142,8 +151,9 @@ def run(args, *, picker=None, network=None):
             print('Entwicklermodus ist im LAN gesperrt. Bitte das Starterfenster geoeffnet lassen.', flush=True)
             if getattr(args, 'before_game', None) is not None:
                 args.before_game()
-            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], cwd=root / 'Base/Bin', env=environment)
-            code = launch_local.wait_for_graphics_game(root, game, monitor=getattr(args, 'game_monitor', None))
+            command, environment = host_runtime.game_command(root, game_arguments, environment)
+            game = subprocess.Popen(command, cwd=root / 'Base/Bin', env=environment)
+            code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux', monitor=getattr(args, 'game_monitor', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
             return 0 if code == 0 else 1

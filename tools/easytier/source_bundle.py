@@ -49,7 +49,7 @@ def build(archive, destination):
                        capture_output=True)
         subprocess.run(['git', 'apply', '--directory=' + relative, str(security_patch)], cwd=REPO, check=True,
                        capture_output=True)
-        for name in ('no-npcap.patch', 'strict-acl.patch', 'build-runtime.ps1', 'README.md'):
+        for name in ('no-npcap.patch', 'strict-acl.patch', 'build-runtime.ps1', 'build-linux.sh', 'README.md'):
             shutil.copyfile(REPO / 'tools/easytier' / name, folder / name)
         (folder / 'SOURCE-BUNDLE.txt').write_text(
             'EasyTier 2.6.4-weplay-npcap-free-acl1 corresponding source\n'
@@ -62,6 +62,11 @@ def build(archive, destination):
             'cargo +stable build -p easytier --bin easytier-core --bin easytier-cli '
             '--release --no-default-features --features tun,aes-gcm,smoltcp -j 1 --locked\n'
             'build-runtime.ps1 alternatively builds from the pinned original upstream ZIP.\n'
+            'Linux x64: Rust stable 1.99.1, x86_64-unknown-linux-musl target, musl-tools, C tools, mold, protoc.\n'
+            'Use build-linux.sh with the pinned original source ZIP and a new directory under repository work/.\n'
+            'For this already patched source tree, run the same cargo command with\n'
+            '--target x86_64-unknown-linux-musl and CC_x86_64_unknown_linux_musl=musl-gcc,\n'
+            'CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc. No Windows drivers are shipped on Linux.\n'
             'Prebuilt third-party native binaries are omitted; no Npcap binary is distributed.\n'
             'Wintun is distributed separately with its binary license.\n\n'
             'Omitted upstream files:\n' + '\n'.join(sorted(excluded)) + '\n', encoding='utf-8')
@@ -70,7 +75,7 @@ def build(archive, destination):
                 if path.is_file():
                     info = zipfile.ZipInfo(path.relative_to(folder).as_posix(), date_time=(2026, 10, 29, 0, 0, 0))
                     info.compress_type = zipfile.ZIP_DEFLATED
-                    info.external_attr = 0o100644 << 16
+                    info.external_attr = (0o100755 if path.name == 'build-linux.sh' else 0o100644) << 16
                     output.writestr(info, path.read_bytes())
     return destination
 

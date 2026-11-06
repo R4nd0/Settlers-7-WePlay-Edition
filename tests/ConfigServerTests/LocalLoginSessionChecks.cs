@@ -56,7 +56,7 @@ internal static class LocalLoginSessionChecks
         byte[] extended = new byte[plaintext.Length + 3]; plaintext.CopyTo(extended.AsSpan(1));
         BinaryPrimitives.WriteUInt16LittleEndian(extended.AsSpan(extended.Length - 2), sequence);
         byte[] iv = Enumerable.Range(0, 16).Select(index => (byte)(index + 1)).ToArray();
-        byte[] body = [.. iv, .. NativeCngFixtures.Encrypt(extended, key, iv)];
+        byte[] body = [.. iv, .. ClientCryptoFixtures.Encrypt(extended, key, iv)];
         byte[] packet = new byte[body.Length + 15];
         packet[0] = 0x3a; packet[1] = 0x31; packet[2] = 0x32; packet[3] = ClientSession;
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(4), cookie);
@@ -84,7 +84,7 @@ internal static class LocalLoginSessionChecks
             || packet[0] != 0x31 || packet[1] != 0x3a || packet[2] != 0x32 || packet[3] != serverSession || serverSession == 0 || packet[10] != 0
             || BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)) != ClientCookie)
             throw new Exception("Invalid server DATA frame");
-        byte[] envelope = NativeCngFixtures.Decrypt(packet.AsSpan(27, data.PayloadLength - 16).ToArray(), key, packet.AsSpan(11, 16).ToArray());
+        byte[] envelope = ClientCryptoFixtures.Decrypt(packet.AsSpan(27, data.PayloadLength - 16).ToArray(), key, packet.AsSpan(11, 16).ToArray());
         byte[] expanded = null;
         try
         {
@@ -139,7 +139,7 @@ internal static class LocalLoginSessionChecks
             || packet[0] != 0x31 || packet[1] != 0x3a || packet[2] != 0x32 || packet[3] != serverSession || packet[10] != 0
             || BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)) != ClientCookie)
             throw new Exception("Invalid search response transport");
-        byte[] envelope = NativeCngFixtures.Decrypt(packet.AsSpan(27, data.PayloadLength - 16).ToArray(), key, packet.AsSpan(11, 16).ToArray());
+        byte[] envelope = ClientCryptoFixtures.Decrypt(packet.AsSpan(27, data.PayloadLength - 16).ToArray(), key, packet.AsSpan(11, 16).ToArray());
         byte[] expanded = null;
         try
         {
@@ -175,7 +175,7 @@ internal static class LocalLoginSessionChecks
                 Connect = new PrudpConnectProbe(packet, request, signer) };
             Peer.Connect.TryGetReply(packet, request, out byte[] reply);
             ServerSession = reply[3];
-            Key = NativeCngFixtures.Derive(client, reply.AsSpan(82, 72).ToArray());
+            Key = ClientCryptoFixtures.Derive(client, reply.AsSpan(82, 72).ToArray());
             Session = new(Peer, new(observedAddress ?? network?.PeerAddress ?? IPAddress.Loopback, 40000),
                 "prudp:/address=" + (network?.BindAddress ?? IPAddress.Loopback) + ";port=9111;sid=1;stream=3;type=2",
                 now, keepAlive, sessions, network);
@@ -461,7 +461,7 @@ internal static class LocalLoginSessionChecks
 
     internal static int Run()
     {
-        if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP: native BCrypt local-login session checks require Windows."); return 0; }
+        if (!ClientCryptoFixtures.Supported) { Console.WriteLine("SKIP: native BCrypt local-login session checks require Windows."); return 0; }
         int passed = RunLanLifetimeChecks() + RunTransportRoleChecks() + RunPeerReclamationChecks() + RunReliableBackpressureChecks();
         void Check(bool value, string label) { if (!value) throw new Exception(label); passed++; }
         // A busy browser may send RPCs instead of PINGs. Advancing receive
@@ -1060,7 +1060,7 @@ internal static class LocalLoginSessionChecks
 
     internal static async Task<int> RunNetworkAsync()
     {
-        if (!OperatingSystem.IsWindows()) return 0;
+        if (!ClientCryptoFixtures.Supported) return 0;
         int passed = 0;
         void Check(bool value, string label) { if (!value) throw new Exception(label); passed++; }
         ConcurrentQueue<ConfigServerEvent> events = new();
@@ -1091,7 +1091,7 @@ internal static class LocalLoginSessionChecks
             await client.SendAsync(syn); byte[] synAck = await Receive();
             Check(synAck.Length == 18, "SYN ACK missing"); uint cookie = BinaryPrimitives.ReadUInt32LittleEndian(synAck.AsSpan(10));
             await client.SendAsync(Connect(cookie, agreement)); byte[] connectAck = await Receive();
-            Check(connectAck.Length == 158, "CONNECT ACK missing"); key = NativeCngFixtures.Derive(agreement, connectAck.AsSpan(82, 72).ToArray());
+            Check(connectAck.Length == 158, "CONNECT ACK missing"); key = ClientCryptoFixtures.Derive(agreement, connectAck.AsSpan(82, 72).ToArray());
             byte serverSession = connectAck[3]; int publicPort = ((IPEndPoint)client.Client.LocalEndPoint!).Port;
             byte[] login = Request(false); int split = login.Length / 2;
             byte[] first = Data(cookie, key, 6, 1, login.AsSpan(0, split)), last = Data(cookie, key, 7, 0, login.AsSpan(split));

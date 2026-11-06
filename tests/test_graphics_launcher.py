@@ -72,6 +72,7 @@ class GraphicsLauncherTests(unittest.TestCase):
         folder = self.root / 'Launcher'; folder.mkdir()
         script = folder / 'launch_local.py'
         script.write_bytes((ROOT / 'tools/offline-ui/launch_local.py').read_bytes())
+        (folder / 'portable_lock.py').write_bytes((ROOT / 'tools/installer/portable_lock.py').read_bytes())
         (folder / 'graphics_choice.py').write_text(
             "def choose_launch_environment(root): return {'fixture':'selected'}\n"
             "def game_arguments(root): return ('-vSynch','-noMapInMainMenu')\n")

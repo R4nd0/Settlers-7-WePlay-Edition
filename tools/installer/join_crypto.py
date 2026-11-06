@@ -6,6 +6,7 @@ import subprocess
 
 import compatibility
 from windows_system import helper_directory
+import host_runtime
 
 FORMAT='weplay-join-crypto-v1'
 
@@ -23,10 +24,12 @@ def decoded(value,limit=8192):
 
 def operation(action,value,*,root=None):
     if action not in ('keygen','seal','open'):raise ValueError('directory_join_failed')
-    executable=compatibility.plain(helper_directory(root)/'WePlay.WindowsHelper.exe')
+    executable=compatibility.plain(helper_directory(root)/'WePlay.WindowsHelper.exe' if os.name == 'nt'
+                                   else host_runtime.crypto_command(root))
     environment={key:item for key,item in os.environ.items()
                  if not key.upper().startswith(('DOTNET_','CORECLR_','COR_','COMPLUS_'))}
-    environment['PATH']=str(compatibility.plain(os.environ.get('SystemRoot',r'C:\Windows'))/'System32')
+    environment['PATH']=(str(compatibility.plain(os.environ.get('SystemRoot',r'C:\Windows'))/'System32')
+                         if os.name == 'nt' else '/usr/bin:/bin')
     payload=json.dumps(dict(format=FORMAT,**value),separators=(',',':')).encode('ascii')
     if len(payload)>16384:raise ValueError('directory_join_failed')
     try:

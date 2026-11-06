@@ -3,6 +3,9 @@
 #include <vector>
 
 struct LocalCpuCore { DWORD_PTR mask; unsigned char efficiency; };
+struct LocalCpuGroupMask { DWORD_PTR mask; WORD group; };
+bool ValidateWineSingleCpuGroup(bool wine, DWORD error, DWORD_PTR system,
+                               const std::vector<LocalCpuGroupMask>& topology);
 #ifndef S7_MAX_PHYSICAL_CORES
 #define S7_MAX_PHYSICAL_CORES 4
 #endif

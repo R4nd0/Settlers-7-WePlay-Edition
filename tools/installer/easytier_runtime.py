@@ -19,6 +19,7 @@ from lan_child_job import ServiceJob
 from lan_interfaces import enumerate_interfaces
 
 LOCK = Path(__file__).with_name('easytier-runtime.json')
+LINUX_LOCK = Path(__file__).with_name('easytier-linux-runtime.json')
 REQUIRED_NOTICES = frozenset(('GPL-3.0.txt', 'LGPL-3.0.txt',
                              'THIRD-PARTY-NOTICES.txt', 'WINTUN-LICENSE.txt'))
 # Native peer sockets and the bounded WePlay coordinator/discovery services.
@@ -75,10 +76,12 @@ def verify_runtime(root):
 def verify_directory(directory):
     directory = compatibility.plain(directory)
     try:
-        manifest = json.loads(LOCK.read_text(encoding='utf-8'))
+        linux = (directory / 'easytier-core').is_file()
+        manifest = json.loads((LINUX_LOCK if linux else LOCK).read_text(encoding='utf-8'))
         files = manifest['files']
+        required = REQUIRED_NOTICES - {'WINTUN-LICENSE.txt'} if linux else REQUIRED_NOTICES
         if (manifest['format'] != 'weplay-easytier-runtime-v1' or not isinstance(files, dict)
-                or not REQUIRED_NOTICES.issubset(files) or
+                or not required.issubset(files) or
                 any('/' in name or '\\' in name or ':' in name or name in ('.', '..') for name in files)):
             raise ValueError()
         if {p.name for p in directory.iterdir()} != set(files):
@@ -87,7 +90,8 @@ def verify_directory(directory):
             path = compatibility.plain(directory / name)
             if not path.is_file() or compatibility.digest(path) != digest:
                 raise ValueError()
-        if not {'easytier-core.exe', 'easytier-cli.exe', 'wintun.dll'} <= set(files):
+        binaries = {'easytier-core', 'easytier-cli'} if linux else {'easytier-core.exe', 'easytier-cli.exe', 'wintun.dll'}
+        if not binaries <= set(files):
             raise ValueError()
     except (OSError, ValueError, KeyError, TypeError):
         raise InternetError('internet_runtime_invalid') from None
@@ -100,7 +104,10 @@ def clean_environment():
     environment = {k: v for k, v in os.environ.items()
                    if not k.upper().startswith(('ET_', 'RUST_', 'PYTHON'))}
     system = os.environ.get('SystemRoot', r'C:\Windows')
-    environment['PATH'] = str(Path(system) / 'System32')
+    environment['PATH'] = str(Path(system) / 'System32') if os.name == 'nt' else '/usr/sbin:/usr/bin:/sbin:/bin'
+    if os.name == 'posix':
+        for name in list(environment):
+            if name.startswith(('LD_', 'DYLD_')): del environment[name]
     return environment
 
 
@@ -172,10 +179,11 @@ def peer_snapshot(raw, room, device_name):
 
 class EasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None,
-                 job_factory=ServiceJob, interfaces=enumerate_interfaces):
+                 job_factory=ServiceJob, interfaces=enumerate_interfaces, private_parent=None):
         self.root, self.room, self.host = Path(root), room, host
         self.cancel_check, self.progress = cancel_check, progress
         self.job_factory, self.interfaces = job_factory, interfaces
+        self.private_parent = None if private_parent is None else Path(private_parent)
         self.instance_id = str(uuid.uuid4())
         self.device_name = 'WePlay-' + self.instance_id[:8]
         self.address = str(room.network.network_address + (1 if host else secrets.randbelow(253) + 2))
@@ -195,7 +203,7 @@ class EasyTier:
         if os.name == 'nt' and not ctypes.windll.shell32.IsUserAnAdmin():
             raise InternetError('internet_admin_required')
         try:
-            data = compatibility.plain(self.root / 'LocalData')
+            data = compatibility.plain(self.private_parent or self.root / 'LocalData')
             data.mkdir(exist_ok=True)
             # CPython 3.14 on Windows gives mode 0700 directories a protected
             # DACL for the current user and administrators. mkdtemp uses 0700.
@@ -207,7 +215,7 @@ class EasyTier:
                 probe.bind(('127.0.0.1', 0))
                 self.portal = f'127.0.0.1:{probe.getsockname()[1]}'
             self.job = self.job_factory()
-            self.child = self.job.start([str(self.runtime / 'easytier-core.exe'), '-c', str(config),
+            self.child = self.job.start([str(self.runtime / ('easytier-core.exe' if os.name == 'nt' else 'easytier-core')), '-c', str(config),
                 '--disable-env-parsing', '--rpc-portal', self.portal,
                 '--rpc-portal-whitelist', '127.0.0.1/32', '--console-log-level', 'off', '--file-log-level', 'off'],
                 cwd=self.private, env=clean_environment(), stdin=subprocess.DEVNULL,
@@ -223,10 +231,11 @@ class EasyTier:
             raise InternetError('internet_disconnected')
         # Do not query `node` or `config`: those contain the room secret.
         with tempfile.TemporaryFile(dir=self.private) as output:
-            result = subprocess.run([str(self.runtime / 'easytier-cli.exe'), '-p', self.portal,
+            result = subprocess.run([str(self.runtime / ('easytier-cli.exe' if os.name == 'nt' else 'easytier-cli')), '-p', self.portal,
                 '-i', self.instance_id, '-o', 'json', 'peer'], cwd=self.private,
                 env=clean_environment(), stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL,
-                timeout=3, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                timeout=5 if os.name == 'posix' else 3,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if result.returncode or output.tell() > 131072:
                 raise InternetError('internet_status_invalid')
             output.seek(0)
@@ -268,14 +277,14 @@ class EasyTier:
                     self.child.wait(timeout=10)
                 finally:
                     self.child = None
-            if had_child:
+            if had_child and os.name == 'nt':
                 from windows_system import remove_adapter
                 try:remove_adapter(self.root,self.device_name,self.address)
                 except (OSError,ValueError,subprocess.TimeoutExpired):cleanup_error=InternetError('internet_cleanup_failed')
             if self.private is not None:
                 # Only our new, random, non-reparse directory may be removed.
                 directory = compatibility.plain(self.private)
-                parent = compatibility.plain(self.root / 'LocalData')
+                parent = compatibility.plain(self.private_parent or self.root / 'LocalData')
                 if directory.parent != parent or not directory.name.startswith('easytier-'):
                     raise InternetError('internet_cleanup_failed')
                 shutil.rmtree(directory)

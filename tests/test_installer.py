@@ -80,6 +80,15 @@ def prepare(source, output, specification, profile):
         self.assertEqual((self.source / 'Base/BBA/map.bba').read_bytes(), b'invented map')
         with self.assertRaisesRegex(ValueError, 'veraendert'): content.verify(self.destination)
 
+    def test_managed_repair_resolves_manifest_case_without_blessing_changed_assets(self):
+        self.prepare()
+        source = self.destination
+        target = self.root / 'updated-copy'
+        (source / 'Base/BBA/map.bba').write_bytes(b'foreign changed asset')
+        with self.assertRaises(ValueError):
+            install.prepare(self.package, source, target, emit=lambda _:None, managed=True)
+        self.assertFalse((target / 'Start-S7-Test.cmd').exists())
+
     def test_cartographer_stage_runs_after_existing_archive_stages_and_is_required_when_declared(self):
         self._check_archive_stages()
 
