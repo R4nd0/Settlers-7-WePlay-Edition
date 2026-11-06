@@ -2,26 +2,27 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Installer — RC3.15b · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15b/Setup.exe)
+## [Download Installer — RC3.16 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.16/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.15b/WePlay-RC3.15b.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.15b) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.16/WePlay-RC3.16.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.16) · [Discord community](https://discord.gg/j2eQgVzssc)
 
-**RC3.15b fixes the reproduced workshop-AI desync after loading a multiplayer
-save.** The restored AI search used uninitialized rotation constants; the fix
-initializes only those constants and preserves saved search work and priorities.
-Three completed local two-client runs passed with **1750 matching common native
-checksums**. This remains an experimental prerelease: Steam/separate-PC reloads
-and long matches are not yet qualified. Keep backups of saves and host profiles.
-[Cause, guards and evidence](docs/MULTIPLAYER-RESUME-WORKSHOP.md).
+**RC3.16 fixes lost Kartograph variant names and restores variant multiplayer
+checkpoints.** A native string-lifetime error made the guest load standard
+6-point rules while the host required 25 points. The corrected Grassland Mesa
+variant passed fresh play and a complete-process restart, six further game
+minutes and another save: **1200 common native checksums, zero mismatches**.
+The reported early desync itself was not reproduced; Steam/separate-PC and long
+matches remain unqualified. Keep backups and identical templates on all peers.
+[Cause, guards and evidence](docs/MULTIPLAYER-MAP-VARIANTS.md).
 
 Play **The Settlers 7 History Edition** solo, on LAN, in private Internet rooms
 or through the global public lobby from one Windows launcher. WePlay prepares
 its own copy and preserves your original installation. Each player supplies
 their own supported game files; the public installer/ZIP contains no game data.
 
-RC3.15b includes the workshop-load correction and the **NEO-Logistics** map
+RC3.16 also retains the workshop-load correction and the **NEO-Logistics** map
 option, restored individual priorities when loading NEO multiplayer saves, a correction for a resumed-world
 AI terrain-search stall, and the replacement for the crashing in-game Invite
 button. The global lobby, standalone/update recovery, multiplayer castles,
@@ -38,7 +39,7 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install the **same RC3.15b build on every participant's PC**, even when NEO
+4. Install the **same RC3.16 build on every participant's PC**, even when NEO
    is off. Its NEO3 session data is incompatible with older adapters.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
@@ -128,9 +129,10 @@ humans join in their original slots and select **Ready**. The host waits for
 
 Keep the host profile, save folder and save-file timestamps together. A lone
 `.s7s` copied into another profile is not a supported migration. Older saves
-without WePlay multiplayer metadata are unsupported. The RC3.15b downloads
-reject Map Forge template saves. **Newer source** fixes a native template-name
-lifetime error and supports loading those saves with their original local template; see the
+without WePlay multiplayer metadata are unsupported. RC3.16 preserves the
+Map Forge variant name and loads variant saves with their original local
+template. Keep identical templates on participating PCs; missing host templates
+are rejected before lobby creation. See the
 [variant investigation and verification](docs/MULTIPLAYER-MAP-VARIANTS.md).
 Missing or inconsistent enabled NEO state is rejected rather than replaced
 with an empty priority list. Keep a backup before using an older checkpoint.
@@ -194,7 +196,8 @@ their saves before removing them yourself.
 
 | Release | Main additions |
 | --- | --- |
-| **RC3.15b** | Correctly initialize restored workshop-AI search rotations; reproduced load desync fixed, including repeated cold load and NEO-off control. |
+| **RC3.16** | Preserve Kartograph template names and reload variant multiplayer checkpoints; local 25-point cold-load test passed. |
+| RC3.15b | Correctly initialize restored workshop-AI search rotations; reproduced load desync fixed, including repeated cold load and NEO-off control. |
 | RC3.15 | Optional NEO policy and saved-priority restoration, terrain-stall guard and invitation replacement; its original assets predate the workshop fix. |
 | RC3.14 | Global public lobby, four launcher play cards, direct standalone launcher binding and transactional standalone/update recovery. |
 | RC3.13 | Public directory, EasyTier isolation and explicit connection consent. |
@@ -207,7 +210,7 @@ WePlay supports the fingerprinted Ubisoft Connect/Uplay and Steam History builds
 other executables are rejected. Existing Steam/Ubisoft tests do not qualify every
 new NEO feature. Same-PC tests do not establish physical-PC LAN, Internet or
 extended/endgame stability. Native aggregate checksums cover selected simulation
-state, not every byte. [RC3.15b notes](docs/RC3.15b-WORKSHOP-RESUME.md) ·
+state, not every byte. [RC3.16 notes](docs/RC3.16-MAP-VARIANTS.md) ·
 [Steam scope](docs/STEAM-COMPATIBILITY.md).
 
 ## Credits and licenses

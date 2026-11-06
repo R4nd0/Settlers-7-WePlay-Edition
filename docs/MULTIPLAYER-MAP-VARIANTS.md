@@ -103,5 +103,5 @@ already lost a name cannot reconstruct that name automatically.
 These are local two-client Ubisoft observations. Steam has independent mapping
 and synthetic patch/ABI coverage; live Steam, separate-PC/Internet, extended
 sessions and populated human-command scenarios are not qualified by this run.
-RC3.15b downloads remain unchanged; the correction is newer source. Private
+RC3.16 includes this correction; earlier release downloads remain unchanged. Private
 game binaries, templates, saves, profiles and raw diagnostics are not shipped.

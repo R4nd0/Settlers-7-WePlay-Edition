@@ -10,7 +10,7 @@ slot's name, date, map and native map path. `session_list.lua` extends the
 existing session browser to select a checkpoint and restore that roster.
 Unknown saves are rejected. Map Forge checkpoints retain the saved template
 name when loading setup data and creating the native resume lobby. This also
-requires the native template-name lifetime correction in newer source. The host's
+requires the native template-name lifetime correction included in RC3.16. The host's
 template must still exist under the saved map; an absent template is rejected
 before creating a lobby. The received-world slot 1000 is never indexed; native
 autosave 1001 and manual slots 1002..1009 are supported. See the
