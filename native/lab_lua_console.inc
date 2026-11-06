@@ -1,7 +1,7 @@
 // Laboratory-only observation of real protected-table failures. The release
 // game's WriteToConsole callback discards its text; retain its exact result/ABI.
 struct LabLuaConsoleRecord { char bytes[2048]; DWORD length; };
-#ifdef S7_NEO_FIFO_LAB
+#if defined(S7_NEO_FIFO_LAB) || defined(S7_NEO_LOGISTICS)
 LabLuaConsoleRecord lab_lua_console_records[2048]{};
 #else
 LabLuaConsoleRecord lab_lua_console_records[64]{};

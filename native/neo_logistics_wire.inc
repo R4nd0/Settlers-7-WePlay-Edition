@@ -4,7 +4,7 @@
 std::atomic<uint32_t> neo_wire_local{0},neo_wire_received{2};
 std::atomic<bool> neo_wire_confirmed{false};
 std::atomic<uint32_t> neo_wire_start_choice{2};
-constexpr uint32_t NeoWireVersion=0x334f454e; // NEO3: authoritative saved individual intent
+constexpr uint32_t NeoWireVersion=0x344f454e; // NEO4: saved individual intent + distance handoffs
 std::mutex neo_wire_state_mutex;
 std::string neo_wire_local_state,neo_wire_received_state,neo_wire_start_state;
 void ResetNeoWireReceived() {

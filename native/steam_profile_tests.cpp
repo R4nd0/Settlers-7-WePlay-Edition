@@ -62,6 +62,9 @@ int main() {
         memcpy(Native<void*>(0x782280),NeoMapGroupSteamGuard,sizeof(NeoMapGroupSteamGuard));
         memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
     memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
+        memcpy(Native<void*>(0x787bb0),NeoDistanceQuerySteamGuard,sizeof(NeoDistanceQuerySteamGuard));
+        memcpy(Native<void*>(0x6f6c20),NeoDistanceProfileSteamGuard,sizeof(NeoDistanceProfileSteamGuard));
+        memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
 #endif
         for (const auto* patch : selected) {
             if (patch->pointer_slot) {

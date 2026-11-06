@@ -122,6 +122,9 @@ int main() {
         TestStream wrong{{0x314f454e},0,false};VisitNeoWire(&wrong,false);check(wrong.result<0);
         TestStream compatible{{NeoWireVersion},0,false};VisitNeoWire(&compatible,false);check(compatible.result==1);
         TestStream previous{{0x324f454e},0,false};VisitNeoWire(&previous,false);check(previous.result<0);
+        TestStream fifoOnly{{0x334f454e},0,false};VisitNeoWire(&fifoOnly,false);check(fifoOnly.result<0);
+        TestStream oldLobby{{0x334f454e,1,0},0,false};VisitNeoWire(&oldLobby,true);
+        check(oldLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
         neo_wire_received=1;check(ConstructNeoJoin(message,nullptr)==message && neo_wire_received==2);
         test_host=true;check(command("network-state",&state)&&state=="1");
         check(!command("begin:1"));check(command("start-event"));check(command("begin:1"));
@@ -165,8 +168,24 @@ int main() {
         memcpy(Native<void*>(0x782ee0),task_bytes[steam?1:0],10);
         memcpy(Native<void*>(0x782280),steam?NeoMapGroupSteamGuard:NeoMapGroupUbiGuard,10);
         memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
+        memcpy(Native<void*>(0x787bb0),steam?NeoDistanceQuerySteamGuard:NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard));
+        memcpy(Native<void*>(0x6f6c20),steam?NeoDistanceProfileSteamGuard:NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard));
+        memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
         const unsigned char tail[]={0x56,0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
         memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),tail,sizeof(tail));check(InitializeNeoMapPatches());
+        for(size_t i=0;i<sizeof(NeoDistanceTailGuard);++i) {
+            auto* byte=Native<unsigned char*>(0x79ed92)+5+i;*byte^=1;
+            check(!InitializeNeoMapPatches());*byte^=1;
+        }
+        for(size_t i=0;i<sizeof(NeoDistanceQueryUbiGuard);++i) {
+            auto* byte=Native<unsigned char*>(0x787bb0)+i;*byte^=1;
+            check(!InitializeNeoMapPatches());*byte^=1;
+        }
+        for(size_t i=0;i<sizeof(NeoDistanceProfileUbiGuard);++i) {
+            auto* byte=Native<unsigned char*>(0x6f6c20)+i;*byte^=1;
+            check(!InitializeNeoMapPatches());*byte^=1;
+        }
+        check(InitializeNeoMapPatches());
         *reinterpret_cast<unsigned char*>(NativeVA(0x78f380)+5)=0;check(!InitializeNeoMapPatches());
         Stub(neo_compare_resume,&OriginalCompareTail);
         using Compare=uint32_t (__fastcall*)(uintptr_t,uintptr_t);

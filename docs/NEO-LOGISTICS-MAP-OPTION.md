@@ -28,7 +28,10 @@ their drag controls and displayed ranks are disabled. Deliberate native player
 and AI group-reorder commands are suppressed in this mode; native default
 initialization is retained. Group precedence is excluded from transport keys,
 including the explicit-priority bands. Production scheduling and pathfinding
-are otherwise unchanged.
+are otherwise unchanged in the published candidate. The subsequent
+[distance handoff candidate](NEO-LOGISTICS-DISTANCE.md) adds shortest-total-distance
+selection among native eligible intermediate warehouses while retaining this
+request ordering. It is source-only and has not been released.
 
 The native adapter retains the next-map selection across recreation of the local
 Lua state. Selecting an option does not change the running world's transport

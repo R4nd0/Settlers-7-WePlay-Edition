@@ -1,8 +1,10 @@
 unsigned char NeoMapBytes[3][5]{};
+unsigned char NeoDistanceJump[5]{};
 const Patch NeoMapPatches[]={
     {0x782ee0,{0x55,0x8b,0xec,0x6a,0xff},NeoMapBytes[0],false,5},
     {0x78f380,{0xa1,0x20,0x52,0x3a,0x01},NeoMapBytes[1],false,5},
     {0x782280,{0x55,0x8b,0xec,0x6a,0xff},NeoMapBytes[2],false,5},
+    {0x79ed92,{0xf3,0x0f,0x10,0x45,0xd4},NeoDistanceJump,false,5},
 #ifndef S7_CASTLE_WIRE_PROTOTYPE
     {0x668365,{0xe8,0xc6,0xfa,0xff,0xff},reinterpret_cast<const void*>(&VisitNeoPlayerField)},
     {0x113f5fc,{0x60,0x80,0x66,0},reinterpret_cast<const void*>(&VisitNeoJoin),true},
@@ -16,14 +18,32 @@ const unsigned char NeoMapGroupUbiGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0x56,0x
 const unsigned char NeoMapGroupSteamGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0xc6,0xdb,0xf7,0};
 const unsigned char NeoMapTailGuard[]={0x56,0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
 const unsigned char NeoMapClockGuard[]={0x8b,0x40,0x2c,0x48,0x50,0xe8};
+const unsigned char NeoDistanceTailGuard[]={0x0f,0x2f,0xc2,0x76,0x08,0xf3,0x0f,0x11,0x55,0xd4,0x89,0x7d,0xd0};
+const unsigned char NeoDistanceQueryUbiGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0x39,0x29,0xf9,0};
+const unsigned char NeoDistanceQuerySteamGuard[]={0x55,0x8b,0xec,0x6a,0xff,0x68,0xa9,0x1b,0xf9,0};
+const unsigned char NeoDistanceProfileUbiGuard[]={0xa1,0x14,0x52,0x3a,0x01,0x8b,0x49,0x04,0x8b,0x80,0x60,0x01,0,0,0x8b,0,0x8b,0x0c,0x88,0x8b,0x01,0xff,0x50,0x34,0x83,0xc0,0x54,0xc3};
+const unsigned char NeoDistanceProfileSteamGuard[]={0xa1,0x04,0x23,0x3a,0x01,0x8b,0x49,0x04,0x8b,0x80,0x60,0x01,0,0,0x8b,0,0x8b,0x0c,0x88,0x8b,0x01,0xff,0x50,0x34,0x83,0xc0,0x54,0xc3};
 bool InitializeNeoMapPatches() {
     if(memcmp(Native<const void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard))
         || memcmp(Native<const void*>(0x782ee0),steam_history?NeoMapTaskSteamGuard:NeoMapTaskUbiGuard,sizeof(NeoMapTaskUbiGuard))
         || memcmp(Native<const void*>(0x782280),steam_history?NeoMapGroupSteamGuard:NeoMapGroupUbiGuard,sizeof(NeoMapGroupUbiGuard))
-        || memcmp(reinterpret_cast<const unsigned char*>(NativeVA(0x78f380))+5,NeoMapTailGuard,sizeof(NeoMapTailGuard)))return false;
+        || memcmp(reinterpret_cast<const unsigned char*>(NativeVA(0x78f380))+5,NeoMapTailGuard,sizeof(NeoMapTailGuard))
+        || memcmp(reinterpret_cast<const unsigned char*>(NativeVA(0x79ed92))+5,NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard))
+        || memcmp(Native<const void*>(0x787bb0),steam_history?NeoDistanceQuerySteamGuard:NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard))
+        || memcmp(Native<const void*>(0x6f6c20),steam_history?NeoDistanceProfileSteamGuard:NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard)))return false;
     lab_priority_task_resume=NativeVA(0x782ee0)+5;
     neo_group_resume=NativeVA(0x782280)+5;
     neo_compare_resume=NativeVA(0x78f380)+5;neo_compare_global=NativeVA(0x13a5220);
+    neo_distance_original=NativeVA(0x79ed92)+5;
+    neo_distance_accept=NativeVA(0x79ed92)+10;
+    neo_distance_reject=NativeVA(0x79ed92)+18;
+#ifdef S7_LOCAL_PAIR_LAB
+    char distance_control[2]{};
+    neo_distance_control=GetEnvironmentVariableA("S7_NEO_DISTANCE_CONTROL",distance_control,2)==1 && distance_control[0]=='1';
+#endif
+    NeoDistanceJump[0]=0xe9;
+    const auto distance_relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&NeoDistanceBridge)-(NativeVA(0x79ed92)+5));
+    memcpy(NeoDistanceJump+1,&distance_relative,4);
     const uintptr_t targets[]={reinterpret_cast<uintptr_t>(&LabPriorityTaskBridge),reinterpret_cast<uintptr_t>(&CompareNeoFifoTransfersBridge),reinterpret_cast<uintptr_t>(&NeoGroupBridge)};
     for(unsigned i=0;i<3;++i) {
         const auto relative=static_cast<uint32_t>(targets[i]-(NativeVA(NeoMapPatches[i].va)+5));

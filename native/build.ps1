@@ -50,7 +50,11 @@ try {
     }
     Compile-Native @((Join-Path $nativeSource 'neo_fifo_policy_tests.cpp'), '/Fe:neo_fifo_policy_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'neo_logistics_state_tests.cpp'), '/Fe:neo_logistics_state_tests.exe')
-    if ($NeoLogistics) { Compile-Native @((Join-Path $nativeSource 'neo_logistics_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_logistics_tests.exe') }
+    if ($NeoLogistics) {
+        Compile-Native @((Join-Path $nativeSource 'neo_logistics_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_logistics_tests.exe')
+        Compile-Native @((Join-Path $nativeSource 'neo_distance_policy_tests.cpp'), '/Fe:neo_distance_policy_tests.exe')
+        Compile-Native @((Join-Path $nativeSource 'neo_distance_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_distance_tests.exe')
+    }
     if ($NeoFifoLab) {
         Compile-Native @((Join-Path $nativeSource 'neo_fifo_integration_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:neo_fifo_integration_tests.exe')
         Compile-Native @((Join-Path $nativeSource 'neo_fifo_bridge_tests.cpp'), '/Fe:neo_fifo_bridge_tests.exe')
