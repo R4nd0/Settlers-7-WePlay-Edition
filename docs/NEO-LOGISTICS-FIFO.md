@@ -5,6 +5,10 @@ request's creation turn. It does not change production scheduler ranks or
 pathfinding. Automatic ranks inherited from older production roots no longer
 let newer, ordinary transport requests overtake older requests.
 
+The separate [distance investigation](NEO-LOGISTICS-DISTANCE.md) records the
+requested nearest-source policy and the native route-cost findings. No distance
+override is currently enabled.
+
 The existing scheduler can prefer a younger transport request because its
 production root is older. The isolated replay demonstrated this at source
 warehouse 65547 while requests for workshops supplied through warehouse 65569
