@@ -24,7 +24,7 @@ service continuity and last-peer cleanup verified. See the
 [verification receipt](docs/verification/linux-20261106.json) for scope and limits.
 
 The RC3.16 correction for lost Kartograph variant names also restores variant multiplayer
-checkpoints.** A native string-lifetime error made the guest load standard
+checkpoints. A native string-lifetime error made the guest load standard
 6-point rules while the host required 25 points. The corrected Grassland Mesa
 variant passed fresh play and a complete-process restart, six further game
 minutes and another save: **1200 common native checksums, zero mismatches**.
