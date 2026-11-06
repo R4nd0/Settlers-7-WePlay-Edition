@@ -31,7 +31,8 @@ jobs:
           New-Item -ItemType Directory work | Out-Null
           ./native/build.ps1 -OutputDirectory "$PWD/work/ci-native" -GameDirectory -NeoLogistics
           foreach ($name in @('public_key_tests','cpu_affinity_tests','map_template_tests','network_guard_tests',
-                              'bootstrap_patch_tests','steam_profile_tests','game_directory_bridge_tests')) {
+                              'bootstrap_patch_tests','steam_profile_tests','game_directory_bridge_tests',
+                              'neo_workshop_tests','neo_distance_tests','neo_logistics_tests','neo_fifo_policy_tests')) {
             & "$PWD/work/ci-native/$name.exe"
             if ($LASTEXITCODE -ne 0) { throw "$name failed" }
           }

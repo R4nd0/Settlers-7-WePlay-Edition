@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-06",
+  "release": "2.0.0-rc3.18",
+  "neo_wire_revision": 5,
+  "network_revision": 8,
+  "changes": [
+    "NEO workshop pickup deadlock",
+    "NEO shortest eligible intermediate handoff",
+    "relay handshake and room readiness"
+  ],
+  "actual_game": {
+    "platform": "Windows, two loopback clients",
+    "checkpoint_logic_turn": 67349,
+    "workshop_control_turns": 1500,
+    "workshop_candidate_turns": 1500,
+    "final_neo5_reload_turns": 500,
+    "recorded_peer_checksums_per_run": 451,
+    "recorded_peer_checksum_mismatches": 0,
+    "production_mode_toggle": false,
+    "first_refinement_within_turns": 100
+  },
+  "relay": {
+    "qualification": "Two Windows no-TUN cores; real handshake and relay rendezvous",
+    "separate_pc_gameplay": false,
+    "replacement_bootstrap": "tcp://38.76.179.190:11010",
+    "release_probe_repeated": true,
+    "both_handshakes_and_remote_relay_peers": true,
+    "owned_clients_closed": true
+  },
+  "inherited_linux_verification": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/main/docs/verification/linux-20261106.json",
+  "limitations": [
+    "Recorded checksums do not cover every turn of the longer runs",
+    "No new Linux or separate-PC gameplay qualification for the NEO5 changes",
+    "No Internet S7 gameplay or TUN/firewall data-plane verification in the relay probe",
+    "Unsigned experimental executables"
+  ]
+}

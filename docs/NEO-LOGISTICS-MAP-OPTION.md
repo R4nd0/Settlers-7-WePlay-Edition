@@ -31,12 +31,12 @@ including the explicit-priority bands. Production scheduling and pathfinding
 are otherwise unchanged in the published candidate. The subsequent
 [distance handoff candidate](NEO-LOGISTICS-DISTANCE.md) adds shortest-total-distance
 selection among native eligible intermediate warehouses while retaining this
-request ordering. It is source-only and has not been released.
+request ordering. It is included in RC3.18.
 
 The subsequent [workshop pickup correction](NEO-WORKSHOP-PICKUP.md) repairs a
 reproduced blue weaving-mill deadlock: a production task with an unfinished input
 can no longer veto collection of that input. It retains FIFO and individual
-priorities. This source-only revision uses lobby capability NEO5; all peers must
+priorities. RC3.18 uses lobby capability NEO5; all peers must
 use the same revision. The published RC3.15b does not contain these later fixes.
 
 The native adapter retains the next-map selection across recreation of the local

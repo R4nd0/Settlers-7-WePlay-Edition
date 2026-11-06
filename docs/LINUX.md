@@ -1,6 +1,9 @@
-# Native Linux tools · RC3.17 preview
+# Native Linux tools · RC3.18 preview
 
-RC3.17 includes native Linux tools and Windows/Linux multiplayer interoperability.
+RC3.18 retains RC3.17's native Linux tools and Windows/Linux multiplayer
+interoperability, and adds the [logistics and Internet corrections](RC3.18-LOGISTICS-INTERNET.md).
+Use RC3.18 on every peer. Earlier Linux gameplay measurements below describe
+RC3.17; the new NEO changes were tested with local Windows clients.
 Actual game qualification used Ubisoft History Edition on Ubuntu 24.04 under
 WSL2/WSLg, WineHQ 11 and WineD3D. Mint, Linux Steam/Proton and hardware Vulkan
 gameplay remain unqualified. See the measured results below and the
@@ -94,7 +97,7 @@ network contract identifies all gameplay files under Base, together with the
 explicit service/carrier protocol revision. Linux ELF helpers and Windows host
 helpers can therefore differ without changing the game identity. Their local
 integrity remains checked. There is no fallback to the old network ID: all
-participants need RC3.17 and the same renderer/content profile.
+participants need RC3.18 and the same renderer/content profile.
 
 Windows CPython uses zlib-ng 2.2.4, whose compressed streams differ from system
 zlib on Linux. The Linux package therefore includes a hash-pinned native
@@ -126,7 +129,7 @@ The transport additionally requires Rust stable, its
 directory under work. It applies the existing patches and runs the relevant
 packet-filter unit suites. Ship the matching corresponding-source archive and
 all dependency notices with any distributed transport binary.
-The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/EasyTier-corresponding-source.zip)
+The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/EasyTier-corresponding-source.zip)
 contains both Linux and Windows build recipes and the reviewed patches.
 
 `tools/linux/build_package.py` accepts the verified patch package, native server

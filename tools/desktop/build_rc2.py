@@ -1,4 +1,4 @@
-"""Build the RC3.17 native Linux preview from pinned inputs."""
+"""Build the RC3.18 logistics and Internet preview from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -14,7 +14,7 @@ import compatibility as content
 import install
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=17,game_directory=False,neo_logistics=False):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=18,game_directory=False,neo_logistics=False):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -48,7 +48,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
-    guide=REPO/'docs/RC3.17-LINUX.md'
+    guide=REPO/'docs/RC3.18-LOGISTICS-INTERNET.md'
     if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
     shutil.copyfile(guide,app/'RELEASE-NOTES.md')
@@ -59,9 +59,9 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.17 Native Linux Preview','network_revision':7,'game_bits':32,
-             'version':'2.0.0-rc3.17','update_sequence':update_sequence,'update_channel':'preview',
-             'neo_logistics':neo_logistics,'neo_wire_revision':3 if neo_logistics else None,
+    release={'format':'s7-desktop-release-v1','release':'RC3.18 Logistics and Internet Fixes','network_revision':8,'game_bits':32,
+             'version':'2.0.0-rc3.18','update_sequence':update_sequence,'update_channel':'preview',
+             'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -105,9 +105,9 @@ def refresh_stage(app,desktop_publish):
     install.package_manifest(package)
     for path in desktop_publish.iterdir():
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
-    if (REPO/'docs/RC3.17-LINUX.md').is_file():shutil.copyfile(REPO/'docs/RC3.17-LINUX.md',app/'LIESMICH.txt')
+    if (REPO/'docs/RC3.18-LOGISTICS-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3.18-LOGISTICS-INTERNET.md',app/'LIESMICH.txt')
     if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.17-LINUX.md',app/'RELEASE-NOTES.md')
+    shutil.copyfile(REPO/'docs/RC3.18-LOGISTICS-INTERNET.md',app/'RELEASE-NOTES.md')
     for name in ('README.md','CREDITS.md','LICENSE'):shutil.copyfile(REPO/name,app/name)
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
@@ -120,7 +120,7 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=17)
+    parser.add_argument('--update-sequence',type=int,default=18)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     values=parser.parse_args()

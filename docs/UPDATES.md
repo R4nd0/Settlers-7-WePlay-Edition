@@ -171,3 +171,10 @@ creation tokens, concurrent helpers and installer tampering after readiness.
 They use a disposable signing key and isolated paths containing spaces. All five
 pass. The packaged RC3.4 launcher also passes its compiled UI/private-pipe test;
 a real feed check reports no_signed_release until signed assets are published.
+
+
+RC3.18 Logistics and Internet Fixes uses sequence 18 and tag `v2.0.0-rc3.18`.
+All participants must update for NEO5, including with NEO off. Its signed update
+metadata covers the exact installer. Old assisted invitations require recreation
+to use the replacement relay. Existing public release assets remain unchanged.
+See [release notes](RC3.18-LOGISTICS-INTERNET.md).

@@ -1,5 +1,13 @@
 # Experimental native local start, 2026-10-26
 
+RC3.18 adds the [NEO pickup correction](NEO-WORKSHOP-PICKUP.md) and
+[eligible warehouse distance selection](NEO-LOGISTICS-DISTANCE.md), with NEO5
+peer compatibility. Its release profile enables bounded `ResumeCatchup` and uses
+the same two-core limit as the verified NEO5 loopback reload. Those later reloads
+now completed normally; the older transfer investigation below records its
+earlier, narrower qualification. This does not establish separate-PC Internet
+or new Linux gameplay qualification for the NEO5 changes.
+
 Source update (2026-11-06): the native Map Forge template getter returned a
 pointer into a destroyed string. The guarded bridge copies the live session
 name before the original Lua-result constructor consumes it. Map Forge

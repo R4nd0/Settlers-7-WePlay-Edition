@@ -3,8 +3,8 @@
 Status, 2026-11-06: a native intermediate-warehouse candidate is implemented
 and has completed an isolated multiplayer comparison. One matched books shipment
 arrived 66 simulation turns earlier; another arrived within one turn of control.
-No distance override is installed in the active user session or included in a
-release. The candidate does not change the ready-stock source selector or the
+The correction is included in RC3.18. No distance override is installed in the
+already running user session. It does not change the ready-stock source selector or the
 detailed carrier movement path. A general productivity gain is not established.
 
 ## Requested policy

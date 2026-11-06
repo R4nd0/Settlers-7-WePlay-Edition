@@ -2,18 +2,26 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.17 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/Setup.exe)
+## [Download Windows Installer — RC3.18 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/WePlay-RC3.17-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.17/WePlay-RC3.17.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.17) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.18) · [Discord community](https://discord.gg/j2eQgVzssc)
 
-**RC3.17 adds native Linux tools and Windows/Linux multiplayer.** Actual tests
+**RC3.18 fixes stalled NEO workshop pickups and Internet-room readiness.**
+The blue weaving mill resumes wool collection and cloth production without a
+production toggle. Eligible intermediate warehouse handoffs prefer shorter total
+road distance; FIFO and explicit individual priorities remain effective. Internet
+rooms use a replacement relay and publish their invitation only after connection
+and coordinator checks pass. Create a new invitation after updating.
+[Release notes and test limits](docs/RC3.18-LOGISTICS-INTERNET.md).
+
+RC3.17 introduced native Linux tools and Windows/Linux multiplayer. Its tests
 covered both host roles, NEO on/off, cold multiplayer resume, solo saves/load,
 updating and moving the Linux copy. Six complete replay pairs contain
 **11,305 common native checksums, zero mismatches**. The user reported stability
@@ -54,8 +62,8 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install **RC3.17 on every participant's PC**, including Windows peers and
-   when NEO is off. The cross-platform content contract requires this release.
+4. Install **RC3.18 on every participant's PC**, including Windows peers and
+   when NEO is off. The current NEO5 compatibility contract rejects older peers, even with NEO off.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
 supported History Edition and enough disk space for the separate game copy.
@@ -108,7 +116,9 @@ With NEO enabled:
   ranking/drag controls are disabled.
 - Explicit **individual player and AI priorities remain effective** and are
   stored and restored with their task identities.
-- Production scheduling and pathfinding otherwise retain their native behavior.
+- Eligible intermediate warehouse handoffs prefer the shortest total usable road
+  distance. Stock-source selection retains its native behavior.
+- A production task with an unfinished input no longer blocks workshop pickup.
 
 With NEO off, ordinary native comparison and group controls are used. This is
 an experimental policy choice, **not a new measured delivery-speed guarantee**.

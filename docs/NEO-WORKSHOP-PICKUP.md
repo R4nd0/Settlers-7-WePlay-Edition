@@ -1,6 +1,6 @@
 # NEO workshop pickup deadlock — 2026-11-06
 
-Source-only correction; not yet packaged or installed in the running user game.
+Included in RC3.18; the already running user game is not modified.
 
 ## Reproduced failure
 

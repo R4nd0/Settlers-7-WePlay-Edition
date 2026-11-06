@@ -40,8 +40,8 @@ disconnected states, malformed connector replies, loss after connection,
 guest coordinator requirements, secret-free status queries and delayed
 invitation/UI readiness. The affected Windows Internet suites pass 47 tests.
 
-This is a source correction, not an update of existing release assets or the
-running installation. All participants need a package containing this change
+This correction is included in RC3.18. It does not change an already running
+installation. All participants need a package containing this change
 and a newly created invitation. Existing assisted invitations point to the
-retired server and are not silently redirected. Public release tags and assets
+retired server and are not silently redirected. Older release tags and assets
 remain unchanged.
