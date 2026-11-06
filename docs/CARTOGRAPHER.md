@@ -50,3 +50,9 @@ No monitor limit was relaxed for the editor test.
 
 The separate [memory-start correction](MEMORY-START.md) removes the unrelated
 4 GiB unused-physical-RAM startup quota; it does not provide the editor context.
+
+Source follow-up, 2026-11-06: the multiplayer checkpoint browser now retains a
+saved Map Forge template instead of rejecting every variant save. This does
+not change the earlier editor-context patch. See the separate
+[Grassland Mesa variant investigation](MULTIPLAYER-MAP-VARIANTS.md) for actual
+multiplayer runs, native checksum comparisons and remaining limits.

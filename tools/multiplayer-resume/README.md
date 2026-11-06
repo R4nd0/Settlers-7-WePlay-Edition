@@ -8,8 +8,13 @@ patch recipe. Do not copy a Lua file alone into an installed game.
 embeds it in the native save cache, and maintains a profile index bound to the
 slot's name, date, map and native map path. `session_list.lua` extends the
 existing session browser to select a checkpoint and restore that roster.
-Unknown saves and map-forge templates are rejected. The received-world slot 1000
-is never indexed; native autosave 1001 and manual slots 1002..1009 are supported.
+Unknown saves are rejected. Map Forge checkpoints retain the saved template
+name when loading setup data and creating the native resume lobby. This also
+requires the native template-name lifetime correction in newer source. The host's
+template must still exist under the saved map; an absent template is rejected
+before creating a lobby. The received-world slot 1000 is never indexed; native
+autosave 1001 and manual slots 1002..1009 are supported. See the
+[variant checks and their limits](../../docs/MULTIPLAYER-MAP-VARIANTS.md).
 
 The host autosave scheduler uses a separate 300000 ms game-time interval. Manual
 saving does not postpone it. Starting or destroying a world resets the timer;
@@ -25,6 +30,8 @@ Run `python -B tools/multiplayer-resume/test_runtime.py` with Lua 5.1 support
 available through `lupa.lua51`. The tests validate metadata and scheduler
 behavior against explicit API doubles; they do not establish native transport
 or synchronization correctness.
+`python -B tools/multiplayer-resume/test_session_list.py` also exercises the
+actual browser callback's variant validation and deferred resume path.
 
 `interface_patch.py` builds the UI archive from the exact known
 WePlay archive fingerprint. It verifies every archive member after replacement

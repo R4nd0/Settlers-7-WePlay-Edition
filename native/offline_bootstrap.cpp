@@ -598,6 +598,9 @@ const char* SmallStringData(const NativeSmallString& value) {
     return value.capacity < 16 ? value.inline_data :
         *reinterpret_cast<const char* const*>(value.inline_data);
 }
+#ifdef S7_LOCAL_NETWORK_PUMP
+#include "map_template_bridge.inc"
+#endif
 bool SameSearchSpace(const NativeSmallString& value, const char* text, size_t length) {
     if (value.length != length || value.capacity < value.length) return false;
     const char* data = SmallStringData(value);
@@ -1081,6 +1084,7 @@ const Patch ConnectPatches[] = {
 #endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     {0xED2468, {0xe8,0x63,0x7b,0xff,0xff}, reinterpret_cast<const void*>(&DeserializeResumeEvent)},
+    {0xED7B97, {0xe8,0xc4,0xa2,0xff,0xff}, reinterpret_cast<const void*>(&SnapshotLocalTemplateName)},
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
     {0xEDB2BF, {0xe8,0xdc,0x80,0x7b,0xff}, reinterpret_cast<const void*>(&ObserveLabResumeSerialization)},

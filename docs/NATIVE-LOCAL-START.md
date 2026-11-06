@@ -1,5 +1,12 @@
 # Experimental native local start, 2026-10-26
 
+Source update (2026-11-06): the native Map Forge template getter returned a
+pointer into a destroyed string. The guarded bridge copies the live session
+name before the original Lua-result constructor consumes it. Map Forge
+checkpoints also preserve their template in setup and resume-lobby creation. See the
+[variant investigation and runtime verification](MULTIPLAYER-MAP-VARIANTS.md).
+Published RC3.15b packages remain unchanged.
+
 Workshop resume correction (RC3.15b, 2026-11-05): the constructor
 left a constant AI rotation table uninitialized, and saved active searches
 skipped its normal setup. The guarded factory now initializes those seven

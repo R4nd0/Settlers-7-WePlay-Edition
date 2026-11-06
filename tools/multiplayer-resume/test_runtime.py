@@ -89,6 +89,14 @@ class ResumeRuntimeTests(unittest.TestCase):
         self.assertEqual(result.players[3].profile, 123456789)
         self.assertEqual(result.players[4].profile, 4294967295)
 
+    def test_variant_name_survives_native_cache_profile_index_and_module_reload(self):
+        self.context.G.Network.GetMapForgeTemplateName = self.lua.eval('function() return "Mesa +3" end')
+        self.saved()
+        self.assertEqual(self.runtime.lookup(1009).template, 'Mesa +3')
+        self.runtime = self.load()
+        self.assertEqual(self.runtime.lookup(1009).template, 'Mesa +3')
+        self.assertEqual(self.runtime.loadedRoster().template, 'Mesa +3')
+
     def test_bad_metadata_is_rejected_without_executing_lua(self):
         encoded = self.runtime.encode(self.runtime.captureLobby())
         bad = [encoded.replace("WPMPR1", "WPMPR2"), encoded + "\n",

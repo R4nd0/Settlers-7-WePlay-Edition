@@ -1,0 +1,149 @@
+{
+  "date": "2026-11-06",
+  "source_base": "24beb2e895b36653d8e37cf551bdd1aefd567218",
+  "map": "Grassland Mesa",
+  "template_name": "WePlay QA Max25",
+  "template_name_bytes": 15,
+  "players": {
+    "local_clients": 2,
+    "human_slots": 2,
+    "hard_ai": 2
+  },
+  "neo": false,
+  "loopback_only": true,
+  "victory_points": {
+    "added_sector_points": 9,
+    "total": 25,
+    "required": 25
+  },
+  "original_control": {
+    "native_session_name_correct_on_both": true,
+    "lua_name": null,
+    "host_required": 25,
+    "guest_required": 6,
+    "checksum_agreement_does_not_establish_equal_rules": true
+  },
+  "runs": [
+    {
+      "kind": "fresh",
+      "peers": {
+        "A": {
+          "start_turn": 0,
+          "end_turn": 3600,
+          "observed_required_points": 25,
+          "exit": 0
+        },
+        "B": {
+          "start_turn": 0,
+          "end_turn": 3600,
+          "observed_required_points": 25,
+          "exit": 0
+        }
+      },
+      "saved": {
+        "slot": 1002,
+        "turn": 3000,
+        "native_cache_contains_expected_template": true
+      },
+      "common_native_checksums": 600,
+      "mismatches": 0,
+      "replay_streams_complete": true,
+      "new_desync_saves": 0,
+      "normal_exits": true,
+      "source_copies_restored": true,
+      "memory_monitors_healthy": true,
+      "wall_seconds": 403.3
+    },
+    {
+      "kind": "cold_reload",
+      "peers": {
+        "A": {
+          "start_turn": 3000,
+          "end_turn": 6600,
+          "observed_required_points": 25,
+          "exit": 0
+        },
+        "B": {
+          "start_turn": 3000,
+          "end_turn": 6600,
+          "observed_required_points": 25,
+          "exit": 0
+        }
+      },
+      "saved": {
+        "slot": 1003,
+        "turn": 6000,
+        "native_cache_contains_expected_template": true
+      },
+      "common_native_checksums": 600,
+      "mismatches": 0,
+      "replay_streams_complete": true,
+      "new_desync_saves": 0,
+      "normal_exits": true,
+      "source_copies_restored": true,
+      "memory_monitors_healthy": true,
+      "wall_seconds": 518.4
+    }
+  ],
+  "python_lua_checks": 106,
+  "lua_compilation_checks": 38,
+  "native_builds": {
+    "native-neo": {
+      "adapter_sha256": "34a5a89736940730c7f83c7decd6ffbaeae0dc099baa22c8f06df2641f7ab03d",
+      "template_lifetime_abi_guard_checks": 238,
+      "passed_suites": [
+        "map_template_tests",
+        "bootstrap_patch_tests",
+        "steam_profile_tests",
+        "workshop_angles_tests",
+        "terrain_angle_tests",
+        "neo_logistics_tests",
+        "neo_fifo_policy_tests",
+        "neo_logistics_state_tests",
+        "lobby_team_tests",
+        "logistics_priority_tests"
+      ]
+    },
+    "native-neo-directory": {
+      "adapter_sha256": "38d42073a5a3f64f738d7aa4b27845709653038402ee9e0e78281eeb5f6ce8d4",
+      "template_lifetime_abi_guard_checks": 238,
+      "passed_suites": [
+        "map_template_tests",
+        "bootstrap_patch_tests",
+        "steam_profile_tests",
+        "workshop_angles_tests",
+        "terrain_angle_tests",
+        "neo_logistics_tests",
+        "neo_fifo_policy_tests",
+        "neo_logistics_state_tests",
+        "game_directory_bridge_tests",
+        "lobby_team_tests",
+        "logistics_priority_tests"
+      ]
+    },
+    "native-directory": {
+      "adapter_sha256": "3bf08d1f2519863745dce4d0b4a70e6a05a6900882b8200cfc53ca6687e3385f",
+      "template_lifetime_abi_guard_checks": 238,
+      "passed_suites": [
+        "map_template_tests",
+        "bootstrap_patch_tests",
+        "steam_profile_tests",
+        "workshop_angles_tests",
+        "terrain_angle_tests",
+        "neo_fifo_policy_tests",
+        "neo_logistics_state_tests",
+        "game_directory_bridge_tests",
+        "lobby_team_tests",
+        "logistics_priority_tests"
+      ]
+    }
+  },
+  "qualification_limits": [
+    "live Steam",
+    "separate PCs / Internet",
+    "extended sessions",
+    "populated human command scenarios",
+    "automatic template distribution / content verification"
+  ],
+  "published_packages_changed": false
+}

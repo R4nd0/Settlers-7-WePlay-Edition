@@ -19,20 +19,27 @@ local function loadSlot(slot)
         G.ui.messageBox("WePlay", "Für diesen Spielstand fehlt eine geprüfte Mehrspieler-Belegung.")
         return
     end
-    if record.template ~= "" then
-        G.ui.messageBox("WePlay", "Spielstände mit Karten-Vorlage werden noch nicht unterstützt.")
-        return
+    local template = record.template ~= "" and record.template or nil
+    if template then
+        local found = false
+        for _, name in _G.ipairs(G.MapForge.GetTemplateNames(record.map) or {}) do
+            if name == template then found = true; break end
+        end
+        if not found then
+            G.ui.messageBox("WePlay", "Die Karten-Vorlage dieses Spielstands fehlt. Bitte die ursprüngliche Vorlage wiederherstellen.")
+            return
+        end
     end
     local savePath = G.Game.GetSaveGameFileName(slot)
     if not savePath or savePath == "" then return end
-    G.map.loadSetupMapConfig(record.map)
+    G.map.loadSetupMapConfig(record.map, template)
     G.MapSetup.SetCoopMode(record.coop)
     G.Network.SetIsQuickMatch(false)
     G.Network.SetIsPrivate(false)
     local humans = 0
     for _, player in _G.ipairs(record.players) do if player.role == 1 then humans = humans + 1 end end
     local filter = State.sessionsFilterList.getSelectedItemData()
-    if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, "", false) then
+    if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, record.template, false) then
         G.ui.messageBox("WePlay", "Die Lobby konnte nicht erstellt werden.")
         return
     end

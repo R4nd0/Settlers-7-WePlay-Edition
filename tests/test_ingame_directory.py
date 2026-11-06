@@ -45,11 +45,14 @@ class InterfaceTests(unittest.TestCase):
         cls.module=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.module)
     def test_unknown_archive_is_rejected_before_parsing(self):
         with self.assertRaisesRegex(ValueError,'verified multiplayer interface'):self.module.build(b'unknown')
-    @unittest.skipUnless((ROOT/'work/shared-directory/lab-backup/B/Interface.bba').is_file() and LuaRuntime is not None,
+    @unittest.skipUnless((ROOT/'work/mp-resume-20261102/fixture-backup/B-Interface.bba').is_file() and LuaRuntime is not None,
                          'Private verified interface and Lua5.1 runtime required')
     def test_exact_interface_only_changes_browser_and_matches_package_pin(self):
         import build_package
-        fixture=ROOT/'work/shared-directory/lab-backup/B/Interface.bba';raw=fixture.read_bytes()
+        fixture=ROOT/'work/mp-resume-20261102/fixture-backup/B-Interface.bba';source=fixture.read_bytes()
+        # Build today's checkpoint stage from its pinned input. A retained
+        # output from an older checkpoint implementation is not today's input.
+        raw=self.module.module.build(source)
         result=self.module.build(raw)
         self.assertEqual(hashlib.sha256(result).hexdigest(),build_package.DIRECTORY_ARCHIVE_SHA256)
         before,after=self.module.Archive(raw),self.module.Archive(result)
@@ -60,7 +63,7 @@ class InterfaceTests(unittest.TestCase):
         self.assertNotIn('["ShowInviteOverlay"]()',host)
         self.assertNotIn('["InvitePlayerToSession"](',host)
         self.assertTrue(LuaRuntime().eval('function(s) local f,e=loadstring(s);assert(f,e);return true end')(after.read(self.module.MEMBER).decode('utf-8-sig')))
-        self.assertEqual(raw,fixture.read_bytes())
+        self.assertEqual(source,fixture.read_bytes())
 
 @unittest.skipIf(LuaRuntime is None,'Optional private Lua5.1 test runtime')
 class LuaTests(unittest.TestCase):

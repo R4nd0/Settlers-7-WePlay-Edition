@@ -11,8 +11,8 @@ from bba import Archive
 spec = importlib.util.spec_from_file_location('weplay_neo_decoder', HERE.parent / 'multiplayer-resume/interface_patch.py')
 decoder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(decoder)
-SOURCE = '2bf000583d8883f1cae595901adef59b37b15f514b498fe794d0331821879cb4'
-SOURCE_BASE='be910c1ddad7a2857665869f04503f0f2c891bd5d071ea633a9f49c719e717d6'
+SOURCE = '6541f49185b0e37835fd1187378d09a001015046e5b667e7921bc7ae282a0223'
+SOURCE_BASE='1e76e018d79aa39712f142d1f8996a58b1a0b73f438ee709428e5db82609ade3'
 
 def build(raw):
     if hashlib.sha256(raw).hexdigest() not in (SOURCE,SOURCE_BASE):

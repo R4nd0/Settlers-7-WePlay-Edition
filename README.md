@@ -128,7 +128,10 @@ humans join in their original slots and select **Ready**. The host waits for
 
 Keep the host profile, save folder and save-file timestamps together. A lone
 `.s7s` copied into another profile is not a supported migration. Older saves
-without WePlay multiplayer metadata and Map Forge templates are unsupported.
+without WePlay multiplayer metadata are unsupported. The RC3.15b downloads
+reject Map Forge template saves. **Newer source** fixes a native template-name
+lifetime error and supports loading those saves with their original local template; see the
+[variant investigation and verification](docs/MULTIPLAYER-MAP-VARIANTS.md).
 Missing or inconsistent enabled NEO state is rejected rather than replaced
 with an empty priority list. Keep a backup before using an older checkpoint.
 
