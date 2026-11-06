@@ -33,6 +33,12 @@ are otherwise unchanged in the published candidate. The subsequent
 selection among native eligible intermediate warehouses while retaining this
 request ordering. It is source-only and has not been released.
 
+The subsequent [workshop pickup correction](NEO-WORKSHOP-PICKUP.md) repairs a
+reproduced blue weaving-mill deadlock: a production task with an unfinished input
+can no longer veto collection of that input. It retains FIFO and individual
+priorities. This source-only revision uses lobby capability NEO5; all peers must
+use the same revision. The published RC3.15b does not contain these later fixes.
+
 The native adapter retains the next-map selection across recreation of the local
 Lua state. Selecting an option does not change the running world's transport
 policy. Activation requires the guarded fresh native world, at turn 0 or 1.

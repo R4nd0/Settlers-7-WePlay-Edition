@@ -123,6 +123,9 @@ int main() {
         TestStream compatible{{NeoWireVersion},0,false};VisitNeoWire(&compatible,false);check(compatible.result==1);
         TestStream previous{{0x324f454e},0,false};VisitNeoWire(&previous,false);check(previous.result<0);
         TestStream fifoOnly{{0x334f454e},0,false};VisitNeoWire(&fifoOnly,false);check(fifoOnly.result<0);
+        TestStream oldPickup{{0x344f454e},0,false};VisitNeoWire(&oldPickup,false);check(oldPickup.result<0);
+        TestStream oldPickupLobby{{0x344f454e,1,0},0,false};VisitNeoWire(&oldPickupLobby,true);
+        check(oldPickupLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
         TestStream oldLobby{{0x334f454e,1,0},0,false};VisitNeoWire(&oldLobby,true);
         check(oldLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
         neo_wire_received=1;check(ConstructNeoJoin(message,nullptr)==message && neo_wire_received==2);
@@ -168,6 +171,9 @@ int main() {
         memcpy(Native<void*>(0x782ee0),task_bytes[steam?1:0],10);
         memcpy(Native<void*>(0x782280),steam?NeoMapGroupSteamGuard:NeoMapGroupUbiGuard,10);
         memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
+        memcpy(Native<void*>(0x79dd10),NeoWorkshopAdmissionGuard,sizeof(NeoWorkshopAdmissionGuard));
+        memcpy(Native<void*>(0x79d6e0),steam_history?NeoWorkshopSelectorSteamGuard:NeoWorkshopSelectorUbiGuard,sizeof(NeoWorkshopSelectorUbiGuard));
+        memcpy(reinterpret_cast<void*>(NativeVA(0x7e3fa8)+5),NeoWorkshopPickupGuard,sizeof(NeoWorkshopPickupGuard));
         memcpy(Native<void*>(0x787bb0),steam?NeoDistanceQuerySteamGuard:NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard));
         memcpy(Native<void*>(0x6f6c20),steam?NeoDistanceProfileSteamGuard:NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard));
         memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
@@ -183,6 +189,13 @@ int main() {
         }
         for(size_t i=0;i<sizeof(NeoDistanceProfileUbiGuard);++i) {
             auto* byte=Native<unsigned char*>(0x6f6c20)+i;*byte^=1;
+            check(!InitializeNeoMapPatches());*byte^=1;
+        }
+        check(InitializeNeoMapPatches());
+        const uintptr_t workshopGuards[]={NativeVA(0x79dd10),NativeVA(0x79d6e0),NativeVA(0x7e3fa8)+5};
+        const size_t workshopSizes[]={sizeof(NeoWorkshopAdmissionGuard),sizeof(NeoWorkshopSelectorUbiGuard),sizeof(NeoWorkshopPickupGuard)};
+        for(unsigned g=0;g<3;++g)for(size_t i=0;i<workshopSizes[g];++i) {
+            auto* byte=reinterpret_cast<unsigned char*>(workshopGuards[g]+i);*byte^=1;
             check(!InitializeNeoMapPatches());*byte^=1;
         }
         check(InitializeNeoMapPatches());

@@ -234,6 +234,7 @@ bool __cdecl AcceptLabLocalInterface(const void* address, const char** reason) {
 #include "neo_logistics_wire.inc"
 #include "neo_logistics_bridge.inc"
 #include "neo_distance_bridge.inc"
+#include "neo_workshop_bridge.inc"
 #endif
 
 #ifdef S7_GAME_DIRECTORY

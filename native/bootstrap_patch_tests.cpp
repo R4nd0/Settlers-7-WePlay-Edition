@@ -1123,6 +1123,9 @@ int main() {
     memcpy(Native<void*>(0x782280),NeoMapGroupUbiGuard,sizeof(NeoMapGroupUbiGuard));
     memcpy(reinterpret_cast<void*>(NativeVA(0x78f380)+5),NeoMapTailGuard,sizeof(NeoMapTailGuard));
     memcpy(Native<void*>(0x53f160),NeoMapClockGuard,sizeof(NeoMapClockGuard));
+    memcpy(Native<void*>(0x79dd10),NeoWorkshopAdmissionGuard,sizeof(NeoWorkshopAdmissionGuard));
+    memcpy(Native<void*>(0x79d6e0),steam_history?NeoWorkshopSelectorSteamGuard:NeoWorkshopSelectorUbiGuard,sizeof(NeoWorkshopSelectorUbiGuard));
+    memcpy(reinterpret_cast<void*>(NativeVA(0x7e3fa8)+5),NeoWorkshopPickupGuard,sizeof(NeoWorkshopPickupGuard));
     memcpy(Native<void*>(0x787bb0),NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard));
     memcpy(Native<void*>(0x6f6c20),NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard));
     memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
@@ -1144,6 +1147,7 @@ int main() {
         if((byte>=Native<unsigned char*>(0x782ee0) && byte<Native<unsigned char*>(0x782ee0)+sizeof(NeoMapTaskUbiGuard))
             || (byte>=Native<unsigned char*>(0x782280) && byte<Native<unsigned char*>(0x782280)+sizeof(NeoMapGroupUbiGuard))
             || (byte>=Native<unsigned char*>(0x78f380)+5 && byte<Native<unsigned char*>(0x78f380)+5+sizeof(NeoMapTailGuard))
+            || (byte>=Native<unsigned char*>(0x7e3fa8)+5 && byte<Native<unsigned char*>(0x7e3fa8)+5+sizeof(NeoWorkshopPickupGuard))
             || (byte>=Native<unsigned char*>(0x79ed92)+5 && byte<Native<unsigned char*>(0x79ed92)+5+sizeof(NeoDistanceTailGuard)))return true;
 #endif
         for (const auto* candidate : selected) {
