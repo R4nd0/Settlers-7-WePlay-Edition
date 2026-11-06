@@ -33,7 +33,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     for name in ('dotnet.exe','LICENSE.txt','ThirdPartyNotices.txt'):shutil.copyfile(dotnet/name,runtime/name)
     for relative in ('host/fxr/'+version,'shared/Microsoft.NETCore.App/'+version,'shared/Microsoft.WindowsDesktop.App/'+version):
         shutil.copytree(dotnet/relative,runtime/relative)
-    old=content.plain(base_package or REPO/'outputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
+    old=content.plain(base_package or REPO/'work/release-inputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
     # The base supplies previously verified runtime/server inputs, not the new
     # feature contract. Its historical adapter may have a different valid pin.
     previous=json.loads((old/'package.json').read_text(encoding='utf-8'))
