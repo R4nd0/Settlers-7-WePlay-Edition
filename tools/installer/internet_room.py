@@ -14,7 +14,9 @@ from urllib.parse import urlsplit
 from lobby_directory import private_address
 
 PREFIX = 'weplay1.'
-PUBLIC_BOOTSTRAP = 'tcp://public.easytier.cn:11010'
+# EasyTier's maintained etcat relay registry, verified with our pinned core:
+# https://github.com/EasyTier/etcat/blob/main/relays.toml
+PUBLIC_BOOTSTRAP = 'tcp://38.76.179.190:11010'
 
 
 class InternetError(ValueError):
@@ -32,8 +34,8 @@ def endpoint(value):
                 u.username is not None or u.password is not None or
                 u.path or u.query or u.fragment):
             raise ValueError()
-        # Direct invites use numeric endpoints. Only the pinned public bootstrap
-        # hostname is accepted; arbitrary URLs, DNS aliases and credentials aren't.
+        # Direct invites use numeric endpoints. Arbitrary URLs, DNS aliases and
+        # credentials aren't accepted.
         if value != PUBLIC_BOOTSTRAP:
             address = ipaddress.ip_address(u.hostname)
             if address.is_unspecified or address.is_multicast or address.is_loopback or address.is_link_local:

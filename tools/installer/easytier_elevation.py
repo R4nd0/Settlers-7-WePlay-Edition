@@ -198,7 +198,7 @@ class ElevatedEasyTier:
                 self.checkpoint()
                 try:
                     interface, _ = self.snapshot()
-                    if self.progress: self.progress('internet_ready')
+                    if self.progress: self.progress('internet_connected')
                     return interface
                 except FileNotFoundError:
                     pass

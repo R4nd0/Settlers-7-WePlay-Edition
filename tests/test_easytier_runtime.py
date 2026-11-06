@@ -11,7 +11,8 @@ from unittest.mock import Mock, patch
 
 sys.path[:0] = [str(Path(__file__).resolve().parents[1] / 'tools/installer')]
 import easytier_runtime as runtime
-from internet_room import Room, InternetError
+from internet_room import Room, InternetError, PUBLIC_BOOTSTRAP
+from lobby_directory import LanInterface
 
 ROOM = Room('a' * 32, 'b' * 64, '10.203.77.0/24')
 
@@ -21,6 +22,64 @@ def row(ip, cost='p2p', name='Guest'):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_connector_requires_exact_bootstrap_and_established_handshake(self):
+        def connector(status=0, url=PUBLIC_BOOTSTRAP):
+            return dict(url=dict(url=url), status=status)
+        for status in (1, 2):
+            self.assertFalse(runtime.bootstrap_connected(json.dumps([connector(status)]).encode(), ROOM))
+        self.assertFalse(runtime.bootstrap_connected(b'[]', ROOM))
+        self.assertTrue(runtime.bootstrap_connected(json.dumps([connector()]).encode(), ROOM))
+        for rows in ([connector(True)], [connector(0.0)], [connector(3)],
+                     [connector(url='tcp://1.2.3.4:11010')],
+                     [connector(), connector()], [dict(url={}, status=0)], [None]):
+            with self.subTest(rows=rows), self.assertRaises(InternetError):
+                runtime.bootstrap_connected(json.dumps(rows).encode(), ROOM)
+        for raw in (b'x' * 131073, b'{}', b'null', b'not json'):
+            with self.assertRaises(InternetError): runtime.bootstrap_connected(raw, ROOM)
+
+    def test_host_local_adapter_alone_cannot_publish_readiness(self):
+        interface=LanInterface(ROOM.coordinator,24,'WePlay-test')
+        progress=Mock()
+        overlay=runtime.EasyTier(Path('.'),ROOM,host=True,interfaces=lambda:[interface],progress=progress)
+        overlay.device_name=interface.name
+        overlay.child=Mock();overlay.child.poll.return_value=None
+        peers=json.dumps([row(ROOM.coordinator,'Local',interface.name)]).encode()
+        states=iter((1,2,0,1))
+        def query(*command):
+            if command==('peer',):return peers
+            self.assertEqual(command,('connector','list'))
+            return json.dumps([dict(url=dict(url=PUBLIC_BOOTSTRAP),status=next(states))]).encode()
+        overlay.query=query
+        with patch.object(runtime.time,'sleep'):
+            self.assertEqual(overlay.wait_ready(),interface)
+        # A handshake establishes the tunnel; only the launcher can mark the
+        # room ready after its coordinator/membership checks.
+        self.assertEqual(progress.call_args_list,[unittest.mock.call('internet_connect')]*3+
+                         [unittest.mock.call('internet_connected')])
+        with self.assertRaises(InternetError) as error:overlay.snapshot()
+        self.assertEqual(error.exception.code,'internet_relay_unavailable')
+
+    def test_unreachable_host_relay_times_out_without_a_ready_event(self):
+        progress=Mock();overlay=runtime.EasyTier(Path('.'),ROOM,host=True,progress=progress)
+        overlay.snapshot=Mock(side_effect=InternetError('internet_relay_unavailable'))
+        with patch.object(runtime.time,'monotonic',side_effect=[0,0,.5,1.1]),patch.object(runtime.time,'sleep'):
+            with self.assertRaises(InternetError) as error:overlay.wait_ready(timeout=1)
+        self.assertEqual(error.exception.code,'internet_relay_unavailable')
+        self.assertNotIn(unittest.mock.call('internet_ready'),progress.call_args_list)
+
+    def test_guest_still_requires_room_coordinator_not_only_relay(self):
+        overlay=runtime.EasyTier(Path('.'),ROOM,host=False)
+        interface=LanInterface(overlay.address,24,overlay.device_name)
+        overlay.snapshot=Mock(side_effect=[(interface,{}),(interface,{ROOM.coordinator:'relay'})])
+        with patch.object(runtime.time,'sleep'):
+            self.assertEqual(overlay.wait_ready(),interface)
+        self.assertEqual(overlay.snapshot.call_count,2)
+
+    def test_status_query_cannot_request_secret_bearing_commands(self):
+        overlay=runtime.EasyTier(Path('.'),ROOM,host=True)
+        for command in (('node',),('config',),('connector','add')):
+            with self.assertRaises(InternetError):overlay.query(*command)
+
     def test_room_policy_denies_other_services_ipv6_and_forwarding(self):
         for address in (ROOM.coordinator,'10.203.77.2'):
             config=tomllib.loads(runtime.configuration(ROOM,address,'id','WePlay-id'))

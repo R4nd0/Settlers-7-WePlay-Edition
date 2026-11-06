@@ -41,6 +41,7 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(interfaces, [self.host_interface])
             self.assertEqual(directory.interfaces, (self.host_interface,))
             self.assertEqual(picker(None, directory, interfaces, None)['action'], 'create')
+            event.assert_not_called()
             args.before_game()
             return 0
         with patch.object(launch, 'create', return_value=ROOM), \
@@ -50,6 +51,30 @@ class LaunchTests(unittest.TestCase):
         event.assert_called_once_with(ROOM.token())
         self.overlay.close.assert_called_once()
         self.assertTrue(self.factory.call_args.kwargs['host'])
+
+    def test_coordinator_failure_does_not_expose_invitation_or_ready(self):
+        event=Mock();progress=self.args.progress=Mock()
+        def run(args,*,picker,network):
+            network();event.assert_not_called()
+            raise OSError('coordinator unreachable')
+        with patch.object(launch,'create',return_value=ROOM), \
+                patch.object(launch.launch_auto_lan,'run',side_effect=run):
+            with self.assertRaises(OSError):
+                launch.run(self.args,invitation_ready=event,overlay_factory=self.factory)
+        event.assert_not_called();progress.assert_not_called()
+        self.overlay.close.assert_called_once()
+
+    def test_before_game_failure_does_not_report_ready_or_expose_invitation(self):
+        event=Mock();progress=self.args.progress=Mock()
+        self.args.before_game=Mock(side_effect=OSError('preflight failed'))
+        def run(args,*,picker,network):
+            network();args.before_game()
+        with patch.object(launch,'create',return_value=ROOM), \
+                patch.object(launch.launch_auto_lan,'run',side_effect=run):
+            with self.assertRaises(OSError):
+                launch.run(self.args,invitation_ready=event,overlay_factory=self.factory)
+        event.assert_not_called();progress.assert_not_called()
+        self.overlay.close.assert_called_once()
 
     def test_guest_cannot_elect_or_create_a_physical_lan_coordinator(self):
         self.args.invitation = ROOM.token()

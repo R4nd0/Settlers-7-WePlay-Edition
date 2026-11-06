@@ -57,7 +57,7 @@ class ElevatedEasyTier:
                 if value is not None:
                     if value.get('phase') == 'error': raise InternetError('internet_connect_failed')
                     interface, _ = self.snapshot()
-                    if self.progress: self.progress('internet_ready')
+                    if self.progress: self.progress('internet_connected')
                     return interface
                 if self.child.poll() is not None: raise InternetError('internet_elevation_cancelled')
                 time.sleep(.1)

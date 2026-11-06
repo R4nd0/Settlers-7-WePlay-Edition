@@ -34,7 +34,7 @@ class InvitationTests(unittest.TestCase):
         payloads = [raw.replace(b'"v":1', b'"v":1,"v":1'),
                     raw.replace(b'"v":1', b'"v":true'),
                     raw.replace(b'"v":1', b'"v":2'),
-                    raw.replace(b'public.easytier.cn', b'other.example')]
+                    raw.replace(rooms.PUBLIC_BOOTSTRAP.encode(), b'tcp://other.example:11010')]
         for data in payloads:
             token = rooms.PREFIX + base64.urlsafe_b64encode(data).decode().rstrip('=')
             with self.assertRaises(rooms.InternetError): rooms.parse(token)

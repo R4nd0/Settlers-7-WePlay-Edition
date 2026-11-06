@@ -81,6 +81,11 @@ optionale Spieleanzeige zusätzlich verknüpft und eingeschaltet sein.
 Verbindungsaufbau und können nötigenfalls Daten weiterleiten. Du brauchst keinen
 eigenen Server. Ein solcher Knoten ist keine öffentliche S7-Lobby.
 
+Im nächsten Quellstand wird „Internetraum bereit“ erst nach bestätigter
+Vermittlungsverbindung und erfolgreicher Lobbyprüfung angezeigt. Die
+[Korrektur des Vermittlungsservers und ihr Prüfstand](INTERNET-READINESS.md)
+ist noch nicht in den bestehenden RC3.16-Downloads enthalten.
+
 **Direkt über eigene erreichbare Adresse** ist für selbst eingerichtete
 Verbindungen. Der Ersteller braucht eine von außen erreichbare numerische Adresse.
 Dieser Modus verzichtet auf öffentliche Vermittlung und Weiterleitung; manche

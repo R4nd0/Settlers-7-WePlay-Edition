@@ -177,6 +177,33 @@ def peer_snapshot(raw, room, device_name):
         raise InternetError('internet_status_invalid') from None
 
 
+def bootstrap_connected(raw, room):
+    """Pinned 2.6.4 ConnectorStatus: CONNECTED=0, DISCONNECTED=1, CONNECTING=2.
+
+    A local adapter, a DNS answer or a TCP listener does not establish an
+    EasyTier handshake. Only our configured connector's live state counts.
+    """
+    if not isinstance(raw, bytes) or len(raw) > 131072:
+        raise InternetError('internet_status_invalid')
+    try:
+        rows = json.loads(raw)
+        if not isinstance(rows, list) or len(rows) > 256:
+            raise ValueError()
+        seen = set()
+        connected = False
+        for row in rows:
+            url = row['url']['url']
+            status = row['status']
+            if (url not in room.bootstrap or url in seen or
+                    type(status) is not int or status not in (0, 1, 2)):
+                raise ValueError()
+            seen.add(url)
+            connected |= status == 0
+        return connected
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        raise InternetError('internet_status_invalid') from None
+
+
 class EasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None,
                  job_factory=ServiceJob, interfaces=enumerate_interfaces, private_parent=None):
@@ -226,25 +253,34 @@ class EasyTier:
             self.close()
             raise
 
-    def snapshot(self):
-        if self.child is None or self.child.poll() is not None:
-            raise InternetError('internet_disconnected')
-        # Do not query `node` or `config`: those contain the room secret.
+    def query(self, *command):
+        # Only these two status commands are allowed. In particular, never read
+        # `node` or `config`: they can contain the room secret.
+        if command not in (('peer',), ('connector', 'list')):
+            raise InternetError('internet_status_invalid')
         with tempfile.TemporaryFile(dir=self.private) as output:
             result = subprocess.run([str(self.runtime / ('easytier-cli.exe' if os.name == 'nt' else 'easytier-cli')), '-p', self.portal,
-                '-i', self.instance_id, '-o', 'json', 'peer'], cwd=self.private,
+                '-i', self.instance_id, '-o', 'json', *command], cwd=self.private,
                 env=clean_environment(), stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL,
                 timeout=5 if os.name == 'posix' else 3,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if result.returncode or output.tell() > 131072:
                 raise InternetError('internet_status_invalid')
             output.seek(0)
-            address, peers = peer_snapshot(output.read(131073), self.room, self.device_name)
+            return output.read(131073)
+
+    def snapshot(self):
+        if self.child is None or self.child.poll() is not None:
+            raise InternetError('internet_disconnected')
+        address, peers = peer_snapshot(self.query('peer'), self.room, self.device_name)
         if address != self.address:
             raise InternetError('internet_address_conflict')
         if self.room.mode == 'direct' and any(cost != 'p2p' for cost in peers.values()):
             raise InternetError('internet_direct_unavailable')
         interface = select_interface(self.room, address, self.device_name, self.interfaces())
+        if self.host and self.room.mode == 'assisted':
+            if not bootstrap_connected(self.query('connector', 'list'), self.room):
+                raise InternetError('internet_relay_unavailable')
         return interface, peers
 
     def wait_ready(self, timeout=45):
@@ -254,13 +290,15 @@ class EasyTier:
             try:
                 interface, peers = self.snapshot()
                 if self.host or self.room.coordinator in peers:
-                    self.checkpoint('internet_ready')
+                    self.checkpoint('internet_connected')
                     return interface
             except (InternetError, OSError, subprocess.TimeoutExpired) as error:
                 if isinstance(error, InternetError) and error.code in ('internet_disconnected', 'internet_address_conflict'):
                     raise
             time.sleep(.2)
-        raise InternetError('internet_direct_unavailable' if self.room.mode == 'direct' else 'internet_connect_timeout') from None
+        code = ('internet_direct_unavailable' if self.room.mode == 'direct' else
+                'internet_relay_unavailable' if self.host else 'internet_connect_timeout')
+        raise InternetError(code) from None
 
     def close(self):
         had_child=self.child is not None

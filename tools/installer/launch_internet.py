@@ -50,8 +50,6 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             interface = overlay.start()
             if network_ready:
                 network_ready(interface, room.coordinator, host)
-            if host and invitation_ready:
-                invitation_ready(room.token())
         return [interface], LanDiscovery([interface])
 
     def select(_root, _directory, interfaces, _expected):
@@ -68,6 +66,13 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             raise InternetError('internet_disconnected')
         if before:
             before()
+        # launch_auto_lan has now reached the real coordinator, joined its
+        # membership and validated its content/configuration. An overlay alone
+        # must not expose an invitation or report a usable room.
+        if progress:
+            progress('internet_ready')
+        if host and invitation_ready:
+            invitation_ready(room.token())
 
     options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game)
     try:

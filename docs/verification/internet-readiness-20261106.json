@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-06",
+  "scope": "Internet relay rendezvous and launcher readiness source correction",
+  "old_bootstrap": "tcp://public.easytier.cn:11010",
+  "observed_old_bootstrap_dns": "NXDOMAIN",
+  "replacement_bootstrap": "tcp://38.76.179.190:11010",
+  "registry": "https://github.com/EasyTier/etcat/blob/main/relays.toml",
+  "runtime": "2.6.4-weplay-npcap-free-acl1",
+  "live_probe": {
+    "isolated_clients": 2,
+    "no_tun": true,
+    "hole_punching_disabled": true,
+    "both_configured_connector_handshakes_established": true,
+    "both_clients_observed_remote_virtual_peer": true,
+    "both_remote_peer_costs": "relay(2)",
+    "production_query_and_wait_ready_exercised": true,
+    "interface_enumeration_in_probe": "synthetic; no system adapter was created",
+    "owned_probe_processes_closed": true
+  },
+  "regressions": {
+    "windows_internet_tests_passed": 47,
+    "de_en_translation_keys_match": true,
+    "translation_key_count": 386
+  },
+  "limitations": [
+    "No separate-PC Internet S7 match in this verification",
+    "No TUN data-plane or Windows firewall integration test in this probe",
+    "No change to the installation used by the concurrent LAN session",
+    "Existing public release assets have not been updated",
+    "Community relay availability is not guaranteed"
+  ]
+}
