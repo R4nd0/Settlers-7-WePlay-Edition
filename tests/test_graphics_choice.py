@@ -80,29 +80,36 @@ class GraphicsChoiceTests(unittest.TestCase):
     def test_visual_options_are_independent_child_only_and_keep_game_content(self):
         self.install()
         before = content.verify(self.root)
-        parent = {'s7_extended_detail': '1', 'S7_DETAILED_SHADOWS': '1', 'PATH': 'fixture'}
+        parent = {'s7_extended_detail': '1', 'S7_DETAILED_SHADOWS': '1',
+                  's7_extended_shadow_range': '1', 'PATH': 'fixture'}
         with patch.object(choice, 'VISUAL_ADAPTER_SHA256', content.digest(self.root / graphics.LOADER)):
-            for detail, shadows in ((False, False), (True, False), (False, True), (True, True)):
+            from itertools import product
+            for detail, shadows, shadow_range in product((False, True), repeat=3):
                 selected = {'format': choice.FORMAT, 'choice': None,
-                            'extended_detail': detail, 'detailed_shadows': shadows}
+                            'extended_detail': detail, 'detailed_shadows': shadows,
+                            'extended_shadow_range': shadow_range}
                 choice.save_choice(self.root, selected)
                 environment = choice.saved_launch_environment(self.root, parent)
                 self.assertEqual(environment.get('S7_EXTENDED_DETAIL'), '1' if detail else None)
                 self.assertEqual(environment.get('S7_DETAILED_SHADOWS'), '1' if shadows else None)
+                self.assertEqual(environment.get('S7_EXTENDED_SHADOW_RANGE'), '1' if shadow_range else None)
                 self.assertNotIn('s7_extended_detail', environment)
+                self.assertNotIn('s7_extended_shadow_range', environment)
                 self.assertEqual('samplerLodBias = -1.0' in environment['DXVK_CONFIG'], detail)
                 self.assertIn(graphics.SHADER_COMPATIBILITY, environment['DXVK_CONFIG'])
                 self.assertEqual(content.verify(self.root), before)
                 self.assertEqual(self.saved(), selected)
-        self.assertEqual(parent, {'s7_extended_detail': '1', 'S7_DETAILED_SHADOWS': '1', 'PATH': 'fixture'})
+        self.assertEqual(parent, {'s7_extended_detail': '1', 'S7_DETAILED_SHADOWS': '1',
+                                  's7_extended_shadow_range': '1', 'PATH': 'fixture'})
 
     def test_legacy_visual_choices_cannot_be_enabled_by_inherited_environment(self):
         self.assertEqual(choice.saved_launch_environment(self.root, {
-            's7_extended_detail': '1', 's7_detailed_shadows': '1', 'PATH': 'fixture'}), {'PATH': 'fixture'})
+            's7_extended_detail': '1', 's7_detailed_shadows': '1',
+            's7_extended_shadow_range': '1', 'PATH': 'fixture'}), {'PATH': 'fixture'})
 
     def test_visual_options_need_capable_adapter_and_strict_booleans(self):
         before = self.snapshot()
-        for field in ('extended_detail', 'detailed_shadows'):
+        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range'):
             record = {'format': choice.FORMAT, 'choice': None, field: True}
             with self.assertRaises(ValueError):
                 choice.save_choice(self.root, record)
@@ -117,9 +124,11 @@ class GraphicsChoiceTests(unittest.TestCase):
     def test_native_visual_choices_do_not_claim_dxvk_texture_override(self):
         with patch.object(choice, 'VISUAL_ADAPTER_SHA256', content.digest(self.root / graphics.LOADER)):
             choice.save_choice(self.root, {'format': choice.FORMAT, 'choice': None,
-                                          'extended_detail': True, 'detailed_shadows': True})
+                                          'extended_detail': True, 'detailed_shadows': True,
+                                          'extended_shadow_range': True})
             self.assertEqual(choice.saved_launch_environment(self.root, {}),
-                             {'S7_EXTENDED_DETAIL': '1', 'S7_DETAILED_SHADOWS': '1'})
+                             {'S7_EXTENDED_DETAIL': '1', 'S7_DETAILED_SHADOWS': '1',
+                              'S7_EXTENDED_SHADOW_RANGE': '1'})
 
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()
@@ -432,7 +441,7 @@ $output = @{
     record = ConvertTo-ChoiceJson 'Other Vendor'
     simpleMenu = ConvertTo-ChoiceJson $null $true
     filtering = ConvertTo-ChoiceJson $null $false $null $true
-    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true
+    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true $true
     invalidFilteringRejected = $invalidFilteringRejected
     displayRecord = ConvertTo-ChoiceJson $null $true @{device='\\.\DISPLAY1';width=1280;height=720;mode='windowed'}
     badDisplayBoolean = Test-DisplayChoice @{device='\\.\DISPLAY1';width=$true;height=720;mode='windowed'}
@@ -460,6 +469,7 @@ $output | ConvertTo-Json -Compress
         self.assertIs(json.loads(value['filtering'])['anisotropic_filtering'], True)
         self.assertIs(json.loads(value['visual'])['extended_detail'], True)
         self.assertIs(json.loads(value['visual'])['detailed_shadows'], True)
+        self.assertIs(json.loads(value['visual'])['extended_shadow_range'], True)
         self.assertTrue(value['invalidFilteringRejected'])
         self.assertEqual(json.loads(value['displayRecord'])['display'],
                          {'device':r'\\.\DISPLAY1','width':1280,'height':720,'mode':'windowed'})

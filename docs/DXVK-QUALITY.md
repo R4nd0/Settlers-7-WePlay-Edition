@@ -1,7 +1,8 @@
 # DXVK image quality, 2026-10-30
 
 2026-11-07: the separate, unreleased [LOD and dynamic-shadow options](GRAPHICS-LOD-SHADOWS.md)
-add optional negative mip bias, longer model detail and higher-resolution shadows.
+add optional negative mip bias, longer settler/tree detail and visibility,
+higher-resolution shadows and extended shadow range.
 The preset results below describe the earlier milestone; its defaults remain.
 
 The optional **Clear landscape / Klare Landschaft** preset removes the game's

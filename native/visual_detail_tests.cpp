@@ -13,6 +13,7 @@ int main() {
     image_base = reinterpret_cast<uintptr_t>(memory);
     SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", nullptr);
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", nullptr);
+    SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", nullptr);
     std::vector<const Patch*> selected;
     check(AppendVisualPatches(selected) && selected.empty());
     for (const wchar_t* invalid : {L"", L"true", L"2", L"01", L" 1"}) {
@@ -55,8 +56,38 @@ int main() {
     SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", L"0");
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", L"0");
     selected.clear(); check(AppendVisualPatches(selected) && selected.empty());
+    SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", L"1");
+    for (bool steam : {false,true}) {
+        steam_history=steam;
+        const unsigned char span[]={0xf3,0x0f,0x59,0x05}, ratio[]={0xf3,0x0f,0x10,0x05};
+        const unsigned char end[]={0xc7,0x87,0x2c,0x15,0x00,0x00}, far_end[]={0xc7,0x87,0x30,0x15,0x00,0x00};
+        memcpy(PatchAddress(ShadowRangePatches[0])-4,span,4);
+        memcpy(PatchAddress(ShadowRangePatches[1])-4,ratio,4);
+        memcpy(PatchAddress(ShadowRangePatches[2])-6,end,6);
+        memcpy(PatchAddress(ShadowRangePatches[3])-6,far_end,6);
+        for (const auto& patch:ShadowRangePatches) {
+            if (patch.pointer_slot) {uint32_t value=OriginalPointer(patch);memcpy(PatchAddress(patch),&value,4);}
+            else memcpy(PatchAddress(patch),OriginalBytes(patch),4);
+        }
+        selected.clear();check(AppendVisualPatches(selected)&&selected.size()==4);
+        for (const auto* patch:selected) {
+            check(WritePatch(*patch,false));
+            if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==reinterpret_cast<uintptr_t>(patch->replacement));
+            else check(!memcmp(PatchAddress(*patch),patch->replacement,4));
+            check(WritePatch(*patch,true));
+            if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==OriginalPointer(*patch));
+            else check(!memcmp(PatchAddress(*patch),OriginalBytes(*patch),4));
+        }
+        PatchAddress(ShadowRangePatches[2])[-3]=0x14;
+        selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
+    }
+    for (const wchar_t* invalid:{L"",L"true",L"2",L"01"}) {
+        SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",invalid);
+        selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
+    }
     SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", nullptr);
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", nullptr);
+    SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", nullptr);
     VirtualFree(memory, 0, MEM_RELEASE);
     std::printf("%d visual-detail checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

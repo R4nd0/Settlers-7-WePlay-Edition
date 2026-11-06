@@ -1,34 +1,39 @@
-# Longer detail retention and dynamic shadow resolution
+# Longer settler/tree visibility and dynamic shadows
 
 Unreleased source change, verified locally on 2026-11-07. The published RC3.18
 downloads have not been replaced. The active user game was not modified.
 
-The launcher has two independent, optional settings under Graphics:
+The launcher has three independent, optional settings under Graphics:
 
 - **Keep high detail longer when zooming out** extends model LOD distances by
-  approximately 50%, including SpeedTree. Modern graphics additionally applies
+  approximately 50%, including settlers and SpeedTree. It also extends the
+  distance-based model culling limit. Modern graphics additionally applies
   DXVK's fixed `samplerLodBias = -1.0` and `clampNegativeLodBias = False`.
 - **Higher-resolution dynamic shadows** doubles the shadow map edge length:
   1024/2048/4096 for low/medium/high native shadow quality, instead of
   512/1024/2048. High therefore has four times as many texels.
+- **Show shadows farther away (+50% range)** extends the detailed cascade end
+  from 12800 to 19200 and the far end from 51200 to 76800 engine units. The near
+  plane stays at 100; intermediate splits are recomputed coherently. Enable
+  longer detail retention as well to retain detailed distant tree geometry.
 
-Both apply on the next game launch and remain disabled for legacy and fresh
+All apply on the next game launch and remain disabled for legacy and fresh
 preferences. Neither quality preset silently enables them. Native D3D9 supports
 the model and shadow changes; the texture bias is specific to Modern graphics.
 The existing 60 Hz DXVK cap, Strict water correction, AF selection and game
 quality levels remain independent. Higher GPU cost and texture shimmering are
 possible; turning the options off restores the original next-launch behavior.
 
-Shadow resolution and shadow range are separate. This change does **not** add a
-new shadow-distance or wind-animation-distance control. It does not establish
-that every distant tree is animated or casts a detailed dynamic shadow. The
-original wind, shadow frustum and culling rules remain in place. The user's
-request for a separately extended shadow cutoff remains an investigation item;
-no guessed projection/culling parameter is exposed as a working setting.
+Shadow resolution and shadow range are separate. A wider range spreads each
+shadow map over more ground, so the independent higher-resolution option is
+useful together with it. Tree wind continues through the original wind update;
+there is no separate animation-distance override. Distant trees can still
+become billboards, and fog, visibility, occlusion and the camera frustum still
+apply. These options do not force every tree or hidden settler to draw.
 
 ## Native implementation and integrity
 
-The final implementation changes three guarded operands in process memory,
+With all three options enabled, the implementation changes seven guarded operands in process memory,
 after the existing executable SHA256/PE checks. It does not rewrite any EXE or
 BBA. The earlier private Models.xml distance experiment is not shipped.
 
@@ -38,15 +43,25 @@ scale feeds the ordinary model and SpeedTree squared-distance calculations.
 Native object quality and output resolution continue to participate. The
 multiplier instruction and relocated operand are checked independently.
 
+The character renderer uses that same model culling/LOD selector. Read-only
+runtime tracing followed real settler graphics handles through their character
+resources to the actual LOD node, rather than merely counting simulation
+entities. The large-object size exemption and category visibility masks are
+not distance settings and are left unchanged.
+
 The shadow initializer uses a base dimension of 4096 instead of 2048 before
 the original quality shift. The native resource estimator gets the same change.
+The range option changes the original split span/ratio (12700/128 to 19100/192)
+and the two terminal distances. It retains the original logarithmic/linear
+blend of 0.87 and five shadow volumes. Other light-space depth bounds are left
+unchanged. Instruction prefixes and relocated operands have separate guards.
 The existing patch transaction validates all sites before writing and restores
 them on a failed installation. Protections and instruction-cache flushing follow
 the existing writer. Both Ubisoft and Steam have separately mapped addresses
 and original-byte guards. No simulation/FIFO/priority/save data is changed.
 
 The GUI only enables these settings for the newly pinned production adapter:
-`4488aa58c02387fdffdbdb7db906d836a24d7bc981d3eca66ed51e12e72d94ae`.
+`a5c5cde6098a100974c4dd565d8a7f986d9819871bc398c04f2e912d1b2d97b5`.
 Unknown adapters cannot silently accept enabled preferences. The launch helper
 strips inherited aliases and supplies only validated, fixed child-only flags.
 No global environment variables or shared game content identity are changed.
@@ -85,6 +100,62 @@ confirmed A's 1.4988899/4096 and B's 0.9992601/2048. Both clients exited normall
 all 451 structured replay CRC records matched, and both gzip streams completed.
 This is one same-PC load/500-turn compatibility test, not multi-hour or remote-PC
 qualification. No content-ID exclusions or CRC substitutions were introduced.
+
+## Shadow-range, wind and settler follow-up
+
+The follow-up used a farther fixed Grassland Mesa camera at 1280×720, the same
+GPU and two-core limit, and a running simulation. The earlier frozen-clock
+fixture cannot establish animation and was not used as animation evidence.
+Actual renderer reads confirmed the following six split points:
+
+| Split | Original range | Extended range |
+| --- | ---: | ---: |
+| Near | 100 | 100 |
+| 1 | 718.3821 | 957.6006 |
+| 2 | 1822.7930 | 2460.0073 |
+| 3 | 4562.0029 | 6362.6538 |
+| Detailed end | 12800 | 19200 |
+| Far end | 51200 | 76800 |
+
+Both range-comparison clients used longer model detail and 4096 shadow maps.
+In each three-second live sample, all six native wind matrices and 16 sampled
+leaf-angle values changed. The tree draw queue included branch/leaf geometry
+with shadow-pass flags at the far camera. Together with the original shared
+wind update and extended geometry LOD, this supports continued animation of
+detailed distant trees. It is not a per-tree pixel-motion measurement: queue
+reads are not frame-atomic, casters can sit outside a receiving cascade, and
+these counts do not establish a precise shadow cutoff or that every billboard
+animates. The verified range values above come from the actual shadow renderer.
+
+A separate original-versus-extended detail comparison read real graphics
+resources for 16 common settler handles. All 16 detail-transition distances
+increased by 1.5. For five handles with unchanged model bounds, the distance
+culling limits also increased by 1.5 (within floating-point rounding). Examples:
+
+| Settler graphics resource | Original culling distance | Extended culling distance |
+| --- | ---: | ---: |
+| Category 21 / 65541 | 33868.04 | 50802.05 |
+| Category 22 / 65536 | 31976.43 | 47964.63 |
+| Category 23 / 65536 | 34424.04 | 51636.05 |
+
+Distances are engine coordinate units, not meters. Handles that changed model
+bounds as their tasks changed were excluded from the culling-ratio comparison.
+This verifies the actual distance gates, not guaranteed on-screen visibility
+through terrain, fog or other culling. No second settler-only multiplier was
+needed; the existing longer-detail option already reaches their renderer.
+
+Two five-second foreground screen-loop samples measured 59.981 Hz with the
+original range and 59.381 Hz with extended range. The latter had one 73.429 ms
+interval; the original had none over 50 ms. Both used live, independently
+progressing simulations. This is a short operational check, not a GPU benchmark
+or a claim of identical performance. Neither allocation monitor reported
+pressure or observation failure.
+
+The final range-enabled native candidate also passed a new loopback multiplayer
+save load and 500 turns (67349–67849): A enabled all three options, B disabled
+all three. Both exited normally, both replay gzip streams completed, and all
+451 structured CRC records matched. Private evidence: `weavery-20261106/pair-08`;
+the settler and shadow observations are under `graphics-lod-20261106`.
 
 All isolated game files, profiles, timestamps and runtime configuration were
 restored. The private test clients have ended. Native builds passed `/W4 /WX`;
