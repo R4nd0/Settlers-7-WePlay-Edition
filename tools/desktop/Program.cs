@@ -207,6 +207,7 @@ internal sealed partial class MainForm : Form
     private readonly bool testing;
     private bool busy, gameRunning, loading, forceSetup, recoverState, cancelRequested,updateExit;
     private bool updatesSupported,updateChecking,remoteUpdateAvailable;
+    private bool visualDetailAvailable;
     private long remoteUpdateSequence;
     private string updateMessageKey="updateAutomatic",remoteUpdateVersion="";
     private string? lastUpdateFailure;
@@ -264,6 +265,8 @@ internal sealed partial class MainForm : Form
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
+    private readonly CheckBox extendedDetail = new() { AutoSize = true };
+    private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly Label activeRenderer = new() { AutoSize = true };
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
@@ -490,7 +493,10 @@ internal sealed partial class MainForm : Form
         foreach (string key in new[] { "Shadows","SSAO","DepthOfField","SunShafts","Parallax","Antialiasing" })
         { var box = new CheckBox { AutoSize = true, Margin = new Padding(0,8,18,8) }; Bind(box,key); effects[key]=box; effectRow.Controls.Add(box); }
         Add(g,effectRow); Bind(anisotropicFiltering,"anisotropicFiltering");Add(g,anisotropicFiltering);
-        Add(g,Label("anisotropicInfo"));Bind(simple,"simple"); Add(g,simple);
+        Add(g,Label("anisotropicInfo"));
+        Bind(extendedDetail,"extendedDetail");Add(g,extendedDetail);Add(g,Label("extendedDetailInfo"));
+        Bind(detailedShadows,"detailedShadows");Add(g,detailedShadows);Add(g,Label("detailedShadowsInfo"));
+        Bind(simple,"simple"); Add(g,simple);
         var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
         monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
         window.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
@@ -567,6 +573,7 @@ internal sealed partial class MainForm : Form
     private void LoadSnapshot(JsonElement value,bool replaceFields=true)
     {
         snapshot=value.Clone();loading=true;
+        visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
@@ -576,6 +583,8 @@ internal sealed partial class MainForm : Form
             string policy=value.GetProperty("renderer_policy").GetString()!;renderer.SelectedIndex=policy=="dxvk"?1:policy=="native"?2:0;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
             anisotropicFiltering.Checked=value.GetProperty("choice").TryGetProperty("anisotropic_filtering",out var filteringValue)&&filteringValue.GetBoolean();
+            extendedDetail.Checked=value.GetProperty("choice").TryGetProperty("extended_detail",out var detailValue)&&detailValue.GetBoolean();
+            detailedShadows.Checked=value.GetProperty("choice").TryGetProperty("detailed_shadows",out var shadowValue)&&shadowValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -727,6 +736,7 @@ internal sealed partial class MainForm : Form
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
         gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
         anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
+        extendedDetail.Enabled=detailedShadows.Enabled=!busy&&visualDetailAvailable;
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
@@ -747,7 +757,8 @@ internal sealed partial class MainForm : Form
         string? card=compatible||policy=="native"?null:(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
         return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
-            anisotropic_filtering=anisotropicFiltering.Checked},quality,player_name=ValidName()};
+            anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
+            detailed_shadows=detailedShadows.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -1064,6 +1075,17 @@ internal sealed partial class MainForm : Form
                 var output=request.RootElement.GetProperty("choice").GetProperty("display");
                 if(output.GetProperty("mode").GetString()!="borderless"||output.GetProperty("width").GetInt32()!=1920||form.resolution.Enabled)throw new Exception("Borderless controls failed");
                 if(form.anisotropicFiltering.Checked)throw new Exception("Legacy preferences force texture filtering");
+                if(form.extendedDetail.Checked||form.detailedShadows.Checked)throw new Exception("Legacy preferences force visual detail");
+                if(form.extendedDetail.Enabled||form.detailedShadows.Enabled)throw new Exception("Unsupported adapter exposes visual controls");
+                form.visualDetailAvailable=true;form.DisplayEnabled();
+                form.extendedDetail.Checked=true;form.detailedShadows.Checked=true;
+                using(var detailed=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
+                {
+                    var detailChoice=detailed.RootElement.GetProperty("choice");
+                    if(!detailChoice.GetProperty("extended_detail").GetBoolean()||!detailChoice.GetProperty("detailed_shadows").GetBoolean())
+                        throw new Exception("Visual detail choices lost in request");
+                }
+                form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
                 {
@@ -1079,6 +1101,8 @@ internal sealed partial class MainForm : Form
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
                 if(form.anisotropicFiltering.Enabled)throw new Exception("Native texture filtering control enabled");
+                form.visualDetailAvailable=true;form.DisplayEnabled();
+                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled)throw new Exception("Native visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
                 void Capture(string name)
                 {
@@ -1178,6 +1202,8 @@ internal sealed partial class MainForm : Form
                 var graphicsScroll=form.graphicsPage.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
                 graphicsScroll.ScrollControlIntoView(form.qualities["ShaderQuality"]);Capture("graphics-quality");
                 graphicsScroll.ScrollControlIntoView(form.anisotropicFiltering);Capture("graphics-effects");
+                form.visualDetailAvailable=true;form.DisplayEnabled();
+                graphicsScroll.ScrollControlIntoView(form.simple);Capture("graphics-detail");
                 Size normalSize=form.Size;form.automaticMenuHeight=false;form.Size=form.MinimumSize;
                 foreach(var page in new[]{form.homePage,form.internetPage,form.graphicsPage})
                 {

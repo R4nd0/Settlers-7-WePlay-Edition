@@ -1,5 +1,9 @@
 # DXVK image quality, 2026-10-30
 
+2026-11-07: the separate, unreleased [LOD and dynamic-shadow options](GRAPHICS-LOD-SHADOWS.md)
+add optional negative mip bias, longer model detail and higher-resolution shadows.
+The preset results below describe the earlier milestone; its defaults remain.
+
 The optional **Clear landscape / Klare Landschaft** preset removes the game's
 depth-of-field blur and opts into 16× anisotropic texture filtering. It uses
 high native shader, texture, view-distance, shadow, water and clutter quality,
@@ -39,7 +43,7 @@ RX 9070 XT. Settings were checked against upstream's pinned
 | `d3d9.samplerAnisotropy = 16` | New optional child-only override; effective configuration confirmed in the real log. Can affect filtering-dependent passes, so disable it if artifacts occur. |
 | `d3d9.floatEmulation = Strict` | Existing measured black-water correction retained in every DXVK launch. |
 | `d3d9.maxFrameRate = 60` | Existing owned configuration retained; no unlocked-rate experiment. |
-| `d3d9.samplerLodBias`, `clampNegativeLodBias` | Supported, left at defaults. Negative bias can add shimmer; no measured reason to change it. |
+| `d3d9.samplerLodBias`, `clampNegativeLodBias` | Presets keep defaults. The separate optional longer-detail setting now uses -1.0 / False; see the later LOD comparison. Negative bias can add shimmer. |
 | `d3d9.maxFrameLatency`, `dxvk.latencySleep` | Supported, left at defaults. Queue/latency changes need their own pacing evidence; enabling latency sleep can worsen pacing. |
 | `d3d9.forceSampleRateShading` | Works with existing MSAA; does not create MSAA in this game. Not enabled. |
 | `d3d9.forceSwapchainMSAA` | Absent from the pinned D3D9 parser; not exposed as a working control. |

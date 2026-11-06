@@ -48,6 +48,11 @@ class DesktopTests(unittest.TestCase):
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
             return self.desktop.install_game(self.fixture.source)
 
+    def test_missing_visual_adapter_keeps_repair_snapshot_available(self):
+        self.prepare()
+        (self.desktop.game()/graphics.LOADER).unlink()
+        self.assertTrue(self.desktop.snapshot()['needs_repair'])
+
     def test_low_physical_ram_warns_but_reaches_regular_game_start_callback(self):
         self.prepare();order=[]
         def run(args):

@@ -217,6 +217,8 @@ their saves before removing them yourself.
 [Standalone details](docs/PRIVATE-STANDALONE.md) ·
 [Update recovery](docs/UPDATE-RECOVERY.md) · [Graphics help](docs/GRAPHICS-START.md)
 
+Unreleased development: [longer model/texture detail and higher-resolution dynamic shadows](docs/GRAPHICS-LOD-SHADOWS.md).
+
 ## Changelog and compatibility
 
 | Release | Main additions |

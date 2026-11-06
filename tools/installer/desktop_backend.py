@@ -267,6 +267,7 @@ class Desktop:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
             try:
+                result['visual_detail_supported']=choice.visual_supported(root)
                 result.update(choice=choice._load_choice(root),quality=quality.load(root),
                               player_name=player_settings.load(root),renderer=choice._renderer(root,{})[0])
             except (OSError,ValueError,RuntimeError):result['needs_repair']=True
@@ -538,6 +539,7 @@ class Desktop:
         root=self.game();graphics.ensure_closed()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         selected=choice.validate_choice(request['choice']);quality_value=quality.validate(request['quality'])
+        choice._require_visual_support(root,selected)
         player_settings.player_name(request['player_name'])
         probe=self.probe()
         policy=request['renderer_policy']

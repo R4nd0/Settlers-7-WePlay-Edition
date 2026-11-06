@@ -1400,6 +1400,7 @@ bool WritePatch(const Patch& patch, bool restore) {
 #ifdef S7_NEO_LOGISTICS
 #include "neo_logistics_patches.inc"
 #endif
+#include "visual_detail.inc"
 bool Install() {
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (local_connect_probe && memcmp(Native<const void*>(0x795967), PriorityNextEntryGuard,
@@ -1414,6 +1415,7 @@ bool Install() {
         SetError(ChangedCallsite); return false;
     }
     std::vector<const Patch*> selected;
+    if (!AppendVisualPatches(selected)) return false;
     for (const auto& patch : Patches) selected.push_back(&patch);
     if (local_connect_probe)
         for (const auto& patch : LegacyOrbitPatches) selected.push_back(&patch);

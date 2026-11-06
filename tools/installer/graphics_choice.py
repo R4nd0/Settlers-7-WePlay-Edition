@@ -20,18 +20,32 @@ FORMAT = 's7-graphics-choice-v1'
 CHOICE_FILE = 'LocalData/graphics-choice.json'
 MAX_RECORD = 4096
 CANCELLED = 10
+VISUAL_ADAPTER_SHA256 = '4488aa58c02387fdffdbdb7db906d836a24d7bc981d3eca66ed51e12e72d94ae'
+
+
+def visual_supported(root):
+    return content.digest(graphics._plain(root / graphics.LOADER)) == VISUAL_ADAPTER_SHA256
+
+
+def _require_visual_support(root, selected):
+    if (selected.get('extended_detail', False) or selected.get('detailed_shadows', False)) and not visual_supported(root):
+        raise ValueError('Diese Detailoptionen brauchen den aktualisierten Grafikadapter.')
 
 
 def validate_choice(value):
     """Validate local choices; never accept hardware IDs or free-form argv."""
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
-            or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering'}
+            or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering',
+                                  'extended_detail', 'detailed_shadows'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
         raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
+    for field in ('extended_detail', 'detailed_shadows'):
+        if field in value and type(value[field]) is not bool:
+            raise ValueError('Die Detailoption muss ein boolescher Wert sein.')
     name = value['choice']
     if name is not None and (not isinstance(name, str) or not name.strip()
             or name != name.strip() or any(unicodedata.category(c).startswith('C') for c in name)
@@ -42,6 +56,9 @@ def validate_choice(value):
         result['simple_menu'] = value['simple_menu']
     if 'anisotropic_filtering' in value:
         result['anisotropic_filtering'] = value['anisotropic_filtering']
+    for field in ('extended_detail', 'detailed_shadows'):
+        if field in value:
+            result[field] = value[field]
     if 'display' in value:
         result['display'] = display.validate(value['display'])
     return result
@@ -57,7 +74,9 @@ def _load_choice(root):
     path = graphics._plain(root / CHOICE_FILE)
     if not path.exists():
         return {'format': FORMAT, 'choice': None}
-    return _record(graphics._read(path, MAX_RECORD))
+    selected = _record(graphics._read(path, MAX_RECORD))
+    _require_visual_support(root, selected)
+    return selected
 
 
 def game_arguments(root):
@@ -131,7 +150,8 @@ def saved_launch_environment(root, inherited=None):
     mode, environment = _renderer(root, inherited)
     if mode == 'dxvk':
         environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
-            anisotropic_filtering=selected.get('anisotropic_filtering', False))
+            anisotropic_filtering=selected.get('anisotropic_filtering', False),
+            extended_detail=selected.get('extended_detail', False))
     elif selected['choice'] is not None:
         raise ValueError('Die gespeicherte Grafikkarte passt nicht zum Standardrenderer.')
     if selected.get('display') is not None:
@@ -139,13 +159,26 @@ def saved_launch_environment(root, inherited=None):
     if graphics._plain(root / 'LocalData/graphics-quality.json').exists():
         import quality_settings
         quality_settings.prepare(root)
-    return environment
+    return visual_environment(selected, environment)
+
+
+def visual_environment(selected, inherited):
+    """Allowlisted, child-only switches for guarded native render operands."""
+    selected = validate_choice(selected)
+    result = {name: value for name, value in inherited.items()
+              if name.upper() not in ('S7_EXTENDED_DETAIL', 'S7_DETAILED_SHADOWS')}
+    if selected.get('extended_detail', False):
+        result['S7_EXTENDED_DETAIL'] = '1'
+    if selected.get('detailed_shadows', False):
+        result['S7_DETAILED_SHADOWS'] = '1'
+    return result
 
 
 def save_choice(root, value):
     """The desktop frontend uses the same validator and profile checks as the GUI."""
     root = graphics._preflight(root)
     selected = validate_choice(value)
+    _require_visual_support(root, selected)
     mode, _ = _renderer(root, {})
     if mode == 'native' and selected['choice'] is not None:
         raise ValueError('Der Standardrenderer waehlt die Grafikkarte automatisch.')
@@ -178,7 +211,8 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Der grafische Auswahldialog fehlt.')
     result = subprocess.run(
         ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-STA',
-         '-WindowStyle', 'Hidden', '-File', str(script), '-RendererMode', mode],
+         '-WindowStyle', 'Hidden', '-File', str(script),
+         *(['-VisualDetailAvailable'] if visual_supported(root) else []), '-RendererMode', mode],
         input=graphics.encoded({'previous': previous, 'displays': displays[:2]}), capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode == CANCELLED:
@@ -186,6 +220,7 @@ def choose_launch_environment(root, inherited=None):
     if result.returncode != 0:
         raise ValueError('Der Grafikauswahldialog konnte nicht abgeschlossen werden.')
     selected = _record(result.stdout)
+    _require_visual_support(root, selected)
     if mode == 'native' and selected['choice'] is not None:
         raise ValueError('Der Standardrenderer unterstuetzt diesen Grafikkartenfilter nicht.')
     current_mode, environment = _renderer(root, inherited)
@@ -193,7 +228,8 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Das Grafikprofil wurde waehrend des Dialogs veraendert.')
     if mode == 'dxvk':
         environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
-            anisotropic_filtering=selected.get('anisotropic_filtering', False))
+            anisotropic_filtering=selected.get('anisotropic_filtering', False),
+            extended_detail=selected.get('extended_detail', False))
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(),
                         renderer=mode, gpu=selected['choice'])
@@ -205,4 +241,4 @@ def choose_launch_environment(root, inherited=None):
     if _load_choice(root) != previous:
         raise ValueError('Die Grafikauswahl wurde waehrend des Dialogs veraendert.')
     graphics.atomic_write(target, graphics.encoded(selected), data)
-    return environment
+    return visual_environment(selected, environment)

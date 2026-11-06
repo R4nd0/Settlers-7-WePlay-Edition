@@ -345,7 +345,7 @@ def restore(root):
     return _change(root, False)
 
 
-def launch_environment(root, inherited=None, *, device_name=None, anisotropic_filtering=False):
+def launch_environment(root, inherited=None, *, device_name=None, anisotropic_filtering=False, extended_detail=False):
     """Return a child environment for a verified active profile; perform no writes.
 
     The caller must hold its launcher session lock until its game exits. Logs
@@ -356,6 +356,8 @@ def launch_environment(root, inherited=None, *, device_name=None, anisotropic_fi
     """
     if type(anisotropic_filtering) is not bool:
         raise ValueError('Ungueltige lokale Texturfilterung.')
+    if type(extended_detail) is not bool:
+        raise ValueError('Ungueltige lokale Detailstufe.')
     root = _preflight(root)
     # Startup checks the owned profile and the three established launcher
     # files, not all multi-gigabyte archives. Install/restore use full inventory.
@@ -377,7 +379,8 @@ def launch_environment(root, inherited=None, *, device_name=None, anisotropic_fi
             del result[name]
     result.update(DXVK_CONFIG_FILE=str(_plain(root / CONF)),
                   DXVK_CONFIG=SHADER_COMPATIBILITY + (
-                      '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else ''),
+                      '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else '') + (
+                      '; d3d9.samplerLodBias = -1.0; d3d9.clampNegativeLodBias = False' if extended_detail else ''),
                   DXVK_LOG_PATH=str(_plain(folder / 'logs')),
                   DXVK_SHADER_CACHE_PATH=str(_plain(folder / 'cache')))
     if device_name is not None:

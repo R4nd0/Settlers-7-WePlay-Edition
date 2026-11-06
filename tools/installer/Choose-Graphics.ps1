@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('dxvk', 'native')]
-    [string]$RendererMode
+    [string]$RendererMode,
+    [switch]$VisualDetailAvailable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,14 +45,18 @@ function Resolve-PreferredChoice {
 }
 
 function ConvertTo-ChoiceJson {
-    param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false)
+    param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false,
+          $ExtendedDetail = $false, $DetailedShadows = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
     if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
     if ($AnisotropicFiltering -isnot [bool]) { throw 'Invalid texture filtering choice.' }
+    if ($ExtendedDetail -isnot [bool] -or $DetailedShadows -isnot [bool]) { throw 'Invalid detail choice.' }
     if (-not (Test-DisplayChoice $Display)) { throw 'Invalid display choice.' }
     $record = @{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu}
     if ($PSBoundParameters.ContainsKey('Display')) { $record.display = $Display }
     if ($PSBoundParameters.ContainsKey('AnisotropicFiltering')) { $record.anisotropic_filtering = $AnisotropicFiltering }
+    if ($PSBoundParameters.ContainsKey('ExtendedDetail')) { $record.extended_detail = $ExtendedDetail }
+    if ($PSBoundParameters.ContainsKey('DetailedShadows')) { $record.detailed_shadows = $DetailedShadows }
     return ($record | ConvertTo-Json -Compress -Depth 5)
 }
 
@@ -86,11 +91,18 @@ try {
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
     $fields = @($previous.PSObject.Properties.Name)
-    if ($fields.Count -lt 2 -or $fields.Count -gt 5 -or
-        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering') }).Count -gt 0 -or
+    if ($fields.Count -lt 2 -or $fields.Count -gt 7 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows') }).Count -gt 0 -or
         'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
     $simpleMenuEnabled = $false
     $anisotropicFilteringEnabled = $false
+    $extendedDetailEnabled = $false
+    $detailedShadowsEnabled = $false
+    foreach ($field in @('extended_detail','detailed_shadows')) {
+        if ($field -cin $fields -and $previous.$field -isnot [bool]) { throw 'Invalid previous detail choice.' }
+    }
+    if ('extended_detail' -cin $fields) { $extendedDetailEnabled = $previous.extended_detail }
+    if ('detailed_shadows' -cin $fields) { $detailedShadowsEnabled = $previous.detailed_shadows }
     if ('anisotropic_filtering' -cin $fields) {
         if ($previous.anisotropic_filtering -isnot [bool]) { throw 'Invalid previous texture filtering choice.' }
         $anisotropicFilteringEnabled = $previous.anisotropic_filtering
@@ -253,23 +265,36 @@ try {
     $simpleMenu.Checked = $simpleMenuEnabled
     [void]$form.Controls.Add($simpleMenu)
     $menuHint = New-Object Windows.Forms.Label
-    $menuHint.SetBounds(18, 452, 614, 100)
-    $menuHint.Text = 'Disables the menu landscape and some castle/content previews. VSync follows the display refresh rate. Experimental: longer matches and LAN with this option are not yet verified.'
+    $menuHint.SetBounds(18, 452, 614, 48)
+    $menuHint.Text = 'Disables the menu landscape and some previews. VSync follows the display refresh rate; Standard graphics has no separate 60 FPS cap.'
     [void]$form.Controls.Add($menuHint)
 
     $filtering = New-Object Windows.Forms.CheckBox
-    $filtering.SetBounds(18, 550, 614, 30)
+    $filtering.SetBounds(18, 504, 614, 30)
     $filtering.Text = 'Sharper terrain textures (16x anisotropic filtering, DXVK only)'
     $filtering.Checked = $anisotropicFilteringEnabled
     $filtering.Enabled = ($RendererMode -eq 'dxvk')
     [void]$form.Controls.Add($filtering)
 
+    $detail = New-Object Windows.Forms.CheckBox
+    $detail.SetBounds(18, 536, 614, 30)
+    $detail.Text = 'Keep high detail longer when zooming out (+50% model LOD)'
+    $detail.Checked = $extendedDetailEnabled
+    $detail.Enabled = $VisualDetailAvailable
+    [void]$form.Controls.Add($detail)
+    $shadowDetail = New-Object Windows.Forms.CheckBox
+    $shadowDetail.SetBounds(18, 568, 614, 30)
+    $shadowDetail.Text = 'Higher-resolution dynamic shadows (up to 4096 x 4096)'
+    $shadowDetail.Checked = $detailedShadowsEnabled
+    $shadowDetail.Enabled = $VisualDetailAvailable
+    [void]$form.Controls.Add($shadowDetail)
+
     $start = New-Object Windows.Forms.Button
-    $start.SetBounds(414, 590, 104, 30)
+    $start.SetBounds(414, 606, 104, 30)
     $start.Text = 'Start'
     $start.DialogResult = [Windows.Forms.DialogResult]::OK
     $cancel = New-Object Windows.Forms.Button
-    $cancel.SetBounds(526, 590, 104, 30)
+    $cancel.SetBounds(526, 606, 104, 30)
     $cancel.Text = 'Cancel'
     $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
     [void]$form.Controls.Add($start)
@@ -290,6 +315,8 @@ try {
     }
     $selectedSimpleMenu = [bool]$simpleMenu.Checked
     $selectedFiltering = [bool]$filtering.Checked
+    $selectedDetail = [bool]$detail.Checked
+    $selectedShadowDetail = [bool]$shadowDetail.Checked
     $selectedDisplay = $null
     if (-not $keepDisplay.Checked) {
         $entry = $displayEntries[$displayCombo.SelectedIndex]
@@ -299,7 +326,7 @@ try {
             mode=$(if ($modeCombo.SelectedIndex -eq 1) {'borderless'} else {'windowed'})}
     }
     $form.Dispose()
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail))
     exit 0
 } catch {
     [Console]::Error.WriteLine('The graphics dialog could not be displayed.')
