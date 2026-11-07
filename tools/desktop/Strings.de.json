@@ -72,7 +72,7 @@
   "qualityRecommended": "WePlay empfohlen (Modern)",
   "qualityMaximum": "ReShade Maximum (filmisch)",
   "maximumFx": "ReShade Maximum: filmisches Licht und mehr Tiefe",
-  "maximumFxInfo": "Indirektes Licht und Farbreflexe (Screen-Space-GI), räumliche Verschattung, SMAA, Lichtschein, Entfernungsdunst und bewegtes Hitzeflimmern über warmen Flächen. Kräftiger filmischer Look. Braucht Moderne Grafik; höhere GPU-Last. Ultra-Schatten sind separat wählbar.",
+  "maximumFxInfo": "Indirektes Licht und Farbreflexe (Screen-Space-GI), räumliche Verschattung, SMAA und Lichtschein. Bei Mittsommer im Spiel: Morgendunst löst sich auf, danach flimmert die Hitze über warmen Flächen am Tag. Kräftiger filmischer Look. Braucht Moderne Grafik; höhere GPU-Last. Ultra-Schatten sind separat wählbar.",
   "qualityRecommendedInfo": "WePlay empfohlen wählt Moderne Grafik, hohe Details mit längerer Sichtweite, 4096er Schatten, natürliche Farben, ruhigere Kanten und Kontaktschatten. Ultra-Schatten bleiben aus. Mittsommer zusätzlich im Spiel unter Umwelt auswählen. Speichern übernimmt die Auswahl für den nächsten Start.",
   "qualityPresetInfo": "Vorlagen setzen die Regler unten: hohe Textur-, Licht-, Schatten- und Wasserqualität ohne Tiefenunschärfe, mit Spiel-Kantenglättung und 16× Texturfilterung. Klare Landschaft hält Objektdetails auf Mittel; Höchste Objektdetails erhöht auch diese auf Hoch. Erst Speichern übernimmt die Auswahl. Höhere Last und Speicherbedarf sind möglich; auf diesem PC prüfen.",
   "anisotropicFiltering": "Schärfere Landschaftstexturen (16× anisotrope Filterung, nur Moderne Grafik)",

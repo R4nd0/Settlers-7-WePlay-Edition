@@ -32,7 +32,9 @@ The launcher's Graphics page exposes independent opt-in controls:
   accumulation. The earlier authored broad AO layer is removed. SMAA replaces
   the simple edge filter when the separate smoothing option is enabled. Bloom,
   bounded sharpening/local contrast, cool shadows and warm highlights complete
-  the grade. Distance haze and animated heat refraction add atmosphere. Haze is
+  the grade. Morning haze clears before daytime heat refraction fades in. Both
+  follow the actual Mittsommer sun, with smooth transitions; twilight stays
+  bright. Haze is
   calibrated to the game's measured depth scale; refraction is at most 0.85
   pixels before masks, limited by warm/lit color, distance and depth continuity.
   Warm color is a screen-space ground proxy, not a material or temperature map.
@@ -90,8 +92,14 @@ Tone and smoothing use the pinned official standard ReShade 6.8.0 runtime.
 Explicit contact or Maximum selection uses the official **full add-on** variant, with
 separate setup and x86 DLL hashes. The official DLL for that variant is unsigned;
 integrity here is established by the exact pinned upstream download hashes.
-The setup is only unpacked, never executed; no external add-on ships with the
-feature. `AddonPath` is fixed to a checked empty `NoAddons` directory. Vulkan
+The setup is only unpacked, never executed. Tone/contact profiles keep a checked
+empty `NoAddons` directory. Maximum points `AddonPath` at `ManagedAddons`,
+containing exactly the hash-pinned WePlay read-only sun-clock bridge; extra files
+or changed bytes are refused. The bridge checks the executable, ASLR layout,
+environment name, period, vtables and complete sun curve before reading the
+rendered angle and clock. Unsupported weather/layout disables haze and heat;
+grading and GI remain available. No game call or game-memory write is used.
+Its callback restores the x87 and SSE floating-point environment. Vulkan
 layer and base-path variables apply only to the launched child, with no registry
 or global layer installation.
 
@@ -101,6 +109,10 @@ The effect checks ReShade's `bufready_depth` signal and ignores missing, cleared
 or sky depth. Unavailable depth leaves tone and smoothing usable. The production
 preset always sets `DebugView=0`; the magenta/gray/mask views were private test
 diagnostics and are never selected by the launcher.
+
+The [morning/day verification](ATMOSPHERE-PHASE.md) records the native read-only
+bridge, local actual-game checks and remaining visual acceptance. Older GPU and
+multiplayer measurements below predate this bridge and do not qualify it.
 
 Reference contracts: the official [ReShade API](https://github.com/crosire/reshade/blob/v6.8.0/include/reshade_api.hpp)
 documents performance-mode uniform replacement; the

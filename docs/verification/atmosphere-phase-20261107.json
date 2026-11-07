@@ -1,0 +1,55 @@
+{
+  "format": "weplay-atmosphere-phase-verification-v1",
+  "date": "2026-11-07",
+  "release_status": "unreleased_visual_acceptance_pending",
+  "production_clock_sha256": "bc397467e09ffdad3c00c3f4654aa54766bf97a8cc7c5d26a22e30fee3aaa2e4",
+  "synthetic": {
+    "native_reader_and_fp_checks": 148,
+    "midsummer_python_and_lua_tests": 10,
+    "graphics_choice_tests": 39,
+    "installer_tests": 34,
+    "release_document_tests": 2
+  },
+  "actual_local": {
+    "owned_diagnostic_executable_only": true,
+    "public_cycle_minutes": 20,
+    "morning": {
+      "angle_degrees": 48,
+      "haze_weight": 1,
+      "heat_weight": 0,
+      "clock_hold_confirmed": true,
+      "private_cycle_seconds": 12
+    },
+    "final_day": {
+      "shader_compiled": true,
+      "bridge_ready": true,
+      "cycle_ms": 1200000,
+      "capture_seconds": 3.681,
+      "samples": 24,
+      "sun_angle_approx": [
+        239.3,
+        240.4
+      ],
+      "haze_weight": 0,
+      "heat_weight_approx": [
+        0.95,
+        0.93
+      ],
+      "clock_ms_reduced_to_cycle": true,
+      "source_and_profile_restored": true,
+      "production_profile_integrity_verified_after_restore": true,
+      "bounded_test_seconds": 120.6,
+      "exit_code": 1,
+      "termination": "owned harness time budget"
+    },
+    "graphics_are_actual_captures": true,
+    "color_or_effect_retouching": false
+  },
+  "limits": [
+    "Visual acceptance is pending.",
+    "Short sampled animation includes ordinary game animation and GIF palette conversion.",
+    "No new performance or multiplayer checksum qualification of the clock bridge.",
+    "Steam layout mapped independently and tested synthetically; new Steam gameplay unqualified.",
+    "No new Linux or separate-PC runtime qualification."
+  ]
+}

@@ -1,6 +1,6 @@
 # RC3.19: Graphics and Midsummer
 
-Experimental preview. Update every participant: lighting resources change
+Unreleased; visual acceptance pending. Update every participant: lighting resources change
 the content fingerprint even with NEO off. Back up saves; older releases remain.
 
 ## Graphics
@@ -14,11 +14,11 @@ the content fingerprint even with NEO off. Back up saves; older releases remain.
   the game's Environment menu. Natural tone is independent.
 - **WePlay recommended (Modern)** selects high quality, longer detail/range,
   4096 shadows, natural tone, edge smoothing and contact shading. Ultra stays off.
-  Save the choice and restart the game. Existing saved choices are not changed.
+  Save and restart. Existing saved choices are preserved.
 - **ReShade Maximum (cinematic)** adds screen-space indirect light/color bounce,
-  occlusion, SMAA, bloom, cinematic grading, distance haze and animated heat
+  occlusion, SMAA, bloom, cinematic grading, morning haze and daytime heat
   shimmer. Light and haze cover the full image; only heat distortion protects
-  HUD footprints. Ultra shadows remain separate. The short 1080p near-camera
+  HUD controls. Ultra stays separate. The short 1080p near-camera
   sample used about 7.3 ms GPU busy time versus 4.4 ms for recommended settings.
 - Ultra is optional: it used about 250–260 MiB more dedicated GPU memory than
   the recommended candidate on the tested Radeon RX 9070 XT. GPU busy time was
@@ -26,7 +26,8 @@ the content fingerprint even with NEO off. Back up saves; older releases remain.
 
 ReShade is downloaded from its official site only when the selected effects
 need it. Setup is unpacked, never run. No global layer is installed. Contact
-shading uses the pinned official full add-on runtime; no external add-on ships.
+shading uses the pinned full runtime. Maximum includes a guarded read-only sun
+clock; external add-ons are refused.
 Missing depth disables geometric effects without diagnostic colors. Shader
 sources, SMAA lookup textures and their licenses accompany the optional profile.
 
@@ -49,7 +50,7 @@ PresentMon 2.6.0. All nine 15-second captures completed without lost events,
 overflow or frame intervals above 50 ms. All profiles produced about 60 frames/s
 at the existing cap; this is not an uncapped throughput result or displayed-FPS
 guarantee. GPU busy time was measured separately. One machine and one pass per
-profile do not establish a universal performance result.
+profile do not establish universal performance.
 
 The prior graphics multiplayer reload comparison matched 451/451 structured
 checksums. Separate-PC testing of these new graphics changes remains pending;

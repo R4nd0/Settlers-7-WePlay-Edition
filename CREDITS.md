@@ -43,3 +43,8 @@ DH_UBER_RT and DH_UBER_MOTION by AlucardDH (GPL-2.0), SweetFX SMAA by
 CeeJayDK and the SMAA authors (MIT), and ReShade common headers (CC0-1.0).
 Pinned revisions, complete modified shader sources and licenses are included
 in [the effect bundle](tools/midsummer/effects/THIRD-PARTY.md).
+
+The WePlay atmosphere clock bridge uses the official ReShade 6.8.0 SDK
+(BSD-3-Clause OR MIT header notices). Its pinned source and retained license
+are under [native/third_party/reshade](native/third_party/reshade/LICENSE.txt);
+the enabled profile includes `Atmosphere-LICENSE.txt`.

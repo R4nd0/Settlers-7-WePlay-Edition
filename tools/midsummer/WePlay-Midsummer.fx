@@ -14,7 +14,12 @@ uniform float ContactStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 0.5;
     ui_label = "Geometry contact shading (requires depth)"; > = 0.0;
 uniform int DebugView < hidden = true; > = 0;
 uniform float MaximumStrength < hidden = true; > = 0.0;
-uniform float AtmosphereTime < source = "timer"; >;
+// Supplied by the guarded, read-only WePlay clock bridge. Never persisted in
+// the preset: an absent bridge or another weather environment disables these
+// geometric effects rather than running an unrelated wall-clock cycle.
+uniform bool AtmospherePhaseReady < hidden = true; > = false;
+uniform float AtmosphereSunAzimuth < hidden = true; > = 0.0;
+uniform float AtmosphereGameTime < hidden = true; > = 0.0;
 uniform float HazeStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 0.6;
     ui_label = "Distance haze"; > = 0.42;
 uniform float HeatStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 2.0;
@@ -122,7 +127,7 @@ technique WePlay_Midsummer < ui_label = "WePlay visual quality"; >
 }
 
 // Optional cinematic profile. Intermediate buffers are used only when this
-// technique is selected. Every geometric operation keeps the same HUD mask.
+// technique is selected. Only optical refraction excludes compact HUD areas.
 float3 Highlight(float2 uv)
 {
     float3 c=ColorAt(uv);
@@ -172,7 +177,12 @@ float4 CinematicPS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Ta
 float4 AtmospherePS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 {
     float4 original=tex2D(SceneSampler,uv);
-    if(!DepthReady || MaximumStrength<=0.0) return original;
+    if(!DepthReady || !AtmospherePhaseReady || MaximumStrength<=0.0) return original;
+    float phase=saturate(AtmosphereSunAzimuth/360.0);
+    // Morning clears before the warm part of the day. Smooth ramps, no dark
+    // night, and no simultaneous full-strength fog and heat distortion.
+    float morning=smoothstep(.015,.07,phase)*(1.0-smoothstep(.18,.31,phase));
+    float daytime=smoothstep(.32,.42,phase)*(1.0-smoothstep(.65,.76,phase));
     float raw=RawDepth(uv);
     if(raw<=.000001 || raw>=.999999) return original;
     float z=ViewDepth(uv);
@@ -185,11 +195,11 @@ float4 AtmospherePS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_T
     float lit=smoothstep(.26,.62,light);
     float distanceBand=smoothstep(24.0,70.0,z)*(1.0-smoothstep(500.0,1500.0,z));
     float edge=1.0-smoothstep(.004,.025,max(abs(ddx(z)),abs(ddy(z)))/max(z,1.0));
-    float time=AtmosphereTime*.001;
+    float time=AtmosphereGameTime*.001;
     float2 ripple=float2(sin(uv.y*281.0+time*2.1)+sin(uv.y*137.0-time*1.7),
                         sin(uv.x*173.0+uv.y*91.0-time*1.9))*.5;
     float2 offset=ripple*float2(BUFFER_RCP_WIDTH,BUFFER_RCP_HEIGHT)
-        *HeatStrength*warm*lit*distanceBand*edge*mask*WePlayRefractionMask(uv);
+        *HeatStrength*daytime*warm*lit*distanceBand*edge*mask*WePlayRefractionMask(uv);
     float2 at=clamp(uv+offset,0.0,1.0);
     // Never pull a foreground silhouette or HUD across a depth discontinuity.
     float compatible=(abs(ViewDepth(at)-z)<max(z*.006,1.0) ? 1.0:0.0)*WePlayRefractionMask(at);
@@ -197,7 +207,7 @@ float4 AtmospherePS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_T
     // Calibrated to S7's conventional depth: the close/middle/far castle
     // fixture spans roughly 40--200 in these inverse-depth units.
     float opticalDepth=max(z-45.0,0.0)/180.0;
-    float haze=(1.0-exp2(-opticalDepth))*HazeStrength;
+    float haze=(1.0-exp2(-opticalDepth))*HazeStrength*morning;
     // Broad warm forward scattering in sunlit scenery, cooler air in shade.
     float3 air=lerp(float3(.62,.71,.79),float3(.87,.76,.60),smoothstep(.3,.75,light));
     c=lerp(c,air,saturate(haze)*mask);

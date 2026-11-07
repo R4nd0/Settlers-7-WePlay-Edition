@@ -14,12 +14,12 @@ remain unqualified. [Linux setup and verification](docs/LINUX.md).
 [Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.18) · [Discord community](https://discord.gg/j2eQgVzssc)
 
 **The RC3.19 candidate adds optional graphics improvements and a bright Midsummer sun orbit.**
-Publication follows its installer checks; the download links above retain RC3.18 until then.
+Publication awaits visual acceptance and final installer checks; the links above retain RC3.18.
 The Windows launcher's **WePlay recommended (Modern)** profile combines longer
 detail and shadow visibility, 4096 shadows, natural tone, smoother edges and
 depth contact shading. Optional 8192 Ultra shadows offer more near detail.
 An additional **ReShade Maximum (cinematic)** profile adds screen-space indirect
-light/color bounce, occlusion, SMAA, bloom, distance haze and animated heat shimmer.
+light/color bounce, occlusion, SMAA, bloom, morning haze and daytime heat shimmer.
 Light and haze cover the full image; only heat refraction protects HUD controls.
 Choose Mittsommer/Midsummer under Environment in the game for the bright
 twilight/day cycle without a dark night. Existing preferences are preserved.

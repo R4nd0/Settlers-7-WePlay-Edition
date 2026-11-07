@@ -170,6 +170,9 @@ class ReShadePreparationTests(unittest.TestCase):
     def test_normal_exit_defaults_allow_a_second_launch(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:
             root = Path(path)
+            clock = root / reshade_runtime.CLOCK_FILE
+            clock.parent.mkdir(parents=True)
+            clock.write_bytes(b'read-only clock fixture')
             dll = b'invented x86 runtime fixture'
             packed = io.BytesIO()
             with zipfile.ZipFile(packed, 'w') as archive:
@@ -182,6 +185,7 @@ class ReShadePreparationTests(unittest.TestCase):
                  patch.object(reshade_runtime, 'ADDON_SETUP_SHA256', hashlib.sha256(packed.getvalue()).hexdigest()), \
                  patch.object(reshade_runtime, 'ADDON_DLL_SHA256', hashlib.sha256(dll).hexdigest()), \
                  patch.object(reshade_runtime, 'MANIFEST_SHA256', hashlib.sha256(archive_fixture_manifest()).hexdigest()), \
+                 patch.object(reshade_runtime, 'CLOCK_SHA256', hashlib.sha256(clock.read_bytes()).hexdigest()), \
                  patch('graphics_profile.ensure_closed'):
                 folder = reshade_runtime.prepare(root, setup=setup)
                 (folder / 'ReShade.ini').write_bytes(reshade_runtime.CONFIG + b'\n[STYLE]\nAlpha=1.0\n')
@@ -200,6 +204,18 @@ class ReShadePreparationTests(unittest.TestCase):
                     self.assertIn(b'Strength=0.000000',preset)
                     self.assertEqual(reshade_runtime.verify(root,selection),other)
                     if selection.get('maximum_fx'):
+                        self.assertIn(b'AddonPath=.\\ManagedAddons',(other/'ReShade.ini').read_bytes())
+                        bridge=other/'ManagedAddons/WePlayAtmosphere.addon32'
+                        self.assertEqual(bridge.read_bytes(),clock.read_bytes())
+                        rogue=bridge.with_name('external.addon32');rogue.write_bytes(b'external')
+                        with self.assertRaises(ValueError):reshade_runtime.verify(root,selection)
+                        rogue.unlink()
+                        saved_bridge=bridge.read_bytes();bridge.write_bytes(b'changed clock')
+                        with self.assertRaises(ValueError):reshade_runtime.verify(root,selection)
+                        bridge.write_bytes(saved_bridge)
+                        clock.write_bytes(b'changed source clock')
+                        with self.assertRaises(ValueError):reshade_runtime.verify(root,selection)
+                        clock.write_bytes(saved_bridge)
                         self.assertIn(b'DH_UBER_RT@dh_uber_rt.fx',preset)
                         self.assertNotIn(b'SMAA@SMAA.fx',preset)
                         self.assertEqual((other/'Licenses/DH-LICENSE.txt').read_bytes(),
@@ -232,6 +248,7 @@ class ReShadePreparationTests(unittest.TestCase):
                             reshade_runtime._runtime({'contact_shadows':True})[2])
         self.assertIn(b'PerformanceMode=0',reshade_runtime.CONFIG)
         self.assertIn(b'AddonPath=.\\NoAddons',reshade_runtime.CONFIG)
+        self.assertIn(b'AddonPath=.\\NoAddons',reshade_runtime._config({'contact_shadows':True}))
 
     def test_invalid_download_never_installs_or_replaces_a_renderer(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:

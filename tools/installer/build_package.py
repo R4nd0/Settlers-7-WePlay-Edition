@@ -37,7 +37,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -46,6 +46,14 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     if type(neo_logistics) is not bool:raise ValueError('Invalid NEO-Logistics capability')
     if type(midsummer_profile) is not bool or (midsummer_profile and (not neo_logistics or not game_directory or dxvk_dll is None)):
         raise ValueError('Mittsommer requires the current NEO, directory and Modern graphics package')
+    if midsummer_profile:
+        import reshade_runtime
+        if atmosphere_addon is None:raise ValueError('Mittsommer requires the tested read-only atmosphere clock')
+        atmosphere_addon=content.plain(atmosphere_addon)
+        if content.digest(atmosphere_addon)!=reshade_runtime.CLOCK_SHA256:raise ValueError('Atmosphere clock fingerprint mismatch')
+        check_output_location(repo,output,(atmosphere_addon.parent,))
+    elif atmosphere_addon is not None:
+        raise ValueError('Atmosphere clock requires the Mittsommer graphics package')
     if game_directory:
         if graphics_probe is None or easytier_runtime is None or windows_helpers is None:raise ValueError('Directory requires desktop, EasyTier and current Windows helpers')
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
@@ -95,6 +103,10 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         runtime = output / 'Runtime/python'; runtime.mkdir(parents=True)
         archive.extractall(runtime)
     net = output / 'Runtime/dotnet'; net.mkdir()
+    if midsummer_profile:
+        clock=output/'Runtime/Graphics';clock.mkdir()
+        shutil.copyfile(atmosphere_addon,clock/'WePlayAtmosphere.addon32')
+        shutil.copyfile(repo/'tools/midsummer/effects/Atmosphere-LICENSE.txt',clock/'LICENSE.txt')
     for name in ('dotnet.exe', 'LICENSE.txt', 'ThirdPartyNotices.txt'):
         shutil.copyfile(dotnet / name, net / name)
     for relative in ('host/fxr/' + version, 'shared/Microsoft.NETCore.App/' + version):
@@ -241,7 +253,8 @@ if __name__ == '__main__':
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true',help='Include the experimental NEO-Logistics map mode (matching adapter required)')
     parser.add_argument('--midsummer-profile',action='store_true',help='Include optional bright twilight/day lighting and ReShade tone support')
+    parser.add_argument('--atmosphere-addon',help='Tested x86 read-only sun-clock bridge (required for Mittsommer)')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon))

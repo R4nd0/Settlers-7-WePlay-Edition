@@ -36,6 +36,7 @@ jobs:
             & "$PWD/work/ci-native/$name.exe"
             if ($LASTEXITCODE -ne 0) { throw "$name failed" }
           }
+          ./native/build_atmosphere.ps1 -OutputDirectory "$PWD/work/ci-atmosphere"
   host:
     strategy:
       matrix:

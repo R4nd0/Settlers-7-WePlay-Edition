@@ -54,7 +54,7 @@ MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
 MAXIMUM_ASSETS = ('dh_uber_rt.fx', 'dh_uber_motion.fx', 'DH-LICENSE.txt',
                   'ReShade.fxh', 'ReShadeUI.fxh', 'SMAA.fx', 'SMAA.fxh',
                   'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt',
-                  'WePlay-World.fxh', 'THIRD-PARTY.md')
+                  'WePlay-World.fxh', 'Atmosphere-LICENSE.txt', 'THIRD-PARTY.md')
 MIDSUMMER_PACKAGE_TOOLS += tuple('midsummer/effects/' + name for name in MAXIMUM_ASSETS)
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (

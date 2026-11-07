@@ -40,7 +40,7 @@ def copy_documents(app):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=19,game_directory=False,neo_logistics=False,midsummer_profile=False):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=19,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -69,7 +69,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
-        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile)
+        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon)
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
@@ -143,7 +143,8 @@ if __name__=='__main__':
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')
+    parser.add_argument('--atmosphere-addon')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon)
