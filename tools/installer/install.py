@@ -46,6 +46,9 @@ MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
     ('interface_patch.py', 'runtime.lua', 'session_list.lua', 'host_lobby.lua'))
 NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
     ('interface_patch.py','runtime.lua','map_setup.lua','session_creation.lua','lobby_ui.lua','logistics_ui.lua'))
+MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
+    ('interface_patch.py', 'runtime.lua', 'profile.py', 'archive_append.py',
+     'WePlay-Midsummer.fx', 'WePlay-Midsummer.ini')) + ('installer/reshade_runtime.py',)
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
@@ -101,6 +104,10 @@ def launcher_sources(manifest):
                              ('internet_easytier',INTERNET_TOOLS)):
         if manifest.get(capability,False):files.extend(script_tools(items,manifest))
     if manifest.get('windows_helpers',False):files.extend(WINDOWS_API_TOOLS)
+    if manifest.get('midsummer_profile',False):
+        files.extend((('installer/reshade_runtime.py','reshade_runtime.py'),
+                      ('midsummer/WePlay-Midsummer.fx','WePlay-Midsummer.fx'),
+                      ('midsummer/WePlay-Midsummer.ini','WePlay-Midsummer.ini')))
     return files
 
 
@@ -134,12 +141,16 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('midsummer_profile',False) and (not manifest.get('neo_logistics',False)
+            or not manifest.get('graphics_choice',False)
+            or any(('tools/'+name).lower() not in expected for name in MIDSUMMER_PACKAGE_TOOLS)):
+        raise ValueError('Das Mittsommer-Grafikprofil im Paket ist unvollstaendig.')
     if manifest.get('multiplayer_resume', False) and (
             not manifest.get('cartographer_context', False) or
             any(('tools/' + name).lower() not in expected for name in MULTIPLAYER_RESUME_TOOLS)):
@@ -490,6 +501,17 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         neo=importlib.util.module_from_spec(neo_spec);neo_spec.loader.exec_module(neo)
         target.write_bytes(neo.build(target.read_bytes()))
         record_archive()
+    if manifest.get('midsummer_profile',False):
+        def midsummer_module(filename):
+            spec=importlib.util.spec_from_file_location('s7_midsummer_'+filename,tools/'midsummer'/(filename+'.py'))
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            return module
+        target=destination/'Base/BBA/Interface.bba'
+        target.write_bytes(midsummer_module('interface_patch').build(target.read_bytes()))
+        record_archive()
+        resources=destination/'Base/BBA/shr.bba'
+        resources.write_bytes(midsummer_module('profile').build(resources.read_bytes()))
+        if tracker:tracker(resources,content.digest(resources))
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     def copy_payload(source,target):

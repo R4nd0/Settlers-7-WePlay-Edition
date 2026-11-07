@@ -77,6 +77,8 @@
   "detailedShadowsInfo": "Doubles the shadow map's edge length (4096 × 4096 at the highest shadow quality). Uses more graphics memory and processing power. Does not automatically extend shadow range. Takes effect on the next game launch.",
   "extendedShadowRange": "Show shadows farther away (+50% range)",
   "extendedShadowRangeInfo": "Extends the detailed shadow cascades and far range by 50%. Enable longer detail retention too for detailed distant trees. Spreads the available shadow resolution over a larger area; higher shadow resolution is a separate option. Takes effect on the next game launch.",
+  "midsummerTone": "Gentle colors and highlights (ReShade, Modern graphics only)",
+  "midsummerToneInfo": "First save downloads about 4 MB from reshade.me. Restrained color grading and softer highlights, without extra depth of field. Select the bright lighting cycle in game under Options → Gameplay → Environment → Mittsommer / Midsummer. Takes effect on the next game launch.",
   "anisotropicInfo": "Improves textures viewed at an angle. Adds no lighting or geometry. Turn off if artifacts appear; has no effect in compatible mode. The 60 FPS cap and water correction remain active.",
   "low": "Low",
   "medium": "Medium",

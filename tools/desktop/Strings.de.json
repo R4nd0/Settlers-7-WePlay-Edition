@@ -77,6 +77,8 @@
   "detailedShadowsInfo": "Verdoppelt die Kantenlänge der Schattenkarte (auf höchster Schattenstufe 4096 × 4096). Benötigt mehr Grafikspeicher und Rechenleistung. Vergrößert nicht automatisch die Schattenreichweite. Gilt ab dem nächsten Spielstart.",
   "extendedShadowRange": "Schatten weiter anzeigen (+50 % Reichweite)",
   "extendedShadowRangeInfo": "Vergrößert die detaillierten Schattenkaskaden und den Fernbereich um 50 %. Für detaillierte Bäume in der Ferne auch die längere Detaildarstellung einschalten. Verteilt die vorhandene Schattenauflösung auf eine größere Fläche; höhere Schattenauflösung separat wählbar. Gilt ab dem nächsten Spielstart.",
+  "midsummerTone": "Sanfte Farben und Spitzlichter (ReShade, nur Moderne Grafik)",
+  "midsummerToneInfo": "Beim ersten Speichern werden ca. 4 MB von reshade.me geladen. Dezente Farbabstimmung mit weicheren Spitzlichtern; keine zusätzliche Tiefenunschärfe. Den hellen Lichtzyklus im Spiel unter Optionen → Spielelemente → Umwelt → Mittsommer wählen. Gilt ab dem nächsten Spielstart.",
   "anisotropicInfo": "Verbessert Texturen bei schrägem Blickwinkel. Keine neue Beleuchtung oder Geometrie. Bei Grafikfehlern ausschalten; im kompatiblen Modus ohne Wirkung. 60-FPS-Limit und Wasserkorrektur bleiben erhalten.",
   "low": "Niedrig",
   "medium": "Mittel",

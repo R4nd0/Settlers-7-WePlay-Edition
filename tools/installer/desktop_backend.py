@@ -268,6 +268,7 @@ class Desktop:
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
             try:
                 result['visual_detail_supported']=choice.visual_supported(root)
+                result['midsummer_tone_supported']=(root/'Launcher/reshade_runtime.py').is_file() and (root/'Launcher/WePlay-Midsummer.fx').is_file()
                 result.update(choice=choice._load_choice(root),quality=quality.load(root),
                               player_name=player_settings.load(root),renderer=choice._renderer(root,{})[0])
             except (OSError,ValueError,RuntimeError):result['needs_repair']=True

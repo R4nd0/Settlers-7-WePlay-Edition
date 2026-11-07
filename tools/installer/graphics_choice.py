@@ -36,14 +36,14 @@ def validate_choice(value):
     """Validate local choices; never accept hardware IDs or free-form argv."""
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
             or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering',
-                                  'extended_detail', 'detailed_shadows', 'extended_shadow_range'}
+                                  'extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
         raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range'):
+    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
         if field in value and type(value[field]) is not bool:
             raise ValueError('Die Detailoption muss ein boolescher Wert sein.')
     name = value['choice']
@@ -56,7 +56,7 @@ def validate_choice(value):
         result['simple_menu'] = value['simple_menu']
     if 'anisotropic_filtering' in value:
         result['anisotropic_filtering'] = value['anisotropic_filtering']
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range'):
+    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
         if field in value:
             result[field] = value[field]
     if 'display' in value:
@@ -159,7 +159,16 @@ def saved_launch_environment(root, inherited=None):
     if graphics._plain(root / 'LocalData/graphics-quality.json').exists():
         import quality_settings
         quality_settings.prepare(root)
-    return visual_environment(selected, environment)
+    return tone_environment(root, selected, mode, visual_environment(selected, environment))
+
+
+def tone_environment(root, selected, mode, environment):
+    if selected.get('midsummer_tone', False):
+        if mode != 'dxvk':
+            raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
+        import reshade_runtime
+        return reshade_runtime.launch_environment(root, environment)
+    return environment
 
 
 def visual_environment(selected, inherited):
@@ -187,6 +196,11 @@ def save_choice(root, value):
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
     _load_choice(root)  # Unknown/damaged preferences are never overwritten.
+    if selected.get('midsummer_tone', False):
+        if mode != 'dxvk':
+            raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
+        import reshade_runtime
+        reshade_runtime.prepare(root)
     data = graphics._plain(root / 'LocalData'); data.mkdir(exist_ok=True)
     graphics.atomic_write(graphics._plain(root / CHOICE_FILE), graphics.encoded(selected), data)
     return selected
@@ -197,7 +211,8 @@ def choose_launch_environment(root, inherited=None):
 
     Call this while holding the launcher's existing session_lock, before
     starting the game (and preferably before starting its local service).
-    Only LocalData/graphics-choice.json may be written here. The PowerShell
+    LocalData/graphics-choice.json and an explicitly selected local ReShade
+    runtime may be prepared here. The PowerShell
     dialog receives previous choices and public display metadata, without
     account data or filesystem paths. No global os.environ values are changed.
     """
@@ -214,7 +229,9 @@ def choose_launch_environment(root, inherited=None):
     result = subprocess.run(
         ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-STA',
          '-WindowStyle', 'Hidden', '-File', str(script),
-         *(['-VisualDetailAvailable'] if visual_supported(root) else []), '-RendererMode', mode],
+         *(['-VisualDetailAvailable'] if visual_supported(root) else []),
+         *(['-MidsummerToneAvailable'] if (root/'Launcher/reshade_runtime.py').is_file()
+           and (root/'Launcher/WePlay-Midsummer.fx').is_file() else []), '-RendererMode', mode],
         input=graphics.encoded({'previous': previous, 'displays': displays[:2]}), capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode == CANCELLED:
@@ -223,6 +240,11 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Der Grafikauswahldialog konnte nicht abgeschlossen werden.')
     selected = _record(result.stdout)
     _require_visual_support(root, selected)
+    if selected.get('midsummer_tone', False):
+        if mode != 'dxvk':
+            raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
+        import reshade_runtime
+        reshade_runtime.prepare(root)
     if mode == 'native' and selected['choice'] is not None:
         raise ValueError('Der Standardrenderer unterstuetzt diesen Grafikkartenfilter nicht.')
     current_mode, environment = _renderer(root, inherited)
@@ -243,4 +265,4 @@ def choose_launch_environment(root, inherited=None):
     if _load_choice(root) != previous:
         raise ValueError('Die Grafikauswahl wurde waehrend des Dialogs veraendert.')
     graphics.atomic_write(target, graphics.encoded(selected), data)
-    return visual_environment(selected, environment)
+    return tone_environment(root, selected, mode, visual_environment(selected, environment))

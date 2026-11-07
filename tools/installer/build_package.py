@@ -14,7 +14,7 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility as content
 from install import write_json, FORMAT, LAN_LOBBY_TOOLS, DISPLAY_TOOLS, DESKTOP_TOOLS, DESKTOP_PACKAGE_TOOLS, STANDALONE_PACKAGE_TOOLS, INTERNET_TOOLS, DISCORD_PACKAGE_TOOLS, DIRECTORY_PACKAGE_TOOLS, PUBLIC_DIRECTORY_PACKAGE_TOOLS, UPDATE_PACKAGE_TOOLS, ACHIEVEMENT_PACKAGE_TOOLS, CARTOGRAPHER_PACKAGE_TOOLS, MULTIPLAYER_RESUME_TOOLS, WINDOWS_API_TOOLS
-from install import DIRECTORY_ADAPTER_SHA256,adapter_fingerprint,NEO_LOGISTICS_TOOLS
+from install import DIRECTORY_ADAPTER_SHA256,adapter_fingerprint,NEO_LOGISTICS_TOOLS,MIDSUMMER_PACKAGE_TOOLS
 
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
@@ -23,6 +23,7 @@ ARCHIVE_SHA256 = '1e76e018d79aa39712f142d1f8996a58b1a0b73f438ee709428e5db82609ad
 DIRECTORY_ARCHIVE_SHA256 = '6541f49185b0e37835fd1187378d09a001015046e5b667e7921bc7ae282a0223'
 NEO_ARCHIVE_SHA256='7d2d0e91d014810ba0ce8eaa2f31ba2970abd0d8b7b61b4b98dd0c0fb9dde507'
 NEO_DIRECTORY_ARCHIVE_SHA256='67cbd87bf33981384659b26d4c96d802d4a2a550e16381901e738541895a4e43'
+MIDSUMMER_DIRECTORY_ARCHIVE_SHA256='4c7a81ac9bdbb1a4c08e481ceab096fecbee18cd544477cec9d5469ce77e642b'
 
 
 def check_output_location(repo, output, inputs):
@@ -36,13 +37,15 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
         raise ValueError('Output must be a new directory with an existing parent')
     if type(game_directory) is not bool:raise ValueError('Invalid directory capability')
     if type(neo_logistics) is not bool:raise ValueError('Invalid NEO-Logistics capability')
+    if type(midsummer_profile) is not bool or (midsummer_profile and (not neo_logistics or not game_directory or dxvk_dll is None)):
+        raise ValueError('Mittsommer requires the current NEO, directory and Modern graphics package')
     if game_directory:
         if graphics_probe is None or easytier_runtime is None or windows_helpers is None:raise ValueError('Directory requires desktop, EasyTier and current Windows helpers')
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
@@ -124,6 +127,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names += list(CARTOGRAPHER_PACKAGE_TOOLS)
     names += list(MULTIPLAYER_RESUME_TOOLS)
     if neo_logistics:names+=list(NEO_LOGISTICS_TOOLS)
+    if midsummer_profile:names+=list(MIDSUMMER_PACKAGE_TOOLS)
     if easytier_runtime is not None:
         names += [original for original,_ in INTERNET_TOOLS]
     if dxvk_dll is not None:
@@ -161,12 +165,13 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'game_directory':game_directory,
         'public_game_directory':game_directory,
         'neo_logistics':neo_logistics,
+        'midsummer_profile':midsummer_profile,
         'update_patcher': graphics_probe is not None,
         'achievement_notifications_disabled': True,
         'cartographer_context': True,
         'multiplayer_resume': True,
         'windows_helpers': True,
-        'patched_archive_sha256': (NEO_DIRECTORY_ARCHIVE_SHA256 if game_directory else NEO_ARCHIVE_SHA256) if neo_logistics else (DIRECTORY_ARCHIVE_SHA256 if game_directory else ARCHIVE_SHA256),
+        'patched_archive_sha256': MIDSUMMER_DIRECTORY_ARCHIVE_SHA256 if midsummer_profile else ((NEO_DIRECTORY_ARCHIVE_SHA256 if game_directory else NEO_ARCHIVE_SHA256) if neo_logistics else (DIRECTORY_ARCHIVE_SHA256 if game_directory else ARCHIVE_SHA256)),
         'files': content.inventory(output, ('Payload', 'Runtime', 'Tools'))})
     (output / 'Installieren.cmd').write_text('@echo off\n"%~dp0Runtime\\python\\python.exe" -B "%~dp0Tools\\installer\\install.py" --package "%~dp0."\npause\n', encoding='ascii')
     (output / 'LIESMICH.txt').write_text(
@@ -235,7 +240,8 @@ if __name__ == '__main__':
     parser.add_argument('--windows-helpers',required=True)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true',help='Include the experimental NEO-Logistics map mode (matching adapter required)')
+    parser.add_argument('--midsummer-profile',action='store_true',help='Include optional bright twilight/day lighting and ReShade tone support')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile))

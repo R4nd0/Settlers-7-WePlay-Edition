@@ -219,6 +219,8 @@ their saves before removing them yourself.
 
 Unreleased development: [longer settler/tree detail and visibility, higher-resolution dynamic shadows and extended shadow range](docs/GRAPHICS-LOD-SHADOWS.md).
 
+Unreleased development: [Mittsommer lighting without a dark night and optional gentle ReShade tone](docs/MIDSUMMER-LIGHTING.md).
+
 ## Changelog and compatibility
 
 | Release | Main additions |

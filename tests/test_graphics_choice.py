@@ -109,7 +109,7 @@ class GraphicsChoiceTests(unittest.TestCase):
 
     def test_visual_options_need_capable_adapter_and_strict_booleans(self):
         before = self.snapshot()
-        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range'):
+        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
             record = {'format': choice.FORMAT, 'choice': None, field: True}
             with self.assertRaises(ValueError):
                 choice.save_choice(self.root, record)
@@ -129,6 +129,25 @@ class GraphicsChoiceTests(unittest.TestCase):
             self.assertEqual(choice.saved_launch_environment(self.root, {}),
                              {'S7_EXTENDED_DETAIL': '1', 'S7_DETAILED_SHADOWS': '1',
                               'S7_EXTENDED_SHADOW_RANGE': '1'})
+
+    def test_tone_is_explicit_and_download_failure_preserves_saved_choice(self):
+        import reshade_runtime
+        self.install()
+        original = {'format': choice.FORMAT, 'choice': None}
+        choice.save_choice(self.root, original)
+        selected = {**original, 'midsummer_tone': True}
+        with patch.object(reshade_runtime, 'prepare', side_effect=ValueError('fixture offline')):
+            with self.assertRaises(ValueError):
+                choice.save_choice(self.root, selected)
+        self.assertEqual(self.saved(), original)
+        with patch.object(reshade_runtime, 'prepare') as prepare:
+            choice.save_choice(self.root, selected)
+            prepare.assert_called_once_with(self.root)
+        with patch.object(reshade_runtime, 'launch_environment', side_effect=lambda root, env: {**env, 'TONE': 'fixture'}):
+            self.assertEqual(choice.saved_launch_environment(self.root, {})['TONE'], 'fixture')
+        choice.save_choice(self.root, original)
+        with patch.object(reshade_runtime, 'prepare', side_effect=AssertionError('implicit download')):
+            self.assertNotIn('TONE', choice.saved_launch_environment(self.root, {}))
 
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()
@@ -441,7 +460,7 @@ $output = @{
     record = ConvertTo-ChoiceJson 'Other Vendor'
     simpleMenu = ConvertTo-ChoiceJson $null $true
     filtering = ConvertTo-ChoiceJson $null $false $null $true
-    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true $true
+    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true $true $true
     invalidFilteringRejected = $invalidFilteringRejected
     displayRecord = ConvertTo-ChoiceJson $null $true @{device='\\.\DISPLAY1';width=1280;height=720;mode='windowed'}
     badDisplayBoolean = Test-DisplayChoice @{device='\\.\DISPLAY1';width=$true;height=720;mode='windowed'}
@@ -470,6 +489,7 @@ $output | ConvertTo-Json -Compress
         self.assertIs(json.loads(value['visual'])['extended_detail'], True)
         self.assertIs(json.loads(value['visual'])['detailed_shadows'], True)
         self.assertIs(json.loads(value['visual'])['extended_shadow_range'], True)
+        self.assertIs(json.loads(value['visual'])['midsummer_tone'], True)
         self.assertTrue(value['invalidFilteringRejected'])
         self.assertEqual(json.loads(value['displayRecord'])['display'],
                          {'device':r'\\.\DISPLAY1','width':1280,'height':720,'mode':'windowed'})

@@ -208,6 +208,7 @@ internal sealed partial class MainForm : Form
     private bool busy, gameRunning, loading, forceSetup, recoverState, cancelRequested,updateExit;
     private bool updatesSupported,updateChecking,remoteUpdateAvailable;
     private bool visualDetailAvailable;
+    private bool midsummerToneAvailable;
     private long remoteUpdateSequence;
     private string updateMessageKey="updateAutomatic",remoteUpdateVersion="";
     private string? lastUpdateFailure;
@@ -268,6 +269,7 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox extendedDetail = new() { AutoSize = true };
     private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly CheckBox extendedShadowRange = new() { AutoSize = true };
+    private readonly CheckBox midsummerTone = new() { AutoSize = true };
     private readonly Label activeRenderer = new() { AutoSize = true };
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
@@ -498,6 +500,7 @@ internal sealed partial class MainForm : Form
         Bind(extendedDetail,"extendedDetail");Add(g,extendedDetail);Add(g,Label("extendedDetailInfo"));
         Bind(detailedShadows,"detailedShadows");Add(g,detailedShadows);Add(g,Label("detailedShadowsInfo"));
         Bind(extendedShadowRange,"extendedShadowRange");Add(g,extendedShadowRange);Add(g,Label("extendedShadowRangeInfo"));
+        Bind(midsummerTone,"midsummerTone");Add(g,midsummerTone);Add(g,Label("midsummerToneInfo"));
         Bind(simple,"simple"); Add(g,simple);
         var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
         monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
@@ -576,6 +579,7 @@ internal sealed partial class MainForm : Form
     {
         snapshot=value.Clone();loading=true;
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
+        midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
@@ -588,6 +592,7 @@ internal sealed partial class MainForm : Form
             extendedDetail.Checked=value.GetProperty("choice").TryGetProperty("extended_detail",out var detailValue)&&detailValue.GetBoolean();
             detailedShadows.Checked=value.GetProperty("choice").TryGetProperty("detailed_shadows",out var shadowValue)&&shadowValue.GetBoolean();
             extendedShadowRange.Checked=value.GetProperty("choice").TryGetProperty("extended_shadow_range",out var rangeValue)&&rangeValue.GetBoolean();
+            midsummerTone.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("midsummer_tone",out var toneValue)&&toneValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -740,6 +745,8 @@ internal sealed partial class MainForm : Form
         gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
         anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
+        midsummerTone.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
+        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=false;
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
@@ -761,7 +768,7 @@ internal sealed partial class MainForm : Form
         if(string.IsNullOrEmpty(card))card=null;
         return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
-            detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked},quality,player_name=ValidName()};
+            detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -1088,6 +1095,10 @@ internal sealed partial class MainForm : Form
                     if(!detailChoice.GetProperty("extended_detail").GetBoolean()||!detailChoice.GetProperty("detailed_shadows").GetBoolean()||!detailChoice.GetProperty("extended_shadow_range").GetBoolean())
                         throw new Exception("Visual detail choices lost in request");
                 }
+                form.midsummerToneAvailable=true;form.renderer.SelectedIndex=1;form.DisplayEnabled();form.midsummerTone.Checked=true;
+                using(var tone=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
+                    if(!form.midsummerTone.Enabled||!tone.RootElement.GetProperty("choice").GetProperty("midsummer_tone").GetBoolean())throw new Exception("Tone choice lost");
+                form.midsummerTone.Checked=false;
                 form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
@@ -1103,7 +1114,7 @@ internal sealed partial class MainForm : Form
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
-                if(form.anisotropicFiltering.Enabled)throw new Exception("Native texture filtering control enabled");
+                if(form.anisotropicFiltering.Enabled||form.midsummerTone.Enabled||form.midsummerTone.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
                 if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled)throw new Exception("Native visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();

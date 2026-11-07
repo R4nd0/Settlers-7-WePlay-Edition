@@ -5,6 +5,9 @@ add optional negative mip bias, longer settler/tree detail and visibility,
 higher-resolution shadows and extended shadow range.
 The preset results below describe the earlier milestone; its defaults remain.
 
+The separate [Mittsommer lighting and ReShade tone](MIDSUMMER-LIGHTING.md)
+adds an optional bright twilight/day cycle and a restrained color-only effect.
+
 The optional **Clear landscape / Klare Landschaft** preset removes the game's
 depth-of-field blur and opts into 16× anisotropic texture filtering. It uses
 high native shader, texture, view-distance, shadow, water and clutter quality,

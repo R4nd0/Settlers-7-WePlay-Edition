@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('dxvk', 'native')]
     [string]$RendererMode,
-    [switch]$VisualDetailAvailable
+    [switch]$VisualDetailAvailable,
+    [switch]$MidsummerToneAvailable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,11 +47,11 @@ function Resolve-PreferredChoice {
 
 function ConvertTo-ChoiceJson {
     param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false,
-          $ExtendedDetail = $false, $DetailedShadows = $false, $ExtendedShadowRange = $false)
+          $ExtendedDetail = $false, $DetailedShadows = $false, $ExtendedShadowRange = $false, $MidsummerTone = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
     if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
     if ($AnisotropicFiltering -isnot [bool]) { throw 'Invalid texture filtering choice.' }
-    if ($ExtendedDetail -isnot [bool] -or $DetailedShadows -isnot [bool] -or $ExtendedShadowRange -isnot [bool]) { throw 'Invalid detail choice.' }
+    if ($ExtendedDetail -isnot [bool] -or $DetailedShadows -isnot [bool] -or $ExtendedShadowRange -isnot [bool] -or $MidsummerTone -isnot [bool]) { throw 'Invalid detail choice.' }
     if (-not (Test-DisplayChoice $Display)) { throw 'Invalid display choice.' }
     $record = @{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu}
     if ($PSBoundParameters.ContainsKey('Display')) { $record.display = $Display }
@@ -58,6 +59,7 @@ function ConvertTo-ChoiceJson {
     if ($PSBoundParameters.ContainsKey('ExtendedDetail')) { $record.extended_detail = $ExtendedDetail }
     if ($PSBoundParameters.ContainsKey('DetailedShadows')) { $record.detailed_shadows = $DetailedShadows }
     if ($PSBoundParameters.ContainsKey('ExtendedShadowRange')) { $record.extended_shadow_range = $ExtendedShadowRange }
+    if ($PSBoundParameters.ContainsKey('MidsummerTone')) { $record.midsummer_tone = $MidsummerTone }
     return ($record | ConvertTo-Json -Compress -Depth 5)
 }
 
@@ -92,20 +94,22 @@ try {
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
     $fields = @($previous.PSObject.Properties.Name)
-    if ($fields.Count -lt 2 -or $fields.Count -gt 8 -or
-        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range') }).Count -gt 0 -or
+    if ($fields.Count -lt 2 -or $fields.Count -gt 9 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone') }).Count -gt 0 -or
         'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
     $simpleMenuEnabled = $false
     $anisotropicFilteringEnabled = $false
     $extendedDetailEnabled = $false
     $detailedShadowsEnabled = $false
     $extendedShadowRangeEnabled = $false
-    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range')) {
+    $midsummerToneEnabled = $false
+    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone')) {
         if ($field -cin $fields -and $previous.$field -isnot [bool]) { throw 'Invalid previous detail choice.' }
     }
     if ('extended_detail' -cin $fields) { $extendedDetailEnabled = $previous.extended_detail }
     if ('detailed_shadows' -cin $fields) { $detailedShadowsEnabled = $previous.detailed_shadows }
     if ('extended_shadow_range' -cin $fields) { $extendedShadowRangeEnabled = $previous.extended_shadow_range }
+    if ('midsummer_tone' -cin $fields) { $midsummerToneEnabled = $previous.midsummer_tone }
     if ('anisotropic_filtering' -cin $fields) {
         if ($previous.anisotropic_filtering -isnot [bool]) { throw 'Invalid previous texture filtering choice.' }
         $anisotropicFilteringEnabled = $previous.anisotropic_filtering
@@ -142,6 +146,7 @@ try {
     $form.AutoScaleMode = 'Font'
     $form.Font = New-Object Drawing.Font('Segoe UI', 10)
     $form.ClientSize = New-Object Drawing.Size(650, 676)
+    $form.AutoScroll = $true
 
     $description = New-Object Windows.Forms.Label
     $description.SetBounds(18, 16, 614, 48)
@@ -297,13 +302,19 @@ try {
     $shadowRange.Checked = $extendedShadowRangeEnabled
     $shadowRange.Enabled = $VisualDetailAvailable
     [void]$form.Controls.Add($shadowRange)
+    $tone = New-Object Windows.Forms.CheckBox
+    $tone.SetBounds(18, 632, 614, 30)
+    $tone.Text = 'Gentle ReShade tone (Modern graphics; first save downloads 4 MB)'
+    $tone.Checked = $midsummerToneEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
+    $tone.Enabled = ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
+    [void]$form.Controls.Add($tone)
 
     $start = New-Object Windows.Forms.Button
-    $start.SetBounds(414, 642, 104, 30)
+    $start.SetBounds(414, 674, 104, 30)
     $start.Text = 'Start'
     $start.DialogResult = [Windows.Forms.DialogResult]::OK
     $cancel = New-Object Windows.Forms.Button
-    $cancel.SetBounds(526, 642, 104, 30)
+    $cancel.SetBounds(526, 674, 104, 30)
     $cancel.Text = 'Cancel'
     $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
     [void]$form.Controls.Add($start)
@@ -327,6 +338,7 @@ try {
     $selectedDetail = [bool]$detail.Checked
     $selectedShadowDetail = [bool]$shadowDetail.Checked
     $selectedShadowRange = [bool]$shadowRange.Checked
+    $selectedTone = [bool]$tone.Checked
     $selectedDisplay = $null
     if (-not $keepDisplay.Checked) {
         $entry = $displayEntries[$displayCombo.SelectedIndex]
@@ -336,7 +348,7 @@ try {
             mode=$(if ($modeCombo.SelectedIndex -eq 1) {'borderless'} else {'windowed'})}
     }
     $form.Dispose()
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange $selectedTone))
     exit 0
 } catch {
     [Console]::Error.WriteLine('The graphics dialog could not be displayed.')
