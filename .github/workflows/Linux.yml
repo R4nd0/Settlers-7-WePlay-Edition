@@ -40,7 +40,11 @@ jobs:
           ./native/build_atmosphere.ps1 -OutputDirectory "$PWD/work/ci-atmosphere"
       - name: Public host startup and readiness regressions
         shell: pwsh
-        run: python -B -m unittest discover -s tests -p test_public_startup.py
+        run: |
+          python -B -m unittest discover -s tests -p test_public_startup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Public host startup failed' }
+          python -B -m unittest discover -s tests -p test_internet_backend.py
+          if ($LASTEXITCODE -ne 0) { throw 'Internet guest alignment failed' }
   host:
     strategy:
       matrix:

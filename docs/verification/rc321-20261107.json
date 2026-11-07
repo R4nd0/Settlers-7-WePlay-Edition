@@ -1,0 +1,35 @@
+{
+  "format": "weplay-verification-v1",
+  "release": "2.0.0-rc3.21",
+  "reported_two_pc_attempt": {
+    "directory_grant_succeeded": true,
+    "overlay_peer_connected": true,
+    "routes_observed": ["relay", "p2p"],
+    "tcp_9110_connected": true,
+    "premature_configuration_http": 403
+  },
+  "root_cause": "Windows alignment requested membership-protected configuration before membership admission",
+  "correction": "Use public lobby status for content alignment, retain ordinary admission before protected configuration",
+  "regression": "RC3.20 fails; corrected alignment passes",
+  "real_service_check": {
+    "host": "Unchanged native RC3.20 service in private WSL network",
+    "guest": "Windows corrected alignment and real HTTP membership",
+    "configuration_before_admission": 403,
+    "public_status_alignment": "passes",
+    "configuration_still_protected_after_alignment": 403,
+    "configuration_after_normal_admission": 200,
+    "configuration_after_leave": 403,
+    "renderer_boundary": "fixture",
+    "native_game_started": false
+  },
+  "real_two_pc_lobby": {
+    "observed": true,
+    "native_players": 2,
+    "neo_enabled": true,
+    "directory_crypto_overlay_admission_and_native_game": "real",
+    "candidate_scope": "Only alignment callback replaced in diagnostic guest process; actual RC3.20 installed files/helpers unchanged",
+    "completed_gameplay_match": false
+  },
+  "host_authorization_and_network_policy": "unchanged",
+  "new_complete_two_pc_gameplay_test": false
+}

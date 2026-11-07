@@ -2,15 +2,55 @@ from pathlib import Path
 import sys
 import unittest
 from unittest.mock import Mock, patch
+from contextlib import nullcontext
+from types import SimpleNamespace
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'tools/installer'),str(Path(__file__).parent)]
 import desktop_backend as backend
 from internet_room import Room, InternetError
 import test_desktop_backend as fixtures
+import lan_control
+import launch_lan
 from internet_private_channel import PrivateChannel
 
 ROOM=Room('a'*32,'b'*64,'10.203.77.0/24')
+
+
+class InternetAlignmentTests(unittest.TestCase):
+    def desktop(self):
+        desktop=object.__new__(backend.Desktop)
+        for name in ('progress','probe','renderer','default_choice','record_ownership'):
+            setattr(desktop,name,Mock())
+        desktop.alternatives=Mock(return_value={'native':'a'*64,'dxvk':'b'*64})
+        return desktop
+
+    def test_alignment_uses_public_status_before_admission_not_protected_configuration(self):
+        desktop=self.desktop();interface=SimpleNamespace(address='10.203.77.2')
+        with patch.object(lan_control,'request',return_value={'format':'s7-lobby-control-v1','content_id':'b'*64}) as status, \
+                patch.object(launch_lan,'remote_configuration',side_effect=ValueError('HTTP 403 before admission')) as protected, \
+                patch.object(backend.time,'monotonic',side_effect=[0,46]), \
+                patch.object(backend.graphics,'session_lock',return_value=nullcontext()), \
+                patch.object(backend.choice,'_load_choice'),patch.object(backend.choice,'save_choice'):
+            desktop.align_internet(Path('fixture-game'),interface,ROOM.coordinator,False)
+        status.assert_called_once_with(ROOM.coordinator,interface.address,'status')
+        protected.assert_not_called()
+        desktop.renderer.assert_called_once_with(Path('fixture-game'),'dxvk',desktop.probe.return_value)
+        desktop.record_ownership.assert_called_once_with(Path('fixture-game'))
+
+    def test_unknown_public_content_never_changes_renderer(self):
+        desktop=self.desktop()
+        with patch.object(lan_control,'request',return_value={'format':'s7-lobby-control-v1','content_id':'c'*64}), \
+                patch.object(launch_lan,'remote_configuration',side_effect=AssertionError('protected request before admission')):
+            with self.assertRaisesRegex(ValueError,'version_mismatch'):
+                desktop.align_internet(Path('fixture-game'),SimpleNamespace(address='10.203.77.2'),ROOM.coordinator,False)
+        desktop.renderer.assert_not_called();desktop.record_ownership.assert_not_called()
+
+    def test_host_alignment_does_not_request_its_own_status(self):
+        desktop=self.desktop()
+        with patch.object(lan_control,'request') as status,patch.object(launch_lan,'remote_configuration') as protected:
+            desktop.align_internet(Path('fixture-game'),SimpleNamespace(address=ROOM.coordinator),ROOM.coordinator,True)
+        status.assert_not_called();protected.assert_not_called()
 
 
 class InternetBackendTests(unittest.TestCase):

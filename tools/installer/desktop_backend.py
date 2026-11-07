@@ -727,19 +727,21 @@ class Desktop:
 
     def align_internet(self,root,interface,coordinator,host):
         if host:return
-        from launch_lan import remote_configuration
+        from lan_control import request
         from internet_room import InternetError
         deadline=time.monotonic()+45
         while True:
             self.progress('internet_connect')
             try:
-                configuration=remote_configuration(coordinator,interface.address)
+                # Alignment precedes LAN admission. The bootstrap status is
+                # public; the full configuration correctly requires membership.
+                status=request(coordinator,interface.address,'status')
                 break
             except (OSError,ValueError,http.client.HTTPException):
                 if time.monotonic()>=deadline:raise InternetError('internet_coordinator_unreachable') from None
                 time.sleep(.2)
         alternatives=self.alternatives(root)
-        actual=configuration.get('content_id')
+        actual=status.get('content_id')
         mode=next((key for key,value in alternatives.items() if value==actual),None)
         if mode is None:raise ValueError('version_mismatch')
         probe=self.probe();self.renderer(root,mode,probe)

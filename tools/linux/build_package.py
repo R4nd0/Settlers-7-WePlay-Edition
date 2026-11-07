@@ -17,7 +17,7 @@ import compatibility
 import install
 
 
-def build(patch_package, server, output, *, compression, easytier=None, version='2.0.0-rc3.20'):
+def build(patch_package, server, output, *, compression, easytier=None, version='2.0.0-rc3.21'):
     patch_package, server, output = map(compatibility.plain, (patch_package, server, output))
     source = install.package_manifest(patch_package)
     compression=compatibility.plain(compression)
@@ -78,7 +78,7 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
     manifest['files'] = compatibility.inventory(output, ('Payload', 'Runtime', 'Tools'))
     install.write_json(output / 'package.json', manifest)
     install.package_manifest(output)
-    verification = ROOT / 'docs/verification/rc320-20261107.json'
+    verification = ROOT / 'docs/verification/rc321-20261107.json'
     install.write_json(output / 'linux-release.json', dict(format='weplay-linux-release-v1',version=version,
         network_revision=8,content_contract=compatibility.NETWORK_FORMAT,game_bits=32,host='linux-x64',
         game_runtime='Wine/Proton',gameplay_qualified=False,
@@ -127,7 +127,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--easytier',type=Path)
-    parser.add_argument('--version',default='2.0.0-rc3.20')
+    parser.add_argument('--version',default='2.0.0-rc3.21')
     args = parser.parse_args()
     result = build(args.patch_package,args.server,args.output,compression=args.compression,easytier=args.easytier,version=args.version)
     print(json.dumps({'stage': str(result), 'archive_sha256': archive(result, args.archive) if args.archive else None}))
