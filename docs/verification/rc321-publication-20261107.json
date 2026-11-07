@@ -1,0 +1,206 @@
+{
+  "date": "2026-11-07",
+  "release": "2.0.0-rc3.21",
+  "tag": "v2.0.0-rc3.21",
+  "prerelease": true,
+  "source_commit": "cbf4683d1cdddc434553d2fcb965338bb9565c23",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.21",
+  "package_id": "1b123b8fa90a5796f022aa2c0c54c88d9323fd260938014147cca64219f5145f",
+  "update_sequence": 21,
+  "correction": "Windows guest uses public status before admission, then fetches protected configuration after normal membership",
+  "verification": {
+    "exact_source_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42421283412",
+    "frozen_rc320_packaged_regression": {
+      "reproduced": true,
+      "actual_rc320_package": true,
+      "cases": 3,
+      "failures": 1,
+      "errors": 1,
+      "host_skip_passes": true,
+      "reason": "protected configuration requested before admission"
+    },
+    "actual_rc321_packaged_alignment": {
+      "passed": true,
+      "cases": 3,
+      "actual_bundled_python": true,
+      "actual_packaged_windows_alignment": true,
+      "protected_configuration_mock_refuses_before_admission": true
+    },
+    "actual_bundled_startup_cases": 5,
+    "real_unchanged_rc320_service": {
+      "passed": true,
+      "real_rc320_host_service": true,
+      "windows_guest_linux_host_private_network": true,
+      "before_admission_http": 403,
+      "alignment_used_public_status": true,
+      "alignment_did_not_admit": true,
+      "after_normal_admission_http": 200,
+      "matching_configuration_received": true,
+      "after_leave_http": 403,
+      "renderer_boundary": "fixture",
+      "native_game_started": false
+    },
+    "real_two_pc_admission": {
+      "passed": true,
+      "real_external_host": true,
+      "actual_rc320_package_and_helpers": true,
+      "only_frontend_alignment_callback_corrected_in_diagnostic_process": true,
+      "directory_crypto_overlay_and_membership_real": true,
+      "protected_configuration_received": true,
+      "native_process_boundary": "fixture; game not started",
+      "phases": [
+        "directory_join",
+        "verify",
+        "internet_connect",
+        "internet_connected",
+        "internet_connect",
+        "lan_connect",
+        "internet_connect",
+        "lan_ready",
+        "starting",
+        "internet_ready"
+      ]
+    },
+    "real_two_pc_native": {
+      "passed": true,
+      "real_external_host": true,
+      "actual_rc320_package_and_helpers": true,
+      "only_frontend_alignment_callback_corrected_in_diagnostic_process": true,
+      "directory_crypto_overlay_and_membership_real": true,
+      "protected_configuration_received": true,
+      "native_process_boundary": "actual game",
+      "phases": [
+        "directory_join",
+        "verify",
+        "internet_connect",
+        "internet_connected",
+        "internet_connect",
+        "lan_connect",
+        "internet_connect",
+        "lan_ready",
+        "starting",
+        "internet_ready"
+      ]
+    },
+    "native_lobby_observation": {
+      "observed": true,
+      "native_lobby_players": 2,
+      "neo_enabled": true,
+      "host_on_other_pc_confirmed_by_user": true,
+      "actual_game": true,
+      "directory_overlay_membership_and_configuration_real": true,
+      "guest_process": "RC3.20 installed code with only corrected alignment callback in private diagnostic process",
+      "installed_package_and_elevated_helper_guards_retained": true,
+      "gameplay_match_not_qualified": true,
+      "private_evidence_image_sha256": "7c8b1fe40a8d55154aa5a4fe85184a717fee8344ee7918860b38fabe92489d66",
+      "live_session_left_under_user_control": true
+    },
+    "native_guest_exited_normally": true,
+    "host_authorization_and_firewall_relay_acl_policy": "unchanged",
+    "packaged_ui": true,
+    "actual_fresh_installer": true,
+    "signed_update_and_installer_valid": true,
+    "linux_service_checks": 8952,
+    "linux_boundary_tests": 20,
+    "linux_replay_tests": 5,
+    "linux_exact_archive_extraction": true,
+    "max_glibc": "2.27",
+    "windows_linux_crypto_operations": 8,
+    "public_asset_digests_match": true,
+    "anonymous_full_downloads": 8,
+    "signed_live_update_feed_verified": true,
+    "release_readme_and_document_links_verified": true,
+    "previous_releases_unchanged": 21,
+    "previous_assets_unchanged": 161
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2767,
+      "sha256": "8985c4b65788976380547488d7a69c5b57a241c12cf31a47d4ac1bfdabb0894c"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip",
+      "size": 172916,
+      "sha256": "bdf94568e6754134eed5f5ace1a9fccaeb39291d6375c6b7dca3a9be2915d41e"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip.sha256",
+      "size": 100,
+      "sha256": "7900f6c042e4dbf8f73edd01944679221d70f15434b1eaa46746af0db5fb79db"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 1499,
+      "sha256": "6c426db62ece5b10d0dfd53bab18d17d1c1927d590e170995d9d8fa445224333"
+    },
+    {
+      "name": "README.md",
+      "size": 3227,
+      "sha256": "e40d9330a177df0ae35775ee6d2402b3e55b3117a8e1a0fa446270f1d2dc7711"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 3227,
+      "sha256": "e40d9330a177df0ae35775ee6d2402b3e55b3117a8e1a0fa446270f1d2dc7711"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 106017421,
+      "sha256": "adafc1ef4a5be47621f52c98d5fe3a4185f958ce377b0b9b10671409755117fa"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "23c96f3aec7acb7b84dd8db561c15b646f64bbf332bd187c767f0f93d08c0696"
+    },
+    {
+      "name": "WePlay-RC3.21-Linux-x64.tar.gz",
+      "size": 55238282,
+      "sha256": "25c426a64142e92d1a58cc4150a294d2010c5243bca824738954b5f28624818d"
+    },
+    {
+      "name": "WePlay-RC3.21-Linux-x64.tar.gz.sha256",
+      "size": 97,
+      "sha256": "88cb967a06a96830cd709b9197c85584a551794a703f67996718b4a6508c52c7"
+    },
+    {
+      "name": "WePlay-RC3.21.zip",
+      "size": 110469552,
+      "sha256": "ed404688f6600db05d615c6f6b754780eb54d7b27f8bd19c4dbe21aea62293db"
+    },
+    {
+      "name": "WePlay-RC3.21.zip.sha256",
+      "size": 84,
+      "sha256": "b92e390e6469a3e10055a64e775e79e736596544cfddf12aab276e292e92cad7"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 5164,
+      "sha256": "6794153351b3b78d7c583b12c9f9b4038877b95d7db43627cd1fe7cf2195e18d"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1331,
+      "sha256": "4ab4670ce6cd08351cd66826c0026c5050cd709c8390f914b70adef0c847dce5"
+    }
+  ],
+  "limitations": [
+    "Two-PC native lobby observed with two players and NEO on; no completed gameplay match/checksum qualification.",
+    "Live guest used the actual RC3.20 package/helpers with only corrected frontend alignment callback in its private diagnostic process; final RC3.21 packaged callback separately passed regression tests.",
+    "Fresh installer used production logic/payload with isolated identity/mutexes; no new full game export qualification.",
+    "Linux tools/service/crypto/archive checked; Linux game rendering not repeated.",
+    "Approved graphics and NEO implementation retained; no new graphics or logistics qualification.",
+    "Executables are not Authenticode signed; update metadata is cryptographically signed."
+  ]
+}
