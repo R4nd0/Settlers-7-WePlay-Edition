@@ -1,7 +1,7 @@
 # Morning haze and daytime heat
 
-Unreleased candidate, 2026-11-07. Visual acceptance and RC publication remain
-pending. The earlier GPU and multiplayer results predate this clock bridge.
+RC3.19 candidate, 2026-11-07. The user accepted the morning/day appearance and
+authorized release. Earlier GPU and multiplayer results predate this clock bridge.
 
 Maximum now uses the actual rendered Mittsommer sun angle, not process uptime.
 Morning haze rises over orbit fractions .015–.07, stays full until .18, and
@@ -55,11 +55,12 @@ zero; heat began full and faded later in that afternoon segment.
 The same close camera and late save supplied the review images. The moving
 ground excerpt uses actual screenshots at about four samples per second and
 contains normal game animation too; it cannot substitute for a smooth full-frame
-visual acceptance of refraction. No scene colors or effects were retouched.
+high-frame-rate inspection of refraction. The user accepted these review images
+and the sampled animation. No scene colors or effects were retouched.
 Both clients exited and their private source/profile backups were restored.
 No user installation, published release, save format or NEO logic was changed.
 
 Actual new Steam, Linux, separate-PC and multiplayer qualification of the bridge
 remains pending. Independent Steam disassembly/layout mapping and synthetic
-checks are not runtime qualification. The RC stays on hold until visual review
-and the remaining release checks are complete.
+checks are not runtime qualification. Visual acceptance does not extend these
+platform qualifications. Final package and update checks precede publication.

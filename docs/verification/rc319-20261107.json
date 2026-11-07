@@ -4,7 +4,8 @@
   "network_revision": 8,
   "neo_wire_revision": 5,
   "changes": [
-    "optional screen-space GI, AO, SMAA, bloom, distance haze and heat refraction",
+    "optional screen-space GI, AO, SMAA, bloom, morning haze and daytime heat refraction",
+    "guarded read-only sun-clock bridge; appearance accepted on 2026-11-07",
     "full-frame lighting and atmosphere, no excluded image-edge strips",
     "five-key complete midsummer sun orbit, no dark night",
     "explicit recommended and cinematic launcher profiles; options remain opt-in"
@@ -18,7 +19,7 @@
     "complete_replay_streams": true,
     "both_normal_exit": true,
     "seconds": 238.3,
-    "scope": "Expanded GI/atmosphere pipeline; final HUD-restore removal is render-only and follows this pair"
+    "scope": "Expanded GI/atmosphere pipeline before the sun-clock bridge; final HUD-restore removal follows this pair"
   },
   "final_maximum_sample": {
     "resolution": [

@@ -1,6 +1,6 @@
 # RC3.19: Graphics and Midsummer
 
-Unreleased; visual acceptance pending. Update every participant: lighting resources change
+Visually approved graphics preview. Update every participant: lighting resources change
 the content fingerprint even with NEO off. Back up saves; older releases remain.
 
 ## Graphics

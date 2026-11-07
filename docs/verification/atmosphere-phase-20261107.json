@@ -1,7 +1,7 @@
 {
   "format": "weplay-atmosphere-phase-verification-v1",
   "date": "2026-11-07",
-  "release_status": "unreleased_visual_acceptance_pending",
+  "release_status": "visual_appearance_accepted_release_authorized",
   "production_clock_sha256": "bc397467e09ffdad3c00c3f4654aa54766bf97a8cc7c5d26a22e30fee3aaa2e4",
   "synthetic": {
     "native_reader_and_fp_checks": 148,
@@ -46,7 +46,7 @@
     "color_or_effect_retouching": false
   },
   "limits": [
-    "Visual acceptance is pending.",
+    "Visual appearance accepted by the user on 2026-11-07; platform limits remain.",
     "Short sampled animation includes ordinary game animation and GIF palette conversion.",
     "No new performance or multiplayer checksum qualification of the clock bridge.",
     "Steam layout mapped independently and tested synthetically; new Steam gameplay unqualified.",

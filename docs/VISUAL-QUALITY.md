@@ -1,9 +1,9 @@
 # Optional edge smoothing, Ultra shadows, contacts and cinematic shading
 
-Unreleased development, 2026-11-07. These changes extend the existing
+RC3.19, 2026-11-07. These changes extend the existing
 [Mittsommer profile](MIDSUMMER-LIGHTING.md) and
 [detail and shadow options](GRAPHICS-LOD-SHADOWS.md). Existing published RC3.18
-assets and user installations have not been replaced.
+assets remain unchanged. The morning/day appearance was accepted on 2026-11-07.
 
 ## Controls
 
@@ -111,7 +111,7 @@ preset always sets `DebugView=0`; the magenta/gray/mask views were private test
 diagnostics and are never selected by the launcher.
 
 The [morning/day verification](ATMOSPHERE-PHASE.md) records the native read-only
-bridge, local actual-game checks and remaining visual acceptance. Older GPU and
+bridge, local actual-game checks and visual acceptance. Older GPU and
 multiplayer measurements below predate this bridge and do not qualify it.
 
 Reference contracts: the official [ReShade API](https://github.com/crosire/reshade/blob/v6.8.0/include/reshade_api.hpp)

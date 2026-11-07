@@ -14,7 +14,7 @@ remain unqualified. [Linux setup and verification](docs/LINUX.md).
 [Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.18) · [Discord community](https://discord.gg/j2eQgVzssc)
 
 **The RC3.19 candidate adds optional graphics improvements and a bright Midsummer sun orbit.**
-Publication awaits visual acceptance and final installer checks; the links above retain RC3.18.
+The graphics are visually approved; final package checks precede publication. Links retain RC3.18 until then.
 The Windows launcher's **WePlay recommended (Modern)** profile combines longer
 detail and shadow visibility, 4096 shadows, natural tone, smoother edges and
 depth contact shading. Optional 8192 Ultra shadows offer more near detail.
