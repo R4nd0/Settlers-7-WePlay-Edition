@@ -75,6 +75,15 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             invitation_ready(room.token())
 
     options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game)
+    observer = getattr(args, 'public_observer', None)
+    if observer is not None:
+        def public_observer(interface, coordinator, expected):
+            # launch_auto_lan calls this only after coordinator membership and
+            # content validation. The host broker needs its room identity now;
+            # the external invitation_ready callback stays gated by before_game.
+            return observer(interface, coordinator, expected,
+                            room_invitation=room.token() if host else None)
+        options['public_observer'] = public_observer
     try:
         # Renderer alignment can change the content manifest. Do it before the
         # launcher takes its lock and computes the final full content ID.

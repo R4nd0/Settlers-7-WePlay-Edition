@@ -12,9 +12,13 @@ export async function registerPublicPublisher(request,env,now,readBody){
     throw new DirectoryRefusal(400);
   const tokenHash=await digest(value.token),owner=await digest("public-host:"+value.token);
   // Retries with the same in-memory secret do not create another identity.
-  const existing=await env.DB.prepare(`SELECT p.owner FROM weplay_publishers p JOIN weplay_public_publishers a ON a.owner=p.owner
-    WHERE p.owner=? AND p.token_hash=? AND a.expires_at>?`).bind(owner,tokenHash,now).first();
-  if(existing)return {ok:true};
+  // Renewal is an atomic write, not just a successful credential lookup.
+  // Otherwise scheduled expiry can delete an actively reporting host.
+  const renewed=await env.DB.prepare(`UPDATE weplay_public_publishers SET expires_at=?
+    WHERE owner=? AND expires_at>? AND EXISTS(SELECT 1 FROM weplay_publishers p
+      WHERE p.owner=? AND p.token_hash=? AND p.last_interaction='public') RETURNING owner`)
+    .bind(now+PUBLIC_TTL,owner,now,owner,tokenHash).first();
+  if(renewed)return {ok:true};
   await directoryRate(env,request,now,"public-host",60,6);
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO weplay_publishers(owner,token_hash,last_interaction,issued_at)

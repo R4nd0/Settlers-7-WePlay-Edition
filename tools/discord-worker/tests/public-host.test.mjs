@@ -91,3 +91,27 @@ test("Public credentials cannot answer another host's encrypted join mailbox",as
   const wrong=aRequests.length?b:a,run=aRequests.length?"a".repeat(32):"c".repeat(32);
   assert.equal((await f.api(`/v1/directory/host/${run}/requests/${ticket.id}`,"PUT",{format:"weplay-join-response-v1",envelope:null},wrong)).status,409);
 });
+
+test("Renewing a public host keeps the same visible game through repeated five-minute expiry boundaries",async t=>{
+  const f=setup(t),key=token(1);
+  assert.equal((await f.register(key)).status,200);
+  assert.equal((await f.report(key,"POST",0)).status,200);
+  assert.equal((await f.report(key,"PUT",1,[f.game])).status,200);
+  assert.equal((await f.host(key)).status,200);
+  const identifier=(await (await f.api("/v1/directory/games")).json()).games[0].id;
+  for(let minute=1;minute<=12;minute++){
+    const now=NOW+minute*60;f.setTime(now);
+    // Maintenance can run just before a host heartbeat in real deployment.
+    await expirePublicPublishers(f.env,now);
+    assert.equal((await f.register(key)).status,200);
+    const expires=f.env.DB.db.prepare("SELECT expires_at FROM weplay_public_publishers").get().expires_at;
+    assert.equal(expires,now+300,"acknowledged renewal must really extend the credential");
+    assert.equal((await f.report(key,"PUT",minute+1,[f.game])).status,200);
+    assert.equal((await f.host(key)).status,200);
+    const rows=(await (await f.api("/v1/directory/games")).json()).games;
+    assert.equal(rows.length,1);assert.equal(rows[0].id,identifier);
+  }
+  assert.equal(f.outbound(),0);
+  await expirePublicPublishers(f.env,NOW+12*60+301);await expireDirectory(f.env,NOW+12*60+301);
+  assert.equal((await (await f.api("/v1/directory/games")).json()).games.length,0);
+});

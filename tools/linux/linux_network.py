@@ -21,7 +21,7 @@ def games(root):
 
 
 def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None, game_id=None,
-        invitation_ready=None, notify=None, cancel_check=None, version='2.0.0-rc3.19'):
+        invitation_ready=None, notify=None, cancel_check=None, version='2.0.0-rc3.20'):
     root = compatibility.plain(root)
     # Solo and LAN verify the whole inventory under their session lock before
     # this monitor can open any bridge. Internet joins also need verification
@@ -44,11 +44,9 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
         network = dict(invitation=invitation if mode.endswith('-join') else None,
                        public_lobby=mode == 'public-host', internet_consent=1)
     request = None if mode == 'solo' else dict(player_name=player_name)
-    room = [network.get('invitation') if network else None]
     bridges = []
 
     def invited(value):
-        room[0] = value
         if invitation_ready: invitation_ready(value)
 
     def monitor(game):
@@ -76,9 +74,10 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
                 if notify: notify('game_finished', exit_code=game.poll())
         return Observer()
 
-    def public_observer(interface, coordinator, identity):
+    def public_observer(interface, coordinator, identity, *, room_invitation):
         if mode != 'public-host': return None
-        reporter = PublicReporter(state,interface,coordinator,identity,room_invitation=room[0],
+        if not room_invitation: raise ValueError('directory_unavailable')
+        reporter = PublicReporter(state,interface,coordinator,identity,room_invitation=room_invitation,
                                   version=version,helper_root=root)
         try:
             reporter.poll()

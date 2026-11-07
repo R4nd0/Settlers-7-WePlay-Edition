@@ -822,11 +822,9 @@ class Desktop:
             code=launch_local.run(args)
         elif internet is not None:
             import launch_internet
-            private_room=[internet.get('invitation')]
             def room_ready(invitation):
-                private_room[0]=invitation
                 if invitation_ready:invitation_ready(invitation)
-            def observe(interface,coordinator,expected):
+            def observe(interface,coordinator,expected,*,room_invitation):
                 public=internet.get('public_lobby',internet.get('publish_discord',False))
                 if not public:return None
                 if internet.get('publish_discord',False):from discord_directory import Reporter
@@ -834,8 +832,9 @@ class Desktop:
                 reporter=None
                 try:
                     extra={}
-                    if install.package_manifest(self.package).get('game_directory',False) and private_room[0]:
-                        extra=dict(room_invitation=private_room[0],version=self.read(self.app/'desktop-release.json',{}).get('version'),helper_root=self.package)
+                    if install.package_manifest(self.package).get('game_directory',False):
+                        if not room_invitation:raise ValueError('directory_unavailable')
+                        extra=dict(room_invitation=room_invitation,version=self.read(self.app/'desktop-release.json',{}).get('version'),helper_root=self.package)
                     reporter=Reporter(self.state,interface,coordinator,expected,
                         warn=lambda code:self.emit('warning',code=code),**extra)
                     # Confirm hosting access before starting S7. A failed

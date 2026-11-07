@@ -1,0 +1,39 @@
+{
+  "format": "weplay-verification-v1",
+  "release": "2.0.0-rc3.20",
+  "scope": "Public discovery and encrypted join handoff; local qualification",
+  "startup_regression": {
+    "frozen_rc319_windows": "fails: absent host broker",
+    "frozen_rc319_linux": "fails: absent host broker",
+    "corrected_source": "passes",
+    "game_process_boundary": "fixture"
+  },
+  "worker": {
+    "node_tests": 25,
+    "passed": 25,
+    "renewal_simulated_minutes": 12,
+    "real_workerd_d1_compiled_crypto": "passes",
+    "renewal_fix_deployed": true
+  },
+  "composed_startup_service": {
+    "windows": "passes",
+    "linux": "passes",
+    "independent_reader": true,
+    "full_room_refused": true,
+    "encrypted_room_grant": true,
+    "removed_after_close": true,
+    "native_process": "fixture"
+  },
+  "native_local": {
+    "clients": 2,
+    "live_https_directory": true,
+    "real_host_displayed_in_guest_browser": true,
+    "explicit_nonce_bound_join_selection": true,
+    "compiled_crypto_delivered_exact_room": true,
+    "native_traffic": "guarded loopback laboratory service",
+    "copies_and_profiles_restored": true,
+    "separate_pc_internet_test": false,
+    "discord_messages_sent": false
+  },
+  "graphics": "RC3.19 approved assets retained; no new graphics qualification"
+}

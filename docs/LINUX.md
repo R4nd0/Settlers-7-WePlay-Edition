@@ -131,7 +131,7 @@ The transport additionally requires Rust stable, its
 directory under work. It applies the existing patches and runs the relevant
 packet-filter unit suites. Ship the matching corresponding-source archive and
 all dependency notices with any distributed transport binary.
-The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/EasyTier-corresponding-source.zip)
+The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.20/EasyTier-corresponding-source.zip)
 contains both Linux and Windows build recipes and the reviewed patches.
 
 `tools/linux/build_package.py` accepts the verified patch package, native server
