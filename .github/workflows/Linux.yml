@@ -45,6 +45,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Public host startup failed' }
           python -B -m unittest discover -s tests -p test_internet_backend.py
           if ($LASTEXITCODE -ne 0) { throw 'Internet guest alignment failed' }
+          python -B -m unittest discover -s tests -p test_midsummer.py -k ReShadePreparationTests
+          if ($LASTEXITCODE -ne 0) { throw 'ReShade preset lifecycle failed' }
   host:
     strategy:
       matrix:
@@ -65,6 +67,7 @@ jobs:
           node --test tools/discord-worker/tests/*.test.mjs
           python3 -B -m unittest discover -s tests -p test_public_startup.py
           python3 -B -m unittest discover -s tests -p test_launch_internet.py
+          python3 -B -m unittest discover -s tests -p test_midsummer.py -k ReShadePreparationTests
       - name: Build native service and join helper
         shell: bash
         run: |

@@ -15,7 +15,7 @@ class ReleaseDocumentTests(unittest.TestCase):
         text=build_rc2.public_document(build_rc2.RELEASE_GUIDE)
         self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/VISUAL-QUALITY.md)',text)
         self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/GRAPHICS-RC319-MEASUREMENTS.md)',text)
-        self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/RC3.20-PUBLIC-LOBBY.md)',text)
+        self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/RC3.21-INTERNET-JOIN.md)',text)
 
     def test_missing_or_external_file_targets_are_rejected(self):
         for target in ('missing-document.md','../../../../outside.md'):

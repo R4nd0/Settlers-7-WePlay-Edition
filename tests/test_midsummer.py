@@ -9,6 +9,7 @@ import tempfile
 import unittest
 import zipfile
 from unittest.mock import patch
+from contextlib import contextmanager, ExitStack
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -167,6 +168,69 @@ class MidsummerResourceTests(unittest.TestCase):
 
 
 class ReShadePreparationTests(unittest.TestCase):
+    @contextmanager
+    def prepared(self, options):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path, ExitStack() as stack:
+            root=Path(path);clock=root/reshade_runtime.CLOCK_FILE
+            clock.parent.mkdir(parents=True);clock.write_bytes(b'guarded clock fixture')
+            dll=b'guarded runtime fixture';manifest=archive_fixture_manifest();packed=io.BytesIO()
+            with zipfile.ZipFile(packed,'w') as archive:
+                archive.writestr('ReShade32.dll',dll);archive.writestr('ReShade32.json',manifest)
+            setup=root/'setup.exe';setup.write_bytes(packed.getvalue())
+            for name,value in {'SETUP_SHA256':packed.getvalue(),'ADDON_SETUP_SHA256':packed.getvalue(),
+                               'DLL_SHA256':dll,'ADDON_DLL_SHA256':dll,'MANIFEST_SHA256':manifest,
+                               'CLOCK_SHA256':clock.read_bytes()}.items():
+                stack.enter_context(patch.object(reshade_runtime,name,hashlib.sha256(value).hexdigest()))
+            closed=stack.enter_context(patch('graphics_profile.ensure_closed'))
+            folder=reshade_runtime.prepare(root,setup=setup,options=options)
+            stack.enter_context(patch('urllib.request.urlopen',side_effect=AssertionError('unexpected second download')))
+            yield root,folder,closed
+
+    def test_runtime_preset_rewrites_can_be_saved_and_launched_repeatedly(self):
+        for maximum in (False,True):
+            options=dict(midsummer_tone=True,enhanced_aa=True,contact_shadows=True,maximum_fx=maximum)
+            with self.subTest(maximum=maximum),self.prepared(options) as (root,folder,closed):
+                preset=folder/'WePlay-Midsummer.ini';expected=preset.read_bytes()
+                rewritten=expected.replace(b'[WePlay-Midsummer.fx]',b'[WePlay-Midsummer.fx]\nAtmosphereGameTime=0.000000\nAtmospherePhaseReady=0').replace(b'\n',b'\r\n')
+                preset.write_bytes(rewritten)
+                with self.assertRaises(ValueError):reshade_runtime.verify(root,options)
+                self.assertEqual(reshade_runtime.prepare(root,options=options),folder)
+                self.assertEqual(preset.read_bytes(),expected)
+                backup=folder/'WePlay-Midsummer.before-repair.ini'
+                self.assertEqual(backup.read_bytes(),rewritten)
+                preset.write_bytes(rewritten+b'\r\n; next exit\r\n')
+                environment=reshade_runtime.launch_environment(root,{},options)
+                self.assertIn('VK_LAYER_reshade',environment['VK_INSTANCE_LAYERS'])
+                self.assertEqual(preset.read_bytes(),expected)
+                self.assertEqual(backup.read_bytes(),rewritten,'retain first backup without growing per-exit history')
+                self.assertEqual(list(folder.glob('*.before-repair.ini')),[backup])
+                self.assertEqual(reshade_runtime.verify(root,options),folder)
+
+    def test_repair_checks_modules_shaders_and_external_addons_before_writing(self):
+        options=dict(maximum_fx=True)
+        for name in ('ReShade32.dll','ReShade32.json','Shaders/WePlay-Midsummer.fx','NoAddons/unknown.addon32',
+                     'ManagedAddons/WePlayAtmosphere.addon32'):
+            with self.subTest(file=name),self.prepared(options) as (root,folder,closed):
+                preset=folder/'WePlay-Midsummer.ini';rewritten=preset.read_bytes()+b'\n; normalized\n';preset.write_bytes(rewritten)
+                (folder/name).write_bytes(b'changed module or shader')
+                with self.assertRaises(ValueError):reshade_runtime.prepare(root,options=options)
+                self.assertEqual(preset.read_bytes(),rewritten)
+                self.assertFalse((folder/'WePlay-Midsummer.before-repair.ini').exists())
+
+    def test_repair_never_rewrites_a_running_games_preset(self):
+        with self.prepared({'midsummer_tone':True}) as (root,folder,closed):
+            preset=folder/'WePlay-Midsummer.ini';rewritten=preset.read_bytes()+b'\n; runtime write\n';preset.write_bytes(rewritten)
+            closed.side_effect=ValueError('game is running')
+            with self.assertRaises(ValueError):reshade_runtime.prepare(root,options={'midsummer_tone':True})
+            self.assertEqual(preset.read_bytes(),rewritten)
+            self.assertFalse((folder/'WePlay-Midsummer.before-repair.ini').exists())
+
+    def test_missing_generated_preset_is_rebuilt_after_asset_verification(self):
+        with self.prepared({'midsummer_tone':True}) as (root,folder,closed):
+            preset=folder/'WePlay-Midsummer.ini';expected=preset.read_bytes();preset.unlink()
+            self.assertEqual(reshade_runtime.prepare(root,options={'midsummer_tone':True}),folder)
+            self.assertEqual(preset.read_bytes(),expected)
+
     def test_normal_exit_defaults_allow_a_second_launch(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:
             root = Path(path)
@@ -263,7 +327,7 @@ class ReShadePreparationTests(unittest.TestCase):
 
     def test_layer_activation_is_child_only_and_preserves_unrelated_layers(self):
         parent = {'PATH': 'fixture', 'VK_LAYER_PATH': 'other', 'VK_INSTANCE_LAYERS': 'other-layer'}
-        with patch.object(reshade_runtime, 'verify', return_value=Path('fixture-tone')):
+        with patch.object(reshade_runtime, 'prepare', return_value=Path('fixture-tone')):
             env = reshade_runtime.launch_environment(Path('root'), parent)
         self.assertEqual(parent, {'PATH': 'fixture', 'VK_LAYER_PATH': 'other', 'VK_INSTANCE_LAYERS': 'other-layer'})
         self.assertEqual(env['VK_INSTANCE_LAYERS'].split(os.pathsep), ['other-layer', 'VK_LAYER_reshade'])

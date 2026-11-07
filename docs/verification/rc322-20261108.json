@@ -1,0 +1,22 @@
+{
+  "format": "weplay-verification-v1",
+  "release": "2.0.0-rc3.22",
+  "reported_failure": "Graphics save rejects a generated ReShade preset modified by normal runtime serialization",
+  "observed_changed_file": "WePlay-Midsummer.ini",
+  "observed_runtime_changes": ["CRLF", "key order", "clock uniforms", "default technique list"],
+  "regression_cases": {
+    "runtime_rewrites_maximum_off_on": "passes",
+    "save_and_next_launch_restore_generated_preset": "passes",
+    "backup_count_bounded": "one first changed preset per profile",
+    "missing_generated_preset": "passes",
+    "running_game_refused_before_write": "passes",
+    "changed_dll_manifest_shader_or_addon_refused_before_write": "passes"
+  },
+  "existing_local_profiles": {
+    "profiles_restored": 2,
+    "all_other_guarded_files_verified": true,
+    "installed_application_files_changed_by_this_repair": false
+  },
+  "scope": "Profile lifecycle; shader appearance and simulation are unchanged",
+  "actual_final_package_and_game_restart_checks": "Recorded separately in the publication receipt"
+}

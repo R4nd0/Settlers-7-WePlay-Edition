@@ -174,6 +174,10 @@ def _profile_files(options, root):
 
 
 def verify(root, options=None):
+    return _verify(root, options, check_preset=True)
+
+def _verify(root, options, *, check_preset):
+    """Keep executable/assets/configuration checks strict during preset repair."""
     folder = _folder(root, options)
     dll = _plain(folder / 'ReShade32.dll')
     if (not dll.is_file() or dll.stat().st_size > 16 * 1024 * 1024
@@ -193,7 +197,7 @@ def verify(root, options=None):
     if _options(options)[3] and (not managed.is_dir() or {p.name for p in managed.iterdir()} != {'WePlayAtmosphere.addon32'}):
         raise ValueError('Der verwaltete ReShade-Sonnenzeitgeber-Ordner wurde veraendert.')
     if (any(_read(folder / name, 4 * 1024 * 1024) != data for name, data in _profile_files(options, root).items())
-            or _plain(folder / 'WePlay-Midsummer.ini').read_bytes() != _preset(options)):
+            or check_preset and _read(folder / 'WePlay-Midsummer.ini', 65536) != _preset(options)):
         raise ValueError('Das WePlay-Grafikprofil wurde veraendert. Grafikauswahl erneut speichern.')
     # ReShade writes UI/style defaults on a clean exit. Compare managed values,
     # not the complete byte stream, so the next ordinary launch still works.
@@ -217,6 +221,21 @@ def prepare(root, *, setup=None, options=None):
     url, setup_sha256, dll_sha256 = _runtime(options)
     folder = _folder(root, options)
     if folder.exists():
+        # ReShade serializes this generated preset on normal exit (ordering,
+        # transient uniforms, technique defaults). It is not the user's choice
+        # record. Validate every immutable component before restoring the recipe.
+        _verify(root, options, check_preset=False)
+        preset = _plain(folder / 'WePlay-Midsummer.ini')
+        previous = _read(preset, 65536) if preset.exists() else None
+        expected = _preset(options)
+        if previous != expected:
+            graphics_profile.ensure_closed()
+            # Retain the first changed preset once. Never replace an existing
+            # backup or accumulate another file for every game exit.
+            backup = _plain(folder / 'WePlay-Midsummer.before-repair.ini')
+            if previous is not None and not backup.exists():
+                graphics_profile.atomic_create(backup, previous, folder)
+            graphics_profile.atomic_write(preset, expected, folder)
         return verify(root, options)
     graphics_profile.ensure_closed()
     # Reuse only the pinned official runtime; never migrate an old shader or
@@ -274,7 +293,7 @@ def prepare(root, *, setup=None, options=None):
 
 
 def launch_environment(root, inherited, options=None):
-    folder = verify(root, options)
+    folder = prepare(root, options=options)
     result = {key: value for key, value in inherited.items()
               if key.upper() != 'RESHADE_BASE_PATH_OVERRIDE'}
     # Explicit layer for this child only. Existing unrelated layer paths/names

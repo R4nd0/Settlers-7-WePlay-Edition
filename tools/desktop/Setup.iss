@@ -13,11 +13,11 @@ Uninstallable=no
 AppId={{B66B3FA3-165A-4B0E-ACAA-771C64367317}
 #endif
 AppName=Settlers 7: WePlay Edition
-AppVersion=2.0.0-rc3.21
+AppVersion=2.0.0-rc3.22
 #ifdef InstallerTest
-AppVerName=WePlay Installer TEST - RC3.21
+AppVerName=WePlay Installer TEST - RC3.22
 #else
-AppVerName=Settlers 7: WePlay Edition RC3.21 Internet Join Hotfix
+AppVerName=Settlers 7: WePlay Edition RC3.22 Graphics Preset Recovery
 #endif
 AppPublisher=WePlay Community
 AppPublisherURL=https://github.com/R4nd0/Settlers-7-WePlay-Edition
