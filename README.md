@@ -2,19 +2,18 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.18 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/Setup.exe)
+## [Download Windows Installer — RC3.19 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/WePlay-RC3.19-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.18/WePlay-RC3.18.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.18) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/WePlay-RC3.19.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.19) · [Discord community](https://discord.gg/j2eQgVzssc)
 
-**The RC3.19 candidate adds optional graphics improvements and a bright Midsummer sun orbit.**
-The graphics are visually approved; final package checks precede publication. Links retain RC3.18 until then.
+**RC3.19 adds optional graphics improvements and a bright Midsummer sun orbit.**
 The Windows launcher's **WePlay recommended (Modern)** profile combines longer
 detail and shadow visibility, 4096 shadows, natural tone, smoother edges and
 depth contact shading. Optional 8192 Ultra shadows offer more near detail.

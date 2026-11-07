@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-07",
+  "release": "2.0.0-rc3.19",
+  "tag": "v2.0.0-rc3.19",
+  "prerelease": true,
+  "source_commit": "95a6d565bb763f2b725014e3bfb6a928819affc6",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.19",
+  "native_adapter_sha256": "73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6",
+  "atmosphere_clock_sha256": "bc397467e09ffdad3c00c3f4654aa54766bf97a8cc7c5d26a22e30fee3aaa2e4",
+  "neo_wire_revision": 5,
+  "visual_appearance_accepted": true,
+  "verification": {
+    "native_reader_fp_checks": 148,
+    "packaged_ui_passed": true,
+    "signed_update_and_installer_valid": true,
+    "actual_fresh_installer_test": true,
+    "installer_test_scope": "Production installer logic and payload, isolated test identity/mutexes; exact final metadata, installed bridge and bundled Maximum preparation verified; game not started.",
+    "portable_upgrade_scope": "Earlier pre-bridge RC3.19 payload passed owned-game refresh, save/profile preservation, relocation and retirement. Generic update/copy logic is unchanged; not repeated for the final bridge payload.",
+    "linux_native_service_checks": 8951,
+    "linux_boundary_tests": 20,
+    "linux_replay_tests": 5,
+    "linux_exact_archive_extraction": true,
+    "max_glibc": "2.27",
+    "windows_linux_crypto_operations": 8,
+    "exact_source_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42400102307",
+    "public_asset_digests_match": true,
+    "anonymous_full_downloads": 8,
+    "readme_asset_and_release_document_links_verified": true,
+    "signed_live_update_feed_verified": true,
+    "previous_releases_unchanged": 19,
+    "previous_assets_unchanged": 129
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2767,
+      "sha256": "de9916b171535ea1e9a14ccbd2e409cf255e2c4c9f7a6d71a3890e35a7682e01"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip",
+      "size": 172917,
+      "sha256": "d65313824047fd18949e7225120e989fdb4d83d6008c1cc291a21ed60df0175c"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip.sha256",
+      "size": 100,
+      "sha256": "524bdafbaf3b8983d4167ff7807e95a20f7cdb2a4d0a5a60a3a8998791d9af43"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 3002,
+      "sha256": "11cc39d396687a1be4f04d20a98869528359dcbe650f59f95b24f9824cdc56c1"
+    },
+    {
+      "name": "README.md",
+      "size": 4226,
+      "sha256": "65555becb749d54454a53274c6d29e48c8a6319ef54d8db16844378b9b4137b3"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 4226,
+      "sha256": "65555becb749d54454a53274c6d29e48c8a6319ef54d8db16844378b9b4137b3"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 105998705,
+      "sha256": "d4c536871861c73e91aeea8febb2cfb4977563071da299fe12c8f44d58955fb0"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "028135a0c7c78c2d4c8f45d170d15a6fe24f1ba7489e0d898839e2cfc6709c0d"
+    },
+    {
+      "name": "WePlay-RC3.19-Linux-x64.tar.gz",
+      "size": 55238762,
+      "sha256": "e04e89ec0dab554eb225fcebcc87c0c2854a7a80a80bdd9e585fbe63515619fe"
+    },
+    {
+      "name": "WePlay-RC3.19-Linux-x64.tar.gz.sha256",
+      "size": 97,
+      "sha256": "403ac321285abfdeba28a1fefabd66f2e5a069fa577500d2ba32357c06f29355"
+    },
+    {
+      "name": "WePlay-RC3.19.zip",
+      "size": 110452131,
+      "sha256": "3f462c3bb10a89eb84e60b5f2e6697906835433b6cdb8b58777b62abf8e361c6"
+    },
+    {
+      "name": "WePlay-RC3.19.zip.sha256",
+      "size": 84,
+      "sha256": "eba462d151e074bbf314b691a86afce2aeb1491b9ca0be2ea246293c208a682d"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 6616,
+      "sha256": "f04004e2429eae3be8e20a03b9d2c9af3db53f63f70b344b481f9a7779914276"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1331,
+      "sha256": "38cf46fe12cf0320dfee698996aba056fd1bf83ed16f82964eb46747266b6324"
+    }
+  ],
+  "limitations": [
+    "Graphics appearance accepted from actual local late-save captures and short sampled animation.",
+    "Older graphics GPU and 451/451 loopback checksum results predate the read-only clock bridge.",
+    "No new separate-PC, Steam, Linux graphics gameplay or multiplayer qualification of the clock bridge.",
+    "Screen-space effects have depth, off-screen geometry and temporal-estimation limits.",
+    "Release executables are not Authenticode signed; update metadata is cryptographically signed."
+  ]
+}
