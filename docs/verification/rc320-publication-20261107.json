@@ -1,0 +1,142 @@
+{
+  "date": "2026-11-07",
+  "release": "2.0.0-rc3.20",
+  "tag": "v2.0.0-rc3.20",
+  "prerelease": true,
+  "source_commit": "59cd7b339fbe771033c71d02353c4a0419017205",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.20",
+  "package_id": "b8ac923d932b1f16c10d07a4cff5f9d4462790289892dc40e382d251a5dd8faa",
+  "update_sequence": 20,
+  "verification": {
+    "exact_source_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42407155514",
+    "frozen_rc319_regression": "both public-host paths fail without HostBroker; corrected paths pass",
+    "actual_bundled_windows_startup_cases": 5,
+    "actual_linux_package_startup": "3 passing Linux cases; 2 Windows-only cases skipped",
+    "composed_packaged_startup_workerd_d1": true,
+    "composed_native_process_boundary": "fixture",
+    "worker_node_tests": 25,
+    "renewal_simulated_minutes": 12,
+    "server_renewal_fix_deployed": true,
+    "native_discovery_and_handoff": {
+      "passed": true,
+      "real_native_game_listed": true,
+      "production_https": true,
+      "native_browser_explicit_join_request": true,
+      "nonce_bound_selection": true,
+      "compiled_crypto_exact_room": true,
+      "native_traffic": "guarded loopback lab",
+      "remote_pc_test": false,
+      "external_discord": false
+    },
+    "live_service_healthy_and_test_listing_gone": {
+      "health": 200,
+      "ready": true,
+      "listing_readable": true,
+      "owned_native_host_no_longer_listed": true
+    },
+    "packaged_ui": true,
+    "actual_fresh_installer": true,
+    "signed_update_and_installer_valid": true,
+    "linux_service_checks": 8952,
+    "linux_boundary_tests": 20,
+    "linux_replay_tests": 5,
+    "linux_exact_archive_extraction": true,
+    "max_glibc": "2.27",
+    "windows_linux_crypto_operations": 8,
+    "public_asset_digests_match": true,
+    "anonymous_full_downloads": 8,
+    "signed_live_update_feed_verified": true,
+    "previous_releases_unchanged": 20,
+    "previous_assets_unchanged": 145
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2767,
+      "sha256": "0ddac0a57308d7f64b98e2fc05d9fcfd6eb9099ebde53a030d815028d76295f9"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip",
+      "size": 172919,
+      "sha256": "254a7b4fc87eeb21014cff6372d374d835c419b18541a171483446f8323b97da"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip.sha256",
+      "size": 100,
+      "sha256": "5883a5484fddf4fd1f7d33965aba3a13981f84b9a9639ead3aade452e52240a1"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 1274,
+      "sha256": "a20f4454f93d3a5a2471fd942e1139b07a883a16242fd33ed39b2618c53055e4"
+    },
+    {
+      "name": "README.md",
+      "size": 2670,
+      "sha256": "e3d80050f8f65bf5b1e017fb8defd45d69fefee0758316a190f6281e8ed3a665"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 2670,
+      "sha256": "e3d80050f8f65bf5b1e017fb8defd45d69fefee0758316a190f6281e8ed3a665"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 106001891,
+      "sha256": "2d4abbf15e06f3e4c8d95dc34024d6eb18f5215b48a3261758968a4ab69ac0d1"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "cf646fc044088db1283ab7ed2ae1393c0ae71f5a1c6af238dd6dd567290f43ca"
+    },
+    {
+      "name": "WePlay-RC3.20-Linux-x64.tar.gz",
+      "size": 55238054,
+      "sha256": "34d5efe15113d4d0dd0c2fb88c54b3bff3e57a0436ec44178ef73482bdd06e3f"
+    },
+    {
+      "name": "WePlay-RC3.20-Linux-x64.tar.gz.sha256",
+      "size": 97,
+      "sha256": "1609f28c3a471bc22c220a96bb825090862bab28fff8eae4d2c042a8102b2108"
+    },
+    {
+      "name": "WePlay-RC3.20.zip",
+      "size": 110452586,
+      "sha256": "da213673564de5f0d684f81cd9879e48c46b06fd5c5f871ec67f9bd215301d5e"
+    },
+    {
+      "name": "WePlay-RC3.20.zip.sha256",
+      "size": 84,
+      "sha256": "d5b7dadf37a77dedf4f4956b5151065597ef7ff2aae1ba53dda0fba63f0551ab"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 4312,
+      "sha256": "33f034f70e414c1145bdf28ce9a0f5b4dca2d0db830ab2d8094422cfde84393e"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1331,
+      "sha256": "8f4df08880bfc4e5c0a456c572d61cfeaf2b99b38f728556be0e0eaaab11de40"
+    }
+  ],
+  "limitations": [
+    "Native public discovery and encrypted handoff tested locally with guarded game copies; native traffic used loopback laboratory service.",
+    "Separate-PC Internet gameplay, TUN routing and relay traversal were not newly qualified.",
+    "Linux package startup/service/crypto tested; Linux game rendering not repeated.",
+    "RC3.19 approved graphics retained without a new graphics performance or multiplayer qualification.",
+    "Fresh installer used production logic/payload with isolated test identity/mutexes; no new full game export/update test.",
+    "Executables are not Authenticode signed; update metadata is cryptographically signed."
+  ]
+}

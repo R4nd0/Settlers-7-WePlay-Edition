@@ -2,16 +2,24 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.19 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/Setup.exe)
+## [Download Windows Installer — RC3.20 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.20/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/WePlay-RC3.19-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.20/WePlay-RC3.20-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.19/WePlay-RC3.19.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.19) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.20/WePlay-RC3.20.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.20) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.20 repairs public games missing from the global lobby.**
+Public hosting now publishes its joinable room correctly on Windows and Linux.
+The directory server also renews active public-host credentials correctly.
+Update the host, restart WePlay and create a new public game. A real native host
+was displayed and selected by a second local native client through the live
+HTTPS directory; encrypted join handoff passed. Separate-PC Internet gameplay
+remains pending. [Fix and verification scope](docs/RC3.20-PUBLIC-LOBBY.md).
 
 **RC3.19 adds optional graphics improvements and a bright Midsummer sun orbit.**
 The Windows launcher's **WePlay recommended (Modern)** profile combines longer
@@ -75,7 +83,7 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install **RC3.19 on every participant's PC**, including Windows peers and
+4. Install **RC3.20 on every participant's PC**, including Windows peers and
    when NEO is off. The current NEO5 compatibility contract rejects older peers, even with NEO off.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
