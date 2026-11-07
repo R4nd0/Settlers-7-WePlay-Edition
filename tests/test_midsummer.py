@@ -21,6 +21,10 @@ import archive_append
 import reshade_runtime
 
 
+def archive_fixture_manifest():
+    return b'{"layer":{"name":"VK_LAYER_reshade","library_path":".\\\\ReShade32.dll"}}'
+
+
 def environment_fixture():
     root = ET.Element('EnvironmentSet')
     ET.SubElement(root, 'Name').text = 'Neutral'
@@ -104,7 +108,7 @@ class MidsummerResourceTests(unittest.TestCase):
             self.assertEqual(ET.tostring(keys[0].find('Value')), ET.tostring(keys[-1].find('Value')))
             self.assertEqual(result.findtext(name + '/Loop'), 'true')
         self.assertEqual([float(k.findtext('Value')) for k in result.findall('SunElevation/KeyFrames/Key')], [14, 48, 14])
-        self.assertGreaterEqual(min(float(k.findtext('Value')) for k in result.findall('HDRExposure/KeyFrames/Key')), 2.6)
+        self.assertGreaterEqual(min(float(k.findtext('Value')) for k in result.findall('HDRExposure/KeyFrames/Key')), 2.45)
         self.assertEqual([float(k.findtext('Value')) for k in result.findall('WindStrength/KeyFrames/Key')], [.35, .45])
         scaled = ET.fromstring(profile.environment(source, period_ms=12000))
         self.assertEqual(scaled.findtext('SunElevation/KeyFrames/Key[2]/Time'), '6000')
@@ -158,17 +162,42 @@ class ReShadePreparationTests(unittest.TestCase):
             packed = io.BytesIO()
             with zipfile.ZipFile(packed, 'w') as archive:
                 archive.writestr('ReShade32.dll', dll)
-                archive.writestr('ReShade32.json', '{"layer":{"name":"VK_LAYER_reshade","library_path":".\\\\ReShade32.dll"}}')
+                archive.writestr('ReShade32.json', archive_fixture_manifest())
             setup = root / 'setup.exe'
             setup.write_bytes(packed.getvalue())
             with patch.object(reshade_runtime, 'SETUP_SHA256', hashlib.sha256(packed.getvalue()).hexdigest()), \
                  patch.object(reshade_runtime, 'DLL_SHA256', hashlib.sha256(dll).hexdigest()), \
+                 patch.object(reshade_runtime, 'ADDON_SETUP_SHA256', hashlib.sha256(packed.getvalue()).hexdigest()), \
+                 patch.object(reshade_runtime, 'ADDON_DLL_SHA256', hashlib.sha256(dll).hexdigest()), \
+                 patch.object(reshade_runtime, 'MANIFEST_SHA256', hashlib.sha256(archive_fixture_manifest()).hexdigest()), \
                  patch('graphics_profile.ensure_closed'):
                 folder = reshade_runtime.prepare(root, setup=setup)
                 (folder / 'ReShade.ini').write_bytes(reshade_runtime.CONFIG + b'\n[STYLE]\nAlpha=1.0\n')
                 self.assertEqual(reshade_runtime.verify(root), folder)
                 with patch('urllib.request.urlopen', side_effect=AssertionError('second download')):
                     self.assertEqual(reshade_runtime.prepare(root), folder)
+                for selection, expected in (({'enhanced_aa':True}, b'EdgeStrength=0.800000'),
+                                            ({'contact_shadows':True}, b'ContactStrength=0.220000')):
+                    with patch('urllib.request.urlopen',side_effect=AssertionError('redundant combination download')):
+                        other=reshade_runtime.prepare(root,options=selection)
+                    self.assertNotEqual(folder,other)
+                    preset=(other/'WePlay-Midsummer.ini').read_bytes()
+                    self.assertIn(expected,preset)
+                    self.assertIn(b'Strength=0.000000',preset)
+                    self.assertEqual(reshade_runtime.verify(root,selection),other)
+                    self.assertEqual(reshade_runtime.verify(root),folder)
+                with self.assertRaises(ValueError):
+                    reshade_runtime.prepare(root,options={'enhanced_aa':'yes'})
+                (folder/'ReShade32.json').write_text('{"layer":{"name":"VK_LAYER_reshade","library_path":".\\\\ReShade32.dll","changed":true}}')
+                with self.assertRaises(ValueError):reshade_runtime.verify(root)
+
+    def test_contacts_choose_the_official_addon_runtime_only_when_explicit(self):
+        self.assertEqual(reshade_runtime._runtime({'enhanced_aa':True})[0],reshade_runtime.URL)
+        self.assertEqual(reshade_runtime._runtime({'contact_shadows':True})[0],reshade_runtime.ADDON_URL)
+        self.assertNotEqual(reshade_runtime._runtime({'enhanced_aa':True})[2],
+                            reshade_runtime._runtime({'contact_shadows':True})[2])
+        self.assertIn(b'PerformanceMode=0',reshade_runtime.CONFIG)
+        self.assertIn(b'AddonPath=.\\NoAddons',reshade_runtime.CONFIG)
 
     def test_invalid_download_never_installs_or_replaces_a_renderer(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:

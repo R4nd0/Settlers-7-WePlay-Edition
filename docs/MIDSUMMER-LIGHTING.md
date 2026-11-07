@@ -3,6 +3,11 @@
 Unreleased development, locally verified on 2026-11-07. Published RC3.18
 downloads and the user's existing installation are unchanged.
 
+Later on 2026-11-07, [additional visual-quality controls](VISUAL-QUALITY.md)
+added independent edge smoothing, Ultra shadows and geometry contact shading,
+and revised the lighting/tone calibration. The current exposure is 2.45–2.85;
+the initial calibration and measurements recorded below are historical.
+
 The optional **Mittsommer / Midsummer** environment repeats:
 
 **warm bright twilight → clear daylight → warm bright twilight → daylight**.

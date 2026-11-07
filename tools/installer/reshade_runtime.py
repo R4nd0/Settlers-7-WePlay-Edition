@@ -10,26 +10,41 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import urllib.request
 import zipfile
 
 URL = 'https://reshade.me/downloads/ReShade_Setup_6.8.0.exe'
 SETUP_SHA256 = '207aea16205fbf952bc8fe1879966672454cf04002e7ad34237c7990a5b3c0b4'
 DLL_SHA256 = '538998f66c0197adcdeadfe8e5ea19dd6ca3253e40399476d291f385ce518b88'
-FOLDER = 'LocalData/ReShade-Midsummer'
+MANIFEST_SHA256 = 'dbfdbadb8c64b398b2f8bf30469841ab8c35e10c9da40ba69b966559d5fa15f6'
+ADDON_URL = 'https://reshade.me/downloads/ReShade_Setup_6.8.0_Addon.exe'
+ADDON_SETUP_SHA256 = 'afe4c8f13048306307983b8b3d41d5bf00a86820440b0e57dea10950e1176445'
+ADDON_DLL_SHA256 = 'da430e0a9c6eecefa0d1b27d05e16c426fb5d04e808b194d914eaac4b31bc0f8'
+# Versioned profiles preserve the earlier installed runtime and never rewrite
+# a shader/configuration which an already running game may have loaded.
+FOLDER = 'LocalData/ReShade-Visual-v2'
+OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows')
 CONFIG = b'''[INSTALL]
 Logging=1
 
 [GENERAL]
 EffectSearchPaths=.\\Shaders
 PresetPath=.\\WePlay-Midsummer.ini
-PerformanceMode=1
+PerformanceMode=0
 NoDebugInfo=1
 EffectCachePath=.\\Cache
 
 [OVERLAY]
 TutorialProgress=4
 ShowPresetName=0
+
+[DEPTH]
+DepthCopyBeforeClears=1
+UseAspectRatioHeuristics=1
+
+[ADDON]
+AddonPath=.\\NoAddons
 '''
 
 
@@ -44,25 +59,65 @@ def _plain(path):
     return graphics_profile._plain(path)
 
 
-def verify(root):
-    folder = _plain(Path(root) / FOLDER)
+def _read(path, limit):
+    import graphics_profile
+    return graphics_profile._read(_plain(path), limit)
+
+
+def _options(options):
+    if options is None:
+        return (True, False, False)
+    if not isinstance(options, dict):
+        raise ValueError('Ungueltige ReShade-Auswahl.')
+    values = tuple(options.get(name, False) for name in OPTIONS)
+    if any(type(value) is not bool for value in values):
+        raise ValueError('Ungueltige ReShade-Auswahl.')
+    return values
+
+
+def _folder(root, options):
+    mask = sum(int(value) << i for i, value in enumerate(_options(options)))
+    version = hashlib.sha256(CONFIG + _runtime(options)[2].encode('ascii') + _asset('WePlay-Midsummer.fx').read_bytes()
+                             + _preset(options)).hexdigest()[:12]
+    return _plain(Path(root) / FOLDER / ('profile-' + str(mask) + '-' + version))
+
+
+def _runtime(options):
+    return ((ADDON_URL, ADDON_SETUP_SHA256, ADDON_DLL_SHA256) if _options(options)[2]
+            else (URL, SETUP_SHA256, DLL_SHA256))
+
+
+def _preset(options):
+    tone, aa, contacts = _options(options)
+    raw = _asset('WePlay-Midsummer.ini').read_text(encoding='utf-8')
+    raw = raw.replace('Strength=0.650000', 'Strength=' + ('0.650000' if tone else '0.000000'))
+    return (raw.rstrip() + '\nEdgeStrength=' + ('0.800000' if aa else '0.000000')
+            + '\nContactStrength=' + ('0.220000' if contacts else '0.000000')
+            + '\nDebugView=0\n').encode('utf-8')
+
+
+def verify(root, options=None):
+    folder = _folder(root, options)
     dll = _plain(folder / 'ReShade32.dll')
     if (not dll.is_file() or dll.stat().st_size > 16 * 1024 * 1024
-            or hashlib.sha256(dll.read_bytes()).hexdigest() != DLL_SHA256):
+            or hashlib.sha256(dll.read_bytes()).hexdigest() != _runtime(options)[2]):
         raise ValueError('Das gepruefte ReShade-Laufzeitmodul fehlt. Grafikauswahl erneut speichern.')
-    manifest = json.loads(_plain(folder / 'ReShade32.json').read_text(encoding='utf-8'))
+    raw_manifest = _read(folder / 'ReShade32.json', 16384)
+    if hashlib.sha256(raw_manifest).hexdigest() != MANIFEST_SHA256:
+        raise ValueError('Das ReShade-Layermodul wurde veraendert.')
+    manifest = json.loads(raw_manifest.decode('utf-8'))
     layer = manifest.get('layer', {})
     if layer.get('name') != 'VK_LAYER_reshade' or layer.get('library_path') != '.\\ReShade32.dll':
         raise ValueError('Das ReShade-Layerprofil ist unbekannt.')
-    for name, path in (('WePlay-Midsummer.fx', folder / 'Shaders/WePlay-Midsummer.fx'),
-                       ('WePlay-Midsummer.ini', folder / 'WePlay-Midsummer.ini')):
-        if _plain(path).read_bytes() != _asset(name).read_bytes():
-            raise ValueError('Das Mittsommer-Farbprofil wurde veraendert. Grafikauswahl erneut speichern.')
+    no_addons = _plain(folder / 'NoAddons')
+    if not no_addons.is_dir() or any(no_addons.iterdir()):
+        raise ValueError('Der verwaltete ReShade-Ordner fuer externe Add-ons ist veraendert.')
+    if (_plain(folder / 'Shaders/WePlay-Midsummer.fx').read_bytes() != _asset('WePlay-Midsummer.fx').read_bytes()
+            or _plain(folder / 'WePlay-Midsummer.ini').read_bytes() != _preset(options)):
+        raise ValueError('Das WePlay-Grafikprofil wurde veraendert. Grafikauswahl erneut speichern.')
     # ReShade writes UI/style defaults on a clean exit. Compare managed values,
     # not the complete byte stream, so the next ordinary launch still works.
-    config = _plain(folder / 'ReShade.ini').read_bytes()
-    if len(config) > 65536:
-        raise ValueError('Die lokale ReShade-Konfiguration ist zu gross.')
+    config = _read(folder / 'ReShade.ini', 65536)
     actual = configparser.ConfigParser(interpolation=None)
     expected = configparser.ConfigParser(interpolation=None)
     try:
@@ -76,29 +131,51 @@ def verify(root):
     return folder
 
 
-def prepare(root, *, setup=None):
+def prepare(root, *, setup=None, options=None):
     import graphics_profile
     root = _plain(Path(root))
-    folder = _plain(root / FOLDER)
+    url, setup_sha256, dll_sha256 = _runtime(options)
+    folder = _folder(root, options)
     if folder.exists():
-        return verify(root)
+        return verify(root, options)
     graphics_profile.ensure_closed()
+    # Reuse only the pinned official runtime; never migrate an old shader or
+    # preset. This avoids a second download when upgrading the original tone.
+    legacy = _plain(root / 'LocalData/ReShade-Midsummer')
+    dll = manifest = None
     if setup is None:
-        request = urllib.request.Request(URL, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://reshade.me/'})
+        candidates = [legacy] if legacy.is_dir() else []
+        if folder.parent.is_dir():
+            candidates += sorted((p for p in folder.parent.iterdir()
+                                  if re.fullmatch(r'profile-[0-7]-[0-9a-f]{12}',p.name)),key=lambda p:p.name)[:32]
+        for candidate_folder in candidates:
+            try:
+                candidate = _read(candidate_folder / 'ReShade32.dll', 16 * 1024 * 1024)
+                candidate_manifest = _read(candidate_folder / 'ReShade32.json', 16384)
+            except (OSError, ValueError):
+                continue
+            if (hashlib.sha256(candidate).hexdigest() == dll_sha256
+                    and hashlib.sha256(candidate_manifest).hexdigest() == MANIFEST_SHA256):
+                dll, manifest = candidate, candidate_manifest
+                break
+    if dll is None and setup is None:
+        request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://reshade.me/'})
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 raw = response.read(8 * 1024 * 1024 + 1)
         except OSError as error:
             raise ValueError('ReShade konnte nicht von der offiziellen Website geladen werden.') from error
-    else:
+    elif dll is None:
         raw = _plain(Path(setup)).read_bytes()
-    if len(raw) > 8 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != SETUP_SHA256:
-        raise ValueError('Der offizielle ReShade-Download stimmt nicht mit der geprueften Version ueberein.')
-    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-        dll, manifest = archive.read('ReShade32.dll'), archive.read('ReShade32.json')
-    if hashlib.sha256(dll).hexdigest() != DLL_SHA256:
+    if dll is None:
+        if len(raw) > 8 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != setup_sha256:
+            raise ValueError('Der offizielle ReShade-Download stimmt nicht mit der geprueften Version ueberein.')
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            dll, manifest = archive.read('ReShade32.dll'), archive.read('ReShade32.json')
+    if (hashlib.sha256(dll).hexdigest() != dll_sha256
+            or hashlib.sha256(manifest).hexdigest() != MANIFEST_SHA256):
         raise ValueError('ReShade-Laufzeitpruefung fehlgeschlagen.')
-    folder.parent.mkdir(exist_ok=True)
+    folder.parent.mkdir(parents=True, exist_ok=True)
     staging = _plain(folder.with_name(folder.name + '.preparing'))
     if staging.exists():
         raise ValueError('Eine unvollstaendige ReShade-Vorbereitung ist vorhanden.')
@@ -106,15 +183,16 @@ def prepare(root, *, setup=None):
     (staging / 'ReShade32.dll').write_bytes(dll)
     (staging / 'ReShade32.json').write_bytes(manifest)
     (staging / 'Shaders').mkdir()
+    (staging / 'NoAddons').mkdir()
     (staging / 'Shaders/WePlay-Midsummer.fx').write_bytes(_asset('WePlay-Midsummer.fx').read_bytes())
-    (staging / 'WePlay-Midsummer.ini').write_bytes(_asset('WePlay-Midsummer.ini').read_bytes())
+    (staging / 'WePlay-Midsummer.ini').write_bytes(_preset(options))
     (staging / 'ReShade.ini').write_bytes(CONFIG)
     staging.rename(folder)
-    return verify(root)
+    return verify(root, options)
 
 
-def launch_environment(root, inherited):
-    folder = verify(root)
+def launch_environment(root, inherited, options=None):
+    folder = verify(root, options)
     result = {key: value for key, value in inherited.items()
               if key.upper() != 'RESHADE_BASE_PATH_OVERRIDE'}
     # Explicit layer for this child only. Existing unrelated layer paths/names

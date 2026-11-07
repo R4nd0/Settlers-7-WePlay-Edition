@@ -221,6 +221,8 @@ Unreleased development: [longer settler/tree detail and visibility, higher-resol
 
 Unreleased development: [Mittsommer lighting without a dark night and optional gentle ReShade tone](docs/MIDSUMMER-LIGHTING.md).
 
+Unreleased development: [smoother edges, Ultra shadows, natural lighting and geometry contact shading](docs/VISUAL-QUALITY.md).
+
 ## Changelog and compatibility
 
 | Release | Main additions |

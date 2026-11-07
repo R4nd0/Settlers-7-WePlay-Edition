@@ -25,7 +25,7 @@ STEAM_EXE = UNSUPPORTED_STEAM_EXE
 STEAM_ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7fb60acfef'
 DIRECTORY_ADAPTER_SHA256 = '78cc5c8843ee3a8095b9b282551907765f6a0c237962c19b3c3cb0a332d39e97'
 NEO_ADAPTER_SHA256 = '5015ea8747324d5fb703bf85cb9d9b2a60a059d3ab7dca71770b16dd65de64c2'
-NEO_DIRECTORY_ADAPTER_SHA256 = 'a5c5cde6098a100974c4dd565d8a7f986d9819871bc398c04f2e912d1b2d97b5'
+NEO_DIRECTORY_ADAPTER_SHA256 = '73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -262,6 +262,10 @@ def source_base(root, *, steam_supported=False):
 
 REPAIR = 'RepairSource'
 REPAIR_INPUTS = ('base/bin/settlers7r.exe', 'base/bba/interface.bba')
+SHARED_REPAIR_INPUT = 'base/bba/shr.bba'
+SHARED_ARCHIVE_SHA256 = '30d679720e14ec9007f359c5703d854b78a866480f856810c934e439d620e3ed'
+REPAIR_LAYOUT = dict(zip(REPAIR_INPUTS, ('Base/Bin/Settlers7R.exe', 'Base/BBA/Interface.bba')))
+REPAIR_LAYOUT[SHARED_REPAIR_INPUT] = 'Base/BBA/shr.bba'
 GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', 'base/bin/d3d9.dll', 'base/bin/dxvk.conf')
 
 
@@ -305,6 +309,11 @@ def repair_source(root, *, steam_supported=False, tools=None):
         original[16:16 + archive.header_size] = crypt(header, HEAD_KEYS, 1231853475, 7, True)
         inputs[REPAIR_INPUTS[1]] = bytes(original)
         files[REPAIR_INPUTS[1]] = EXPECTED_ARCHIVE
+    shared = content.plain(saved / REPAIR_LAYOUT[SHARED_REPAIR_INPUT])
+    if shared.is_file():
+        if shared.stat().st_size > 16*1024*1024 or content.digest(shared) != SHARED_ARCHIVE_SHA256:
+            raise ValueError('Die gesicherte Original-Lichtressource wurde veraendert.')
+        inputs[SHARED_REPAIR_INPUT] = shared.read_bytes()
     accepted = (EXPECTED_EXE, STEAM_EXE) if steam_supported else (EXPECTED_EXE,)
     if (hashlib.sha256(inputs[REPAIR_INPUTS[0]]).hexdigest() not in accepted
             or hashlib.sha256(inputs[REPAIR_INPUTS[1]]).hexdigest() != EXPECTED_ARCHIVE
@@ -374,11 +383,18 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if progress: progress('source',0,0)
     recovery = repair_source(source,steam_supported=manifest.get('steam_history',False),tools=package/'Tools') if managed else None
     base = content.plain(source/'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
-    input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
+    repair_names = tuple(recovery[1]) if managed else REPAIR_INPUTS
+    if manifest.get('midsummer_profile',False) and SHARED_REPAIR_INPUT not in repair_names:
+        shared = content.plain(base / 'BBA/shr.bba')
+        if not shared.is_file() or content.digest(shared) != SHARED_ARCHIVE_SHA256:
+            raise ValueError('Die Original-Lichtressource fehlt. Diese Entwicklungskopie aus der Originalquelle neu vorbereiten.')
+        repair_names = (*repair_names, SHARED_REPAIR_INPUT)
+        if managed:recovery[1][SHARED_REPAIR_INPUT]=shared.read_bytes()
+    input_paths={name:base/REPAIR_LAYOUT[name].removeprefix('Base/') for name in repair_names}
     def retained_path(name):
-        # These two original inputs may be missing/corrupt in an owned copy;
+        # These original inputs may be missing/corrupt in an owned copy;
         # their independently fingerprinted RepairSource bytes rebuild them.
-        return input_paths[name] if name in REPAIR_INPUTS else content.member(source,name)
+        return input_paths[name] if name in repair_names else content.member(source,name)
     source_exe_hash = hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe')
     accepted_executables = (EXPECTED_EXE, STEAM_EXE) if manifest.get('steam_history', False) else (EXPECTED_EXE,)
     if source_exe_hash not in accepted_executables:
@@ -390,7 +406,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if managed:
         for name,digest in recovery[0].items():
             path=retained_path(name)
-            if name not in REPAIR_INPUTS and not path.is_file():
+            if name not in repair_names and not path.is_file():
                 raise ValueError('Unveraenderte Spieldatei fehlt oder ist beschaedigt: '+name)
             files.append(path)
     while stack:
@@ -401,8 +417,8 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             else: raise ValueError('Unbekannter Dateityp in der Spielinstallation.')
     if type(additional_bytes) is not int or additional_bytes<0:raise ValueError('Ungueltige Speicherreservierung.')
     input_sizes={name:len(recovery[1][name]) if managed else content.member(base,name.removeprefix('base/')).stat().st_size
-                 for name in REPAIR_INPUTS}
-    required = (sum(len(recovery[1][name]) if managed and name in REPAIR_INPUTS else p.stat().st_size
+                 for name in repair_names}
+    required = (sum(len(recovery[1][name]) if managed and name in repair_names else p.stat().st_size
                     for p in files for name in [('base/'+p.relative_to(base).as_posix()).lower()])
                 + sum(p.stat().st_size for p in package.rglob('*') if p.is_file())
                 + sum(input_sizes.values()) + 2*input_sizes[REPAIR_INPUTS[1]]
@@ -415,14 +431,13 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     incomplete.write_text('Vorbereitung nicht abgeschlossen. Diesen Ordner nicht starten.\n', encoding='utf-8')
     if tracker:tracker(incomplete,content.digest(incomplete))
     saved=destination/REPAIR
-    input_paths=dict(zip(REPAIR_INPUTS,(base/'Bin/Settlers7R.exe',base/'BBA/Interface.bba')))
+    input_paths={name:base/REPAIR_LAYOUT[name].removeprefix('Base/') for name in repair_names}
     inputs=recovery[1] if managed else {name:content.plain(path).read_bytes() for name,path in input_paths.items()}
     for name,raw in inputs.items():
-        layout = dict(zip(REPAIR_INPUTS, ('Base/Bin/Settlers7R.exe', 'Base/BBA/Interface.bba')))
-        target=content.plain(saved/layout[name]);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+        target=content.plain(saved/REPAIR_LAYOUT[name]);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
         if tracker:tracker(target,hashlib.sha256(raw).hexdigest())
     source_base(saved,steam_supported=manifest.get('steam_history',False))
-    overrides={retained_path(name):content.member(saved,name) for name in REPAIR_INPUTS} if managed else None
+    overrides={retained_path(name):content.member(saved,name) for name in repair_names} if managed else None
     # Missing/corrupt generated files are rebuilt from the package/repair inputs.
     expected={retained_path(name):digest for name,digest in recovery[0].items()} if managed else {
         input_paths[name]:hashlib.sha256(raw).hexdigest() for name,raw in inputs.items()}

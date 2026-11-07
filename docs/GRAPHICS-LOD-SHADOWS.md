@@ -3,6 +3,10 @@
 Unreleased source change, verified locally on 2026-11-07. The published RC3.18
 downloads have not been replaced. The active user game was not modified.
 
+The later [visual-quality controls](VISUAL-QUALITY.md) add a separate Ultra
+shadow option with an 8192 high setting and a near-camera cascade distribution.
+The original optional 4096 setting and measurements below remain available.
+
 The launcher has three independent, optional settings under Graphics:
 
 - **Keep high detail longer when zooming out** extends model LOD distances by
@@ -60,8 +64,10 @@ them on a failed installation. Protections and instruction-cache flushing follow
 the existing writer. Both Ubisoft and Steam have separately mapped addresses
 and original-byte guards. No simulation/FIFO/priority/save data is changed.
 
-The GUI only enables these settings for the newly pinned production adapter:
+The initial milestone enabled these settings for the pinned production adapter:
 `a5c5cde6098a100974c4dd565d8a7f986d9819871bc398c04f2e912d1b2d97b5`.
+The later Ultra-shadow milestone advances the current launcher/installer pin to
+`73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6`.
 Unknown adapters cannot silently accept enabled preferences. The launch helper
 strips inherited aliases and supplies only validated, fixed child-only flags.
 No global environment variables or shared game content identity are changed.

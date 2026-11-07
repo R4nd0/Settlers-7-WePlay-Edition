@@ -20,7 +20,7 @@ FORMAT = 's7-graphics-choice-v1'
 CHOICE_FILE = 'LocalData/graphics-choice.json'
 MAX_RECORD = 4096
 CANCELLED = 10
-VISUAL_ADAPTER_SHA256 = 'a5c5cde6098a100974c4dd565d8a7f986d9819871bc398c04f2e912d1b2d97b5'
+VISUAL_ADAPTER_SHA256 = '73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6'
 
 
 def visual_supported(root):
@@ -28,7 +28,7 @@ def visual_supported(root):
 
 
 def _require_visual_support(root, selected):
-    if (selected.get('extended_detail', False) or selected.get('detailed_shadows', False) or selected.get('extended_shadow_range', False)) and not visual_supported(root):
+    if any(selected.get(name, False) for name in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'ultra_shadows')) and not visual_supported(root):
         raise ValueError('Diese Detailoptionen brauchen den aktualisierten Grafikadapter.')
 
 
@@ -36,14 +36,15 @@ def validate_choice(value):
     """Validate local choices; never accept hardware IDs or free-form argv."""
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
             or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering',
-                                  'extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'}
+                                  'extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone',
+                                  'enhanced_aa', 'contact_shadows', 'ultra_shadows'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
         raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
+    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows'):
         if field in value and type(value[field]) is not bool:
             raise ValueError('Die Detailoption muss ein boolescher Wert sein.')
     name = value['choice']
@@ -56,7 +57,7 @@ def validate_choice(value):
         result['simple_menu'] = value['simple_menu']
     if 'anisotropic_filtering' in value:
         result['anisotropic_filtering'] = value['anisotropic_filtering']
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
+    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows'):
         if field in value:
             result[field] = value[field]
     if 'display' in value:
@@ -163,11 +164,11 @@ def saved_launch_environment(root, inherited=None):
 
 
 def tone_environment(root, selected, mode, environment):
-    if selected.get('midsummer_tone', False):
+    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
-        return reshade_runtime.launch_environment(root, environment)
+        return reshade_runtime.launch_environment(root, environment, options=selected)
     return environment
 
 
@@ -175,13 +176,15 @@ def visual_environment(selected, inherited):
     """Allowlisted, child-only switches for guarded native render operands."""
     selected = validate_choice(selected)
     result = {name: value for name, value in inherited.items()
-              if name.upper() not in ('S7_EXTENDED_DETAIL', 'S7_DETAILED_SHADOWS', 'S7_EXTENDED_SHADOW_RANGE')}
+              if name.upper() not in ('S7_EXTENDED_DETAIL', 'S7_DETAILED_SHADOWS', 'S7_EXTENDED_SHADOW_RANGE', 'S7_ULTRA_SHADOWS')}
     if selected.get('extended_detail', False):
         result['S7_EXTENDED_DETAIL'] = '1'
     if selected.get('detailed_shadows', False):
         result['S7_DETAILED_SHADOWS'] = '1'
     if selected.get('extended_shadow_range', False):
         result['S7_EXTENDED_SHADOW_RANGE'] = '1'
+    if selected.get('ultra_shadows', False):
+        result['S7_ULTRA_SHADOWS'] = '1'
     return result
 
 
@@ -196,11 +199,11 @@ def save_choice(root, value):
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
     _load_choice(root)  # Unknown/damaged preferences are never overwritten.
-    if selected.get('midsummer_tone', False):
+    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
-        reshade_runtime.prepare(root)
+        reshade_runtime.prepare(root, options=selected)
     data = graphics._plain(root / 'LocalData'); data.mkdir(exist_ok=True)
     graphics.atomic_write(graphics._plain(root / CHOICE_FILE), graphics.encoded(selected), data)
     return selected
@@ -240,11 +243,11 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Der Grafikauswahldialog konnte nicht abgeschlossen werden.')
     selected = _record(result.stdout)
     _require_visual_support(root, selected)
-    if selected.get('midsummer_tone', False):
+    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
-        reshade_runtime.prepare(root)
+        reshade_runtime.prepare(root, options=selected)
     if mode == 'native' and selected['choice'] is not None:
         raise ValueError('Der Standardrenderer unterstuetzt diesen Grafikkartenfilter nicht.')
     current_mode, environment = _renderer(root, inherited)

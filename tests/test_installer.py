@@ -124,6 +124,8 @@ def prepare(source, output, specification, profile):
             self.write(self.package,'Tools/midsummer/profile.py',
                 b'def build(raw):\n    assert raw==b"original shared"\n    return b"shared with midsummer"\n')
             self.write(self.source,'Base/BBA/shr.bba',b'original shared')
+            shared_guard=patch.object(install,'SHARED_ARCHIVE_SHA256',hashlib.sha256(b'original shared').hexdigest())
+            shared_guard.start();self.addCleanup(shared_guard.stop)
         self.manifest();self.data.update(graphics_choice=True,automatic_lan=True,join_menu_update=True,
             lan_public_creation=True,achievement_notifications_disabled=True,cartographer_context=True,
             multiplayer_resume=True, patched_archive_sha256=hashlib.sha256(b'midsummer' if midsummer else b'neo' if neo else b'resume').hexdigest())
@@ -139,6 +141,15 @@ def prepare(source, output, specification, profile):
         if midsummer:
             self.assertEqual((self.destination/'Base/BBA/shr.bba').read_bytes(),b'shared with midsummer')
             self.assertEqual((self.source/'Base/BBA/shr.bba').read_bytes(),b'original shared')
+            self.assertEqual((self.destination/install.REPAIR/'Base/BBA/shr.bba').read_bytes(),b'original shared')
+            before_update=content.inventory(self.destination,('Base',))
+            updated=self.root/'updated-midsummer'
+            install.prepare(self.package,self.destination,updated,emit=lambda _:None,managed=True)
+            content.verify(updated)
+            self.assertEqual((updated/'Base/BBA/shr.bba').read_bytes(),b'shared with midsummer')
+            self.assertEqual(content.inventory(self.destination,('Base',)),before_update)
+            (updated/install.REPAIR/'Base/BBA/shr.bba').write_bytes(b'unknown original')
+            with self.assertRaisesRegex(ValueError,'Original-Lichtressource'):install.repair_source(updated)
             for name in ('reshade_runtime.py','WePlay-Midsummer.fx','WePlay-Midsummer.ini'):
                 self.assertTrue((self.destination/'Launcher'/name).is_file())
             shared=self.destination/'Base/BBA/shr.bba';shared.write_bytes(b'changed')

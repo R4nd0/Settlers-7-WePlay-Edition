@@ -109,7 +109,7 @@ class GraphicsChoiceTests(unittest.TestCase):
 
     def test_visual_options_need_capable_adapter_and_strict_booleans(self):
         before = self.snapshot()
-        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone'):
+        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows'):
             record = {'format': choice.FORMAT, 'choice': None, field: True}
             with self.assertRaises(ValueError):
                 choice.save_choice(self.root, record)
@@ -142,12 +142,28 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertEqual(self.saved(), original)
         with patch.object(reshade_runtime, 'prepare') as prepare:
             choice.save_choice(self.root, selected)
-            prepare.assert_called_once_with(self.root)
-        with patch.object(reshade_runtime, 'launch_environment', side_effect=lambda root, env: {**env, 'TONE': 'fixture'}):
+            prepare.assert_called_once_with(self.root,options=selected)
+        with patch.object(reshade_runtime, 'launch_environment', side_effect=lambda root, env, **kwargs: {**env, 'TONE': 'fixture'}):
             self.assertEqual(choice.saved_launch_environment(self.root, {})['TONE'], 'fixture')
         choice.save_choice(self.root, original)
         with patch.object(reshade_runtime, 'prepare', side_effect=AssertionError('implicit download')):
             self.assertNotIn('TONE', choice.saved_launch_environment(self.root, {}))
+
+    def test_aa_contacts_and_ultra_are_independent_and_strip_inherited_ultra(self):
+        import reshade_runtime
+        self.install()
+        selected={'format':choice.FORMAT,'choice':None,'enhanced_aa':True,
+                  'contact_shadows':True,'ultra_shadows':True,'midsummer_tone':False}
+        with patch.object(choice,'visual_supported',return_value=True), patch.object(reshade_runtime,'prepare') as prepare:
+            choice.save_choice(self.root,selected)
+            prepare.assert_called_once_with(self.root,options=selected)
+        self.assertEqual(choice.visual_environment(selected,{'s7_ultra_shadows':'0','OTHER':'kept'}),
+                         {'S7_ULTRA_SHADOWS':'1','OTHER':'kept'})
+        self.assertEqual(choice.visual_environment({'format':choice.FORMAT,'choice':None},
+                         {'s7_ultra_shadows':'1'}),{})
+        for name in ('enhanced_aa','contact_shadows'):
+            with self.subTest(name=name),self.assertRaises(ValueError):
+                choice.tone_environment(self.root,{'format':choice.FORMAT,'choice':None,name:True},'native',{})
 
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()
@@ -460,7 +476,7 @@ $output = @{
     record = ConvertTo-ChoiceJson 'Other Vendor'
     simpleMenu = ConvertTo-ChoiceJson $null $true
     filtering = ConvertTo-ChoiceJson $null $false $null $true
-    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true $true $true
+    visual = ConvertTo-ChoiceJson $null $false $null $false $true $true $true $true $true $true $true
     invalidFilteringRejected = $invalidFilteringRejected
     displayRecord = ConvertTo-ChoiceJson $null $true @{device='\\.\DISPLAY1';width=1280;height=720;mode='windowed'}
     badDisplayBoolean = Test-DisplayChoice @{device='\\.\DISPLAY1';width=$true;height=720;mode='windowed'}
@@ -490,6 +506,9 @@ $output | ConvertTo-Json -Compress
         self.assertIs(json.loads(value['visual'])['detailed_shadows'], True)
         self.assertIs(json.loads(value['visual'])['extended_shadow_range'], True)
         self.assertIs(json.loads(value['visual'])['midsummer_tone'], True)
+        self.assertIs(json.loads(value['visual'])['enhanced_aa'], True)
+        self.assertIs(json.loads(value['visual'])['contact_shadows'], True)
+        self.assertIs(json.loads(value['visual'])['ultra_shadows'], True)
         self.assertTrue(value['invalidFilteringRejected'])
         self.assertEqual(json.loads(value['displayRecord'])['display'],
                          {'device':r'\\.\DISPLAY1','width':1280,'height':720,'mode':'windowed'})

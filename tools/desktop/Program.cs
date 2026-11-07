@@ -270,6 +270,9 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly CheckBox extendedShadowRange = new() { AutoSize = true };
     private readonly CheckBox midsummerTone = new() { AutoSize = true };
+    private readonly CheckBox enhancedAa = new() { AutoSize = true };
+    private readonly CheckBox contactShadows = new() { AutoSize = true };
+    private readonly CheckBox ultraShadows = new() { AutoSize = true };
     private readonly Label activeRenderer = new() { AutoSize = true };
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
@@ -500,7 +503,10 @@ internal sealed partial class MainForm : Form
         Bind(extendedDetail,"extendedDetail");Add(g,extendedDetail);Add(g,Label("extendedDetailInfo"));
         Bind(detailedShadows,"detailedShadows");Add(g,detailedShadows);Add(g,Label("detailedShadowsInfo"));
         Bind(extendedShadowRange,"extendedShadowRange");Add(g,extendedShadowRange);Add(g,Label("extendedShadowRangeInfo"));
+        Bind(ultraShadows,"ultraShadows");Add(g,ultraShadows);Add(g,Label("ultraShadowsInfo"));
         Bind(midsummerTone,"midsummerTone");Add(g,midsummerTone);Add(g,Label("midsummerToneInfo"));
+        Bind(enhancedAa,"enhancedAa");Add(g,enhancedAa);Add(g,Label("enhancedAaInfo"));
+        Bind(contactShadows,"contactShadows");Add(g,contactShadows);Add(g,Label("contactShadowsInfo"));
         Bind(simple,"simple"); Add(g,simple);
         var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
         monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
@@ -593,6 +599,9 @@ internal sealed partial class MainForm : Form
             detailedShadows.Checked=value.GetProperty("choice").TryGetProperty("detailed_shadows",out var shadowValue)&&shadowValue.GetBoolean();
             extendedShadowRange.Checked=value.GetProperty("choice").TryGetProperty("extended_shadow_range",out var rangeValue)&&rangeValue.GetBoolean();
             midsummerTone.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("midsummer_tone",out var toneValue)&&toneValue.GetBoolean();
+            enhancedAa.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean();
+            contactShadows.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("contact_shadows",out var contactsValue)&&contactsValue.GetBoolean();
+            ultraShadows.Checked=visualDetailAvailable&&value.GetProperty("choice").TryGetProperty("ultra_shadows",out var ultraValue)&&ultraValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -745,8 +754,9 @@ internal sealed partial class MainForm : Form
         gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
         anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
-        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=false;
+        ultraShadows.Enabled=!busy&&visualDetailAvailable;
+        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
+        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=false;
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
@@ -768,7 +778,8 @@ internal sealed partial class MainForm : Form
         if(string.IsNullOrEmpty(card))card=null;
         return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
-            detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked},quality,player_name=ValidName()};
+            detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
+            enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -1096,9 +1107,14 @@ internal sealed partial class MainForm : Form
                         throw new Exception("Visual detail choices lost in request");
                 }
                 form.midsummerToneAvailable=true;form.renderer.SelectedIndex=1;form.DisplayEnabled();form.midsummerTone.Checked=true;
+                form.enhancedAa.Checked=true;form.contactShadows.Checked=true;form.ultraShadows.Checked=true;
                 using(var tone=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
-                    if(!form.midsummerTone.Enabled||!tone.RootElement.GetProperty("choice").GetProperty("midsummer_tone").GetBoolean())throw new Exception("Tone choice lost");
-                form.midsummerTone.Checked=false;
+                    if(!form.midsummerTone.Enabled||!form.enhancedAa.Enabled||!form.contactShadows.Enabled
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("midsummer_tone").GetBoolean()
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("enhanced_aa").GetBoolean()
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("contact_shadows").GetBoolean()
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("ultra_shadows").GetBoolean())throw new Exception("Visual quality choice lost");
+                form.midsummerTone.Checked=form.enhancedAa.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=false;
                 form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
@@ -1114,9 +1130,10 @@ internal sealed partial class MainForm : Form
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
-                if(form.anisotropicFiltering.Enabled||form.midsummerTone.Enabled||form.midsummerTone.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
+                if(form.anisotropicFiltering.Enabled||form.midsummerTone.Enabled||form.midsummerTone.Checked
+                    ||form.enhancedAa.Enabled||form.contactShadows.Enabled||form.enhancedAa.Checked||form.contactShadows.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
-                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled)throw new Exception("Native visual detail controls unavailable");
+                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("Native visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
                 void Capture(string name)
                 {

@@ -21,12 +21,12 @@ PERIOD_MS = 1200000
 # HDR exposure remains well above the stock night value (about 0.196).
 CURVES = {
     'SunElevation': (14.0, 48.0), 'SunFXElevation': (14.0, 48.0),
-    'SunDiffuseColor': ((.88, .72, .55, 1.), (.80, .86, .95, 1.)),
-    'SunDiffuseColorMultiplier': (1.05, 1.20), 'HDRExposure': (2.6, 3.05),
-    'TerrainAmbientColorMultiplier': (1.12, 1.0), 'ShadowFactor': (.19, .25),
+    'SunDiffuseColor': ((.86, .79, .70, 1.), (.84, .89, .97, 1.)),
+    'SunDiffuseColorMultiplier': (.98, 1.12), 'HDRExposure': (2.45, 2.85),
+    'TerrainAmbientColorMultiplier': (1.12, 1.06), 'ShadowFactor': (.17, .22),
     'WindowLight': (.2, 0.), 'Rain': (0., 0.), 'Thunderstorm': (0., 0.),
-    'SkyColor': ((.70, .55, .52, 1.), (.54, .68, .87, 1.)),
-    'SunShaftColor': ((1., .75, .50, 1.), (.80, .91, 1., 1.)),
+    'SkyColor': ((.63, .61, .67, 1.), (.54, .68, .87, 1.)),
+    'SunShaftColor': ((.94, .84, .71, 1.), (.80, .91, 1., 1.)),
 }
 
 

@@ -7,11 +7,18 @@ const float ExtendedLodScale = 1.0f / 200.0f; // original resolution factor: 1/3
 const float ExtendedShadowSpan = 19100.0f, ExtendedShadowRatio = 192.0f;
 const float ExtendedShadowEnd = 19200.0f, ExtendedShadowFarEnd = 76800.0f;
 const unsigned char Shadow4096[] = {0xb8,0x00,0x10,0x00,0x00};
+const unsigned char Shadow8192[] = {0xb8,0x00,0x20,0x00,0x00};
+const float NearShadowBlend = .92f; // concentrate cascade precision near camera
 const Patch ExtendedLodPatch = {0x51178d, {0x2c,0xe2,0x15,0x01}, &ExtendedLodScale, true};
 const Patch DetailedShadowPatches[] = {
     {0x90ccf8, {0xb8,0x00,0x08,0x00,0x00}, Shadow4096, false, 5},
     // Keep the engine's resource estimate consistent with its allocations.
     {0x90dd06, {0xb8,0x00,0x08,0x00,0x00}, Shadow4096, false, 5}
+};
+const Patch UltraShadowPatches[] = {
+    {0x90ccf8, {0xb8,0x00,0x08,0x00,0x00}, Shadow8192, false, 5},
+    {0x90dd06, {0xb8,0x00,0x08,0x00,0x00}, Shadow8192, false, 5},
+    {0x90ea6b, {0x4c,0xe3,0x15,0x01}, &NearShadowBlend, true}
 };
 const Patch ShadowRangePatches[] = {
     {0x90ea39, {0x64,0xea,0x15,0x01}, &ExtendedShadowSpan, true},
@@ -42,12 +49,18 @@ bool VisualFlag(const wchar_t* name, bool& enabled) {
 }
 
 bool AppendVisualPatches(std::vector<const Patch*>& selected) {
-    bool detail = false, shadows = false, range = false;
+    bool detail = false, shadows = false, range = false, ultra = false;
     if (!VisualFlag(L"S7_EXTENDED_DETAIL", detail) || !VisualFlag(L"S7_DETAILED_SHADOWS", shadows)
-        || !VisualFlag(L"S7_EXTENDED_SHADOW_RANGE",range)) {
+        || !VisualFlag(L"S7_EXTENDED_SHADOW_RANGE",range) || !VisualFlag(L"S7_ULTRA_SHADOWS",ultra)) {
         SetError(InvalidConfiguration); return false;
     }
     if (range && !ShadowRangeOpcodes()) { SetError(ChangedCallsite); return false; }
+    if (ultra) {
+        const unsigned char opcode[] = {0xf3,0x0f,0x59,0x05};
+        if (memcmp(PatchAddress(UltraShadowPatches[2])-4,opcode,4)) {
+            SetError(ChangedCallsite); return false;
+        }
+    }
     if (detail) {
         // Guard the opcode as well as the ASLR-adjusted constant operand. The
         // original setter still recomputes its resolution-dependent scale;
@@ -58,7 +71,8 @@ bool AppendVisualPatches(std::vector<const Patch*>& selected) {
         }
         selected.push_back(&ExtendedLodPatch);
     }
-    if (shadows) for (const auto& patch : DetailedShadowPatches) selected.push_back(&patch);
+    if (ultra) for (const auto& patch : UltraShadowPatches) selected.push_back(&patch);
+    else if (shadows) for (const auto& patch : DetailedShadowPatches) selected.push_back(&patch);
     if (range) for (const auto& patch : ShadowRangePatches) selected.push_back(&patch);
     return true;
 }

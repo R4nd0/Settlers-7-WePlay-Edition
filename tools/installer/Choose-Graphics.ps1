@@ -47,11 +47,13 @@ function Resolve-PreferredChoice {
 
 function ConvertTo-ChoiceJson {
     param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false,
-          $ExtendedDetail = $false, $DetailedShadows = $false, $ExtendedShadowRange = $false, $MidsummerTone = $false)
+          $ExtendedDetail = $false, $DetailedShadows = $false, $ExtendedShadowRange = $false, $MidsummerTone = $false,
+          $EnhancedAa = $false, $ContactShadows = $false, $UltraShadows = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
     if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
     if ($AnisotropicFiltering -isnot [bool]) { throw 'Invalid texture filtering choice.' }
     if ($ExtendedDetail -isnot [bool] -or $DetailedShadows -isnot [bool] -or $ExtendedShadowRange -isnot [bool] -or $MidsummerTone -isnot [bool]) { throw 'Invalid detail choice.' }
+    if ($EnhancedAa -isnot [bool] -or $ContactShadows -isnot [bool] -or $UltraShadows -isnot [bool]) { throw 'Invalid visual quality choice.' }
     if (-not (Test-DisplayChoice $Display)) { throw 'Invalid display choice.' }
     $record = @{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu}
     if ($PSBoundParameters.ContainsKey('Display')) { $record.display = $Display }
@@ -60,6 +62,9 @@ function ConvertTo-ChoiceJson {
     if ($PSBoundParameters.ContainsKey('DetailedShadows')) { $record.detailed_shadows = $DetailedShadows }
     if ($PSBoundParameters.ContainsKey('ExtendedShadowRange')) { $record.extended_shadow_range = $ExtendedShadowRange }
     if ($PSBoundParameters.ContainsKey('MidsummerTone')) { $record.midsummer_tone = $MidsummerTone }
+    if ($PSBoundParameters.ContainsKey('EnhancedAa')) { $record.enhanced_aa = $EnhancedAa }
+    if ($PSBoundParameters.ContainsKey('ContactShadows')) { $record.contact_shadows = $ContactShadows }
+    if ($PSBoundParameters.ContainsKey('UltraShadows')) { $record.ultra_shadows = $UltraShadows }
     return ($record | ConvertTo-Json -Compress -Depth 5)
 }
 
@@ -94,8 +99,8 @@ try {
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
     $fields = @($previous.PSObject.Properties.Name)
-    if ($fields.Count -lt 2 -or $fields.Count -gt 9 -or
-        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone') }).Count -gt 0 -or
+    if ($fields.Count -lt 2 -or $fields.Count -gt 12 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows') }).Count -gt 0 -or
         'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
     $simpleMenuEnabled = $false
     $anisotropicFilteringEnabled = $false
@@ -103,13 +108,19 @@ try {
     $detailedShadowsEnabled = $false
     $extendedShadowRangeEnabled = $false
     $midsummerToneEnabled = $false
-    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone')) {
+    $enhancedAaEnabled = $false
+    $contactShadowsEnabled = $false
+    $ultraShadowsEnabled = $false
+    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows')) {
         if ($field -cin $fields -and $previous.$field -isnot [bool]) { throw 'Invalid previous detail choice.' }
     }
     if ('extended_detail' -cin $fields) { $extendedDetailEnabled = $previous.extended_detail }
     if ('detailed_shadows' -cin $fields) { $detailedShadowsEnabled = $previous.detailed_shadows }
     if ('extended_shadow_range' -cin $fields) { $extendedShadowRangeEnabled = $previous.extended_shadow_range }
     if ('midsummer_tone' -cin $fields) { $midsummerToneEnabled = $previous.midsummer_tone }
+    if ('enhanced_aa' -cin $fields) { $enhancedAaEnabled = $previous.enhanced_aa }
+    if ('contact_shadows' -cin $fields) { $contactShadowsEnabled = $previous.contact_shadows }
+    if ('ultra_shadows' -cin $fields) { $ultraShadowsEnabled = $previous.ultra_shadows }
     if ('anisotropic_filtering' -cin $fields) {
         if ($previous.anisotropic_filtering -isnot [bool]) { throw 'Invalid previous texture filtering choice.' }
         $anisotropicFilteringEnabled = $previous.anisotropic_filtering
@@ -308,13 +319,31 @@ try {
     $tone.Checked = $midsummerToneEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
     $tone.Enabled = ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
     [void]$form.Controls.Add($tone)
+    $aa = New-Object Windows.Forms.CheckBox
+    $aa.SetBounds(18, 666, 614, 30)
+    $aa.Text = 'Smoother edges (ReShade; Modern graphics)'
+    $aa.Checked = $enhancedAaEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
+    $aa.Enabled = $tone.Enabled
+    [void]$form.Controls.Add($aa)
+    $contacts = New-Object Windows.Forms.CheckBox
+    $contacts.SetBounds(18, 700, 614, 30)
+    $contacts.Text = 'Fine contact shading (ReShade; requires available depth)'
+    $contacts.Checked = $contactShadowsEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
+    $contacts.Enabled = $tone.Enabled
+    [void]$form.Controls.Add($contacts)
+    $ultra = New-Object Windows.Forms.CheckBox
+    $ultra.SetBounds(18, 734, 614, 30)
+    $ultra.Text = 'Ultra 8192 shadows and more near detail (higher GPU cost)'
+    $ultra.Checked = $ultraShadowsEnabled -and $VisualDetailAvailable
+    $ultra.Enabled = $VisualDetailAvailable
+    [void]$form.Controls.Add($ultra)
 
     $start = New-Object Windows.Forms.Button
-    $start.SetBounds(414, 674, 104, 30)
+    $start.SetBounds(414, 776, 104, 30)
     $start.Text = 'Start'
     $start.DialogResult = [Windows.Forms.DialogResult]::OK
     $cancel = New-Object Windows.Forms.Button
-    $cancel.SetBounds(526, 674, 104, 30)
+    $cancel.SetBounds(526, 776, 104, 30)
     $cancel.Text = 'Cancel'
     $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
     [void]$form.Controls.Add($start)
@@ -339,6 +368,9 @@ try {
     $selectedShadowDetail = [bool]$shadowDetail.Checked
     $selectedShadowRange = [bool]$shadowRange.Checked
     $selectedTone = [bool]$tone.Checked
+    $selectedAa = [bool]$aa.Checked
+    $selectedContacts = [bool]$contacts.Checked
+    $selectedUltra = [bool]$ultra.Checked
     $selectedDisplay = $null
     if (-not $keepDisplay.Checked) {
         $entry = $displayEntries[$displayCombo.SelectedIndex]
@@ -348,7 +380,7 @@ try {
             mode=$(if ($modeCombo.SelectedIndex -eq 1) {'borderless'} else {'windowed'})}
     }
     $form.Dispose()
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange $selectedTone))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange $selectedTone $selectedAa $selectedContacts $selectedUltra))
     exit 0
 } catch {
     [Console]::Error.WriteLine('The graphics dialog could not be displayed.')

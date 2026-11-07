@@ -14,6 +14,7 @@ int main() {
     SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", nullptr);
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", nullptr);
     SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", nullptr);
+    SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS", nullptr);
     std::vector<const Patch*> selected;
     check(AppendVisualPatches(selected) && selected.empty());
     for (const wchar_t* invalid : {L"", L"true", L"2", L"01", L" 1"}) {
@@ -88,6 +89,36 @@ int main() {
     SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", nullptr);
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", nullptr);
     SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", nullptr);
+    SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS", L"1");
+    for (bool steam : {false,true}) {
+        steam_history=steam;
+        const unsigned char opcode[]={0xf3,0x0f,0x59,0x05};
+        memcpy(PatchAddress(UltraShadowPatches[2])-4,opcode,4);
+        for (const auto& patch:UltraShadowPatches) {
+            if (patch.pointer_slot) {uint32_t value=OriginalPointer(patch);memcpy(PatchAddress(patch),&value,4);}
+            else memcpy(PatchAddress(patch),OriginalBytes(patch),patch.raw_length);
+        }
+        // Ultra independently selects 8192 and the near-camera split blend;
+        // the ordinary detailed flag must not add competing writes.
+        for (bool detailed:{false,true}) {
+            SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS",detailed?L"1":L"0");
+            selected.clear();check(AppendVisualPatches(selected)&&selected.size()==3);
+            for (const auto* patch:selected) {
+                check(WritePatch(*patch,false));
+                if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==reinterpret_cast<uintptr_t>(&NearShadowBlend));
+                else check(!memcmp(PatchAddress(*patch),Shadow8192,5));
+                check(WritePatch(*patch,true));
+            }
+        }
+        PatchAddress(UltraShadowPatches[2])[-1]=0;
+        selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
+    }
+    for (const wchar_t* invalid:{L"",L"true",L"2",L"01"}) {
+        SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS",invalid);
+        selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
+    }
+    SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS",nullptr);
+    SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS",nullptr);
     VirtualFree(memory, 0, MEM_RELEASE);
     std::printf("%d visual-detail checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
