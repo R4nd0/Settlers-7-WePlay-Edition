@@ -24,12 +24,18 @@ ADDON_DLL_SHA256 = 'da430e0a9c6eecefa0d1b27d05e16c426fb5d04e808b194d914eaac4b31b
 # Versioned profiles preserve the earlier installed runtime and never rewrite
 # a shader/configuration which an already running game may have loaded.
 FOLDER = 'LocalData/ReShade-Visual-v2'
-OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows')
+OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')
+MAXIMUM_ASSETS = ('dh_uber_rt.fx', 'dh_uber_motion.fx', 'DH-LICENSE.txt',
+                  'ReShade.fxh', 'ReShadeUI.fxh', 'SMAA.fx', 'SMAA.fxh',
+                  'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt',
+                  'WePlay-World.fxh', 'THIRD-PARTY.md')
 CONFIG = b'''[INSTALL]
 Logging=1
 
 [GENERAL]
 EffectSearchPaths=.\\Shaders
+TextureSearchPaths=.\\Textures
+PreprocessorDefinitions=RESHADE_DEPTH_INPUT_IS_REVERSED=0
 PresetPath=.\\WePlay-Midsummer.ini
 PerformanceMode=0
 NoDebugInfo=1
@@ -66,7 +72,7 @@ def _read(path, limit):
 
 def _options(options):
     if options is None:
-        return (True, False, False)
+        return (True, False, False, False)
     if not isinstance(options, dict):
         raise ValueError('Ungueltige ReShade-Auswahl.')
     values = tuple(options.get(name, False) for name in OPTIONS)
@@ -77,23 +83,79 @@ def _options(options):
 
 def _folder(root, options):
     mask = sum(int(value) << i for i, value in enumerate(_options(options)))
-    version = hashlib.sha256(CONFIG + _runtime(options)[2].encode('ascii') + _asset('WePlay-Midsummer.fx').read_bytes()
-                             + _preset(options)).hexdigest()[:12]
+    fingerprint = hashlib.sha256(CONFIG + _runtime(options)[2].encode('ascii') + _preset(options))
+    for name, data in _profile_files(options).items():
+        fingerprint.update(name.encode('utf-8') + b'\0' + data)
+    version = fingerprint.hexdigest()[:12]
     return _plain(Path(root) / FOLDER / ('profile-' + str(mask) + '-' + version))
 
 
 def _runtime(options):
-    return ((ADDON_URL, ADDON_SETUP_SHA256, ADDON_DLL_SHA256) if _options(options)[2]
+    return ((ADDON_URL, ADDON_SETUP_SHA256, ADDON_DLL_SHA256) if any(_options(options)[2:])
             else (URL, SETUP_SHA256, DLL_SHA256))
 
 
 def _preset(options):
-    tone, aa, contacts = _options(options)
+    tone, aa, contacts, maximum = _options(options)
     raw = _asset('WePlay-Midsummer.ini').read_text(encoding='utf-8')
     raw = raw.replace('Strength=0.650000', 'Strength=' + ('0.650000' if tone else '0.000000'))
-    return (raw.rstrip() + '\nEdgeStrength=' + ('0.800000' if aa else '0.000000')
+    if maximum:
+        techniques = ['WePlay_Midsummer@WePlay-Midsummer.fx',
+                      'DH_UBER_MOTION_020@dh_uber_motion.fx', 'DH_UBER_RT@dh_uber_rt.fx',
+                      'WePlay_Maximum@WePlay-Midsummer.fx']
+        if aa: techniques.append('SMAA@SMAA.fx')
+        raw = raw.replace('WePlay_Midsummer@WePlay-Midsummer.fx', ','.join(techniques))
+    raw = (raw.rstrip() + '\nEdgeStrength=' + ('0.800000' if aa and not maximum else '0.000000')
             + '\nContactStrength=' + ('0.220000' if contacts else '0.000000')
-            + '\nDebugView=0\n').encode('utf-8')
+            + '\nMaximumStrength=' + ('1.000000' if maximum else '0.000000')
+            + '\nHazeStrength=0.420000\nHeatStrength=0.850000\nDebugView=0\n')
+    if maximum:
+        raw += '''
+[dh_uber_motion.fx]
+iMotionRadius=4
+bUnjitterDepth=0
+
+[dh_uber_rt.fx]
+bSkyAt0=0
+bDepthMulti5=0
+bRemoveAmbient=1
+fSourceAmbientIntensity=0.350000
+fGIRenderScale=0.500000
+iRTMaxRays=4
+iSmoothSamples=8
+iSmoothRadius=8
+iGIFrameAccu=8
+iAOFrameAccu=5
+fGIBounce=0.450000
+fGIHueBiais=0.600000
+fGIDarkMerging=0.650000
+fGILightMerging=0.250000
+fGIFinalMerging=1.250000
+fAOMultiplier=0.650000
+fAOBoostFromGI=0.200000
+bRreinhardFinalMerging=0
+bSSR=0
+iDebug=0
+
+[SMAA.fx]
+EdgeDetectionType=1
+EdgeDetectionThreshold=0.075000
+MaxSearchSteps=64
+MaxSearchStepsDiagonal=20
+CornerRounding=25
+DebugOutput=0
+'''
+    return raw.encode('utf-8')
+
+
+def _profile_files(options):
+    files = {'Shaders/WePlay-Midsummer.fx': _asset('WePlay-Midsummer.fx').read_bytes(),
+             'Shaders/WePlay-World.fxh': _asset('effects/WePlay-World.fxh').read_bytes()}
+    if _options(options)[3]:
+        for name in MAXIMUM_ASSETS:
+            directory = 'Textures' if name.endswith('.png') else ('Shaders' if name.endswith(('.fx', '.fxh')) else 'Licenses')
+            files[directory + '/' + name] = _asset('effects/' + name).read_bytes()
+    return files
 
 
 def verify(root, options=None):
@@ -112,7 +174,7 @@ def verify(root, options=None):
     no_addons = _plain(folder / 'NoAddons')
     if not no_addons.is_dir() or any(no_addons.iterdir()):
         raise ValueError('Der verwaltete ReShade-Ordner fuer externe Add-ons ist veraendert.')
-    if (_plain(folder / 'Shaders/WePlay-Midsummer.fx').read_bytes() != _asset('WePlay-Midsummer.fx').read_bytes()
+    if (any(_read(folder / name, 4 * 1024 * 1024) != data for name, data in _profile_files(options).items())
             or _plain(folder / 'WePlay-Midsummer.ini').read_bytes() != _preset(options)):
         raise ValueError('Das WePlay-Grafikprofil wurde veraendert. Grafikauswahl erneut speichern.')
     # ReShade writes UI/style defaults on a clean exit. Compare managed values,
@@ -147,7 +209,7 @@ def prepare(root, *, setup=None, options=None):
         candidates = [legacy] if legacy.is_dir() else []
         if folder.parent.is_dir():
             candidates += sorted((p for p in folder.parent.iterdir()
-                                  if re.fullmatch(r'profile-[0-7]-[0-9a-f]{12}',p.name)),key=lambda p:p.name)[:32]
+                                  if re.fullmatch(r'profile-(?:[0-9]|1[0-5])-[0-9a-f]{12}',p.name)),key=lambda p:p.name)[:32]
         for candidate_folder in candidates:
             try:
                 candidate = _read(candidate_folder / 'ReShade32.dll', 16 * 1024 * 1024)
@@ -182,9 +244,11 @@ def prepare(root, *, setup=None, options=None):
     staging.mkdir()
     (staging / 'ReShade32.dll').write_bytes(dll)
     (staging / 'ReShade32.json').write_bytes(manifest)
-    (staging / 'Shaders').mkdir()
     (staging / 'NoAddons').mkdir()
-    (staging / 'Shaders/WePlay-Midsummer.fx').write_bytes(_asset('WePlay-Midsummer.fx').read_bytes())
+    for name, data in _profile_files(options).items():
+        target = staging / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     (staging / 'WePlay-Midsummer.ini').write_bytes(_preset(options))
     (staging / 'ReShade.ini').write_bytes(CONFIG)
     staging.rename(folder)

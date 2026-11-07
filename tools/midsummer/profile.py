@@ -17,6 +17,7 @@ from archive_append import append_resource
 SOURCE_SHA256 = '30d679720e14ec9007f359c5703d854b78a866480f856810c934e439d620e3ed'
 RESOURCE = 'Config/Environment/WePlayMidsummer.xml'
 PERIOD_MS = 1200000
+AZIMUTH_CURVES = ('SunAzimuth', 'SunFXAzimuth')
 # Twilight -> day -> twilight, repeated. Elevation stays above the horizon.
 # HDR exposure remains well above the stock night value (about 0.196).
 CURVES = {
@@ -75,6 +76,27 @@ def environment(source, *, period_ms=PERIOD_MS):
                     for leaf in tangent.iter():
                         if not len(leaf) and leaf.tag != 'BlockVersion':
                             leaf.text = '0.'
+            keys.append(key)
+    # Both the actual light and its visible sun complete one orbit. Keep the
+    # endpoint at 360 rather than interpolating back to zero through the sky.
+    # Zero endpoint tangents match at the loop; 360 and 0 are the same direction.
+    for name in AZIMUTH_CURVES:
+        item = root.find(name)
+        if item is None or item.find('Loop') is None or item.find('KeyFrames/Key') is None:
+            raise ValueError('Missing environment curve: ' + name)
+        item.find('Loop').text = 'true'
+        keys = item.find('KeyFrames')
+        sample = copy.deepcopy(keys[0])
+        keys.clear()
+        # Quarter keys also prevent an angular interpolator from choosing the
+        # zero-length shortcut between the equivalent 0 and 360 endpoints.
+        for phase, angle in ((0., 0), (.25, 90), (.5, 180), (.75, 270), (1., 360)):
+            key = copy.deepcopy(sample)
+            key.find('Time').text = format(phase * period_ms, '.9g')
+            key.find('Value').text = str(angle)
+            for tag in ('TangentToPrev', 'TangentToNext'):
+                tangent = key.find(tag)
+                if tangent is not None: tangent.text = '0.'
             keys.append(key)
     return ET.tostring(root, encoding='utf-8', xml_declaration=True)
 

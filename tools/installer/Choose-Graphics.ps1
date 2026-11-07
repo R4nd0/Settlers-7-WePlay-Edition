@@ -48,12 +48,12 @@ function Resolve-PreferredChoice {
 function ConvertTo-ChoiceJson {
     param($Choice, $SimpleMenu = $false, $Display = $null, $AnisotropicFiltering = $false,
           $ExtendedDetail = $false, $DetailedShadows = $false, $ExtendedShadowRange = $false, $MidsummerTone = $false,
-          $EnhancedAa = $false, $ContactShadows = $false, $UltraShadows = $false)
+          $EnhancedAa = $false, $ContactShadows = $false, $UltraShadows = $false, $MaximumFx = $false)
     if ($null -ne $Choice -and -not (Test-ModelName $Choice)) { throw 'Invalid model choice.' }
     if ($SimpleMenu -isnot [bool]) { throw 'Invalid simple menu choice.' }
     if ($AnisotropicFiltering -isnot [bool]) { throw 'Invalid texture filtering choice.' }
     if ($ExtendedDetail -isnot [bool] -or $DetailedShadows -isnot [bool] -or $ExtendedShadowRange -isnot [bool] -or $MidsummerTone -isnot [bool]) { throw 'Invalid detail choice.' }
-    if ($EnhancedAa -isnot [bool] -or $ContactShadows -isnot [bool] -or $UltraShadows -isnot [bool]) { throw 'Invalid visual quality choice.' }
+    if ($EnhancedAa -isnot [bool] -or $ContactShadows -isnot [bool] -or $UltraShadows -isnot [bool] -or $MaximumFx -isnot [bool]) { throw 'Invalid visual quality choice.' }
     if (-not (Test-DisplayChoice $Display)) { throw 'Invalid display choice.' }
     $record = @{format = 's7-graphics-choice-v1'; choice = $Choice; simple_menu = $SimpleMenu}
     if ($PSBoundParameters.ContainsKey('Display')) { $record.display = $Display }
@@ -65,6 +65,7 @@ function ConvertTo-ChoiceJson {
     if ($PSBoundParameters.ContainsKey('EnhancedAa')) { $record.enhanced_aa = $EnhancedAa }
     if ($PSBoundParameters.ContainsKey('ContactShadows')) { $record.contact_shadows = $ContactShadows }
     if ($PSBoundParameters.ContainsKey('UltraShadows')) { $record.ultra_shadows = $UltraShadows }
+    if ($PSBoundParameters.ContainsKey('MaximumFx')) { $record.maximum_fx = $MaximumFx }
     return ($record | ConvertTo-Json -Compress -Depth 5)
 }
 
@@ -99,8 +100,8 @@ try {
     if ($previous.format -cne 's7-graphics-choice-v1') { throw 'Unknown choice format.' }
     if ($null -ne $previous.choice -and -not (Test-ModelName $previous.choice)) { throw 'Invalid previous choice.' }
     $fields = @($previous.PSObject.Properties.Name)
-    if ($fields.Count -lt 2 -or $fields.Count -gt 12 -or
-        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows') }).Count -gt 0 -or
+    if ($fields.Count -lt 2 -or $fields.Count -gt 13 -or
+        @($fields | Where-Object { $_ -cnotin @('format', 'choice', 'simple_menu','display','anisotropic_filtering','extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows','maximum_fx') }).Count -gt 0 -or
         'choice' -cnotin $fields) { throw 'Unknown choice fields.' }
     $simpleMenuEnabled = $false
     $anisotropicFilteringEnabled = $false
@@ -111,7 +112,8 @@ try {
     $enhancedAaEnabled = $false
     $contactShadowsEnabled = $false
     $ultraShadowsEnabled = $false
-    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows')) {
+    $maximumFxEnabled = $false
+    foreach ($field in @('extended_detail','detailed_shadows','extended_shadow_range','midsummer_tone','enhanced_aa','contact_shadows','ultra_shadows','maximum_fx')) {
         if ($field -cin $fields -and $previous.$field -isnot [bool]) { throw 'Invalid previous detail choice.' }
     }
     if ('extended_detail' -cin $fields) { $extendedDetailEnabled = $previous.extended_detail }
@@ -121,6 +123,7 @@ try {
     if ('enhanced_aa' -cin $fields) { $enhancedAaEnabled = $previous.enhanced_aa }
     if ('contact_shadows' -cin $fields) { $contactShadowsEnabled = $previous.contact_shadows }
     if ('ultra_shadows' -cin $fields) { $ultraShadowsEnabled = $previous.ultra_shadows }
+    if ('maximum_fx' -cin $fields) { $maximumFxEnabled = $previous.maximum_fx }
     if ('anisotropic_filtering' -cin $fields) {
         if ($previous.anisotropic_filtering -isnot [bool]) { throw 'Invalid previous texture filtering choice.' }
         $anisotropicFilteringEnabled = $previous.anisotropic_filtering
@@ -337,13 +340,19 @@ try {
     $ultra.Checked = $ultraShadowsEnabled -and $VisualDetailAvailable
     $ultra.Enabled = $VisualDetailAvailable
     [void]$form.Controls.Add($ultra)
+    $maximum = New-Object Windows.Forms.CheckBox
+    $maximum.SetBounds(18, 768, 614, 30)
+    $maximum.Text = 'ReShade Maximum: GI, SMAA, bloom, distance haze and heat shimmer'
+    $maximum.Checked = $maximumFxEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
+    $maximum.Enabled = $tone.Enabled
+    [void]$form.Controls.Add($maximum)
 
     $start = New-Object Windows.Forms.Button
-    $start.SetBounds(414, 776, 104, 30)
+    $start.SetBounds(414, 810, 104, 30)
     $start.Text = 'Start'
     $start.DialogResult = [Windows.Forms.DialogResult]::OK
     $cancel = New-Object Windows.Forms.Button
-    $cancel.SetBounds(526, 776, 104, 30)
+    $cancel.SetBounds(526, 810, 104, 30)
     $cancel.Text = 'Cancel'
     $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
     [void]$form.Controls.Add($start)
@@ -371,6 +380,7 @@ try {
     $selectedAa = [bool]$aa.Checked
     $selectedContacts = [bool]$contacts.Checked
     $selectedUltra = [bool]$ultra.Checked
+    $selectedMaximum = [bool]$maximum.Checked
     $selectedDisplay = $null
     if (-not $keepDisplay.Checked) {
         $entry = $displayEntries[$displayCombo.SelectedIndex]
@@ -380,7 +390,7 @@ try {
             mode=$(if ($modeCombo.SelectedIndex -eq 1) {'borderless'} else {'windowed'})}
     }
     $form.Dispose()
-    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange $selectedTone $selectedAa $selectedContacts $selectedUltra))
+    [Console]::Out.WriteLine((ConvertTo-ChoiceJson $choice $selectedSimpleMenu $selectedDisplay $selectedFiltering $selectedDetail $selectedShadowDetail $selectedShadowRange $selectedTone $selectedAa $selectedContacts $selectedUltra $selectedMaximum))
     exit 0
 } catch {
     [Console]::Error.WriteLine('The graphics dialog could not be displayed.')

@@ -109,7 +109,7 @@ class GraphicsChoiceTests(unittest.TestCase):
 
     def test_visual_options_need_capable_adapter_and_strict_booleans(self):
         before = self.snapshot()
-        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows'):
+        for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
             record = {'format': choice.FORMAT, 'choice': None, field: True}
             with self.assertRaises(ValueError):
                 choice.save_choice(self.root, record)
@@ -161,7 +161,7 @@ class GraphicsChoiceTests(unittest.TestCase):
                          {'S7_ULTRA_SHADOWS':'1','OTHER':'kept'})
         self.assertEqual(choice.visual_environment({'format':choice.FORMAT,'choice':None},
                          {'s7_ultra_shadows':'1'}),{})
-        for name in ('enhanced_aa','contact_shadows'):
+        for name in ('enhanced_aa','contact_shadows','maximum_fx'):
             with self.subTest(name=name),self.assertRaises(ValueError):
                 choice.tone_environment(self.root,{'format':choice.FORMAT,'choice':None,name:True},'native',{})
 

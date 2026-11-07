@@ -1,0 +1,371 @@
+{
+  "date": "2026-11-07",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "hardware": "Ryzen 7 9800X3D / Radeon RX 9070 XT",
+  "collector": "Pinned Intel PresentMon 2.6.0, PID-scoped, input tracking disabled",
+  "conditions": "Separate late-save client, matching three camera positions, two physical cores, Normal priority, DXVK 3.1.1, 60-FPS cap and VSync",
+  "limitations": [
+    "One serialized pass per profile; not a multi-hardware benchmark.",
+    "Simulation held at the late-save camera checkpoint; animation and native environment continue.",
+    "FrameTime is producer interval; displayed-duration samples are separate and do not establish a matching displayed FPS.",
+    "The cap hides uncapped throughput; GPUBusy is measured separately.",
+    "Windows dedicated-memory counter is process allocation, not a VRAM budget or asset-only count.",
+    "Baseline memory was sampled once after far capture, not at every camera."
+  ],
+  "rows": [
+    {
+      "profile": "Previous WePlay",
+      "camera": "near",
+      "frames": 899,
+      "mean_frame_ms": 16.635,
+      "median_frame_ms": 16.595,
+      "p95_frame_ms": 20.188,
+      "max_frame_ms": 32.98,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.115,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 899,
+          "median_ms": 4.192,
+          "p95_ms": 4.589
+        },
+        "CPUBusy": {
+          "samples": 899,
+          "median_ms": 16.496,
+          "p95_ms": 19.986
+        },
+        "DisplayedTime": {
+          "samples": 899,
+          "median_ms": 13.905,
+          "p95_ms": 20.932
+        },
+        "DisplayLatency": {
+          "samples": 899,
+          "median_ms": 21.497,
+          "p95_ms": 25.726
+        }
+      },
+      "dedicated_peak_mib": 1789.3,
+      "shared_peak_mib": 375.7,
+      "memory_scope": "three samples after far capture; applies to whole baseline run",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Previous WePlay",
+      "camera": "medium",
+      "frames": 897,
+      "mean_frame_ms": 16.665,
+      "median_frame_ms": 16.668,
+      "p95_frame_ms": 19.164,
+      "max_frame_ms": 34.055,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.005,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 897,
+          "median_ms": 4.042,
+          "p95_ms": 4.481
+        },
+        "CPUBusy": {
+          "samples": 897,
+          "median_ms": 16.581,
+          "p95_ms": 19.048
+        },
+        "DisplayedTime": {
+          "samples": 897,
+          "median_ms": 13.907,
+          "p95_ms": 20.895
+        },
+        "DisplayLatency": {
+          "samples": 897,
+          "median_ms": 21.621,
+          "p95_ms": 24.954
+        }
+      },
+      "dedicated_peak_mib": 1789.3,
+      "shared_peak_mib": 375.7,
+      "memory_scope": "three samples after far capture; applies to whole baseline run",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Previous WePlay",
+      "camera": "far",
+      "frames": 897,
+      "mean_frame_ms": 16.667,
+      "median_frame_ms": 16.583,
+      "p95_frame_ms": 19.672,
+      "max_frame_ms": 31.1,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 59.999,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 897,
+          "median_ms": 4.174,
+          "p95_ms": 4.595
+        },
+        "CPUBusy": {
+          "samples": 897,
+          "median_ms": 16.502,
+          "p95_ms": 19.593
+        },
+        "DisplayedTime": {
+          "samples": 897,
+          "median_ms": 13.911,
+          "p95_ms": 20.906
+        },
+        "DisplayLatency": {
+          "samples": 897,
+          "median_ms": 21.727,
+          "p95_ms": 25.355
+        }
+      },
+      "dedicated_peak_mib": 1789.3,
+      "shared_peak_mib": 375.7,
+      "memory_scope": "three samples after far capture; applies to whole baseline run",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Recommended candidate",
+      "camera": "near",
+      "frames": 898,
+      "mean_frame_ms": 16.66,
+      "median_frame_ms": 16.64,
+      "p95_frame_ms": 21.208,
+      "max_frame_ms": 27.894,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.023,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 898,
+          "median_ms": 4.266,
+          "p95_ms": 4.88
+        },
+        "CPUBusy": {
+          "samples": 898,
+          "median_ms": 16.543,
+          "p95_ms": 21.151
+        },
+        "DisplayedTime": {
+          "samples": 898,
+          "median_ms": 13.909,
+          "p95_ms": 20.888
+        },
+        "DisplayLatency": {
+          "samples": 898,
+          "median_ms": 21.585,
+          "p95_ms": 24.951
+        }
+      },
+      "dedicated_peak_mib": 1800.6,
+      "shared_peak_mib": 407.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Recommended candidate",
+      "camera": "medium",
+      "frames": 898,
+      "mean_frame_ms": 16.661,
+      "median_frame_ms": 16.674,
+      "p95_frame_ms": 20.093,
+      "max_frame_ms": 30.529,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.02,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 898,
+          "median_ms": 4.144,
+          "p95_ms": 4.702
+        },
+        "CPUBusy": {
+          "samples": 898,
+          "median_ms": 16.595,
+          "p95_ms": 20.037
+        },
+        "DisplayedTime": {
+          "samples": 898,
+          "median_ms": 13.91,
+          "p95_ms": 20.888
+        },
+        "DisplayLatency": {
+          "samples": 898,
+          "median_ms": 21.456,
+          "p95_ms": 25.38
+        }
+      },
+      "dedicated_peak_mib": 1805.1,
+      "shared_peak_mib": 391.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Recommended candidate",
+      "camera": "far",
+      "frames": 898,
+      "mean_frame_ms": 16.662,
+      "median_frame_ms": 16.617,
+      "p95_frame_ms": 19.9,
+      "max_frame_ms": 34.404,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.018,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 898,
+          "median_ms": 4.242,
+          "p95_ms": 4.753
+        },
+        "CPUBusy": {
+          "samples": 898,
+          "median_ms": 16.534,
+          "p95_ms": 19.826
+        },
+        "DisplayedTime": {
+          "samples": 898,
+          "median_ms": 13.911,
+          "p95_ms": 20.892
+        },
+        "DisplayLatency": {
+          "samples": 898,
+          "median_ms": 21.451,
+          "p95_ms": 24.908
+        }
+      },
+      "dedicated_peak_mib": 1805.2,
+      "shared_peak_mib": 391.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Ultra",
+      "camera": "near",
+      "frames": 899,
+      "mean_frame_ms": 16.647,
+      "median_frame_ms": 16.614,
+      "p95_frame_ms": 21.506,
+      "max_frame_ms": 41.15,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.07,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 899,
+          "median_ms": 5.01,
+          "p95_ms": 5.532
+        },
+        "CPUBusy": {
+          "samples": 899,
+          "median_ms": 16.523,
+          "p95_ms": 21.422
+        },
+        "DisplayedTime": {
+          "samples": 899,
+          "median_ms": 13.906,
+          "p95_ms": 20.896
+        },
+        "DisplayLatency": {
+          "samples": 899,
+          "median_ms": 22.432,
+          "p95_ms": 25.785
+        }
+      },
+      "dedicated_peak_mib": 2060.0,
+      "shared_peak_mib": 407.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Ultra",
+      "camera": "medium",
+      "frames": 898,
+      "mean_frame_ms": 16.659,
+      "median_frame_ms": 16.628,
+      "p95_frame_ms": 19.285,
+      "max_frame_ms": 30.502,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.029,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 898,
+          "median_ms": 4.903,
+          "p95_ms": 5.444
+        },
+        "CPUBusy": {
+          "samples": 898,
+          "median_ms": 16.554,
+          "p95_ms": 19.186
+        },
+        "DisplayedTime": {
+          "samples": 898,
+          "median_ms": 13.914,
+          "p95_ms": 20.898
+        },
+        "DisplayLatency": {
+          "samples": 898,
+          "median_ms": 22.236,
+          "p95_ms": 25.857
+        }
+      },
+      "dedicated_peak_mib": 2059.7,
+      "shared_peak_mib": 375.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    },
+    {
+      "profile": "Ultra",
+      "camera": "far",
+      "frames": 897,
+      "mean_frame_ms": 16.666,
+      "median_frame_ms": 16.638,
+      "p95_frame_ms": 19.331,
+      "max_frame_ms": 28.844,
+      "frames_over_50_ms": 0,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.004,
+      "metrics": {
+        "GPUBusy": {
+          "samples": 897,
+          "median_ms": 4.822,
+          "p95_ms": 5.302
+        },
+        "CPUBusy": {
+          "samples": 897,
+          "median_ms": 16.548,
+          "p95_ms": 19.208
+        },
+        "DisplayedTime": {
+          "samples": 897,
+          "median_ms": 13.91,
+          "p95_ms": 20.893
+        },
+        "DisplayLatency": {
+          "samples": 897,
+          "median_ms": 22.193,
+          "p95_ms": 25.505
+        }
+      },
+      "dedicated_peak_mib": 2055.6,
+      "shared_peak_mib": 375.7,
+      "memory_scope": "three samples at this camera",
+      "complete_capture": true,
+      "collector_privilege_warning": true
+    }
+  ]
+}

@@ -1,11 +1,13 @@
-"""Build the RC3.18 logistics and Internet preview from pinned inputs."""
+"""Build the RC3.19 graphics preview from pinned inputs."""
 import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import quote
 
 REPO=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(REPO/'tools/installer'))
@@ -13,8 +15,32 @@ import build_package
 import compatibility as content
 import install
 
+RELEASE_GUIDE = REPO/'docs/RC3.19-GRAPHICS.md'
+RELEASE_TAG = 'v2.0.0-rc3.19'
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=18,game_directory=False,neo_logistics=False):
+
+def public_document(source):
+    """Packaged documents link to versioned sources, not absent local folders."""
+    source = Path(source)
+    def link(match):
+        path, separator, fragment = match[1].partition('#')
+        target = (source.parent / path).resolve()
+        if not target.is_relative_to(REPO.resolve()) or not target.is_file():
+            raise ValueError('Missing public document target: ' + match[1])
+        relative = target.relative_to(REPO.resolve()).as_posix()
+        return '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/' + RELEASE_TAG + '/' + quote(relative) + (separator + fragment if separator else '') + ')'
+    return re.sub(r'\]\((?!https?://|#)([^)]+)\)', link, source.read_text(encoding='utf-8'))
+
+
+def copy_documents(app):
+    for original, destination in ((RELEASE_GUIDE,'LIESMICH.txt'),
+            (RELEASE_GUIDE,'RELEASE-NOTES.md'),(RELEASE_GUIDE,'README.md'),
+            (REPO/'CREDITS.md','CREDITS.md'),(REPO/'docs/DISCORD-INTEGRATION.md','DISCORD-INTEGRATION.md')):
+        (app/destination).write_text(public_document(original),encoding='utf-8',newline='\n')
+    shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
+
+
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=19,game_directory=False,neo_logistics=False,midsummer_profile=False):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -43,24 +69,20 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
-        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics)
+        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile)
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
-    guide=REPO/'docs/RC3.18-LOGISTICS-INTERNET.md'
-    if guide.is_file():shutil.copyfile(guide,app/'LIESMICH.txt')
-    if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(guide,app/'RELEASE-NOTES.md')
-    for name in ('README.md','CREDITS.md','LICENSE'):shutil.copyfile(REPO/name,app/name)
+    copy_documents(app)
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.18 Logistics and Internet Fixes','network_revision':8,'game_bits':32,
-             'version':'2.0.0-rc3.18','update_sequence':update_sequence,'update_channel':'preview',
+    release={'format':'s7-desktop-release-v1','release':'RC3.19 Graphics and Midsummer','network_revision':8,'game_bits':32,
+             'version':'2.0.0-rc3.19','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
@@ -105,10 +127,7 @@ def refresh_stage(app,desktop_publish):
     install.package_manifest(package)
     for path in desktop_publish.iterdir():
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
-    if (REPO/'docs/RC3.18-LOGISTICS-INTERNET.md').is_file():shutil.copyfile(REPO/'docs/RC3.18-LOGISTICS-INTERNET.md',app/'LIESMICH.txt')
-    if (REPO/'docs/DISCORD-INTEGRATION.md').is_file():shutil.copyfile(REPO/'docs/DISCORD-INTEGRATION.md',app/'DISCORD-INTEGRATION.md')
-    shutil.copyfile(REPO/'docs/RC3.18-LOGISTICS-INTERNET.md',app/'RELEASE-NOTES.md')
-    for name in ('README.md','CREDITS.md','LICENSE'):shutil.copyfile(REPO/name,app/name)
+    copy_documents(app)
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 
@@ -120,10 +139,11 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=18)
+    parser.add_argument('--update-sequence',type=int,default=19)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
+    parser.add_argument('--midsummer-profile',action='store_true')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile)

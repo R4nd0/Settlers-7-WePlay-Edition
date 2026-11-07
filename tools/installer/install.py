@@ -49,6 +49,13 @@ NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
 MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
     ('interface_patch.py', 'runtime.lua', 'profile.py', 'archive_append.py',
      'WePlay-Midsummer.fx', 'WePlay-Midsummer.ini')) + ('installer/reshade_runtime.py',)
+# Kept in sync with reshade_runtime.MAXIMUM_ASSETS by the package tests. Do not
+# import the optional runtime here: non-Mittsommer packages do not contain it.
+MAXIMUM_ASSETS = ('dh_uber_rt.fx', 'dh_uber_motion.fx', 'DH-LICENSE.txt',
+                  'ReShade.fxh', 'ReShadeUI.fxh', 'SMAA.fx', 'SMAA.fxh',
+                  'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt',
+                  'WePlay-World.fxh', 'THIRD-PARTY.md')
+MIDSUMMER_PACKAGE_TOOLS += tuple('midsummer/effects/' + name for name in MAXIMUM_ASSETS)
 WINDOWS_API_TOOLS = (('installer/windows_system.py','windows_system.py'),)
 LAN_LOBBY_TOOLS = tuple(('installer/' + name, name) for name in (
     'launch_auto_lan.py', 'lan_control.py', 'lan_hub.py', 'lan_child_job.py', 'lan_interfaces.py',
@@ -108,6 +115,7 @@ def launcher_sources(manifest):
         files.extend((('installer/reshade_runtime.py','reshade_runtime.py'),
                       ('midsummer/WePlay-Midsummer.fx','WePlay-Midsummer.fx'),
                       ('midsummer/WePlay-Midsummer.ini','WePlay-Midsummer.ini')))
+        files.extend(('midsummer/effects/' + name, 'effects/' + name) for name in MAXIMUM_ASSETS)
     return files
 
 
@@ -541,6 +549,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     shutil.copytree(package / 'Runtime', destination / 'Runtime',copy_function=copy_payload)
     (destination / 'Launcher').mkdir()
     for original, target in launcher_sources(manifest):
+        content.plain(destination / 'Launcher' / target).parent.mkdir(parents=True, exist_ok=True)
         copy_payload(tools / original, destination / 'Launcher' / target)
     copy_payload(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,

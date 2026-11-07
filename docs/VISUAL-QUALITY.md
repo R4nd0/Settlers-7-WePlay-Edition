@@ -1,4 +1,4 @@
-# Optional edge smoothing, Ultra shadows and geometry contacts
+# Optional edge smoothing, Ultra shadows, contacts and cinematic shading
 
 Unreleased development, 2026-11-07. These changes extend the existing
 [Mittsommer profile](MIDSUMMER-LIGHTING.md) and
@@ -7,12 +7,12 @@ assets and user installations have not been replaced.
 
 ## Controls
 
-The launcher's Graphics page exposes three new independent opt-in controls:
+The launcher's Graphics page exposes independent opt-in controls:
 
 - **Smoother edges / Ruhigere Kanten** applies spatial edge-directed ReShade
   filtering. A bounded subpixel footprint smooths high-contrast edges while
-  retaining low-contrast texture detail. Fixed top, bottom and right HUD regions
-  are excluded. This is not temporal AA, forced MSAA or supersampling.
+  retaining low-contrast texture detail. The full image is processed. This is not temporal AA,
+  forced MSAA or supersampling.
 - **Ultra shadows with more near detail / Ultra-Schatten mit mehr Nahdetails**
   selects 2048/4096/8192 shadow maps for low/medium/high native shadow quality.
   It overrides the older 1024/2048/4096 detail option when both are selected.
@@ -26,14 +26,45 @@ The launcher's Graphics page exposes three new independent opt-in controls:
   Distant separation and steep silhouette derivatives are rejected. The maximum
   multiplicative darkening is 22%; most pixels receive much less. It complements
   native SSAO and does not replace the sun's native shadow maps.
+- **ReShade Maximum (cinematic)** adds DH_UBER_RT 0.20.6 screen-space ray-traced
+  indirect light/color bounce and occlusion, with DH motion estimation, half-size
+  GI tracing, four rays, eight spatial denoising samples and bounded temporal
+  accumulation. The earlier authored broad AO layer is removed. SMAA replaces
+  the simple edge filter when the separate smoothing option is enabled. Bloom,
+  bounded sharpening/local contrast, cool shadows and warm highlights complete
+  the grade. Distance haze and animated heat refraction add atmosphere. Haze is
+  calibrated to the game's measured depth scale; refraction is at most 0.85
+  pixels before masks, limited by warm/lit color, distance and depth continuity.
+  Warm color is a screen-space ground proxy, not a material or temperature map.
+  Sky and unavailable depth are excluded from geometric effects. This is not
+  hardware ray tracing: missing/off-screen geometry and light cannot contribute.
+  Motion estimation cannot guarantee freedom from temporal artifacts.
 
-Edge smoothing and contact shading require Modern graphics. Ultra shadows
+Lighting, grading, GI, haze and SMAA process the full image, including the UI.
+The earlier broad strips and rectangular HUD restores were removed because
+they also excluded visible landscape and introduced obvious cutoffs. Only heat
+refraction uses compact footprints of the stock controls; it never reserves
+whole image-edge strips. This is not a native UI alpha layer. Sources, lookup
+textures, license notices and upstream
+revisions ship with the [effect bundle](../tools/midsummer/effects/THIRD-PARTY.md).
+
+Edge smoothing, contact shading and Maximum require Modern graphics. Ultra shadows
 also work with native Direct3D9. All new choices default off, including when
 reading old preference files. They take effect on the next launch. Ultra uses
 four times the shadow-map texels of the older 4096 high setting and needs more
 GPU memory and rendering work. It is not enabled silently by a preset.
 
+**WePlay recommended (Modern)** explicitly selects high quality, longer model
+detail/range, 4096 shadows and the original three ReShade components, leaving
+Ultra and Maximum off. **ReShade Maximum (cinematic)** selects that baseline
+with Maximum enabled. Each button only changes the displayed controls until
+Save; output resolution is preserved. Earlier preset buttons keep their scope.
+
 Mittsommer keeps its bright twilight/day cycle and 20-minute native period.
+RC3.19 also replaces the inherited fixed 45-degree light/disc azimuth with
+matching 0/90/180/270/360-degree curves. Quarter-circle keys avoid an angular
+interpolator's equivalent-endpoint shortcut; 360 and 0 share a direction and
+zero endpoint tangents. Elevation stays above the horizon throughout the orbit.
 The revised light reduces the twilight's orange cast, raises its blue component,
 and lowers exposure from 2.6–3.05 to **2.45–2.85**. Sun elevation remains 14–48
 degrees, with no dark night. Ambient contribution and shadow strength are
@@ -48,7 +79,7 @@ shimmer, especially with the longer-detail option's negative mip bias.
 
 ## Runtime integrity and depth behavior
 
-The authored effect contains independent tone, edge and contact strengths.
+The authored effect contains independent tone, edge, contact and Maximum strengths.
 Selecting any one prepares only that combination. Runtime/config/shader/preset
 profiles live under `LocalData/ReShade-Visual-v2`; their names include a content
 fingerprint. Upgrades and different combinations therefore do not overwrite
@@ -56,7 +87,7 @@ an already loaded shader or the earlier `ReShade-Midsummer` folder. Pinned
 standard legacy runtime bytes can be reused without another download.
 
 Tone and smoothing use the pinned official standard ReShade 6.8.0 runtime.
-Explicit contact selection uses the official **full add-on** variant, with
+Explicit contact or Maximum selection uses the official **full add-on** variant, with
 separate setup and x86 DLL hashes. The official DLL for that variant is unsigned;
 integrity here is established by the exact pinned upstream download hashes.
 The setup is only unpacked, never executed; no external add-on ships with the
@@ -96,6 +127,9 @@ from the original source once; unknown archive bytes are never accepted as stock
 ## Verification
 
 Private evidence is under `work/visual-quality-20261107`.
+
+The later [RC3.19 measurements](GRAPHICS-RC319-MEASUREMENTS.md) use actual
+PresentMon frame/GPU data and establish the launcher's recommended profile.
 
 - Production native build: 131 visual operand/guard/selection/restoration checks,
   plus bootstrap, Steam profile, directory bridge, NEO map, distance, workshop

@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-07",
+  "release": "2.0.0-rc3.19",
+  "network_revision": 8,
+  "neo_wire_revision": 5,
+  "changes": [
+    "optional screen-space GI, AO, SMAA, bloom, distance haze and heat refraction",
+    "full-frame lighting and atmosphere, no excluded image-edge strips",
+    "five-key complete midsummer sun orbit, no dark night",
+    "explicit recommended and cinematic launcher profiles; options remain opt-in"
+  ],
+  "actual_game": {
+    "platform": "Windows, two loopback clients",
+    "checkpoint_logic_turn": 67349,
+    "end_turn": 67849,
+    "recorded_peer_checksums": 451,
+    "checksum_mismatches": 0,
+    "complete_replay_streams": true,
+    "both_normal_exit": true,
+    "seconds": 238.3,
+    "scope": "Expanded GI/atmosphere pipeline; final HUD-restore removal is render-only and follows this pair"
+  },
+  "final_maximum_sample": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "seconds": 15,
+    "paused_simulation": true,
+    "gpu": "Radeon RX 9070 XT",
+    "gpu_busy_median_ms": 7.2244,
+    "dedicated_gpu_mib": 2123.08984375,
+    "frames": 899,
+    "frame_intervals": {
+      "frames": 899,
+      "mean_frame_ms": 16.657,
+      "median_frame_ms": 16.595,
+      "p95_frame_ms": 23.802,
+      "max_frame_ms": 55.346,
+      "frames_over_50_ms": 1,
+      "frames_over_1000_ms": 0,
+      "cpu_frame_rate_hz": 60.034
+    },
+    "events_lost": 0,
+    "overflow": false,
+    "metric": "cpu-frame-interval-not-displayed-fps"
+  },
+  "synthetic_checks": {
+    "midsummer_and_lua": 10,
+    "graphics_choice": 39,
+    "installer": 34,
+    "graphics_distribution": 3,
+    "bilingual_launcher_and_private_pipe": true,
+    "packaged_launcher_and_private_pipe": true
+  },
+  "native_adapter_sha256": "73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6",
+  "shared_resource_sha256": "7db37a0b44c1cfc3abd043dd3f49d2474a9c89242cdc06e33d423f5639d409a8",
+  "interface_sha256": "4c7a81ac9bdbb1a4c08e481ceab096fecbee18cd544477cec9d5469ce77e642b",
+  "inherited_linux_verification": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/main/docs/verification/linux-20261106.json",
+  "limitations": [
+    "One-PC loopback only; no new separate-PC Internet game qualification",
+    "Screen-space lighting cannot reconstruct off-screen geometry; temporal artifacts remain possible",
+    "Warm-surface refraction uses color and depth proxies, not game material or temperature data",
+    "Capped short samples do not establish sustained displayed FPS or zero stutter",
+    "No new Steam, native Linux graphics or hardware Vulkan gameplay qualification",
+    "A private 12-second orbit was used for accelerated motion checks; production period is 20 minutes",
+    "The full-frame UI receives lighting/haze; only refraction protects compact HUD footprints",
+    "Experimental executables are not Authenticode signed"
+  ]
+}

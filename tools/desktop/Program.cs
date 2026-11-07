@@ -273,6 +273,7 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox enhancedAa = new() { AutoSize = true };
     private readonly CheckBox contactShadows = new() { AutoSize = true };
     private readonly CheckBox ultraShadows = new() { AutoSize = true };
+    private readonly CheckBox maximumFx = new() { AutoSize = true };
     private readonly Label activeRenderer = new() { AutoSize = true };
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
@@ -493,8 +494,10 @@ internal sealed partial class MainForm : Form
         for (int i=0;i<levels.Length;i++) { var combo = Combo(); qualities[levels[i]]=combo; qualityGrid.Controls.Add(Field(levels[i],combo),i%2,i/2); }
         Add(g,Label("quality"));
         Add(g,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
-            Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;})));
-        Add(g,Label("qualityPresetInfo")); Add(g,qualityGrid);
+            Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;}),
+            Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;}),
+            Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=midsummerToneAvailable;return Task.CompletedTask;})));
+        Add(g,Label("qualityRecommendedInfo"));Add(g,Label("qualityPresetInfo")); Add(g,qualityGrid);
         var effectRow = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, WrapContents = true };
         foreach (string key in new[] { "Shadows","SSAO","DepthOfField","SunShafts","Parallax","Antialiasing" })
         { var box = new CheckBox { AutoSize = true, Margin = new Padding(0,8,18,8) }; Bind(box,key); effects[key]=box; effectRow.Controls.Add(box); }
@@ -507,6 +510,7 @@ internal sealed partial class MainForm : Form
         Bind(midsummerTone,"midsummerTone");Add(g,midsummerTone);Add(g,Label("midsummerToneInfo"));
         Bind(enhancedAa,"enhancedAa");Add(g,enhancedAa);Add(g,Label("enhancedAaInfo"));
         Bind(contactShadows,"contactShadows");Add(g,contactShadows);Add(g,Label("contactShadowsInfo"));
+        Bind(maximumFx,"maximumFx");Add(g,maximumFx);Add(g,Label("maximumFxInfo"));
         Bind(simple,"simple"); Add(g,simple);
         var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
         monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
@@ -602,6 +606,7 @@ internal sealed partial class MainForm : Form
             enhancedAa.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean();
             contactShadows.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("contact_shadows",out var contactsValue)&&contactsValue.GetBoolean();
             ultraShadows.Checked=visualDetailAvailable&&value.GetProperty("choice").TryGetProperty("ultra_shadows",out var ultraValue)&&ultraValue.GetBoolean();
+            maximumFx.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("maximum_fx",out var maximumValue)&&maximumValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -755,14 +760,24 @@ internal sealed partial class MainForm : Form
         anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
         ultraShadows.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
-        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=false;
+        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
+        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=maximumFx.Checked=false;
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
         foreach(var pair in qualities)pair.Value.SelectedIndex=pair.Key=="ObjectQuality"&&!maximumObjects?1:2;
         foreach(var pair in effects)pair.Value.Checked=pair.Key!="DepthOfField";
         anisotropicFiltering.Checked=true;
+    }
+    private void ApplyRecommendedGraphics()
+    {
+        renderer.SelectedIndex=1;
+        DisplayEnabled();
+        ApplyQualityPreset(true);
+        extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
+        ultraShadows.Checked=false;
+        maximumFx.Checked=false;
+        midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=midsummerToneAvailable;
     }
     private object GraphicsRequest(bool compatible=false)
     {
@@ -779,7 +794,7 @@ internal sealed partial class MainForm : Form
         return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
-            enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked},quality,player_name=ValidName()};
+            enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -1107,14 +1122,15 @@ internal sealed partial class MainForm : Form
                         throw new Exception("Visual detail choices lost in request");
                 }
                 form.midsummerToneAvailable=true;form.renderer.SelectedIndex=1;form.DisplayEnabled();form.midsummerTone.Checked=true;
-                form.enhancedAa.Checked=true;form.contactShadows.Checked=true;form.ultraShadows.Checked=true;
+                form.enhancedAa.Checked=true;form.contactShadows.Checked=true;form.ultraShadows.Checked=true;form.maximumFx.Checked=true;
                 using(var tone=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
                     if(!form.midsummerTone.Enabled||!form.enhancedAa.Enabled||!form.contactShadows.Enabled
                         ||!tone.RootElement.GetProperty("choice").GetProperty("midsummer_tone").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("enhanced_aa").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("contact_shadows").GetBoolean()
-                        ||!tone.RootElement.GetProperty("choice").GetProperty("ultra_shadows").GetBoolean())throw new Exception("Visual quality choice lost");
-                form.midsummerTone.Checked=form.enhancedAa.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=false;
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("ultra_shadows").GetBoolean()
+                        ||!tone.RootElement.GetProperty("choice").GetProperty("maximum_fx").GetBoolean())throw new Exception("Visual quality choice lost");
+                form.midsummerTone.Checked=form.enhancedAa.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=form.maximumFx.Checked=false;
                 form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
@@ -1126,12 +1142,22 @@ internal sealed partial class MainForm : Form
                 }
                 form.ApplyQualityPreset(true);
                 if(form.qualities["ObjectQuality"].SelectedIndex!=2)throw new Exception("Object detail preset failed");
+                form.visualDetailAvailable=true;form.midsummerToneAvailable=true;
+                form.ApplyRecommendedGraphics();
+                using(var recommended=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
+                {
+                    var choice=recommended.RootElement.GetProperty("choice");
+                    if(recommended.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
+                        ||choice.GetProperty("ultra_shadows").GetBoolean()||choice.GetProperty("maximum_fx").GetBoolean()
+                        ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","midsummer_tone","enhanced_aa","contact_shadows"}.All(name=>choice.GetProperty(name).GetBoolean()))
+                        throw new Exception("Recommended graphics profile failed");
+                }
                 form.LoadSnapshot(json.RootElement);
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
                 if(form.anisotropicFiltering.Enabled||form.midsummerTone.Enabled||form.midsummerTone.Checked
-                    ||form.enhancedAa.Enabled||form.contactShadows.Enabled||form.enhancedAa.Checked||form.contactShadows.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
+                    ||form.enhancedAa.Enabled||form.contactShadows.Enabled||form.maximumFx.Enabled||form.maximumFx.Checked||form.enhancedAa.Checked||form.contactShadows.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
                 if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("Native visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();

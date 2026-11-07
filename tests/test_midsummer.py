@@ -29,7 +29,7 @@ def environment_fixture():
     root = ET.Element('EnvironmentSet')
     ET.SubElement(root, 'Name').text = 'Neutral'
     ET.SubElement(root, 'Duration').text = '1200000.'
-    for name, numbers in {**profile.CURVES, 'WindStrength': (.35, .45)}.items():
+    for name, numbers in {**profile.CURVES, **dict.fromkeys(profile.AZIMUTH_CURVES, (45., 45.)), 'WindStrength': (.35, .45)}.items():
         item = ET.SubElement(root, name)
         for field, value in (('Duration', '1200000.'), ('Loop', 'true'), ('CurrentTime', '17'),
                              ('LastUpdatetTime', '17'), ('StartTime', '0')):
@@ -113,6 +113,18 @@ class MidsummerResourceTests(unittest.TestCase):
         scaled = ET.fromstring(profile.environment(source, period_ms=12000))
         self.assertEqual(scaled.findtext('SunElevation/KeyFrames/Key[2]/Time'), '6000')
 
+    def test_sun_light_and_visible_disc_orbit_with_a_matching_loop_direction(self):
+        for duration in (12000, profile.PERIOD_MS):
+            result = ET.fromstring(profile.environment(environment_fixture(), period_ms=duration))
+            for name in profile.AZIMUTH_CURVES:
+                keys = result.findall(name + '/KeyFrames/Key')
+                self.assertEqual([float(k.findtext('Time')) for k in keys], [duration*x for x in (0, .25, .5, .75, 1)])
+                angles = [float(k.findtext('Value')) for k in keys]
+                self.assertEqual(angles, [0, 90, 180, 270, 360])
+                self.assertEqual(angles[0] % 360, angles[-1] % 360)
+                self.assertTrue(all(float(k.findtext(tag)) == 0 for k in keys for tag in ('TangentToPrev', 'TangentToNext')))
+                self.assertEqual(result.findtext(name + '/Loop'), 'true')
+
     def test_resource_addition_keeps_old_payloads_and_native_collision_lookup(self):
         raw = archive_fixture()
         original = bba.Archive(raw)
@@ -177,14 +189,26 @@ class ReShadePreparationTests(unittest.TestCase):
                 with patch('urllib.request.urlopen', side_effect=AssertionError('second download')):
                     self.assertEqual(reshade_runtime.prepare(root), folder)
                 for selection, expected in (({'enhanced_aa':True}, b'EdgeStrength=0.800000'),
-                                            ({'contact_shadows':True}, b'ContactStrength=0.220000')):
+                                            ({'contact_shadows':True}, b'ContactStrength=0.220000'),
+                                            ({'maximum_fx':True}, b'MaximumStrength=1.000000')):
                     with patch('urllib.request.urlopen',side_effect=AssertionError('redundant combination download')):
                         other=reshade_runtime.prepare(root,options=selection)
                     self.assertNotEqual(folder,other)
                     preset=(other/'WePlay-Midsummer.ini').read_bytes()
                     self.assertIn(expected,preset)
+                    self.assertEqual(b',WePlay_Maximum@' in preset,selection.get('maximum_fx',False))
                     self.assertIn(b'Strength=0.000000',preset)
                     self.assertEqual(reshade_runtime.verify(root,selection),other)
+                    if selection.get('maximum_fx'):
+                        self.assertIn(b'DH_UBER_RT@dh_uber_rt.fx',preset)
+                        self.assertNotIn(b'SMAA@SMAA.fx',preset)
+                        self.assertEqual((other/'Licenses/DH-LICENSE.txt').read_bytes(),
+                                         reshade_runtime._asset('effects/DH-LICENSE.txt').read_bytes())
+                        lookup=other/'Textures/AreaTex.png'
+                        saved=lookup.read_bytes();lookup.write_bytes(b'tampered lookup')
+                        with self.assertRaises(ValueError):reshade_runtime.verify(root,selection)
+                        lookup.write_bytes(saved)
+                        self.assertEqual(reshade_runtime.verify(root,selection),other)
                     self.assertEqual(reshade_runtime.verify(root),folder)
                 with self.assertRaises(ValueError):
                     reshade_runtime.prepare(root,options={'enhanced_aa':'yes'})
@@ -192,8 +216,18 @@ class ReShadePreparationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):reshade_runtime.verify(root)
 
     def test_contacts_choose_the_official_addon_runtime_only_when_explicit(self):
+        import install
+        self.assertEqual(install.MAXIMUM_ASSETS,reshade_runtime.MAXIMUM_ASSETS)
         self.assertEqual(reshade_runtime._runtime({'enhanced_aa':True})[0],reshade_runtime.URL)
         self.assertEqual(reshade_runtime._runtime({'contact_shadows':True})[0],reshade_runtime.ADDON_URL)
+        self.assertEqual(reshade_runtime._runtime({'maximum_fx':True})[0],reshade_runtime.ADDON_URL)
+        preset=reshade_runtime._preset({'maximum_fx':True,'enhanced_aa':True})
+        self.assertIn(b'SMAA@SMAA.fx',preset)
+        self.assertIn(b'EdgeStrength=0.000000',preset)
+        techniques=preset.splitlines()[0]
+        self.assertLess(techniques.index(b'WePlay_Midsummer@'),techniques.index(b'DH_UBER_RT@'))
+        self.assertLess(techniques.index(b'WePlay_Maximum@'),techniques.index(b'SMAA@'))
+        self.assertTrue(techniques.endswith(b'SMAA@SMAA.fx'))
         self.assertNotEqual(reshade_runtime._runtime({'enhanced_aa':True})[2],
                             reshade_runtime._runtime({'contact_shadows':True})[2])
         self.assertIn(b'PerformanceMode=0',reshade_runtime.CONFIG)

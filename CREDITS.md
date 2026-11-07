@@ -36,3 +36,10 @@ zlib 1.3.1. Its copyright and permissive zlib terms remain in
 The WePlay artwork is generated community artwork. Asset provenance is recorded
 in [assets/branding/ASSETS.txt](assets/branding/ASSETS.txt). Game names and
 trademarks remain the property of their owners. This project is independent.
+
+## Optional Maximum graphics effects
+
+DH_UBER_RT and DH_UBER_MOTION by AlucardDH (GPL-2.0), SweetFX SMAA by
+CeeJayDK and the SMAA authors (MIT), and ReShade common headers (CC0-1.0).
+Pinned revisions, complete modified shader sources and licenses are included
+in [the effect bundle](tools/midsummer/effects/THIRD-PARTY.md).
