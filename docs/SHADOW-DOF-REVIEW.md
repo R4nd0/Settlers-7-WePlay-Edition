@@ -1,8 +1,8 @@
 # Shadow flicker and depth-of-field correction
 
-Unreleased source candidate, verified locally on 2026-11-08. Published RC3.22
-assets and the installed launcher remain unchanged. The earlier local SMAA
-preview has not been rebuilt with this archive correction.
+Included in RC3.23 after local verification on 2026-11-08. Published RC3.22
+assets retain their original contents. The earlier local SMAA preview is a
+separate artifact and has not been rebuilt with this archive correction.
 
 ## Depth of field
 
@@ -141,9 +141,9 @@ all 84 loader exports remain present. No native binary is committed.
 Validation: 3,744 shadow argument/ABI checks, 149 visual patch checks, 2,003
 Steam mapping checks, 2,466 bootstrap checks, 52 directory-bridge checks and
 89 Python launcher/installer/package tests passed. Synthetic Steam mapping
-checks do not establish Steam gameplay qualification. The source candidate
-and private evidence are retained; public RC3.22 and the user's existing
-SMAA preview/normal launcher have not been updated by this follow-up.
+checks do not establish Steam gameplay qualification. The source and private
+evidence are retained. RC3.23 packages the correction; installing it and updating
+the game copy remains necessary to use it. The earlier SMAA preview is separate.
 
 ## Verification boundaries
 

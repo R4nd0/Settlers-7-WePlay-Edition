@@ -777,7 +777,8 @@ internal sealed partial class MainForm : Form
         extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
         ultraShadows.Checked=false;
         maximumFx.Checked=false;
-        midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=midsummerToneAvailable;
+        midsummerTone.Checked=contactShadows.Checked=false;
+        enhancedAa.Checked=midsummerToneAvailable;
     }
     private object GraphicsRequest(bool compatible=false)
     {
@@ -1149,7 +1150,8 @@ internal sealed partial class MainForm : Form
                     var choice=recommended.RootElement.GetProperty("choice");
                     if(recommended.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
                         ||choice.GetProperty("ultra_shadows").GetBoolean()||choice.GetProperty("maximum_fx").GetBoolean()
-                        ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","midsummer_tone","enhanced_aa","contact_shadows"}.All(name=>choice.GetProperty(name).GetBoolean()))
+                        ||choice.GetProperty("midsummer_tone").GetBoolean()||choice.GetProperty("contact_shadows").GetBoolean()
+                        ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","enhanced_aa"}.All(name=>choice.GetProperty(name).GetBoolean()))
                         throw new Exception("Recommended graphics profile failed");
                 }
                 form.LoadSnapshot(json.RootElement);

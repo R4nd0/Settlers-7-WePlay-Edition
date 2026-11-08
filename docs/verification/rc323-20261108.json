@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-08",
+  "release": "2.0.0-rc3.23",
+  "network_revision": 9,
+  "content_contract": "s7-play-content-v3",
+  "native_adapter_sha256": "be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe",
+  "generated_midsummer_interface_sha256": "2fbf4a98a89ac735b3930995a1ff92331eb4d02958e46bf580458d0f4c899f68",
+  "recommended_reshade_effects": ["SMAA"],
+  "release_preparation": {
+    "desktop_preview_selftest_passed": true,
+    "private_pipe_roundtrip_passed": true,
+    "english_and_german_layouts_rendered": true,
+    "python_release_midsummer_linux_checks_run": 39,
+    "expected_linux_only_skips_on_windows": 8,
+    "lua_5_1_checks_enabled": true
+  },
+  "mixed_renderer_native_lab": {
+    "transport": "loopback",
+    "host": "DXVK 3.1.1",
+    "guest": "Windows D3D9",
+    "loaded_renderer_modules_verified": true,
+    "saved_multiplayer_match_loaded": true,
+    "initial_turn": 67349,
+    "pass_turn": 67849,
+    "common_replay_checksums": 451,
+    "checksum_mismatches": 0,
+    "both_replays_complete": true,
+    "both_process_exit_codes": 0,
+    "memory_monitors_healthy": true,
+    "profiles_files_and_timestamps_restored": true,
+    "shared_saves_and_options_unchanged": true,
+    "scope": "Two guarded Ubisoft lab clients with isolated profile paths; direct loopback game transport. Admission/identity and shipped orchestrators are checked separately."
+  },
+  "prior_source_checks": {
+    "guarded_lobby_launcher_update_tests": 255,
+    "graphics_tests": 67,
+    "followup_tests": 4,
+    "production_shadow_abi_checks": 3744,
+    "visual_patch_checks": 149,
+    "production_steam_mapping_checks": 2003,
+    "release_lab_steam_mapping_checks": 2035,
+    "bootstrap_checks": 2466,
+    "directory_bridge_checks": 52
+  },
+  "limits": {
+    "remaining_shadow_flicker_fully_fixed": false,
+    "all_scene_vegetation_sharpness_qualified": false,
+    "new_fps_gain_claimed": false,
+    "new_separate_pc_internet_qualification": false,
+    "new_native_linux_multiplayer_qualification": false,
+    "new_steam_proton_gameplay_qualification": false,
+    "new_long_match_qualification": false
+  },
+  "packaging_and_publication_receipt": "rc323-publication-20261108.json"
+}

@@ -2,16 +2,23 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.22 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/Setup.exe)
+## [Download Windows Installer — RC3.23 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/WePlay-RC3.22-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/WePlay-RC3.23-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/WePlay-RC3.22.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.22) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/WePlay-RC3.23.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.23) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.23 keeps multiplayer graphics local and adds standalone SMAA.**
+Guests no longer inherit the host's renderer. The recommended preset uses
+SMAA without extra ReShade effects. Camera DOF choices, negative mip bias and
+distant shadow filtering are corrected; remaining flicker is still open.
+**All participants must update to RC3.23 and update their game copy.**
+[Release notes and verification](docs/RC3.23-GRAPHICS-LOBBY.md).
 
 **RC3.22 fixes graphics saving and restarting after an ordinary game exit.**
 ReShade's normal writes to its generated preset no longer prevent saving or
@@ -24,8 +31,8 @@ add-on checks remain enforced. Includes the Internet fixes below.
 The guest now aligns its content through the public room status before normal
 admission. This removes the premature HTTP 403 without opening the protected
 configuration. A real guest joined the host on another PC; both players appeared
-in the native multiplayer lobby with NEO on. Update the joining PC and restart
-WePlay; an RC3.20 host can remain open.
+in the native multiplayer lobby with NEO on. RC3.23 additionally preserves each
+PC's renderer and requires the current game content on both PCs.
 [Cause, tests and scope](docs/RC3.21-INTERNET-JOIN.md).
 
 **RC3.20 repairs public games missing from the global lobby.**
@@ -98,7 +105,7 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Use **RC3.22 on each participant's PC** for the latest fixes. Multiplayer
+4. Use **RC3.23 on each participant's PC** for the latest fixes. Multiplayer
    requires matching NEO5 game content on all peers, including Windows peers
    and when NEO is off.
 

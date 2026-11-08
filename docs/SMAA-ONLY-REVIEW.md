@@ -1,8 +1,8 @@
 # SMAA-only graphics review
 
-Development, 2026-11-08. This is a source candidate and a local graphics
-investigation, not a new published release or a claim that shadow and
-vegetation defects have been fixed. Published RC3.22 assets remain unchanged.
+Development investigation, 2026-11-08, included in RC3.23. This is not a claim
+that shadow and vegetation defects have been fully fixed. Published RC3.22
+assets retain their original contents; the earlier local preview is separate.
 
 The user withdrew acceptance of the cinematic ReShade appearance and reported:
 

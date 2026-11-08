@@ -1,8 +1,8 @@
 # Full local integrity and multiplayer compatibility
 
-The renderer correction below is an **unreleased source change** following
-RC3.22. It has not been deployed to published downloads or installed launchers.
-Native mixed-renderer multiplayer qualification remains required before release.
+RC3.23 includes the renderer correction below. All participants need the new
+build and updated game copy. Published RC3.22 downloads retain their original
+contract and are not modified in place.
 
 ## Two different checks
 
@@ -115,6 +115,11 @@ security sandbox for arbitrary test code. It does not invoke native or live
 integration tests. The sanitized result is recorded in
 [the offline verification record](verification/offline-hardening-20261103.json).
 
-Before release, qualify mixed native/Modern modes in isolated native matches,
-including admission, public/in-game listing and restart. These checks do not
-establish long-match stability or freedom from desync.
+Release follow-up: a guarded Windows lab match loaded the same multiplayer save
+with a DXVK host and Windows-D3D9 guest. Both advanced from turn 67349 to 67849;
+451 common replay checksums matched, both replay streams completed and both
+processes exited normally. Loaded renderer modules and profile restoration were
+verified. This direct-loopback game test is separate from the admission/identity
+and shipped-orchestrator checks. It does not establish long-match stability or
+new separate-PC, Linux or Steam/Proton gameplay qualification. See
+[RC3.23 verification](verification/rc323-20261108.json).
