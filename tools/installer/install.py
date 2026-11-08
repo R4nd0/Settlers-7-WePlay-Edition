@@ -47,7 +47,7 @@ MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
 NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
     ('interface_patch.py','runtime.lua','map_setup.lua','session_creation.lua','lobby_ui.lua','logistics_ui.lua'))
 MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
-    ('interface_patch.py', 'runtime.lua', 'profile.py', 'archive_append.py',
+    ('interface_patch.py', 'runtime.lua', 'camera_preferences.lua', 'profile.py', 'archive_append.py',
      'WePlay-Midsummer.fx', 'WePlay-Midsummer.ini')) + ('installer/reshade_runtime.py',)
 # Kept in sync with reshade_runtime.MAXIMUM_ASSETS by the package tests. Do not
 # import the optional runtime here: non-Mittsommer packages do not contain it.

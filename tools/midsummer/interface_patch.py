@@ -15,6 +15,21 @@ SOURCES = ('67cbd87bf33981384659b26d4c96d802d4a2a550e16381901e738541895a4e43',
            '7d2d0e91d014810ba0ce8eaa2f31ba2970abd0d8b7b61b4b98dd0c0fb9dde507')
 
 
+def camera_preferences(raw):
+    """Preserve DOF choices around the six verified stage-camera transitions."""
+    source, body, offsets = decoder.decoded_view(raw)
+    call = 'e["GFX"]["ToggleDepthOfField"]('
+    if body.count(call) != 6:
+        raise ValueError('Depth-of-field camera anchor mismatch')
+    # Replace only call expressions, retaining the original camera code/decoder.
+    positions = [i for i in range(len(body)) if body.startswith(call, i)]
+    for at in reversed(positions):
+        source = source[:offsets[at]] + 'weplayCameraDepthOfField(' + source[offsets[at + len(call)]:]
+    helper = '\nlocal weplayCameraDepthOfField=(function(...)\n' + (
+        HERE / 'camera_preferences.lua').read_text(encoding='utf-8') + '\nend)(e);\n'
+    return (source[:offsets[0]] + helper + source[offsets[0]:]).encode('utf-8')
+
+
 def build(raw):
     if hashlib.sha256(raw).hexdigest() not in SOURCES:
         raise ValueError('Mittsommer requires the verified NEO interface')
@@ -33,4 +48,6 @@ def build(raw):
         'l["weatherNumberDropdownList"]["addItem"]({["text"]={"Mittsommer / Midsummer",true},["data"]=r["weatherModes"]["midsummer"]})' + anchor)
     change('Script/local/menu/tutorial.lua', 'e["weather"]["create"]()e["head"]=',
         'e["weather"]["create"]();(function(...)\n' + (HERE / 'runtime.lua').read_text(encoding='utf-8') + '\nend)(e,o,r);e["head"]=')
+    camera = 'Script/local/stage/camera.lua'
+    changes[camera] = camera_preferences(archive.read(camera))
     return archive.replace(changes)

@@ -155,11 +155,12 @@ def prepare(source, output, specification, profile):
             shared=self.destination/'Base/BBA/shr.bba';shared.write_bytes(b'changed')
             with self.assertRaises(ValueError):content.verify(self.destination)
             shared.write_bytes(b'shared with midsummer')
-            fragment=self.package/'Tools/midsummer/runtime.lua';fragment.unlink()
-            self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
-            with self.assertRaisesRegex(ValueError,'Mittsommer'):install.package_manifest(self.package)
-            fragment.write_bytes(b'# Mittsommer fixture\n')
-            self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
+            for name in ('runtime.lua', 'camera_preferences.lua'):
+                fragment=self.package/'Tools/midsummer'/name;fragment.unlink()
+                self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
+                with self.assertRaisesRegex(ValueError,'Mittsommer'):install.package_manifest(self.package)
+                fragment.write_bytes(b'# Mittsommer fixture\n')
+                self.data['files']=content.inventory(self.package,('Payload','Runtime','Tools'));record.write_text(json.dumps(self.data))
         if neo:
             with patch.object(install,'NEO_ADAPTER_SHA256','0'*64):
                 with self.assertRaisesRegex(ValueError,'NEO-Logistics'):install.package_manifest(self.package)

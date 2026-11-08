@@ -11,8 +11,9 @@ The launcher has three independent, optional settings under Graphics:
 
 - **Keep high detail longer when zooming out** extends model LOD distances by
   approximately 50%, including settlers and SpeedTree. It also extends the
-  distance-based model culling limit. Modern graphics additionally applies
-  DXVK's fixed `samplerLodBias = -1.0` and `clampNegativeLodBias = False`.
+  distance-based model culling limit. The current source candidate keeps native
+  mip selection and clamping. The earlier global -1.0 mip override was removed
+  after the [shadow/DOF investigation](SHADOW-DOF-REVIEW.md).
 - **Higher-resolution dynamic shadows** doubles the shadow map edge length:
   1024/2048/4096 for low/medium/high native shadow quality, instead of
   512/1024/2048. High therefore has four times as many texels.

@@ -75,17 +75,20 @@ the running simulation were not locked. Intermittent shadow flicker was not
 reliably reproduced or excluded by these point-in-time observations. No temporal
 stability, GPU benchmark, multiplayer, native Linux or other-GPU result is claimed.
 
-The in-game depth-of-field checkbox displayed enabled despite the launcher's
+The initial in-game depth-of-field checkbox displayed enabled despite the launcher's
 saved `DepthOfField=0`. It could be unchecked/applied, but displayed enabled again
-when reopening the menu. The shared options file read 0 after applying. This is
-an unresolved settings/UI discrepancy, not proof of the actual GPU effect's
+when reopening the menu. The shared options file read 0 after applying. This was
+at that stage an unresolved settings/UI discrepancy, not proof of the actual GPU effect's
 state or proof that it causes the vegetation blur. Native AA, actual depth-of-
 field state, alpha-card mip/coverage and native shadow filtering remain follow-up
-candidates. No shadow or vegetation fix is claimed.
+candidates. The subsequent [controlled investigation](SHADOW-DOF-REVIEW.md)
+traced and corrected the camera's overwrite of the pending DOF choice, and
+removed the global negative mip override from the source candidate. The
+original qualitative observations above do not qualify those later changes.
 
-Longer model detail currently also forces a global negative mip bias; disabling
-that entire option would confound model geometry with texture filtering. No
-cause or fix is claimed until the corresponding game comparison is observed.
+Longer model detail initially also forced a global negative mip bias; disabling
+that entire option would confound model geometry with texture filtering. The
+later source change separates the model option from that sampler override.
 
 ## Local preview and profile incident
 

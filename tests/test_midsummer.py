@@ -377,6 +377,38 @@ except ImportError:
 
 @unittest.skipIf(LuaRuntime is None, 'Lua 5.1 runtime not installed')
 class MidsummerLuaTests(unittest.TestCase):
+    def test_camera_transitions_preserve_disabled_and_pending_dof_choices(self):
+        lua = LuaRuntime()
+        lua.execute('''C={active=0,selected=0,restart=true,restores=0}
+G={UI={GfxOptions={DepthOfField=37}},GFX={}}
+G.UI.GfxGetWriteOptionValue=function(id) assert(id==37);return C.selected end
+G.UI.GfxSetOption=function(id,value,apply)
+ assert(id==37 and apply==false);C.selected=value;C.restores=C.restores+1
+end
+-- Model the observed native pending-only path and a live-toggle renderer.
+G.GFX.ToggleDepthOfField=function(value)
+ C.selected=value and 1 or 0
+ if not C.restart then C.active=C.selected end
+end''')
+        toggle = lua.execute((ROOT / 'tools/midsummer/camera_preferences.lua').read_text(encoding='utf-8'), lua.globals().G)
+        for restart in (True, False):
+            lua.globals().C.restart = restart
+            for selected in (0, 1):
+                lua.globals().C.selected = selected
+                lua.globals().C.active = selected
+                for requested in (False, True, True, False, True):
+                    toggle(requested)
+                    self.assertEqual(lua.globals().C.selected, selected)
+                    self.assertEqual(lua.globals().C.active,
+                                     selected if restart else int(requested and selected == 1))
+        # A user change between transitions is retained; there is no startup cache.
+        lua.globals().C.selected = 0
+        toggle(True)
+        self.assertEqual(lua.globals().C.selected, 0)
+        lua.globals().C.selected = 1
+        toggle(True)
+        self.assertEqual(lua.globals().C.selected, 1)
+
     def backend(self, missing=False):
         lua = LuaRuntime()
         lua.execute('''C={selected=1,loads=0,blends=0,updates=0,sets=0,notices=0,handle=11}

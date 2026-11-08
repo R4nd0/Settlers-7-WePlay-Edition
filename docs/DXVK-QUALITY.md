@@ -47,7 +47,7 @@ RX 9070 XT. Settings were checked against upstream's pinned
 | `d3d9.samplerAnisotropy = 16` | New optional child-only override; effective configuration confirmed in the real log. Can affect filtering-dependent passes, so disable it if artifacts occur. |
 | `d3d9.floatEmulation = Strict` | Existing measured black-water correction retained in every DXVK launch. |
 | `d3d9.maxFrameRate = 60` | Existing owned configuration retained; no unlocked-rate experiment. |
-| `d3d9.samplerLodBias`, `clampNegativeLodBias` | Presets keep defaults. The separate optional longer-detail setting now uses -1.0 / False; see the later LOD comparison. Negative bias can add shimmer. |
+| `d3d9.samplerLodBias`, `clampNegativeLodBias` | Current source keeps native/default sampling, including with longer model detail. The earlier -1.0 / False overrides were removed after the [controlled shadow investigation](SHADOW-DOF-REVIEW.md). |
 | `d3d9.maxFrameLatency`, `dxvk.latencySleep` | Supported, left at defaults. Queue/latency changes need their own pacing evidence; enabling latency sleep can worsen pacing. |
 | `d3d9.forceSampleRateShading` | Works with existing MSAA; does not create MSAA in this game. Not enabled. |
 | `d3d9.forceSwapchainMSAA` | Absent from the pinned D3D9 parser; not exposed as a working control. |

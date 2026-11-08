@@ -378,9 +378,11 @@ def launch_environment(root, inherited=None, *, device_name=None, anisotropic_fi
         if name.upper() in owned:
             del result[name]
     result.update(DXVK_CONFIG_FILE=str(_plain(root / CONF)),
+                  # Model visibility must not silently change sampling of every
+                  # texture, including alpha cards and native shadow resources.
+                  # Keep the game's mip selection/clamping when extending LODs.
                   DXVK_CONFIG=SHADER_COMPATIBILITY + (
-                      '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else '') + (
-                      '; d3d9.samplerLodBias = -1.0; d3d9.clampNegativeLodBias = False' if extended_detail else ''),
+                      '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else ''),
                   DXVK_LOG_PATH=str(_plain(folder / 'logs')),
                   DXVK_SHADER_CACHE_PATH=str(_plain(folder / 'cache')))
     if device_name is not None:
