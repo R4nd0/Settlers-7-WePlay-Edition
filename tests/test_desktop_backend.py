@@ -473,6 +473,44 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(backend.Desktop.renderer(self.desktop,root,'native',self.probe),'native')
             restore.assert_called_once_with(root)
 
+    def test_automatic_native_fallback_clears_stale_gpu_and_dxvk_only_effects(self):
+        self.prepare()
+        effects=('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
+        selected={'format':choice.FORMAT,'choice':'Previously supported GPU',**dict.fromkeys(effects,True)}
+        self.desktop.save_settings(dict(renderer_policy='auto',choice=selected,
+            quality=dict(quality.DEFAULTS),player_name='Tester'))
+        saved=choice._load_choice(self.desktop.game())
+        self.assertIsNone(saved['choice'])
+        self.assertTrue(all(saved[name] is False for name in effects))
+        self.assertEqual(self.desktop.installed()['renderer_policy'],'auto')
+        self.assertEqual(quality.load(self.desktop.game()),quality.DEFAULTS)
+
+    def test_default_native_choice_keeps_native_details_and_does_not_mutate_preferences(self):
+        self.prepare()
+        effects=('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
+        preferred={'format':choice.FORMAT,'choice':'Fixture GPU','extended_detail':True,**dict.fromkeys(effects,True)}
+        selected=self.desktop.default_choice(self.desktop.game(),'native',self.probe,preferred)
+        self.assertIsNone(selected['choice']);self.assertTrue(selected['extended_detail'])
+        self.assertTrue(all(selected[name] is False for name in effects))
+        self.assertTrue(all(preferred[name] is True for name in effects))
+
+    def test_explicit_unsupported_modern_request_still_stops_before_renderer_mutation(self):
+        self.prepare()
+        with patch.object(graphics,'install') as install_profile,patch.object(graphics,'restore') as restore:
+            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+                backend.Desktop.renderer(self.desktop,self.desktop.game(),'dxvk',self.probe)
+        install_profile.assert_not_called();restore.assert_not_called()
+
+    def test_unknown_gpu_is_still_rejected_when_modern_renderer_is_supported(self):
+        self.prepare();self.probe['devices']=['Fixture GPU'];self.desktop.renderer.reset_mock()
+        before=(self.desktop.state/'installation.json').read_bytes()
+        with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+            self.desktop.save_settings(dict(renderer_policy='auto',
+                choice={'format':choice.FORMAT,'choice':'Unknown GPU'},
+                quality=dict(quality.DEFAULTS),player_name='Tester'))
+        self.desktop.renderer.assert_not_called()
+        self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
+
     def test_lan_desktop_passes_only_name_and_saved_settings_to_automatic_launcher(self):
         self.prepare()
         with patch.object(self.desktop,'align_lan') as align,patch.object(backend.launch_auto_lan,'run',return_value=0) as run,\
@@ -484,15 +522,16 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(callable(args.progress));self.assertTrue(callable(args.cancel_check))
             self.assertEqual(run.call_args.kwargs,{})
 
-    def test_lan_renderer_alignment_uses_only_known_contracts_and_error_codes_are_localizable(self):
+    def test_lan_admission_keeps_local_policy_and_rejects_different_gameplay(self):
         import lan_autoconnect
         self.prepare();root=self.desktop.game();other='d'*64
         with patch.object(backend,'enumerate_interfaces',return_value=[]),patch.object(backend,'LanDiscovery'),\
                 patch.object(self.desktop,'alternatives',return_value={'native':other}),\
                 patch.object(lan_autoconnect,'discover_preferred',return_value=SimpleNamespace(content_id=other)) as discover:
-            self.desktop.align_lan({'player_name':'Tester'})
-            self.assertEqual(discover.call_args.kwargs['acceptable_content_ids'],(other,))
-            self.assertEqual(self.desktop.renderer.call_args.args[1],'native')
+            with self.assertRaisesRegex(ValueError,'version_mismatch'):
+                self.desktop.align_lan({'player_name':'Tester'})
+            self.assertNotIn('acceptable_content_ids',discover.call_args.kwargs)
+            self.assertEqual(self.desktop.renderer.call_args.args[1],'auto')
         for code in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
             self.assertEqual(backend.error_code(lan_autoconnect.LanConnectionError(code,'private details')),code)
 

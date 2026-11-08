@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-08",
+  "status": "unreleased-source-candidate",
+  "reported_release": "RC3.22",
+  "original_error_reproduced": "renderer_unsupported when adopting a Modern host profile on a guest without confirmed DXVK support",
+  "network_domain_before": "s7-play-content-v2",
+  "network_domain_after": "s7-play-content-v3",
+  "native_protocol_changed": false,
+  "local_renderer_normalization": "complete pinned dxvk-3.1.1-d3d9-60-v1 profile only",
+  "full_local_integrity_retained": true,
+  "legacy_identity_fallback": false,
+  "source_checks": {
+    "guarded_suite_passed": 255,
+    "failures": 0,
+    "errors": 0,
+    "forbidden_process_socket_dll_registry_attempts": 0,
+    "graphics_profile_and_choice_tests_passed": 67,
+    "followup_tests_passed": 4,
+    "followups_include_previously_omitted_child_imports": true
+  },
+  "real_profiles": {
+    "read_only": true,
+    "journal_verified": true,
+    "active_profile_integrity_checked": true,
+    "old_network_ids_different": true,
+    "new_network_ids_equal": true,
+    "full_inventory_ids_still_different": true,
+    "different_paths": ["base/bin/d3d9.dll", "base/bin/dxvk.conf"]
+  },
+  "new_native_gameplay_test": false,
+  "remote_reporter_pc_tested": false,
+  "published_or_deployed": false
+}

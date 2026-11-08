@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 
 FORMAT = 's7-content-v1'
 ROOTS = ('Base', 'Server', 'Launcher')
-NETWORK_FORMAT = 's7-play-content-v2'
+NETWORK_FORMAT = 's7-play-content-v3'
 # Change this when incompatible service/carrier semantics change. Native ABI
 # and every game asset remain identified by their actual bytes below.
 NETWORK_PROTOCOL = 'prudp7-neo3'
@@ -18,6 +18,13 @@ NETWORK_PROTOCOL = 'prudp7-neo3'
 # inventory and repair inputs, but do not determine whether two games match.
 NETWORK_AUXILIARIES = frozenset(('base/support/vc_redist.x64.exe',
                                'base/support/vc_redist.x86.exe'))
+# Only this complete, fingerprinted renderer profile is local to each PC.
+# Unknown proxies, partial profiles and changed configuration stay in the ID.
+LOCAL_GRAPHICS_PROFILE = 'dxvk-3.1.1-d3d9-60-v1'
+LOCAL_GRAPHICS_FILES = {
+    'base/bin/d3d9.dll': '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa',
+    'base/bin/dxvk.conf': '26bdbbc2baaad17f2b83f5ac8beb021938404890ea1a90a07011b9fdd7768a48',
+}
 
 
 def digest(path):
@@ -119,8 +126,11 @@ def network_id(value):
     from legacy full-file IDs; there is deliberately no legacy-ID fallback.
     """
     files = validate(value)['files']
+    local_graphics = (value.get('graphics_profile') == LOCAL_GRAPHICS_PROFILE
+                      and all(files.get(name) == expected for name, expected in LOCAL_GRAPHICS_FILES.items()))
     gameplay = {name: digest for name, digest in files.items()
-                if name.startswith('base/') and name not in NETWORK_AUXILIARIES}
+                if name.startswith('base/') and name not in NETWORK_AUXILIARIES
+                and not (local_graphics and name in LOCAL_GRAPHICS_FILES)}
     if not gameplay:
         raise ValueError('Keine Spiel- oder Patchdateien fuer den Netzwerkvergleich.')
     return fingerprint({'format': NETWORK_FORMAT, 'protocol': NETWORK_PROTOCOL, 'files': gameplay})
@@ -153,7 +163,7 @@ def main():
             if changed:
                 print('Unterschiedliche lokale Dateien:\n' + '\n'.join(changed[:20]))
                 if network_id(local) == network_id(other):
-                    print('Die Netzwerkkennung stimmt ueberein; nur Installationshilfen unterscheiden sich.')
+                    print('Die Netzwerkkennung stimmt ueberein; lokale Grafikdateien oder Installationshilfen unterscheiden sich.')
                 return 2
         print('Dateistand stimmt ueberein. Das ist kein Nachweis einer desyncfreien Partie.')
         print('Vergleichskennung: ' + local['content_id'])

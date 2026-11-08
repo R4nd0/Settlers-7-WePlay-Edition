@@ -20,9 +20,10 @@ ROOM=Room('a'*32,'b'*64,'10.203.77.0/24')
 class InternetAlignmentTests(unittest.TestCase):
     def desktop(self):
         desktop=object.__new__(backend.Desktop)
-        for name in ('progress','probe','renderer','default_choice','record_ownership'):
+        for name in ('progress','probe','renderer','default_choice','record_ownership','network_id'):
             setattr(desktop,name,Mock())
         desktop.alternatives=Mock(return_value={'native':'a'*64,'dxvk':'b'*64})
+        desktop.network_id.return_value='b'*64
         return desktop
 
     def test_alignment_uses_public_status_before_admission_not_protected_configuration(self):
@@ -35,8 +36,17 @@ class InternetAlignmentTests(unittest.TestCase):
             desktop.align_internet(Path('fixture-game'),interface,ROOM.coordinator,False)
         status.assert_called_once_with(ROOM.coordinator,interface.address,'status')
         protected.assert_not_called()
-        desktop.renderer.assert_called_once_with(Path('fixture-game'),'dxvk',desktop.probe.return_value)
-        desktop.record_ownership.assert_called_once_with(Path('fixture-game'))
+        desktop.renderer.assert_not_called();desktop.probe.assert_not_called()
+        desktop.record_ownership.assert_not_called()
+
+    def test_matching_room_never_forces_an_unsupported_host_renderer(self):
+        desktop=self.desktop()
+        desktop.probe.return_value={'devices':[],'failure':'unsupported'}
+        desktop.renderer.side_effect=ValueError('renderer_unsupported')
+        with patch.object(lan_control,'request',return_value={'content_id':'b'*64}), \
+                patch.object(backend.choice,'save_choice') as save:
+            desktop.align_internet(Path('fixture-game'),SimpleNamespace(address='10.203.77.2'),ROOM.coordinator,False)
+        desktop.renderer.assert_not_called();save.assert_not_called()
 
     def test_unknown_public_content_never_changes_renderer(self):
         desktop=self.desktop()

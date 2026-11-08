@@ -307,7 +307,10 @@ class Desktop:
                     if sizes:size=sizes[-1];mode='windowed'
                     else:return selected
                 selected['display']=dict(device=target['device'],width=size[0],height=size[1],mode=mode)
-        if renderer=='native':selected['choice']=None
+        if renderer=='native':
+            selected['choice']=None
+            for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
+                if name in selected:selected[name]=False
         elif target and target['adapter'] in probe['devices']:
             if selected['choice'] not in probe['devices'] or selected['choice']!=target['adapter']:
                 selected['choice']=target['adapter']
@@ -547,12 +550,15 @@ class Desktop:
         # Reject invalid display/GPU requests before making any profile change.
         if selected.get('display') is not None:display.resolve(selected['display'],self.displays())
         expected_mode='dxvk' if policy!='native' and probe['devices'] else 'native'
-        if selected['choice'] is not None and selected['choice'] not in probe['devices']:
+        if expected_mode=='dxvk' and selected['choice'] is not None and selected['choice'] not in probe['devices']:
             raise ValueError('renderer_unsupported')
         if expected_mode=='dxvk' and selected.get('display') is not None:
             display.resolve(selected['display'],self.displays(),renderer='dxvk',gpu=selected['choice'])
         mode=self.renderer(root,policy,probe)
-        if mode=='native':selected['choice']=None
+        if mode=='native':
+            selected['choice']=None
+            for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
+                if name in selected:selected[name]=False
         elif selected['choice'] is None:
             screens=self.displays()
             target=next((s for s in screens if selected.get('display') and s['device']==selected['display']['device']),screens[0] if screens else None)
@@ -601,19 +607,12 @@ class Desktop:
         from lan_autoconnect import discover_preferred
         self.progress('lan_search')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
+        # Renderer policy belongs to this PC, including automatic fallback.
+        self.renderer(root,self.installed()['renderer_policy'],self.probe())
         current=self.network_id(root)
-        alternatives=self.alternatives(root)
-        room=discover_preferred(directory,current,acceptable_content_ids=tuple(alternatives.values()),
+        room=discover_preferred(directory,current,
             progress=self.progress,cancel_check=lambda:self.progress('lan_search'))
-        if room is None:
-            self.renderer(root,self.installed()['renderer_policy'],self.probe());return
-        if current!=room.content_id:
-            mode=next((key for key,value in alternatives.items() if value==room.content_id),None)
-            if mode is None:raise ValueError('version_mismatch')
-            probe=self.probe();self.renderer(root,mode,probe)
-            with graphics.session_lock(root):
-                selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
-            self.record_ownership(root)
+        if room is not None and current!=room.content_id:raise ValueError('version_mismatch')
 
     def connect_discord(self,data):
         if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
@@ -740,14 +739,8 @@ class Desktop:
             except (OSError,ValueError,http.client.HTTPException):
                 if time.monotonic()>=deadline:raise InternetError('internet_coordinator_unreachable') from None
                 time.sleep(.2)
-        alternatives=self.alternatives(root)
         actual=status.get('content_id')
-        mode=next((key for key,value in alternatives.items() if value==actual),None)
-        if mode is None:raise ValueError('version_mismatch')
-        probe=self.probe();self.renderer(root,mode,probe)
-        with graphics.session_lock(root):
-            selected=self.default_choice(root,mode,probe,choice._load_choice(root));choice.save_choice(root,selected)
-        self.record_ownership(root)
+        if actual!=self.network_id(root):raise ValueError('version_mismatch')
 
     def check_start_memory(self):
         import memory_guard

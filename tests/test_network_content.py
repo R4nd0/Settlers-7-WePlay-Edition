@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
 import compatibility as content
 import desktop_backend as backend
+import graphics_profile as graphics
 import game_directory
 import lan_autoconnect
 import lan_hub
@@ -59,7 +60,7 @@ class NetworkContentTests(unittest.TestCase):
 
     def test_network_contract_is_domain_separated_and_does_not_mutate_manifest(self):
         value=manifest(dict(self.files));before=copy.deepcopy(value)
-        expected=hashlib.sha256(json.dumps({'format':'s7-play-content-v2','protocol':'prudp7-neo3',
+        expected=hashlib.sha256(json.dumps({'format':'s7-play-content-v3','protocol':'prudp7-neo3',
             'files':{name:digest for name,digest in self.files.items() if name.startswith('base/')}},
             sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')).hexdigest()
         self.assertEqual(content.network_id(value),expected)
@@ -151,7 +152,63 @@ class NetworkContentTests(unittest.TestCase):
         a=desktop.alternatives(bare);b=desktop.alternatives(extra)
         self.assertEqual(a,b)
         self.assertEqual(a['native'],content.network_id(left))
-        self.assertNotEqual(a['native'],a['dxvk'])
+        self.assertEqual(a['native'],a['dxvk'])
+
+    def modern(self,files=None):
+        value=manifest(dict(self.files if files is None else files))
+        return json.loads(graphics._expected(graphics.encoded(value)))
+
+    def test_pinned_modern_renderer_and_native_share_gameplay_identity_only(self):
+        native=manifest(dict(self.files));modern=self.modern()
+        self.assertNotEqual(native['content_id'],modern['content_id'])
+        self.assertEqual(content.network_id(native),content.network_id(modern))
+        self.assertEqual(content.compare(native,modern),[graphics.DLL.lower(),graphics.CONF.lower()])
+        self.assertEqual(content.LOCAL_GRAPHICS_PROFILE,graphics.PROFILE)
+        self.assertEqual(content.LOCAL_GRAPHICS_FILES,{graphics.DLL.lower():graphics.DXVK_SHA256,
+            graphics.CONF.lower():hashlib.sha256(graphics.CONFIG).hexdigest()})
+
+    def test_previous_renderer_coupled_network_domain_is_not_accepted(self):
+        files={name:value for name,value in self.files.items() if name.startswith('base/')}
+        old=content.fingerprint({'format':'s7-play-content-v2','protocol':content.NETWORK_PROTOCOL,'files':files})
+        self.assertNotEqual(content.network_id(manifest(dict(self.files))),old)
+
+    def test_unknown_or_incomplete_renderer_pair_is_never_normalized(self):
+        expected=content.network_id(manifest(dict(self.files)))
+        for name in (graphics.DLL.lower(),graphics.CONF.lower()):
+            for operation in ('change','remove'):
+                value=self.modern()
+                if operation=='change':value['files'][name]='c'*64
+                else:value['files'].pop(name)
+                value['content_id']=content.fingerprint(value['files'])
+                with self.subTest(path=name,operation=operation):
+                    self.assertNotEqual(content.network_id(value),expected)
+        for profile in (None,'unknown-profile'):
+            value=self.modern();value['graphics_profile']=profile
+            self.assertNotEqual(content.network_id(value),expected)
+
+    def test_modern_normalization_keeps_every_game_asset_and_nearby_proxy_path(self):
+        expected=content.network_id(self.modern())
+        for name in (name for name in self.files if name.startswith('base/')):
+            files=dict(self.files);files[name]='c'*64
+            with self.subTest(path=name):self.assertNotEqual(content.network_id(self.modern(files)),expected)
+        for name in ('base/bin/dxgi.dll','base/bin/d3d9.dll.bak','base/other/d3d9.dll'):
+            files=dict(self.files);files[name]='c'*64
+            with self.subTest(path=name):self.assertNotEqual(content.network_id(self.modern(files)),expected)
+
+    def test_full_verification_still_rejects_tampered_normalized_renderer(self):
+        root,value=self.root('renderer-tamper')
+        dll=root/graphics.DLL;conf=root/graphics.CONF
+        dll.write_bytes(b'invented renderer');conf.write_bytes(graphics.CONFIG)
+        expected=content.create(root);expected['graphics_profile']=graphics.PROFILE
+        (root/'compatibility.json').write_bytes(graphics.encoded(expected))
+        pins={graphics.DLL.lower():content.digest(dll),graphics.CONF.lower():content.digest(conf)}
+        with patch.object(content,'LOCAL_GRAPHICS_FILES',pins):
+            self.assertEqual(content.network_id(expected),content.network_id(value))
+            content.verify(root)
+            dll.write_bytes(b'modified renderer')
+            with self.assertRaises(ValueError):content.verify(root)
+            conf.unlink()
+            with self.assertRaises(ValueError):content.verify(root)
 
     def test_directory_uses_network_identity_without_accepting_legacy_full_id(self):
         root,value=self.root('directory',aux=True)
@@ -159,12 +216,13 @@ class NetworkContentTests(unittest.TestCase):
         desktop.package=self.directory/'package';desktop.state=self.directory/'state'
         desktop.game=Mock(return_value=root)
         rows=[{'id':'new','content_id':content.network_id(value)},
+              {'id':'modern','content_id':content.network_id(self.modern(value['files']))},
               {'id':'legacy','content_id':value['content_id']}]
         with patch.object(backend.install,'package_manifest',return_value={'game_directory':True}), \
                 patch.object(game_directory,'configured',return_value='https://fixture.invalid'), \
                 patch.object(game_directory,'listing',return_value=rows):
             result=desktop.directory_list()
-        self.assertEqual([row['compatible'] for row in result['games']],[True,False])
+        self.assertEqual([row['compatible'] for row in result['games']],[True,True,False])
 
     def test_gui_preconnect_uses_the_same_contract_as_game_launcher(self):
         root,value=self.root('preconnect',aux=True)
@@ -176,7 +234,7 @@ class NetworkContentTests(unittest.TestCase):
                 patch.object(lan_autoconnect,'discover_preferred',return_value=None) as discover:
             desktop.align_lan({'player_name':'Fixture'})
         self.assertEqual(discover.call_args.args[1],content.network_id(value))
-        self.assertNotIn(value['content_id'],discover.call_args.kwargs['acceptable_content_ids'])
+        self.assertNotIn('acceptable_content_ids',discover.call_args.kwargs)
 
     def test_legacy_group_is_rejected_instead_of_silently_elected(self):
         expected=content.network_id(manifest(self.files))
