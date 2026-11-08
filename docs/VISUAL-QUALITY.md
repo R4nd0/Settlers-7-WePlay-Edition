@@ -1,5 +1,12 @@
 # Optional edge smoothing, Ultra shadows, contacts and cinematic shading
 
+Development update, 2026-11-08: edge smoothing now uses genuine SMAA independently
+of Maximum. With tone, contacts and Maximum disabled, the profile loads only
+SMAA and its lookup textures, using the standard runtime, no clock add-on and no
+depth-copy request. See [the SMAA-only review](SMAA-ONLY-REVIEW.md). The user
+reports flickering/hard distant Mittsommer shadows and blurred vegetation;
+earlier visual acceptance below does not qualify these issues as resolved.
+
 RC3.19, 2026-11-07. These changes extend the existing
 [Mittsommer profile](MIDSUMMER-LIGHTING.md) and
 [detail and shadow options](GRAPHICS-LOD-SHADOWS.md). Existing published RC3.18
@@ -9,10 +16,13 @@ assets remain unchanged. The morning/day appearance was accepted on 2026-11-07.
 
 The launcher's Graphics page exposes independent opt-in controls:
 
-- **Smoother edges / Ruhigere Kanten** applies spatial edge-directed ReShade
-  filtering. A bounded subpixel footprint smooths high-contrast edges while
-  retaining low-contrast texture detail. The full image is processed. This is not temporal AA,
-  forced MSAA or supersampling.
+- **SMAA edge smoothing / SMAA-Kantenglättung** applies the pinned SweetFX SMAA
+  implementation, independently of the other ReShade effects. Color edge
+  detection uses a 0.075 threshold, 64 horizontal/vertical search steps, 20
+  diagonal steps and 25 corner rounding. Depth predication is disabled. The
+  full image, including the HUD, is processed. This is spatial antialiasing,
+  without temporal accumulation, forced MSAA or supersampling. The earlier
+  simpler edge filter is no longer enabled by this choice.
 - **Ultra shadows with more near detail / Ultra-Schatten mit mehr Nahdetails**
   selects 2048/4096/8192 shadow maps for low/medium/high native shadow quality.
   It overrides the older 1024/2048/4096 detail option when both are selected.
@@ -29,8 +39,8 @@ The launcher's Graphics page exposes independent opt-in controls:
 - **ReShade Maximum (cinematic)** adds DH_UBER_RT 0.20.6 screen-space ray-traced
   indirect light/color bounce and occlusion, with DH motion estimation, half-size
   GI tracing, four rays, eight spatial denoising samples and bounded temporal
-  accumulation. The earlier authored broad AO layer is removed. SMAA replaces
-  the simple edge filter when the separate smoothing option is enabled. Bloom,
+  accumulation. The earlier authored broad AO layer is removed. Independent
+  SMAA runs last when the separate smoothing option is enabled. Bloom,
   bounded sharpening/local contrast, cool shadows and warm highlights complete
   the grade. Morning haze clears before daytime heat refraction fades in. Both
   follow the actual Mittsommer sun, with smooth transitions; twilight stays

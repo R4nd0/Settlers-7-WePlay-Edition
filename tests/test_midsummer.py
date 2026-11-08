@@ -186,6 +186,40 @@ class ReShadePreparationTests(unittest.TestCase):
             stack.enter_context(patch('urllib.request.urlopen',side_effect=AssertionError('unexpected second download')))
             yield root,folder,closed
 
+    def test_smaa_alone_loads_only_spatial_aa_without_clock_or_other_effects(self):
+        options = {'enhanced_aa': True}
+        with self.prepared(options) as (root, folder, closed):
+            preset = (folder/'WePlay-Midsummer.ini').read_bytes()
+            self.assertEqual(preset.splitlines()[:2], [b'Techniques=SMAA@SMAA.fx',
+                                                     b'TechniqueSorting=SMAA@SMAA.fx'])
+            self.assertNotIn(b'WePlay', preset)
+            self.assertNotIn(b'DH_UBER', preset)
+            self.assertIn(b'PredicationEnabled=0', preset)
+            self.assertEqual({p.name for p in (folder/'Shaders').iterdir()},
+                             {'SMAA.fx', 'SMAA.fxh', 'ReShade.fxh', 'ReShadeUI.fxh'})
+            self.assertEqual({p.name for p in (folder/'Textures').iterdir()},
+                             {'AreaTex.png', 'SearchTex.png'})
+            self.assertFalse((folder/'ManagedAddons').exists())
+            self.assertFalse(list((folder/'NoAddons').iterdir()))
+            self.assertIn(b'DepthCopyBeforeClears=0', (folder/'ReShade.ini').read_bytes())
+            (root/reshade_runtime.CLOCK_FILE).unlink()
+            self.assertEqual(reshade_runtime.verify(root, options), folder)
+            (folder/'WePlay-Midsummer.ini').write_bytes(preset.replace(b'\n', b'\r\n'))
+            reshade_runtime.launch_environment(root, {}, options)
+            self.assertEqual((folder/'WePlay-Midsummer.ini').read_bytes(), preset)
+            (folder/'Textures/AreaTex.png').write_bytes(b'changed lookup')
+            with self.assertRaises(ValueError):
+                reshade_runtime.prepare(root, options=options)
+
+    def test_smaa_remains_independent_in_every_effect_combination(self):
+        for mask in range(16):
+            options = {name: bool(mask & (1 << i)) for i, name in enumerate(reshade_runtime.OPTIONS)}
+            preset = reshade_runtime._preset(options)
+            techniques = preset.splitlines()[0].decode().removeprefix('Techniques=').split(',')
+            self.assertEqual(techniques.count('SMAA@SMAA.fx'), int(options['enhanced_aa']))
+            if any(options[name] for name in ('midsummer_tone', 'contact_shadows', 'maximum_fx')):
+                self.assertIn(b'EdgeStrength=0.000000', preset)
+
     def test_runtime_preset_rewrites_can_be_saved_and_launched_repeatedly(self):
         for maximum in (False,True):
             options=dict(midsummer_tone=True,enhanced_aa=True,contact_shadows=True,maximum_fx=maximum)
@@ -256,7 +290,7 @@ class ReShadePreparationTests(unittest.TestCase):
                 self.assertEqual(reshade_runtime.verify(root), folder)
                 with patch('urllib.request.urlopen', side_effect=AssertionError('second download')):
                     self.assertEqual(reshade_runtime.prepare(root), folder)
-                for selection, expected in (({'enhanced_aa':True}, b'EdgeStrength=0.800000'),
+                for selection, expected in (({'enhanced_aa':True}, b'Techniques=SMAA@SMAA.fx'),
                                             ({'contact_shadows':True}, b'ContactStrength=0.220000'),
                                             ({'maximum_fx':True}, b'MaximumStrength=1.000000')):
                     with patch('urllib.request.urlopen',side_effect=AssertionError('redundant combination download')):
@@ -265,7 +299,8 @@ class ReShadePreparationTests(unittest.TestCase):
                     preset=(other/'WePlay-Midsummer.ini').read_bytes()
                     self.assertIn(expected,preset)
                     self.assertEqual(b',WePlay_Maximum@' in preset,selection.get('maximum_fx',False))
-                    self.assertIn(b'Strength=0.000000',preset)
+                    if not selection.get('enhanced_aa'):
+                        self.assertIn(b'Strength=0.000000',preset)
                     self.assertEqual(reshade_runtime.verify(root,selection),other)
                     if selection.get('maximum_fx'):
                         self.assertIn(b'AddonPath=.\\ManagedAddons',(other/'ReShade.ini').read_bytes())

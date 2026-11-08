@@ -28,6 +28,18 @@ CLOCK_FILE = 'Runtime/Graphics/WePlayAtmosphere.addon32'
 # a shader/configuration which an already running game may have loaded.
 FOLDER = 'LocalData/ReShade-Visual-v2'
 OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')
+SMAA_ASSETS = ('SMAA.fx', 'SMAA.fxh', 'ReShade.fxh', 'ReShadeUI.fxh',
+               'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt', 'THIRD-PARTY.md')
+SMAA_PRESET = '''
+[SMAA.fx]
+EdgeDetectionType=1
+EdgeDetectionThreshold=0.075000
+MaxSearchSteps=64
+MaxSearchStepsDiagonal=20
+CornerRounding=25
+PredicationEnabled=0
+DebugOutput=0
+'''
 MAXIMUM_ASSETS = ('dh_uber_rt.fx', 'dh_uber_motion.fx', 'DH-LICENSE.txt',
                   'ReShade.fxh', 'ReShadeUI.fxh', 'SMAA.fx', 'SMAA.fxh',
                   'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt',
@@ -99,7 +111,10 @@ def _runtime(options):
 
 
 def _config(options):
-    return CONFIG.replace(b'AddonPath=.\\NoAddons', b'AddonPath=.\\ManagedAddons') if _options(options)[3] else CONFIG
+    tone, aa, contacts, maximum = _options(options)
+    if aa and not (tone or contacts or maximum):
+        return CONFIG.replace(b'DepthCopyBeforeClears=1', b'DepthCopyBeforeClears=0')
+    return CONFIG.replace(b'AddonPath=.\\NoAddons', b'AddonPath=.\\ManagedAddons') if maximum else CONFIG
 
 
 def _clock(root):
@@ -111,15 +126,20 @@ def _clock(root):
 
 def _preset(options):
     tone, aa, contacts, maximum = _options(options)
+    if not (tone or contacts or maximum):
+        technique = 'SMAA@SMAA.fx' if aa else ''
+        return ('Techniques=' + technique + '\nTechniqueSorting=' + technique
+                + '\n' + (SMAA_PRESET if aa else '')).encode('utf-8')
     raw = _asset('WePlay-Midsummer.ini').read_text(encoding='utf-8')
     raw = raw.replace('Strength=0.650000', 'Strength=' + ('0.650000' if tone else '0.000000'))
+    techniques = ['WePlay_Midsummer@WePlay-Midsummer.fx']
     if maximum:
-        techniques = ['WePlay_Midsummer@WePlay-Midsummer.fx',
-                      'DH_UBER_MOTION_020@dh_uber_motion.fx', 'DH_UBER_RT@dh_uber_rt.fx',
-                      'WePlay_Maximum@WePlay-Midsummer.fx']
-        if aa: techniques.append('SMAA@SMAA.fx')
-        raw = raw.replace('WePlay_Midsummer@WePlay-Midsummer.fx', ','.join(techniques))
-    raw = (raw.rstrip() + '\nEdgeStrength=' + ('0.800000' if aa and not maximum else '0.000000')
+        techniques.extend(['DH_UBER_MOTION_020@dh_uber_motion.fx', 'DH_UBER_RT@dh_uber_rt.fx',
+                           'WePlay_Maximum@WePlay-Midsummer.fx'])
+    if aa:
+        techniques.append('SMAA@SMAA.fx')
+    raw = raw.replace('WePlay_Midsummer@WePlay-Midsummer.fx', ','.join(techniques))
+    raw = (raw.rstrip() + '\nEdgeStrength=0.000000'
             + '\nContactStrength=' + ('0.220000' if contacts else '0.000000')
             + '\nMaximumStrength=' + ('1.000000' if maximum else '0.000000')
             + '\nHazeStrength=0.420000\nHeatStrength=0.850000\nDebugView=0\n')
@@ -151,25 +171,25 @@ bRreinhardFinalMerging=0
 bSSR=0
 iDebug=0
 
-[SMAA.fx]
-EdgeDetectionType=1
-EdgeDetectionThreshold=0.075000
-MaxSearchSteps=64
-MaxSearchStepsDiagonal=20
-CornerRounding=25
-DebugOutput=0
 '''
+    if aa:
+        raw += SMAA_PRESET
     return raw.encode('utf-8')
 
 
 def _profile_files(options, root):
-    files = {'Shaders/WePlay-Midsummer.fx': _asset('WePlay-Midsummer.fx').read_bytes(),
-             'Shaders/WePlay-World.fxh': _asset('effects/WePlay-World.fxh').read_bytes()}
-    if _options(options)[3]:
+    tone, aa, contacts, maximum = _options(options)
+    files = {}
+    if tone or contacts or maximum:
+        files = {'Shaders/WePlay-Midsummer.fx': _asset('WePlay-Midsummer.fx').read_bytes(),
+                 'Shaders/WePlay-World.fxh': _asset('effects/WePlay-World.fxh').read_bytes()}
+    assets = SMAA_ASSETS if aa else ()
+    if maximum:
         files['ManagedAddons/WePlayAtmosphere.addon32'] = _clock(root)
-        for name in MAXIMUM_ASSETS:
-            directory = 'Textures' if name.endswith('.png') else ('Shaders' if name.endswith(('.fx', '.fxh')) else 'Licenses')
-            files[directory + '/' + name] = _asset('effects/' + name).read_bytes()
+        assets = MAXIMUM_ASSETS
+    for name in assets:
+        directory = 'Textures' if name.endswith('.png') else ('Shaders' if name.endswith(('.fx', '.fxh')) else 'Licenses')
+        files[directory + '/' + name] = _asset('effects/' + name).read_bytes()
     return files
 
 

@@ -324,7 +324,7 @@ try {
     [void]$form.Controls.Add($tone)
     $aa = New-Object Windows.Forms.CheckBox
     $aa.SetBounds(18, 666, 614, 30)
-    $aa.Text = 'Smoother edges (ReShade; Modern graphics)'
+    $aa.Text = 'SMAA edge smoothing (ReShade; Modern graphics)'
     $aa.Checked = $enhancedAaEnabled -and ($RendererMode -eq 'dxvk') -and $MidsummerToneAvailable
     $aa.Enabled = $tone.Enabled
     [void]$form.Controls.Add($aa)
