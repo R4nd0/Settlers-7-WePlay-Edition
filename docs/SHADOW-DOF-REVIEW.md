@@ -78,14 +78,79 @@ simulation also stops other animation and cannot isolate the sun by itself.
 The static-light fixture used a different lighting direction and cannot qualify
 a matching-phase improvement. Those exploratory runs do not establish that
 Mittsommer's moving sun or the 8192 allocation is intrinsically defective.
-The shadow kernel/cascade blend and distant edge hardness were not changed;
-vegetation sharpness and all-scene temporal stability remain unqualified.
+At that milestone the shadow kernel/cascade blend and distant edge hardness
+were not changed. Vegetation sharpness and all-scene temporal stability remain
+unqualified.
+
+## Distant shadow filtering follow-up
+
+The larger shadow maps retain the native filter radii but reduce the sampling
+step to 1/4096 or 1/8192. With the same cascade projection, this narrows the
+filter footprint relative to the original high-quality 2048 map. Increasing
+the radius itself also changes the shader's noise-rotation frequency. That
+broader change was tested privately and is not included.
+
+`native/shadow_filter.inc` instead substitutes a constant 1/2048 vector only
+for the two distant cascade indices, 2 and 3. Cascades 0 and 1 retain the
+original pointer. The substitution requires the live shadow-manager owner,
+an actual 4096/8192 map, and all four original inverse components equal to
+that map's exact reciprocal. Any other input retains the native argument.
+The shadow-manager fields themselves are never changed. Map allocation,
+cascade splits/blends, kernel radii/noise frequency, sample count and texture
+sampling remain intact. This is a distant-filter correction, not temporal
+antialiasing or a vegetation texture filter.
+
+The hook reproduces the original argument push and pointer load, preserving
+the remaining registers, flags, stack layout and FPU/SSE state. The existing
+transaction applies it only with Detailed or Ultra shadows. Exact original
+instructions, the preceding cascade-index load, the subsequent shader call,
+and separate Ubisoft/Steam mappings are checked before installation. The
+existing complete executable/PE checks and rollback remain required.
+
+Actual Ubisoft lab runs confirmed the hook with both 4096 and 8192 allocations;
+the native inverse vectors, original radius table and configured splits stayed
+unchanged. The final 8192 comparison used the same save, camera, SMAA-only
+effects and approximately 240.115–246.090 degree overlapping sun interval.
+Distant shadow transitions are softened in the GPU captures. This does **not**
+establish a general flicker cure: the final-frame measurements still include
+moving vegetation, units, flags and native lighting. Readback stalls and unequal
+sample counts also prevent pacing/performance claims.
+
+A repeated early control exposed an additional confound: native mouse hover
+can highlight the castle and open a tooltip in the measurement area. Therefore
+the private fixture now disables world hover/tooltip updates before preparing
+the scene. Earlier radius/all-cascade trials and hover-contaminated runs are
+not used as improvement percentages. In the corrected comparison, mean
+absolute intensity steps were 0.772 versus 0.754 in the wall region and
+2.165 versus 2.139 in the distant region, with 38 versus 40 samples. Reversal
+counts did not show a consistent improvement. These small differences are
+observations, not evidence that the remaining flicker is fixed.
+
+All eight game runs exited normally and their restoration checks passed. One
+discarded radius experiment recorded a failed memory monitor; it is excluded
+from qualification. The final control and distant-filter candidates retained
+healthy monitoring. No original/shared save or option file was changed.
+
+The unreleased production adapter fingerprint is
+`be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe`,
+built with `-GameDirectory -NeoLogistics -ResumeCatchup -MaximumPhysicalCores 2`.
+Launcher and installer pins match it. The selector's compiled instructions
+match the actual-game lab candidate after normalizing address relocations;
+all 84 loader exports remain present. No native binary is committed.
+
+Validation: 3,744 shadow argument/ABI checks, 149 visual patch checks, 2,003
+Steam mapping checks, 2,466 bootstrap checks, 52 directory-bridge checks and
+89 Python launcher/installer/package tests passed. Synthetic Steam mapping
+checks do not establish Steam gameplay qualification. The source candidate
+and private evidence are retained; public RC3.22 and the user's existing
+SMAA preview/normal launcher have not been updated by this follow-up.
 
 ## Verification boundaries
 
-Private evidence is in `work/shadow-dof-20261108`. Tests used the previously
-guarded native lab copy with an isolated profile suffix, fixed camera fixture
-and unchanged lab adapter. They are actual native-game observations, distinct
+Private evidence is in `work/shadow-dof-20261108` and
+`work/shadow-filter-20261108`. DOF/mip tests used the prior lab adapter; filter
+tests used separate candidate builds of the same guarded native lab copy with
+an isolated profile suffix and fixed camera fixture. These are native-game observations, distinct
 from the Lua and installer fixtures. The production installation was not
 patched in place. Shared Documents options/saves were resolved and backed up
 before each launch; isolated profile bytes/timestamps and deployed game files

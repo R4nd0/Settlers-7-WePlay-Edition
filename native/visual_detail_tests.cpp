@@ -4,6 +4,19 @@
 #include <cstdio>
 void ReportLocalStatus(const char*) {}
 
+void PrepareFilterContext() {
+    auto* at = PatchAddress(ShadowFilterPatch);
+    const unsigned char index[] = {0xf3,0x0f,0x10,0x84,0xb4,0xc8,0,0,0};
+    const unsigned char before[] = {0x83,0xc4,0x0c};
+    const unsigned char after[] = {
+        0x50,0xff,0xb3,0xac,0x19,0,0,0x8b,0x83,0xb0,0x19,0,0,0xff,0xd0
+    };
+    memcpy(at-0x52, index, sizeof(index));
+    memcpy(at-3, before, sizeof(before));
+    memcpy(at+5, after, sizeof(after));
+    memcpy(at, OriginalBytes(ShadowFilterPatch), 5);
+}
+
 int main() {
     int checks = 0, failures = 0;
     auto check = [&](bool ok) { ++checks; if (!ok) ++failures; };
@@ -25,6 +38,7 @@ int main() {
     SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS", L"1");
     for (bool steam : {false, true}) {
         steam_history = steam;
+        PrepareFilterContext();
         auto* operand = PatchAddress(ExtendedLodPatch);
         const unsigned char opcode[] = {0xf3,0x0f,0x59,0x05};
         memcpy(operand - 4, opcode, 4);
@@ -33,7 +47,7 @@ int main() {
         for (const auto& patch : DetailedShadowPatches)
             memcpy(PatchAddress(patch), OriginalBytes(patch), 5);
         selected.clear();
-        check(AppendVisualPatches(selected) && selected.size() == 3);
+        check(AppendVisualPatches(selected) && selected.size() == 4);
         DWORD previous = 0;
         check(VirtualProtect(memory, 0x1106000, PAGE_EXECUTE_READ, &previous) != FALSE);
         for (const auto* patch : selected) {
@@ -93,6 +107,7 @@ int main() {
     for (bool steam : {false,true}) {
         steam_history=steam;
         const unsigned char opcode[]={0xf3,0x0f,0x59,0x05};
+        PrepareFilterContext();
         memcpy(PatchAddress(UltraShadowPatches[2])-4,opcode,4);
         for (const auto& patch:UltraShadowPatches) {
             if (patch.pointer_slot) {uint32_t value=OriginalPointer(patch);memcpy(PatchAddress(patch),&value,4);}
@@ -102,10 +117,11 @@ int main() {
         // the ordinary detailed flag must not add competing writes.
         for (bool detailed:{false,true}) {
             SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS",detailed?L"1":L"0");
-            selected.clear();check(AppendVisualPatches(selected)&&selected.size()==3);
+            selected.clear();check(AppendVisualPatches(selected)&&selected.size()==4);
             for (const auto* patch:selected) {
                 check(WritePatch(*patch,false));
                 if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==reinterpret_cast<uintptr_t>(&NearShadowBlend));
+                else if (patch == &ShadowFilterPatch) check(PatchAddress(*patch)[0] == 0xe8);
                 else check(!memcmp(PatchAddress(*patch),Shadow8192,5));
                 check(WritePatch(*patch,true));
             }

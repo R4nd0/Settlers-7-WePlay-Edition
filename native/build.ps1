@@ -78,6 +78,7 @@ try {
     Compile-Native @((Join-Path $nativeSource 'cpu_affinity.cpp'), (Join-Path $nativeSource 'cpu_affinity_tests.cpp'), '/Fe:cpu_affinity_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'bootstrap_patch_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:bootstrap_patch_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'visual_detail_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:visual_detail_tests.exe')
+    Compile-Native @((Join-Path $nativeSource 'shadow_filter_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:shadow_filter_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'steam_profile_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:steam_profile_tests.exe')
     if ($GameDirectory) { Compile-Native @((Join-Path $nativeSource 'game_directory_bridge_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:game_directory_bridge_tests.exe') }
     Compile-Native @((Join-Path $nativeSource 'lobby_team_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:lobby_team_tests.exe')

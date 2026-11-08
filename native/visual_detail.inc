@@ -48,12 +48,15 @@ bool VisualFlag(const wchar_t* name, bool& enabled) {
     return true;
 }
 
+#include "shadow_filter.inc"
+
 bool AppendVisualPatches(std::vector<const Patch*>& selected) {
     bool detail = false, shadows = false, range = false, ultra = false;
     if (!VisualFlag(L"S7_EXTENDED_DETAIL", detail) || !VisualFlag(L"S7_DETAILED_SHADOWS", shadows)
         || !VisualFlag(L"S7_EXTENDED_SHADOW_RANGE",range) || !VisualFlag(L"S7_ULTRA_SHADOWS",ultra)) {
         SetError(InvalidConfiguration); return false;
     }
+    if ((shadows || ultra) && !PrepareShadowFilter()) { SetError(ChangedCallsite); return false; }
     if (range && !ShadowRangeOpcodes()) { SetError(ChangedCallsite); return false; }
     if (ultra) {
         const unsigned char opcode[] = {0xf3,0x0f,0x59,0x05};
@@ -73,6 +76,7 @@ bool AppendVisualPatches(std::vector<const Patch*>& selected) {
     }
     if (ultra) for (const auto& patch : UltraShadowPatches) selected.push_back(&patch);
     else if (shadows) for (const auto& patch : DetailedShadowPatches) selected.push_back(&patch);
+    if (shadows || ultra) selected.push_back(&ShadowFilterPatch);
     if (range) for (const auto& patch : ShadowRangePatches) selected.push_back(&patch);
     return true;
 }

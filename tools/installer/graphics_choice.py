@@ -20,7 +20,7 @@ FORMAT = 's7-graphics-choice-v1'
 CHOICE_FILE = 'LocalData/graphics-choice.json'
 MAX_RECORD = 4096
 CANCELLED = 10
-VISUAL_ADAPTER_SHA256 = '73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6'
+VISUAL_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe'
 
 
 def visual_supported(root):

@@ -67,8 +67,13 @@ and original-byte guards. No simulation/FIFO/priority/save data is changed.
 
 The initial milestone enabled these settings for the pinned production adapter:
 `a5c5cde6098a100974c4dd565d8a7f986d9819871bc398c04f2e912d1b2d97b5`.
-The later Ultra-shadow milestone advances the current launcher/installer pin to
+The later Ultra-shadow milestone advanced the launcher/installer pin to
 `73c221bc124ada7cc86cc95c47da9ef7f1e780fb12b6299683e7f70fbce87ab6`.
+The unreleased distant-filter correction advances the current source pin to
+`be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe`.
+It retains the 2048-map sampling step for the two distant cascades when the
+actual allocation is 4096/8192, preserving native map fields and kernel/noise
+parameters. See [actual-game checks and remaining flicker limits](SHADOW-DOF-REVIEW.md#distant-shadow-filtering-follow-up).
 Unknown adapters cannot silently accept enabled preferences. The launch helper
 strips inherited aliases and supplies only validated, fixed child-only flags.
 No global environment variables or shared game content identity are changed.
