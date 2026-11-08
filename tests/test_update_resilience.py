@@ -29,14 +29,21 @@ class UpdateResilienceTests(unittest.TestCase):
             browser_download_url='https://github.com/'+client.REPOSITORY+'/releases/download/'+tag+'/'+client.MANIFEST)]) for tag in tags])
 
     def test_valid_newest_offer_survives_older_transport_failure(self):
-        def fetch(url,limit):
-            if url==client.RELEASES:return self.listing(self.value['tag'],'older-release')
-            if self.value['tag'] in url:return self.raw
-            raise client.UpdateError('update_download_failed')
-        result=client.check(self.app,fetch=fetch)
-        self.assertTrue(result['available']);self.assertTrue(result['incomplete'])
-        self.assertEqual(result['sequence'],23)
-        self.assertEqual((self.updates/'verified-envelope.json').read_bytes(),self.raw)
+        # Checkout line endings can change the JSON envelope's whitespace.
+        # They must not alter the signed payload, its verification or caching.
+        for ending in (b'\n',b'\r\n'):
+            raw=self.raw.replace(b'\r\n',b'\n').rstrip(b'\n')+ending
+            with self.subTest(envelope_line_ending=repr(ending)):
+                def fetch(url,limit):
+                    if url==client.RELEASES:return self.listing(self.value['tag'],'older-release')
+                    if self.value['tag'] in url:return raw
+                    raise client.UpdateError('update_download_failed')
+                result=client.check(self.app,fetch=fetch)
+                self.assertTrue(result['available']);self.assertTrue(result['incomplete'])
+                self.assertEqual(result['sequence'],23)
+                cached=(self.updates/'verified-envelope.json').read_bytes()
+                self.assertEqual(client.decode(cached),client.decode(raw))
+                self.assertEqual(client.verify(cached),self.value)
 
     def test_transport_failure_cannot_claim_current_when_no_candidate_verified(self):
         def fetch(url,limit):
