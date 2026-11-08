@@ -127,6 +127,7 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_linux_support.py
           python3 -B -m unittest discover -s tests -p test_linux_replays.py
           python3 -B -m unittest discover -s tests -p test_installer.py
+          python3 -B -m unittest discover -s tests -p test_graphics_profile.py
       - name: Real HTTP/UDP and independent OpenSSL peer
         shell: bash
         run: |

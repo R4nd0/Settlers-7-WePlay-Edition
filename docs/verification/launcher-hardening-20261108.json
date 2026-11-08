@@ -2,7 +2,7 @@
   "date": "2026-11-08",
   "scope": "Launcher hardening implementation; private development package, not a new public release.",
   "source_sha256": {
-    ".github/workflows/Linux.yml": "47021a64eac06b2d91f5372e4168037490ebe8b699bfb0f1e9ea0bd19b7d5ee3",
+    ".github/workflows/Linux.yml": "4161b1de2e0e4f77542f4c0c7b6aac6a9b1691cf235d6044711185985dd43ed7",
     "tools/desktop/Backend.cs": "a7149bba83a37cf9d9b5c8ad9823b63896ed4e6f550492430c5d2dac6fdda9ed",
     "tools/desktop/Program.cs": "a08e253855e945e94153f012144150a5644b3ec9cf5df791380ac2c7c146181e",
     "tools/desktop/MainForm.Directory.cs": "1ddbe16346b538db7309b0cf824fed60e6375cefca688a451a25cc73649eab9b",
@@ -136,14 +136,14 @@
       "exit": 0
     },
     {
-      "test": "test_desktop_backend.py",
-      "cases": 49,
+      "test": "test_graphics_profile.py",
+      "cases": 28,
       "skipped": 0,
       "exit": 0
     },
     {
-      "test": "test_graphics_profile.py",
-      "cases": 28,
+      "test": "test_desktop_backend.py",
+      "cases": 49,
       "skipped": 0,
       "exit": 0
     },
@@ -230,6 +230,7 @@
     "fresh_package_built": true,
     "source_installer_tests": 34,
     "path_runtime_boundary_tests": 20,
+    "graphics_profile_tests": 28,
     "packaged_cli_help_exit": 0,
     "game_started": false
   },

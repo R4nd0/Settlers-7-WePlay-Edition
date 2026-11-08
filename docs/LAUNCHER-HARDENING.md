@@ -106,8 +106,9 @@ records exact product-source hashes and the observed checks. Evidence includes:
   deterministically, rather than qualifying physical multi-monitor DPI changes.
 - A fresh private package with 24 resilience tests using its actual bundled
   modules/interpreter, plus compiled validation of the signed existing update.
-- A fresh Linux package and Linux path/installer/CLI checks, without starting a
-  game.
+- A fresh Linux package and Linux path/installer/graphics-profile/CLI checks,
+  without starting a game. Publication-race fixtures cover Windows rename and
+  POSIX link paths; reparse-point fixtures also cover Python 3.12 stat access.
 
 The CI workflow now builds the Windows launcher, runs its UI and real-child
 tests, and covers persistence/update regressions. No new native game,

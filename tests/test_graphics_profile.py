@@ -265,12 +265,13 @@ class GraphicsProfileTests(unittest.TestCase):
         self.assertTrue((self.state_dir() / 'transaction.json').is_file())
 
     def test_new_file_publication_does_not_overwrite_concurrent_file(self):
-        original = os.rename
-        def rename(source, destination, *args, **kwargs):
+        publication = 'rename' if os.name == 'nt' else 'link'
+        original = getattr(os, publication)
+        def publish(source, destination, *args, **kwargs):
             if Path(destination).name == 'd3d9.dll':
                 Path(destination).write_bytes(b'concurrently installed foreign DLL')
             return original(source, destination, *args, **kwargs)
-        with patch.object(os, 'rename', side_effect=rename):
+        with patch.object(os, publication, side_effect=publish):
             with self.assertRaises(ValueError): self.install()
         self.assertEqual((self.root / graphics.DLL).read_bytes(), b'concurrently installed foreign DLL')
         self.assertFalse((self.root / graphics.CONF).exists())
@@ -364,6 +365,9 @@ class GraphicsProfileTests(unittest.TestCase):
         original = Path.lstat
         folder = self.root / 'Base'
         class Reparse:
+            # Python 3.12's Path.is_symlink reads st_mode through lstat;
+            # preserve the real directory type while injecting the Windows flag.
+            st_mode = original(folder).st_mode
             st_file_attributes = stat_reparse = 0x400
         def lstat(path, *args, **kwargs):
             if path == folder:
