@@ -1,0 +1,226 @@
+{
+  "date": "2026-11-08",
+  "release": "2.0.0-rc3.22",
+  "tag": "v2.0.0-rc3.22",
+  "prerelease": true,
+  "source_commit": "b614f4b72d548e8fb65098548d8c7c5331955b5d",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.22",
+  "package_id": "d136ab6b4a2f567bab6076400e1488929beb644f26466219d734ef9db84cee65",
+  "update_sequence": 22,
+  "correction": "Restore only the generated ReShade preset after normal runtime writes, retaining all immutable-component guards and saved graphics choices",
+  "verification": {
+    "exact_source_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42424216073",
+    "frozen_rc321_baseline": {
+      "reproduced": true,
+      "actual_rc321_package": true,
+      "cases": 2,
+      "subcase_errors": 3,
+      "maximum_off_on_and_missing_generated_preset": true
+    },
+    "packaged_preset_regressions": {
+      "passed": true,
+      "cases": 8,
+      "actual_bundled_python": true,
+      "actual_packaged_profile_management": true,
+      "normal_exit_recovery": true,
+      "pins_and_addon_guards_retained": true,
+      "running_game_write_refused": true,
+      "bounded_first_backup": true
+    },
+    "actual_graphics_save_and_native_restarts": {
+      "passed": true,
+      "actual_installed_rc322": true,
+      "native_process_cycles": 2,
+      "actual_native_normal_exits": [
+        0,
+        0
+      ],
+      "effects_runtime_checks": [
+        {
+          "passed": true,
+          "runtime_created": true,
+          "compiled_shaders": 4,
+          "shader_compile_errors": false,
+          "clock_bridge_registered": true,
+          "swapchain_1440p": true,
+          "normal_exit": true
+        },
+        {
+          "passed": true,
+          "runtime_created": true,
+          "compiled_shaders": 4,
+          "shader_compile_errors": false,
+          "clock_bridge_registered": true,
+          "swapchain_1440p": true,
+          "normal_exit": true
+        }
+      ],
+      "world_observation": {
+        "passed": true,
+        "observed_via": "Windows Computer Use",
+        "map": "Grassland Mesa",
+        "neo_enabled_in_map_setup": true,
+        "ai_players": 3,
+        "ai_difficulty": "Normal",
+        "world_rendered": true,
+        "scene_and_hud_responsive": true,
+        "no_magenta_surfaces_observed": true,
+        "scope": "Short fresh local graphics test; no long match or performance qualification."
+      },
+      "initial_gui_save_success_observed": true,
+      "captured_fault_replay": {
+        "passed": true,
+        "controlled_replay_of_previously_captured_user_runtime_preset": true,
+        "captured_bytes": 2424,
+        "sha256": "eb92ace7a38f824f9faae7c245e94a2820033e2911ec88fa2ed3e74b8d08cf5a",
+        "frozen_rc321_refuses": true,
+        "immutable_components_verified": true,
+        "normal_exit_this_run_caused_rewrite": false
+      },
+      "final_gui_save_success_observed": true,
+      "final_profile_strictly_verified": true,
+      "original_graphics_choices_and_quality_preserved": true,
+      "maximum_enabled": true,
+      "display": {
+        "device": "\\\\.\\DISPLAY3",
+        "width": 2560,
+        "height": 1440,
+        "mode": "borderless"
+      },
+      "extended_detail": true,
+      "extended_shadow_range": true,
+      "ultra_shadows": true,
+      "bounded_first_backup_verified": true,
+      "qualification_note": "The two fresh native runs did not rewrite the preset. The originally captured 2424-byte runtime preset was replayed with the game closed: frozen RC3.21 verification refused it; the actual RC3.22 GUI Save restored it. Repeated save/launch mutations and running-game/tamper guards were independently tested with packaged regression fixtures."
+    },
+    "actual_user_launcher_updated": true,
+    "owned_game_updated": true,
+    "packaged_ui": true,
+    "fresh_installer": true,
+    "signed_update_valid": true,
+    "internet_alignment_regressions": {
+      "passed": true,
+      "cases": 3,
+      "actual_bundled_python": true,
+      "actual_packaged_windows_alignment": true,
+      "protected_configuration_mock_refuses_before_admission": true
+    },
+    "linux_runtime": {
+      "passed": true,
+      "service_output": "Independent synthetic peer: OpenSSL CLI\nPASS: 8952 config-server checks; real HTTP/UDP, Windows CNG import where supported, redacted logs, lifetime/cleanup, CLI and file immutability.",
+      "seconds": 39.0,
+      "artifact_bytes_verified": true,
+      "filesystem": "WSL native ext4; /mnt/z run hit p9_client_rpc IO timeouts",
+      "boundary_tests": 20,
+      "replay_tests": 5
+    },
+    "linux_archive": {
+      "passed": true,
+      "exact_archive_sha256": "c78cec04fc2673da2c38efeaa0971fde0f90aa14919bc80a181d44e018338ef4",
+      "extracted_manifest_verified": true,
+      "cli_help_exit": 0,
+      "readme_links_verified": true,
+      "elf_objects": 17,
+      "max_glibc": "2.27",
+      "game_started": false
+    },
+    "windows_linux_crypto_operations": 8,
+    "anonymous_downloads": 8,
+    "signed_live_update_feed_verified": true,
+    "readme_and_document_links_verified": true,
+    "previous_releases": {
+      "passed": true,
+      "previous_releases_unchanged": 22,
+      "previous_assets_unchanged": 177
+    }
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2767,
+      "sha256": "62dd419e5d9a53dc5b02a85043953d5667bde07b48dd9c01ea7b42a186fb103a"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip",
+      "size": 172917,
+      "sha256": "ef36089d6f2e8a60c50bc86fddf95da18180daafe4c80c24e7d4bff074c33b84"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip.sha256",
+      "size": 100,
+      "sha256": "8d1dd6e4be6bd141e63904305af773689f27440534f518ea567b08c9e15c9a36"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 1063,
+      "sha256": "05d77a00389efc0c7a37838733b36e3c8593ffd4cebf3abc6f668ee4e96670fc"
+    },
+    {
+      "name": "README.md",
+      "size": 2366,
+      "sha256": "868bd59b92be023895c96520d5bd94b223ddcd573279d4a45e0e6fbeb70795fd"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 2366,
+      "sha256": "868bd59b92be023895c96520d5bd94b223ddcd573279d4a45e0e6fbeb70795fd"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 106012381,
+      "sha256": "241af3b8ef01f3b05d999043896b9cf17118530d05aae41d9273aff31d1e7e7b"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "be5de1dcdfcc114b70e31492a184c2211a90f7a45fee197b981dd2c84f9e8b45"
+    },
+    {
+      "name": "WePlay-RC3.22-Linux-x64.tar.gz",
+      "size": 55238614,
+      "sha256": "c78cec04fc2673da2c38efeaa0971fde0f90aa14919bc80a181d44e018338ef4"
+    },
+    {
+      "name": "WePlay-RC3.22-Linux-x64.tar.gz.sha256",
+      "size": 97,
+      "sha256": "10d82ad9f4f92a6b9bf9eb776b62132b57dd8a061d77abaf7d2bcb92027ee14c"
+    },
+    {
+      "name": "WePlay-RC3.22.zip",
+      "size": 110463330,
+      "sha256": "783db314fd531f8faf83b4e0af56ace1550489651714f6d101488033dc9f759b"
+    },
+    {
+      "name": "WePlay-RC3.22.zip.sha256",
+      "size": 84,
+      "sha256": "e8c835652e8b8a040145c49312895145c34e1dd67459824710fd328783a45b79"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 3995,
+      "sha256": "9b183f07dfa3e33d8524b620833dcf56bb06007bb625df3cac995086bd40385d"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1331,
+      "sha256": "4ac8f01c753842fd283b4c11a26daf1b50b47354a1484644aff8cd10183b3f6f"
+    }
+  ],
+  "limitations": [
+    "Local Windows graphics lifecycle verification; no new separate-PC Internet gameplay or desync qualification.",
+    "Linux service tests pass on native WSL ext4 with exact copied artifact bytes. Initial /mnt/z runs timed out while waiting in p9_client_rpc; retained as private diagnostics.",
+    "No new Linux game rendering qualification.",
+    "Native adapter and approved graphics assets retained; this fix changes managed-preset restoration.",
+    "Executables are not Authenticode signed; update metadata is cryptographically signed."
+  ]
+}

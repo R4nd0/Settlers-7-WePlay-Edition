@@ -2,16 +2,23 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.21 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.21/Setup.exe)
+## [Download Windows Installer — RC3.22 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.21/WePlay-RC3.21-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/WePlay-RC3.22-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.21/WePlay-RC3.21.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.21) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.22/WePlay-RC3.22.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.22) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.22 fixes graphics saving and restarting after an ordinary game exit.**
+ReShade's normal writes to its generated preset no longer prevent saving or
+starting again. Saved graphics choices remain authoritative; DLL, shader and
+add-on checks remain enforced. Includes the Internet fixes below.
+[Cause, tests and scope](docs/RC3.22-GRAPHICS-SAVE.md) ·
+[Published verification](docs/verification/rc322-publication-20261108.json).
 
 **RC3.21 fixes Windows Internet joining after a room becomes visible.**
 The guest now aligns its content through the public room status before normal
@@ -91,8 +98,9 @@ manual multiplayer saves and five-minute host autosave remain included.
    Steam History Edition installation. The launcher prepares a separate copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Install **RC3.21 on every participant's PC**, including Windows peers and
-   when NEO is off. The current NEO5 compatibility contract rejects older peers, even with NEO off.
+4. Use **RC3.22 on each participant's PC** for the latest fixes. Multiplayer
+   requires matching NEO5 game content on all peers, including Windows peers
+   and when NEO is off.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
 supported History Edition and enough disk space for the separate game copy.
