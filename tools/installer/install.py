@@ -8,9 +8,11 @@ import argparse
 import importlib.util
 import hashlib
 import json
+import re
 import shutil
 import struct
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -32,7 +34,7 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
-DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/game_detection.py','d3d11/memory_guard.py')
+DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/desktop_settings.py','installer/game_detection.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 PUBLIC_DIRECTORY_PACKAGE_TOOLS = ('installer/public_directory.py',)
@@ -122,6 +124,67 @@ def launcher_sources(manifest):
 def write_json(path, value):
     with path.open('x', encoding='utf-8') as stream:
         json.dump(value, stream, indent=2, sort_keys=True); stream.write('\n')
+
+
+def package_metadata(root):
+    """Read bounded display metadata, never an execution/integrity authority."""
+    root=content.plain(root)
+    path=content.plain(root/'package.json')
+    if not path.is_file() or path.stat().st_size>4*1024*1024:raise ValueError('Installationsmanifest zu gross.')
+    raw=path.read_bytes()
+    if len(raw)>4*1024*1024:raise ValueError('Installationsmanifest zu gross.')
+    value=json.loads(raw)
+    if (not isinstance(value,dict) or value.get('format')!=FORMAT
+            or value.get('capabilities')!={'local_test':True,'lan_host':False,'lan_join':False}
+            or not isinstance(value.get('files'),dict) or not 1<=len(value['files'])<=30000):
+        raise ValueError('Unbekanntes Installationspaket.')
+    for name,digest in value['files'].items():
+        if (not isinstance(name,str) or name!=name.lower() or '\\' in name or ':' in name
+                or name.startswith('/') or any(p in ('','.','..') for p in name.split('/'))
+                or name.split('/')[0] not in ('payload','runtime','tools')
+                or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest)):
+            raise ValueError('Ungueltige Paketdatei.')
+    for name in ('join_menu_update','lan_public_creation','graphics_choice','display_selection','automatic_lan',
+                 'desktop_launcher','internet_easytier','discord_directory','update_patcher','achievement_notifications_disabled',
+                 'cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume',
+                 'game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','steam_history'):
+        if type(value.get(name,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
+    return value
+
+
+class VerifiedPackage:
+    """One operation's verified bytes; never persisted or shared across requests.
+
+    Any manifest, file-list or file identity/size/time change invalidates the
+    context, and proofs expire after60seconds even inside long operations.
+    Executable-specific hash/ABI checks remain at their existing use sites.
+    The owner must discard this context at the operation boundary.
+    """
+    def __init__(self,root):
+        self.root=content.plain(root);self.value=None;self.stamp=None;self.checked_at=0.0
+
+    def identity(self):
+        records=[]
+        for name in ('package.json','Payload','Runtime','Tools'):
+            start=content.plain(self.root/name)
+            paths=[start] if name=='package.json' else [start,*start.rglob('*')]
+            for path in paths:
+                content.plain(path)
+                info=path.stat()
+                records.append((path.relative_to(self.root).as_posix(),info.st_dev,info.st_ino,
+                                info.st_size,info.st_mtime_ns,info.st_ctime_ns))
+        return sorted(records)
+
+    def load(self):
+        before=self.identity()
+        if self.value is None or self.stamp!=before or time.monotonic()-self.checked_at>60:
+            self.value=None;self.stamp=None
+            value=package_manifest(self.root)
+            after=self.identity()
+            if before!=after:raise ValueError('Das Installationspaket wurde waehrend der Pruefung veraendert.')
+            self.value=value;self.stamp=after;self.checked_at=time.monotonic()
+        # Callers cannot mutate the authority retained by the operation.
+        return json.loads(json.dumps(self.value))
 
 
 def package_manifest(root):

@@ -101,65 +101,6 @@ internal sealed class BackendError(string code, string details) : Exception(deta
     public string Code { get; } = code;
 }
 
-internal static class Backend
-{
-    public static string? Operation { get; private set; }
-    public static async Task<JsonElement> Run(string action, object data, Action<JsonElement> receive,bool trackOperation=true)
-    {
-        string operation = Guid.NewGuid().ToString("N"); if(trackOperation)Operation = operation;
-        var start = new ProcessStartInfo(Path.Combine(Program.AppRoot,"Package","Runtime","python","python.exe"))
-        {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
-            RedirectStandardOutput = true, RedirectStandardError = true,
-            StandardInputEncoding = new UTF8Encoding(false), StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = Program.AppRoot
-        };
-        foreach (string arg in new[] { "-B", "-u", Path.Combine(Program.AppRoot,"Package","Tools","installer","desktop_backend.py"), "--app", Program.AppRoot, "--operation", operation }) start.ArgumentList.Add(arg);
-        using var process = Start(start);
-        string request = JsonSerializer.Serialize(new { format = "s7-desktop-request-v1", action, data });
-        if (Encoding.UTF8.GetByteCount(request) > 32768) throw new BackendError("request_invalid", "Request too large");
-        await process.StandardInput.WriteAsync(request); process.StandardInput.Close();
-        var errors = ReadBounded(process.StandardError, 8192);
-        JsonElement result = default; BackendError? failure = null;
-        try
-        {
-            while (await process.StandardOutput.ReadLineAsync() is string line)
-            {
-                if (line.Length > 131072) throw new BackendError("operation_failed", "Oversized backend event");
-                using var json = JsonDocument.Parse(line); JsonElement item = json.RootElement.Clone();
-                string? kind = item.GetProperty("kind").GetString();
-                if (kind == "result") result = item.GetProperty("data").Clone();
-                else if (kind == "error") failure = new BackendError(item.GetProperty("code").GetString()!, item.GetProperty("detail").GetString() ?? "");
-                else receive(item);
-            }
-            await process.WaitForExitAsync(); string stderr = await errors;
-            if (failure != null) throw failure;
-            if (process.ExitCode != 0 || result.ValueKind == JsonValueKind.Undefined) throw new BackendError("operation_failed", stderr);
-            return result;
-        }
-        finally { if (trackOperation && Operation == operation) Operation = null; }
-    }
-    private static async Task<string> ReadBounded(StreamReader source, int limit)
-    {
-        var value = new StringBuilder(); char[] buffer = new char[2048]; int count;
-        while ((count = await source.ReadAsync(buffer)) > 0) if (value.Length < limit) value.Append(buffer,0,Math.Min(count,limit-value.Length));
-        return value.ToString();
-    }
-    private static Process Start(ProcessStartInfo info)
-    {
-        try{return Process.Start(info)??throw new BackendError("package_invalid","Backend did not start");}
-        catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception){throw new BackendError("package_invalid",error.Message);}
-    }
-    public static void Cancel()
-    {
-        if (Operation is string value && value.Length == 32)
-        {
-            string folder = Path.Combine(Program.AppRoot,"State");
-            File.WriteAllText(Path.Combine(folder,"cancel-" + value), "cancel", Encoding.ASCII);
-        }
-    }
-}
-
 internal static class Shortcuts
 {
     private static IEnumerable<string> Locations()
@@ -167,12 +108,20 @@ internal static class Shortcuts
         yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"Settlers 7 WePlay Edition.lnk");
         yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),"Programs","Settlers 7 WePlay Edition.lnk");
     }
-    public static void Create()
+    public static Task EnsureMissingAsync()
     {
+        var done=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker=new Thread(()=>{try{Create(onlyMissing:true);done.SetResult();}catch(Exception error){done.SetException(error);}}) {IsBackground=true};
+        worker.SetApartmentState(ApartmentState.STA);worker.Start();return done.Task;
+    }
+    public static void Create(bool onlyMissing=false)
+    {
+        string[] paths=Locations().Where(path=>!onlyMissing||!File.Exists(path)).ToArray();
+        if(paths.Length==0)return;
         Type? type = Type.GetTypeFromProgID("WScript.Shell"); if (type == null) return;
         dynamic shell;
         try{shell=Activator.CreateInstance(type)!;}catch(System.Runtime.InteropServices.COMException){return;}
-        foreach (string path in Locations())
+        foreach (string path in paths)
         {
             try
             {
@@ -315,21 +264,28 @@ internal sealed partial class MainForm : Form
         footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordLink,2,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
-        installButton = Button("install",InstallGame,true); cancelButton = Button("cancel",() => { Backend.Cancel(); return Task.CompletedTask; }); cancelButton.Visible = false;
-        cancelButton.Click += (_,_) => {Backend.Cancel();cancelRequested=true;cancelButton.Enabled=false;status.Text=Lang.T("cancelRequested");};
+        installButton=Button("install",InstallGame,true);
+        cancelButton=new Button {AutoSize=true,MinimumSize=new Size(150,38)};Bind(cancelButton,"cancel");cancelButton.Visible=false;
+        cancelButton.Click+=(_,_)=>RequestCancellation();
         BuildSetup(); BuildTabs();
         tabs.SelectedIndexChanged += (_,_) => { if(IsHandleCreated) BeginInvoke((Action)FitMenuHeight); };
         ResizeBegin += (_,_) => automaticMenuHeight=false;
         tabs.Visible=false;
-        language.SelectedIndexChanged += (_,_) => { if (language.SelectedItem is Item item) { Lang.Set(item.Key,!testing); ApplyLanguage(); FitMenuHeight(); } };
+        language.SelectedIndexChanged+=(_,_)=>ChangeLanguage();
         tray.DoubleClick += (_,_) => RestoreWindow();
         var trayMenu = new ContextMenuStrip(); trayMenu.Items.Add(Lang.T("show"),null,(_,_)=>RestoreWindow()); trayMenu.Items.Add(Lang.T("exit"),null,(_,_)=>Close()); tray.ContextMenuStrip = trayMenu;
         Resize += (_,_) => { if (gameRunning && WindowState == FormWindowState.Minimized) { ShowInTaskbar = false; tray.Visible = true; } };
-        FormClosing += (_,e) =>
+        FormClosing += async (_,e) =>
         {
             if(updateExit)return;
             if (gameRunning) { e.Cancel = true; WindowState = FormWindowState.Minimized; ShowInTaskbar = false; tray.Visible = true; }
-            else if (busy) { e.Cancel = true; if (MessageBox.Show(this,Lang.T("closeBusy"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) Backend.Cancel(); }
+            else if (busy) { e.Cancel = true; if (MessageBox.Show(this,Lang.T("closeBusy"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) RequestCancellation(); }
+            else if(GraphicsDirty&&!closeDraftApproved)
+            {
+                e.Cancel=true;if(closingDraft)return;closingDraft=true;bool accepted=false;
+                await Guard(async()=>accepted=await ResolveGraphicsDraft());closingDraft=false;
+                if(accepted&&!IsDisposed){closeDraftApproved=true;Close();}
+            }
         };
         FormClosed += (_,_) => { tray.Dispose(); };
         Shown += async (_,_) => { if (!testing) await Initialise(); };
@@ -363,12 +319,12 @@ internal sealed partial class MainForm : Form
     private static ComboBox Combo() => new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, IntegralHeight = false, DropDownHeight = 280 };
     private void Bind(Control control,string key) { labels[control] = key; control.Text = Lang.T(key); }
     private Label Label(string key) { var result = new Label { AutoSize = true, Margin = new Padding(0,10,0,6), MaximumSize = new Size(900,0) }; Bind(result,key); return result; }
-    private Button Button(string key,Func<Task> action,bool primary = false)
+    private Button Button(string key,Func<Task> action,bool primary = false,bool exclusive=true)
     {
         var result = new Button { AutoSize = true, MinimumSize = new Size(150,38), Padding = new Padding(10,3,10,3), Margin = new Padding(0,6,10,6), FlatStyle = FlatStyle.Flat };
         result.FlatAppearance.BorderColor = Color.FromArgb(190,200,213);
         if (primary) { result.BackColor = Color.FromArgb(30,91,164); result.ForeColor = Color.White; }
-        Bind(result,key); result.Click += async (_,_) => await Guard(action); return result;
+        Bind(result,key);result.Click+=async(_,_)=>{if(exclusive)await Guard(action);else await action();};return result;
     }
     private static FlowLayoutPanel Buttons(params Control[] controls)
     {
@@ -416,6 +372,8 @@ internal sealed partial class MainForm : Form
         tabs.TabPages.AddRange([homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage]);
         var homeScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };homePage.Controls.Add(homeScroll);
         var home = Stack(homeScroll); Add(home,homeTitle); Add(home,homeInfo);
+        Add(home,maintenanceNotice);
+        maintenanceNotice.LinkClicked+=(_,_)=>{tabs.SelectedTab=helpPage;maintenanceCleanup.Focus();helpPage.Controls.OfType<Panel>().FirstOrDefault()?.ScrollControlIntoView(maintenanceCleanup);};
         Add(home,BuildPlayModes());Add(home,Label("modeConsentInfo"));
         homeScroll.ClientSizeChanged+=(_,_)=>ResizePlayModes(homeScroll);
         ResizePlayModes(homeScroll);
@@ -426,7 +384,7 @@ internal sealed partial class MainForm : Form
         var lanScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };lanPage.Controls.Add(lanScroll);var lan = Stack(lanScroll);
         var lanTitle=Label("lanTitle");lanTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(lan,lanTitle);
         Add(lan,Label("lanIntro"));Add(lan,Field("player",player));
-        Add(lan,Buttons(Button("lanStart",()=>Play(true),true)));
+        lanActionBar=Buttons(Button("lanStart",()=>Play(true),true));DockActions(lanPage,lanActionBar);
         Add(lan,Label("lanSteps"));Add(lan,Label("lanTrouble"));
         Add(lan,Buttons(Button("lanPermission",Firewall)));Add(lan,lanNotice);
         var internetScroll = new Panel { Dock=DockStyle.Fill, AutoScroll=true }; internetPage.Controls.Add(internetScroll);
@@ -442,7 +400,7 @@ internal sealed partial class MainForm : Form
         internetHostPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };internetHostPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         accessibleFields[internetHostPanel]="internetHostChoice";
         Add(internetHostPanel,Label("internetHostSteps"));
-        internetCreate=Button("internetCreate",()=>PlayInternet(true),true);Add(internetHostPanel,Buttons(internetCreate));
+        internetCreate=Button("internetCreate",()=>PlayInternet(true),true);
         Bind(internetAdvanced,"internetAdvanced");Add(internetHostPanel,internetAdvanced);
         internetAdvancedPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };internetAdvancedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         accessibleFields[internetAdvancedPanel]="internetAdvanced";
@@ -454,7 +412,7 @@ internal sealed partial class MainForm : Form
         Add(internetGuestPanel,Label("internetGuestSteps"));
         internetPaste=Button("internetPaste",()=>{PasteInternetInvitation();return Task.CompletedTask;});
         Add(internetGuestPanel,Field("internetJoinCode",internetJoin,internetPaste));
-        internetJoinButton=Button("internetJoin",()=>PlayInternet(false),true);Add(internetGuestPanel,Buttons(internetJoinButton));AddSetup(internetGuestPanel);
+        internetJoinButton=Button("internetJoin",()=>PlayInternet(false),true);AddSetup(internetGuestPanel);
         internetCopy = new Button { AutoSize=true, MinimumSize=new Size(150,38), Padding=new Padding(10,3,10,3) };
         Bind(internetCopy,"internetCopy"); internetCopy.Click += (_,_) =>
         {
@@ -473,49 +431,14 @@ internal sealed partial class MainForm : Form
         internetEnd=new Button { AutoSize=true,MinimumSize=new Size(150,38),Padding=new Padding(10,3,10,3) };
         Bind(internetEnd,"internetEnd"); internetEnd.Click += (_,_) =>
         {
-            if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;internetEnd.Enabled=false;status.Text=Lang.T("cancelRequested");}
+            if(internetOperation&&!gameRunning)RequestCancellation();
         };
-        internetEndRow=Buttons(internetEnd);Add(net,internetEndRow); Add(net,Label("internetSafety"));
+        internetEndRow=Buttons(internetCreate,internetJoinButton,internetEnd);DockActions(internetPage,internetEndRow);Add(net,Label("internetSafety"));
         internetHostChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();internetGuestChoice.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
         internetJoin.TextChanged+=(_,_)=>UpdateInternetControls();discordPublish.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
-        var graphicScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; graphicsPage.Controls.Add(graphicScroll); var g = Stack(graphicScroll);
-        g.Padding=new Padding(14,6,14,2);
-        Add(g,Label("rendererInfo"));Add(g,Label("graphicsModeInfo")); Add(g,activeRenderer);
-        Add(g,Field("renderer",renderer)); Add(g,Field("gpu",gpu)); Bind(keepDisplay,"keepDisplay"); Add(g,keepDisplay);
-        var outputs = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2 };
-        outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        outputs.Controls.Add(Field("display",monitor),0,0); outputs.Controls.Add(Field("window",window),1,0);
-        outputs.Controls.Add(Field("resolution",resolution),0,1); Add(g,outputs); Add(g,Label("borderlessInfo"));
-        var qualityGrid = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2 };
-        qualityGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); qualityGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        string[] levels = ["ShaderQuality","TextureQuality","ObjectQuality","DistanceCulling","ShadowQuality","WaterQuality","ClutterQuality"];
-        for (int i=0;i<levels.Length;i++) { var combo = Combo(); qualities[levels[i]]=combo; qualityGrid.Controls.Add(Field(levels[i],combo),i%2,i/2); }
-        Add(g,Label("quality"));
-        Add(g,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
-            Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;}),
-            Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;}),
-            Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=midsummerToneAvailable;return Task.CompletedTask;})));
-        Add(g,Label("qualityRecommendedInfo"));Add(g,Label("qualityPresetInfo")); Add(g,qualityGrid);
-        var effectRow = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, WrapContents = true };
-        foreach (string key in new[] { "Shadows","SSAO","DepthOfField","SunShafts","Parallax","Antialiasing" })
-        { var box = new CheckBox { AutoSize = true, Margin = new Padding(0,8,18,8) }; Bind(box,key); effects[key]=box; effectRow.Controls.Add(box); }
-        Add(g,effectRow); Bind(anisotropicFiltering,"anisotropicFiltering");Add(g,anisotropicFiltering);
-        Add(g,Label("anisotropicInfo"));
-        Bind(extendedDetail,"extendedDetail");Add(g,extendedDetail);Add(g,Label("extendedDetailInfo"));
-        Bind(detailedShadows,"detailedShadows");Add(g,detailedShadows);Add(g,Label("detailedShadowsInfo"));
-        Bind(extendedShadowRange,"extendedShadowRange");Add(g,extendedShadowRange);Add(g,Label("extendedShadowRangeInfo"));
-        Bind(ultraShadows,"ultraShadows");Add(g,ultraShadows);Add(g,Label("ultraShadowsInfo"));
-        Bind(midsummerTone,"midsummerTone");Add(g,midsummerTone);Add(g,Label("midsummerToneInfo"));
-        Bind(enhancedAa,"enhancedAa");Add(g,enhancedAa);Add(g,Label("enhancedAaInfo"));
-        Bind(contactShadows,"contactShadows");Add(g,contactShadows);Add(g,Label("contactShadowsInfo"));
-        Bind(maximumFx,"maximumFx");Add(g,maximumFx);Add(g,Label("maximumFxInfo"));
-        Bind(simple,"simple"); Add(g,simple);
-        var saveRow=Buttons(Button("save",SaveGraphics,true));saveRow.Dock=DockStyle.Bottom;saveRow.Padding=new Padding(14,0,14,0);graphicsPage.Controls.Add(saveRow);
-        monitor.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
-        window.SelectedIndexChanged += (_,_) => { if (!loading) UpdateResolutions(); };
-        keepDisplay.CheckedChanged += (_,_) => DisplayEnabled(); renderer.SelectedIndexChanged += (_,_) => DisplayEnabled();
+        BuildGraphicsPage();
         var helpScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; helpPage.Controls.Add(helpScroll); var h = Stack(helpScroll);
         Add(h,Label("helpIntro"));
         var ways=Label("startGuideTitle");ways.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(h,ways);
@@ -524,7 +447,8 @@ internal sealed partial class MainForm : Form
         Add(h,Label("maintenanceGuide"));
         Add(h,Buttons(Button("verify",Verify),Button("repair",ShowRepair)));
         Add(h,Buttons(Button("fallback",Fallback),Button("probe",Probe),Button("lanPermission",Firewall)));
-        Add(h,Buttons(Button("cleanup",Cleanup),Button("diagnostics",Diagnostics))); Add(h,Label("details")); Add(h,details);
+        maintenanceCleanup=Button("cleanup",Cleanup);
+        Add(h,Buttons(maintenanceCleanup,Button("diagnostics",Diagnostics))); Add(h,Label("details")); Add(h,details);
         Add(h,Label("discordTitle"));Add(h,Label("discordInfo"));
         var discordCode=new TextBox { Text=Community.DiscordCode,ReadOnly=true,Dock=DockStyle.Fill };
         Add(h,Field("discordSuggestedCode",discordCode));
@@ -539,12 +463,13 @@ internal sealed partial class MainForm : Form
         Add(u,Buttons(updateCheck,updateInstall));Add(u,Label("updateNotes"));Add(u,updateNotes);
         Add(u,Label("updatesPreserve"));
         accessibleFields[updateNotes]="updateNotes";
+        TrackGraphicsDraft();
     }
 
     private void ApplyLanguage()
     {
         foreach (var item in labels) item.Key.Text = Lang.T(item.Value);
-        ApplyPlayModeLanguage();
+        ApplyPlayModeLanguage();UpdateMaintenanceNotice();
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
         Text=Lang.T("app"); tray.Text=Lang.T("app");
         loading=true;
@@ -571,9 +496,8 @@ internal sealed partial class MainForm : Form
                 (value.TryGetProperty("needs_repair",out var repair)&&repair.GetBoolean())) await ShowSetup();
             else
             {
-                try { await Backend.Run("cleanup-automatic",new {},Receive); }
-                catch(BackendError) { status.Text=Lang.T("cleanup_deferred"); }
-                ShowMain(); Shortcuts.Create();
+                ShowMain();
+                _=EnsureMissingShortcuts();
             }
         }
         catch(Exception error)
@@ -585,9 +509,11 @@ internal sealed partial class MainForm : Form
         finally {SetBusy(false);}
         if(!testing&&updatesSupported)_=CheckUpdates(true);
     }
-    private void LoadSnapshot(JsonElement value,bool replaceFields=true)
+    private void LoadSnapshot(JsonElement value,bool replaceFields=true,bool acceptGraphics=false)
     {
+        if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
+        maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
@@ -633,16 +559,19 @@ internal sealed partial class MainForm : Form
         }
         if(monitor.Items.Count>0){monitor.SelectedIndex=0;for(int i=0;i<monitor.Items.Count;i++)if(monitor.Items[i] is Item option&&option.Key==oldDisplay)monitor.SelectedIndex=i;}
         if(replaceFields){keepDisplay.Checked=selected.ValueKind!=JsonValueKind.Object;window.SelectedIndex=selected.ValueKind==JsonValueKind.Object&&selected.GetProperty("mode").GetString()=="borderless"?1:0;}
-        loading=false;UpdateResolutions();
+        UpdateResolutions(allowWhileLoading:true);
         if(replaceFields&&selected.ValueKind==JsonValueKind.Object&&window.SelectedIndex==0)
         {
             string key=selected.GetProperty("width")+"x"+selected.GetProperty("height");
             for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==key)resolution.SelectedIndex=i;
         }
+        loading=false;
+        if(replaceFields||acceptGraphics)AcceptGraphicsDraft();else UpdateGraphicsDraft();
     }
     private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
+        if(!await ResolveGraphicsDraft())return;
         tabs.Visible=false;setup.Visible=true;
         Bind(installButton,snapshot.GetProperty("installed").GetBoolean()?"update":"install");
         source.Items.Clear();
@@ -698,7 +627,7 @@ internal sealed partial class MainForm : Form
         updateLastOutcome.Visible=lastUpdateFailure!=null;
         updateLastOutcome.Text=lastUpdateFailure==null?"":string.Format(Lang.T("updateLastFailure"),Lang.T(lastUpdateFailure));
         string key=!updatesSupported?"update_unavailable":updateChecking?"updateChecking":updateMessageKey;
-        updateNotice.Text=homeUpdateNotice.Text=string.Format(Lang.T(key),remoteUpdateVersion);
+        updateNotice.Text=homeUpdateNotice.Text=string.Format(Lang.T(key),remoteUpdateVersion)+(updateCheckIncomplete?" "+Lang.T("updateIncomplete"):"");
         homeUpdateNotice.ForeColor=remoteUpdateAvailable?Color.FromArgb(30,91,164):Color.DimGray;
         FontStyle style=remoteUpdateAvailable?FontStyle.Bold:FontStyle.Regular;
         if(homeUpdateNotice.Font.Style!=style)homeUpdateNotice.Font=remoteUpdateAvailable?new Font(Font,style):Font;
@@ -709,7 +638,8 @@ internal sealed partial class MainForm : Form
         remoteUpdateSequence=remoteUpdateAvailable?value.GetProperty("sequence").GetInt64():0;
         remoteUpdateVersion=remoteUpdateAvailable?value.GetProperty("version").GetString()??"":"";
         updateMessageKey=remoteUpdateAvailable?"updateFound":value.GetProperty("reason").GetString()=="no_signed_release"?"updateNoRelease":"updateCurrent";
-        updateNotes.Text=value.GetProperty("notes").GetString()??"";RefreshUpdateControls();
+        updateNotes.Text=value.GetProperty("notes").GetString()??"";
+        updateCheckIncomplete=value.TryGetProperty("incomplete",out var incomplete)&&incomplete.GetBoolean();RefreshUpdateControls();
     }
     private async Task CheckUpdates(bool automatic)
     {
@@ -717,7 +647,7 @@ internal sealed partial class MainForm : Form
         updateChecking=true;updateNotice.Text=homeUpdateNotice.Text=Lang.T("updateChecking");RefreshUpdateControls();
         try
         {
-            var value=await Backend.Run("update-check",new {},_=>{},trackOperation:false);
+            var value=await Backend.Run("update-check",new {},_=>{},trackOperation:false,cancellationToken:backgroundLifetime.Token);
             if(IsDisposed)return;
             ShowUpdateResult(value);
         }
@@ -732,12 +662,13 @@ internal sealed partial class MainForm : Form
     private async Task InstallUpdate()
     {
         if(gameRunning||!remoteUpdateAvailable)throw new BackendError("update_busy","");
+        if(!await ResolveGraphicsDraft())return;
         await Backend.Run("update-install",new {sequence=remoteUpdateSequence},Receive);
         updateExit=true;Close();
     }
-    private void UpdateResolutions()
+    private void UpdateResolutions(bool allowWhileLoading=false)
     {
-        if(loading)return;
+        if(loading&&!allowWhileLoading)return;
         string? old=(resolution.SelectedItem as Item)?.Key;resolution.Items.Clear();
         if(monitor.SelectedIndex>=0&&monitor.SelectedIndex<screens.Count)
         {
@@ -804,15 +735,24 @@ internal sealed partial class MainForm : Form
             r.Value is 0x2028 or 0x2029||Rune.GetUnicodeCategory(r) is UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned or UnicodeCategory.Surrogate))throw new BackendError("nameInvalid","");
         return name;
     }
-    private async Task SaveGraphics(){LoadSnapshot(await Backend.Run("save",GraphicsRequest(),Receive));status.Text=Lang.T("saved");}
-    private async Task Fallback(){LoadSnapshot(await Backend.Run("save",GraphicsRequest(true),Receive));status.Text=Lang.T("saved");}
+    private async Task SaveGraphics()
+    {
+        try{LoadSnapshot(await Backend.Run("save",GraphicsRequest(),Receive),acceptGraphics:true);status.Text=Lang.T("saved");}
+        catch(BackendError error)when(error.Code=="settings_saved_refresh_failed"){AcceptGraphicsDraft();throw;}
+    }
+    private async Task Fallback()
+    {
+        if(!await ResolveGraphicsDraft())return;
+        try{LoadSnapshot(await Backend.Run("save",GraphicsRequest(true),Receive),acceptGraphics:true);status.Text=Lang.T("saved");}
+        catch(BackendError error)when(error.Code=="settings_saved_refresh_failed"){renderer.SelectedIndex=2;AcceptGraphicsDraft();throw;}
+    }
     private async Task Probe(){await Backend.Run("probe",new {},Receive);LoadSnapshot(await Backend.Run("snapshot",new {},Receive));}
     private async Task Verify(){await Backend.Run("verify",new {},Receive);status.Text=Lang.T("verified");}
     private async Task ShowRepair(){forceSetup=true;await ShowSetup();}
     private async Task Cleanup()
     {
         if(MessageBox.Show(this,Lang.T("cleanupConfirm"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
-        await Backend.Run("cleanup",new {},Receive);status.Text=Lang.T("cleanupDone");
+        await Backend.Run("cleanup",new {},Receive);LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("cleanupDone");
     }
     private async Task Diagnostics()
     {
@@ -827,6 +767,7 @@ internal sealed partial class MainForm : Form
     }
     private async Task Play(bool lan)
     {
+        if(!await ResolveGraphicsDraft())return;
         JsonElement result;
         if(lan)result=await Backend.Run("lan-play",new {player_name=ValidName()},Receive);
         else result=await Backend.Run("play",new {},Receive);
@@ -870,7 +811,10 @@ internal sealed partial class MainForm : Form
         if(internetEndpointField!=null)internetEndpointField.Visible=direct;
         if(internetInviteField!=null)internetInviteField.Visible=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
         if(internetShareRow!=null)internetShareRow.Visible=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
-        if(internetEndRow!=null)internetEndRow.Visible=internetOperation&&!publicRoomOperation;
+        if(internetCreate!=null)internetCreate.Visible=!internetOperation&&internetHostChoice.Checked;
+        if(internetJoinButton!=null)internetJoinButton.Visible=!internetOperation&&internetGuestChoice.Checked;
+        if(internetEnd!=null)internetEnd.Visible=internetOperation&&!publicRoomOperation;
+        if(internetEndRow!=null)internetEndRow.Visible=!publicRoomOperation;
         internetInvite.Enabled=true;
         discordPublish.Enabled=!busy&&discordAvailable&&discordConnected;discordPublish.Visible=discordAvailable;
         if(discordConnect!=null)discordConnect.Enabled=!busy&&discordAvailable;
@@ -908,6 +852,7 @@ internal sealed partial class MainForm : Form
     }
     private async Task PlayInternet(bool create,bool publish=false,bool publicLobby=false)
     {
+        if(!await ResolveGraphicsDraft())return;
         player.Text=internetPlayer.Text;string name=ValidName();
         string? invitation=create?null:Community.InvitationCode(internetJoin.Text);
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
@@ -997,6 +942,7 @@ internal sealed partial class MainForm : Form
     }
     private void SetBusy(bool value)
     {
+        if(value)InvalidateDirectoryRefresh();
         busy=value;tabs.Enabled=!value||internetOperation;source.Enabled=destination.Enabled=installButton.Enabled=!value;language.Enabled=!value;
         foreach(TabPage page in tabs.TabPages)page.Enabled=!value||(internetOperation&&page==(publicRoomOperation?directoryPage:internetPage));
         foreach(var button in Descendants(setup).OfType<Button>())button.Enabled=!value;
@@ -1010,6 +956,7 @@ internal sealed partial class MainForm : Form
         UpdateInternetControls();
         RefreshUpdateControls();
         UpdateDirectoryControls();
+        UpdateGraphicsDraft();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -1087,7 +1034,8 @@ internal sealed partial class MainForm : Form
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
                 if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
-                form.LoadSnapshot(json.RootElement);form.ShowMain();form.Show();Application.DoEvents();
+                form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
+                form.TestLauncherResilience(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
@@ -1154,7 +1102,7 @@ internal sealed partial class MainForm : Form
                         ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","enhanced_aa"}.All(name=>choice.GetProperty(name).GetBoolean()))
                         throw new Exception("Recommended graphics profile failed");
                 }
-                form.LoadSnapshot(json.RootElement);
+                form.LoadSnapshot(json.RootElement,acceptGraphics:true);
                 form.renderer.SelectedIndex=2;
                 using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
                 if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
@@ -1259,14 +1207,15 @@ internal sealed partial class MainForm : Form
                 }
                 form.tabs.SelectedTab=form.graphicsPage;form.renderer.SelectedIndex=0;form.ApplyQualityPreset(false);
                 var graphicsScroll=form.graphicsPage.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
+                form.graphicsQualityDetails.Checked=true;form.graphicsEffectDetails.Checked=true;Application.DoEvents();
                 graphicsScroll.ScrollControlIntoView(form.qualities["ShaderQuality"]);Capture("graphics-quality");
                 graphicsScroll.ScrollControlIntoView(form.anisotropicFiltering);Capture("graphics-effects");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
                 graphicsScroll.ScrollControlIntoView(form.simple);Capture("graphics-detail");
                 Size normalSize=form.Size;form.automaticMenuHeight=false;form.Size=form.MinimumSize;
-                foreach(var page in new[]{form.homePage,form.internetPage,form.graphicsPage})
+                foreach(var page in new[]{form.homePage,form.lanPage,form.internetPage,form.directoryPage,form.graphicsPage})
                 {
-                    form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);
+                    form.tabs.SelectedTab=page;Capture("minimum-"+form.tabs.SelectedIndex);form.AssertPrimaryActionVisible(page);
                     if(page==form.homePage)
                     {
                         var viewport=(Panel)page.Controls[0];
@@ -1289,7 +1238,8 @@ internal sealed partial class MainForm : Form
                 {form.DrawToBitmap(updateImage,new Rectangle(0,0,form.Width,form.Height));updateImage.Save(Path.Combine(folder,language+"-update-found.png"));}
                 form.tabs.Visible=false;form.setup.Visible=true;form.source.Items.Add(new Item("C:\\Fixture\\Original","C:\\Fixture\\Original"));form.source.SelectedIndex=0;form.setupNotice.Text=Lang.T("found");Application.DoEvents();
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
-                form.Close();
+                form.DiscardGraphicsDraft();form.Close();
+                TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
                 passed=true,checks=new[]{"translation_keys","release_version_from_assembly","borderless_native_resolution","native_gpu_filter_disabled",
@@ -1297,7 +1247,10 @@ internal sealed partial class MainForm : Form
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
                     "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size","public_hosting_without_discord_and_optional_listing",
-                    "ingame_invitation_run_and_role_guards","invitation_clipboard_failure_and_private_public_separation"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "ingame_invitation_run_and_role_guards","invitation_clipboard_failure_and_private_public_separation",
+                    "graphics_draft_save_discard_cancel","hardware_refresh_preserves_draft","local_refresh_stale_and_obsolete_results",
+                    "language_and_cancel_io_error_boundaries","primary_actions_visible_at_minimum_size",
+                    "primary_actions_at_125_150_percent_geometry_and_text_scale"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

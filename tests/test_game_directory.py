@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock,patch
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -97,6 +98,8 @@ class BackendTests(unittest.TestCase):
     def setUp(self):
         self.backend=object.__new__(desktop_backend.Desktop)
         self.backend.package=ROOT/'work/directory-package-fixture';self.backend.state=ROOT/'work/directory-state-fixture'
+        self.backend.verification=lambda:nullcontext()
+        self.backend.package_manifest=lambda:desktop_backend.install.package_manifest(self.backend.package)
         self.backend.game=Mock(return_value=ROOT/'work/directory-game-fixture')
         self.backend.alternatives=Mock(return_value={'dxvk':CONTENT})
         self.backend.installed=Mock(return_value={'package_id':'current'})
@@ -104,6 +107,7 @@ class BackendTests(unittest.TestCase):
         self.backend.play=Mock(return_value={'exit_code':0})
         self.addCleanup(patch.stopall)
         patch.object(desktop_backend.install,'package_manifest',return_value={'game_directory':True}).start()
+        patch.object(desktop_backend.install,'package_metadata',return_value={'game_directory':True}).start()
         patch.object(directory,'configured',return_value=ORIGIN).start()
         patch.object(desktop_backend.Desktop,'network_id',return_value=CONTENT).start()
         patch.object(desktop_backend.graphics,'ensure_closed').start()

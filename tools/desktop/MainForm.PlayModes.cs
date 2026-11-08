@@ -22,7 +22,7 @@ internal sealed partial class MainForm
     private void AddMode(PlayMode mode,string title,string summary,string one,string two,string action,Func<Task> open)
     {
         var card=new PlayModeCard(mode){Font=Font,TabIndex=playModes.Count};Bind(card,title);
-        card.Click+=async (_,_)=>await Guard(open);
+        card.Click+=async (_,_)=>{if(mode==PlayMode.PublicInternet){if(!busy)await open();}else await Guard(open);};
         playModes.Add((card,summary,one,two,action));
         modeGrid.Controls.Add(card,((int)mode)%2,((int)mode)/2);
     }

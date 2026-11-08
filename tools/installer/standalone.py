@@ -110,11 +110,13 @@ def bind(root):
     backend = modules(root / 'App')
     root = backend.graphics._plain(root)
     desktop = backend.Desktop(root / 'App')
-    with desktop.lock():
+    with desktop.lock(), desktop.verification():
         if hasattr(desktop,'recover_publication'):desktop.recover_publication()
         value = descriptor(root)
         game = backend.graphics._plain(desktop.app / 'Instances' / value['instance'])
-        package_id = desktop.package_id(full=True)
+        # Ordinary already-bound snapshots are display-only. Full verification
+        # is retained below for adoption/relocation and at every game start.
+        package_id = desktop.package_id()
         raw = desktop.read(desktop.state / 'installation.json')
         previous=[]
         repair_overlay = False
@@ -181,6 +183,7 @@ def bind(root):
                         raise ValueError('Ungueltiger Standalone-Verlauf.')
                     backend.graphics._plain(prior/name)
                 previous.append((prior,files))
+        package_id = desktop.package_id(full=True)
         if package_id != value['package_id']:
             raise ValueError('Standalone-Spiel und Launcher-Paket passen nicht zusammen.')
         if not game.is_dir():

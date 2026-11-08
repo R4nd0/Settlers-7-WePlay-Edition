@@ -1,0 +1,250 @@
+{
+  "date": "2026-11-08",
+  "scope": "Launcher hardening implementation; private development package, not a new public release.",
+  "source_sha256": {
+    ".github/workflows/Linux.yml": "47021a64eac06b2d91f5372e4168037490ebe8b699bfb0f1e9ea0bd19b7d5ee3",
+    "tools/desktop/Backend.cs": "a7149bba83a37cf9d9b5c8ad9823b63896ed4e6f550492430c5d2dac6fdda9ed",
+    "tools/desktop/Program.cs": "a08e253855e945e94153f012144150a5644b3ec9cf5df791380ac2c7c146181e",
+    "tools/desktop/MainForm.Directory.cs": "1ddbe16346b538db7309b0cf824fed60e6375cefca688a451a25cc73649eab9b",
+    "tools/desktop/MainForm.PlayModes.cs": "93012212969df4a3abfebb527a35fb04a3a228847d9be6ee86e4834c7e3174c2",
+    "tools/desktop/MainForm.GraphicsDraft.cs": "334c24d93597aac040ee97fc11ed838c27fbb68c5b6c62561d963aea961383cb",
+    "tools/desktop/MainForm.Layout.cs": "544d44310f2ed7b6104b869b25b72d43cddf3cf8972cdc0c0d25d695abe03cf4",
+    "tools/desktop/MainForm.ResilienceTests.cs": "269a2570099c716214ab95c57ef6266a8efbb20af5b625e7b6a11a2e8028c2f6",
+    "tools/desktop/Strings.de.json": "5fd1c20d2340fb199d1934898eb9c1dad361fbdf4936b375da5bdf2c060c1b06",
+    "tools/desktop/Strings.en.json": "3ba2ee9434c90d0f87a7f3446cffd964098d258c0d256d33fcb04950da858c31",
+    "tools/installer/desktop_backend.py": "5cd981da4561b55138da414ddd640c15af2bc86c911a0232ea44690aabd724f7",
+    "tools/installer/desktop_settings.py": "a4de9997cc09dc5b1510bf2dd26575403a7cb7cc9f05001ce3631db080302065",
+    "tools/installer/graphics_profile.py": "a9bdb639c4bb4f357644d4abbf7fb63748eb3eea5320f172baa5f0bd77dd755c",
+    "tools/installer/install.py": "06364e9535adcc99b6a475f739f0fdb11f496db9a1ffaffde1a411fcf76ea1e9",
+    "tools/installer/standalone.py": "445dd9ef6729c60e43984bda3c3d9189712616ab9c79e7e21a222b8adeec7498",
+    "tools/installer/update_client.py": "9f2e9936e6605398048da597c7018b2f3d1031ef1e9079ba583173bff3d06c2f",
+    "tools/linux/build_package.py": "7c941711eab15778bbedec4e475e71b7c9859db0ac3c4beedd30903518bca0e3"
+  },
+  "source_regressions": [
+    {
+      "test": "test_update_client.py",
+      "cases": 19,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_update_resilience.py",
+      "cases": 10,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_update_backend.py",
+      "cases": 9,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_update_recovery.py",
+      "cases": 16,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_update_handoff_windows.py",
+      "cases": 5,
+      "skipped": 5,
+      "exit": 0
+    },
+    {
+      "test": "test_compiled_update_handoff.py",
+      "cases": 11,
+      "skipped": 11,
+      "exit": 0
+    },
+    {
+      "test": "test_network_content.py",
+      "cases": 18,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_internet_backend.py",
+      "cases": 10,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_public_startup.py",
+      "cases": 5,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_game_directory.py",
+      "cases": 11,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_discord_directory.py",
+      "cases": 11,
+      "skipped": 1,
+      "exit": 0
+    },
+    {
+      "test": "test_ingame_directory.py",
+      "cases": 7,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_launch_internet.py",
+      "cases": 10,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_public_directory.py",
+      "cases": 4,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_release_documents.py",
+      "cases": 2,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_package_location.py",
+      "cases": 3,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_standalone_preflight.py",
+      "cases": 4,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_linux_support.py",
+      "cases": 20,
+      "skipped": 8,
+      "exit": 0
+    },
+    {
+      "test": "test_linux_replays.py",
+      "cases": 5,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_desktop_backend.py",
+      "cases": 49,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_graphics_profile.py",
+      "cases": 28,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_graphics_choice.py",
+      "cases": 39,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_graphics_distribution.py",
+      "cases": 3,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_installer.py",
+      "cases": 34,
+      "skipped": 0,
+      "exit": 0
+    },
+    {
+      "test": "test_standalone.py",
+      "cases": 20,
+      "skipped": 0,
+      "exit": 0
+    }
+  ],
+  "source_cases": 353,
+  "expected_skips": 25,
+  "packaged_resilience": {
+    "passed": true,
+    "cases": 24,
+    "skipped": 0,
+    "actual_bundled_isolated_python": true,
+    "implementation_paths_verified": true,
+    "synthetic_profiles_only": true,
+    "game_started": false
+  },
+  "windows_launcher_publish_passed": true,
+  "ui_checks": 31,
+  "private_pipe_roundtrip": true,
+  "ui_primary_actions_minimum_size_and_occlusion_checked": true,
+  "ui_125_150_percent": "Deterministic geometry/text scaling; no physical multi-monitor DPI qualification.",
+  "backend_real_child_checks": {
+    "windows": 60,
+    "wsl": 60,
+    "final_windows_tests_use_readiness_and_startup_margin": true,
+    "covered": [
+      "hung short request",
+      "cooperative cancellation",
+      "cancel-write failure",
+      "malformed/oversized frames",
+      "protected commit/live-game states",
+      "direct child only, descendant preserved"
+    ]
+  },
+  "updater_resilience_windows_and_wsl": 10,
+  "compiled_signed_update_validation": {
+    "passed": true,
+    "installer_executed": false,
+    "existing_public_rc323_manifest_and_installer": true
+  },
+  "fresh_package": {
+    "files": 347,
+    "source_tools_equal": true,
+    "new_settings_helper_included": true
+  },
+  "bundled_listing": {
+    "passed": true,
+    "actual_bundled_isolated_python": true,
+    "actual_packaged_backend": true,
+    "iterations": 3,
+    "digest_calls": 0,
+    "hashed_bytes": 0,
+    "seconds": [
+      0.003017399983946234,
+      0.00245349999750033,
+      0.0024061000149231404
+    ],
+    "scope": "Read-only listing with HTTP/configured-origin and game identity fixtures; actual packaged metadata parser and backend. No end-to-end Internet/SSD speedup claim."
+  },
+  "linux": {
+    "fresh_package_built": true,
+    "source_installer_tests": 34,
+    "path_runtime_boundary_tests": 20,
+    "packaged_cli_help_exit": 0,
+    "game_started": false
+  },
+  "retained_guards": [
+    "Update signatures and highwater/antirollback",
+    "Conflicting signed sequence rejection",
+    "Full integrity before execution/admission/mutation",
+    "Native byte/hash/ABI guards",
+    "Ownership and reparse-point guards",
+    "Foreign-edit preservation during recovery"
+  ],
+  "limitations": [
+    "Only directory-list and update-check permit verified direct-child termination; mutating/critical/live-game operations retain cooperative cancellation and warnings.",
+    "Legacy update jobs without a verifiable ownership receipt are retained.",
+    "Default opt-in Windows installer-handoff suites were skipped; compiled validation-only signature/installer check passed separately.",
+    "No native game, separate-PC multiplayer, physical DPI or FPS qualification."
+  ]
+}

@@ -218,7 +218,7 @@ class NetworkContentTests(unittest.TestCase):
         rows=[{'id':'new','content_id':content.network_id(value)},
               {'id':'modern','content_id':content.network_id(self.modern(value['files']))},
               {'id':'legacy','content_id':value['content_id']}]
-        with patch.object(backend.install,'package_manifest',return_value={'game_directory':True}), \
+        with patch.object(backend.install,'package_metadata',return_value={'game_directory':True}), \
                 patch.object(game_directory,'configured',return_value='https://fixture.invalid'), \
                 patch.object(game_directory,'listing',return_value=rows):
             result=desktop.directory_list()

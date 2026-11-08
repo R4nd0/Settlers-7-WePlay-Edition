@@ -92,6 +92,10 @@ class PublicStartupTests(unittest.TestCase):
                 patcher(public_directory,'PublicReporter',side_effect=reporter)
                 desktop=object.__new__(desktop_backend.Desktop)
                 desktop.app=root;desktop.package=root/'Package';desktop.state=root/'State'
+                # This orchestrator fixture intentionally has no real package;
+                # integrity/operation-scope tests exercise constructed Desktops.
+                desktop.verification=lambda:nullcontext()
+                desktop.package_manifest=lambda:desktop_backend.install.package_manifest(desktop.package)
                 for name,value in {'game':root,'installed':{'package_id':'fixture','renderer_policy':'native'},
                     'package_id':'fixture','probe':{},'renderer':'native','default_choice':{}}.items():setattr(desktop,name,Mock(return_value=value))
                 for name in ('progress','emit','validate_lan','align_internet'):setattr(desktop,name,Mock())

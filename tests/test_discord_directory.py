@@ -128,6 +128,7 @@ class BackendPairingTests(unittest.TestCase):
         from types import SimpleNamespace
         state=ROOT/'work/fictional-state'
         desktop=SimpleNamespace(package=ROOT/'work/fictional-package',state=state,write=Mock())
+        desktop.package_manifest=lambda:desktop_backend.install.package_manifest(desktop.package)
         channel=Mock();channel.read.return_value=connect_code(dict(v=1,origin=ORIGIN,key=KEY))
         manager=Mock(__enter__=Mock(return_value=channel),__exit__=Mock(return_value=False))
         with patch.object(desktop_backend.install,'package_manifest',return_value={'discord_directory':True}), \
@@ -141,6 +142,7 @@ class BackendPairingTests(unittest.TestCase):
     def test_failed_validation_never_saves_grant_and_legacy_packages_never_gain_capability(self):
         from types import SimpleNamespace
         desktop=SimpleNamespace(package=ROOT/'work/fictional-package',state=ROOT/'work/fictional-state',write=Mock())
+        desktop.package_manifest=lambda:desktop_backend.install.package_manifest(desktop.package)
         channel=Mock();channel.read.return_value=connect_code(dict(v=1,origin=ORIGIN,key=KEY))
         manager=Mock(__enter__=Mock(return_value=channel),__exit__=Mock(return_value=False))
         with patch.object(desktop_backend.install,'package_manifest',return_value={'discord_directory':True}), \

@@ -54,7 +54,7 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
     for path in (output / 'Tools').rglob('*.py'):
         original = ROOT / 'tools' / path.relative_to(output / 'Tools')
         if original.is_file(): shutil.copyfile(original, path)
-    for name in ('portable_lock.py', 'host_runtime.py'):
+    for name in ('portable_lock.py', 'host_runtime.py', 'desktop_settings.py'):
         shutil.copyfile(ROOT / 'tools/installer' / name, output / 'Tools/installer' / name)
     for name in ('canonical_deflate.py','compression-runtime.json'):
         shutil.copyfile(ROOT/'tools/lan'/name,output/'Tools/lan'/name)

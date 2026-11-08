@@ -23,6 +23,12 @@ RELEASES='https://api.github.com/repos/'+REPOSITORY+'/releases?per_page=20'
 MANIFEST='weplay-update.json'
 MAX_SETUP=768*1024*1024
 MAX_MANIFEST=49152
+JOB_FORMAT='weplay-update-job-v1'
+MAX_JOB_AGE=7*24*60*60
+MAX_CACHED_JOBS=2
+MAX_CACHED_BYTES=256*1024*1024
+JOB_FILES={'Setup.exe','Setup.partial','WePlay.UpdateHelper.exe','update_handoff.ps1',
+           'update-key.json','weplay-update.json','handoff.json','handoff-active.json'}
 KEY=Path(__file__).with_name('update-key.json')
 HEX=re.compile('[0-9a-f]{64}')
 TAG=re.compile('[A-Za-z0-9][A-Za-z0-9._-]{0,79}')
@@ -186,8 +192,109 @@ def cache_lock(updates):
             try:yield
             finally:fcntl.flock(stream,fcntl.LOCK_UN)
 
+def process_running(pid):
+    """Conservative liveness check for retention only; never terminates a PID."""
+    if type(pid) is not int or not 1<=pid<=0xffffffff:return True
+    if os.name!='nt':
+        try:os.kill(pid,0);return True
+        except ProcessLookupError:return False
+        except OSError:return True
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD];kernel.OpenProcess.restype=wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes=[wintypes.HANDLE,wintypes.DWORD];kernel.WaitForSingleObject.restype=wintypes.DWORD
+    kernel.CloseHandle.argtypes=[wintypes.HANDLE];kernel.CloseHandle.restype=wintypes.BOOL
+    handle=kernel.OpenProcess(0x100000,False,pid)
+    if not handle:return ctypes.get_last_error() not in (87,1168)
+    try:return kernel.WaitForSingleObject(handle,0)!=0
+    finally:kernel.CloseHandle(handle)
+
+
+def job_inventory(job):
+    """Only flat, known regular files are eligible; unknown contents are preserved."""
+    job=compatibility.plain(job)
+    entries=list(job.iterdir())
+    if any(p.name not in JOB_FILES|{'job-owner.json','ready.json'} for p in entries):return None
+    result={}
+    for path in entries:
+        path=compatibility.plain(path)
+        if not path.is_file():return None
+        if path.name not in ('job-owner.json','ready.json'):
+            result[path.name]=compatibility.digest(path)
+    return result
+
+
+def owned_job(app,job,*,require_inventory=True):
+    """A local ownership receipt is not execution authority or a signed manifest."""
+    app,updates=paths(app);job=compatibility.plain(job)
+    if job.parent!=updates or not re.fullmatch('[0-9a-f]{32}',job.name):return None
+    marker=compatibility.plain(job/'job-owner.json')
+    if not marker.is_file():return None
+    value=decode(marker.read_bytes(),8192)
+    if (not isinstance(value,dict) or set(value)!={'format','app','job','created','creator_pid','files'}
+            or value['format']!=JOB_FORMAT or value['app']!=hashlib.sha256(str(app).casefold().encode()).hexdigest()
+            or value['job']!=job.name or type(value['created']) is not int or value['created']<1
+            or type(value['creator_pid']) is not int or not 1<=value['creator_pid']<=0xffffffff
+            or not isinstance(value['files'],dict) or not set(value['files'])<=JOB_FILES
+            or any(not isinstance(x,str) or not HEX.fullmatch(x) for x in value['files'].values())):return None
+    if require_inventory and job_inventory(job)!=value['files']:return None
+    return value
+
+
+def remove_owned_job(app,job,*,fresh=False):
+    value=owned_job(app,job,require_inventory=not fresh)
+    if value is None:return False
+    inventory=job_inventory(job)
+    if inventory is None:return False
+    for name in inventory:compatibility.plain(job/name).unlink()
+    ready=compatibility.plain(job/'ready.json')
+    if ready.exists():ready.unlink()
+    compatibility.plain(job/'job-owner.json').unlink()
+    compatibility.plain(job).rmdir()
+    return True
+
+
+def reclaim_jobs(app,*,now=None,alive=process_running,max_age=MAX_JOB_AGE,
+                 max_jobs=MAX_CACHED_JOBS,max_bytes=MAX_CACHED_BYTES):
+    app,updates=paths(app);now=int(time.time()) if now is None else now
+    rows=[]
+    with cache_lock(updates):
+        for path in updates.iterdir():
+            if not re.fullmatch('[0-9a-f]{32}',path.name):continue
+            try:
+                job=compatibility.plain(path)
+                if not job.is_dir():continue
+                value=owned_job(app,job,require_inventory=False)
+                if value is None or value['created']>now+300 or alive(value['creator_pid']):continue
+                active=compatibility.plain(job/'handoff-active.json')
+                if active.exists():
+                    record=decode(active.read_bytes(),4096)
+                    if (not isinstance(record,dict) or set(record)!={'format','pid'}
+                            or record['format']!='weplay-update-active-v1' or type(record['pid']) is not int
+                            or alive(record['pid'])):continue
+                ready=compatibility.plain(job/'ready.json')
+                if ready.exists():
+                    record=decode(ready.read_bytes(),4096)
+                    if (not isinstance(record,dict) or record.get('format')!='weplay-update-ready-v1'
+                            or type(record.get('helper_pid')) is not int or alive(record['helper_pid'])):continue
+                entries=list(job.iterdir())
+                if {p.name for p in entries}!={'job-owner.json',*value['files'],*(['ready.json'] if ready.exists() else [])}:continue
+                if any(not compatibility.plain(p).is_file() for p in entries):continue
+                size=sum(compatibility.plain(job/name).stat().st_size for name in value['files'])
+                rows.append((value['created'],job,size))
+            except (OSError,ValueError):continue
+        rows.sort(key=lambda row:row[0],reverse=True)
+        kept=0;total=0;removed=0
+        for created,job,size in rows:
+            if now-created>max_age or kept>=max_jobs or total+size>max_bytes:
+                try:removed+=remove_owned_job(app,job)
+                except (OSError,ValueError):pass
+            else:kept+=1;total+=size
+    return removed
+
+
 def check(app,progress=None,*,fetch=transfer):
     app,updates=paths(app);local=current(app)
+    reclaim_jobs(app)
     base={'available':False,'current_version':local['version'],'version':None,'sequence':None,'release_url':None,'notes':'','reason':'no_signed_release'}
     if progress:progress('update_check',0,0)
     releases=decode(fetch(RELEASES,1024*1024),1024*1024)
@@ -205,22 +312,31 @@ def check(app,progress=None,*,fetch=transfer):
     # A repository can retain months of signed releases; inspect the newest
     # bounded subset rather than disabling updates once eight exist.
     candidates=candidates[:8]
-    newest=None;raw_newest=None
+    newest=None;raw_newest=None;transport_failures=0;sequences={}
     for tag,url in candidates:
-        raw=fetch(url,MAX_MANIFEST);value=verify(raw)
+        try:raw=fetch(url,MAX_MANIFEST)
+        except UpdateError as error:
+            if error.code!='update_download_failed':raise
+            transport_failures+=1;continue
+        value=verify(raw)
         if value['tag']!=tag:raise UpdateError('update_invalid')
+        encoded=canonical(value)
+        if sequences.setdefault(value['sequence'],encoded)!=encoded:raise UpdateError('update_invalid')
         if newest is None or value['sequence']>newest['sequence']:newest,raw_newest=value,raw
         elif value['sequence']==newest['sequence'] and canonical(value)!=canonical(newest):raise UpdateError('update_invalid')
-    if newest is None:return base
+    if newest is None:
+        if transport_failures:raise UpdateError('update_download_failed')
+        return base
     with cache_lock(updates):
         seen=highwater(updates);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
         if newest['sequence']<seen['sequence'] or (newest['sequence']==seen['sequence'] and fingerprint!=seen['payload_sha256']):raise UpdateError('update_downgrade')
         atomic(updates/'highest.json',{'sequence':newest['sequence'],'payload_sha256':fingerprint})
-        if newest['sequence']<=local['update_sequence']:return {**base,'reason':'current'}
+        if newest['sequence']<=local['update_sequence']:return {**base,'reason':'current',**({'incomplete':True} if transport_failures else {})}
         # Commit a signed envelope only after signature, scope and replay checks.
         atomic(updates/'verified-envelope.json',decode(raw_newest))
     return {**base,'available':True,'version':newest['version'],'sequence':newest['sequence'],
-            'release_url':'https://github.com/'+REPOSITORY+'/releases/tag/'+newest['tag'],'notes':newest['notes'],'reason':'available'}
+            'release_url':'https://github.com/'+REPOSITORY+'/releases/tag/'+newest['tag'],'notes':newest['notes'],'reason':'available',
+            **({'incomplete':True} if transport_failures else {})}
 
 def process_info(pid):
     if os.name!='nt' or type(pid) is not int or not 1<=pid<=0xffffffff:raise UpdateError('update_parent_invalid')
@@ -254,6 +370,7 @@ def handoff_source(app):
 
 def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequence=None,fetch=transfer,process_reader=process_info):
     app,updates=paths(app);local=current(app)
+    reclaim_jobs(app)
     if parent_pid!=os.getppid() or type(parent_started_ticks) is not int:raise UpdateError('update_parent_invalid')
     parent=process_reader(parent_pid)
     if parent['path'].casefold()!=str(app/'S7Launcher.exe').casefold() or parent['started_ticks']!=parent_started_ticks:raise UpdateError('update_parent_invalid')
@@ -268,6 +385,9 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
     job=compatibility.plain(updates/uuid.uuid4().hex);job.mkdir()
     target=job/'Setup.exe';partial=job/'Setup.partial'
     try:
+        marker={'format':JOB_FORMAT,'app':hashlib.sha256(str(app).casefold().encode()).hexdigest(),
+                'job':job.name,'created':int(time.time()),'creator_pid':os.getpid(),'files':{}}
+        atomic(job/'job-owner.json',marker)
         size,digest=fetch(value['setup']['url'],value['setup']['size'],destination=partial,expected_size=value['setup']['size'],progress=progress)
         if size!=value['setup']['size'] or digest!=value['setup']['sha256'] or compatibility.digest(partial)!=digest:raise UpdateError('update_hash_invalid')
         os.replace(partial,target)
@@ -276,10 +396,14 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
         atomic(job/'weplay-update.json',decode(envelope))
         record={'format':'weplay-update-handoff-v1','app':str(app),'parent':parent,'backend':backend,'version':value['version'],'sequence':value['sequence']}
         atomic(job/'handoff.json',record)
+        marker['files']=job_inventory(job)
+        atomic(job/'job-owner.json',marker)
         return {'version':value['version'],'sequence':value['sequence'],'job':str(job)}
     except BaseException:
-        # Only this newly-created partial download is ever reclaimed here.
-        compatibility.plain(partial).unlink(missing_ok=True)
+        # Preserve unexpected/linked contents and the original preparation error.
+        try:
+            if not remove_owned_job(app,job,fresh=True):compatibility.plain(job).rmdir()
+        except (OSError,ValueError):pass
         raise
 
 def start_handoff(app,job):
@@ -298,6 +422,12 @@ def start_handoff(app,job):
          '-NoProfile','-NonInteractive','-File',str(job/'update_handoff.ps1'),'-Job',str(job/'handoff.json')])
     try:child=subprocess.Popen(command,cwd=job,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),close_fds=True)
     except OSError:raise UpdateError('update_handoff_failed') from None
+    if child.poll() is not None:raise UpdateError('update_handoff_failed')
+    owner=owned_job(app,job)
+    if owner is not None:
+        atomic(job/'handoff-active.json',{'format':'weplay-update-active-v1','pid':child.pid})
+        owner['files']=job_inventory(job)
+        atomic(job/'job-owner.json',owner)
     deadline=time.monotonic()+90
     while time.monotonic()<deadline:
         if child.poll() is not None:raise UpdateError('update_handoff_failed')

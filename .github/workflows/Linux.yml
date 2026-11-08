@@ -9,6 +9,7 @@ on:
       - 'Source/**'
       - 'tools/linux/**'
       - 'tools/installer/**'
+      - 'tools/desktop/**'
       - 'tools/lan/**'
       - 'tools/easytier/**'
       - 'tools/discord-worker/**'
@@ -22,6 +23,44 @@ permissions:
   contents: read
 
 jobs:
+  windows-launcher:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Launcher persistence, integrity and update regressions
+        shell: pwsh
+        run: |
+          $scratch = Join-Path $PWD 'work/ci-launcher-tests'
+          New-Item -ItemType Directory -Force $scratch | Out-Null
+          $env:S7_TEST_TEMP_ROOT = $scratch
+          $env:TEMP = $scratch
+          $env:TMP = $scratch
+          foreach ($test in @('test_desktop_backend.py','test_update_client.py',
+                              'test_desktop_resilience.py',
+                              'test_update_resilience.py',
+                              'test_update_backend.py','test_update_recovery.py',
+                              'test_graphics_profile.py','test_graphics_choice.py',
+                              'test_standalone.py','test_network_content.py')) {
+            python -B -m unittest discover -s tests -p $test
+            if ($LASTEXITCODE -ne 0) { throw "$test failed" }
+          }
+      - name: Build launcher and exercise UI and owned child lifetimes
+        shell: pwsh
+        run: |
+          dotnet publish tools/desktop/S7Launcher.csproj -c Release -r win-x64 --self-contained false `
+            "-p:BaseIntermediateOutputPath=$PWD/work/ci-launcher-obj/" `
+            "-p:BaseOutputPath=$PWD/work/ci-launcher-bin/" -o work/ci-launcher
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed' }
+          $env:S7_TEST_PRIVATE_PROBE = Join-Path $PWD 'tests/private_channel_probe.py'
+          $env:S7_TEST_PYTHON = (Get-Command python).Source
+          dotnet work/ci-launcher/S7Launcher.dll --self-test work/ci-launcher-selftest
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher UI/process regression failed' }
+          dotnet run --project tests/LauncherBackendTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher owned-child lifecycle failed' }
   windows-native:
     runs-on: windows-latest
     steps:

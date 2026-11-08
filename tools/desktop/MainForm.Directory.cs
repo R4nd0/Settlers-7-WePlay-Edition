@@ -16,6 +16,11 @@ internal sealed partial class MainForm
     private bool publicRoomOperation;
     private readonly Label directoryProgress=new() { AutoSize=true,MaximumSize=new Size(850,0) };
     private Button directoryHost=null!,directoryEnd=null!;
+    private bool directoryRefreshing;
+    private long directoryGeneration;
+    private readonly CancellationTokenSource backgroundLifetime=new();
+    private CancellationTokenSource? directoryRequest;
+    private void InvalidateDirectoryRefresh(){directoryGeneration++;if(directoryRows.Count>0)directoryLoadFailed=true;directoryRequest?.Cancel();}
     private void QueueDirectorySwitch(JsonElement result)
     {
         if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String)
@@ -31,10 +36,10 @@ internal sealed partial class MainForm
         directoryGames.AccessibleName=Lang.T("directoryTitle");
         directoryGames.Columns.Add("",330);directoryGames.Columns.Add("",155);directoryGames.Columns.Add("",110);directoryGames.Columns.Add("",165);
         directoryGames.SelectedIndexChanged+=(_,_)=>UpdateDirectoryControls();
-        directoryRefresh=Button("directoryRefresh",RefreshDirectory);
+        directoryRefresh=Button("directoryRefresh",()=>RefreshDirectoryCore(false),exclusive:false);
         directoryJoin=Button("directoryJoin",JoinDirectory,true);
         directoryConnect=Button("directoryConnect",ConnectDirectory);
-        Add(stack,directoryGames);Add(stack,Buttons(directoryRefresh,directoryJoin,directoryConnect));Add(stack,directoryNotice);
+        Add(stack,directoryGames);Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
         directoryHost=Button("directoryHost",async()=>{
             bool publish=publicHostingAvailable?discordPublish.Checked:true;
@@ -42,13 +47,12 @@ internal sealed partial class MainForm
             internetPlayer.Text=directoryPlayer.Text;internetMode.SelectedIndex=0;internetHostChoice.Checked=true;
             await PlayInternet(true,publish:publish,publicLobby:true);
         });
-        Add(stack,Buttons(directoryHost));
         Add(stack,directoryProgress);
         directoryEnd=Button("internetLeave",()=>{
-            if(internetOperation&&!gameRunning){Backend.Cancel();cancelRequested=true;UpdateDirectoryControls();}
+            if(internetOperation&&!gameRunning)RequestCancellation();
             return Task.CompletedTask;
         });
-        Add(stack,Buttons(directoryEnd));
+        DockActions(page,Buttons(directoryJoin,directoryHost,directoryEnd,directoryRefresh,directoryConnect));
         var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
         Bind(discordSection,"directoryPublisherTitle");var discord=Stack(discordSection);discord.Font=Font;
         Add(discord,Label("directoryPublisherInfo"));Add(discord,discordNotice);
@@ -64,12 +68,12 @@ internal sealed partial class MainForm
         async Task RefreshVisible()
         {
             if(testing||busy||!Visible||WindowState==FormWindowState.Minimized||tabs.SelectedTab!=directoryPage||!directoryAvailable)return;
-            await Guard(RefreshDirectory,showErrors:false);
+            await RefreshDirectoryCore(true);
         }
         directoryTimer.Tick+=async(_,_)=>await RefreshVisible();
         tabs.SelectedIndexChanged+=async(_,_)=>await RefreshVisible();
         Shown+=(_,_)=>{if(!testing)directoryTimer.Start();};
-        FormClosed+=(_,_)=>directoryTimer.Dispose();
+        FormClosed+=(_,_)=>{directoryGeneration++;backgroundLifetime.Cancel();directoryTimer.Dispose();};
         return page;
     }
 
@@ -81,16 +85,17 @@ internal sealed partial class MainForm
     private void UpdateDirectoryControls()
     {
         if(directoryRefresh==null)return;
-        directoryRefresh.Enabled=!busy&&directoryAvailable&&directoryConnected;
+        directoryRefresh.Enabled=!busy&&!directoryRefreshing&&directoryAvailable&&directoryConnected;
         directoryConnect.Enabled=!busy&&directoryAvailable;
         directoryPlayer.Enabled=!busy;
         var selected=SelectedDirectoryGame();
-        directoryJoin.Enabled=!busy&&directoryAvailable&&directoryConnected&&selected.HasValue&&DirectoryJoinable(selected.Value);
+        directoryJoin.Enabled=!busy&&!directoryRefreshing&&!directoryLoadFailed&&directoryAvailable&&directoryConnected&&selected.HasValue&&DirectoryJoinable(selected.Value);
         string[] headings=["directoryGame","directoryState","directoryPlayers","directoryVersion"];
         for(int i=0;i<headings.Length;i++)directoryGames.Columns[i].Text=Lang.T(headings[i]);
-        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":directoryLoadFailed?"directory_unavailable":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
+        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":directoryRefreshing?"directoryRefreshing":directoryLoadFailed?"directoryStale":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
         if(directoryHost!=null)directoryHost.Enabled=!busy&&directoryAvailable&&internetAvailable&&directoryConnected&&(publicHostingAvailable||discordConnected);
         bool active=publicRoomOperation&&internetOperation;
+        if(directoryHost!=null)directoryHost.Visible=!active;
         directoryProgress.Visible=active;
         directoryProgress.Text=Lang.T(cancelRequested?"cancelRequested":gameRunning?"directoryPlaying":
             internetStage=="connecting"?"directoryConnecting":internetStage=="hosting"?"directoryHosting":internetCreating?"directoryHostReady":"directoryGuestReady");
@@ -99,28 +104,58 @@ internal sealed partial class MainForm
 
     private void ShowDirectory(JsonElement value,string? select=null)
     {
-        directoryConnected=value.GetProperty("connected").GetBoolean();directoryRows.Clear();directoryGames.Items.Clear();
+        bool connected=value.GetProperty("connected").GetBoolean();
+        var rows=new List<JsonElement>();var items=new List<ListViewItem>();
+        string? top=directoryGames.TopItem is ListViewItem previous&&previous.Index<directoryRows.Count?directoryRows[previous.Index].GetProperty("id").GetString():null;
         if(value.TryGetProperty("games",out var games))foreach(var row in games.EnumerateArray())
         {
-            directoryRows.Add(row.Clone());
+            rows.Add(row.Clone());
             string state=!row.GetProperty("compatible").GetBoolean()?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted":row.GetProperty("free_slots").GetInt32()==0?"directoryFull":"directoryOpen";
             var item=new ListViewItem([row.GetProperty("title").GetString()!,Lang.T(state),row.GetProperty("players")+" / "+row.GetProperty("capacity"),row.GetProperty("version").GetString()!]);
-            directoryGames.Items.Add(item);
+            items.Add(item);
             if(row.GetProperty("id").GetString()==select)item.Selected=true;
         }
+        directoryGames.BeginUpdate();
+        try
+        {
+            directoryConnected=connected;directoryRows.Clear();directoryRows.AddRange(rows);
+            directoryGames.Items.Clear();directoryGames.Items.AddRange(items.ToArray());
+            int topIndex=rows.FindIndex(row=>row.GetProperty("id").GetString()==top);
+            if(topIndex>=0)directoryGames.TopItem=directoryGames.Items[topIndex];
+            directoryLoadFailed=false;
+        }
+        finally{directoryGames.EndUpdate();}
         UpdateDirectoryControls();
     }
 
-    private async Task RefreshDirectory()
+    private Task RefreshDirectory()=>RefreshDirectoryCore(false);
+    private async Task RefreshDirectoryCore(bool automatic,Func<CancellationToken,Task<JsonElement>>? fetch=null)
     {
-        if(!directoryAvailable){UpdateDirectoryControls();return;}
+        if(IsDisposed||Disposing||directoryRefreshing||busy||!directoryAvailable)return;
         var selected=SelectedDirectoryGame();
         string? identifier=selected.HasValue?selected.Value.GetProperty("id").GetString():null;
-        // Clear stale selectable rows before any network request can fail.
-        directoryRows.Clear();directoryGames.Items.Clear();
-        try{ShowDirectory(await Backend.Run("directory-list",new {},Receive),identifier);directoryLoadFailed=false;UpdateDirectoryControls();}
-        catch{directoryLoadFailed=true;UpdateDirectoryControls();throw;}
+        using var request=CancellationTokenSource.CreateLinkedTokenSource(backgroundLifetime.Token);
+        directoryRequest=request;long generation=++directoryGeneration;directoryRefreshing=true;UpdateDirectoryControls();
+        try
+        {
+            var value=await (fetch!=null?fetch(request.Token):Backend.Run("directory-list",new {},_=>{},trackOperation:false,cancellationToken:request.Token));
+            if(!CanApplyDirectoryRefresh(generation))return;
+            ShowDirectory(value,identifier);
+        }
+        catch(OperationCanceledException)when(request.IsCancellationRequested){}
+        catch(Exception error)
+        {
+            if(!CanApplyDirectoryRefresh(generation))return;
+            directoryLoadFailed=true;
+            if(!automatic)ShowError(error);
+        }
+        finally
+        {
+            if(ReferenceEquals(directoryRequest,request)){directoryRequest=null;directoryRefreshing=false;}
+            if(!IsDisposed&&!Disposing)UpdateDirectoryControls();
+        }
     }
+    private bool CanApplyDirectoryRefresh(long generation)=>!IsDisposed&&!Disposing&&!busy&&!backgroundLifetime.IsCancellationRequested&&generation==directoryGeneration;
 
     private async Task ConnectDirectory()
     {
@@ -143,12 +178,13 @@ internal sealed partial class MainForm
     private async Task JoinDirectory()
     {
         var selected=SelectedDirectoryGame();
-        if(!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
+        if(directoryRefreshing||directoryLoadFailed||!directoryConnected||!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
         await JoinDirectoryGame(selected.Value.GetProperty("id").GetString()!);
     }
 
     private async Task JoinDirectoryGame(string id)
     {
+        if(!await ResolveGraphicsDraft())return;
         player.Text=directoryPlayer.Text;string name=ValidName();internetPlayer.Text=name;
         if(!ConfirmInternetConnection(publicLobby:true))return;
         publicRoomOperation=true;

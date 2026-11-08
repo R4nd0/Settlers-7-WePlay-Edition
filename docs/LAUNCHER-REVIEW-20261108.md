@@ -5,6 +5,8 @@ Reviewed on 2026-11-08 against commit
 This is a review, not a set of implemented fixes. Published release assets and
 product code were not changed.
 
+The subsequent implementation is documented in [Launcher hardening](LAUNCHER-HARDENING.md).
+
 Three parallel reviews covered performance, stability/update handling and UI.
 Findings were checked against current source bytes. The TokenSave index was
 approximately 97 minutes old and was used for navigation, not as authoritative
@@ -20,12 +22,12 @@ and from a measured performance result below.
 
 ### F01 - P1: no bounded recovery from a hung backend
 
-[Backend.Run](../tools/desktop/Program.cs#L107) awaits `ReadLineAsync()` and
+[Backend.Run](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L107) awaits `ReadLineAsync()` and
 `WaitForExitAsync()` without a deadline or cancellation token. Its `Process`
-disposal does not terminate the child. [Cancel](../tools/desktop/Program.cs#L153)
+disposal does not terminate the child. [Cancel](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L153)
 only writes a cancellation file; the backend checks it at cooperative
-[progress checkpoints](../tools/installer/desktop_backend.py#L75).
-[FormClosing](../tools/desktop/Program.cs#L328) refuses to close while busy.
+[progress checkpoints](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L75).
+[FormClosing](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L328) refuses to close while busy.
 
 If an operation hangs in file I/O, a driver or another helper outside those
 checkpoints, the UI has no effective bounded recovery route. This is a
@@ -45,9 +47,9 @@ transaction recovery data and leave no unintended child processes.
 ### F02 - P1/P2: full package hashing in repeated UI paths
 
 The public lobby timer runs every 15 seconds through
-[Guard](../tools/desktop/MainForm.Directory.cs#L64).
-[SetBusy](../tools/desktop/Program.cs#L998) disables navigation and the other
-pages. [directory_list](../tools/installer/desktop_backend.py#L701) calls full
+[Guard](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/MainForm.Directory.cs#L64).
+[SetBusy](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L998) disables navigation and the other
+pages. [directory_list](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L701) calls full
 `install.package_manifest()` on each refresh. The list is also cleared before
 the request succeeds, causing visible empty/repopulate cycles.
 
@@ -71,16 +73,16 @@ again on subsequent ticks.
 The same design creates additional repeated work:
 
 - Saving a small graphics change calls
-  [probe](../tools/installer/desktop_backend.py#L548), whose manifest check is at
-  [line 181](../tools/installer/desktop_backend.py#L181), and then
-  [record_ownership](../tools/installer/desktop_backend.py#L525), which checks it
+  [probe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L548), whose manifest check is at
+  [line 181](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L181), and then
+  [record_ownership](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L525), which checks it
   again at line 529. Those two package scans alone account for approximately
   355.80 MiB with this package, before other reads. Complete save latency was
   not measured.
 - A portable installation's
-  [snapshot dispatch](../tools/installer/desktop_backend.py#L1010) invokes
+  [snapshot dispatch](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L1010) invokes
   `standalone.bind()` repeatedly. Its
-  [full package scan](../tools/installer/standalone.py#L117) occurs before the
+  [full package scan](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/standalone.py#L117) occurs before the
   already-bound fast path. This applies at startup and after game sessions.
 
 Use a local `directoryRefreshing` state and a read-only listing path that does
@@ -98,11 +100,11 @@ ownership regressions must continue to fail closed.
 
 ### F03 - P2: automatic cleanup delays the usable startup screen
 
-[Initialise](../tools/desktop/Program.cs#L574) awaits `cleanup-automatic` before
+[Initialise](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L574) awaits `cleanup-automatic` before
 `ShowMain()`. When previous copies exist,
-[retire_old_copies](../tools/installer/desktop_backend.py#L917) verifies the
+[retire_old_copies](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L917) verifies the
 package and the entire active game. Then
-[cleanup_instance](../tools/installer/desktop_backend.py#L905) hashes each owned
+[cleanup_instance](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L905) hashes each owned
 old file before deleting it.
 
 The amount of I/O can include several game-copy sizes after updates. This is a
@@ -115,7 +117,7 @@ basic launcher navigation, and cleanup must never race an active game/update.
 
 ### F04 - P2: saving graphics is not a single recoverable transaction
 
-[save_settings](../tools/installer/desktop_backend.py#L541) switches the renderer,
+[save_settings](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L541) switches the renderer,
 then writes choice, quality and player settings, followed by installation
 policy and ownership. Individual atomic writes and the session lock do not
 make this multi-file operation atomic.
@@ -136,7 +138,7 @@ user files preserved.
 
 ### F05 - P2: an older release failure hides a valid new update
 
-[update_client.check](../tools/installer/update_client.py#L209) fetches and
+[update_client.check](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/update_client.py#L209) fetches and
 verifies up to eight candidate manifests in one unisolated loop. Any later
 failure aborts the check before caching an already verified newest candidate.
 
@@ -155,9 +157,9 @@ still fail their security checks.
 
 ### F06 - P2: completed update downloads accumulate
 
-[prepare](../tools/installer/update_client.py#L268) creates a new UUID job each
+[prepare](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/update_client.py#L268) creates a new UUID job each
 time. After `Setup.partial` becomes `Setup.exe`, its
-[exception cleanup](../tools/installer/update_client.py#L280) still removes only
+[exception cleanup](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/update_client.py#L280) still removes only
 the partial file. No completed-job reaper was found in the reviewed update
 client, helper or setup path.
 
@@ -175,8 +177,8 @@ cleanup, active jobs, unknown files and symlink/reparse-point substitution.
 
 ### F07 - P2: some UI file writes bypass the normal error boundary
 
-The [language change handler](../tools/desktop/Program.cs#L324) calls
-[Lang.Set](../tools/desktop/Program.cs#L82) directly; its state writes can throw
+The [language change handler](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L324) calls
+[Lang.Set](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L82) directly; its state writes can throw
 I/O/access errors. Direct cancellation handlers likewise call
 `Backend.Cancel()` and its file write outside `Guard`.
 
@@ -193,8 +195,8 @@ disappearing storage and cancellation-write failure.
 
 ### F08 - P2: graphics drafts can disappear without a decision
 
-[Probe](../tools/desktop/Program.cs#L809) reloads a snapshot with
-[`replaceFields=true`](../tools/desktop/Program.cs#L588). All graphics form
+[Probe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L809) reloads a snapshot with
+[`replaceFields=true`](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L588). All graphics form
 values are replaced by saved values. Closing the application also has no
 graphics-draft/dirty decision.
 
@@ -223,13 +225,13 @@ representative DPI scaling, not only the four home cards.
 
 ### F10 - P3: help and diagnostics have drifted from the implementation
 
-[extendedDetailInfo](../tools/desktop/Strings.de.json#L80), also present in
+[extendedDetailInfo](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Strings.de.json#L80), also present in
 English, still says Modern graphics adds finer textures. The current
-[sampling configuration](../tools/installer/graphics_profile.py#L380) explicitly
+[sampling configuration](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/graphics_profile.py#L380) explicitly
 preserves native mip selection after the RC3.23 correction. The old explanation
 is visible in the existing detail-page render.
 
-[diagnostics](../tools/installer/desktop_backend.py#L970) also reports the
+[diagnostics](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/installer/desktop_backend.py#L970) also reports the
 hardcoded release `RC2.1` instead of the actual application release. Correct the
 description and derive support version/source metadata from the release record.
 Keep application version, directory protocol, content contract and NEO wire
@@ -240,8 +242,8 @@ visibility description no longer promises a removed texture override.
 
 ### F11 - P3: shortcut maintenance performs unnecessary UI-thread I/O
 
-[Initialise](../tools/desktop/Program.cs#L576) invokes
-[Shortcuts.Create](../tools/desktop/Program.cs#L170) on every ordinary start.
+[Initialise](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L576) invokes
+[Shortcuts.Create](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/22f20abf720bca0c5a5106f93d383899aef821d9/tools/desktop/Program.cs#L170) on every ordinary start.
 Existing owned desktop/start-menu links are saved again through `WScript.Shell`
 even when unchanged. Redirected or unavailable desktop storage can cause a UI
 pause. This is an unmeasured risk, lower priority than the measured full scans.

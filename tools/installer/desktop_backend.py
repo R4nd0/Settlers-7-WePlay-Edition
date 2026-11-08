@@ -5,6 +5,7 @@ the existing installer, profile journal, launch locks and LAN checks do the work
 """
 import argparse
 from contextlib import contextmanager, redirect_stdout
+from functools import wraps
 import hashlib
 import http.client
 import io
@@ -33,6 +34,7 @@ import launch_local
 import launch_auto_lan
 import player_settings
 import quality_settings as quality
+import desktop_settings
 from lan_discovery import LanDiscovery
 from lan_interfaces import enumerate_interfaces
 from lobby_directory import json_record, encode
@@ -45,6 +47,13 @@ HEX=re.compile('[0-9a-f]{32}')
 
 
 class Cancelled(RuntimeError): pass
+
+
+def verified_operation(method):
+    @wraps(method)
+    def invoke(self,*args,**kwargs):
+        with self.verification():return method(self,*args,**kwargs)
+    return invoke
 
 
 class Console(io.TextIOBase):
@@ -71,10 +80,24 @@ class Desktop:
         self.cancel=graphics._plain(self.state/('cancel-'+self.operation))
         self.last_progress=0.0
         self.finalizing=False
+        self._verification=None
+        self._settings_lock_held=False
+
+    @contextmanager
+    def verification(self):
+        previous=self._verification
+        if previous is None:self._verification=install.VerifiedPackage(self.package)
+        try:yield
+        finally:self._verification=previous
+
+    def package_manifest(self):
+        return self._verification.load() if self._verification is not None else install.package_manifest(self.package)
+
+    def operation_state(self,phase):self.emit('operation_state',phase=phase)
 
     def progress(self,phase,current=0,total=0):
         if not self.finalizing and self.cancel.exists():raise Cancelled('cancelled')
-        if phase=='patch':self.finalizing=True
+        if phase=='patch':self.finalizing=True;self.operation_state('critical')
         now=time.monotonic()
         if phase!='copy' or now-self.last_progress>=.2 or current==total:
             self.emit('progress',phase=phase,current=current,total=total)
@@ -135,7 +158,7 @@ class Desktop:
         return self.instance(value['container'],value['current'])
 
     def package_id(self,full=False):
-        value=install.package_manifest(self.package) if full else self.read(self.package/'package.json')
+        value=self.package_manifest() if full else install.package_metadata(self.package)
         if not value or not isinstance(value.get('files'),dict):raise ValueError('package_invalid')
         # GUI/backend-only updates do not require another 7 GB game copy.
         # Every file affecting the copied game/launch contract still participates.
@@ -178,7 +201,7 @@ class Desktop:
         path=self.state/'graphics-probe.json'
         dll=graphics._plain(self.package/'Payload/Graphics/d3d9.dll')
         program=graphics._plain(self.package/'Payload/Graphics/S7GraphicsProbe.exe')
-        manifest=install.package_manifest(self.package)
+        manifest=self.package_manifest()
         signature=manifest['files'].get('payload/graphics/s7graphicsprobe.exe')
         if not signature or content.digest(program)!=signature or content.digest(dll)!=graphics.DXVK_SHA256:
             raise ValueError('package_invalid')
@@ -234,6 +257,7 @@ class Desktop:
 
     def snapshot(self):
         value=self.installed()
+        metadata=install.package_metadata(self.package)
         result={'installed':value is not None,'displays':self.displays(),
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':value['renderer_policy'] if value else 'auto',
@@ -241,8 +265,9 @@ class Desktop:
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
                 'current':None,'update_available':False,'needs_repair':False,
-                'internet_available':self.read(self.package/'package.json',{}).get('internet_easytier',False) is True}
-        result['updates_supported']=self.read(self.package/'package.json',{}).get('update_patcher',False) is True
+                'maintenance_pending':len(value['previous']) if value else 0,
+                'internet_available':metadata.get('internet_easytier',False) is True}
+        result['updates_supported']=metadata.get('update_patcher',False) is True
         result['update_last_error']=None
         if result['updates_supported']:
             try:
@@ -251,9 +276,9 @@ class Desktop:
                     code=update_status.get('code','')
                     result['update_last_error']=code if isinstance(code,str) and re.fullmatch('update_[a-z_]{1,48}',code) else 'update_install_failed'
             except (OSError,ValueError,TypeError):result['update_last_error']='update_invalid'
-        result['discord_available']=self.read(self.package/'package.json',{}).get('discord_directory',False) is True
-        result['directory_available']=self.read(self.package/'package.json',{}).get('game_directory',False) is True
-        result['public_directory_available']=self.read(self.package/'package.json',{}).get('public_game_directory',False) is True
+        result['discord_available']=metadata.get('discord_directory',False) is True
+        result['directory_available']=metadata.get('game_directory',False) is True
+        result['public_directory_available']=metadata.get('public_game_directory',False) is True
         result['directory_connected']=False
         if result['directory_available']:
             from game_directory import configured
@@ -283,9 +308,20 @@ class Desktop:
         pending=graphics._plain(root/graphics.STATE/'transaction.json').exists()
         if not pending and choice._renderer(root,{})[0]==wanted:return wanted
         self.progress('graphics_apply')
-        if use_dxvk:graphics.install(root,self.package/'Payload/Graphics/d3d9.dll')
+        if self._settings_lock_held:
+            graphics._change_locked(root,use_dxvk,self.package/'Payload/Graphics/d3d9.dll' if use_dxvk else None)
+        elif use_dxvk:graphics.install(root,self.package/'Payload/Graphics/d3d9.dll')
         else:graphics.restore(root)
         return 'dxvk' if use_dxvk else 'native'
+
+    def restore_settings_renderer(self,root,mode,expected):
+        if (root/graphics.STATE).exists():
+            _,versions,_=graphics._load_state(root)
+            if versions[mode=='dxvk'][graphics.COMPAT]!=expected:raise ValueError('preferences_invalid')
+            graphics._change_locked(root,mode=='dxvk',self.package/'Payload/Graphics/d3d9.dll' if mode=='dxvk' else None)
+        elif mode!='native' or desktop_settings.read(root/graphics.COMPAT)!=expected:
+            raise ValueError('preferences_invalid')
+        if desktop_settings.read(root/graphics.COMPAT)!=expected:raise ValueError('preferences_invalid')
 
     def default_choice(self,root,renderer,probe,preferred=None):
         screens=self.displays()
@@ -434,6 +470,7 @@ class Desktop:
             for path in saves.rglob('*'):graphics._plain(path)
             shutil.copytree(saves,data/'saves')
 
+    @verified_operation
     def install_game(self,source,container=None):
         self.finalizing=False
         graphics.ensure_closed()
@@ -442,7 +479,7 @@ class Desktop:
         source=graphics._plain(source)
         previous=self.installed()
         managed=bool(previous and source==self.game())
-        supported=install.package_manifest(self.package).get('steam_history',False)
+        supported=self.package_manifest().get('steam_history',False)
         if managed:install.repair_source(source,steam_supported=supported,tools=self.package/'Tools')
         else:install.source_base(source,steam_supported=supported)
         # Never discard an older owned location to make room in the bounded
@@ -523,10 +560,13 @@ class Desktop:
         return self.snapshot()
 
     def record_ownership(self,root,manifest=None):
+        self.write(root/'desktop-files.json',self.ownership_record(root,manifest))
+
+    def ownership_record(self,root,manifest=None):
         manifest=manifest or content.load(root/'compatibility.json')
         files=dict(manifest['files'])
         # Runtime files were byte-verified by prepare; reuse those package hashes.
-        package=install.package_manifest(self.package)
+        package=self.package_manifest()
         files.update({name:digest for name,digest in package['files'].items() if name.startswith('runtime/')})
         # Only generated metadata is owned. Never adopt an unknown root or
         # repair/staging file merely because it appeared during preparation.
@@ -536,11 +576,13 @@ class Desktop:
         for name in generated:
             path=graphics._plain(root/name)
             if path.is_file():files[name.lower()]=content.digest(path)
-        self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':files})
+        return {'format':FORMAT,'owner':self.owner,'files':files}
 
+    @verified_operation
     def save_settings(self,request):
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
+        self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         selected=choice.validate_choice(request['choice']);quality_value=quality.validate(request['quality'])
         choice._require_visual_support(root,selected)
@@ -554,8 +596,9 @@ class Desktop:
             raise ValueError('renderer_unsupported')
         if expected_mode=='dxvk' and selected.get('display') is not None:
             display.resolve(selected['display'],self.displays(),renderer='dxvk',gpu=selected['choice'])
-        mode=self.renderer(root,policy,probe)
-        if mode=='native':
+        if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
+        if policy=='dxvk' and not probe['devices']:raise ValueError('renderer_unsupported')
+        if expected_mode=='native':
             selected['choice']=None
             for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
                 if name in selected:selected[name]=False
@@ -564,12 +607,50 @@ class Desktop:
             target=next((s for s in screens if selected.get('display') and s['device']==selected['display']['device']),screens[0] if screens else None)
             if target and target['adapter'] in probe['devices']:selected['choice']=target['adapter']
         with graphics.session_lock(root):
-            choice.save_choice(root,selected)
-            self.write(root/quality.FILE,quality_value)
-            player_settings.save(root,request['player_name'])
-        value=self.installed();value['renderer_policy']=policy;self.write(self.state/'installation.json',value)
-        self.record_ownership(root)
-        return self.snapshot()
+            # Validate all old user records before staging their before-images.
+            choice._load_choice(root);quality.load(root);player_settings.load(root)
+            if any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
+                import reshade_runtime
+                reshade_runtime.prepare(root,options=selected)
+            value=self.installed();value['renderer_policy']=policy
+            planned={'choice':graphics.encoded(selected),'quality':graphics.encoded(quality_value),
+                     'player':json.dumps({'format':player_settings.FORMAT,'display_name':request['player_name']},ensure_ascii=True).encode('ascii'),
+                     'installation':graphics.encoded(value)}
+            transaction=desktop_settings.Transaction.begin(self,root,choice._renderer(root,{})[0],planned)
+            self.operation_state('critical');self._settings_lock_held=True
+            try:
+                transaction.check()
+                self.renderer(root,policy,probe)
+                transaction.check()
+                choice.save_choice(root,selected)
+                transaction.check()
+                self.write(root/quality.FILE,quality_value)
+                transaction.check()
+                player_settings.save(root,request['player_name'])
+                transaction.check()
+                self.write(self.state/'installation.json',value)
+                owned=self.ownership_record(root)
+                transaction.ownership(graphics.encoded(owned))
+                transaction.check()
+                self.write(root/'desktop-files.json',owned)
+                transaction.commit()
+            except BaseException:
+                transaction.rollback()
+                raise
+            finally:
+                self._settings_lock_held=False;self.operation_state('idle')
+        # The generation has committed. A failed UI refresh must not undo it.
+        try:return self.snapshot()
+        except (OSError,ValueError,RuntimeError):raise ValueError('settings_saved_refresh_failed') from None
+
+    @verified_operation
+    def recover_settings(self):
+        if not (self.state/desktop_settings.NAME).exists():return
+        self.package_manifest();root=self.game();graphics.ensure_closed()
+        with graphics.session_lock(root):
+            self.operation_state('critical')
+            try:desktop_settings.recover(self,root)
+            finally:self.operation_state('idle')
 
     def network_id(self,root):
         return content.network_id(content.load(root/'compatibility.json'))
@@ -615,7 +696,7 @@ class Desktop:
         if room is not None and current!=room.content_id:raise ValueError('version_mismatch')
 
     def connect_discord(self,data):
-        if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
+        if not self.package_manifest().get('discord_directory',False):raise ValueError('discord_unavailable')
         if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
         from internet_private_channel import PrivateChannel
         from discord_credentials import parse,store,FORMAT
@@ -645,15 +726,16 @@ class Desktop:
         return {'handoff':True,'version':started['version']}
 
     def disconnect_discord(self):
-        if not install.package_manifest(self.package).get('discord_directory',False):raise ValueError('discord_unavailable')
+        if not self.package_manifest().get('discord_directory',False):raise ValueError('discord_unavailable')
         from discord_credentials import load,remove
         value=load(self.state)
         if value:remove(value[0])
         graphics._plain(self.state/'discord-directory.json').unlink(missing_ok=True)
         return {'connected':False}
 
+    @verified_operation
     def internet_play(self,request,*,host):
-        if not install.package_manifest(self.package).get('internet_easytier',False):
+        if not self.package_manifest().get('internet_easytier',False):
             raise ValueError('package_invalid')
         required={'player_name','channel','mode','direct_endpoint','internet_consent'} if host else {'player_name','channel','internet_consent'}
         optional={'publish_discord','public_lobby'} if host else {'publish_discord'}
@@ -663,12 +745,12 @@ class Desktop:
         if type(publish) is not bool:raise ValueError('request_invalid')
         public=request.get('public_lobby',publish)
         if type(public) is not bool or (publish and not public) or (public and not host):raise ValueError('request_invalid')
-        if public and not publish and not install.package_manifest(self.package).get('public_game_directory',False):raise ValueError('directory_unavailable')
+        if public and not publish and not self.package_manifest().get('public_game_directory',False):raise ValueError('directory_unavailable')
         if publish:
             from discord_credentials import connected
-            if not install.package_manifest(self.package).get('discord_directory',False) or not connected(self.state):
+            if not self.package_manifest().get('discord_directory',False) or not connected(self.state):
                 raise ValueError('discord_not_connected')
-        if public and 'publish_discord' in request and install.package_manifest(self.package).get('discord_directory',False):
+        if public and 'publish_discord' in request and self.package_manifest().get('discord_directory',False):
             from discord_credentials import public_settings
             preferences=public_settings(self.state)
             if preferences:
@@ -690,7 +772,7 @@ class Desktop:
                              invitation_ready=channel.invitation_ready)
 
     def directory_connect(self,data):
-        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        if not self.package_manifest().get('game_directory',False):raise ValueError('directory_unavailable')
         if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
         from internet_private_channel import PrivateChannel
         from game_directory import parse_code,FORMAT
@@ -699,18 +781,21 @@ class Desktop:
         return {'connected':True,'game_id':game}
 
     def directory_list(self):
-        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        if not install.package_metadata(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
         from game_directory import configured,listing
         url=configured(self.state)
         if url is None:return {'connected':False,'games':[]}
         root=self.game();current=self.network_id(root)
-        alternatives=self.alternatives(root);allowed={current,*alternatives.values()}
+        # In v3, the complete pinned DXVK profile already shares the native
+        # gameplay ID. Browsing needs only this metadata hint, never renderer
+        # payload/journal scans or admission of a legacy/changed alternative.
         rows=listing(url)
-        for row in rows:row['compatible']=row['content_id'] in allowed
+        for row in rows:row['compatible']=row['content_id']==current
         return {'connected':True,'games':rows}
 
+    @verified_operation
     def directory_join(self,data):
-        if not install.package_manifest(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
+        if not self.package_manifest().get('game_directory',False):raise ValueError('directory_unavailable')
         if not isinstance(data,dict) or set(data)!={'game_id','player_name','internet_consent'}:raise ValueError('request_invalid')
         if type(data['internet_consent']) is not int or data['internet_consent']!=1:raise ValueError('internet_consent_required')
         self.validate_lan({'player_name':data['player_name']});graphics.ensure_closed()
@@ -750,11 +835,13 @@ class Desktop:
         elif sample['host_physical_free']<=1536*memory_guard.MIB:
             self.emit('warning',code='memory_physical_warning')
 
+    @verified_operation
     def play(self,request=None,*,internet=None,invitation_ready=None):
         directory_bridge=[None]
         invitation_bridge=[None]
         if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
+        self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         # The binary/ABI checks and full game manifest checks remain in place.
         if request is None:content.verify(root)
@@ -771,7 +858,7 @@ class Desktop:
                 if game.poll() is None:game.terminate();game.wait(timeout=10)
                 raise
             invitation_run=None
-            if install.package_manifest(self.package).get('game_directory',False):
+            if self.package_manifest().get('game_directory',False):
                 from ingame_invitation import Bridge as InvitationBridge,configuration
                 try:
                     mode,public_code=configuration(request,internet,self.state)
@@ -780,7 +867,8 @@ class Desktop:
                     invitation_run=invitation_bridge[0].nonce
                 except (OSError,ValueError):self.emit('warning',code='invitation_unavailable')
             self.emit('game_started',pid=game.pid,invitation_run=invitation_run)
-            if install.package_manifest(self.package).get('game_directory',False):
+            self.operation_state('live_game')
+            if self.package_manifest().get('game_directory',False):
                 from game_directory import configured
                 from ingame_directory import Bridge
                 try:
@@ -827,7 +915,7 @@ class Desktop:
                 reporter=None
                 try:
                     extra={}
-                    if install.package_manifest(self.package).get('game_directory',False):
+                    if self.package_manifest().get('game_directory',False):
                         if not room_invitation:raise ValueError('directory_unavailable')
                         extra=dict(room_invitation=room_invitation,version=self.read(self.app/'desktop-release.json',{}).get('version'),helper_root=self.package)
                     reporter=Reporter(self.state,interface,coordinator,expected,
@@ -852,6 +940,7 @@ class Desktop:
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor))
         self.emit('game_finished',exit_code=code)
+        self.operation_state('cancellable')
         if code:raise RuntimeError('game_failed')
         if directory_bridge[0] is not None and directory_bridge[0].pending:
             # The previous transport is already closed. A fresh UI consent is
@@ -865,7 +954,7 @@ class Desktop:
 
     def configure_firewall(self):
         import windows_system
-        install.package_manifest(self.package)
+        self.package_manifest()
         root=self.game();content.verify(root)
         try:windows_system.lan_firewall(root)
         except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('permissionFailed')
@@ -919,7 +1008,7 @@ class Desktop:
         if not value or not value['previous']:return {'cleaned':0}
         try:
             graphics.ensure_closed()
-            install.package_manifest(self.package)
+            self.package_manifest()
             # A GUI-only update can reuse its active game. Verify that copy
             # before reclaiming old versions; do not allocate another copy.
             if value['package_id']!=self.package_id():return {'cleaned':0}
@@ -967,7 +1056,20 @@ class Desktop:
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
         summary={key:raw[key] for key in fields if key in raw and
                  (raw[key] is None or type(raw[key]) in (bool,int) and 0<=raw[key]<=2**63-1)}
-        return {'format':'s7-desktop-diagnostics-v1','release':'RC2.1','game_bits':32,'renderer':mode,
+        release=self.read(self.app/'desktop-release.json',{},limit=65536)
+        version=release.get('version','unknown')
+        if not isinstance(version,str) or not re.fullmatch('[0-9A-Za-z.+-]{1,64}',version):version='unknown'
+        source=release.get('source_commit')
+        if not isinstance(source,str) or not re.fullmatch('[0-9a-f]{40}',source):source=None
+        revision=release.get('network_revision')
+        if type(revision) is not int or not 0<=revision<=100000:revision=None
+        neo=release.get('neo_wire_revision')
+        if type(neo) is not int or not 0<=neo<=100000:neo=None
+        from game_directory import NETWORK_REVISION
+        return {'format':'s7-desktop-diagnostics-v1','release':version,'source_commit':source,
+                'release_metadata_network_revision':revision,'content_contract':content.NETWORK_FORMAT,
+                'directory_protocol_revision':NETWORK_REVISION,'neo_wire_revision':neo,
+                'game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
                 'memory_summary':summary,
                 'known_lan_desync_resolved':False}
@@ -999,14 +1101,34 @@ class Desktop:
 
 
 def dispatch(desktop,request):
+    # These read-only/UI requests must not create a game verification scope or
+    # enter publication/settings recovery. Their callers need no game object.
+    if (isinstance(request,dict) and set(request)=={'format','action','data'}
+            and request['format']==REQUEST and request['data']=={}):
+        if request['action']=='update-check':return desktop.check_updates()
+        if request['action']=='directory-list':return desktop.directory_list()
+    with desktop.verification():
+        desktop.operation_state('cancellable')
+        try:return _dispatch(desktop,request)
+        finally:desktop.operation_state('idle')
+
+
+def _dispatch(desktop,request):
     if not isinstance(request,dict) or set(request)!={'format','action','data'} or request['format']!=REQUEST:
         raise ValueError('request_invalid')
     action,data=request['action'],request['data']
     if not isinstance(data,dict):raise ValueError('request_invalid')
     # The signed-release network check never needs a game-operation lock.
     if action=='update-check' and not data:return desktop.check_updates()
+    # This is an untrusted display hint only. Admission still recovers and
+    # fully verifies under the mutation lock. No journal writes in this path.
+    if action=='directory-list' and not data:return desktop.directory_list()
     if (desktop.state/'installation-transaction.json').exists():
+        desktop.operation_state('critical')
         with desktop.lock():desktop.recover_publication()
+        desktop.operation_state('cancellable')
+    if (desktop.state/desktop_settings.NAME).exists():
+        with desktop.lock():desktop.recover_settings()
     if action=='snapshot' and not data:
         # Opening S7Launcher.exe directly must adopt a portable export just as
         # its CMD starter does. Never send an unbound export to source setup.
@@ -1015,7 +1137,9 @@ def dispatch(desktop,request):
             import standalone
             try:
                 if (root/'EXPORT-INCOMPLETE.txt').exists():raise ValueError('incomplete export')
+                desktop.operation_state('critical')
                 standalone.bind(root)
+                desktop.operation_state('cancellable')
             except (OSError,ValueError,RuntimeError) as error:
                 raise ValueError('standalone_invalid') from error
         return desktop.snapshot()
@@ -1032,7 +1156,6 @@ def dispatch(desktop,request):
         if sources:return {'sources':sources}
         locations=([Path(previous['source'])] if previous and previous['source'] else [])+game_detection.candidates()
         return {'sources':sources+game_detection.detect(locations,steam_supported=supported)}
-    if action=='directory-list' and not data:return desktop.directory_list()
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
@@ -1075,7 +1198,8 @@ def error_code(error):
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
         'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid','standalone_invalid',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
-        'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required'}
+        'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
+        'settings_saved_refresh_failed'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text

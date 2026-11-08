@@ -296,43 +296,50 @@ def _change(root, enable, source=None):
     root = _preflight(root)
     ensure_closed()
     with session_lock(root):
-        folder = _plain(root / STATE)
-        prepared = False
-        if not folder.exists():
-            if not enable:
-                expected = content.verify(root)
-                _bundle(root, expected)
-                if any(_plain(root / name).exists() for name in (DLL, CONF)):
-                    raise ValueError('Unbekannte Grafikdateien werden nicht entfernt.')
-                return 'already-disabled'
-            _prepare(root, _plain(source))
-            prepared = True
-        folder, versions, active = _load_state(root, full_inventory=not prepared)
-        active = _recover(root, folder, versions, active)
-        if enable and source is not None:
-            supplied = _read(source, MAX_DLL)
-            if _hash(supplied) != DXVK_SHA256:
-                raise ValueError('Die angegebene DXVK-Quelle wurde veraendert.')
-            _pe32_dll(supplied)
-        if active == enable:
-            return 'already-enabled' if enable else 'already-disabled'
-        ensure_closed()
-        _assert_state(root, versions[active])
-        journal = {'format': PROFILE, 'from': active, 'to': enable}
-        atomic_write(folder / 'transaction.json', encoded(journal), folder)
-        permitted = {n: {_hashes(versions[False])[n], _hashes(versions[True])[n]} for n in FILES}
-        try:
-            _write_values(root, folder, versions[enable], permitted)
-            _assert_state(root, versions[enable])
-            content.verify(root)
-            atomic_write(folder / 'status.json', encoded({'active': enable}), folder)
-            (folder / 'transaction.json').unlink()
-        except BaseException:
-            # Includes Ctrl-C. A process kill/power loss is handled on next run.
-            folder, versions, committed = _load_state(root)
-            _recover(root, folder, versions, committed)
-            raise
-        return 'enabled' if enable else 'disabled'
+        return _change_locked(root, enable, source)
+
+
+def _change_locked(root, enable, source=None):
+    """Internal transition; caller owns the same game session lock."""
+    root = _preflight(root)
+    ensure_closed()
+    folder = _plain(root / STATE)
+    prepared = False
+    if not folder.exists():
+        if not enable:
+            expected = content.verify(root)
+            _bundle(root, expected)
+            if any(_plain(root / name).exists() for name in (DLL, CONF)):
+                raise ValueError('Unbekannte Grafikdateien werden nicht entfernt.')
+            return 'already-disabled'
+        _prepare(root, _plain(source))
+        prepared = True
+    folder, versions, active = _load_state(root, full_inventory=not prepared)
+    active = _recover(root, folder, versions, active)
+    if enable and source is not None:
+        supplied = _read(source, MAX_DLL)
+        if _hash(supplied) != DXVK_SHA256:
+            raise ValueError('Die angegebene DXVK-Quelle wurde veraendert.')
+        _pe32_dll(supplied)
+    if active == enable:
+        return 'already-enabled' if enable else 'already-disabled'
+    ensure_closed()
+    _assert_state(root, versions[active])
+    journal = {'format': PROFILE, 'from': active, 'to': enable}
+    atomic_write(folder / 'transaction.json', encoded(journal), folder)
+    permitted = {n: {_hashes(versions[False])[n], _hashes(versions[True])[n]} for n in FILES}
+    try:
+        _write_values(root, folder, versions[enable], permitted)
+        _assert_state(root, versions[enable])
+        content.verify(root)
+        atomic_write(folder / 'status.json', encoded({'active': enable}), folder)
+        (folder / 'transaction.json').unlink()
+    except BaseException:
+        # Includes Ctrl-C. A process kill/power loss is handled on next run.
+        folder, versions, committed = _load_state(root)
+        _recover(root, folder, versions, committed)
+        raise
+    return 'enabled' if enable else 'disabled'
 
 
 def install(root, dll_source):
