@@ -247,5 +247,30 @@
     "Legacy update jobs without a verifiable ownership receipt are retained.",
     "Default opt-in Windows installer-handoff suites were skipped; compiled validation-only signature/installer check passed separately.",
     "No native game, separate-PC multiplayer, physical DPI or FPS qualification."
-  ]
+  ],
+  "source_sha256_representation": "Raw bytes from the locally verified build; Git line-ending conversion can change checkout bytes.",
+  "ci": {
+    "source_commit": "e3be5f6b28013164adecb65a0e88770cb8953310",
+    "run_id": 42522884070,
+    "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42522884070",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "windows-launcher",
+        "conclusion": "success"
+      },
+      {
+        "name": "host (ubuntu-22.04)",
+        "conclusion": "success"
+      },
+      {
+        "name": "windows-native",
+        "conclusion": "success"
+      },
+      {
+        "name": "host (ubuntu-24.04)",
+        "conclusion": "success"
+      }
+    ]
+  }
 }

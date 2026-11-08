@@ -90,7 +90,9 @@ directory and NEO protocol revisions separately.
 ## Verification
 
 The [verification receipt](verification/launcher-hardening-20261108.json)
-records exact product-source hashes and the observed checks. Evidence includes:
+records product-source hashes from the local verified build and the exact
+successful CI source commit. Git checkout line-ending conversion can change raw
+source bytes. Evidence includes:
 
 - Existing desktop, graphics, installer, portable and network regressions.
 - Settings write-fault/restart tests with both renderer transitions, tampering,
