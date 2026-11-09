@@ -37,7 +37,8 @@ internal sealed partial class MainForm
         directoryGames.Columns.Add("",330);directoryGames.Columns.Add("",155);directoryGames.Columns.Add("",110);directoryGames.Columns.Add("",165);
         directoryGames.SelectedIndexChanged+=(_,_)=>UpdateDirectoryControls();
         directoryRefresh=Button("directoryRefresh",()=>RefreshDirectoryCore(false),exclusive:false);
-        directoryJoin=Button("directoryJoin",JoinDirectory,true);
+        // Join captures a fresh selection before Guard invalidates background results.
+        directoryJoin=Button("directoryJoin",JoinDirectory,true,exclusive:false);
         directoryConnect=Button("directoryConnect",ConnectDirectory);
         Add(stack,directoryGames);Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
@@ -51,7 +52,7 @@ internal sealed partial class MainForm
         directoryEnd=Button("internetLeave",()=>{
             if(internetOperation&&!gameRunning)RequestCancellation();
             return Task.CompletedTask;
-        });
+        },exclusive:false);
         DockActions(page,Buttons(directoryJoin,directoryHost,directoryEnd,directoryRefresh,directoryConnect));
         var discordSection=new GroupBox { AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,14,0,8),Font=new Font(Font.FontFamily,11,FontStyle.Bold) };
         Bind(discordSection,"directoryPublisherTitle");var discord=Stack(discordSection);discord.Font=Font;
@@ -177,9 +178,15 @@ internal sealed partial class MainForm
 
     private async Task JoinDirectory()
     {
-        var selected=SelectedDirectoryGame();
-        if(directoryRefreshing||directoryLoadFailed||!directoryConnected||!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
-        await JoinDirectoryGame(selected.Value.GetProperty("id").GetString()!);
+        if(busy)return;
+        try
+        {
+            var selected=SelectedDirectoryGame();
+            if(directoryRefreshing||directoryLoadFailed||!directoryAvailable||!directoryConnected||!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
+            string id=selected.Value.GetProperty("id").GetString()!;
+            await Guard(()=>testing&&testJoinDirectory!=null?testJoinDirectory(id):JoinDirectoryGame(id));
+        }
+        catch(Exception error){ShowError(error);}
     }
 
     private async Task JoinDirectoryGame(string id)

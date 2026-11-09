@@ -12,6 +12,10 @@ import json
 import os
 from pathlib import Path
 import re
+import queue
+import threading
+import time
+import uuid
 import urllib.request
 import zipfile
 
@@ -235,11 +239,111 @@ def _verify(root, options, *, check_preset):
     return folder
 
 
-def prepare(root, *, setup=None, options=None):
+def _download(url, *, cancelled=None, progress=None, timeout=120, opener=None, clock=time.monotonic):
+    """Bound the entire read, including DNS/headers; the worker never mutates disk.
+
+    A daemon read worker isolates platform DNS/header stalls from cancellation.
+    It owns/closes its response and cannot publish files or invoke UI callbacks.
+    On cancellation the command may return immediately; at most one bounded
+    in-memory response remains until its socket timeout or process exit.
+    """
+    stop=threading.Event();completed=queue.Queue(maxsize=1);received=[0]
+    limit=8*1024*1024;deadline=clock()+timeout
+    request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Referer':'https://reshade.me/'})
+    def worker():
+        try:
+            with (opener or urllib.request.urlopen)(request,timeout=min(5,timeout)) as response:
+                raw=bytearray()
+                while not stop.is_set():
+                    if clock()>=deadline:raise ValueError('reshade_download_timeout')
+                    # HTTPResponse.read1 performs one buffered/socket read; read
+                    # may wait to fill a complete block from a trickling server.
+                    block=response.read1(min(65536,limit+1-len(raw)))
+                    if not block:completed.put(bytes(raw));return
+                    raw.extend(block);received[0]=len(raw)
+                    if len(raw)>limit:raise ValueError('reshade_download_invalid')
+        except Exception as error:
+            try:completed.put_nowait(error)
+            except queue.Full:pass
+    if cancelled and cancelled():raise ValueError('cancelled')
+    thread=threading.Thread(target=worker,name='weplay-reshade-download',daemon=True);thread.start()
+    last=-1.0
+    try:
+        while True:
+            if cancelled and cancelled():raise ValueError('cancelled')
+            now=clock()
+            if now>=deadline:raise ValueError('reshade_download_timeout')
+            if progress and now-last>=.2:progress('reshade_download',received[0],0);last=now
+            try:result=completed.get(timeout=min(.1,max(.001,deadline-now)))
+            except queue.Empty:continue
+            if isinstance(result,Exception):
+                if isinstance(result,ValueError):raise result
+                raise ValueError('reshade_download_failed') from result
+            return result
+    finally:stop.set()
+
+
+def _stage_valid(staging,receipt,files,directories,*,require_complete=False):
+    """Only resume our exact, unchanged inventory. Preserve everything else."""
+    try:
+        if _read(staging/'preparation.json',65536)!=receipt:return False
+        pending=[staging];seen=0;present=set()
+        while pending:
+            for path in pending.pop().iterdir():
+                seen+=1
+                if seen>256:return False
+                path=_plain(path);name=path.relative_to(staging).as_posix()
+                present.add(name)
+                if path.is_dir():
+                    if name not in directories:return False
+                    pending.append(path)
+                elif name=='preparation.json':continue
+                elif name not in files or _read(path,len(files[name])+1)!=files[name]:return False
+        return not require_complete or present==set(files)|directories|{'preparation.json'}
+    except (OSError,ValueError):return False
+
+
+def _publish_profile(folder,files,*,cancelled=None):
+    import graphics_profile
+    directories={'NoAddons'}
+    for name in files:
+        directories.update(parent.as_posix() for parent in Path(name).parents if parent!=Path('.'))
+    receipt=graphics_profile.encoded(dict(format='weplay-reshade-preparation-v1',profile=folder.name,
+        files={name:hashlib.sha256(data).hexdigest() for name,data in files.items()},directories=sorted(directories)))
+    folder.parent.mkdir(parents=True,exist_ok=True)
+    # A legacy/foreign/modified tree is never deleted or adopted. A fresh unique
+    # staging tree lets the requested operation proceed while retaining evidence.
+    candidates=[]
+    for path in folder.parent.iterdir():
+        if re.fullmatch(re.escape(folder.name)+r'\.preparing(?:-[0-9a-f]{32})?',path.name):
+            candidates.append(path)
+            if len(candidates)>=32:break
+    staging=next((path for path in candidates if _stage_valid(path,receipt,files,directories)),None)
+    if staging is None:
+        staging=_plain(folder.with_name(folder.name+'.preparing-'+uuid.uuid4().hex));staging.mkdir()
+        graphics_profile.atomic_create(staging/'preparation.json',receipt,staging)
+    for name in sorted(directories,key=lambda value:(value.count('/'),value)):
+        if cancelled and cancelled():raise ValueError('cancelled')
+        _plain(staging/name).mkdir(exist_ok=True)
+    for name,data in files.items():
+        if cancelled and cancelled():raise ValueError('cancelled')
+        target=_plain(staging/name)
+        if target.exists():
+            if _read(target,len(data)+1)!=data:raise ValueError('reshade_preparation_changed')
+        else:graphics_profile.atomic_create(target,data,staging)
+    if not _stage_valid(staging,receipt,files,directories,require_complete=True):raise ValueError('reshade_preparation_changed')
+    if cancelled and cancelled():raise ValueError('cancelled')
+    # No replacement of a concurrently published profile.
+    if folder.exists():raise ValueError('reshade_preparation_changed')
+    staging.rename(folder)
+
+
+def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
     import graphics_profile
     root = _plain(Path(root))
     url, setup_sha256, dll_sha256 = _runtime(options)
     folder = _folder(root, options)
+    if cancelled and cancelled():raise ValueError('cancelled')
     if folder.exists():
         # ReShade serializes this generated preset on normal exit (ordering,
         # transient uniforms, technique defaults). It is not the user's choice
@@ -278,14 +382,9 @@ def prepare(root, *, setup=None, options=None):
                 dll, manifest = candidate, candidate_manifest
                 break
     if dll is None and setup is None:
-        request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://reshade.me/'})
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                raw = response.read(8 * 1024 * 1024 + 1)
-        except OSError as error:
-            raise ValueError('ReShade konnte nicht von der offiziellen Website geladen werden.') from error
+        raw=_download(url,cancelled=cancelled,progress=progress)
     elif dll is None:
-        raw = _plain(Path(setup)).read_bytes()
+        raw = _read(Path(setup),8*1024*1024)
     if dll is None:
         if len(raw) > 8 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != setup_sha256:
             raise ValueError('Der offizielle ReShade-Download stimmt nicht mit der geprueften Version ueberein.')
@@ -294,21 +393,9 @@ def prepare(root, *, setup=None, options=None):
     if (hashlib.sha256(dll).hexdigest() != dll_sha256
             or hashlib.sha256(manifest).hexdigest() != MANIFEST_SHA256):
         raise ValueError('ReShade-Laufzeitpruefung fehlgeschlagen.')
-    folder.parent.mkdir(parents=True, exist_ok=True)
-    staging = _plain(folder.with_name(folder.name + '.preparing'))
-    if staging.exists():
-        raise ValueError('Eine unvollstaendige ReShade-Vorbereitung ist vorhanden.')
-    staging.mkdir()
-    (staging / 'ReShade32.dll').write_bytes(dll)
-    (staging / 'ReShade32.json').write_bytes(manifest)
-    (staging / 'NoAddons').mkdir()
-    for name, data in _profile_files(options, root).items():
-        target = staging / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-    (staging / 'WePlay-Midsummer.ini').write_bytes(_preset(options))
-    (staging / 'ReShade.ini').write_bytes(_config(options))
-    staging.rename(folder)
+    files={'ReShade32.dll':dll,'ReShade32.json':manifest,**_profile_files(options,root),
+           'WePlay-Midsummer.ini':_preset(options),'ReShade.ini':_config(options)}
+    _publish_profile(folder,files,cancelled=cancelled)
     return verify(root, options)
 
 

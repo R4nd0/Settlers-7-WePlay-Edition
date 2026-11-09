@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from urllib.parse import urlsplit,urljoin,quote
 import uuid
@@ -24,6 +25,8 @@ MANIFEST='weplay-update.json'
 MAX_SETUP=768*1024*1024
 MAX_MANIFEST=49152
 JOB_FORMAT='weplay-update-job-v1'
+DELETING_FORMAT='weplay-update-deleting-v1'
+CHECK_BUDGET=120
 MAX_JOB_AGE=7*24*60*60
 MAX_CACHED_JOBS=2
 MAX_CACHED_BYTES=256*1024*1024
@@ -106,14 +109,33 @@ def allowed_url(url):
         raise UpdateError('update_download_failed')
     return value
 
-def transfer(url,limit,*,destination=None,expected_size=None,progress=None,connection_factory=http.client.HTTPSConnection):
-    deadline=time.monotonic()+(1800 if destination else 90)
+def transfer(url,limit,*,destination=None,expected_size=None,progress=None,connection_factory=http.client.HTTPSConnection,
+             deadline=None,cancelled=None,clock=time.monotonic):
+    deadline=min(deadline if deadline is not None else float('inf'),clock()+(1800 if destination else 90))
+    def checkpoint():
+        if cancelled and cancelled():raise UpdateError('cancelled')
+        remaining=deadline-clock()
+        if remaining<=0:raise UpdateError('update_download_failed')
+        return min(10,remaining)
     for redirect in range(6):
-        target=allowed_url(url);connection=connection_factory(target.hostname,timeout=10)
+        target=allowed_url(url);connection=connection_factory(target.hostname,timeout=checkpoint())
+        response=None
+        def transport_socket():
+            return connection.sock or getattr(getattr(getattr(response,'fp',None),'raw',None),'_sock',None)
+        def expire_connection():
+            # Socket timeouts alone reset for every received header byte. Stop
+            # this exact connection at the total deadline even during headers.
+            transport=transport_socket()
+            if transport:
+                try:transport.shutdown(2)
+                except OSError:pass
+        deadline_timer=threading.Timer(max(0,deadline-clock()),expire_connection)
+        deadline_timer.daemon=True;deadline_timer.start()
         try:
             connection.request('GET',(target.path or '/')+('?' +target.query if target.query else ''),headers={
                 'User-Agent':'Settlers7WePlay-Updater/1.0','Accept':'application/vnd.github+json' if target.hostname=='api.github.com' else 'application/octet-stream'})
-            response=connection.getresponse()
+            if connection.sock:connection.sock.settimeout(checkpoint())
+            response=connection.getresponse();checkpoint()
             if response.status in (301,302,303,307,308):
                 location=response.getheader('Location')
                 if not location or redirect==5:raise UpdateError('update_download_failed')
@@ -126,9 +148,14 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
             output=compatibility.plain(destination).open('xb') if destination else None
             try:
                 while True:
-                    if time.monotonic()>=deadline:raise UpdateError('update_download_failed')
-                    if connection.sock:connection.sock.settimeout(min(10,max(.1,deadline-time.monotonic())))
-                    chunk=response.read(min(65536,limit-received+1))
+                    timeout=checkpoint()
+                    # For Connection: close responses http.client detaches its
+                    # socket, but the response's buffered stream still owns it.
+                    transport=transport_socket()
+                    if transport:transport.settimeout(timeout)
+                    # read1 returns after one buffered/socket read; read(n) can
+                    # wait indefinitely for n bytes from a slow continuous peer.
+                    chunk=response.read1(min(65536,limit-received+1));checkpoint()
                     if not chunk:break
                     received+=len(chunk)
                     if received>limit:raise UpdateError('update_download_failed')
@@ -142,7 +169,12 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
             finally:
                 if output:output.close()
         except (OSError,TimeoutError,http.client.HTTPException):raise UpdateError('update_download_failed') from None
-        finally:connection.close()
+        finally:
+            deadline_timer.cancel()
+            # Join before rebinding connection/response for a redirect; an
+            # already-running expiry callback must never touch the next hop.
+            deadline_timer.join()
+            connection.close()
     raise UpdateError('update_download_failed')
 
 def atomic(path,value):
@@ -209,7 +241,7 @@ def process_running(pid):
     finally:kernel.CloseHandle(handle)
 
 
-def job_inventory(job):
+def job_inventory(job,*,include_ready=False):
     """Only flat, known regular files are eligible; unknown contents are preserved."""
     job=compatibility.plain(job)
     entries=list(job.iterdir())
@@ -218,7 +250,7 @@ def job_inventory(job):
     for path in entries:
         path=compatibility.plain(path)
         if not path.is_file():return None
-        if path.name not in ('job-owner.json','ready.json'):
+        if path.name!='job-owner.json' and (include_ready or path.name!='ready.json'):
             result[path.name]=compatibility.digest(path)
     return result
 
@@ -231,23 +263,38 @@ def owned_job(app,job,*,require_inventory=True):
     if not marker.is_file():return None
     value=decode(marker.read_bytes(),8192)
     if (not isinstance(value,dict) or set(value)!={'format','app','job','created','creator_pid','files'}
-            or value['format']!=JOB_FORMAT or value['app']!=hashlib.sha256(str(app).casefold().encode()).hexdigest()
+            or value['format'] not in (JOB_FORMAT,DELETING_FORMAT) or value['app']!=hashlib.sha256(str(app).casefold().encode()).hexdigest()
             or value['job']!=job.name or type(value['created']) is not int or value['created']<1
             or type(value['creator_pid']) is not int or not 1<=value['creator_pid']<=0xffffffff
-            or not isinstance(value['files'],dict) or not set(value['files'])<=JOB_FILES
+            or not isinstance(value['files'],dict) or not set(value['files'])<=(JOB_FILES|({'ready.json'} if value['format']==DELETING_FORMAT else set()))
             or any(not isinstance(x,str) or not HEX.fullmatch(x) for x in value['files'].values())):return None
-    if require_inventory and job_inventory(job)!=value['files']:return None
+    if require_inventory:
+        inventory=job_inventory(job,include_ready=value['format']==DELETING_FORMAT)
+        if inventory is None:return None
+        if value['format']==DELETING_FORMAT:
+            if any(value['files'].get(name)!=digest for name,digest in inventory.items()):return None
+        elif inventory!=value['files']:return None
     return value
 
 
 def remove_owned_job(app,job,*,fresh=False):
     value=owned_job(app,job,require_inventory=not fresh)
     if value is None:return False
-    inventory=job_inventory(job)
+    inventory=job_inventory(job,include_ready=True)
     if inventory is None:return False
-    for name in inventory:compatibility.plain(job/name).unlink()
-    ready=compatibility.plain(job/'ready.json')
-    if ready.exists():ready.unlink()
+    if not fresh and value['format']==JOB_FORMAT and {name:digest for name,digest in inventory.items() if name!='ready.json'}!=value['files']:
+        return False
+    # Persist the complete validated deletion generation before the first
+    # unlink. Retries may accept absent files only under this receipt, and
+    # never adopt added/modified contents into the original generation.
+    if value['format']!=DELETING_FORMAT:
+        value={**value,'format':DELETING_FORMAT,'files':inventory}
+        atomic(job/'job-owner.json',value)
+    if any(value['files'].get(name)!=digest for name,digest in inventory.items()):return False
+    for name,digest in inventory.items():
+        path=compatibility.plain(job/name)
+        if compatibility.digest(path)!=digest:return False
+        path.unlink()
     compatibility.plain(job/'job-owner.json').unlink()
     compatibility.plain(job).rmdir()
     return True
@@ -277,27 +324,40 @@ def reclaim_jobs(app,*,now=None,alive=process_running,max_age=MAX_JOB_AGE,
                     if (not isinstance(record,dict) or record.get('format')!='weplay-update-ready-v1'
                             or type(record.get('helper_pid')) is not int or alive(record['helper_pid'])):continue
                 entries=list(job.iterdir())
-                if {p.name for p in entries}!={'job-owner.json',*value['files'],*(['ready.json'] if ready.exists() else [])}:continue
+                names={p.name for p in entries}
+                expected={'job-owner.json',*value['files'],*(['ready.json'] if ready.exists() else [])}
+                if value['format']==DELETING_FORMAT:
+                    if not names<=expected:continue
+                elif names!=expected:continue
                 if any(not compatibility.plain(p).is_file() for p in entries):continue
-                size=sum(compatibility.plain(job/name).stat().st_size for name in value['files'])
-                rows.append((value['created'],job,size))
+                size=sum(p.stat().st_size for p in entries if p.name in value['files'])
+                rows.append((value['created'],job,size,value['format']==DELETING_FORMAT))
             except (OSError,ValueError):continue
         rows.sort(key=lambda row:row[0],reverse=True)
         kept=0;total=0;removed=0
-        for created,job,size in rows:
-            if now-created>max_age or kept>=max_jobs or total+size>max_bytes:
+        for created,job,size,deleting in rows:
+            if deleting or now-created>max_age or kept>=max_jobs or total+size>max_bytes:
                 try:removed+=remove_owned_job(app,job)
                 except (OSError,ValueError):pass
             else:kept+=1;total+=size
     return removed
 
 
-def check(app,progress=None,*,fetch=transfer):
+def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK_BUDGET,clock=time.monotonic):
+    deadline=clock()+budget_seconds
+    def cancellation():
+        if cancelled and cancelled():raise UpdateError('cancelled')
+    def fetch_checked(url,limit):
+        cancellation()
+        if clock()>=deadline:raise UpdateError('update_download_failed')
+        return fetch(url,limit,deadline=deadline,cancelled=cancelled,clock=clock,
+                     progress=(lambda *_:progress('update_check',0,0)) if progress else None)
     app,updates=paths(app);local=current(app)
-    reclaim_jobs(app)
+    # This request may be hard-stopped by the desktop. Destructive cache
+    # maintenance belongs to prepare(), never this UI/network read path.
     base={'available':False,'current_version':local['version'],'version':None,'sequence':None,'release_url':None,'notes':'','reason':'no_signed_release'}
     if progress:progress('update_check',0,0)
-    releases=decode(fetch(RELEASES,1024*1024),1024*1024)
+    releases=decode(fetch_checked(RELEASES,1024*1024),1024*1024)
     if not isinstance(releases,list) or len(releases)>20:raise UpdateError('update_invalid')
     candidates=[]
     for release in releases:
@@ -313,8 +373,12 @@ def check(app,progress=None,*,fetch=transfer):
     # bounded subset rather than disabling updates once eight exist.
     candidates=candidates[:8]
     newest=None;raw_newest=None;transport_failures=0;sequences={}
-    for tag,url in candidates:
-        try:raw=fetch(url,MAX_MANIFEST)
+    for index,(tag,url) in enumerate(candidates):
+        cancellation()
+        if clock()>=deadline:
+            transport_failures+=len(candidates)-index;break
+        if progress:progress('update_check',index,len(candidates))
+        try:raw=fetch_checked(url,MAX_MANIFEST)
         except UpdateError as error:
             if error.code!='update_download_failed':raise
             transport_failures+=1;continue
@@ -324,6 +388,7 @@ def check(app,progress=None,*,fetch=transfer):
         if sequences.setdefault(value['sequence'],encoded)!=encoded:raise UpdateError('update_invalid')
         if newest is None or value['sequence']>newest['sequence']:newest,raw_newest=value,raw
         elif value['sequence']==newest['sequence'] and canonical(value)!=canonical(newest):raise UpdateError('update_invalid')
+    cancellation()
     if newest is None:
         if transport_failures:raise UpdateError('update_download_failed')
         return base

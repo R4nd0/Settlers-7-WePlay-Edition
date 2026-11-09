@@ -8,6 +8,17 @@ internal sealed partial class MainForm
     private int maintenanceCount;
     private readonly LinkLabel maintenanceNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),Visible=false,Margin=new Padding(0,2,0,4)};
     private Button maintenanceCleanup=null!;
+    private Button graphicsRecommended=null!,graphicsMaximum=null!;
+    private bool modernGraphicsAvailable;
+    private readonly Label graphicsPresetNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),ForeColor=SystemColors.GrayText};
+    private void UpdateGraphicsPresets()
+    {
+        if(graphicsRecommended==null)return;
+        graphicsRecommended.Enabled=!busy&&modernGraphicsAvailable;
+        graphicsMaximum.Enabled=!busy&&modernGraphicsAvailable&&midsummerToneAvailable;
+        graphicsPresetNotice.Visible=!modernGraphicsAvailable||!midsummerToneAvailable;
+        graphicsPresetNotice.Text=Lang.T(!modernGraphicsAvailable?"graphicsModernUnavailable":"graphicsMaximumUnavailable");
+    }
     private void UpdateMaintenanceNotice()
     {
         maintenanceNotice.Visible=maintenanceCount>0;
@@ -48,10 +59,12 @@ internal sealed partial class MainForm
         Add(displayInfo,Label("rendererInfo"));Add(displayInfo,Label("graphicsModeInfo"));Add(displayInfo,Label("borderlessInfo"));
 
         var quality=GraphicsSection(root,"graphicsQualityGroup");
+        graphicsRecommended=Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;});
+        graphicsMaximum=Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=midsummerToneAvailable;return Task.CompletedTask;});
         Add(quality,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
             Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;}),
-            Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;}),
-            Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=midsummerToneAvailable;return Task.CompletedTask;})));
+            graphicsRecommended,graphicsMaximum));
+        Add(quality,graphicsPresetNotice);
         Add(quality,Label("qualityRecommendedInfo"));
         var custom=GraphicsDetails(quality,"graphicsCustomQuality",out graphicsQualityDetails);
         Add(custom,Label("qualityPresetInfo"));

@@ -11,7 +11,7 @@ namespace S7Desktop;
 internal sealed record BackendTiming(TimeSpan Idle,TimeSpan Grace,TimeSpan Poll)
 {
     internal static BackendTiming For(string action)=>new(action switch {
-        "directory-list" or "lan-list"=>TimeSpan.FromSeconds(60),
+        "directory-list" or "lan-list" or "recovery-status"=>TimeSpan.FromSeconds(60),
         "update-check"=>TimeSpan.FromMinutes(3),
         "detect" or "verify"=>TimeSpan.FromMinutes(10),
         _=>TimeSpan.FromMinutes(3)},TimeSpan.FromSeconds(5),TimeSpan.FromMilliseconds(100));
@@ -23,7 +23,7 @@ internal static class Backend
     private static Session? operation;
     // These are dispatched before installation recovery. Other actions can
     // recover/mutate and remain cooperative-only even before a state frame.
-    private static readonly HashSet<string> ReadOnlyActions=["directory-list","update-check"];
+    private static readonly HashSet<string> ReadOnlyActions=["directory-list","update-check","recovery-status"];
     public static string? Operation {get{lock(operationsLock)return operation?.Id;}}
 
     public static Task<JsonElement> Run(string action,object data,Action<JsonElement> receive,bool trackOperation=true,CancellationToken cancellationToken=default)

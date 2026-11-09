@@ -255,10 +255,10 @@ class Desktop:
         try:return display.enumerate_displays()[:2]
         except (OSError,ValueError,RuntimeError):return []
 
-    def snapshot(self):
+    def snapshot(self,*,displays=None):
         value=self.installed()
         metadata=install.package_metadata(self.package)
-        result={'installed':value is not None,'displays':self.displays(),
+        result={'installed':value is not None,'displays':self.displays() if displays is None else displays,
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':value['renderer_policy'] if value else 'auto',
                 'probe':self.read(self.state/'graphics-probe.json',{'devices':[],'failure':None}),
@@ -589,13 +589,14 @@ class Desktop:
         player_settings.player_name(request['player_name'])
         probe=self.probe()
         policy=request['renderer_policy']
+        screens=self.displays()
         # Reject invalid display/GPU requests before making any profile change.
-        if selected.get('display') is not None:display.resolve(selected['display'],self.displays())
+        if selected.get('display') is not None:display.resolve(selected['display'],screens)
         expected_mode='dxvk' if policy!='native' and probe['devices'] else 'native'
         if expected_mode=='dxvk' and selected['choice'] is not None and selected['choice'] not in probe['devices']:
             raise ValueError('renderer_unsupported')
         if expected_mode=='dxvk' and selected.get('display') is not None:
-            display.resolve(selected['display'],self.displays(),renderer='dxvk',gpu=selected['choice'])
+            display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
         if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
         if policy=='dxvk' and not probe['devices']:raise ValueError('renderer_unsupported')
         if expected_mode=='native':
@@ -603,7 +604,6 @@ class Desktop:
             for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
                 if name in selected:selected[name]=False
         elif selected['choice'] is None:
-            screens=self.displays()
             target=next((s for s in screens if selected.get('display') and s['device']==selected['display']['device']),screens[0] if screens else None)
             if target and target['adapter'] in probe['devices']:selected['choice']=target['adapter']
         with graphics.session_lock(root):
@@ -611,7 +611,8 @@ class Desktop:
             choice._load_choice(root);quality.load(root);player_settings.load(root)
             if any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
                 import reshade_runtime
-                reshade_runtime.prepare(root,options=selected)
+                reshade_runtime.prepare(root,options=selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
+            if self.cancel.exists():raise Cancelled('cancelled')
             value=self.installed();value['renderer_policy']=policy
             planned={'choice':graphics.encoded(selected),'quality':graphics.encoded(quality_value),
                      'player':json.dumps({'format':player_settings.FORMAT,'display_name':request['player_name']},ensure_ascii=True).encode('ascii'),
@@ -640,8 +641,11 @@ class Desktop:
             finally:
                 self._settings_lock_held=False;self.operation_state('idle')
         # The generation has committed. A failed UI refresh must not undo it.
-        try:return self.snapshot()
-        except (OSError,ValueError,RuntimeError):raise ValueError('settings_saved_refresh_failed') from None
+        committed=dict(renderer_policy=policy,choice=selected,quality=quality_value,
+                       player_name=request['player_name'],renderer=expected_mode)
+        try:result=self.snapshot(displays=screens);refresh_failed=False
+        except (OSError,ValueError,RuntimeError):result={};refresh_failed=True
+        return {**result,'settings_committed':True,'committed_settings':committed,'refresh_failed':refresh_failed}
 
     @verified_operation
     def recover_settings(self):
@@ -651,6 +655,15 @@ class Desktop:
             self.operation_state('critical')
             try:desktop_settings.recover(self,root)
             finally:self.operation_state('idle')
+
+    def recovery_status(self):return desktop_settings.recovery_status(self)
+
+    def resolve_recovery(self,request):
+        graphics.ensure_closed()
+        if request.get('action')=='restore_previous':self.package_manifest()
+        # The caller owns the desktop lock. Resolution never imports foreign
+        # settings into the managed generation; their full bytes are backed up.
+        return desktop_settings.resolve_conflict(self,request)
 
     def network_id(self,root):
         return content.network_id(content.load(root/'compatibility.json'))
@@ -711,7 +724,7 @@ class Desktop:
     def check_updates(self):
         if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
         from update_client import check
-        return check(self.app)
+        return check(self.app,progress=self.progress,cancelled=lambda:self.cancel.exists())
 
     def install_update(self,data):
         if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
@@ -1107,6 +1120,9 @@ def dispatch(desktop,request):
             and request['format']==REQUEST and request['data']=={}):
         if request['action']=='update-check':return desktop.check_updates()
         if request['action']=='directory-list':return desktop.directory_list()
+        if request['action']=='recovery-status':return desktop.recovery_status()
+        if request['action']=='diagnostics' and ((desktop.state/desktop_settings.NAME).exists() or (desktop.state/desktop_settings.DETACH).exists()):
+            return {'format':'s7-desktop-diagnostics-v1','recovery':desktop.recovery_status()}
     with desktop.verification():
         desktop.operation_state('cancellable')
         try:return _dispatch(desktop,request)
@@ -1123,6 +1139,9 @@ def _dispatch(desktop,request):
     # This is an untrusted display hint only. Admission still recovers and
     # fully verifies under the mutation lock. No journal writes in this path.
     if action=='directory-list' and not data:return desktop.directory_list()
+    if action=='recovery-resolve':
+        with desktop.lock():return desktop.resolve_recovery(data)
+    if (desktop.state/desktop_settings.DETACH).exists():raise ValueError('preferences_invalid')
     if (desktop.state/'installation-transaction.json').exists():
         desktop.operation_state('critical')
         with desktop.lock():desktop.recover_publication()
@@ -1196,7 +1215,8 @@ def error_code(error):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
-        'renderer_unsupported','destination_invalid','preferences_invalid','quality_invalid','quality_ini_invalid','standalone_invalid',
+        'renderer_unsupported','destination_invalid','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
+        'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
         'settings_saved_refresh_failed'}

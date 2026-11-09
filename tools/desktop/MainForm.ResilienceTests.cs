@@ -55,6 +55,7 @@ internal sealed partial class MainForm
         maintenanceCount=2;UpdateMaintenanceNotice();
         if(!maintenanceNotice.Visible||!maintenanceNotice.Text.Contains('2'))throw new Exception("Pending maintenance has no reachable launcher notice");
         maintenanceCount=0;UpdateMaintenanceNotice();
+        TestFreshReviewWorkflows(original);
     }
     private void AssertPrimaryActionVisible(TabPage page)
     {
@@ -94,6 +95,18 @@ internal sealed partial class MainForm
                         render.Save(Path.Combine(folder,locale+"-scaled-"+(int)(scale*100)+"-"+form.tabs.SelectedIndex+".png"));
                     }
                 }
+                form.ShowSettingsRecovery(JsonSerializer.SerializeToElement(new {pending=true,recoverable=true,can_detach=true,conflicts=new[]{"quality","choice"},token=new string('a',64)}));
+                Application.DoEvents();
+                foreach(var action in new[]{form.recoveryRestore,form.recoveryDetach,form.recoveryDiagnostics,form.recoveryRetry})
+                {
+                    Rectangle bounds=form.settingsRecovery.RectangleToClient(action.RectangleToScreen(action.ClientRectangle));
+                    if(!action.Visible||!form.settingsRecovery.ClientRectangle.Contains(bounds))throw new Exception("Recovery action is hidden or requires scrolling at scale "+scale);
+                    var hit=form.settingsRecovery.GetChildAtPoint(new Point(bounds.Left+bounds.Width/2,bounds.Top+bounds.Height/2),GetChildAtPointSkip.Invisible);
+                    if(hit==null||(hit!=action&&!hit.Contains(action)))throw new Exception("Recovery action is covered at scale "+scale);
+                }
+                using(var render=new Bitmap(form.Width,form.Height))
+                {form.DrawToBitmap(render,new Rectangle(0,0,form.Width,form.Height));render.Save(Path.Combine(folder,locale+"-recovery-scaled-"+(int)(scale*100)+".png"));}
+                form.recoveryVisible=false;form.settingsRecovery.Visible=false;form.ShowMain();
                 form.DiscardGraphicsDraft();form.Close();
             }
             finally{foreach(var font in ownedFonts)font.Dispose();}

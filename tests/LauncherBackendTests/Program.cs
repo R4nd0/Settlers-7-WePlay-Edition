@@ -28,6 +28,8 @@ internal static class Tests
         try {
             await Scenario(root,"normal","directory-list",null,null);
             await Scenario(root,"hang","directory-list","backend_timeout",null);
+            await Scenario(root,"normal","recovery-status",null,null);
+            await Scenario(root,"hang","recovery-status","backend_timeout",null);
             using(var stop=new CancellationTokenSource())await Scenario(root,"hang","directory-list","cancelled",stop);
             await Scenario(root,"oversize","directory-list","backend_protocol_invalid",null);
             await Scenario(root,"malformed","directory-list","backend_protocol_invalid",null);

@@ -267,7 +267,7 @@ internal sealed partial class MainForm : Form
         installButton=Button("install",InstallGame,true);
         cancelButton=new Button {AutoSize=true,MinimumSize=new Size(150,38)};Bind(cancelButton,"cancel");cancelButton.Visible=false;
         cancelButton.Click+=(_,_)=>RequestCancellation();
-        BuildSetup(); BuildTabs();
+        BuildSetup(); BuildTabs(); BuildSettingsRecovery();
         tabs.SelectedIndexChanged += (_,_) => { if(IsHandleCreated) BeginInvoke((Action)FitMenuHeight); };
         ResizeBegin += (_,_) => automaticMenuHeight=false;
         tabs.Visible=false;
@@ -470,6 +470,7 @@ internal sealed partial class MainForm : Form
     {
         foreach (var item in labels) item.Key.Text = Lang.T(item.Value);
         ApplyPlayModeLanguage();UpdateMaintenanceNotice();
+        UpdateGraphicsPresets();if(recoveryVisible)ShowSettingsRecovery(recoveryStatus);
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
         Text=Lang.T("app"); tray.Text=Lang.T("app");
         loading=true;
@@ -502,9 +503,12 @@ internal sealed partial class MainForm : Form
         }
         catch(Exception error)
         {
-            ShowError(error);setup.Visible=true;tabs.Visible=false;installButton.Enabled=true;
-            if(error is BackendError portableFailure&&portableFailure.Code=="standalone_invalid")setup.Visible=false;
-            if(error is BackendError failure&&failure.Code=="installation_invalid"){recoverState=true;Bind(installButton,"restartSetup");}
+            if(!await TryShowSettingsRecovery(error))
+            {
+                ShowError(error);setup.Visible=true;tabs.Visible=false;installButton.Enabled=true;
+                if(error is BackendError portableFailure&&portableFailure.Code=="standalone_invalid")setup.Visible=false;
+                if(error is BackendError failure&&failure.Code=="installation_invalid"){recoverState=true;Bind(installButton,"restartSetup");}
+            }
         }
         finally {SetBusy(false);}
         if(!testing&&updatesSupported)_=CheckUpdates(true);
@@ -549,6 +553,7 @@ internal sealed partial class MainForm : Form
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
         foreach(var item in value.GetProperty("probe").GetProperty("devices").EnumerateArray())gpu.Items.Add(new Item(item.GetString()!,item.GetString()!));
+        modernGraphicsAvailable=gpu.Items.Count>1;
         gpu.SelectedIndex=0;for(int i=1;i<gpu.Items.Count;i++)if(gpu.Items[i] is Item option&&option.Key==oldGpu)gpu.SelectedIndex=i;
         var selected=value.GetProperty("choice").TryGetProperty("display",out var found)?found:default;
         string? oldDisplay=replaceFields&&selected.ValueKind==JsonValueKind.Object?selected.GetProperty("device").GetString():(monitor.SelectedItem as Item)?.Key;
@@ -566,6 +571,7 @@ internal sealed partial class MainForm : Form
             for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==key)resolution.SelectedIndex=i;
         }
         loading=false;
+        UpdateGraphicsPresets();
         if(replaceFields||acceptGraphics)AcceptGraphicsDraft();else UpdateGraphicsDraft();
     }
     private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
@@ -575,7 +581,7 @@ internal sealed partial class MainForm : Form
         tabs.Visible=false;setup.Visible=true;
         Bind(installButton,snapshot.GetProperty("installed").GetBoolean()?"update":"install");
         source.Items.Clear();
-        Bind(setupNotice,"detecting");var found=await Backend.Run("detect",new {},Receive);
+        Bind(setupNotice,"detecting");var found=await RunUiBackend("detect",new {});
         foreach(var item in found.GetProperty("sources").EnumerateArray())
         {
             string path=item.GetProperty("path").GetString()!;
@@ -686,6 +692,7 @@ internal sealed partial class MainForm : Form
     }
     private void DisplayEnabled()
     {
+        UpdateGraphicsPresets();
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
         gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
         anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
@@ -702,6 +709,7 @@ internal sealed partial class MainForm : Form
     }
     private void ApplyRecommendedGraphics()
     {
+        if(!modernGraphicsAvailable)throw new BackendError("renderer_unsupported","");
         renderer.SelectedIndex=1;
         DisplayEnabled();
         ApplyQualityPreset(true);
@@ -737,14 +745,12 @@ internal sealed partial class MainForm : Form
     }
     private async Task SaveGraphics()
     {
-        try{LoadSnapshot(await Backend.Run("save",GraphicsRequest(),Receive),acceptGraphics:true);status.Text=Lang.T("saved");}
-        catch(BackendError error)when(error.Code=="settings_saved_refresh_failed"){AcceptGraphicsDraft();throw;}
+        ApplySettingsResult(await RunUiBackend("save",GraphicsRequest()));
     }
     private async Task Fallback()
     {
         if(!await ResolveGraphicsDraft())return;
-        try{LoadSnapshot(await Backend.Run("save",GraphicsRequest(true),Receive),acceptGraphics:true);status.Text=Lang.T("saved");}
-        catch(BackendError error)when(error.Code=="settings_saved_refresh_failed"){renderer.SelectedIndex=2;AcceptGraphicsDraft();throw;}
+        ApplySettingsResult(await RunUiBackend("save",GraphicsRequest(true)));
     }
     private async Task Probe(){await Backend.Run("probe",new {},Receive);LoadSnapshot(await Backend.Run("snapshot",new {},Receive));}
     private async Task Verify(){await Backend.Run("verify",new {},Receive);status.Text=Lang.T("verified");}
@@ -756,7 +762,8 @@ internal sealed partial class MainForm : Form
     }
     private async Task Diagnostics()
     {
-        var value=await Backend.Run("diagnostics",new {},Receive);
+        var value=await RunUiBackend("diagnostics",new {});
+        if(testing)return;
         using var dialog=new SaveFileDialog { FileName="S7-Diagnose.json",Filter="JSON (*.json)|*.json" };
         if(dialog.ShowDialog(this)==DialogResult.OK){await File.WriteAllTextAsync(dialog.FileName,JsonSerializer.Serialize(value,new JsonSerializerOptions {WriteIndented=true}));status.Text=Lang.T("reportSaved");}
     }
@@ -957,6 +964,7 @@ internal sealed partial class MainForm : Form
         RefreshUpdateControls();
         UpdateDirectoryControls();
         UpdateGraphicsDraft();
+        UpdateRecoveryControls();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -967,7 +975,7 @@ internal sealed partial class MainForm : Form
         try{await action();}
         catch(Exception error)
         {
-            if(showErrors){gameRunning=false;RestoreWindow();ShowError(error);}
+            if(showErrors){gameRunning=false;RestoreWindow();if(!await TryShowSettingsRecovery(error))ShowError(error);}
             else status.Text=Lang.T(error is BackendError backend?backend.Code:"operation_failed");
         }
         finally
@@ -1250,6 +1258,9 @@ internal sealed partial class MainForm : Form
                     "ingame_invitation_run_and_role_guards","invitation_clipboard_failure_and_private_public_separation",
                     "graphics_draft_save_discard_cancel","hardware_refresh_preserves_draft","local_refresh_stale_and_obsolete_results",
                     "language_and_cancel_io_error_boundaries","primary_actions_visible_at_minimum_size",
+                    "public_join_actual_click_captures_before_busy","public_end_actual_click_cancels_while_busy",
+                    "save_refresh_failure_discard_save_uses_committed_generation","unsupported_modern_presets_explained_and_disabled",
+                    "settings_conflict_diagnostics_confirm_stale_token_restore_detach_journey","recovery_actions_visible_at_125_150_percent",
                     "primary_actions_at_125_150_percent_geometry_and_text_scale"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}

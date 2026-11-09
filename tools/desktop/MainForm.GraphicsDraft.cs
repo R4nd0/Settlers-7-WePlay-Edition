@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace S7Desktop;
 
@@ -20,6 +21,22 @@ internal sealed partial class MainForm
             ultraShadows,midsummerTone,enhancedAa,contactShadows,maximumFx}.Select(x=>x.Checked).ToArray()
     });
     private void AcceptGraphicsDraft(){savedGraphicsDraft=CaptureGraphicsDraft();UpdateGraphicsDraft();}
+    private void ApplySettingsResult(JsonElement value)
+    {
+        bool refreshFailed=value.TryGetProperty("refresh_failed",out var failed)&&failed.GetBoolean();
+        if(refreshFailed)
+        {
+            if(!value.GetProperty("settings_committed").GetBoolean())throw new BackendError("backend_protocol_invalid","");
+            // Hardware can be unavailable after commit. Retain its last snapshot,
+            // but replace ALL persisted settings with the authoritative generation.
+            var merged=JsonNode.Parse(snapshot.GetRawText())!.AsObject();
+            foreach(var field in value.GetProperty("committed_settings").EnumerateObject())
+                merged[field.Name]=JsonNode.Parse(field.Value.GetRawText());
+            LoadSnapshot(JsonSerializer.SerializeToElement(merged),acceptGraphics:true);
+        }
+        else LoadSnapshot(value,acceptGraphics:true);
+        status.Text=Lang.T(refreshFailed?"settings_saved_refresh_failed":"saved");
+    }
     private void UpdateGraphicsDraft()
     {
         if(loading)return;
@@ -72,6 +89,7 @@ internal sealed partial class MainForm
     }
     private void RequestCancellation(Action? request=null)
     {
+        if(testing&&request==null)request=testCancellation;
         if(request==null&&Backend.Operation==null)return;
         try
         {

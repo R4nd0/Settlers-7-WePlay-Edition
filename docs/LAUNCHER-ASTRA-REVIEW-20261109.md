@@ -1,5 +1,9 @@
 # Fresh launcher review by three Astra agents
 
+Follow-up: all findings below are addressed by the
+[implementation and verification report](LAUNCHER-FIXES-20261109.md). The
+descriptions below retain the original audited source and reproductions.
+
 Date: 2026-11-09. Audited source:
 `77d4d9b826d15a3c60b2540523370a0a4b2d6c68`.
 

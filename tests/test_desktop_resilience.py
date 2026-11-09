@@ -82,11 +82,154 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def test_committed_save_survives_failed_snapshot(self):
         with patch.object(self.desktop,'snapshot',side_effect=OSError('synthetic UI refresh failure')):
-            with self.assertRaisesRegex(ValueError,'settings_saved_refresh_failed'):self.desktop.save_settings(self.request())
+            result=self.desktop.save_settings(self.request())
+        self.assertTrue(result['settings_committed']);self.assertTrue(result['refresh_failed'])
+        self.assertEqual(result['committed_settings'],dict(self.request(),renderer='native'))
         self.assertFalse((self.desktop.state/settings.NAME).exists())
         self.assertFalse(choice._load_choice(self.root)['simple_menu'])
         self.assertEqual(quality.load(self.root)['TextureQuality'],2)
         self.assertEqual(self.desktop.installed()['renderer_policy'],'native')
+
+    def interrupted(self):
+        original=self.desktop.write
+        def fail(path,value):
+            if path==self.root/quality.FILE:raise OSError('synthetic disk failure')
+            return original(path,value)
+        with patch.object(self.desktop,'write',side_effect=fail),patch.object(settings.Transaction,'rollback',side_effect=SystemExit):
+            with self.assertRaises(SystemExit):self.desktop.save_settings(self.request())
+
+    def dispatch(self,action,data=None):
+        return backend.dispatch(self.desktop,dict(format=backend.REQUEST,action=action,data=data or {}))
+
+    def test_conflict_status_diagnostics_restore_and_next_save(self):
+        before=self.before();self.interrupted()
+        foreign=b'{"foreign":"preserve even invalid settings"}'
+        (self.root/quality.FILE).write_bytes(foreign)
+        journal=(self.desktop.state/settings.NAME).read_bytes()
+        with patch.object(self.desktop,'recover_settings',side_effect=AssertionError('read-only recovery')):
+            status=self.dispatch('recovery-status');report=self.dispatch('diagnostics')
+        self.assertTrue(status['recoverable']);self.assertIn('quality',status['conflicts'])
+        self.assertNotIn(str(self.root),json.dumps(report))
+        result=self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        backup=json.loads((self.desktop.state/result['backup']).read_bytes())['inputs']
+        self.assertEqual(settings.decode(backup['current']['quality']),foreign)
+        self.assertEqual(settings.decode(backup['journal']),journal)
+        self.assertEqual(self.before(),before)
+        self.assertTrue(self.dispatch('snapshot')['installed'])
+        self.assertTrue(self.dispatch('save',self.request())['settings_committed'])
+
+    def test_resolution_rejects_changed_confirmation_and_backup_failure(self):
+        self.interrupted();status=self.dispatch('recovery-status')
+        (self.root/quality.FILE).write_bytes(b'foreign')
+        before=self.before()
+        with self.assertRaisesRegex(ValueError,'recovery_changed'):
+            self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        status=self.dispatch('recovery-status')
+        with patch.object(graphics,'atomic_create',side_effect=OSError('backup full')):
+            with self.assertRaises(OSError):self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        self.assertEqual(self.before(),before)
+
+    def test_backup_tampering_is_detected_before_any_restore(self):
+        self.interrupted();(self.root/quality.FILE).write_bytes(b'foreign');before=self.before()
+        status=self.dispatch('recovery-status');original=graphics.atomic_create
+        def tamper(path,value,staging):
+            original(path,value,staging)
+            if path.name.startswith('settings-recovery-'):path.write_bytes(b'tampered')
+        with patch.object(graphics,'atomic_create',tamper):
+            with self.assertRaisesRegex(ValueError,'preferences_invalid'):
+                self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        self.assertEqual(self.before(),before)
+
+    def test_explicit_restore_retains_full_package_verification(self):
+        self.interrupted();status=self.dispatch('recovery-status');before=self.before()
+        (self.desktop.package/'Payload/uplay_r1_loader.dll').write_bytes(b'tampered package')
+        with self.assertRaises(ValueError):self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        self.assertEqual(self.before(),before)
+        self.assertTrue((self.desktop.state/settings.NAME).exists())
+
+    def test_interrupted_explicit_restore_can_be_resumed_without_losing_foreign_backup(self):
+        before=self.before();self.interrupted();foreign=b'foreign-invalid-quality'
+        (self.root/quality.FILE).write_bytes(foreign);status=self.dispatch('recovery-status')
+        original=graphics.atomic_write
+        def fail(path,value,staging):
+            if path==self.root/quality.FILE:raise OSError('disk full during explicit restore')
+            original(path,value,staging)
+        with patch.object(graphics,'atomic_write',fail):
+            with self.assertRaises(OSError):self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        self.assertTrue((self.desktop.state/settings.NAME).exists())
+        backups=list(self.desktop.state.glob('settings-recovery-*.json'))
+        self.assertTrue(any(settings.decode(json.loads(path.read_bytes())['inputs']['current']['quality'])==foreign for path in backups))
+        status=self.dispatch('recovery-status')
+        self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
+        self.assertEqual(self.before(),before);self.assertTrue(self.dispatch('snapshot')['installed'])
+
+    def test_invalid_journal_detach_preserves_instances_and_returns_to_setup(self):
+        raw=b'not-json journal';(self.desktop.state/settings.NAME).write_bytes(raw)
+        before=self.before();status=self.dispatch('recovery-status')
+        self.assertFalse(status['recoverable']);self.assertTrue(status['can_detach'])
+        result=self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+        self.assertFalse(self.dispatch('snapshot')['installed'])
+        for key,path in settings.paths(self.desktop,self.root).items():
+            if key!='installation':self.assertEqual(settings.read(path),before[key])
+        saved=json.loads((self.desktop.state/result['backup']).read_bytes())['inputs']
+        self.assertEqual(settings.decode(saved['journal']),raw)
+        self.assertEqual(settings.decode(saved['installation']),before['installation'])
+
+    def test_detach_restart_preserves_registration_changed_after_interruption(self):
+        self.interrupted();status=self.dispatch('recovery-status');original=Path.unlink
+        def fail(path,*args,**kwargs):
+            if path==self.desktop.state/'installation.json':raise OSError('synthetic unlink failure')
+            return original(path,*args,**kwargs)
+        with patch.object(Path,'unlink',fail):
+            with self.assertRaises(OSError):self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+        self.assertTrue((self.desktop.state/settings.DETACH).exists())
+        with self.assertRaisesRegex(ValueError,'preferences_invalid'):self.dispatch('snapshot')
+        registration=self.desktop.state/'installation.json';old=registration.read_bytes();registration.write_bytes(b'foreign')
+        status=self.dispatch('recovery-status')
+        with self.assertRaisesRegex(ValueError,'recovery_changed'):
+            self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+        self.assertEqual(registration.read_bytes(),b'foreign')
+        registration.write_bytes(old);status=self.dispatch('recovery-status')
+        self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+        self.assertFalse(self.dispatch('snapshot')['installed'])
+
+    def test_corrupt_detach_backup_is_read_only_manual_recovery_not_false_resume(self):
+        self.interrupted();status=self.dispatch('recovery-status');original=Path.unlink
+        def fail(path,*args,**kwargs):
+            if path==self.desktop.state/'installation.json':raise OSError('synthetic interruption')
+            return original(path,*args,**kwargs)
+        with patch.object(Path,'unlink',fail):
+            with self.assertRaises(OSError):self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+        marker=json.loads((self.desktop.state/settings.DETACH).read_bytes())
+        (self.desktop.state/marker['backup']).write_bytes(b'corrupt backup')
+        registration=(self.desktop.state/'installation.json').read_bytes()
+        status=self.dispatch('recovery-status')
+        self.assertTrue(status['pending']);self.assertFalse(status['can_detach']);self.assertFalse(status['recoverable'])
+        self.assertEqual(status['conflicts'],['unreadable']);self.assertIsNone(status['token'])
+        self.assertEqual(self.dispatch('diagnostics')['recovery'],status)
+        self.assertEqual((self.desktop.state/'installation.json').read_bytes(),registration)
+
+    def test_unreadable_or_unowned_state_remains_diagnosable_but_not_resolvable(self):
+        (self.desktop.state/settings.NAME).write_bytes(b'invalid')
+        (self.desktop.state/'installation.json').write_bytes(b'invalid')
+        status=self.dispatch('recovery-status')
+        self.assertFalse(status['can_detach']);self.assertFalse(status['recoverable'])
+        self.assertTrue(self.dispatch('diagnostics')['recovery']['pending'])
+        with self.assertRaises(ValueError):self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
+
+    def test_save_reuses_one_display_snapshot(self):
+        with patch.object(self.desktop,'displays',return_value=self.base.screens) as displays:
+            result=self.desktop.save_settings(self.request())
+        self.assertEqual(displays.call_count,1);self.assertEqual(result['displays'],self.base.screens)
+
+    def test_failed_refresh_returns_normalized_native_generation_not_requested_effects(self):
+        request=self.request();request['choice'].update(enhanced_aa=True,maximum_fx=True)
+        with patch.object(choice,'_require_visual_support'),patch.object(self.desktop,'snapshot',side_effect=OSError('refresh failure')):
+            result=self.desktop.save_settings(request)
+        self.assertTrue(result['refresh_failed'])
+        self.assertFalse(result['committed_settings']['choice']['enhanced_aa'])
+        self.assertFalse(result['committed_settings']['choice']['maximum_fx'])
+        self.assertEqual(result['committed_settings']['choice'],choice._load_choice(self.root))
 
     def test_settings_save_verifies_package_once_then_discards_context(self):
         with patch.object(install,'package_manifest',wraps=install.package_manifest) as verify:

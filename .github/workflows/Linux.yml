@@ -42,6 +42,7 @@ jobs:
           foreach ($test in @('test_desktop_backend.py','test_update_client.py',
                               'test_desktop_resilience.py',
                               'test_update_resilience.py',
+                              'test_reshade_recovery.py',
                               'test_update_backend.py','test_update_recovery.py',
                               'test_graphics_profile.py','test_graphics_choice.py',
                               'test_standalone.py','test_network_content.py')) {
@@ -128,6 +129,8 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_linux_replays.py
           python3 -B -m unittest discover -s tests -p test_installer.py
           python3 -B -m unittest discover -s tests -p test_graphics_profile.py
+          python3 -B -m unittest discover -s tests -p test_reshade_recovery.py
+          python3 -B -m unittest discover -s tests -p test_update_resilience.py
       - name: Real HTTP/UDP and independent OpenSSL peer
         shell: bash
         run: |

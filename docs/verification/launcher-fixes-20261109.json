@@ -1,0 +1,279 @@
+{
+  "format": "weplay-launcher-fixes-verification-v1",
+  "date": "2026-11-09",
+  "source_sha256": {
+    ".github/workflows/Linux.yml": "cb7ab8ad4201cb26b58b652de360bb36cc3a8d161aebfe1319d712187966fdf4",
+    "tests/LauncherBackendTests/Program.cs": "261f2cfb8f385e07f338a10b0772519810a4d784e8607c179a2d612bdff6e16c",
+    "tests/test_desktop_resilience.py": "465000f81e1c033e918d27366c8a9bfe04afd813758c0a4356e71c6092a79003",
+    "tests/test_reshade_recovery.py": "1c76a7c4292d9a74b5581087f8ef307811256ff17f1813b366d8f2f24ab82039",
+    "tests/test_update_resilience.py": "4987bcc2d165ed46025f2fd27fdf025e394ee581c6b0dee8b9ab3cfff112b629",
+    "tools/desktop/Backend.cs": "7073c10b5e7347875c8c200226fa897037c63a5be01db19e84180c5d177a134c",
+    "tools/desktop/MainForm.Directory.cs": "4a64c63013dabab78d2d4bf480382afe4cfa9d3ffd3aac578dcd05b1884170a6",
+    "tools/desktop/MainForm.GraphicsDraft.cs": "cc241b134cb85dcbc13fb492ba4a72185c77eef94922b7cf4d0ffe04caad9578",
+    "tools/desktop/MainForm.Layout.cs": "ff278a1127ec9237aee6d4d1b8273a85561154c85c583c3e31ed8be19eee84f3",
+    "tools/desktop/MainForm.Recovery.cs": "e5196fb8754ad5b6aa543ef8bef6616b64278b9205d4ba5087917ddfe8a2c778",
+    "tools/desktop/MainForm.ResilienceTests.cs": "4c3246a322e1133a7d8b59dec56c41532fafb9dc2dbba92d4d9cc3355be2b3a2",
+    "tools/desktop/MainForm.WorkflowTests.cs": "ec2f91cffcd8840785e987568b6ce7a6e28fdb0aeec98531447bb3bf59d2e7f9",
+    "tools/desktop/Program.cs": "401fc788273e4c5b30745dd4a955a8927b0148009705425e8c6ccba56d3137f0",
+    "tools/desktop/Strings.de.json": "5c499e25fb6b2b6f51604cf2201b606c84f1ec80e7d69b778c4c6171a69c7d34",
+    "tools/desktop/Strings.en.json": "ada87475eb4b07c9ee7798154ced1bc0a007e1a3bda37278d1ead59984ec775d",
+    "tools/installer/desktop_backend.py": "8d736d46507a25872b78d0fb08958011b6dfc7e70391a5f3255ca8311f4ddef7",
+    "tools/installer/desktop_settings.py": "4a894656f97a9ad04adfc6001344410f79c2f3e3b16c65dc7dfcbb92056ae540",
+    "tools/installer/reshade_runtime.py": "f615b375a7c99258c134cd32efa7939b984109c3dc1330c76cdb149cd8b93bfe",
+    "tools/installer/update_client.py": "390422b0abda095e822cb5eed998d0664cae1b6d0f42b04c6daedc7a895d8cd5"
+  },
+  "all_findings": [
+    "A1",
+    "A2",
+    "R1",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "unsupported-presets",
+    "display-enumeration"
+  ],
+  "source_regressions": [
+    {
+      "test": "test_update_client.py",
+      "exit": 0,
+      "cases": 19,
+      "seconds": 23.777,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_update_resilience.py",
+      "exit": 0,
+      "cases": 19,
+      "seconds": 20.789,
+      "skipped": 0,
+      "platform": "Ubuntu 24.04 WSL"
+    },
+    {
+      "test": "test_update_backend.py",
+      "exit": 0,
+      "cases": 9,
+      "seconds": 2.81,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_update_recovery.py",
+      "exit": 0,
+      "cases": 16,
+      "seconds": 75.06,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_installer.py",
+      "exit": 0,
+      "cases": 34,
+      "seconds": 23.218,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_standalone.py",
+      "exit": 0,
+      "cases": 20,
+      "seconds": 83.726,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_standalone_preflight.py",
+      "exit": 0,
+      "cases": 4,
+      "seconds": 1.563,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_network_content.py",
+      "exit": 0,
+      "cases": 18,
+      "seconds": 5.219,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_internet_backend.py",
+      "exit": 0,
+      "cases": 10,
+      "seconds": 1.664,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_public_startup.py",
+      "exit": 0,
+      "cases": 5,
+      "seconds": 3.566,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_ingame_directory.py",
+      "exit": 0,
+      "cases": 7,
+      "seconds": 3.17,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_launch_internet.py",
+      "exit": 0,
+      "cases": 10,
+      "seconds": 2.605,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_public_directory.py",
+      "exit": 0,
+      "cases": 4,
+      "seconds": 0.906,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_release_documents.py",
+      "exit": 0,
+      "cases": 2,
+      "seconds": 3.505,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_package_location.py",
+      "exit": 0,
+      "cases": 3,
+      "seconds": 1.588,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_linux_support.py",
+      "exit": 0,
+      "cases": 20,
+      "seconds": 11.44,
+      "skipped": 8,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_linux_replays.py",
+      "exit": 0,
+      "cases": 5,
+      "seconds": 0.5,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_reshade_recovery.py",
+      "exit": 0,
+      "cases": 9,
+      "seconds": 60.787,
+      "skipped": 0,
+      "platform": "Ubuntu 24.04 WSL"
+    },
+    {
+      "test": "test_graphics_profile.py",
+      "exit": 0,
+      "cases": 28,
+      "seconds": 44.587,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_graphics_launcher.py",
+      "exit": 0,
+      "cases": 10,
+      "seconds": 3.228,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_graphics_distribution.py",
+      "exit": 0,
+      "cases": 3,
+      "seconds": 5.347,
+      "skipped": 0,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_compiled_update_handoff.py",
+      "exit": 0,
+      "cases": 11,
+      "seconds": 2.515,
+      "skipped": 11,
+      "platform": "Windows"
+    },
+    {
+      "test": "test_update_handoff_windows.py",
+      "exit": 0,
+      "cases": 5,
+      "seconds": 0.274,
+      "skipped": 5,
+      "platform": "Windows"
+    }
+  ],
+  "backend": {
+    "unique_cases": 139,
+    "passed": 136,
+    "skipped": 3,
+    "qualification": "Broad suite plus final targeted delta suites. Final marker/backup/CAS and package guard changes are covered by followup/guards/final-cas; final complete-staging inventory change by staging-final."
+  },
+  "ui": {
+    "passed": true,
+    "checks": 37,
+    "actual_private_pipe_roundtrip": true,
+    "minimum_and_scaled_actions": true,
+    "recovery_render_inspected": true
+  },
+  "backend_lifecycle": {
+    "passed": true,
+    "checks": 67,
+    "actual_owned_children": true
+  },
+  "bundled": {
+    "passed": true,
+    "cases": 53,
+    "skipped": 0,
+    "actual_bundled_isolated_python": true,
+    "implementation_paths_verified": true,
+    "synthetic_profiles_only": true,
+    "game_started": false
+  },
+  "package": {
+    "passed": true,
+    "private_development_build": true,
+    "package_files": 347,
+    "source_tools_equal": true,
+    "new_settings_helper_included": true,
+    "published": false,
+    "package_id": "d99ee1805af2db23f876b6e584cfe9cde0b3bd66c2b2b456427df33c89e9d806"
+  },
+  "signed_update": {
+    "python_signature_valid": true,
+    "compiled_helper_valid": true,
+    "installer_executed": false,
+    "existing_release": "v2.0.0-rc3.23"
+  },
+  "independent_review": {
+    "updater": "No additional blocker",
+    "recovery": "No additional blocker",
+    "staging": "Complete-inventory publication guard added and regression passed"
+  },
+  "limits": [
+    "Synthetic fixtures; no game or live download launched",
+    "Three optional Lua 5.1 tests skipped in backend suite",
+    "Platform/opt-in compiled-handoff skips are counted per source group; real signed compiled-helper validation passed separately",
+    "No QUIC implementation or network performance claim",
+    "OS DNS/filesystem stalls are not a universal network deadline guarantee"
+  ],
+  "published_release_changed": false,
+  "native_adapter_changed": false
+}
