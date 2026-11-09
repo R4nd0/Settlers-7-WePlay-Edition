@@ -25,7 +25,10 @@ MANIFEST='weplay-update.json'
 MAX_SETUP=768*1024*1024
 MAX_MANIFEST=49152
 JOB_FORMAT='weplay-update-job-v1'
+PREPARING_FORMAT='weplay-update-preparing-v1'
 DELETING_FORMAT='weplay-update-deleting-v1'
+DOWNLOAD_BLOCK=1024*1024
+MAX_JOB_RECEIPT=2*1024*1024
 CHECK_BUDGET=120
 MAX_JOB_AGE=7*24*60*60
 MAX_CACHED_JOBS=2
@@ -110,7 +113,7 @@ def allowed_url(url):
     return value
 
 def transfer(url,limit,*,destination=None,expected_size=None,progress=None,connection_factory=http.client.HTTPSConnection,
-             deadline=None,cancelled=None,clock=time.monotonic):
+             deadline=None,cancelled=None,clock=time.monotonic,before_write=None):
     deadline=min(deadline if deadline is not None else float('inf'),clock()+(1800 if destination else 90))
     def checkpoint():
         if cancelled and cancelled():raise UpdateError('cancelled')
@@ -129,8 +132,14 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
             if transport:
                 try:transport.shutdown(2)
                 except OSError:pass
-        deadline_timer=threading.Timer(max(0,deadline-clock()),expire_connection)
-        deadline_timer.daemon=True;deadline_timer.start()
+        transport_done=threading.Event();transport_cancelled=threading.Event()
+        def watch_transport():
+            while not transport_done.wait(min(.1,max(.001,deadline-clock()))):
+                if cancelled and cancelled():
+                    transport_cancelled.set();expire_connection();return
+                if clock()>=deadline:expire_connection();return
+        transport_watchdog=threading.Thread(target=watch_transport,name='weplay-update-transfer',daemon=True)
+        transport_watchdog.start()
         try:
             connection.request('GET',(target.path or '/')+('?' +target.query if target.query else ''),headers={
                 'User-Agent':'Settlers7WePlay-Updater/1.0','Accept':'application/vnd.github+json' if target.hostname=='api.github.com' else 'application/octet-stream'})
@@ -146,6 +155,16 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
                 raise UpdateError('update_download_failed')
             chunks=[];received=0;hasher=hashlib.sha256()
             output=compatibility.plain(destination).open('xb') if destination else None
+            pending=bytearray();written=0;written_hash=hashlib.sha256()
+            def flush_pending():
+                nonlocal written
+                if not pending:return
+                block=bytes(pending)
+                # Persist write intent first. The last block may be only partly
+                # present after process loss; all earlier bytes are durable.
+                before_write(written,written_hash.hexdigest(),block)
+                checkpoint();output.write(block);output.flush();os.fsync(output.fileno())
+                written_hash.update(block);written+=len(block);pending.clear()
             try:
                 while True:
                     timeout=checkpoint()
@@ -155,25 +174,33 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
                     if transport:transport.settimeout(timeout)
                     # read1 returns after one buffered/socket read; read(n) can
                     # wait indefinitely for n bytes from a slow continuous peer.
-                    chunk=response.read1(min(65536,limit-received+1));checkpoint()
+                    chunk=response.read1(min(65536,limit-received+1,DOWNLOAD_BLOCK-len(pending) if output and before_write else 65536));checkpoint()
                     if not chunk:break
                     received+=len(chunk)
                     if received>limit:raise UpdateError('update_download_failed')
                     hasher.update(chunk)
-                    if output:output.write(chunk)
+                    if output:
+                        if before_write:
+                            pending.extend(chunk)
+                            if len(pending)>=DOWNLOAD_BLOCK:flush_pending()
+                        else:output.write(chunk)
                     else:chunks.append(chunk)
                     if progress:progress('update_download',received,expected_size or limit)
                 if expected_size is not None and received!=expected_size:raise UpdateError('update_download_failed')
+                if output and before_write:flush_pending()
                 if output:output.flush();os.fsync(output.fileno())
                 return (received,hasher.hexdigest()) if output else b''.join(chunks)
             finally:
                 if output:output.close()
-        except (OSError,TimeoutError,http.client.HTTPException):raise UpdateError('update_download_failed') from None
+        except (OSError,TimeoutError,http.client.HTTPException):
+            if transport_cancelled.is_set():raise UpdateError('cancelled') from None
+            checkpoint()
+            raise UpdateError('update_download_failed') from None
         finally:
-            deadline_timer.cancel()
+            transport_done.set()
             # Join before rebinding connection/response for a redirect; an
             # already-running expiry callback must never touch the next hop.
-            deadline_timer.join()
+            transport_watchdog.join()
             connection.close()
     raise UpdateError('update_download_failed')
 
@@ -261,34 +288,72 @@ def owned_job(app,job,*,require_inventory=True):
     if job.parent!=updates or not re.fullmatch('[0-9a-f]{32}',job.name):return None
     marker=compatibility.plain(job/'job-owner.json')
     if not marker.is_file():return None
-    value=decode(marker.read_bytes(),8192)
-    if (not isinstance(value,dict) or set(value)!={'format','app','job','created','creator_pid','files'}
-            or value['format'] not in (JOB_FORMAT,DELETING_FORMAT) or value['app']!=hashlib.sha256(str(app).casefold().encode()).hexdigest()
+    if marker.stat().st_size>MAX_JOB_RECEIPT:return None
+    with marker.open('rb') as stream:value=decode(stream.read(MAX_JOB_RECEIPT+1),MAX_JOB_RECEIPT)
+    preparing=isinstance(value,dict) and value.get('format')==PREPARING_FORMAT
+    if (not isinstance(value,dict) or set(value)!=({'format','app','job','created','creator_pid','files'}|({'download'} if preparing else set()))
+            or value['format'] not in (JOB_FORMAT,PREPARING_FORMAT,DELETING_FORMAT) or value['app']!=hashlib.sha256(str(app).casefold().encode()).hexdigest()
             or value['job']!=job.name or type(value['created']) is not int or value['created']<1
             or type(value['creator_pid']) is not int or not 1<=value['creator_pid']<=0xffffffff
             or not isinstance(value['files'],dict) or not set(value['files'])<=(JOB_FILES|({'ready.json'} if value['format']==DELETING_FORMAT else set()))
             or any(not isinstance(x,str) or not HEX.fullmatch(x) for x in value['files'].values())):return None
+    if preparing:
+        download=value['download']
+        if (not isinstance(download,dict) or set(download)!={'size','sha256','next'}
+                or type(download['size']) is not int or not 0<=download['size']<=MAX_SETUP
+                or not isinstance(download['sha256'],str) or not HEX.fullmatch(download['sha256'])
+                or not isinstance(download['next'],str) or len(download['next'])>4*((DOWNLOAD_BLOCK+2)//3)):
+            return None
+        try:block=base64.b64decode(download['next'],validate=True)
+        except ValueError:return None
+        if (len(block)>DOWNLOAD_BLOCK or download['size']+len(block)>MAX_SETUP
+                or base64.b64encode(block).decode('ascii')!=download['next']):return None
     if require_inventory:
+        if preparing:
+            partial=compatibility.plain(job/'Setup.partial')
+            if partial.exists() and (not partial.is_file() or not download['size']<=partial.stat().st_size<=download['size']+len(block)):
+                return None
         inventory=job_inventory(job,include_ready=value['format']==DELETING_FORMAT)
         if inventory is None:return None
-        if value['format']==DELETING_FORMAT:
+        if preparing:
+            if not preparing_inventory(job,value,inventory):return None
+        elif value['format']==DELETING_FORMAT:
             if any(value['files'].get(name)!=digest for name,digest in inventory.items()):return None
         elif inventory!=value['files']:return None
     return value
 
 
-def remove_owned_job(app,job,*,fresh=False):
-    value=owned_job(app,job,require_inventory=not fresh)
+def preparing_inventory(job,value,inventory):
+    """Authenticate an interrupted download; never adopt post-crash bytes."""
+    if any(name!='Setup.partial' and value['files'].get(name)!=digest for name,digest in inventory.items()):return False
+    if 'Setup.partial' not in inventory:return True
+    path=compatibility.plain(job/'Setup.partial');download=value['download']
+    block=base64.b64decode(download['next'],validate=True);size=path.stat().st_size
+    if not download['size']<=size<=download['size']+len(block):return False
+    hasher=hashlib.sha256();remaining=download['size']
+    with path.open('rb') as stream:
+        while remaining:
+            chunk=stream.read(min(DOWNLOAD_BLOCK,remaining))
+            if not chunk:return False
+            hasher.update(chunk);remaining-=len(chunk)
+        tail=stream.read(DOWNLOAD_BLOCK+1)
+    return hasher.hexdigest()==download['sha256'] and tail==block[:size-download['size']]
+
+
+def remove_owned_job(app,job):
+    value=owned_job(app,job)
     if value is None:return False
     inventory=job_inventory(job,include_ready=True)
     if inventory is None:return False
-    if not fresh and value['format']==JOB_FORMAT and {name:digest for name,digest in inventory.items() if name!='ready.json'}!=value['files']:
+    if value['format']==PREPARING_FORMAT and not preparing_inventory(job,value,inventory):return False
+    if value['format']==JOB_FORMAT and {name:digest for name,digest in inventory.items() if name!='ready.json'}!=value['files']:
         return False
     # Persist the complete validated deletion generation before the first
     # unlink. Retries may accept absent files only under this receipt, and
     # never adopt added/modified contents into the original generation.
     if value['format']!=DELETING_FORMAT:
-        value={**value,'format':DELETING_FORMAT,'files':inventory}
+        value={key:item for key,item in value.items() if key!='download'}
+        value.update(format=DELETING_FORMAT,files=inventory)
         atomic(job/'job-owner.json',value)
     if any(value['files'].get(name)!=digest for name,digest in inventory.items()):return False
     for name,digest in inventory.items():
@@ -326,11 +391,12 @@ def reclaim_jobs(app,*,now=None,alive=process_running,max_age=MAX_JOB_AGE,
                 entries=list(job.iterdir())
                 names={p.name for p in entries}
                 expected={'job-owner.json',*value['files'],*(['ready.json'] if ready.exists() else [])}
-                if value['format']==DELETING_FORMAT:
+                if value['format']==PREPARING_FORMAT:expected.add('Setup.partial')
+                if value['format'] in (DELETING_FORMAT,PREPARING_FORMAT):
                     if not names<=expected:continue
                 elif names!=expected:continue
                 if any(not compatibility.plain(p).is_file() for p in entries):continue
-                size=sum(p.stat().st_size for p in entries if p.name in value['files'])
+                size=sum(p.stat().st_size for p in entries if value['format']==PREPARING_FORMAT or p.name in value['files'])
                 rows.append((value['created'],job,size,value['format']==DELETING_FORMAT))
             except (OSError,ValueError):continue
         rows.sort(key=lambda row:row[0],reverse=True)
@@ -433,7 +499,10 @@ def handoff_source(app):
     # Compatibility for RC3.4 packages; RC3.5 neither ships nor executes this script.
     return compatibility.plain(Path(__file__).with_name('update_handoff.ps1'))
 
-def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequence=None,fetch=transfer,process_reader=process_info):
+def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequence=None,fetch=transfer,process_reader=process_info,cancelled=None):
+    def checkpoint():
+        if cancelled and cancelled():raise UpdateError('cancelled')
+    checkpoint()
     app,updates=paths(app);local=current(app)
     reclaim_jobs(app)
     if parent_pid!=os.getppid() or type(parent_started_ticks) is not int:raise UpdateError('update_parent_invalid')
@@ -447,27 +516,46 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
         seen=highwater(updates)
         if value['sequence']<=local['update_sequence'] or value['sequence']!=seen['sequence'] or hashlib.sha256(canonical(value)).hexdigest()!=seen['payload_sha256']:raise UpdateError('update_downgrade')
     if shutil.disk_usage(updates).free<value['setup']['size']+256*1024*1024:raise UpdateError('update_disk_full')
+    checkpoint()
     job=compatibility.plain(updates/uuid.uuid4().hex);job.mkdir()
     target=job/'Setup.exe';partial=job/'Setup.partial'
     try:
-        marker={'format':JOB_FORMAT,'app':hashlib.sha256(str(app).casefold().encode()).hexdigest(),
-                'job':job.name,'created':int(time.time()),'creator_pid':os.getpid(),'files':{}}
+        marker={'format':PREPARING_FORMAT,'app':hashlib.sha256(str(app).casefold().encode()).hexdigest(),
+                'job':job.name,'created':int(time.time()),'creator_pid':os.getpid(),'files':{'Setup.exe':value['setup']['sha256']},
+                'download':dict(size=0,sha256=hashlib.sha256(b'').hexdigest(),next='')}
         atomic(job/'job-owner.json',marker)
-        size,digest=fetch(value['setup']['url'],value['setup']['size'],destination=partial,expected_size=value['setup']['size'],progress=progress)
+        def before_write(size,digest,block):
+            checkpoint()
+            if len(block)>DOWNLOAD_BLOCK:raise UpdateError('update_invalid')
+            marker['download']=dict(size=size,sha256=digest,next=base64.b64encode(block).decode('ascii'))
+            atomic(job/'job-owner.json',marker)
+        size,digest=fetch(value['setup']['url'],value['setup']['size'],destination=partial,expected_size=value['setup']['size'],
+                          progress=progress,cancelled=cancelled,before_write=before_write)
+        checkpoint()
         if size!=value['setup']['size'] or digest!=value['setup']['sha256'] or compatibility.digest(partial)!=digest:raise UpdateError('update_hash_invalid')
+        checkpoint()
         os.replace(partial,target)
-        helper=handoff_source(app);shutil.copyfile(helper,job/helper.name)
-        shutil.copyfile(compatibility.plain(Path(__file__).with_name('update-key.json')),job/'update-key.json')
-        atomic(job/'weplay-update.json',decode(envelope))
+        def declare(name,digest):
+            checkpoint();marker['files'][name]=digest;atomic(job/'job-owner.json',marker)
+        def copy_owned(source):
+            declare(source.name,compatibility.digest(source));shutil.copyfile(source,job/source.name);checkpoint()
+        def write_owned(name,data):
+            declare(name,hashlib.sha256(canonical(data)+b'\n').hexdigest());atomic(job/name,data);checkpoint()
+        helper=handoff_source(app);copy_owned(helper)
+        copy_owned(compatibility.plain(Path(__file__).with_name('update-key.json')))
+        write_owned('weplay-update.json',decode(envelope))
         record={'format':'weplay-update-handoff-v1','app':str(app),'parent':parent,'backend':backend,'version':value['version'],'sequence':value['sequence']}
-        atomic(job/'handoff.json',record)
-        marker['files']=job_inventory(job)
+        write_owned('handoff.json',record)
+        checkpoint()
+        if job_inventory(job)!=marker['files']:raise UpdateError('update_invalid')
+        marker={key:item for key,item in marker.items() if key!='download'};marker['format']=JOB_FORMAT
         atomic(job/'job-owner.json',marker)
+        checkpoint()
         return {'version':value['version'],'sequence':value['sequence'],'job':str(job)}
     except BaseException:
         # Preserve unexpected/linked contents and the original preparation error.
         try:
-            if not remove_owned_job(app,job,fresh=True):compatibility.plain(job).rmdir()
+            if not remove_owned_job(app,job):compatibility.plain(job).rmdir()
         except (OSError,ValueError):pass
         raise
 

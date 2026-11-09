@@ -21,7 +21,7 @@ def games(root):
 
 
 def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None, game_id=None,
-        invitation_ready=None, notify=None, cancel_check=None, version='2.0.0-rc3.23'):
+        invitation_ready=None, notify=None, cancel_check=None, version='2.0.0-rc3.24'):
     root = compatibility.plain(root)
     # Solo and LAN verify the whole inventory under their session lock before
     # this monitor can open any bridge. Internet joins also need verification

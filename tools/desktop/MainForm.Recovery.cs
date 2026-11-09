@@ -51,7 +51,10 @@ internal sealed partial class MainForm
     }
     private async Task<bool> TryShowSettingsRecovery(Exception error)
     {
-        if(error is not BackendError failure||failure.Code is not ("preferences_invalid" or "installation_invalid" or "recovery_changed"))return false;
+        // Recovery can fail before parsing its journal (package/file errors),
+        // or an older backend can report a malformed journal as operation_failed.
+        // The read-only status, not a narrow error-code list, owns this decision.
+        if(error is not BackendError)return false;
         try
         {
             var value=await RunUiBackend("recovery-status",new {});

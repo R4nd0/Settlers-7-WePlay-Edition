@@ -730,13 +730,26 @@ class Desktop:
         if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
         if not isinstance(data,dict) or set(data)!={'sequence'} or type(data['sequence']) is not int or data['sequence']<1:
             raise ValueError('request_invalid')
+        if self.cancel.exists():raise Cancelled('cancelled')
         graphics.ensure_closed()
-        from update_client import process_info,prepare,start_handoff
+        from update_client import process_info,prepare,start_handoff,remove_owned_job
         parent=process_info(os.getppid())
         if graphics._plain(parent['path'])!=self.app/'S7Launcher.exe':raise ValueError('update_parent_invalid')
-        prepared=prepare(self.app,parent['pid'],parent['started_ticks'],progress=self.progress,expected_sequence=data['sequence'])
-        started=start_handoff(self.app,prepared['job'])
-        return {'handoff':True,'version':started['version']}
+        prepared=prepare(self.app,parent['pid'],parent['started_ticks'],progress=self.progress,
+                         expected_sequence=data['sequence'],cancelled=lambda:self.cancel.exists())
+        # The last download progress notification precedes final verification.
+        # A cancellation during that work must never authorize an installer.
+        if self.cancel.exists():
+            try:remove_owned_job(self.app,prepared['job'])
+            except (OSError,ValueError):pass
+            raise Cancelled('cancelled')
+        # Once the verified helper owns the handoff, interrupting it can leave
+        # two installers racing. Retain ownership until its ready/error result.
+        self.operation_state('critical')
+        try:
+            started=start_handoff(self.app,prepared['job'])
+            return {'handoff':True,'version':started['version']}
+        finally:self.operation_state('idle')
 
     def disconnect_discord(self):
         if not self.package_manifest().get('discord_directory',False):raise ValueError('discord_unavailable')

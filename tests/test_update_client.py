@@ -146,6 +146,7 @@ class UpdateTests(unittest.TestCase):
     def test_changed_download_never_becomes_an_executable_and_keeps_existing_state(self):
         envelope=self.signed();fetch=self.fetcher(envelope);client.check(self.app,fetch=fetch)
         def corrupt(url,limit,**kwargs):
+            kwargs['before_write'](0,hashlib.sha256(b'').hexdigest(),b'changed')
             Path(kwargs['destination']).write_bytes(b'changed');return 7,hashlib.sha256(b'changed').hexdigest()
         with self.assertRaisesRegex(client.UpdateError,'hash_invalid'):
             client.prepare(self.app,os.getppid(),111,fetch=corrupt,process_reader=self.processes)
@@ -156,6 +157,7 @@ class UpdateTests(unittest.TestCase):
     def test_cancelled_download_reclaims_only_its_partial_and_preserves_game(self):
         envelope=self.signed();client.check(self.app,fetch=self.fetcher(envelope))
         def interrupted(url,limit,**kwargs):
+            kwargs['before_write'](0,hashlib.sha256(b'').hexdigest(),b'partial download')
             Path(kwargs['destination']).write_bytes(b'partial download');raise RuntimeError('cancelled')
         with self.assertRaisesRegex(RuntimeError,'cancelled'):
             client.prepare(self.app,os.getppid(),111,fetch=interrupted,process_reader=self.processes)

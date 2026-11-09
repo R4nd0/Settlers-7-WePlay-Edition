@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock,patch
+from unittest.mock import ANY,Mock,call,patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'tools/installer'),str(Path(__file__).parent)]
@@ -17,7 +17,8 @@ import test_desktop_backend as fixtures
 class UpdateBackendTests(unittest.TestCase):
     def desktop(self):
         return SimpleNamespace(app=ROOT/'work/update-backend-fixture',package=ROOT/'work/update-backend-fixture/Package',
-            read=Mock(return_value={'update_patcher':True}),progress=Mock())
+            read=Mock(return_value={'update_patcher':True}),progress=Mock(),
+            cancel=Mock(exists=Mock(return_value=False)),operation_state=Mock())
 
     def test_startup_network_check_does_not_hold_game_operation_lock(self):
         desktop=SimpleNamespace(check_updates=Mock(return_value={'available':False}),
@@ -46,9 +47,45 @@ class UpdateBackendTests(unittest.TestCase):
                 patch.object(update_client,'prepare',return_value={'job':'private-owned-job','version':'2.0.0-rc3.5'}) as prepare, \
                 patch.object(update_client,'start_handoff',return_value={'helper_pid':4321,'version':'2.0.0-rc3.5'}) as start:
             result=backend.Desktop.install_update(desktop,{'sequence':2})
-        prepare.assert_called_once_with(desktop.app,parent['pid'],parent['started_ticks'],progress=desktop.progress,expected_sequence=2)
+        prepare.assert_called_once_with(desktop.app,parent['pid'],parent['started_ticks'],progress=desktop.progress,expected_sequence=2,cancelled=ANY)
+        self.assertFalse(prepare.call_args.kwargs['cancelled']())
         start.assert_called_once_with(desktop.app,'private-owned-job')
         self.assertEqual(result,{'handoff':True,'version':'2.0.0-rc3.5'})
+        self.assertEqual(desktop.operation_state.call_args_list,[call('critical'),call('idle')])
+
+    def test_preexisting_cancellation_never_prepares_or_hands_off(self):
+        desktop=self.desktop();desktop.cancel.exists.return_value=True
+        with patch.object(update_client,'process_info') as process,patch.object(update_client,'prepare') as prepare, \
+                patch.object(update_client,'start_handoff') as start:
+            with self.assertRaisesRegex(backend.Cancelled,'cancelled'):backend.Desktop.install_update(desktop,{'sequence':2})
+        process.assert_not_called();prepare.assert_not_called();start.assert_not_called()
+
+    def test_cancel_during_final_verification_never_starts_handoff(self):
+        for cleanup_error in (None,OSError('synthetic cleanup failure')):
+            with self.subTest(cleanup_error=cleanup_error):
+                desktop=self.desktop();parent=dict(pid=os.getppid(),path=str(desktop.app/'S7Launcher.exe'),started_ticks=1)
+                def prepare(*args,**kwargs):
+                    self.assertFalse(kwargs['cancelled']())
+                    desktop.cancel.exists.return_value=True
+                    self.assertTrue(kwargs['cancelled']())
+                    return {'job':'private-owned-job','version':'2.0.0-rc3.5'}
+                with patch.object(backend.graphics,'ensure_closed'),patch.object(update_client,'process_info',return_value=parent), \
+                        patch.object(update_client,'prepare',side_effect=prepare),patch.object(update_client,'start_handoff') as start, \
+                        patch.object(update_client,'remove_owned_job',side_effect=cleanup_error) as cleanup:
+                    with self.assertRaisesRegex(backend.Cancelled,'cancelled'):backend.Desktop.install_update(desktop,{'sequence':2})
+                start.assert_not_called();desktop.operation_state.assert_not_called()
+                cleanup.assert_called_once_with(desktop.app,'private-owned-job')
+
+    def test_handoff_is_critical_and_failure_restores_idle(self):
+        desktop=self.desktop();parent=dict(pid=os.getppid(),path=str(desktop.app/'S7Launcher.exe'),started_ticks=1)
+        def start(*args):
+            desktop.operation_state.assert_called_once_with('critical')
+            raise update_client.UpdateError('update_handoff_failed')
+        with patch.object(backend.graphics,'ensure_closed'),patch.object(update_client,'process_info',return_value=parent), \
+                patch.object(update_client,'prepare',return_value={'job':'private-owned-job'}), \
+                patch.object(update_client,'start_handoff',side_effect=start):
+            with self.assertRaisesRegex(update_client.UpdateError,'handoff_failed'):backend.Desktop.install_update(desktop,{'sequence':2})
+        self.assertEqual(desktop.operation_state.call_args_list,[call('critical'),call('idle')])
 
     def test_running_game_is_rejected_before_download_or_process_handoff(self):
         with patch.object(backend.graphics,'ensure_closed',side_effect=ValueError('game running')), \

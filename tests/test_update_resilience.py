@@ -1,9 +1,11 @@
 """Updater transport and owned-cache fault tests; no executable is launched."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import threading
 import time
@@ -180,6 +182,130 @@ class UpdateResilienceTests(unittest.TestCase):
         self.assertEqual(client.reclaim_jobs(self.app,now=9999999,alive=lambda _:False),0)
         self.assertEqual((job/'job-owner.json').read_bytes(),before)
 
+    def interrupted_download(self,mode='partial'):
+        # An actual owned child exits inside prepare(), bypassing every Python
+        # finally/except. No network, installer, helper or game is executed.
+        script=r'''
+import hashlib,os,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[2])
+import update_client as c
+app=Path(sys.argv[1]);mode=sys.argv[3];_,updates=c.paths(app)
+raw=b'A'*8192+b'B'*4096
+value=dict(sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
+(updates/'verified-envelope.json').write_bytes(b'{}')
+c.atomic(updates/'highest.json',dict(sequence=23,payload_sha256=hashlib.sha256(c.canonical(value)).hexdigest()))
+def process(pid):return dict(pid=pid,path=str(app/('S7Launcher.exe' if pid==os.getppid() else 'Package/Runtime/python/python.exe')),started_ticks=1)
+def fetch(url,limit,**kw):
+    target=kw['destination']
+    kw['before_write'](0,hashlib.sha256(b'').hexdigest(),raw[:8192])
+    target.write_bytes(raw[:8192])
+    kw['before_write'](8192,hashlib.sha256(raw[:8192]).hexdigest(),raw[8192:])
+    if mode=='partial':
+        with target.open('ab') as out:out.write(raw[8192:8249]);out.flush();os.fsync(out.fileno())
+        os._exit(73)
+    target.write_bytes(raw)
+    return len(raw),hashlib.sha256(raw).hexdigest()
+def copied(source,target):
+    Path(target).write_bytes(Path(source).read_bytes());os._exit(74)
+helper=app/'WePlay.UpdateHelper.exe';helper.write_bytes(b'inert helper bytes')
+with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source',return_value=helper),patch.object(c.shutil,'copyfile',copied):
+    c.prepare(app,os.getppid(),1,fetch=fetch,process_reader=process)
+'''
+        result=subprocess.run([sys.executable,'-B','-c',script,str(self.app),str(ROOT/'tools/installer'),mode],capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,73 if mode=='partial' else 74,result.stderr)
+        return next(path for path in self.updates.iterdir() if path.is_dir())
+
+    def test_actual_process_loss_during_partial_download_is_reclaimed(self):
+        job=self.interrupted_download()
+        self.assertEqual((job/'Setup.partial').stat().st_size,8249)
+        self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:False,max_age=0,max_jobs=0,max_bytes=0),1)
+        self.assertFalse(job.exists())
+
+    def test_actual_process_loss_after_helper_copy_is_reclaimed(self):
+        job=self.interrupted_download('helper')
+        self.assertTrue((job/'Setup.exe').exists());self.assertTrue((job/'WePlay.UpdateHelper.exe').exists())
+        self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:False,max_age=0),1)
+        self.assertFalse(job.exists())
+
+    def test_interrupted_download_counts_partial_and_receipt_towards_size_retention(self):
+        job=self.interrupted_download();size=sum(path.stat().st_size for path in job.iterdir())
+        self.assertGreater(size,(job/'Setup.partial').stat().st_size)
+        self.assertEqual(client.reclaim_jobs(self.app,alive=lambda _:False,max_bytes=size-1),1)
+        self.assertFalse(job.exists())
+
+    def test_cancelled_preparation_cleans_verified_partial_but_preserves_foreign_edit(self):
+        raw=b'owned partial fixture';value=dict(sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
+        (self.updates/'verified-envelope.json').write_bytes(b'{}')
+        client.atomic(self.updates/'highest.json',dict(sequence=23,payload_sha256=hashlib.sha256(client.canonical(value)).hexdigest()))
+        def process(pid):return dict(pid=pid,path=str(self.app/('S7Launcher.exe' if pid==os.getppid() else 'Package/Runtime/python/python.exe')),started_ticks=1)
+        for foreign in (False,True):
+            stop=[False]
+            def fetch(url,limit,**kwargs):
+                kwargs['before_write'](0,hashlib.sha256(b'').hexdigest(),raw)
+                kwargs['destination'].write_bytes(b'X'+raw[1:] if foreign else raw);stop[0]=True
+                return len(raw),hashlib.sha256(raw).hexdigest()
+            with patch.object(client,'verify',return_value=value),self.assertRaisesRegex(client.UpdateError,'cancelled'):
+                client.prepare(self.app,os.getppid(),1,fetch=fetch,process_reader=process,cancelled=lambda:stop[0])
+            partials=list(self.updates.glob('*/Setup.partial'))
+            self.assertEqual(len(partials),int(foreign))
+            if foreign:self.assertEqual(partials[0].read_bytes(),b'X'+raw[1:])
+
+    def test_interrupted_download_preserves_active_unknown_and_changed_bytes(self):
+        job=self.interrupted_download();path=job/'Setup.partial';original=path.read_bytes()
+        self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:True,max_age=0),0)
+        for changed in (b'X'+original[1:],original[:-1]+b'X',original+b'foreign',original[:8000]):
+            path.write_bytes(changed)
+            self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:False,max_age=0),0)
+            self.assertEqual(path.read_bytes(),changed)
+        path.write_bytes(original);(job/'personal.txt').write_bytes(b'foreign')
+        self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:False,max_age=0),0)
+        self.assertEqual(path.read_bytes(),original)
+
+    def test_interrupted_download_preserves_linked_partial(self):
+        job=self.interrupted_download();path=job/'Setup.partial';outside=self.app/'outside';outside.write_bytes(path.read_bytes());path.unlink()
+        try:path.symlink_to(outside)
+        except OSError as error:self.skipTest('Symlink privilege unavailable: '+str(error))
+        before=outside.read_bytes()
+        self.assertEqual(client.reclaim_jobs(self.app,now=2147483647,alive=lambda _:False,max_age=0),0)
+        self.assertEqual(outside.read_bytes(),before)
+
+    def test_preparing_receipt_rejects_invalid_base64_size_and_prefix(self):
+        job=self.interrupted_download();path=job/'job-owner.json';original=client.decode(path.read_bytes(),client.MAX_JOB_RECEIPT)
+        for change in ({'next':'!'}, {'next':'YQ==='}, {'next':'A'*(client.MAX_JOB_RECEIPT+1)},
+                       {'size':True}, {'size':client.MAX_SETUP+1}, {'sha256':'x'*64}):
+            value={**original,'download':{**original['download'],**change}};client.atomic(path,value)
+            self.assertIsNone(client.owned_job(self.app,job))
+        client.atomic(path,original)
+        self.assertIsNotNone(client.owned_job(self.app,job))
+
+    def test_oversized_partial_is_rejected_before_hashing(self):
+        job=self.interrupted_download();partial=job/'Setup.partial'
+        with partial.open('ab') as stream:stream.write(b'x'*8192)
+        with patch.object(client.compatibility,'digest',side_effect=AssertionError('oversized foreign partial was hashed')):
+            self.assertIsNone(client.owned_job(self.app,job))
+
+    def test_transfer_write_intents_are_bounded_and_prefix_hashes_are_incremental(self):
+        raw=b'x'*(client.DOWNLOAD_BLOCK*2+57);source=io.BytesIO(raw);intents=[];target=self.app/'download'
+        class Response:
+            status=200
+            def getheader(self,name):return str(len(raw)) if name=='Content-Length' else None
+            def read1(self,size):return source.read(min(size,17003))
+        class Connection:
+            sock=None
+            def __init__(self,*a,**kw):pass
+            def request(self,*a,**kw):pass
+            def getresponse(self):return Response()
+            def close(self):pass
+        def intent(size,digest,block):
+            self.assertEqual(target.read_bytes(),raw[:size])
+            self.assertEqual(digest,hashlib.sha256(raw[:size]).hexdigest())
+            self.assertLessEqual(len(block),client.DOWNLOAD_BLOCK);intents.append((size,len(block)))
+        size,digest=client.transfer(client.RELEASES,len(raw),destination=target,expected_size=len(raw),connection_factory=Connection,before_write=intent)
+        self.assertEqual(size,len(raw));self.assertEqual(digest,hashlib.sha256(raw).hexdigest());self.assertEqual(target.read_bytes(),raw)
+        self.assertEqual(intents,[(0,client.DOWNLOAD_BLOCK),(client.DOWNLOAD_BLOCK,client.DOWNLOAD_BLOCK),(client.DOWNLOAD_BLOCK*2,57)])
+
     def test_resumed_cleanup_preserves_link_substitution_and_active_creator(self):
         job,_=self.interrupted_cleanup()
         self.assertEqual(client.reclaim_jobs(self.app,now=9999999,alive=lambda _:True),0)
@@ -261,6 +387,26 @@ class UpdateResilienceTests(unittest.TestCase):
         with self.assertRaisesRegex(client.UpdateError,'download_failed'):
             client.transfer(client.RELEASES,100,connection_factory=Connection,deadline=time.monotonic()+.05)
         self.assertTrue(interrupted.is_set());self.assertEqual(closed,[True])
+
+    def test_cancel_interrupts_blocked_headers_and_preserves_cancelled_result(self):
+        stopped=threading.Event();cancel=threading.Event();closed=[]
+        class Socket:
+            def settimeout(self,value):pass
+            def shutdown(self,how):stopped.set()
+        class Connection:
+            sock=Socket()
+            def __init__(self,*a,**kw):pass
+            def request(self,*a,**kw):pass
+            def getresponse(self):
+                cancel.set()
+                if not stopped.wait(2):raise AssertionError('cancel did not interrupt headers')
+                raise OSError('owned socket cancelled')
+            def close(self):closed.append(True)
+        started=time.monotonic()
+        with self.assertRaisesRegex(client.UpdateError,'^cancelled$'):
+            client.transfer(client.RELEASES,100,destination=self.app/'partial',connection_factory=Connection,
+                            deadline=started+60,cancelled=cancel.is_set)
+        self.assertLess(time.monotonic()-started,1);self.assertTrue(stopped.is_set());self.assertEqual(closed,[True])
 
 
 if __name__=='__main__':unittest.main()

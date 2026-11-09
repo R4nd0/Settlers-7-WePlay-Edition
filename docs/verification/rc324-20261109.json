@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-09",
+  "release": "2.0.0-rc3.24",
+  "scope": "Launcher reliability; final artifact and publication checks are recorded in the separate publication receipt.",
+  "launcher_qualification": "launcher-fixes-20261109.json",
+  "prior_product_source": "e8b251a652379be47185f96dbaf85f50cb76e8c6",
+  "prior_ci": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297",
+  "content_contract": "s7-play-content-v3",
+  "network_revision": 9,
+  "directory_protocol_revision": 7,
+  "neo_wire_revision": 5,
+  "native_adapter_sha256": "be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe",
+  "gameplay_qualified": false,
+  "historical_gameplay_evidence": "rc323-20261108.json",
+  "limitations": [
+    "No new native game match, separate-PC Internet, Steam/Proton or Linux gameplay qualification.",
+    "Remaining shadow flicker and all-scene vegetation sharpness are not fully resolved or qualified.",
+    "No measured FPS or gameplay-network performance improvement is claimed.",
+    "Update metadata is signed; executables are not Authenticode signed."
+  ]
+}

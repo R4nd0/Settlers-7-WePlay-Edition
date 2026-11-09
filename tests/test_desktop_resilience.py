@@ -1,10 +1,12 @@
 """Operation-scoped verification and interrupted settings groups; invented files."""
+import io
 import json
 import os
 import shutil
 from pathlib import Path
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -165,7 +167,14 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def test_invalid_journal_detach_preserves_instances_and_returns_to_setup(self):
         raw=b'not-json journal';(self.desktop.state/settings.NAME).write_bytes(raw)
-        before=self.before();status=self.dispatch('recovery-status')
+        before=self.before()
+        # Start where the GUI starts: automatic recovery during snapshot, then
+        # the same public error-code mapping used by desktop_backend.main.
+        with self.assertRaises(ValueError) as failure:self.dispatch('snapshot')
+        self.assertEqual(backend.error_code(failure.exception),'preferences_invalid')
+        self.assertEqual((self.desktop.state/settings.NAME).read_bytes(),raw)
+        self.assertEqual(self.before(),before)
+        status=self.dispatch('recovery-status')
         self.assertFalse(status['recoverable']);self.assertTrue(status['can_detach'])
         result=self.dispatch('recovery-resolve',dict(token=status['token'],action='detach'))
         self.assertFalse(self.dispatch('snapshot')['installed'])
@@ -174,6 +183,26 @@ class DesktopResilienceTests(unittest.TestCase):
         saved=json.loads((self.desktop.state/result['backup']).read_bytes())['inputs']
         self.assertEqual(settings.decode(saved['journal']),raw)
         self.assertEqual(settings.decode(saved['installation']),before['installation'])
+
+    def test_corrupt_journal_startup_emits_recovery_error_through_real_main_ipc(self):
+        before=self.before();journal=self.desktop.state/settings.NAME
+        request=graphics.encoded(dict(format=backend.REQUEST,action='snapshot',data={}))
+        for raw in (b'not-json journal',b'{"format":"broken"}',b'null'):
+            with self.subTest(journal=raw):
+                journal.write_bytes(raw);output=io.StringIO()
+                with patch.object(sys,'argv',['desktop_backend.py','--app',str(self.desktop.app),'--operation','a'*32]), \
+                     patch.object(sys,'stdin',SimpleNamespace(buffer=io.BytesIO(request))), \
+                     patch.object(sys,'stdout',output), \
+                     patch.object(backend,'__file__',str(self.desktop.app/'Package/Tools/installer/desktop_backend.py')), \
+                     patch.object(backend,'Desktop',return_value=self.desktop):
+                    result=backend.main()
+                self.assertEqual(result,2)
+                frame=json.loads(output.getvalue().splitlines()[-1])
+                self.assertEqual(frame['kind'],'error');self.assertEqual(frame['code'],'preferences_invalid')
+                self.assertEqual(journal.read_bytes(),raw);self.assertEqual(self.before(),before)
+                status=self.dispatch('recovery-status')
+                self.assertTrue(status['pending']);self.assertTrue(status['can_detach'])
+                self.assertFalse(status['recoverable'])
 
     def test_detach_restart_preserves_registration_changed_after_interruption(self):
         self.interrupted();status=self.dispatch('recovery-status');original=Path.unlink

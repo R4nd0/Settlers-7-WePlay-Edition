@@ -130,7 +130,11 @@ def validate_record(desktop,root,record):
 def recover(desktop,root):
     path=graphics._plain(desktop.state/NAME)
     if not path.exists():return False
-    record=validate_record(desktop,root,graphics._json(graphics._read(path,LIMIT)))
+    try:record=validate_record(desktop,root,graphics._json(graphics._read(path,LIMIT)))
+    except (OSError,ValueError,TypeError,KeyError):
+        # Corrupt or unreadable evidence must reach the recovery journey through
+        # the real IPC error mapper, without consuming or changing that evidence.
+        raise ValueError('preferences_invalid') from None
     Transaction(desktop,root,record).rollback();return True
 
 

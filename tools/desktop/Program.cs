@@ -491,7 +491,7 @@ internal sealed partial class MainForm : Form
         try
         {
             SetBusy(true);
-            var value=await Backend.Run("snapshot",new {},Receive); LoadSnapshot(value);
+            var value=await RunUiBackend("snapshot",new {}); LoadSnapshot(value);
             bool installed=value.GetProperty("installed").GetBoolean();
             if(!installed||value.GetProperty("update_available").GetBoolean()||
                 (value.TryGetProperty("needs_repair",out var repair)&&repair.GetBoolean())) await ShowSetup();

@@ -78,6 +78,7 @@ internal sealed partial class MainForm
     private void TestSettingsRecoveryWorkflow(JsonElement original)
     {
         int diagnoses=0,resolutions=0;bool pending=true,detached=false,stale=false;string token=new('a',64);
+        string startupError="preferences_invalid";
         JsonElement Status()=>JsonSerializer.SerializeToElement(new {pending,recoverable=true,can_detach=true,conflicts=new[]{"quality"},token});
         testRecoveryConfirmation=_=>false;
         testUiBackend=(action,data)=>{
@@ -93,7 +94,7 @@ internal sealed partial class MainForm
             }
             if(action=="snapshot")
             {
-                if(pending)throw new BackendError("preferences_invalid","");
+                if(pending)throw new BackendError(startupError,"");
                 var result=JsonNode.Parse(original.GetRawText())!.AsObject();result["installed"]=!detached;
                 return Task.FromResult(JsonSerializer.SerializeToElement(result));
             }
@@ -102,6 +103,21 @@ internal sealed partial class MainForm
         };
         try
         {
+            // All IPC failure classes must consult status; malformed journals,
+            // renderer failures and package damage must not strand startup in
+            // an empty setup form while explicit detach remains available.
+            foreach(string code in new[]{"operation_failed","package_invalid","preferences_invalid"})
+            {
+                recoveryVisible=false;settingsRecovery.Visible=false;startupError=code;
+                AwaitUi(Initialise());Application.DoEvents();
+                if(!recoveryVisible||!settingsRecovery.Visible||tabs.Visible||setup.Visible)
+                    throw new Exception("Startup recovery unavailable for IPC error: "+code);
+            }
+            pending=false;recoveryVisible=false;settingsRecovery.Visible=false;
+            var unrelated=TryShowSettingsRecovery(new BackendError("operation_failed","ordinary failure"));AwaitUi(unrelated);
+            if(unrelated.GetAwaiter().GetResult())
+                throw new Exception("Unrelated backend failure invented a pending recovery");
+            pending=true;
             AwaitUi(Guard(async()=>{await RunUiBackend("snapshot",new {});}));Application.DoEvents();
             if(!recoveryVisible||!settingsRecovery.Visible||tabs.Visible||setup.Visible)throw new Exception("Conflict has no dedicated recovery journey");
             recoveryDiagnostics.PerformClick();Application.DoEvents();if(diagnoses!=1)throw new Exception("Conflict blocks read-only diagnostics");
