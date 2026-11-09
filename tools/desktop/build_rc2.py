@@ -1,4 +1,4 @@
-"""Build the RC3.24 launcher reliability release from pinned inputs."""
+"""Build the RC3.25 standalone update hotfix release from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -15,8 +15,8 @@ import build_package
 import compatibility as content
 import install
 
-RELEASE_GUIDE = REPO/'docs/RC3.24-LAUNCHER.md'
-RELEASE_TAG = 'v2.0.0-rc3.24'
+RELEASE_GUIDE = REPO/'docs/RC3.25-STANDALONE-UPDATE.md'
+RELEASE_TAG = 'v2.0.0-rc3.25'
 
 
 def public_document(source):
@@ -40,7 +40,7 @@ def copy_documents(app):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=24,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=25,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -81,8 +81,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.24 Launcher Reliability','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc3.24','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC3.25 Standalone Update Hotfix','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc3.25','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
@@ -139,7 +139,7 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=24)
+    parser.add_argument('--update-sequence',type=int,default=25)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')

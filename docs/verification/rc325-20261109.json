@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-09",
+  "release": "2.0.0-rc3.25",
+  "scope": "Standalone installer preflight compatibility with the installed RC3.23 backend; final artifact and real upgrade checks are in the publication receipt.",
+  "legacy_backend": "Unmodified frozen RC3.23 shipped Python modules",
+  "published_rc324_reproduction": "AttributeError: 'Desktop' object has no attribute 'verification'",
+  "fixed_preflight_exit": 0,
+  "modified_game_preflight_exit": 2,
+  "synthetic_game_fixture": true,
+  "game_started": false,
+  "content_contract": "s7-play-content-v3",
+  "network_revision": 9,
+  "directory_protocol_revision": 7,
+  "neo_wire_revision": 5,
+  "native_adapter_sha256": "be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe",
+  "previous_release_qualification": "rc324-publication-20261109.json",
+  "limitations": [
+    "No new native game match, separate-PC Internet, Steam/Proton or Linux gameplay qualification.",
+    "Remaining shadow flicker and all-scene vegetation sharpness are not fully resolved or qualified."
+  ]
+}

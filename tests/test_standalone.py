@@ -3,6 +3,7 @@ import json
 import io
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 import shutil
 import sys
 import unittest
@@ -60,6 +61,24 @@ class StandaloneTests(unittest.TestCase):
         self.assertTrue(result['installed'])
         self.assertFalse(result['update_available'])
         self.assertEqual(result['current'],str(self.game))
+
+    def test_incoming_preflight_accepts_legacy_backend_without_scoped_cache(self):
+        standalone.bind(self.root)
+        desktop=backend.Desktop(self.app)
+        class LegacyDesktop:
+            def __getattr__(self,name):
+                if name=='verification':raise AttributeError(name)
+                return getattr(desktop,name)
+        legacy=LegacyDesktop()
+        module=SimpleNamespace(Desktop=lambda app:legacy,graphics=graphics,choice=choice,content=content)
+        argv=['standalone.py','--root',str(self.root),'--check-only']
+        with patch.object(standalone,'modules',return_value=module),patch.object(sys,'argv',argv), \
+                patch.object(desktop,'package_id',wraps=desktop.package_id) as checked,redirect_stdout(io.StringIO()):
+            self.assertEqual(standalone.main(),0)
+            self.assertTrue(any(call.kwargs=={'full':True} for call in checked.call_args_list))
+            # Legacy compatibility must not turn the preflight into a bypass.
+            (self.game/'Base/BBA/map.bba').write_bytes(b'foreign modified archive')
+            self.assertEqual(standalone.main(),2)
 
     def test_direct_launcher_relocates_bound_export_and_preserves_saves(self):
         self.launcher_snapshot()

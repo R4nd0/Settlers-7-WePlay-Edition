@@ -4,6 +4,7 @@ The export contains the owner's game files. Never publish it as a release asset.
 The normal release App and its hash-checked Package are copied unchanged.
 """
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -110,7 +111,12 @@ def bind(root):
     backend = modules(root / 'App')
     root = backend.graphics._plain(root)
     desktop = backend.Desktop(root / 'App')
-    with desktop.lock(), desktop.verification():
+    # Setup runs this incoming script with the installed package's backend.
+    # RC3.23 and earlier perform full checks directly and have no scoped cache.
+    # The optional cache must not become a minimum-version requirement for an
+    # upgrade; --check-only still calls package_id(full=True) and content.verify.
+    verification = desktop.verification() if hasattr(desktop, 'verification') else nullcontext()
+    with desktop.lock(), verification:
         if hasattr(desktop,'recover_publication'):desktop.recover_publication()
         value = descriptor(root)
         game = backend.graphics._plain(desktop.app / 'Instances' / value['instance'])
