@@ -2,16 +2,24 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.23 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/Setup.exe)
+## [Download Windows Installer — RC3.24 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/WePlay-RC3.23-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/WePlay-RC3.24-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.23/WePlay-RC3.23.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.23) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/WePlay-RC3.24.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.24) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.24 improves launcher reliability and recovery.**
+Public Join/Cancel, settings Save/Discard and interrupted operations are fixed.
+Recovery preserves game copies and saves with verified backups; update downloads
+are cancellable and interrupted owned jobs can be cleaned up safely. Lobby
+refresh avoids repeated full-package hashing. Includes all earlier graphics and
+lobby corrections.
+[Release notes](docs/RC3.24-LAUNCHER.md) | [Published verification](docs/verification/rc324-publication-20261109.json).
 
 **RC3.23 keeps multiplayer graphics local and adds standalone SMAA.**
 Guests no longer inherit the host's renderer. The recommended preset uses

@@ -1,0 +1,324 @@
+{
+  "date": "2026-11-09",
+  "release": "2.0.0-rc3.24",
+  "tag": "v2.0.0-rc3.24",
+  "prerelease": true,
+  "source_commit": "e67da12d05a7fc23ebd59f50d54f0003b5899fc0",
+  "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.24",
+  "package_id": "397ed714c1cfa5d972d66d2b0a5a46068ca3f539a80dca394fb6f056459ea02d",
+  "update_sequence": 24,
+  "release_metadata_network_revision": 9,
+  "content_contract": "s7-play-content-v3",
+  "directory_protocol_revision": 7,
+  "neo_wire_revision": 5,
+  "changes": [
+    "All launcher hardening and audit fixes since RC3.23",
+    "Fresh three-Astra review: malformed-journal startup recovery, authenticated interrupted-download cleanup and cancellation before installer handoff",
+    "Existing RC3.23 SMAA, DOF, filtering and local-renderer fixes retained"
+  ],
+  "verification": {
+    "exact_source_ci": {
+      "headSha": "e67da12d05a7fc23ebd59f50d54f0003b5899fc0",
+      "conclusion": "success",
+      "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42599689158",
+      "jobs": [
+        {
+          "name": "windows-launcher",
+          "conclusion": "success"
+        },
+        {
+          "name": "host (ubuntu-24.04)",
+          "conclusion": "success"
+        },
+        {
+          "name": "windows-native",
+          "conclusion": "success"
+        },
+        {
+          "name": "host (ubuntu-22.04)",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "source_tests": [
+      {
+        "test": "test_release_documents.py",
+        "exit": 0,
+        "cases": 2,
+        "seconds": 0.865,
+        "skipped": 0
+      },
+      {
+        "test": "test_linux_support.py",
+        "exit": 0,
+        "cases": 20,
+        "seconds": 4.86,
+        "skipped": 8
+      },
+      {
+        "test": "test_linux_replays.py",
+        "exit": 0,
+        "cases": 5,
+        "seconds": 0.241,
+        "skipped": 0
+      },
+      {
+        "test": "test_update_backend.py",
+        "exit": 0,
+        "cases": 12,
+        "seconds": 0.401,
+        "skipped": 0
+      },
+      {
+        "test": "test_desktop_resilience.py",
+        "exit": 0,
+        "cases": 26,
+        "seconds": 102.333,
+        "skipped": 0
+      },
+      {
+        "test": "test_update_client.py",
+        "exit": 0,
+        "cases": 19,
+        "seconds": 9.688,
+        "skipped": 0
+      },
+      {
+        "test": "test_update_resilience.py",
+        "exit": 0,
+        "cases": 29,
+        "seconds": 9.343,
+        "skipped": 0
+      },
+      {
+        "test": "test_update_recovery.py",
+        "exit": 0,
+        "cases": 16,
+        "seconds": 51.123,
+        "skipped": 0
+      },
+      {
+        "test": "test_desktop_backend.py",
+        "exit": 0,
+        "cases": 49,
+        "seconds": 214.755,
+        "skipped": 0
+      }
+    ],
+    "packaged_startup_cases": 5,
+    "bundled_regressions": {
+      "passed": true,
+      "cases": 64,
+      "skipped": 0,
+      "actual_bundled_isolated_python": true,
+      "implementation_paths_verified": true,
+      "synthetic_profiles_only": true,
+      "game_started": false
+    },
+    "packaged_alignment": {
+      "passed": true,
+      "cases": 22,
+      "actual_bundled_isolated_python": true,
+      "implementation_paths_verified": true,
+      "scope": "Synthetic fixtures exercising shipped modules; native mixed-renderer gameplay verified separately."
+    },
+    "packaged_presets": {
+      "passed": true,
+      "cases": 10,
+      "actual_bundled_isolated_python": true,
+      "implementation_paths_verified": true,
+      "scope": "Synthetic fixtures exercising shipped modules; native mixed-renderer gameplay verified separately."
+    },
+    "packaged_ui_checks": 37,
+    "private_pipe_roundtrip": true,
+    "fresh_installer": {
+      "passed": true,
+      "mode": "Fresh InstallerTest: production logic and payload, isolated identity and mutexes",
+      "setup_exit": 0,
+      "package_verified": true,
+      "exact_launcher_and_metadata": true,
+      "installed_clock_bridge_verified": true,
+      "installed_bundled_graphics_preparation": true,
+      "production_setup_sha256": "e7bb2cac4d6a130a54291ba3c3c26f91fd4bab15c39bfccae5227dd1e0dfcdf1",
+      "portable_upgrade_scope": "RC3.19 prior update qualification; unchanged generic copy/update code, no new game export qualification.",
+      "game_started": false
+    },
+    "signed_update": {
+      "python_signature_valid": true,
+      "compiled_windows_signature_and_setup_valid": true,
+      "installer_executed": false,
+      "sequence": 24,
+      "sha256": "e7bb2cac4d6a130a54291ba3c3c26f91fd4bab15c39bfccae5227dd1e0dfcdf1",
+      "bytes": 106051347
+    },
+    "bundled_imports_and_signature": {
+      "passed": true,
+      "bundled_isolated_python": true,
+      "public_host_import_and_default": true,
+      "desktop_lan_internet_and_standalone_imports": true,
+      "signed_update_manifest_accepted": true
+    },
+    "stage": {
+      "package_verified": true,
+      "steam_capability": true,
+      "source_tools_equal": true,
+      "maintainer_privacy_scan_passed": true,
+      "no_game_or_private_state_shipped": true,
+      "release_notes_included": true,
+      "corresponding_source_valid": true,
+      "game_directory": true,
+      "standalone_direct_exe_binding": true,
+      "package_files": 347,
+      "package_id": "397ed714c1cfa5d972d66d2b0a5a46068ca3f539a80dca394fb6f056459ea02d"
+    },
+    "linux_runtime": {
+      "passed": true,
+      "tests": [
+        {
+          "test": "linux-boundaries",
+          "exit": 0,
+          "summary": "....................\n----------------------------------------------------------------------\nRan 20 tests in 2.190s\n\nOK\n"
+        },
+        {
+          "test": "linux-replays",
+          "exit": 0,
+          "summary": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.002s\n\nOK\n"
+        },
+        {
+          "test": "linux-service",
+          "exit": 0,
+          "summary": "Independent synthetic peer: OpenSSL CLI\nPASS: 8952 config-server checks; real HTTP/UDP, Windows CNG import where supported, redacted logs, lifetime/cleanup, CLI and file immutability.\n"
+        }
+      ],
+      "initial_attempt": "CLI exceeded its unchanged 12-second test limit during parallel package copying; retained linux-service-initial.log. Repeated after copying completed, all 8952 checks passed without source or timeout changes."
+    },
+    "linux_package": {
+      "passed": true,
+      "source_tools_equal": true,
+      "inventory_verified": true,
+      "tar_permissions_verified": true,
+      "no_game_or_private_data": true,
+      "bytes": 55251343,
+      "sha256": "820ba378dc4f7598abf273ae341a494e133f6b7662ce65122b409703efbead5d",
+      "source_commit": "e67da12d05a7fc23ebd59f50d54f0003b5899fc0"
+    },
+    "linux_archive": {
+      "passed": true,
+      "exact_archive_sha256": "820ba378dc4f7598abf273ae341a494e133f6b7662ce65122b409703efbead5d",
+      "extracted_manifest_verified": true,
+      "cli_help_exit": 0,
+      "readme_links_verified": true,
+      "elf_objects": 17,
+      "max_glibc": "2.27",
+      "game_started": false
+    },
+    "windows_linux_crypto": {
+      "passed": 8,
+      "windows_to_linux": true,
+      "linux_to_windows": true,
+      "tamper_rejected": true
+    },
+    "anonymous_downloads": 8,
+    "tag_matches_source": true,
+    "signed_live_update_feed_verified": true,
+    "readme_and_document_links_verified": true,
+    "previous_releases": {
+      "passed": true,
+      "previous_releases_unchanged": 24,
+      "previous_assets_unchanged": 209
+    },
+    "rc323_shipped_updater_offers_rc324": true,
+    "fresh_independent_agents": 3,
+    "new_confirmed_findings_fixed": 3,
+    "independent_final_receipt_handoff_header_checks": 11
+  },
+  "assets": [
+    {
+      "name": "CREDITS.md",
+      "size": 2767,
+      "sha256": "71a3db0f118a11bbc86919988276ecf2a9aec38bb73e6c7daa16f4dcdd49c4b3"
+    },
+    {
+      "name": "EasyTier-corresponding-source.zip",
+      "size": 4877623,
+      "sha256": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip",
+      "size": 390861,
+      "sha256": "b46d94518f4dfed732fc608ccc038dc218f7336c36d48ca6a8e3fe87159b5c9c"
+    },
+    {
+      "name": "Graphics-corresponding-source.zip.sha256",
+      "size": 100,
+      "sha256": "3525b9dad5fe7bc05337efdfd5a3ebad9659bf10551567e1de5ec4c0808293e9"
+    },
+    {
+      "name": "LICENSE.txt",
+      "size": 1116,
+      "sha256": "3cb90c876d4b2cfbd7ad9bf9789fef24d8900377300be45614f2ba3aa1847450"
+    },
+    {
+      "name": "linux-verification.json",
+      "size": 1099,
+      "sha256": "d96e199c3a83039077e11254f188a8cec6bb93c132542c009f7f4c70d5b50123"
+    },
+    {
+      "name": "README.md",
+      "size": 4038,
+      "sha256": "37324aea26bf626a49cd9b65857c9d98b0b6c3433a58cb906b055d2239bef214"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 4038,
+      "sha256": "37324aea26bf626a49cd9b65857c9d98b0b6c3433a58cb906b055d2239bef214"
+    },
+    {
+      "name": "Setup.exe",
+      "size": 106051347,
+      "sha256": "e7bb2cac4d6a130a54291ba3c3c26f91fd4bab15c39bfccae5227dd1e0dfcdf1"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "size": 77,
+      "sha256": "6307b3c018f617853eb0446316ef9fa1621735838cc73385b052f54cd148518b"
+    },
+    {
+      "name": "WePlay-RC3.24-Linux-x64.tar.gz",
+      "size": 55251343,
+      "sha256": "820ba378dc4f7598abf273ae341a494e133f6b7662ce65122b409703efbead5d"
+    },
+    {
+      "name": "WePlay-RC3.24-Linux-x64.tar.gz.sha256",
+      "size": 97,
+      "sha256": "013b70dc561aebc06f0576c080a1354ec0f8e189c29cff9a7650531dc24eb2f2"
+    },
+    {
+      "name": "WePlay-RC3.24.zip",
+      "size": 110716668,
+      "sha256": "329313141e7ac5703925c7e1e370465a8380df6137281f4c6e09fa5429588d32"
+    },
+    {
+      "name": "WePlay-RC3.24.zip.sha256",
+      "size": 84,
+      "sha256": "c918e907e30f52849a292c9b6ff61fff18f116e10fd3316183d2ac00c379e2e4"
+    },
+    {
+      "name": "weplay-update.json",
+      "size": 5839,
+      "sha256": "d737b0ad751c69860e334050b90884ec7eb1e7c7f46bffc9494afe26f8ae7538"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 1331,
+      "sha256": "19233cc7801deb617695a53bd30cc24e0a4d962d3272d7d2bcc14cc87f4371aa"
+    }
+  ],
+  "limitations": [
+    "No new native-game, separate-PC Internet, Steam/Proton or Linux gameplay qualification; RC3.23 mixed-renderer loopback evidence is historical",
+    "Remaining shadow flicker and all-scene vegetation sharpness are not fully resolved or qualified",
+    "No new FPS or game-network latency improvement claimed",
+    "Optional/platform test skips are recorded per source group; final packaged regression suite has its own counts",
+    "Executables are not Authenticode signed; update metadata is cryptographically signed"
+  ]
+}
