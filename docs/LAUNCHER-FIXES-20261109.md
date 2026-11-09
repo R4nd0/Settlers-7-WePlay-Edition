@@ -33,6 +33,11 @@ verification; detach remains available independently of a damaged package.
 
 ## Verification
 
+Product source `e8b251a652379be47185f96dbaf85f50cb76e8c6` passed
+[CI run 42595684297](https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297):
+Windows launcher, Windows native adapter, Ubuntu 22.04 and Ubuntu 24.04.
+This includes the built UI/child-process tests and actual HTTP/UDP service tests.
+
 The source regression runs cover desktop settings and integrity, updater
 selection/deletion/recovery, ReShade preparation and download interruption,
 installer/standalone boundaries, public multiplayer startup and directory

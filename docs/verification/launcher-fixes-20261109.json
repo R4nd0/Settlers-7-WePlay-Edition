@@ -275,5 +275,34 @@
     "OS DNS/filesystem stalls are not a universal network deadline guarantee"
   ],
   "published_release_changed": false,
-  "native_adapter_changed": false
+  "native_adapter_changed": false,
+  "source_commit": "e8b251a652379be47185f96dbaf85f50cb76e8c6",
+  "ci": {
+    "run": 42595684297,
+    "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "windows-launcher",
+        "conclusion": "success",
+        "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297/job/129087606108"
+      },
+      {
+        "name": "host (ubuntu-22.04)",
+        "conclusion": "success",
+        "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297/job/129087606282"
+      },
+      {
+        "name": "host (ubuntu-24.04)",
+        "conclusion": "success",
+        "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297/job/129087606293"
+      },
+      {
+        "name": "windows-native",
+        "conclusion": "success",
+        "url": "https://github.com/R4nd0/Settlers-7-WePlay-Edition/actions/runs/42595684297/job/129087606575"
+      }
+    ]
+  },
+  "source_hash_note": "Raw bytes of the verified Windows checkout; Git checkout line endings may differ."
 }
