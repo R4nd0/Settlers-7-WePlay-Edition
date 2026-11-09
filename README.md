@@ -2,16 +2,23 @@
 
 **The community fixes what Ubisoft left behind.**
 
-## [Download Windows Installer — RC3.24 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/Setup.exe)
+## [Download Windows Installer — RC3.25 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
 
-[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/WePlay-RC3.24-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
+[Download Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/WePlay-RC3.25-Linux-x64.tar.gz) · Native Linux launcher, installer and service; original game through Wine/Proton.
 Actual qualification: Ubuntu 24.04/WSL2, WineHQ 11, Ubisoft History Edition and
 WineD3D. Linux Mint, genuine Linux Steam/Proton and hardware Vulkan gameplay
 remain unqualified. [Linux setup and verification](docs/LINUX.md).
 
-[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.24/WePlay-RC3.24.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.24) · [Discord community](https://discord.gg/j2eQgVzssc)
+[Download Windows ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/WePlay-RC3.25.zip) · [Release notes and SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc3.25) · [Discord community](https://discord.gg/j2eQgVzssc)
+
+**RC3.25 fixes updates of existing standalone installations.**
+RC3.24 could close an older launcher and then abort during installer preflight.
+The compatibility fix is verified against the shipped RC3.23 backend and by a
+real RC3.23-to-RC3.25 upgrade, with game profiles and saves preserved. Existing
+launchers can update directly to RC3.25.
+[Hotfix notes](docs/RC3.25-STANDALONE-UPDATE.md) | [Published verification](docs/verification/rc325-publication-20261109.json).
 
 **RC3.24 improves launcher reliability and recovery.**
 Public Join/Cancel, settings Save/Discard and interrupted operations are fixed.
