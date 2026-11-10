@@ -46,7 +46,15 @@ python tools/gold/emulate_checksum.py <owned-original-Gold-exe> work/checksum.js
 All 504 comparisons passed, including empty input, every remainder, word
 overflow and a 65,507-byte input. The C# tests contain 126 short synthetic
 vectors from that native oracle, plus handcrafted header and rejection cases.
-They passed 1,782 checks and 10,000 malformed-input samples. The unchanged
+The original packet writer and checksum were additionally emulated together
+for 180 empty packets: all five accepted types, six flag combinations, three
+seeds and both automatic-length settings. Only the SDK thread-index getter
+and CRT memcpy were stubbed. Those output bytes are separate committed
+fixtures, reproduced with `tools/gold/emulate_packet_headers.py` and the same
+two CLI arguments as the checksum oracle. Nonempty payloads, compression and
+crypto are not covered by this writer oracle.
+
+The combined C# tests passed 2,142 checks and 10,000 malformed-input samples. The unchanged
 History decoder regression passed 2,871 checks and 10,000 malformed samples;
 the main Debug service build passed without warnings. These are emulation,
 codec and build results, not live packet or multiplayer observations.

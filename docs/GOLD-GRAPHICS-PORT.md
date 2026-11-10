@@ -6,6 +6,16 @@ save reload and the camera correction passed a local check. The separate
 Maximum pre-UI candidate now removes the reproduced menu overlay in actual
 Gold tests. Complete effects qualification and multiplayer remain pending.
 
+A subsequent Maximum interval completed a full native Mittsommer phase cycle:
+77 read-only samples measured 360.4 degrees over 1,201.6 seconds. The running
+world advanced from observed turn 13,956 to 26,597. Inspected images at several
+phases and the final in-game menu stayed free of the strong duplicate castle;
+pre-UI effects continued applying. The client exited normally and all 16
+protected shared files retained their file set, hashes and modification times.
+This is a single-GPU/full-HD endurance observation, not continuous pixel,
+per-effect or performance qualification. See the
+[cycle receipt](verification/gold-maximum-cycle-20261110.json).
+
 ## Maximum menu correction
 
 The original Maximum trial showed a pale duplicate castle over menus, also

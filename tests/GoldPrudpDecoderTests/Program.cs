@@ -14,6 +14,22 @@ foreach (var fixture in NativeChecksumCases.Values)
     Check(GoldPrudpChecksum.Compute(Convert.FromHexString(fixture.Hex), fixture.Seed) == fixture.Checksum,
         "Native Gold checksum fixture mismatch");
 
+// Independent full-header byte outputs from the original writer/checksum.
+// These cover empty payloads only; no live connection is exercised.
+foreach (var fixture in NativePacketCases.Values)
+{
+    byte[] bytes = Convert.FromHexString(fixture.Hex);
+    Check(GoldPrudpPacketDecoder.TryDecode(bytes, fixture.Seed, out var value, out _),
+        "Original Gold writer header rejected");
+    Check(value.Type == fixture.Type && value.Flags == fixture.Flags
+        && value.SourceVirtualPort == 0x21 && value.DestinationVirtualPort == 0x22
+        && value.SessionId == 0x7f && value.PacketSignature == 0x12345678
+        && value.SequenceId == 65535 && value.PayloadLength == 0
+        && value.PayloadOffset == bytes.Length - 1
+        && value.ConnectionSignature == (fixture.Type <= 1 ? 0x89abcdefu : 0)
+        && value.Fragment == (fixture.Type == 2 ? 5 : 0), "Original Gold header fields changed");
+}
+
 byte[] Packet(byte type, byte flags, byte[] payload, byte seed)
 {
     int header = type <= 1 ? 14 : type == 2 ? 11 : 10;

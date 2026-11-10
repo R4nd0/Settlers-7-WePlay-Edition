@@ -1,0 +1,43 @@
+{
+  "format": "s7-gold-maximum-native-cycle-v1",
+  "date": "2026-11-10",
+  "identity_receipt": "gold-maximum-ui-20261110.json",
+  "configuration": {
+    "resolution": [1920, 1080],
+    "native_quality": "high",
+    "variant": "maximum-pre-ui-vulkan14-2-public2-descriptor-sets",
+    "legacy_fallback_used": false,
+    "maximum_techniques_removed": 0,
+    "environment": "WePlayMidsummer",
+    "period_ms": 1200000
+  },
+  "actual_game_observation": {
+    "read_only_native_phase_samples": 77,
+    "elapsed_seconds": 1201.564,
+    "accumulated_degrees": 360.3998794555664,
+    "full_native_phase_cycle_observed": true,
+    "first_observed_world_turn": 13956,
+    "last_observed_world_turn": 26597,
+    "last_observed_error_state": 0,
+    "last_observed_pending_message_update": 0,
+    "world_images_inspected_at_several_phases": true,
+    "strong_duplicate_castle_seen_in_inspected_images": false,
+    "final_in_game_menu_inspected": true,
+    "pre_ui_application_counter_at_least": 23400,
+    "normal_exit_code": 0,
+    "protected_shared_profile_files": 16,
+    "shared_file_set_hashes_and_mtimes_unchanged": true,
+    "isolated_test_autosaves_preserved": true,
+    "frida_used": false,
+    "force_termination_used": false
+  },
+  "limits": {
+    "continuous_pixel_inspection": false,
+    "all_individual_effect_outputs_qualified": false,
+    "other_gpus_and_resolutions_qualified": false,
+    "resize_lifecycle_qualified": false,
+    "performance_qualified": false,
+    "gold_history_crossplay_verified": false,
+    "normal_installer_admission_enabled": false
+  }
+}
