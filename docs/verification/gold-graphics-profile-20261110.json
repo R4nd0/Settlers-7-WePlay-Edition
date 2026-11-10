@@ -1,0 +1,49 @@
+{
+  "format": "s7-gold-graphics-profile-checkpoint-v1",
+  "date": "2026-11-10",
+  "status": "experimental-source-only",
+  "profile_isolation": {
+    "original_path_constructors_guarded": 3,
+    "in_memory_only": true,
+    "stable_per_executable_location": true,
+    "mutex_namespaced": true,
+    "mutated_path_instructions_and_mutex_rejected": true,
+    "actual_native_profile_manager_observed": true,
+    "actual_isolated_options_and_profiles_created": true,
+    "diagnostic_exit_code": 0,
+    "shared_files_unchanged": 16
+  },
+  "graphics": {
+    "dxvk_sha256": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "native_renderer_required": true,
+    "module_and_file_pinned": true,
+    "missing_renderer_probe_rejected": true,
+    "foreign_renderer_probe_rejected": true,
+    "write_to_pinned_file_rejected": true,
+    "real_dxvk_factory_probe_passed": true,
+    "requested_dedicated_gpu_was_adapter_zero": true,
+    "physical_adapter_enumeration_required_on_test_pc": true,
+    "fresh_profile_resolution": [1920, 1080],
+    "fresh_profile_quality": "high",
+    "existing_settings_preserved_by_adapter": true,
+    "development_profile_explicitly_updated_with_backup": true,
+    "development_runner_checks_before_process_creation": true,
+    "game_started_for_graphics_followup": false,
+    "gameplay_or_performance_qualified": false,
+    "smaa_and_gold_shadow_detail_hooks_ported": false
+  },
+  "verification": {
+    "native_abi_profile_renderer_transaction_fixtures": "passed",
+    "native_fail_closed_contexts": 6,
+    "ordinary_network_guard_checks": 75,
+    "gold_specific_network_guard_checks": "passed",
+    "native_build_warnings": 0,
+    "native_build_errors": 0
+  },
+  "remaining": {
+    "simulation_advances": false,
+    "gold_history_crossplay_implemented": false,
+    "public_starter_created": false,
+    "public_gold_release_qualified": false
+  }
+}

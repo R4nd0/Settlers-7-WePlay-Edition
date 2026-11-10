@@ -19,7 +19,8 @@ DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 EXE = Path('Data/Base/_Dbg/Bin/Release/Settlers7R.exe')
 DEFINITIONS = Path(__file__).resolve().parents[2] / 'Definitions/Definitions.bin'
 DXVK_CONFIG = (b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
-               b'd3d9.floatEmulation = Strict\nd3d9.samplerAnisotropy = 16\n')
+               b'd3d9.floatEmulation = Strict\nd3d9.samplerAnisotropy = 16\n'
+               b'd3d9.enumerateByDisplays = False\n')
 # Original instruction/data guards from the fingerprinted Gold executable.
 # Replacement bytes remain in the existing, separately fingerprinted definitions.
 GUARDS = {

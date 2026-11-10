@@ -129,9 +129,12 @@ The current fixed label is unsuitable for multiplayer identity.
 
 `-IsolatedLabExecutable` is an explicit development-only build option confined
 to `work/`; it adds one exact lab EXE hash to that build. Ordinary builds do not
-accept it. The laboratory EXE separately redirects all three profile references
-and namespaces the mutex. The adapter itself does not yet implement profile
-isolation or a standalone starter. Do not deploy it to a shared user profile.
+accept it. The earlier laboratory EXE separately redirected three profile
+references and namespaced the mutex. The newer adapter now performs those
+changes in memory for the corrected production EXE, with original-byte guards
+and rollback. Each canonical executable location gets a stable isolated
+Documents/WePlay/Gold profile and a local mutex. Existing shared profiles are
+not migrated. A standalone public starter remains unimplemented.
 
 `tools/gold/profile_interface.py` is separately pinned to the original Gold
 Interface.bba. It adds the native neutral "No Title" choice only for an empty
@@ -150,8 +153,38 @@ This is **not playable-startup or save/load qualification**. The Castle Forge op
 with `-mapInMainMenu`; its catalog, editing and persistence remain unqualified.
 `-noMapInMainMenu` explicitly prevents Castle Forge startup. The native test
 still used Frida to load/observe the DLL and guard the experiment; it did not
-replace Gold startup functions. No complete graphics benchmark, DLC unlock,
+replace Gold startup functions. A later suspended-entry runner loaded the
+native adapter without Frida and restored the original entry bytes in memory.
+It reproduced turn zero and exited normally; the sixteen backed-up shared
+save/options/profile files retained their file set, hashes and timestamps.
+No complete graphics benchmark, DLC unlock,
 Gold multiplayer or Gold/History match has passed.
+
+### Graphics and profile follow-up
+
+The user requires future tests to use the modern graphics path. The adapter
+now requires the pinned x86 DXVK DLL next to the Gold executable. It loads that
+absolute path before engine initialization, rejects conflicting or modified
+renderers, pins the module and holds its file against replacement. Missing
+DXVK fails initialization; it does not select Windows D3D9 as a fallback.
+
+Fresh isolated profiles start at 1920x1080 in a window, with high Gold quality,
+antialiasing, SSAO, parallax, shadows and sun shafts. Depth of field stays off.
+Existing Options.ini files are preserved. The development profile was explicitly
+updated and backed up because Gold had created it at 1024x768 with reduced
+effects. The development runner now checks the requested settings and renderer
+before creating the game process; the original profiles were not edited.
+
+The local GPU probe exposed a display-dependent adapter issue: filtering to the
+dedicated GPU yielded no D3D9 adapters until physical-device enumeration was
+enabled. The pinned DXVK probe then exposed exactly the requested dedicated GPU
+as adapter zero. Missing and foreign DLL probes were rejected. These probes do
+not launch the game, create a playable world or establish graphics performance.
+The relevant DXVK settings are documented in its [configuration reference](https://github.com/doitsujin/dxvk/blob/master/dxvk.conf).
+
+DXVK translates the existing renderer. Gold-specific SMAA, shadow/detail hooks
+and the full WePlay graphics port remain unqualified. See the
+[graphics and profile receipt](verification/gold-graphics-profile-20261110.json).
 
 ## Remaining implementation and acceptance plan
 

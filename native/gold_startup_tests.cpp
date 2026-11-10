@@ -2,6 +2,7 @@
 #include "gold_startup.cpp"
 #include <cstdio>
 #include <string>
+#include <d3d9.h>
 
 namespace {
 GoldStartup::AsciiString name{}, ticket{};
@@ -89,8 +90,83 @@ bool RejectedChild(unsigned int mode) {
     if (wait==WAIT_TIMEOUT) TerminateProcess(child.hProcess,2);
     CloseHandle(child.hThread);CloseHandle(child.hProcess);return result;
 }
+bool ProfileIsolation() {
+    unsigned char digest[32]{};
+    for (unsigned int i=0;i<32;++i) digest[i]=static_cast<unsigned char>(i);
+    profile_names=GoldProfile::FromDigest(digest);
+    if (strcmp(profile_names.id.data(),"000102030405060708090a0b0c0d0e0f")
+        || strcmp(profile_names.suffix.data(),"\\WePlay\\Gold\\000102030405060708090a0b0c0d0e0f")
+        || strcmp(profile_names.mutex.data(),"Local\\G00010203")) return false;
+    const auto first=profile_names;
+    digest[0]++;
+    const auto second=GoldProfile::FromDigest(digest);
+    if (!strcmp(first.suffix.data(),second.suffix.data()) || !strcmp(first.mutex.data(),second.mutex.data())) return false;
+    const uintptr_t original=image+0xb2ecf0;
+    for (uintptr_t rva : {0x133fdeu,0x1352fbu,0x135600u}) {
+        *reinterpret_cast<unsigned char*>(image+rva)=0x68;
+        memcpy(reinterpret_cast<void*>(image+rva+1),&original,4);
+    }
+    constexpr char mutex[]="Global\\Settlers7";
+    memcpy(reinterpret_cast<void*>(image+0xb24fc4),mutex,sizeof(mutex));
+    std::vector<Patch> patches;
+    if (!ProfilePatches(patches) || patches.size()!=4) return false;
+    for (const auto& patch:patches) if (!Write(patch,true)) return false;
+    for (uintptr_t rva : {0x133fdeu,0x1352fbu,0x135600u})
+        if (*reinterpret_cast<uintptr_t*>(image+rva+1)!=reinterpret_cast<uintptr_t>(profile_names.suffix.data())) return false;
+    if (memcmp(reinterpret_cast<void*>(image+0xb24fc4),profile_names.mutex.data(),16)) return false;
+    for (const auto& patch:patches) if (!Write(patch,false)) return false;
+    for (uintptr_t rva : {0x133fdeu,0x1352fbu,0x135600u}) {
+        auto* instruction=reinterpret_cast<unsigned char*>(image+rva);
+        instruction[0]++;
+        std::vector<Patch> rejected;
+        if (ProfilePatches(rejected)) return false;
+        instruction[0]--;
+        instruction[1]++;
+        rejected.clear();
+        if (ProfilePatches(rejected)) return false;
+        instruction[1]--;
+    }
+    *reinterpret_cast<char*>(image+0xb24fc4)='X';
+    patches.clear();
+    return !ProfilePatches(patches);
+}
+bool RendererFileGuards() {
+    wchar_t folder[MAX_PATH]{},path[MAX_PATH]{};
+    if (!GetTempPathW(MAX_PATH,folder) || !GetTempFileNameW(folder,L"wpg",0,path)) return false;
+    HANDLE file=CreateFileW(path,GENERIC_WRITE,0,nullptr,TRUNCATE_EXISTING,0,nullptr);
+    if (file==INVALID_HANDLE_VALUE) return false;
+    DWORD written=0;
+    const bool wrote=WriteFile(file,"abc",3,&written,nullptr) && written==3;
+    CloseHandle(file);
+    char digest[65]{};
+    HANDLE held=INVALID_HANDLE_VALUE;
+    bool valid=wrote && FileDigest(path,digest,3,&held)
+        && !strcmp(digest,"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    file=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
+    valid=valid && file==INVALID_HANDLE_VALUE;
+    if (file!=INVALID_HANDLE_VALUE) CloseHandle(file);
+    if (held!=INVALID_HANDLE_VALUE) CloseHandle(held);
+    valid=valid && !FileDigest(path,digest,4);
+    DeleteFileW(path);
+    // The authored fixture directory has no DXVK payload; no system fallback.
+    return valid && !ModernRenderer();
+}
 }
 int main(int argc,char** argv) {
+    if (argc==3 && !strcmp(argv[1],"renderer-probe")) {
+        if (!ModernRenderer()) return 30;
+        using Factory=IDirect3D9* (WINAPI*)(UINT);
+        const auto factory=reinterpret_cast<Factory>(GetProcAddress(GetModuleHandleW(L"d3d9.dll"),"Direct3DCreate9"));
+        IDirect3D9* d3d=factory ? factory(D3D_SDK_VERSION) : nullptr;
+        if (!d3d) return 31;
+        D3DADAPTER_IDENTIFIER9 adapter{};
+        const bool valid=d3d->GetAdapterCount()==1
+            && SUCCEEDED(d3d->GetAdapterIdentifier(D3DADAPTER_DEFAULT,0,&adapter))
+            && !strcmp(adapter.Description,argv[2]);
+        std::printf("Pinned DXVK default adapter: %s\n",adapter.Description);
+        d3d->Release();
+        return valid ? 0 : 32;
+    }
     if (argc==3 && !strcmp(argv[1],"reject")) {
         Setup();const unsigned int mode=static_cast<unsigned int>(std::stoul(argv[2]));
         if (mode==0) record.functions[3]=1;
@@ -108,7 +184,7 @@ int main(int argc,char** argv) {
         reinterpret_cast<uint32_t*>(&value)[field]=1;
         if (GoldStartup::Empty(&value,0)) return 6;
     }
-    Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi()) return 7;
+    Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi() || !ProfileIsolation() || !RendererFileGuards()) return 7;
     std::vector<Patch> patches;
     auto* call=reinterpret_cast<unsigned char*>(image+0x100);
     const unsigned char original[]={0xe8,0,0,0,0};memcpy(call,original,5);
@@ -116,6 +192,6 @@ int main(int argc,char** argv) {
         || !Write(patches[0],false) || memcmp(call,original,5)) return 8;
     call[1]=1;if (Write(patches[0],true) || call[1]!=1) return 9;
     for (unsigned int mode=0;mode<6;++mode) if (!RejectedChild(mode)) return 10+static_cast<int>(mode);
-    std::puts("Gold startup ABI, stack/register preservation, transaction guards and six fail-closed contexts passed.");
+    std::puts("Gold startup ABI, profile/mutex isolation, renderer file guards, transaction guards and six fail-closed contexts passed.");
     return 0;
 }
