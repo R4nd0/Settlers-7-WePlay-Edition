@@ -179,6 +179,9 @@ class GoldTests(unittest.TestCase):
             report = gold.prepare(self.source, target, dxvk=dll)
         self.assertEqual((target / gold.EXE).with_name('d3d9.dll').read_bytes(), dll.read_bytes())
         self.assertEqual((target / gold.EXE).with_name('dxvk.conf').read_bytes(), gold.DXVK_CONFIG)
+        # Gold requests display adapters beyond index zero on this setup.
+        # Physical-only enumeration can pass a factory probe yet fail CreateDevice.
+        self.assertIn(b'd3d9.enumerateByDisplays = True\n', gold.DXVK_CONFIG)
         self.assertFalse(report['graphics_verified'])
 
     def test_existing_source_proxy_is_not_replaced(self):

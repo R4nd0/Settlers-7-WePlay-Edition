@@ -3,6 +3,11 @@
 Status: development checkpoint, 2026-11-10. Gold/History crossplay is **not
 implemented**. This checkpoint is not a Gold-compatible WePlay release.
 
+The opt-in [local simulation candidate](GOLD-LOCAL-SIMULATION.md) now advances
+beyond both the turn-zero wait and a subsequent turn-241 logistics wait. Actual
+observations reach turn 3,862 and a new save contains turn 2,667. Restart,
+save reload and completed human construction/delivery remain unqualified.
+
 ## Identified installation
 
 The selected Ubisoft installation uses the nested layout
@@ -175,11 +180,14 @@ updated and backed up because Gold had created it at 1024x768 with reduced
 effects. The development runner now checks the requested settings and renderer
 before creating the game process; the original profiles were not edited.
 
-The local GPU probe exposed a display-dependent adapter issue: filtering to the
-dedicated GPU yielded no D3D9 adapters until physical-device enumeration was
-enabled. The pinned DXVK probe then exposed exactly the requested dedicated GPU
-as adapter zero. Missing and foreign DLL probes were rejected. These probes do
-not launch the game, create a playable world or establish graphics performance.
+The factory probe and actual device creation require separate checks. An earlier
+probe incorrectly treated two display adapters as failure because it required
+exactly one adapter. Physical-only enumeration passed that narrow probe but
+Gold then failed device creation with D3DERR_INVALIDCALL. Display enumeration
+(`d3d9.enumerateByDisplays = True`) exposes both attached displays on the pinned
+dedicated GPU and the actual Gold world renders at 1920x1080. Missing and foreign
+DLL probes remain rejected. This establishes device creation and rendering,
+with gameplay and performance qualification still tracked separately.
 The relevant DXVK settings are documented in its [configuration reference](https://github.com/doitsujin/dxvk/blob/master/dxvk.conf).
 
 DXVK translates the existing renderer. Gold-specific SMAA, shadow/detail hooks

@@ -1,0 +1,41 @@
+{
+  "format": "s7-gold-local-simulation-candidate-v1",
+  "date": "2026-11-10",
+  "status": "opt-in-development-candidate",
+  "actual_game": {
+    "map": "Monhaim Valley",
+    "normal_ai_opponents": 3,
+    "frida_used": false,
+    "entry_bytes_restored": true,
+    "native_turn_observations": [321, 1039, 3862],
+    "outgoing_controller_requests": 0,
+    "incoming_controller_replies": 0,
+    "native_error_flag": 0,
+    "new_save_logic_turn": 2667,
+    "new_save_bytes": 4647992,
+    "new_save_sha256": "0b1b46cf2b59a4d9f256b390884c6034e30d2955da7e8136d023774ffb6ae57f",
+    "dxvk_required": true,
+    "resolution": [1920, 1080],
+    "quality": "high",
+    "human_construction_and_delivery_qualified": false,
+    "save_reload_qualified": false,
+    "restart_qualified": false
+  },
+  "verification": {
+    "gold_python_and_lua51_tests": 26,
+    "candidate_native_abi_and_transaction_guards": "passed",
+    "candidate_fatal_contexts": 13,
+    "standard_build_fatal_contexts": 6,
+    "ordinary_network_guard_checks_per_build": 75,
+    "gold_network_guards_both_builds": "passed",
+    "compiler_warnings": 0,
+    "compiler_errors": 0
+  },
+  "remaining": {
+    "full_graphics_port": true,
+    "gold_history_crossplay": true,
+    "public_gold_starter": true,
+    "normal_installer_admission": true,
+    "public_gold_release_qualification": true
+  }
+}

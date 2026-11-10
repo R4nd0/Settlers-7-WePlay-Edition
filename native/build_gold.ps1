@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,
-      [string]$IsolatedLabExecutable)
+      [string]$IsolatedLabExecutable,
+      [switch]$LocalSimulation)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -16,6 +17,7 @@ foreach ($line in $compilerEnvironment) {
     if ($position -gt 0) { [Environment]::SetEnvironmentVariable($line.Substring(0,$position), $line.Substring($position+1), 'Process') }
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS','/DS7_GOLD_STARTUP')
+if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
 if ($IsolatedLabExecutable) {
     $labPath = (Resolve-Path -LiteralPath $IsolatedLabExecutable).Path
     $workspace = [System.IO.Path]::GetFullPath((Join-Path $nativeSource '..\work\'))

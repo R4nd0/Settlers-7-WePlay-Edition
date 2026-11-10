@@ -18,6 +18,11 @@ NO_TITLE = '''
 -- never synthesize earned ranks, progression, purchases or achievements.
 if _G.type(e.titleData) ~= "table" or _G.next(e.titleData) == nil then
  e.titleData = {{TitleType=28,CurrentRank=0,CurrentTitleValue=0,NextRankAt=0}}
+ -- The list selects by TitleID. A new profile otherwise has no selection,
+ -- so Continue dereferences nil until the neutral card is clicked manually.
+ if e.noPrevious and _G.type(e.profileData) == "table" then
+  e.profileData.TitleID = 28
+ end
 end
 '''
 ACCOUNT_LABEL = '"{left}{color:#FFFFFFFF}Ubi.com Account:"'

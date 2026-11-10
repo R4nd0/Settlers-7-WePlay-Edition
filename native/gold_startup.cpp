@@ -196,6 +196,155 @@ bool AddBytes(std::vector<Patch>& patches, uintptr_t rva, const void* before, co
     patches.push_back({at, {original, original + size}, {replacement, replacement + size}});
     return true;
 }
+#ifdef S7_GOLD_LOCAL_SIMULATION
+// Experimental, single-player-only ownership of the local message handler.
+// No legacy session, cloud callback, packet acknowledgement or clock is created.
+std::atomic<LONG> local_step_active{0};
+uintptr_t local_core = 0;
+using NativeReady = bool (__thiscall*)(void*, unsigned int, unsigned char*, unsigned int, bool);
+using NativeAdvance = bool (__stdcall*)(void*);
+NativeReady local_ready = nullptr;
+NativeAdvance local_advance = nullptr;
+using NativeTaskChoice = void* (__stdcall*)(void*, unsigned int, void*);
+NativeTaskChoice local_choice_transport = nullptr, local_choice_alternative = nullptr, local_choice_fallback = nullptr;
+using ExistingTaskChoice = void (__stdcall*)(void*, void*);
+void __stdcall ExistingGoldTaskChoice(void* task, void* output) {
+    const uintptr_t target = image + 0x548940;
+    __asm {
+        push esi
+        mov esi, output
+        push task
+        call target
+        pop esi
+    }
+}
+ExistingTaskChoice local_choice_existing = ExistingGoldTaskChoice;
+uintptr_t LocalCore(void* outer) {
+    CheckOrbit();
+    const uintptr_t owner = reinterpret_cast<uintptr_t>(outer);
+    if (!ValidRange(outer, 0x1c) || *reinterpret_cast<uintptr_t*>(owner) != image + 0xb247dc
+        || *reinterpret_cast<uintptr_t*>(owner + 0x10)) Stop();
+    CheckFacade(*reinterpret_cast<void**>(owner + 0xc));
+    const uintptr_t game = *reinterpret_cast<uintptr_t*>(image + 0xcf8310);
+    if (!ValidRange(reinterpret_cast<void*>(game), 0x190)
+        || *reinterpret_cast<uintptr_t*>(game) != image + 0xb32870
+        || *reinterpret_cast<uintptr_t*>(game + 0xcc) != owner
+        || *reinterpret_cast<unsigned int*>(game + 0x184) != 2) Stop();
+    const auto network_mode = reinterpret_cast<bool (__cdecl*)()>(image + 0x58c910);
+    if (network_mode()) Stop();
+    const uintptr_t backend = *reinterpret_cast<uintptr_t*>(owner + 8);
+    if (!ValidRange(reinterpret_cast<void*>(backend), 12)
+        || *reinterpret_cast<uintptr_t*>(backend) != image + 0xb28b74) Stop();
+    const uintptr_t core = *reinterpret_cast<uintptr_t*>(backend + 8);
+    if (!ValidRange(reinterpret_cast<void*>(core), 0x200, true)
+        || *reinterpret_cast<uintptr_t*>(core) != image + 0xb29058
+        || *reinterpret_cast<uintptr_t*>(core + 4) != image + 0xb29064) Stop();
+    return core;
+}
+__declspec(noinline) bool __fastcall LocalReady(void* outer, void*, unsigned int turn,
+    unsigned char* ready, unsigned int delay, bool network) {
+    if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x1a6a98
+        || network || delay != 18 || !ValidRange(ready, 1, true) || local_step_active.exchange(1)) Stop();
+    const uintptr_t core = LocalCore(outer);
+    // The same local preparation performed by History's message-handler entry.
+    // Native Gold still computes the result, processes its queues and reports
+    // readiness; the wrapper never writes the output or increments a turn.
+    *reinterpret_cast<unsigned char*>(core + 0x16) = 0;
+    *reinterpret_cast<unsigned char*>(core + 0x3a) = 0;
+    *reinterpret_cast<unsigned char*>(core + 0x58) = 1;
+    local_core = core;
+    const uintptr_t backend = *reinterpret_cast<uintptr_t*>(static_cast<unsigned char*>(outer) + 8);
+    const bool result = local_ready(reinterpret_cast<void*>(backend), turn, ready, delay, network);
+    local_step_active.store(0);
+    return result;
+}
+__declspec(noinline) bool __stdcall LocalAdvance(void* core_pointer) {
+    if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x40ed9 || local_step_active.exchange(1)) Stop();
+    const uintptr_t game = *reinterpret_cast<uintptr_t*>(image + 0xcf8310);
+    if (!ValidRange(reinterpret_cast<void*>(game), 0xd0)) Stop();
+    const uintptr_t core = LocalCore(*reinterpret_cast<void**>(game + 0xcc));
+    if (core != reinterpret_cast<uintptr_t>(core_pointer) || core != local_core) Stop();
+    *reinterpret_cast<unsigned char*>(core + 0x16) = 0;
+    *reinterpret_cast<unsigned char*>(core + 0x58) = 1;
+    *reinterpret_cast<unsigned char*>(core + 0x1f0) = 1;
+    const bool result = local_advance(core_pointer);
+    local_step_active.store(0);
+    return result;
+}
+// Gold already contains the actual transport searches. History calls these
+// locally instead of suspending CRequestTask until an old controller answers.
+// Enter only after Gold's owner lookup and preferred-parent-result checks.
+__declspec(noinline) void __stdcall LocalTaskChoice(void* task, void* output, unsigned int owner, uintptr_t caller) {
+    if (caller != image + 0x549444 || local_step_active.exchange(1)) Stop();
+    const uintptr_t game = *reinterpret_cast<uintptr_t*>(image + 0xcf8310);
+    if (!ValidRange(reinterpret_cast<void*>(game), 0xd0)) Stop();
+    LocalCore(*reinterpret_cast<void**>(game + 0xcc));
+    const auto address = reinterpret_cast<uintptr_t>(task);
+    if (!ValidRange(task, 0xe8, true) || !ValidRange(output, 44, true)
+        || *reinterpret_cast<uintptr_t*>(address) != image + 0xb4c684
+        || *reinterpret_cast<unsigned int*>(address + 0xb4) != 0) Stop();
+    // Native Gold has already searched the parent case. History also searches
+    // existing standalone transport before allocating a new transport.
+    if (!*reinterpret_cast<uintptr_t*>(address + 0x38)) local_choice_existing(task, output);
+    auto* result = static_cast<unsigned int*>(output);
+    if (!result[2]) {
+        local_choice_transport(task, owner, output);
+        std::array<unsigned int, 11> candidate{};
+        candidate[3] = candidate[4] = 0x7f7fffff;
+        local_choice_alternative(task, owner, candidate.data());
+        float current_cost = 0, candidate_cost = 0;
+        memcpy(&current_cost, result + 3, sizeof(float));
+        memcpy(&candidate_cost, candidate.data() + 3, sizeof(float));
+        if (candidate_cost < current_cost) memcpy(output, candidate.data(), 44);
+        if (!result[2]) local_choice_fallback(task, owner, output);
+    }
+    local_step_active.store(0);
+}
+__declspec(naked) void LocalTaskBridge() {
+    __asm {
+        mov eax, [esp + 0x20]
+        push dword ptr [esp]
+        push eax
+        push ebx
+        push esi
+        call LocalTaskChoice
+        ret
+    }
+}
+bool LocalSimulationPatches(std::vector<Patch>& patches) {
+    // Guard each independently mapped native search entry as well as the
+    // caller. A correct disk hash alone cannot detect another in-memory hook.
+    const unsigned char existing_entry[] = {0x55,0x8b,0xec,0x83,0xec,0x0c};
+    const unsigned char transport_entry[] = {0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
+    const unsigned char fallback_entry[] = {0x55,0x8b,0xec,0x81,0xec,0xd0,0x00,0x00,0x00};
+    if (!ValidRange(reinterpret_cast<void*>(image + 0x54969a), 12)
+        || memcmp(reinterpret_cast<void*>(image + 0x548940), existing_entry, sizeof(existing_entry))
+        || memcmp(reinterpret_cast<void*>(image + 0x548a50), transport_entry, sizeof(transport_entry))
+        || memcmp(reinterpret_cast<void*>(image + 0x548d60), transport_entry, sizeof(transport_entry))
+        || memcmp(reinterpret_cast<void*>(image + 0x548250), fallback_entry, sizeof(fallback_entry))) return false;
+    const uintptr_t original = image + 0x1470;
+    const uintptr_t replacement = reinterpret_cast<uintptr_t>(LocalReady);
+    if (*reinterpret_cast<uintptr_t*>(image + 0xb28b78) != image + 0x40ec0
+        || *reinterpret_cast<uintptr_t*>(image + 0xb28b7c) != image + 0x40ed0
+        || !AddBytes(patches, 0xb247dc, &original, &replacement, 4)) return false;
+    local_ready = reinterpret_cast<NativeReady>(image + 0x40ec0);
+    local_advance = reinterpret_cast<NativeAdvance>(image + 0x42b30);
+    const unsigned char task_before[] = {0xb8,0x01,0x00,0x00,0x00,0x39,0x45,0x10,0x0f,0x84,0x4d,0x02,0x00,0x00};
+    unsigned char task_after[sizeof(task_before)]{};
+    memset(task_after, 0x90, sizeof(task_after));
+    task_after[0] = 0xe8;
+    const uint32_t bridge_offset = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(LocalTaskBridge) - (image + 0x549444));
+    memcpy(task_after + 1, &bridge_offset, 4);
+    task_after[5] = 0xe9;
+    const uint32_t return_offset = 0x54969a - 0x549449;
+    memcpy(task_after + 6, &return_offset, 4);
+    if (!AddBytes(patches, 0x54943f, task_before, task_after, sizeof(task_before))) return false;
+    local_choice_transport = reinterpret_cast<NativeTaskChoice>(image + 0x548a50);
+    local_choice_alternative = reinterpret_cast<NativeTaskChoice>(image + 0x548d60);
+    local_choice_fallback = reinterpret_cast<NativeTaskChoice>(image + 0x548250);
+    return true;
+}
+#endif
 bool ProfilePatches(std::vector<Patch>& patches) {
     // Three independently mapped Gold path constructors append this suffix to
     // Documents. Keep their original constructors and all save semantics.
@@ -318,6 +467,10 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     if (branch[0] != 0x74 || branch[1] != 0x25) return 0;
     patches.push_back({branch, {0x74,0x25}, {0x75,0x25}});
     if (!ProfileNames() || !ProfilePatches(patches)) return 0;
+#ifdef S7_GOLD_LOCAL_SIMULATION
+    if (!LocalSimulationPatches(patches)
+        || !Add(patches, 0x40ed4, {0xe8,0x57,0x1c,0x00,0x00}, LocalAdvance)) return 0;
+#endif
     ascii_append = image + 0x16200; wide_assign = image + 0x17420;
     if (!ModernRenderer() || !ProfileDirectory() || !InstallOfflineNetworkGuard()) return 0;
     for (size_t i = 0; i < patches.size(); ++i) if (!Write(patches[i], true)) {

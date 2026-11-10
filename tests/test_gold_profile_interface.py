@@ -103,6 +103,21 @@ class GoldProfileTests(unittest.TestCase):
         self.assertEqual(same[1]['CurrentRank'], 4)
         self.assertEqual(same[1]['CurrentTitleValue'], 123)
 
+    def test_new_empty_catalog_selects_neutral_without_changing_existing_profiles(self):
+        try:
+            from lupa.lua51 import LuaRuntime
+        except ImportError:
+            self.skipTest('Optional Lua 5.1 runtime unavailable')
+        lua = LuaRuntime(unpack_returned_tuples=True)
+        run = lua.eval('function(catalog,isNew,title) '
+                       'e={titleData=catalog,noPrevious=isNew,profileData={TitleID=title}}; '
+                       + gold.NO_TITLE + ' return e.profileData.TitleID end')
+        self.assertEqual(run(None, True, 0), 28)
+        self.assertEqual(run(lua.table(), True, 0), 28)
+        self.assertEqual(run(None, False, 5), 5)
+        catalog = lua.table_from([lua.table_from({'TitleType': 5, 'CurrentRank': 3})])
+        self.assertEqual(run(catalog, True, 5), 5)
+
 
 if __name__ == '__main__':
     unittest.main()
