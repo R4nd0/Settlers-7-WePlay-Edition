@@ -18,6 +18,7 @@ import socket
 import struct
 import time
 import zlib
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 
 MAX_DATAGRAM = 2048
@@ -54,7 +55,7 @@ def rc4(data: bytes, key: bytes) -> bytes:
 
 
 def unwrap(payload: bytes) -> bytes:
-    if not payload or len(payload) > MAX_DATAGRAM:
+    if not payload or len(payload) > MAX_MESSAGE + 1:
         raise ValueError("Invalid transport payload length")
     value = rc4(payload, TRANSPORT_KEY)
     if value[0] == 0:
@@ -158,10 +159,10 @@ def encode(kind: int, flags: int, session: int, signature: int, sequence: int,
 def rpc_request(payload: bytes) -> tuple[int, int, int, bytes]:
     message = unwrap(payload)
     if (len(message) < 13 or int.from_bytes(message[:4], "little") != len(message) - 4
-            or message[4] not in (0x8a, 0x8b)):
+            or not 0x81 <= message[4] <= 0xfe):
         raise ValueError("Unsupported local RPC")
     call, method = struct.unpack_from("<II", message, 5)
-    if call == 0:
+    if call == 0 or method >= 0x8000:
         raise ValueError("Missing RPC correlation")
     return message[4] & 127, call, method, message[13:]
 
@@ -186,15 +187,17 @@ class Connection:
     expires: float = 0
     next_in: int = 2
     next_out: int = 1
-    response: bytes | None = None
-    request_digest: bytes | None = None
     registered: bool = False
+    fragments: bytes = b""
+    fragment_next: int = 1
+    fragment_until: float = 0
+    history: dict[int, tuple[bytes, tuple[bytes, ...]]] = field(default_factory=dict)
     pending: dict[int, tuple[bytes, float, int]] = field(default_factory=dict)
 
 
 class GoldLoginAdapter:
     """One disposable local principal. No lobbies, ownership claims or vendor login."""
-    def __init__(self, username: str, password: str, backend_port: int):
+    def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False):
         self.username = username.encode("ascii")
         self.password = password.encode("ascii")
         if (not 1 <= len(self.username) <= 64 or b"\0" in self.username
@@ -210,6 +213,10 @@ class GoldLoginAdapter:
         self.admitted_until = 0.0
         self.connections: dict[tuple[bool, tuple[str, int]], Connection] = {}
         self.registered = False
+        self.profile = None
+        if account_mode:
+            from account_profile import LocalProfile
+            self.profile = LocalProfile(username)
         self.events: dict[str, int] = {}
         # Embedded Gold JobUbiAuthenticationLogin ticket password; custom login
         # credentials above remain independent and must match the launch secret.
@@ -251,7 +258,8 @@ class GoldLoginAdapter:
             raise ValueError("Wrong local principal")
         return wrap(struct.pack("<II", 4, (nonce + 1) & 0xffffffff))
 
-    def response(self, backend: bool, peer: tuple[str, int], payload: bytes, now: float) -> bytes:
+    def response(self, backend: bool, peer: tuple[str, int], payload: bytes, now: float,
+                 state: Connection | None = None) -> bytes:
         protocol, call, method, args = rpc_request(payload)
         if not backend and (protocol, method) == (10, 2):
             if self.admitted_peer not in (None, peer) or not self.credentials_match(args):
@@ -282,8 +290,16 @@ class GoldLoginAdapter:
             url = (f"prudps:/address=127.0.0.1;port={peer[1]};CID=1;PID={self.principal};"
                    "sid=15;stream=3;type=3")
             self.registered = True
+            if state is not None:
+                state.registered = True
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
+        if backend and state is not None and state.registered and self.profile is not None:
+            result = self.profile.response(protocol, method, args, Reader)
+            if result is not None:
+                arguments, event = result
+                self.event(event)
+                return rpc_response(protocol, call, method, arguments)
         self.event("rpc_unsupported")
         return rpc_rejection(protocol, call)
 
@@ -333,33 +349,85 @@ class GoldLoginAdapter:
                 return [encode(1, 72, packet.session, packet.connection, 1, response, packet.connection)]
             if not state.connected or state.session != packet.session:
                 return []
-            if packet.kind == 2 and packet.flags == 8 and packet.fragment == 0 and not packet.payload:
-                state.pending.pop(packet.sequence, None)
+            if packet.kind == 2 and packet.flags == 8 and not packet.payload:
+                pending = state.pending.get(packet.sequence)
+                if pending is not None and pending[0][10] == packet.fragment:
+                    state.pending.pop(packet.sequence)
+                    state.expires = now + 120
                 return []
-            if packet.kind == 2 and packet.flags in (48, 112) and packet.fragment == 0 and packet.payload:
-                if packet.sequence not in (state.next_in, state.next_in - 1):
-                    return []
-                digest = hashlib.sha256(packet.payload).digest()
-                replies = [encode(2, 8, state.session, state.client, packet.sequence)]
-                if packet.sequence == state.next_in - 1:
-                    if state.request_digest != digest or state.response is None:
+            if packet.kind == 2 and packet.flags in (48, 112) and packet.payload:
+                previous = state.history.get(packet.sequence)
+                if previous is not None:
+                    if previous[0] != hashlib.sha256(bytes((packet.fragment,)) + packet.payload).digest():
                         return []
-                    return replies + [state.response]
-                if len(state.pending) >= 4:
+                    ack = encode(2, 8, state.session, state.client, packet.sequence, fragment=packet.fragment)
+                    return [ack, *previous[1]]
+                # Reserve room for the largest bounded profile response before
+                # executing any stateful RPC. Wait for real ACKs under pressure.
+                if packet.sequence != state.next_in or state.next_in > 0xffff or len(state.pending) > 8:
                     return []
-                response = self.response(backend, peer, packet.payload, now)
-                state.response = encode(2, 112, state.session, state.client, state.next_out, response)
-                state.pending[state.next_out] = state.response, now + .25, 1
-                state.request_digest = digest
+                if state.fragments and now >= state.fragment_until:
+                    state.closed = True
+                    state.fragments = b""
+                    state.pending.clear()
+                    self.event("fragment_timeout")
+                    return []
+                digest = hashlib.sha256(bytes((packet.fragment,)) + packet.payload).digest()
+                replies = [encode(2, 8, state.session, state.client, packet.sequence, fragment=packet.fragment)]
+                part = unwrap(packet.payload)
+                if not part or len(state.fragments) + len(part) > MAX_MESSAGE:
+                    raise ValueError("Excessive fragmented message")
+                if packet.fragment:
+                    if packet.fragment != state.fragment_next or state.fragment_next >= 64:
+                        return []
+                    if not state.fragments:
+                        state.fragment_until = now + 10
+                    state.fragments += part
+                    state.fragment_next += 1
+                    packets: tuple[bytes, ...] = ()
+                    self.event("fragment_accepted")
+                else:
+                    if state.next_out > 0x10000 - 64:
+                        state.closed = True
+                        state.fragments = b""
+                        state.pending.clear()
+                        self.event("sequence_exhausted")
+                        return []
+                    request = wrap(state.fragments + part)
+                    response = self.response(backend, peer, request, now, state)
+                    plain = unwrap(response)
+                    parts = [plain[i:i + 900] for i in range(0, len(plain), 900)]
+                    if (not 1 <= len(parts) <= 64 or len(state.pending) + len(parts) > 64
+                            or state.next_out + len(parts) > 0x10000):
+                        raise ValueError("Excessive pending response")
+                    packets = tuple(encode(2, 112, state.session, state.client, state.next_out + index,
+                        wrap(value), fragment=index + 1 if index < len(parts) - 1 else 0)
+                        for index, value in enumerate(parts))
+                    for index, wire in enumerate(packets):
+                        state.pending[state.next_out + index] = wire, now + .25, 1
+                    state.next_out += len(packets)
+                    if state.fragments:
+                        self.event("message_reassembled")
+                    if len(packets) > 1:
+                        self.event("response_fragmented")
+                    state.fragments = b""
+                    state.fragment_next = 1
+                    state.fragment_until = 0
+                state.history[packet.sequence] = digest, packets
                 state.next_in += 1
-                state.next_out += 1
-                return replies + [state.response]
+                state.history = {sequence: value for sequence, value in state.history.items()
+                                 if sequence >= state.next_in - 64}
+                state.expires = now + 120
+                return replies + list(packets)
             if packet.kind == 4 and packet.flags == 32 and not packet.payload:
+                state.expires = now + 120
                 return [encode(4, 8, state.session, state.client, packet.sequence)]
             if packet.kind == 3 and packet.flags == 48 and not packet.payload:
                 # Keep the record for duplicate disconnect ACKs until its TTL.
                 state.closed = True
                 state.pending.clear()
+                state.fragments = b""
+                state.history.clear()
                 self.event("backend_disconnect" if backend else "auth_disconnect")
                 return [encode(3, 8, state.session, state.client, packet.sequence)]
             return []
@@ -385,25 +453,42 @@ class GoldLoginAdapter:
         return replies
 
 
-def serve(username: str, password: str, ready: Path, report: Path, duration: int) -> None:
+def serve(username: str, password: str, ready: Path, report: Path, duration: int,
+          *, account_mode: bool = False) -> None:
     if not 1 <= duration <= 600:
         raise ValueError("Duration must be bounded to 1..600 seconds")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as auth, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as backend:
         for sock in (auth, backend):
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
-        adapter = GoldLoginAdapter(username, password, backend.getsockname()[1])
-        ready.write_text(json.dumps({"port": auth.getsockname()[1], "backend_port": backend.getsockname()[1], "loopback_only": True}), encoding="utf-8")
-        started = time.monotonic()
-        while time.monotonic() - started < duration:
-            for sock in select.select((auth, backend), (), (), .1)[0]:
-                data, peer = sock.recvfrom(MAX_DATAGRAM + 1)
-                for reply in adapter.handle(sock is backend, peer, data, time.monotonic()):
-                    sock.sendto(reply, peer)
-            for is_backend, peer, reply in adapter.retransmissions(time.monotonic()):
-                (backend if is_backend else auth).sendto(reply, peer)
-            report.write_text(json.dumps({"registered": adapter.registered, "events": adapter.events,
-                "raw_payload_saved": False, "game_session_admission": False}), encoding="utf-8")
+        adapter = GoldLoginAdapter(username, password, backend.getsockname()[1], account_mode=account_mode)
+        config_context = nullcontext(None)
+        if account_mode:
+            from account_config import ConfigService
+            config_context = ConfigService(auth.getsockname()[1])
+        with config_context as config:
+            addresses = {"port": auth.getsockname()[1], "backend_port": backend.getsockname()[1], "loopback_only": True}
+            readers = [auth, backend]
+            if config is not None:
+                addresses["config_port"] = config.server_port
+                readers.append(config.socket)
+            ready.write_text(json.dumps(addresses), encoding="utf-8")
+            started = time.monotonic()
+            while time.monotonic() - started < duration:
+                for sock in select.select(readers, (), (), .1)[0]:
+                    if config is not None and sock is config.socket:
+                        config.handle_request()
+                        continue
+                    data, peer = sock.recvfrom(MAX_DATAGRAM + 1)
+                    for reply in adapter.handle(sock is backend, peer, data, time.monotonic()):
+                        sock.sendto(reply, peer)
+                for is_backend, peer, reply in adapter.retransmissions(time.monotonic()):
+                    (backend if is_backend else auth).sendto(reply, peer)
+                report.write_text(json.dumps({"registered": adapter.registered, "events": adapter.events,
+                    "config_responses": config.responses if config is not None else 0,
+                    "config_rejections": config.rejections if config is not None else {},
+                    "config_host_rejections": config.host_rejections if config is not None else {},
+                    "raw_payload_saved": False, "game_session_admission": False}), encoding="utf-8")
 
 
 def main() -> None:
@@ -411,10 +496,11 @@ def main() -> None:
     parser.add_argument("--ready-file", required=True, type=Path)
     parser.add_argument("--report-file", required=True, type=Path)
     parser.add_argument("--duration", type=int, default=120)
+    parser.add_argument("--account-mode", action="store_true", help="Fresh in-memory local account prototype; no lobby/progression admission")
     args = parser.parse_args()
     password = os.environ.pop("WEPLAY_GOLD_LOCAL_SECRET", "")
     username = os.environ.pop("WEPLAY_GOLD_LOCAL_NAME", "WePlayGoldLocal")
-    serve(username, password, args.ready_file, args.report_file, args.duration)
+    serve(username, password, args.ready_file, args.report_file, args.duration, account_mode=args.account_mode)
 
 
 if __name__ == "__main__":

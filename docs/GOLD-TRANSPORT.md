@@ -1,11 +1,85 @@
 # Gold transport development checkpoint
 
-Gold's opt-in native SDK connection/login adapter now completes a genuine
-local login and backend registration under DXVK. The separate loopback service
-uses a fresh launch secret and tickets owned by that service. Gold/History
-crossplay is not implemented: the CNetwork account/lobby bridge and shared
+Gold's opt-in account adapter now completes the original CNetwork account login
+and profile startup under DXVK: native account state 6 and enabled RendezVous.
+The separate loopback service uses a fresh launch secret and its own tickets.
+Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
+
+## Original account integration, 2026-11-10
+
+`native/build_gold.ps1 -AccountLogin` enables `gold_account_login.inc` and the
+shared SDK helpers. Unlike the separate SDK probe below, it redirects the
+original account manager's automatic login using its own CallContext and backend
+output slot. The native account state machine, profile methods, callbacks and
+service activation execute unchanged. There are no writes to their success,
+account-state or connected flags, no synthetic CallContext completion and no
+extra timer/manual account Update pump.
+
+The guarded configuration adapter points OnlineConfigClient at an ephemeral
+IPv4 loopback HTTP origin. Gold's native HTTP client fetches and parses the real
+JSON response. The prepared EXE has a changed method-selection branch that
+passes invalid CURL option zero. The adapter selects the original HTTPGET option
+only inside the verified own configuration request, and replaces that request's
+legacy Host header with its own loopback authority. Native CURL results and
+request/header ownership remain unchanged. The original extension-client
+initializer also receives the same independent local transport key, retaining
+its native initialization without overwriting the owned stream's checksum seed.
+
+Start `tools/gold/login_server.py` with `--account-mode`, the fresh secret/name
+environment described below and private `--ready-file`/`--report-file` paths.
+Its readiness record adds `config_port`; pass that as `WEPLAY_GOLD_CONFIG_PORT`
+to the native child. This mode currently requires the existing independent
+Gold identity `WePlayGoldLocal`. It is one automatic login per process;
+reconnect and another identity are not implemented.
+
+`account_config.py` serves only the exact owned configuration route/query,
+loopback authority and empty request body. Its single HTTP worker has a one-second
+connection timeout and an eight-connection listen backlog. `account_profile.py`
+implements the observed native profile read/update, opaque castle/progression
+buffer, title option, empty title/option maps and fresh gamer-card schemas.
+Profiles live only in memory for this diagnostic launch; progression evaluation,
+earned titles, importing existing progress and persistent accounts are not
+implemented. This is an explicit **fresh local profile laboratory**, not a
+profile migration or a complete replacement online service.
+
+Reliable transport now assembles bounded ordered fragments after packet-local
+decryption/decompression, retains a bounded duplicate window, and fragments
+large replies. Native ACKs must match both sequence and fragment before they
+cancel retries. Assembly has a ten-second deadline; datagrams, logical messages,
+fragment counts, profile strings/lists/buffers and pending replies are bounded.
+Profile RPCs require registration on the actual authenticated backend connection.
+Another profile identity, malformed/trailing data and unsupported RPCs are rejected.
+
+```console
+python tests/gold_login_tests.py
+python tests/gold_account_tests.py
+powershell -File native/build_gold.ps1 -OutputDirectory work/gold-account-build -LocalSimulation -AccountLogin
+```
+
+The synthetic account suite covers bidirectional profile fragmentation, an old
+fragment retry, altered duplicate data, wrong fragment ACKs, lost ACK recovery,
+missing/expired assembly, atomic identity/length rejection, local profile storage
+and strict HTTP route/host/body handling. Native fixtures reject 73 altered
+instruction bytes and check HTTP calling convention, unchanged failure results
+and three failing caller/argument contexts. These checks complement live DXVK
+observations; an accessible menu is not multiplayer proof.
+
+The current integration still leaves the original UI reporting Offline and
+rejecting Multiplayer with a missing-server-connection notice. Additional
+presence, lobby and session services remain unsupported. The normal launcher
+does not yet provision these developer endpoints, and no Gold/History match
+has been observed.
+
+The final regular-source DXVK positive test reached native account state 6,
+context state 2/result `0x00010001`, a non-null original account backend and
+enabled RendezVous. Native OnlineConfig completed HTTP 200. Two profile reads
+and updates included 18 accepted incoming fragments and one fragmented reply.
+With a deliberately different launch secret, the same native build reached
+account state 0/context state 3/result `0x80010001`, with no backend, registration
+or enabled RendezVous. Both clients exited normally and all 16 shared
+profile/save files stayed unchanged. See the [sanitized account receipt](verification/gold-account-login-20261110.json).
 
 ## Native SDK login adapter, 2026-11-10
 
@@ -59,7 +133,7 @@ native failure path: state 3, no backend, no registration, normal exit and the
 same 16 shared files unchanged. The final response-retry version passed a second
 fresh-secret positive test. See the [sanitized login receipt](verification/gold-sdk-login-20261110.json).
 
-This adapter owns one login interval per process. Its context and backend output
+The separate `-LocalLogin` SDK probe owns one login interval per process. Its context and backend output
 slot stay valid through normal process shutdown; runtime unload, retries/new
 accounts, cancellation and reconnect are not supported. It does not attach that
 backend to CNetwork's account manager, expose a lobby or translate game commands.

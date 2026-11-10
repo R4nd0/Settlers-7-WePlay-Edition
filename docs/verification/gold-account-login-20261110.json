@@ -1,0 +1,61 @@
+{
+  "scope": "Experimental original Gold CNetwork account startup; IPv4 loopback only",
+  "date": "2026-11-10",
+  "native_sha256": "546159929a160cc65bfbd50fd06068178fc25fc1602673c37e57e711dff9010d",
+  "prepared_gold_exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+  "renderer": "DXVK 3.1.1 x86",
+  "legacy_graphics_used": false,
+  "positive": {
+    "native_account_state": 6,
+    "native_account_context_state": 2,
+    "native_account_result": "0x00010001",
+    "native_account_backend_present": true,
+    "native_rendezvous_enabled": true,
+    "native_online_config_http_status": 200,
+    "native_online_config_context_state": 2,
+    "own_server_profile_reads": 2,
+    "own_server_profile_updates": 2,
+    "own_server_incoming_fragments_accepted": 18,
+    "own_server_messages_reassembled": 2,
+    "own_server_large_responses_fragmented": 1,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16
+  },
+  "negative_mismatched_launch_secret": {
+    "native_account_state": 0,
+    "native_account_context_state": 3,
+    "native_account_result": "0x80010001",
+    "native_account_backend_present": false,
+    "native_rendezvous_enabled": false,
+    "own_server_registered": false,
+    "own_server_profile_access": false,
+    "native_online_config_http_status": 200,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16
+  },
+  "verification": {
+    "synthetic_login_tests": 11,
+    "malformed_datagrams": 10000,
+    "synthetic_account_tests": 8,
+    "native_account_mutated_instruction_rejections": 73,
+    "native_http_failure_forwarding_and_stack_cleanup": true,
+    "native_failing_caller_argument_contexts": 3,
+    "native_cloud_save_mutated_instruction_rejections": 28,
+    "native_network_guard_checks": 75,
+    "native_default_sdk_and_account_builds": "passed /W4 /WX",
+    "raw_payloads_accounts_credentials_game_data_in_receipt": false,
+    "account_success_flags_or_callcontext_completions_fabricated": false,
+    "frida_used": false,
+    "force_kill_used": false
+  },
+  "remaining": [
+    "Original UI still reports Offline; Multiplayer reports missing server connection",
+    "Presence, lobby, matchmaking, peer/session admission and shared command bridge",
+    "Persistent local profiles, progression evaluation, earned titles and reconnect",
+    "Normal WePlay launcher endpoint provisioning",
+    "Actual Gold/Ubisoft History and Gold/Steam History matches in both host directions",
+    "Cross-edition content differences, deterministic gameplay and save/resume qualification"
+  ],
+  "crossplay_observed": false,
+  "game_session_admission_enabled": false
+}

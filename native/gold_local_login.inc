@@ -76,6 +76,9 @@ uintptr_t LocalLoginRendezVous() {
     return rendezvous;
 }
 
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+#include "gold_account_login.inc"
+#else
 void LocalLoginPoll() {
     if (!local_login_key_set || !owner_thread.load()
         || GetCurrentThreadId() != owner_thread.load()) return;
@@ -115,6 +118,8 @@ void LocalLoginPoll() {
     LocalLoginReport(queued ? "native-login-queued" : "native-login-rejected");
 }
 
+#endif
+
 LRESULT CALLBACK LocalLoginMessage(int code, WPARAM wparam, LPARAM lparam) {
     if (code >= 0 && !InterlockedExchange(&local_login_busy, 1)) {
         LocalLoginPoll();
@@ -151,6 +156,9 @@ bool LocalLoginPrepare(std::vector<Patch>& patches) {
     for (DWORD i = 0; i < length; ++i)
         if (local_login_name[i] < 32 || local_login_name[i] > 126) return false;
     if (!SetEnvironmentVariableA("WEPLAY_GOLD_LOCAL_SECRET", nullptr)) return false;
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+    if (!AccountLoginPrepare(patches)) return false;
+#endif
     return Add(patches, 0x655cfb, {0xe8,0x80,0x5e,0x1d,0x00}, LocalLoginAccessKey);
 }
 

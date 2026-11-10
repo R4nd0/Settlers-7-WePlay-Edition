@@ -391,6 +391,7 @@ bool LocalPatchGuards() {
 #endif
 }
 #include "gold_visual_tests.inc"
+#include "gold_account_tests.inc"
 int main(int argc,char** argv) {
     if (argc==3 && !strcmp(argv[1],"renderer-probe")) {
         if (!ModernRenderer()) return 30;
@@ -415,6 +416,13 @@ int main(int argc,char** argv) {
         if (mode==2) outer[0]++;
         if (mode==3) facade[0x1c]=1;
         if (mode==4) ticket.length=1;
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+        if (mode>=19 && mode<=21) {
+            account_http_owned=true;
+            AccountTestMethod(mode==19,mode==20 ? 7 : 0,mode==21 ? 0 : 1);
+            return 3;
+        }
+#endif
         if (mode>=13 && mode<=18) {
             if (mode==14) record.functions[10]=1;
             if (mode==15) facade[0x1c]=1;
@@ -449,6 +457,10 @@ int main(int argc,char** argv) {
     Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi() || !ProfileIsolation() || !RendererFileGuards()) return 7;
     if (!GoldVisualGuards() || !GoldFilterCases()) return 34;
     if (!CloudSaveGuards() || !CloudSaveAbi(0x185b) || !CloudSaveAbi(0x40f58)) return 35;
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+    if (!GoldAccountGuards()) return 36;
+    for (unsigned int mode=19;mode<=21;++mode) if (!RejectedChild(mode)) return 80+static_cast<int>(mode);
+#endif
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationAbi() || !LocalPatchGuards()) return 33;
 #endif
