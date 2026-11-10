@@ -71,6 +71,25 @@ class AccountTests(unittest.TestCase):
         denied = self.send(server, 2, 111, 2, b"\0" * 12)
         self.assertEqual(gold.unwrap(denied[1][13:-1])[4:6], b"\x6f\0")
         self.assertNotIn("profile_read", self.adapter.events)
+        self.assertEqual(self.adapter.unsupported_rpcs, {})
+        self.assertEqual(self.adapter.invalid_profile_rpcs, {})
+
+    def test_authenticated_schema_diagnostics_are_bounded_and_payload_free(self):
+        self.register()
+        state = self.adapter.connections[True, self.backend]
+        sentinel = b"private-synthetic-label"
+        for index in range(80):
+            self.adapter.response(True, self.backend,
+                request(120, index + 100, index + 100, sentinel), self.now, state)
+            with self.assertRaises(ValueError):
+                self.adapter.response(True, self.backend,
+                    request(117, index + 100, 3, b"\0" * (index + 2)), self.now, state)
+        for records in (self.adapter.unsupported_rpcs, self.adapter.invalid_profile_rpcs):
+            self.assertEqual(len(records), 32)
+            self.assertTrue(all(len(shape) == 3 and all(isinstance(n, int) for n in shape)
+                                and isinstance(count, int) for shape, count in records.items()))
+            self.assertNotIn(sentinel.decode(), repr(records))
+        self.assertEqual(self.adapter.profile.title_option, 0)
         self.assertIsNone(gold.GoldLoginAdapter("local-fixture", "a" * 64, 55123).profile)
 
     def test_fragmented_profile_round_trip_duplicate_reordering_and_acks(self):
@@ -140,6 +159,18 @@ class AccountTests(unittest.TestCase):
         self.assertTrue(state.closed)
         self.assertEqual((self.adapter.profile.base, self.adapter.profile.castle), original)
 
+    def test_native_title_option_preserves_all_u8_values_atomically(self):
+        local = self.adapter.profile
+        for option in range(256):
+            self.assertEqual(local.response(117, 3, bytes((option,)), gold.Reader),
+                             (b"", "title_option_stored"))
+            self.assertEqual(local.response(117, 1, b"", gold.Reader)[0],
+                             bytes((option,)) + b"\0" * 4)
+            for invalid in (b"", bytes((option, 0))):
+                with self.assertRaises(ValueError):
+                    local.response(117, 3, invalid, gold.Reader)
+                self.assertEqual(local.title_option, option)
+
     def test_identity_truncation_and_length_attacks_are_atomic(self):
         local = self.adapter.profile
         other = account_profile.LocalProfile("another-local-identity")
@@ -162,7 +193,7 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(local.response(111, 9, b"", gold.Reader)[0], b"\0" * 20)
         local.response(117, 3, b"\1", gold.Reader)
         self.assertEqual(local.response(117, 1, b"", gold.Reader)[0], b"\1" + b"\0" * 4)
-        for bad in (b"", b"\2", b"\1trailing"):
+        for bad in (b"", b"\2\0", b"\1trailing"):
             with self.assertRaises(ValueError):
                 local.response(117, 3, bad, gold.Reader)
         self.assertTrue(local.title_option)

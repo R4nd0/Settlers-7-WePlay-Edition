@@ -2,12 +2,33 @@
 
 Gold's opt-in account adapter now completes the original CNetwork account login
 and profile startup under DXVK: native account state 6 and enabled RendezVous.
+The original UI reports Online and opens its Session Browser and map selection.
 The separate loopback service uses a fresh launch secret and its own tickets.
 Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
 ## Original account integration, 2026-11-10
+
+The account mode restores the original `IsLoggedIn` Lua binding's boolean
+conversion. The offline unlock inverted the real account backend predicate;
+restoring its instruction preserves the native virtual call and its false result
+without a backend. All 256 possible native byte results are checked in the
+executable ABI fixture, alongside 92 instruction-byte rejection cases.
+
+Gold's title option is an opaque u8, not a canonical boolean. Its native writer
+copies the user's byte directly. Preserving all 256 values fixes intermittent
+profile startup rejection and timeout. Truncated and trailing requests remain
+invalid and cannot mutate the stored option.
+
+Opening Multiplayer also sets the global network-selection predicate while the
+menu retains its local OSF message handler. In account mode only, that local
+scene may continue after the original account reaches state 6 with its owned
+backend and service registration. The launcher/core types, parent ownership,
+absent network delegate and original callsite/arguments remain guarded. Actual
+network Ready calls remain rejected; this does not admit network simulation.
+Native fixtures preserve both original readiness results and reject seven
+invalid account contexts plus the network Ready argument.
 
 `native/build_gold.ps1 -AccountLogin` enables `gold_account_login.inc` and the
 shared SDK helpers. Unlike the separate SDK probe below, it redirects the
@@ -61,16 +82,32 @@ powershell -File native/build_gold.ps1 -OutputDirectory work/gold-account-build 
 The synthetic account suite covers bidirectional profile fragmentation, an old
 fragment retry, altered duplicate data, wrong fragment ACKs, lost ACK recovery,
 missing/expired assembly, atomic identity/length rejection, local profile storage
-and strict HTTP route/host/body handling. Native fixtures reject 73 altered
+and strict HTTP route/host/body handling. Native fixtures reject 92 altered
 instruction bytes and check HTTP calling convention, unchanged failure results
 and three failing caller/argument contexts. These checks complement live DXVK
 observations; an accessible menu is not multiplayer proof.
 
-The current integration still leaves the original UI reporting Offline and
-rejecting Multiplayer with a missing-server-connection notice. Additional
+The original Session Browser and Create Session map-selection UI have now been
+observed under DXVK. Their searches still receive explicit unsupported-RPC
+rejections; an empty browser does not establish a working catalogue. Additional
 presence, lobby and session services remain unsupported. The normal launcher
 does not yet provision these developer endpoints, and no Gold/History match
 has been observed.
+
+The connection test reached Online, Session Browser and map selection, then
+requested native session creation on a base map. The unimplemented create RPC
+was rejected and Gold displayed its original server error. The client closed
+normally. A deliberately mismatched launch secret with the same DLL left
+account state 0, failed context 3/result `0x80010001`, no backend or enabled
+RendezVous, and no server registration/profile access. It also closed normally;
+both tests preserved all 16 shared profile/save files. See the
+[connection receipt](verification/gold-connection-20261110.json).
+
+The private report includes bounded numeric schema metadata (protocol, method,
+argument length and count) for unsupported or malformed profile requests on the
+authenticated backend. Each table has at most 32 entries. Fixed parser-stage
+counters distinguish packet, payload and RPC rejection. Arguments, correlation
+IDs, peer addresses and account identities are never retained in these tables.
 
 The final regular-source DXVK positive test reached native account state 6,
 context state 2/result `0x00010001`, a non-null original account backend and

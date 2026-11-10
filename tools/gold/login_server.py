@@ -218,6 +218,9 @@ class GoldLoginAdapter:
             from account_profile import LocalProfile
             self.profile = LocalProfile(username)
         self.events: dict[str, int] = {}
+        self.unsupported_rpcs: dict[tuple[int, int, int], int] = {}
+        self.invalid_profile_rpcs: dict[tuple[int, int, int], int] = {}
+        self.input_rejections = {"packet": 0, "payload": 0, "rpc": 0}
         # Embedded Gold JobUbiAuthenticationLogin ticket password; custom login
         # credentials above remain independent and must match the launch secret.
         self.ticket_key = b"UbiDummyPwd"
@@ -295,17 +298,30 @@ class GoldLoginAdapter:
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
-            result = self.profile.response(protocol, method, args, Reader)
+            try:
+                result = self.profile.response(protocol, method, args, Reader)
+            except (ValueError, struct.error, UnicodeError):
+                shape = protocol, method, len(args)
+                if shape in self.invalid_profile_rpcs or len(self.invalid_profile_rpcs) < 32:
+                    self.invalid_profile_rpcs[shape] = self.invalid_profile_rpcs.get(shape, 0) + 1
+                raise
             if result is not None:
                 arguments, event = result
                 self.event(event)
                 return rpc_response(protocol, call, method, arguments)
         self.event("rpc_unsupported")
+        # Bounded schema metadata from the authenticated backend only. Never
+        # retain arguments, identifiers, peer addresses or correlation values.
+        if backend and state is not None and state.registered:
+            shape = protocol, method, len(args)
+            if shape in self.unsupported_rpcs or len(self.unsupported_rpcs) < 32:
+                self.unsupported_rpcs[shape] = self.unsupported_rpcs.get(shape, 0) + 1
         return rpc_rejection(protocol, call)
 
     def handle(self, backend: bool, peer: tuple[str, int], data: bytes, now: float) -> list[bytes]:
         if peer[0] != "127.0.0.1" or not 1 <= peer[1] <= 65535:
             return []
+        stage = "packet"
         try:
             packet = decode(data)
             self.connections = {k: v for k, v in self.connections.items() if v.expires > now}
@@ -374,6 +390,7 @@ class GoldLoginAdapter:
                     return []
                 digest = hashlib.sha256(bytes((packet.fragment,)) + packet.payload).digest()
                 replies = [encode(2, 8, state.session, state.client, packet.sequence, fragment=packet.fragment)]
+                stage = "payload"
                 part = unwrap(packet.payload)
                 if not part or len(state.fragments) + len(part) > MAX_MESSAGE:
                     raise ValueError("Excessive fragmented message")
@@ -394,6 +411,7 @@ class GoldLoginAdapter:
                         self.event("sequence_exhausted")
                         return []
                     request = wrap(state.fragments + part)
+                    stage = "rpc"
                     response = self.response(backend, peer, request, now, state)
                     plain = unwrap(response)
                     parts = [plain[i:i + 900] for i in range(0, len(plain), 900)]
@@ -433,6 +451,7 @@ class GoldLoginAdapter:
             return []
         except (ValueError, struct.error, zlib.error, UnicodeError, OverflowError):
             self.event("invalid_input")
+            self.input_rejections[stage] += 1
             return []
 
     def retransmissions(self, now: float) -> list[tuple[bool, tuple[str, int], bytes]]:
@@ -485,6 +504,11 @@ def serve(username: str, password: str, ready: Path, report: Path, duration: int
                 for is_backend, peer, reply in adapter.retransmissions(time.monotonic()):
                     (backend if is_backend else auth).sendto(reply, peer)
                 report.write_text(json.dumps({"registered": adapter.registered, "events": adapter.events,
+                    "unsupported_rpcs": [{"protocol": p, "method": m, "argument_bytes": n, "count": c}
+                        for (p, m, n), c in sorted(adapter.unsupported_rpcs.items())],
+                    "input_rejections": adapter.input_rejections,
+                    "invalid_profile_rpcs": [{"protocol": p, "method": m, "argument_bytes": n, "count": c}
+                        for (p, m, n), c in sorted(adapter.invalid_profile_rpcs.items())],
                     "config_responses": config.responses if config is not None else 0,
                     "config_rejections": config.rejections if config is not None else {},
                     "config_host_rejections": config.host_rejections if config is not None else {},

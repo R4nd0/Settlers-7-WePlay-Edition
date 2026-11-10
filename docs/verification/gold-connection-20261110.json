@@ -1,0 +1,52 @@
+{
+  "format": "s7-gold-connection-verification-v1",
+  "date": "2026-11-10",
+  "native_sha256": "95d95fbd3edab5e6a39de9ec653bf3a3133d77d9f6b11956e623397bb6dfeaa0",
+  "renderer": "DXVK",
+  "legacy_fallback": false,
+  "loopback_only": true,
+  "positive": {
+    "native_account_state": 6,
+    "native_context_state": 2,
+    "native_result": "0x00010001",
+    "backend_present": true,
+    "ui_online_observed": true,
+    "session_browser_opened": true,
+    "create_session_map_selection_opened": true,
+    "host_create_requested": true,
+    "host_create_protocol": 21,
+    "host_create_method": 1,
+    "host_create_argument_bytes": 200,
+    "host_create_implemented": false,
+    "native_host_rejection_observed": true,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true
+  },
+  "mismatched_launch_secret": {
+    "native_account_state": 0,
+    "native_context_state": 3,
+    "native_result": "0x80010001",
+    "backend_present": false,
+    "rendezvous_enabled": false,
+    "server_registered": false,
+    "profile_access": false,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true
+  },
+  "synthetic_checks": {
+    "login_tests": 11,
+    "account_tests": 10,
+    "native_instruction_byte_rejections": 92,
+    "native_login_boolean_values": 256,
+    "title_option_values": 256,
+    "invalid_account_scene_contexts": 7,
+    "network_ready_argument_rejected": true
+  },
+  "working_catalogue": false,
+  "game_session_admission": false,
+  "gold_history_match_observed": false,
+  "raw_payload_saved": false,
+  "account_data_included": false
+}

@@ -72,7 +72,7 @@ class LocalProfile:
                      + string(identity) + b"\0" + empty)
         self.castle = b""
         self.progress = b""
-        self.title_option = False
+        self.title_option = 0
 
     def response(self, protocol: int, method: int, args: bytes, reader_type) -> tuple[bytes, str] | None:
         reader = reader_type(args)
@@ -92,14 +92,16 @@ class LocalProfile:
             self.progress = progress
             return b"", "progress_stored"
         if (protocol, method) == (117, 3):
-            option = boolean(reader)
+            # Gold serializes the user's +88 title option as an opaque u8,
+            # not a canonical boolean. Preserve the full native byte domain.
+            option = reader.take(1)[0]
             reader.finish()
             self.title_option = option
             return b"", "title_option_stored"
         if (protocol, method) in ((111, 8), (111, 9), (117, 1), (118, 1)):
             reader.finish()
             if protocol == 117:
-                return bytes((int(self.title_option),)) + struct.pack("<I", 0), "titles_read"
+                return bytes((self.title_option,)) + struct.pack("<I", 0), "titles_read"
             if protocol == 118:
                 card = (struct.pack("<II", 0, 0) + string(self.identity) + string("") + b"\0"
                         + struct.pack("<II", 0, 0) + b"\0" * 6)

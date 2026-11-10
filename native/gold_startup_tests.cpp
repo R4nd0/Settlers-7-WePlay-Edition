@@ -242,7 +242,7 @@ void LocalSetup() {
     local_ready=reinterpret_cast<NativeReady>(FixtureReady);
     local_advance=FixtureAdvance;
 }
-bool LocalReadyAbi() {
+bool LocalReadyAbi(bool native_network = false) {
     auto* at=reinterpret_cast<unsigned char*>(image+0x1a6a93);
     at[0]=0xe8;
     const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(LocalReady)-reinterpret_cast<uintptr_t>(at)-5);
@@ -258,7 +258,8 @@ bool LocalReadyAbi() {
         mov ecx, owner
         lea eax, local_ready_return
         push eax
-        push 0
+        movzx eax,native_network
+        push eax
         push 18
         push output
         push 121
@@ -435,6 +436,7 @@ int main(int argc,char** argv) {
 #ifdef S7_GOLD_LOCAL_SIMULATION
         if (mode>=6) {
             LocalSetup();TaskSetup();std::array<unsigned int,11> output{};
+            if (mode==22) { LocalReadyAbi(true);return 3; }
             if (mode==7) local_task[0]++;
             if (mode==8) local_task[0xb4/4]=1;
             if (mode==9) { const unsigned char network[]={0xb0,0x01,0xc3};memcpy(reinterpret_cast<void*>(image+0x58c910),network,3); }
@@ -463,6 +465,10 @@ int main(int argc,char** argv) {
 #endif
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationAbi() || !LocalPatchGuards()) return 33;
+    if (!RejectedChild(22)) return 102;
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+    if (!GoldAccountLocalScene()) return 37;
+#endif
 #endif
     std::vector<Patch> patches;
     auto* call=reinterpret_cast<unsigned char*>(image+0x100);
@@ -477,7 +483,7 @@ int main(int argc,char** argv) {
     for (unsigned int mode=6;mode<13;++mode) if (!RejectedChild(mode)) return 40+static_cast<int>(mode);
 #endif
 #ifdef S7_GOLD_LOCAL_SIMULATION
-    std::puts("Gold startup/local logistics ABI, profile/renderer and transaction guards, thirteen fail-closed contexts passed.");
+    std::puts("Gold startup/local logistics ABI, profile/renderer and transaction guards, fourteen fail-closed contexts passed.");
 #else
     std::puts("Gold startup ABI, profile/mutex isolation, renderer file guards, transaction guards and six fail-closed contexts passed.");
 #endif

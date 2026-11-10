@@ -113,6 +113,18 @@ bool AccountIsService(uintptr_t account) {
     return found;
 }
 
+bool AccountLocalSceneAllowed() {
+    // This authorizes only the already-guarded local scene, never a session or
+    // network Ready call. Native account state/backend are read, not changed.
+    return local_login_dispatched && account_login_observed && account_login_owner
+        && ValidRange(reinterpret_cast<void*>(account_login_owner), 0x94)
+        && *reinterpret_cast<uintptr_t*>(account_login_owner) == image + 0xb5705c
+        && AccountIsService(account_login_owner)
+        && *reinterpret_cast<DWORD*>(account_login_owner + 0x50) == 6
+        && *reinterpret_cast<void**>(account_login_owner + 0x18) == local_login_backend
+        && local_login_backend;
+}
+
 bool __fastcall AccountSdkLogin(void* rendezvous, void*, void* context, const GoldQString*,
     const GoldQString*, const GoldQString*, void** backend) {
     if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x6580df
@@ -188,12 +200,20 @@ bool AccountLoginPrepare(std::vector<Patch>& patches) {
         {0x794140, {0x8b,0x44,0x24,0x04,0x56,0x8b,0xf1}},
         {0x85f6b0, {0x51,0x53,0x56,0x8b,0xd9,0x57,0x33,0xff}},
         {0x860f44, {0xeb,0x0f}},
+        // The offline unlock inverted this Lua binding's native backend result.
+        // Restore its original boolean conversion, retaining the actual account
+        // virtual call (+40) and its false result when no backend exists.
+        {0x690bfe, {0x8b,0x13,0x8b,0x42,0x40,0x8b,0xcb,0xff,0xd0,
+            0x8b,0x55,0x08,0x33,0xc9,0x84,0xc0}},
         {0x8c94a0, {0x8b,0x44,0x24,0x04,0x85,0xc0}},
         {0x84f3f0, {0x8b,0x44,0x24,0x04,0x50,0xe8,0x86,0xc7,0xfd,0xff}}
     };
     for (const auto& guard : guards)
         if (memcmp(reinterpret_cast<void*>(image + guard.rva), guard.bytes.data(), guard.bytes.size())) return false;
-    return Add(patches, 0x84a963, {0xe8,0xf8,0x97,0xf4,0xff}, AccountConfigHost)
+    const unsigned char inverted[] = {0x0f,0x94,0xc1};
+    const unsigned char original[] = {0x0f,0x95,0xc1};
+    return AddBytes(patches, 0x690c0e, inverted, original, sizeof(original))
+        && Add(patches, 0x84a963, {0xe8,0xf8,0x97,0xf4,0xff}, AccountConfigHost)
         && Add(patches, 0x89880d, {0xe8,0x2e,0xb9,0xef,0xff}, AccountConfigUri)
         && Add(patches, 0x82a57a, {0xe8,0x31,0x51,0x03,0x00}, AccountHttpFactory)
         && Add(patches, 0x82a5aa, {0xe8,0xa1,0x66,0x03,0x00}, AccountHttpHeaders)

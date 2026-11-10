@@ -206,6 +206,9 @@ bool AddBytes(std::vector<Patch>& patches, uintptr_t rva, const void* before, co
 }
 #include "gold_visual.inc"
 #ifdef S7_GOLD_LOCAL_SIMULATION
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+bool AccountLocalSceneAllowed();
+#endif
 // Experimental, single-player-only ownership of the local message handler.
 // No legacy session, cloud callback, packet acknowledgement or clock is created.
 std::atomic<LONG> local_step_active{0};
@@ -240,7 +243,17 @@ uintptr_t LocalCore(void* outer) {
         || *reinterpret_cast<uintptr_t*>(game + 0xcc) != owner
         || *reinterpret_cast<unsigned int*>(game + 0x184) != 2) Stop();
     const auto network_mode = reinterpret_cast<bool (__cdecl*)()>(image + 0x58c910);
-    if (network_mode()) Stop();
+    if (network_mode()) {
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+        // Opening the original multiplayer UI sets this global predicate even
+        // while the menu still owns its local OSF message handler. Permit only
+        // that authenticated account mode; all local owner/core/type guards
+        // below and the Ready call's network-argument rejection still apply.
+        if (!AccountLocalSceneAllowed()) Stop();
+#else
+        Stop();
+#endif
+    }
     const uintptr_t backend = *reinterpret_cast<uintptr_t*>(owner + 8);
     if (!ValidRange(reinterpret_cast<void*>(backend), 12)
         || *reinterpret_cast<uintptr_t*>(backend) != image + 0xb28b74) Stop();
