@@ -1,0 +1,36 @@
+{
+  "format": "s7-gold-passive-transport-checkpoint-v1",
+  "date": "2026-11-10",
+  "original_gold_exe_sha256": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+  "native_checksum_rva": "0x8456e0",
+  "native_packet_writer_rva": "0x91d1f0",
+  "transport_checksum_bytes": 1,
+  "synthetic_verification": {
+    "native_cpu_emulation_checksum_comparisons": 504,
+    "native_cpu_emulation_failures": 0,
+    "stack_nonvolatile_registers_and_input_preservation": true,
+    "committed_short_native_oracle_vectors": 126,
+    "gold_codec_checks": 1782,
+    "gold_malformed_samples": 10000,
+    "unchanged_history_decoder_checks": 2871,
+    "unchanged_history_malformed_samples": 10000,
+    "main_debug_build": "passed-no-warnings"
+  },
+  "read_only_content_comparison": {
+    "shared_payloads": 732,
+    "shared_identical_payloads": 720,
+    "map_payloads": 800,
+    "map_identical_payloads": 797,
+    "maps_with_different_payloads": 2,
+    "shared_network_content_identity_established": false
+  },
+  "live_gold_packet_test": false,
+  "live_stream_seed_verified": false,
+  "gold_service_caller_or_socket_added": false,
+  "history_decode_fallback_added": false,
+  "gold_loopback_connection_implemented": false,
+  "gold_to_gold_multiplayer_verified": false,
+  "gold_history_crossplay_implemented": false,
+  "normal_multiplayer_admission_enabled": false,
+  "proprietary_executable_or_raw_game_packets_included": false
+}

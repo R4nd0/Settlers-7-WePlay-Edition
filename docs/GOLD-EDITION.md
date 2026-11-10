@@ -17,6 +17,10 @@ The separate Maximum candidate also corrects the reproduced duplicate-castle
 menu overlay by rendering effects before the UI. Complete effects qualification
 remains pending.
 
+The separate [transport checkpoint](GOLD-TRANSPORT.md) adds a passive Gold
+packet decoder and an independently checked one-byte checksum. It does not
+connect Gold to the History service or enable multiplayer admission.
+
 ## Identified installation
 
 The selected Ubisoft installation uses the nested layout
