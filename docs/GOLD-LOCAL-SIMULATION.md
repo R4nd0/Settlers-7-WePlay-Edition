@@ -39,7 +39,7 @@ propagation, existing/primary/cheaper-alternative/fallback result selection,
 changed entry/caller rejection and transactional restoration. Thirteen fatal
 context checks pass. Both candidate and ordinary builds pass the existing
 75 network guards and Gold-specific import/loopback guards, with no compiler
-warnings or errors. The 33 Gold Python tests include actual Lua 5.1 execution
+warnings or errors. The 35 Gold Python tests include actual Lua 5.1 execution
 of the profile fallback and preservation checks.
 
 ## Observed game result
@@ -57,13 +57,15 @@ trading, research and conquest notifications. A newly written save contains
 counter. These observations establish progress beyond the prior waits.
 
 This diagnostic interval exited normally. All 16 shared profile/save files
-retained their file set, hashes and timestamps. A subsequent client reached
-the profile manager with the [native graphics port](GOLD-GRAPHICS-PORT.md);
-this is not a verified save reload or completed gameplay restart.
+retained their file set, hashes and timestamps. After restarting a client
+with the [native graphics port](GOLD-GRAPHICS-PORT.md), the new turn-2,667 save
+loaded and advanced through turns 2,731, 3,881 and 7,920 with empty controller
+queues and a clear native error flag. That interval also exited normally with
+all 16 shared files unchanged.
 
 Building placement was exercised, but completed human construction and its
-deliveries are not yet qualified. Loading the new save, restarting the client,
-additional maps and prolonged economic operation still require actual-game
+deliveries are not yet qualified. Additional maps and prolonged economic
+operation still require actual-game
 checks. The fixture suite does not establish those outcomes.
 
 ## Other corrections in this checkpoint

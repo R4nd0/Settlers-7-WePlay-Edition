@@ -20,11 +20,15 @@
     "resolution": [1920, 1080],
     "quality": "high",
     "human_construction_and_delivery_qualified": false,
-    "save_reload_qualified": false,
-    "restart_qualified": false
+    "save_reload_qualified": true,
+    "restart_qualified": true,
+    "reloaded_save_logic_turn": 2667,
+    "after_restart_turn_observations": [2731, 3881, 7920],
+    "reload_interval_exit_code": 0,
+    "reload_interval_shared_files_unchanged": 16
   },
   "verification": {
-    "gold_python_and_lua51_tests": 33,
+    "gold_python_and_lua51_tests": 35,
     "candidate_native_abi_and_transaction_guards": "passed",
     "candidate_fatal_contexts": 13,
     "standard_build_fatal_contexts": 6,

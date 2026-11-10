@@ -20,8 +20,11 @@ spec.loader.exec_module(environment)
 
 SHARED_SOURCE = '736077c195660aa90edc601049672b64ac335dcc10870c78c2ddf93901a26655'
 CAMERA = 'Script/local/stage/camera.lua'
+FOCALIZER = 'Script/local/stage/focalizer.lua'
 SETTINGS = 'Script/local/menu/panel/menu/options/settings.lua'
 TUTORIAL = 'Script/local/menu/tutorial.lua'
+TURN_ROTATION = ('n["focalizer"]["rotateCamera"]=n["focalizer"]["rotateCamera"]+'
+                 'n["focalizer"]["getDampenerVal"]()')
 
 
 def replace_once(raw, before, after):
@@ -42,6 +45,14 @@ def camera_script(raw):
     helper = ('\nlocal weplayCameraDepthOfField=(function(...)\n'
               + (MIDSUMMER / 'camera_preferences.lua').read_text(encoding='utf-8') + '\nend)(e);\n')
     return (source[:offsets[0]] + helper + source[offsets[0]:]).encode('utf-8')
+
+
+def focalizer_script(raw):
+    # The local native simulation now actually advances. The original helper
+    # returns the cumulative game.turnsExecuted count; adding that count to a
+    # camera angle produces continuous rotation without any rotation input.
+    # Keep the counter, normal mouse/key movement and camera damping intact.
+    return replace_once(raw, TURN_ROTATION, '')
 
 
 def settings_script(raw):
@@ -65,6 +76,7 @@ def interface(raw):
         raise ValueError('Gold graphics requires the exact original Gold interface archive.')
     archive = Archive(gold.build(raw))
     changes = {CAMERA: camera_script(archive.read(CAMERA)),
+               FOCALIZER: focalizer_script(archive.read(FOCALIZER)),
                SETTINGS: settings_script(archive.read(SETTINGS)),
                TUTORIAL: tutorial_script(archive.read(TUTORIAL))}
     result = archive.replace(changes)

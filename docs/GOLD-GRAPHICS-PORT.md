@@ -1,8 +1,9 @@
 # Gold graphics port candidate
 
 Development checkpoint, 2026-11-10. This is not a Gold-compatible WePlay
-release. The native renderer changes have actual Gold menu observations;
-Mittsommer, SMAA, Maximum, save reload and multiplayer remain unqualified.
+release. The native renderer and Mittsommer have actual Gold world observations;
+save reload and the camera correction passed a local check. SMAA output,
+Maximum and multiplayer remain unqualified.
 
 ## Native renderer
 
@@ -40,9 +41,20 @@ preserve the pending DOF choice. The environment is generated from Gold's own
 Neutral XML using the shared authored curve generator.
 
 All original shared resources remain byte-identical; one environment is added.
-Five interface members change, including the two local profile corrections.
+Six interface members change, including the two local profile corrections.
 Each changed actual Gold Lua script compiles under Lua 5.1. Game scripts/XML
-are not distributed. Actual selection/rendering of Mittsommer remains pending.
+are not distributed. Actual selection loads WePlayMidsummer as the eleventh
+environment, with five azimuth keys over the 1,200,000 ms period. The world
+renders with the selected lighting; full-cycle and Maximum effects checks
+remain pending.
+
+Gold's original focalizer adds its cumulative `game.turnsExecuted` counter to
+the rotation input every update. Once the local simulation advances, this
+rotates the camera without a rotation command. The builder removes that exact
+single addition under the original archive guard. It preserves the counter,
+manual inputs and damping. The reloaded world remained steady without input,
+manual zoom worked, and the local tester confirmed no visible rotation.
+This does not establish every focus-loss/input-device combination.
 
 `tools/gold/visual_runtime.py` uses the existing ReShade integrity/preset
 machinery in a separate module instance, with its own folder and Gold clock
@@ -62,23 +74,33 @@ Mittsommer haze/heat output.
 The first SMAA-enabled start did not reach the menu. Its verified owned,
 unresponsive process was stopped after bounded diagnostics. The DXVK-only
 comparison subsequently reached the menu after a long initialization. The
-delay and effects interaction remain unresolved; no successful SMAA/Maximum
-output is claimed. DXVK stayed active; no legacy fallback was used.
+delay and effects interaction remain unresolved. A later SMAA-enabled start
+reached the menu and the reloaded world; its log confirms successful SMAA
+compilation and its preset selects that technique. A rendered effect comparison
+and Maximum output remain unqualified. DXVK stayed active; no legacy fallback
+was used.
 
 ## Verification and next checks
 
 Both Gold build variants pass ABI/transaction fixtures, 25 changed graphics-site
 rejections, 60 filter ABI combinations, 75 ordinary network checks and
 Gold-specific guards. The original Gold image matches all 13 mapped instruction
-sequences. Gold Python/Lua checks pass 33 tests. The clock reader/FPU suite
+sequences. Gold Python/Lua checks pass 35 tests, including counter-independent
+camera input and exact-anchor rejection. The clock reader/FPU suite
 passes 214 checks across three layouts, and 17 existing Mittsommer checks pass.
 
-The long logistics interval exited normally with all 16 shared profile/save
-files unchanged. The stopped effects test also retained those shared files.
-The later graphics client still needs its close-time comparison.
+The long logistics interval and subsequent DXVK graphics/reload interval exited
+normally with all 16 shared profile/save files unchanged. The stopped effects
+test also retained those shared files. A new SMAA/Mittsommer graphics interval
+is still running and needs its close-time comparison.
 
-Next: reload the new save and verify advancing logistics/construction, qualify
-Mittsommer/effects through a clean restart, then implement and test Gold's
+The saved turn 2,667 reloaded after a client restart and advanced through
+2,731, 3,881 and 7,920. Another reload with the camera correction advanced
+through 2,890 and 4,745. Human building placement was accepted, but completed
+construction and delivery remain unqualified.
+
+Next: finish construction/delivery, qualify Mittsommer/effects through a clean
+restart, then implement and test Gold's
 multiplayer adapter and command/save contract against both History editions.
 Normal installer admission and network compatibility identities stay closed.
 

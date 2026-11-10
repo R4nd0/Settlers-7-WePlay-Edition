@@ -55,6 +55,30 @@ class GoldGraphicsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'six original'):
                 graphics.camera_script(script('e["GFX"]["ToggleDepthOfField"](true);' * count))
 
+    def test_simulation_turns_do_not_rotate_the_camera_or_change_counters(self):
+        try:
+            from lupa.lua51 import LuaRuntime
+        except ImportError:
+            self.skipTest('Optional Lua 5.1 runtime unavailable')
+        lua = LuaRuntime(unpack_returned_tuples=True)
+        body = ('return function(turns,manual) local n={game={turnsExecuted=turns},'
+                'focalizer={rotateCamera=manual}};'
+                'n.focalizer.getDampenerVal=function() return n.game.turnsExecuted end\n'
+                + graphics.TURN_ROTATION + '\n'
+                'return n.focalizer.rotateCamera,n.game.turnsExecuted end')
+        patched = graphics.gold.decoded_view(graphics.focalizer_script(script(body)))[1]
+        before, after = lua.execute(body), lua.execute(patched)
+        for turns in (0, 1, 2667, 1000000):
+            for manual in (0, .15, -.25):
+                self.assertEqual(before(turns, manual), (manual + turns, turns))
+                self.assertEqual(after(turns, manual), (manual, turns))
+
+    def test_camera_turn_correction_requires_the_exact_single_original_addition(self):
+        for body in ('return false', graphics.TURN_ROTATION * 2,
+                     graphics.TURN_ROTATION.replace('getDampenerVal', 'otherValue')):
+            with self.assertRaisesRegex(ValueError, 'exactly once'):
+                graphics.focalizer_script(script(body))
+
     def test_weather_menu_keeps_stock_values_and_adds_local_choice(self):
         body = ('r["weatherModes"]={["dayNightCycle"]=4,};'
                 'l["weatherNumberDropdownList"]["setSelectedIndex"](o["gameplayOptions"][i["id"]["weather"]]);'

@@ -17,9 +17,9 @@
   },
   "assets": {
     "gold_original_shared_sha256": "736077c195660aa90edc601049672b64ac335dcc10870c78c2ddf93901a26655",
-    "generated_interface_sha256": "a99643101a7d3683fe4b4fcac83dce921c74fa08224f5a7e6c3667ebe6985c51",
+    "generated_interface_sha256": "2beb62af0c8da7fff58b5f73fb2f2fe9ff27ad92b8e4fec686e4da8f135f04aa",
     "generated_shared_sha256": "01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f",
-    "changed_interface_members": 5,
+    "changed_interface_members": 6,
     "all_changed_actual_lua_compile_51": true,
     "all_original_shared_members_preserved": true,
     "new_shared_environment_members": 1
@@ -31,7 +31,7 @@
     "actual_midsummer_ready_output_verified": false
   },
   "verification": {
-    "gold_python_lua51_tests": 33,
+    "gold_python_lua51_tests": 35,
     "native_graphics_changed_site_rejections": 25,
     "native_shadow_filter_abi_combinations": 60,
     "mapped_original_instruction_sequences": 13,
@@ -42,16 +42,36 @@
     "gold_specific_network_guards_each": "passed"
   },
   "actual_effects_start": {
-    "smaa_enabled_start_reached_menu": false,
+    "smaa_enabled_start_reached_menu": true,
+    "smaa_enabled_start_reached_reloaded_world": true,
+    "smaa_compilation_succeeded": true,
     "unresponsive_owned_client_diagnosed_and_stopped": true,
     "shared_profile_and_save_files_unchanged": 16,
     "dxvk_comparison_subsequently_reached_menu": true,
     "initialization_delay_cause_resolved": false
   },
+  "camera_correction": {
+    "exact_original_cumulative_turn_addition_removed": true,
+    "simulation_counter_preserved": true,
+    "actual_reloaded_world_steady_without_input": true,
+    "manual_zoom_observed": true,
+    "local_tester_confirmed_no_visible_rotation": true,
+    "all_focus_loss_combinations_qualified": false
+  },
+  "actual_midsummer": {
+    "menu_selection_observed": true,
+    "active_environment": "WePlayMidsummer",
+    "environment_count": 11,
+    "azimuth_key_count": 5,
+    "period_ms": 1200000,
+    "world_rendered": true,
+    "full_cycle_qualified": false,
+    "current_interval_close_time_shared_file_check_pending": true
+  },
   "qualified": {
-    "save_reload": false,
+    "save_reload": true,
     "human_construction_delivery": false,
-    "midsummer_rendering": false,
+    "midsummer_rendering": true,
     "smaa_output": false,
     "maximum_output": false,
     "full_graphics_port": false,
