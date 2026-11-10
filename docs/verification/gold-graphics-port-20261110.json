@@ -66,11 +66,22 @@
     "period_ms": 1200000,
     "world_rendered": true,
     "full_cycle_qualified": false,
-    "current_interval_close_time_shared_file_check_pending": true
+    "current_interval_close_time_shared_file_check_pending": false,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16
+  },
+  "maximum_trial": {
+    "four_shaders_compiled": true,
+    "gold_clock_addon_loaded": true,
+    "reloaded_world_rendered": true,
+    "visible_menu_overlay_confirmed": true,
+    "overlay_cause_resolved": false,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16
   },
   "qualified": {
     "save_reload": true,
-    "human_construction_delivery": false,
+    "human_construction_delivery": true,
     "midsummer_rendering": true,
     "smaa_output": false,
     "maximum_output": false,

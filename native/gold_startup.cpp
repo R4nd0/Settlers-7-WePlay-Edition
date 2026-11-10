@@ -81,6 +81,14 @@ void __stdcall UnavailableCloud(void* facade) {
     CheckFacade(facade);
     // There is no legacy session, cloud result or cloud callback to wait for.
 }
+void __fastcall UnavailableCloudSave(void* facade, void*, const void*, const void*) {
+    const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress()) - image;
+    if (caller != 0x1860 && caller != 0x40f5d) Stop();
+    CheckFacade(facade);
+    // OrbitClient's void, RET 8 cloud-upload method has no request to pump:
+    // the unavailable SDK has no context or callbacks. Native local saving
+    // stays with its original writer; never manufacture a cloud completion.
+}
 void __cdecl LocalIdentity(void* outer, GoldStartup::AsciiString* ticket,
     GoldStartup::AsciiString* name, GoldStartup::WideString* display, uintptr_t caller) {
     CheckOrbit();
@@ -428,6 +436,16 @@ bool Add(std::vector<Patch>& patches, uintptr_t rva, std::initializer_list<unsig
     patches.push_back({at, original, after});
     return true;
 }
+bool CloudSavePatches(std::vector<Patch>& patches) {
+    const unsigned char entry[] = {0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
+    const unsigned char wait[] = {0x6a,0x02,0xff,0x15};
+    const unsigned char leave[] = {0x8b,0xe5,0x5d,0xc2,0x08,0x00};
+    if (memcmp(reinterpret_cast<void*>(image+0x49f30),entry,sizeof(entry))
+        || memcmp(reinterpret_cast<void*>(image+0x4a0c8),wait,sizeof(wait))
+        || memcmp(reinterpret_cast<void*>(image+0x4a32b),leave,sizeof(leave))) return false;
+    return Add(patches,0x185b,{0xe8,0xd0,0x86,0x04,0x00},UnavailableCloudSave)
+        && Add(patches,0x40f58,{0xe8,0xd3,0x8f,0x00,0x00},UnavailableCloudSave);
+}
 bool Write(const Patch& patch, bool install) {
     const auto& before = install ? patch.before : patch.after;
     const auto& after = install ? patch.after : patch.before;
@@ -467,7 +485,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     auto* branch = reinterpret_cast<unsigned char*>(image + 0x12c5);
     if (branch[0] != 0x74 || branch[1] != 0x25) return 0;
     patches.push_back({branch, {0x74,0x25}, {0x75,0x25}});
-    if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)) return 0;
+    if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)
+        || !CloudSavePatches(patches)) return 0;
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationPatches(patches)
         || !Add(patches, 0x40ed4, {0xe8,0x57,0x1c,0x00,0x00}, LocalAdvance)) return 0;

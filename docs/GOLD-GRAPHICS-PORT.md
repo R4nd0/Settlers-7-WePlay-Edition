@@ -91,16 +91,19 @@ passes 214 checks across three layouts, and 17 existing Mittsommer checks pass.
 
 The long logistics interval and subsequent DXVK graphics/reload interval exited
 normally with all 16 shared profile/save files unchanged. The stopped effects
-test also retained those shared files. A new SMAA/Mittsommer graphics interval
-is still running and needs its close-time comparison.
+test also retained those shared files. The SMAA/Mittsommer interval and subsequent
+Maximum/save-correction interval also exited normally with all 16 shared files
+unchanged. Maximum compiled all four shaders, loaded the Gold clock add-on and
+rendered the reloaded world, but visible menu overlays remain unresolved.
 
 The saved turn 2,667 reloaded after a client restart and advanced through
 2,731, 3,881 and 7,920. Another reload with the camera correction advanced
-through 2,890 and 4,745. Human building placement was accepted, but completed
-construction and delivery remain unqualified.
+through 2,890 and 4,745. The local tester confirmed completed construction and
+material delivery; completed buildings were observed and their turn-11,982
+checkpoint loaded after a client restart. This remains a single-map check.
 
-Next: finish construction/delivery, qualify Mittsommer/effects through a clean
-restart, then implement and test Gold's
+Next: resolve the Maximum menu overlays and qualify the remaining effects,
+then implement and test Gold's
 multiplayer adapter and command/save contract against both History editions.
 Normal installer admission and network compatibility identities stay closed.
 

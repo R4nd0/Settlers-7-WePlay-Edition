@@ -6,8 +6,10 @@ implemented**. This checkpoint is not a Gold-compatible WePlay release.
 The opt-in [local simulation candidate](GOLD-LOCAL-SIMULATION.md) now advances
 beyond both the turn-zero wait and a subsequent turn-241 logistics wait. Actual
 observations reach turn 12,304 and a new save contains turn 2,667. After a
-client restart that save loads and advances to turn 7,920. Completed human
-construction/delivery remains unqualified. The
+client restart that save loads and advances to turn 7,920. A later local tester
+check confirms completed construction and delivery; its checkpoint also loads.
+The [offline saving correction](GOLD-OFFLINE-SAVING.md) passes actual manual
+save, autosave and reload checks. The
 [graphics-port candidate](GOLD-GRAPHICS-PORT.md) renders the world with actual
 4096 shadows, extended detail/range and selectable Mittsommer lighting. Its
 camera correction removes rotation caused by the cumulative turn counter.

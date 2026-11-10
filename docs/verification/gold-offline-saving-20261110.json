@@ -1,0 +1,48 @@
+{
+  "format": "s7-gold-offline-saving-candidate-v1",
+  "date": "2026-11-10",
+  "status": "single-map-local-runtime-check-passed",
+  "scope": "unavailable-Orbit-cloud-upload-only",
+  "guards": {
+    "pinned_prepared_gold_executable": true,
+    "independently_checked_original_instruction_sites": 5,
+    "changed_byte_rejections": 28,
+    "callers_checked": 2,
+    "invalid_runtime_contexts_rejected": 6,
+    "stack_nonvolatile_and_input_preservation_both_callers": true,
+    "standard_and_local_simulation_builds": "passed",
+    "ordinary_network_guard_checks_each": 75,
+    "gold_specific_network_guards_each": "passed"
+  },
+  "actual_game": {
+    "map": "Monhaim Valley",
+    "dxvk_required": true,
+    "legacy_fallback": false,
+    "frida_used": false,
+    "loaded_building_checkpoint_turn": 11982,
+    "manual_save_logic_turn": 13760,
+    "manual_save_bytes": 4759688,
+    "manual_save_sha256": "46ddc568ef78db2fa8626c0b9ce3ce8f1f1e8a8768ae7c80c5d499900f308f19",
+    "manual_save_members_crc_checked": 3,
+    "interactive_world_observed_within_click_capture_ms": 3134,
+    "writer_only_latency_measured": false,
+    "autosave_logic_turn": 16760,
+    "autosave_bytes": 4818032,
+    "autosave_sha256": "e811d37eec6c527d5b2a0031662c1292ba738c4fc524626fdb6dca986cdd639d",
+    "autosave_members_crc_checked": 3,
+    "after_autosave_observed_turn": 16897,
+    "new_manual_save_reloaded": true,
+    "after_reload_observed_turn": 14530,
+    "controller_queue_counts": [0, 0],
+    "native_error_flag": 0,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16
+  },
+  "still_unqualified": {
+    "all_saves_maps_and_economies": true,
+    "maximum_menu_rendering": true,
+    "full_graphics_port": true,
+    "gold_history_crossplay": true,
+    "normal_installer_admission": true
+  }
+}

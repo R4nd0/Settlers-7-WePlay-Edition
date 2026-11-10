@@ -63,10 +63,13 @@ loaded and advanced through turns 2,731, 3,881 and 7,920 with empty controller
 queues and a clear native error flag. That interval also exited normally with
 all 16 shared files unchanged.
 
-Building placement was exercised, but completed human construction and its
-deliveries are not yet qualified. Additional maps and prolonged economic
-operation still require actual-game
-checks. The fixture suite does not establish those outcomes.
+The local tester subsequently built and confirmed completed construction and
+building-material delivery. Completed buildings and population capacity 27
+were observed, and the resulting turn-11,982 checkpoint loaded after restart.
+This is a single-map check; additional maps and prolonged economic operation
+still require actual-game checks. The fixture suite does not establish those
+outcomes. A separate guarded [offline cloud-upload correction](GOLD-OFFLINE-SAVING.md)
+also passes actual manual save, autosave and reload checks.
 
 ## Other corrections in this checkpoint
 

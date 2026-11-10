@@ -80,6 +80,67 @@ bool IdentityAbi() {
         && !strcmp(appended_text,"WePlayGoldLocal") && !wcscmp(assigned_text,L"WePlay Gold Local")
         && !ticket.length && !identity_active.load();
 }
+bool CloudSaveAbi(uintptr_t rva) {
+    auto* at=reinterpret_cast<unsigned char*>(image+rva);
+    at[0]=0xe8;
+    const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(UnavailableCloudSave)-reinterpret_cast<uintptr_t>(at)-5);
+    memcpy(at+1,&relative,4);at[5]=0xc3;
+    std::array<unsigned int,8> first{},second{};
+    first.fill(0x12345678);second.fill(0x87654321);
+    auto* a=first.data();auto* b=second.data();auto* f=facade.data();
+    DWORD before=0,after=0,observed_bx=0,observed_si=0,observed_di=0;
+    __asm {
+        mov before, esp
+        mov ebx, 0x12345678
+        mov esi, 0x34567890
+        mov edi, 0x56789012
+        mov ecx, f
+        mov edx, 0x10203040
+        lea eax, after_cloud_save
+        push eax
+        push b
+        push a
+        jmp at
+    after_cloud_save:
+        mov after, esp
+        mov observed_bx, ebx
+        mov observed_si, esi
+        mov observed_di, edi
+    }
+    for (auto value:first) if (value!=0x12345678) return false;
+    for (auto value:second) if (value!=0x87654321) return false;
+    return before==after && observed_bx==0x12345678 && observed_si==0x34567890 && observed_di==0x56789012
+        && GoldStartup::Empty(&record,1) && !facade[0x1c];
+}
+bool CloudSaveGuards() {
+    const unsigned char entry[]={0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
+    const unsigned char wait[]={0x6a,0x02,0xff,0x15};
+    const unsigned char leave[]={0x8b,0xe5,0x5d,0xc2,0x08,0x00};
+    const unsigned char first[]={0xe8,0xd0,0x86,0x04,0x00};
+    const unsigned char second[]={0xe8,0xd3,0x8f,0x00,0x00};
+    memcpy(reinterpret_cast<void*>(image+0x49f30),entry,sizeof(entry));
+    memcpy(reinterpret_cast<void*>(image+0x4a0c8),wait,sizeof(wait));
+    memcpy(reinterpret_cast<void*>(image+0x4a32b),leave,sizeof(leave));
+    memcpy(reinterpret_cast<void*>(image+0x185b),first,sizeof(first));
+    memcpy(reinterpret_cast<void*>(image+0x40f58),second,sizeof(second));
+    std::vector<Patch> valid;
+    if (!CloudSavePatches(valid) || valid.size()!=2) return false;
+    for (const auto& patch:valid) if (!Write(patch,true)) return false;
+    for (const auto& patch:valid) if (!Write(patch,false)) return false;
+    unsigned int rejected=0;
+    for (const auto& site : std::vector<std::pair<uintptr_t,size_t>>{
+        {0x49f30,sizeof(entry)},{0x4a0c8,sizeof(wait)},{0x4a32b,sizeof(leave)},
+        {0x185b,sizeof(first)},{0x40f58,sizeof(second)}}) {
+        for (size_t index=0;index<site.second;++index) {
+            auto* byte=reinterpret_cast<unsigned char*>(image+site.first+index);*byte^=1;
+            std::vector<Patch> changed;const bool accepted=CloudSavePatches(changed);*byte^=1;
+            if (accepted) return false;
+            ++rejected;
+        }
+    }
+    std::printf("Gold cloud-save instruction rejections: %u\n",rejected);
+    return true;
+}
 bool RejectedChild(unsigned int mode) {
     wchar_t path[32768]{};if (!GetModuleFileNameW(nullptr,path,32768)) return false;
     std::wstring command=L"\""+std::wstring(path)+L"\" reject "+std::to_wstring(mode);
@@ -354,6 +415,15 @@ int main(int argc,char** argv) {
         if (mode==2) outer[0]++;
         if (mode==3) facade[0x1c]=1;
         if (mode==4) ticket.length=1;
+        if (mode>=13 && mode<=18) {
+            if (mode==14) record.functions[10]=1;
+            if (mode==15) facade[0x1c]=1;
+            if (mode==16) facade[0]++;
+            if (mode==17) owner_thread.store(GetCurrentThreadId()+1);
+            if (mode==18) record.unavailable=0;
+            CloudSaveAbi(mode==13 ? 0x185c : 0x185b);
+            return 3;
+        }
 #ifdef S7_GOLD_LOCAL_SIMULATION
         if (mode>=6) {
             LocalSetup();TaskSetup();std::array<unsigned int,11> output{};
@@ -378,6 +448,7 @@ int main(int argc,char** argv) {
     }
     Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi() || !ProfileIsolation() || !RendererFileGuards()) return 7;
     if (!GoldVisualGuards() || !GoldFilterCases()) return 34;
+    if (!CloudSaveGuards() || !CloudSaveAbi(0x185b) || !CloudSaveAbi(0x40f58)) return 35;
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationAbi() || !LocalPatchGuards()) return 33;
 #endif
@@ -388,6 +459,8 @@ int main(int argc,char** argv) {
         || !Write(patches[0],false) || memcmp(call,original,5)) return 8;
     call[1]=1;if (Write(patches[0],true) || call[1]!=1) return 9;
     for (unsigned int mode=0;mode<6;++mode) if (!RejectedChild(mode)) return 10+static_cast<int>(mode);
+    for (unsigned int mode=13;mode<19;++mode) if (!RejectedChild(mode)) return 60+static_cast<int>(mode);
+    std::puts("Gold cloud-save ABI and six unavailable-context guards passed.");
 #ifdef S7_GOLD_LOCAL_SIMULATION
     for (unsigned int mode=6;mode<13;++mode) if (!RejectedChild(mode)) return 40+static_cast<int>(mode);
 #endif
