@@ -17,11 +17,15 @@ spec.loader.exec_module(gold)
 class GoldTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        raw = bytearray(max(gold.GUARDS) + 128)
+        raw = bytearray(gold.RELOCATION_APPEND + 128)
         raw[:2] = b'MZ'
         struct.pack_into('<I', raw, 0x3c, 0x80)
         raw[0x80:0x86] = b'PE\0\0\x4c\x01'
         raw[0x98:0x9a] = b'\x0b\x01'
+        struct.pack_into('<II', raw, 0x120, 0xd2c000, 0x9577c)
+        struct.pack_into('<H', raw, 0xde, 0x8140)
+        for offset, value in gold.OLD_RELOCATIONS:
+            struct.pack_into('<H', raw, offset, value)
         for offset, before in gold.GUARDS.items():
             raw[offset:offset + len(bytes.fromhex(before))] = bytes.fromhex(before)
         cls.raw = bytes(raw)
@@ -46,6 +50,10 @@ class GoldTests(unittest.TestCase):
     def test_unlock_is_exact_and_keeps_all_other_bytes(self):
         result = gold.unlock_bytes(self.raw, self.definitions)
         allowed = set(range(0xd8, 0xdc))
+        allowed.update(range(0x124, 0x128))
+        allowed.update(range(gold.RELOCATION_APPEND, gold.RELOCATION_APPEND + len(gold.RELOCATION_BLOCK)))
+        for offset, _ in gold.OLD_RELOCATIONS:
+            allowed.update(range(offset, offset + 2))
         for offset, after in gold.gold_edits(self.definitions).items():
             self.assertEqual(result[offset:offset + len(after)], after)
             allowed.update(range(offset, offset + len(after)))
@@ -53,6 +61,23 @@ class GoldTests(unittest.TestCase):
         self.assertTrue(all(a == b or index in allowed for index, (a, b) in enumerate(zip(self.raw, result))))
         self.assertNotEqual(result, self.raw)
         self.assertNotEqual(struct.unpack_from('<I', result, 0xd8)[0], 0)
+        self.assertEqual(result[0xde:0xe0], self.raw[0xde:0xe0])
+        self.assertEqual(struct.unpack_from('<II', result, 0x120), (0xd2c000, 0x95788))
+        for offset, _ in gold.OLD_RELOCATIONS:
+            self.assertEqual(struct.unpack_from('<H', result, offset)[0], 0)
+        self.assertEqual(result[gold.RELOCATION_APPEND:gold.RELOCATION_APPEND + 12], gold.RELOCATION_BLOCK)
+
+    def test_relocation_guards_reject_independent_mutations(self):
+        for offset in (0x120, 0x124, *[entry[0] for entry in gold.OLD_RELOCATIONS], gold.RELOCATION_APPEND):
+            raw = bytearray(self.raw)
+            raw[offset] ^= 1
+            with patch.object(gold, 'GOLD_SHA256', gold.sha256(raw)):
+                with self.assertRaisesRegex(ValueError, 'relocation'):
+                    gold.unlock_bytes(raw, self.definitions)
+
+    def test_truncated_relocation_data_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'Truncated Gold relocation'):
+            gold.repair_relocations(bytearray(64))
 
     def test_unknown_executable_fails_before_output(self):
         (self.source / gold.EXE).write_bytes(self.raw + b'foreign')

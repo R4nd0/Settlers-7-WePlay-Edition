@@ -516,6 +516,13 @@ int WSAAPI GuardConnect(SOCKET socket, const sockaddr* address, int length) {
     return IsOfflineEndpointAllowed(address, length) && BindLocalSender(socket, address)
         ? ::connect(socket, address, length) : DenySocket();
 }
+#ifdef S7_GOLD_STARTUP
+int WSAAPI GuardWSAConnect(SOCKET socket, const sockaddr* address, int length, LPWSABUF caller,
+    LPWSABUF callee, LPQOS sending, LPQOS receiving) {
+    return IsOfflineEndpointAllowed(address, length) && BindLocalSender(socket, address)
+        ? ::WSAConnect(socket, address, length, caller, callee, sending, receiving) : DenySocket();
+}
+#endif
 int WSAAPI GuardSend(SOCKET socket, const char* buffer, int length, int flags) {
     return PeerAllowed(socket) ? ::send(socket, buffer, length, flags) : DenySocket();
 }
@@ -606,6 +613,26 @@ int WSAAPI GuardAddrInfo(PCSTR node, PCSTR service, const ADDRINFOA* hints, PADD
     const char* numeric = (!node || _stricmp(node, "localhost") == 0) ? (local.ai_family == AF_INET6 ? "::1" : "127.0.0.1") : node;
     return ::getaddrinfo(numeric, service, &local, result);
 }
+#ifdef S7_GOLD_STARTUP
+int WSAAPI GuardWideAddrInfo(PCWSTR node, PCWSTR service, const ADDRINFOW* hints, PADDRINFOW* result) {
+    if (result) *result = nullptr;
+    char host[64]{};
+    if (node) {
+        size_t size = wcsnlen_s(node, 64);
+        if (size == 64) { WSASetLastError(WSAHOST_NOT_FOUND); return EAI_NONAME; }
+        for (size_t i = 0; i < size; ++i) {
+            if (node[i] > 127) { WSASetLastError(WSAHOST_NOT_FOUND); return EAI_NONAME; }
+            host[i] = static_cast<char>(node[i]);
+        }
+    }
+    ADDRINFOW local = hints ? *hints : ADDRINFOW{};
+    if (!NumericLocal(node ? host : nullptr, local.ai_family)) { WSASetLastError(WSAHOST_NOT_FOUND); return EAI_NONAME; }
+    local.ai_flags |= AI_NUMERICHOST;
+    const wchar_t* numeric = (!node || _wcsicmp(node,L"localhost") == 0)
+        ? (local.ai_family == AF_INET6 ? L"::1" : L"127.0.0.1") : node;
+    return ::GetAddrInfoW(numeric, service, &local, result);
+}
+#endif
 hostent* LocalHost(unsigned long numeric = htonl(INADDR_LOOPBACK)) {
     static thread_local char name[] = "localhost";
     static thread_local char address[4] = {127,0,0,1};
@@ -684,10 +711,23 @@ BOOL WINAPI GuardHttpOption(HINTERNET handle, DWORD option, LPVOID value, DWORD 
 }
 HINSTANCE WINAPI GuardShellA(HWND, LPCSTR, LPCSTR, LPCSTR, LPCSTR, INT) { SetLastError(ERROR_ACCESS_DENIED); return reinterpret_cast<HINSTANCE>(SE_ERR_ACCESSDENIED); }
 HINSTANCE WINAPI GuardShellW(HWND, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, INT) { SetLastError(ERROR_ACCESS_DENIED); return reinterpret_cast<HINSTANCE>(SE_ERR_ACCESSDENIED); }
+#ifdef S7_GOLD_STARTUP
+BOOL WINAPI GuardChildA(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD,
+    LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
+BOOL WINAPI GuardChildW(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD,
+    LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
+BOOL WINAPI GuardShellExA(SHELLEXECUTEINFOA*) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
+BOOL WINAPI GuardShellExW(SHELLEXECUTEINFOW*) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
+#endif
 
 struct Binding { const char* dll; const char* name; void* replacement; };
 #define BIND(dll, name, replacement) {dll, name, reinterpret_cast<void*>(replacement)}
 const Binding bindings[] = {
+#ifdef S7_GOLD_STARTUP
+    BIND("WS2_32.dll", "WSAConnect", GuardWSAConnect), BIND("WS2_32.dll", "GetAddrInfoW", GuardWideAddrInfo),
+    BIND("KERNEL32.dll", "CreateProcessA", GuardChildA), BIND("KERNEL32.dll", "CreateProcessW", GuardChildW),
+    BIND("SHELL32.dll", "ShellExecuteExA", GuardShellExA), BIND("SHELL32.dll", "ShellExecuteExW", GuardShellExW),
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     BIND("IPHLPAPI.DLL", "GetUnicastIpAddressTable", LabUnicastTable),
 #endif

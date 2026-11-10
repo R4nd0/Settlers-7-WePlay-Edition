@@ -47,9 +47,9 @@ Preparation:
   not copy launcher account/download state. Links/reparse points, overlapping
   source/target paths and existing destinations are rejected.
 - Retains the unmodified executable under `Backup`, applies the Gold default
-  edits and recalculates the PE32 checksum. Optional debug/affinity blocks are
-  not applied. The output hash for this exact default patch set is
-  `9c6d2a32901b96dfa2ca8012e2f98d3676414ad2fbc350f54c8762a00e951e18`.
+  edits, repairs their loader relocations and recalculates the PE32 checksum.
+  Optional debug/affinity blocks are not applied. The corrected output hash is
+  `76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab`.
 - Records original source hashes and explicit false capability/qualification
   flags in `gold-development.json`. Failed copies keep an incomplete marker.
 - Does not launch the game or edit shared Options.ini, Profiles.xml, saves,
@@ -102,8 +102,56 @@ not a Gold-unlock payload. No security warning was approved through computer
 automation and no Windows security setting was changed. Frida is a private
 diagnostic dependency, not a new Gold launcher dependency.
 
-No playable Gold scene, DLC selection, castle forge, DXVK rendering, graphics
-benchmark, Gold multiplayer or Gold/History match is established by this work.
+### Native startup follow-up
+
+The first preparation output (`9c6d2a...`) retained relocation records for two
+absolute operands replaced by the upstream edits, and omitted the new absolute
+operand in the developer stub. Windows relocated this executable in actual
+diagnostic runs, corrupting the new relative call and local-feature jump.
+Preparation now clears only those two obsolete HIGHLOW records and adds the
+new one. All other 291,964 HIGHLOW records, section headers and security flags
+remain intact. An independent PE parser verified the checksum and the three
+affected targets at five load bases. The old output must not be treated as a
+verified startup artifact.
+
+`native/build_gold.ps1 -OutputDirectory work/gold-native` builds a separate x86
+`weplay_gold_startup.dll` and runs authored native ABI fixtures. This is a
+startup component, not a Gold multiplayer adapter or a normal launcher payload.
+Its explicit `GoldInitialize` entry must be called before the suspended game's
+entry point, outside DllMain. It pins the corrected executable, PE identity,
+original callsites and Gold string helpers; it uses independent Gold object
+layouts, owner-thread checks and transactional instruction writes. It keeps the
+old Orbit record unavailable with its module and all 22 functions null. Two
+cloud-enumeration calls no longer wait for a callback from that absent session.
+The local label uses the game's own ASCII/wide string allocation routines;
+the legacy ticket remains empty. No Ubisoft credential or session is created.
+The current fixed label is unsuitable for multiplayer identity.
+
+`-IsolatedLabExecutable` is an explicit development-only build option confined
+to `work/`; it adds one exact lab EXE hash to that build. Ordinary builds do not
+accept it. The laboratory EXE separately redirects all three profile references
+and namespaces the mutex. The adapter itself does not yet implement profile
+isolation or a standalone starter. Do not deploy it to a shared user profile.
+
+`tools/gold/profile_interface.py` is separately pinned to the original Gold
+Interface.bba. It adds the native neutral "No Title" choice only for an empty
+title catalog, labels the identity as a WePlay profile and restricts the obsolete
+disconnect nag to network games. It does not report a connection as successful,
+change an existing title catalog or remove multiplayer disconnect/desync checks.
+All other archive payloads are verified unchanged. The ordinary preparation
+command does not silently apply these experimental UI changes.
+
+Actual tests have reached the local profile manager and main menu through the
+native startup component, with DXVK at 1920x1080. A skirmish reached the 3D map,
+but the observed turn counter remained zero. A delayed save created a file in
+the isolated profile, appeared in the game's list and loaded back to the map.
+The serialized LogicTurn is also zero; progression/resume is not qualified.
+This is **not playable-startup or save/load qualification**. The Castle Forge opens
+with `-mapInMainMenu`; its catalog, editing and persistence remain unqualified.
+`-noMapInMainMenu` explicitly prevents Castle Forge startup. The native test
+still used Frida to load/observe the DLL and guard the experiment; it did not
+replace Gold startup functions. No complete graphics benchmark, DLC unlock,
+Gold multiplayer or Gold/History match has passed.
 
 ## Remaining implementation and acceptance plan
 
@@ -132,4 +180,5 @@ benchmark, Gold multiplayer or Gold/History match is established by this work.
 
 The current technical evidence does not support a public Gold-compatible
 release or a claim of complete compatibility. See the [verification receipt](verification/gold-20261110.json)
-for the completed checks and retained limits.
+for the original checkpoint and the [native startup follow-up](verification/gold-native-startup-20261110.json)
+for the corrected output and subsequent checks.

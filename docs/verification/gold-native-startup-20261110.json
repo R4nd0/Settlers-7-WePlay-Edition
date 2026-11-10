@@ -1,0 +1,71 @@
+{
+  "format": "s7-gold-native-startup-checkpoint-v1",
+  "date": "2026-11-10",
+  "status": "experimental-startup-only",
+  "previous_receipt": "gold-20261110.json",
+  "corrected_unlock_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+  "relocations": {
+    "obsolete_highlow_rvas_removed": ["0xe00f", "0x1af279"],
+    "new_highlow_rva": "0x6979d3",
+    "other_highlow_records_unchanged": 291964,
+    "section_headers_and_security_flags_unchanged": true,
+    "independent_parser": "pefile",
+    "independent_checksum_valid": true,
+    "load_bases_verified": ["0x400000", "0x4f0000", "0x900000", "0x9e0000", "0x20000000"]
+  },
+  "source_verification": {
+    "gold_preparation_tests_passed": 17,
+    "gold_lua_tests_passed": 8,
+    "lua_51_executed_without_skips": true,
+    "native_startup_abi_fixtures_passed": true,
+    "native_rejection_contexts": 6,
+    "stack_and_nonvolatile_register_preservation": true,
+    "patch_restore_and_mutation_rejection": true,
+    "unknown_host_executable_rejected": true,
+    "network_guard_checks_passed": 75,
+    "gold_wide_dns_wsa_connect_child_shell_tests_passed": true,
+    "native_build_warnings": 0,
+    "native_build_errors": 0,
+    "sandbox_limits": "Initial default-temp Python rerun failed on denied sandbox temporary paths. Rerun used an owned work directory and all25 passed. Initial loopback suite failed inside process sandbox; identical tests outside it passed. No security settings were changed."
+  },
+  "gold_ui": {
+    "original_archive_sha256": "5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215",
+    "candidate_sha256": "be8388e277a7871e74ce6218053032ed3a257e8be8c8c61c139fd60d80451167",
+    "changed_members": ["Script/local/menu/panel/menu/customize/profileManager.lua", "Script/local/menu/game.lua"],
+    "other_payloads_and_member_set_verified_unchanged": true,
+    "empty_title_catalog_fallback": "native neutral No Title, type28, rank0",
+    "existing_titles_preserved": true,
+    "network_disconnect_and_desync_paths_retained": true
+  },
+  "actual_observations": {
+    "native_component_reached_profile_manager": true,
+    "native_component_reached_main_menu": true,
+    "gold_startup_functions_replaced_by_frida_in_native_test": false,
+    "frida_still_used_for_loading_observation_and_test_guard": true,
+    "legacy_orbit_session_created": false,
+    "legacy_ticket_empty": true,
+    "dxvk_rendered_at_1920x1080": true,
+    "skirmish_world_rendered": true,
+    "observed_logic_turn": 0,
+    "isolated_save_file_created_and_listed": true,
+    "isolated_save_loaded_back_to_world": true,
+    "serialized_logic_turn": 0,
+    "castle_forge_screen_opened_with_map_in_main_menu": true,
+    "native_startup_test_exit_code": 0,
+    "shared_save_options_profile_hashes_and_timestamps_unchanged_after_closed_tests": 16
+  },
+  "qualification": {
+    "playable_simulation": false,
+    "complete_dlc_unlock": false,
+    "castle_edit_save_restore": false,
+    "save_load_resume": false,
+    "standalone_starter": false,
+    "adapter_provides_profile_isolation": false,
+    "full_modern_graphics_port": false,
+    "gold_multiplayer": false,
+    "gold_history_crossplay": false
+  },
+  "normal_installer_gold_admission": false,
+  "published_release_changed": false,
+  "private_evidence": "work/gold-20261110"
+}

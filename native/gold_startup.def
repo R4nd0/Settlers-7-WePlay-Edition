@@ -1,0 +1,3 @@
+LIBRARY weplay_gold_startup
+EXPORTS
+GoldInitialize=_GoldInitialize@4

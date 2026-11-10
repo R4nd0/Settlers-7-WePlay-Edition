@@ -30,6 +30,31 @@ GUARDS = {
     0x696dc8: '0f840a030000', 0x62f0a9: '0f82f1000000',
     0x2031c5: '74', 0x1ae673: '83e4f86aff6826e1e200', 0x860344: '740a',
 }
+# The upstream edit bytes replace two existing absolute operands and introduce
+# one new absolute global address. Loader relocation must follow those changes.
+# These locations belong only to the fully fingerprinted Gold image above.
+OLD_RELOCATIONS = ((0xce43f0, 0x300f), (0xcf079a, 0x3279))
+RELOCATION_APPEND = 0xd7937c
+RELOCATION_BLOCK = struct.pack('<IIHH', 0x697000, 12, 0x39d3, 0)
+
+
+def repair_relocations(data):
+    """Repair reviewed HIGHLOW entries without changing image/security flags."""
+    if len(data) < RELOCATION_APPEND + len(RELOCATION_BLOCK):
+        raise ValueError('Truncated Gold relocation data.')
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    if pe + 0xa8 > len(data) or struct.unpack_from('<II', data, pe + 0xa0) != (0xd2c000, 0x9577c):
+        raise ValueError('Gold relocation directory guard failed.')
+    if any(struct.unpack_from('<H', data, offset)[0] != expected for offset, expected in OLD_RELOCATIONS):
+        raise ValueError('Gold original relocation entry guard failed.')
+    if any(data[RELOCATION_APPEND:RELOCATION_APPEND + len(RELOCATION_BLOCK)]):
+        raise ValueError('Gold relocation append-space guard failed.')
+    # ABSOLUTE entries are ignored by the Windows loader. Other existing
+    # relocation records and section boundaries remain byte-for-byte intact.
+    for offset, _ in OLD_RELOCATIONS:
+        struct.pack_into('<H', data, offset, 0)
+    data[RELOCATION_APPEND:RELOCATION_APPEND + len(RELOCATION_BLOCK)] = RELOCATION_BLOCK
+    struct.pack_into('<I', data, pe + 0xa4, 0x9577c + len(RELOCATION_BLOCK))
 
 
 def sha256(value):
@@ -126,6 +151,7 @@ def unlock_bytes(original, definitions):
     result = bytearray(original)
     for offset, value in edits.items():
         result[offset:offset + len(value)] = value
+    repair_relocations(result)
     checksum_offset, checksum = pe_checksum(result)
     struct.pack_into('<I', result, checksum_offset, checksum)
     return bytes(result)
@@ -138,6 +164,7 @@ def inspect(source, definitions=DEFINITIONS):
     return {'format': 's7-gold-inspection-v1', 'edition': 'gold-ubisoft-1.12.1396',
             'source_exe_sha256': sha256(raw), 'unlocked_exe_sha256': sha256(patched),
             'unlock_edits': len(GUARDS), 'weplay_adapter_available': False,
+            'loader_relocations_repaired': True,
             'crossplay_verified': False, 'graphics_verified': False,
             'profile_changes': False, 'game_launched': False}
 
