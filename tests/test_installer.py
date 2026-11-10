@@ -17,6 +17,18 @@ import install
 
 
 class InstallerTests(unittest.TestCase):
+    def test_gold_layout_is_rejected_with_specific_adapter_error(self):
+        for nested in ('', 'Settlers 7'):
+            root = self.root / ('gold-' + str(len(nested)))
+            exe = root / nested / 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b'invented Gold executable')
+            before = content.digest(exe)
+            with self.assertRaises(install.UnsupportedGoldBuild) as error:
+                install.source_base(root, steam_supported=True)
+            self.assertEqual(error.exception.code, 'source_gold_adapter_unavailable')
+            self.assertEqual(content.digest(exe), before)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT'))
         self.addCleanup(self.temp.cleanup)

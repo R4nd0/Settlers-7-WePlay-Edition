@@ -311,8 +311,21 @@ class UnsupportedSteamBuild(ValueError):
                          'Ubisoft-Connect-Installation verwenden. Die Originaldateien bleiben unveraendert.')
 
 
+class UnsupportedGoldBuild(ValueError):
+    code = 'source_gold_adapter_unavailable'
+
+    def __init__(self):
+        super().__init__('Die Gold Edition benoetigt einen eigenen WePlay-Adapter. '
+                         'Gold/History-Crossplay ist noch nicht implementiert. '
+                         'Der History-Adapter kann hier nicht verwendet werden. '
+                         'Die Originaldateien bleiben unveraendert.')
+
+
 def source_base(root, *, steam_supported=False):
     root = content.plain(root)
+    if any(content.plain(candidate / 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe').is_file()
+           for candidate in (root, content.plain(root / 'Settlers 7'))):
+        raise UnsupportedGoldBuild()
     bases = [root / name for name in ('Base', 'Data/Base') if (root / name / 'Bin/Settlers7R.exe').is_file()]
     if len(bases) != 1:
         raise ValueError('Bitte den S7-Installationsordner mit genau einem Base-Ordner auswaehlen.')

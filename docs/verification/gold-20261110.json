@@ -1,0 +1,81 @@
+{
+  "format": "s7-gold-development-verification-v1",
+  "date": "2026-11-10",
+  "status": "offline-preparation-checkpoint",
+  "edition": "gold-ubisoft-1.12.1396",
+  "source_exe_sha256": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+  "source_exe_bytes": 14141768,
+  "definitions_sha256": "98f30124c274c1de15f46e1701a819358394dfeebaa0d9924b1f56596b6b6a7f",
+  "unlocked_exe_sha256": "9c6d2a32901b96dfa2ca8012e2f98d3676414ad2fbc350f54c8762a00e951e18",
+  "guarded_default_edits": 16,
+  "optional_debug_affinity_blocks_applied": false,
+  "shared_profile_edits": false,
+  "starter_created": false,
+  "gold_interface_sha256": "5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215",
+  "history_interface_sha256": "766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94",
+  "ui_comparison": {
+    "gold_files": 284,
+    "history_files": 284,
+    "verified_decompressed_size_crc": true,
+    "identical_payloads": 230,
+    "different_payloads": 54
+  },
+  "builds": {
+    "patcher_cli": {"passed": true, "warnings": 0, "errors": 0},
+    "inspection_tests": {"passed": true, "warnings": 0, "errors": 0},
+    "desktop_launcher": {"passed": true, "warnings": 0, "errors": 0}
+  },
+  "final_integrity": {
+    "original_source_files_unchanged": 119,
+    "prepared_game_files_verified": 119,
+    "original_executable_backup_verified": true,
+    "prepared_executable_restored_to_default_unlock": true,
+    "diagnostic_executable_retained_separately": true,
+    "pe_checksum_verified_with_independent_pefile_implementation": true,
+    "shared_files_hashes_unchanged": 16,
+    "shared_files_timestamps_unchanged": true,
+    "owned_game_running": false
+  },
+  "source_tests": {
+    "gold_preparation": {"passed": 15, "skipped": 0},
+    "installer": {"passed": 35, "skipped": 0},
+    "desktop_backend_after_test_fix": {"passed": 50, "skipped": 0},
+    "cli_cases": {"passed": 17},
+    "initial_guarded_aggregate": {
+      "tests": 262,
+      "passed": 261,
+      "errors": 1,
+      "forbidden_access_attempts": 0,
+      "error": "New Gold localization test referred to undefined TOOLS; fixed to ROOT and included in the passing 50-case desktop rerun.",
+      "aggregate_rerun": false
+    }
+  },
+  "native_observations": {
+    "isolated_profile_references": 3,
+    "shared_files_backed_up_per_attempt": 16,
+    "gold_legacy_orbit_loaded": true,
+    "history_uplay_loader_imported_by_gold": false,
+    "loopback_only_guard_ready_before_entry": true,
+    "dns_and_child_launches_denied": true,
+    "loopback_startup_exit_code": 0,
+    "loopback_startup_reached_observed_game_window": false,
+    "additional_child_trace": "unresponsive; owned PID/parent/path/hash verified before stopping; diagnostics retained",
+    "frida_security_warning_automatically_approved": false
+  },
+  "qualification": {
+    "playable_gold_startup": false,
+    "actual_dlc_selection": false,
+    "actual_castle_forge": false,
+    "gold_dxvk_rendering": false,
+    "gold_smaa_and_native_graphics_hooks": false,
+    "gold_to_gold_multiplayer": false,
+    "gold_to_ubisoft_history_crossplay": false,
+    "gold_to_steam_history_crossplay": false,
+    "cross_edition_save_resume": false
+  },
+  "published_release_changed": false,
+  "installed_launcher_changed": false,
+  "native_adapter_changed": false,
+  "remote_service_changed": false,
+  "private_evidence": "work/gold-20261110"
+}

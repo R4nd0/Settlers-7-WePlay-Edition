@@ -15,6 +15,7 @@ namespace S7Patcher.Source
     internal static class InspectionCommand
     {
         internal const string KnownHistoryUbisoftSha256 = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f";
+        internal const string KnownGoldUbisoftSha256 = "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94";
 
         internal static bool TryRun(string[] args, out int exitCode)
         {
@@ -46,8 +47,14 @@ namespace S7Patcher.Source
                 report.Input = Path.GetFullPath(args[1]);
                 string executable = ResolveExecutable(report.Input);
                 report.Executable = InspectBinary(executable);
-                report.RecognizedBuild = string.Equals(report.Executable.Sha256, KnownHistoryUbisoftSha256, StringComparison.Ordinal);
-                report.Edition = report.RecognizedBuild ? "History Edition - Ubisoft Connect" : "Unknown / unsupported executable fingerprint";
+                bool gold = string.Equals(report.Executable.Sha256, KnownGoldUbisoftSha256, StringComparison.Ordinal);
+                report.RecognizedBuild = gold || string.Equals(report.Executable.Sha256, KnownHistoryUbisoftSha256, StringComparison.Ordinal);
+                report.Edition = gold ? "Gold Edition - Ubisoft 1.12.1396" : report.RecognizedBuild
+                    ? "History Edition - Ubisoft Connect" : "Unknown / unsupported executable fingerprint";
+                if (gold)
+                {
+                    report.Notes.Add("Gold offline unlock definitions are available. The History Edition native adapter cannot be used with Gold; Gold/History crossplay is not implemented or verified.");
+                }
                 report.Status = report.RecognizedBuild ? "recognized" : "unsupported-build";
 
                 string binaryDirectory = Path.GetDirectoryName(executable);
@@ -109,12 +116,16 @@ namespace S7Patcher.Source
                 Path.Combine(input, "Settlers7R.exe"),
                 Path.Combine(input, "Bin", "Settlers7R.exe"),
                 Path.Combine(input, "Base", "Bin", "Settlers7R.exe"),
-                Path.Combine(input, "Data", "Base", "Bin", "Settlers7R.exe")
+                Path.Combine(input, "Data", "Base", "Bin", "Settlers7R.exe"),
+                Path.Combine(input, "_Dbg", "Bin", "Release", "Settlers7R.exe"),
+                Path.Combine(input, "Base", "_Dbg", "Bin", "Release", "Settlers7R.exe"),
+                Path.Combine(input, "Data", "Base", "_Dbg", "Bin", "Release", "Settlers7R.exe"),
+                Path.Combine(input, "Settlers 7", "Data", "Base", "_Dbg", "Bin", "Release", "Settlers7R.exe")
             ];
             string[] matches = candidates.Where(File.Exists).ToArray();
             if (matches.Length == 0)
             {
-                throw new InspectionInputException("No Settlers7R.exe was found in this folder, Bin, Base/Bin or Data/Base/Bin. Supply the executable path explicitly.");
+                throw new InspectionInputException("No Settlers7R.exe was found in a known History or Gold layout. Supply the executable path explicitly.");
             }
             if (matches.Length > 1)
             {

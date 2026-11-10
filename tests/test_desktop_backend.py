@@ -98,6 +98,21 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse((self.app/'Instances').exists())
         self.assertFalse((self.app/'State/installation.json').exists())
 
+    def test_gold_rejection_is_localized_and_does_not_create_an_instance(self):
+        root = self.fixture.root / 'gold'
+        exe = root / 'Settlers 7/Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'invented Gold executable')
+        with self.assertRaises(install.UnsupportedGoldBuild) as failure:
+            self.desktop.install_game(root)
+        code = backend.error_code(failure.exception)
+        self.assertEqual(code, 'source_gold_adapter_unavailable')
+        for language in ('de', 'en'):
+            messages = json.loads((ROOT / 'tools/desktop' / ('Strings.' + language + '.json')).read_text(encoding='utf-8'))
+            self.assertIn(code, messages)
+        self.assertFalse((self.app / 'Instances').exists())
+        self.assertFalse((self.app / 'State/installation.json').exists())
+
     def test_steam_detection_and_desktop_setup_require_matching_package_capability(self):
         exe = self.fixture.source / 'Base/Bin/Settlers7R.exe'
         exe.write_bytes(b'invented Steam desktop executable')

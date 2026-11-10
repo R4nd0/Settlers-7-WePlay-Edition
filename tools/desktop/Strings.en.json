@@ -157,6 +157,7 @@
   "source_missing": "Select your original game installation.",
   "source_invalid": "This folder is not an unmodified supported History Edition installation.",
   "source_steam_unsupported": "This Steam build is identified. This preparation package does not include its matching Steam adapter yet. Use a newer package with Steam support or the supported Ubisoft Connect installation. Your Steam files were not changed.",
+  "source_gold_adapter_unavailable": "Gold Edition requires its own WePlay adapter. Gold/History crossplay is not implemented yet. Your original files were not changed.",
   "game_failed": "The game ended with an error. You can try Compatible graphics in Help.",
   "cancelled": "The operation was cancelled. Your previous working copy was kept.",
   "probe_invalid": "The graphics check could not be read. Try the check again.",

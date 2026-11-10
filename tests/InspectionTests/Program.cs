@@ -88,6 +88,18 @@ string ambiguous = Path.Combine(baseRoot, "Data", "Base", "Bin", "Settlers7R.exe
 Directory.CreateDirectory(Path.GetDirectoryName(ambiguous)!);
 File.Copy(unknown, ambiguous);
 Run(2, "--inspect", baseRoot);
+string goldRoot = Path.Combine(cases, "gold-layout");
+string goldExe = Path.Combine(goldRoot, "Settlers 7", "Data", "Base", "_Dbg", "Bin", "Release", "Settlers7R.exe");
+Directory.CreateDirectory(Path.GetDirectoryName(goldExe)!);
+File.Copy(unknown, goldExe);
+Check(Run(3, "--inspect", goldRoot).GetProperty("executable").GetProperty("path").GetString() == goldExe, "Nested Gold layout not resolved");
+Run(3, "--inspect", Path.Combine(goldRoot, "Settlers 7"));
+Run(3, "--inspect", Path.Combine(goldRoot, "Settlers 7", "Data", "Base"));
+Check(Hash(goldExe) == unknownHash, "Gold layout inspection changed its executable");
+string mixedExe = Path.Combine(goldRoot, "Data", "Base", "Bin", "Settlers7R.exe");
+Directory.CreateDirectory(Path.GetDirectoryName(mixedExe)!);
+File.Copy(unknown, mixedExe);
+Run(2, "--inspect", goldRoot);
 if (OperatingSystem.IsWindows())
 {
     using FileStream locked = new(unknown, FileMode.Open, FileAccess.Read, FileShare.None);
