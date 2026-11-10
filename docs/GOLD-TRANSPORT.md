@@ -29,6 +29,14 @@ length where present. Unsupported streams, packet types and the unmapped
 coalesced packets, RMC, tickets, identity and connection state are not supplied.
 There is no fallback from a failed History decode to this Gold codec.
 
+`GoldRmcRequestDecoder` separately reads the older numeric request envelope:
+four-byte body length, one protocol byte with its request bit, four-byte call
+ID and four-byte method ID, followed by opaque arguments. It rejects responses,
+unmapped protocol encodings, truncation, trailing/coalesced messages and inputs
+above its local 64-KiB bound. Protocol/method IDs are metadata; decoding one
+does not authorize a response. No login argument parser or service caller is
+added. History's named-RPC codec remains separate.
+
 ## Verification
 
 The source-only oracle executes the exact original checksum routine in an
@@ -58,6 +66,16 @@ The combined C# tests passed 2,142 checks and 10,000 malformed-input samples. Th
 History decoder regression passed 2,871 checks and 10,000 malformed samples;
 the main Debug service build passed without warnings. These are emulation,
 codec and build results, not live packet or multiplayer observations.
+
+For numeric RMC framing, 80 synthetic request cases passed the original Gold
+stream constructor and scalar readers in bounded x86 emulation (RVAs
+`0x8648a0`, `0x861990`, `0x82a900`, `0x82a9a0`). Buffer add-reference and CRT
+memcpy were stubbed; the full native dispatcher was not executed. Native
+dispatcher inspection independently identifies the request bit and field
+order. The separate C# framing suite passed 977 checks and 10,000 malformed
+samples, including the local length bound and opaque maximum-width IDs.
+Neither this check nor the passive request decoder supplies Gold's connection,
+login arguments or ticket lifecycle.
 
 ## Cross-edition findings and next gate
 

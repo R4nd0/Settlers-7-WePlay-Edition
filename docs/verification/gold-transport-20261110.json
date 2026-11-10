@@ -17,6 +17,11 @@
     "gold_malformed_samples": 10000,
     "unchanged_history_decoder_checks": 2871,
     "unchanged_history_malformed_samples": 10000,
+    "native_rmc_constructor_scalar_reader_cases": 80,
+    "native_rmc_stubs": ["buffer-addref", "CRT-memcpy"],
+    "full_native_rmc_dispatch_tested": false,
+    "gold_rmc_framing_checks": 977,
+    "gold_rmc_malformed_samples": 10000,
     "main_debug_build": "passed-no-warnings"
   },
   "read_only_content_comparison": {
