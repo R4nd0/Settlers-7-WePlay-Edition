@@ -7,7 +7,9 @@
     "normal_ai_opponents": 3,
     "frida_used": false,
     "entry_bytes_restored": true,
-    "native_turn_observations": [321, 1039, 3862],
+    "native_turn_observations": [321, 1039, 3862, 12304],
+    "diagnostic_exit_code": 0,
+    "shared_profile_save_files_unchanged": 16,
     "outgoing_controller_requests": 0,
     "incoming_controller_replies": 0,
     "native_error_flag": 0,
@@ -22,7 +24,7 @@
     "restart_qualified": false
   },
   "verification": {
-    "gold_python_and_lua51_tests": 26,
+    "gold_python_and_lua51_tests": 33,
     "candidate_native_abi_and_transaction_guards": "passed",
     "candidate_fatal_contexts": 13,
     "standard_build_fatal_contexts": 6,

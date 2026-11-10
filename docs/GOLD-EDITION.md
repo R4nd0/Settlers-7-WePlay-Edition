@@ -5,8 +5,11 @@ implemented**. This checkpoint is not a Gold-compatible WePlay release.
 
 The opt-in [local simulation candidate](GOLD-LOCAL-SIMULATION.md) now advances
 beyond both the turn-zero wait and a subsequent turn-241 logistics wait. Actual
-observations reach turn 3,862 and a new save contains turn 2,667. Restart,
-save reload and completed human construction/delivery remain unqualified.
+observations reach turn 12,304 and a new save contains turn 2,667. Save reload
+and completed human construction/delivery remain unqualified. A later
+[graphics-port candidate](GOLD-GRAPHICS-PORT.md) reaches the profile manager
+with actual 4096 shadows and extended detail/range. Complete effects and
+gameplay restart qualification remain pending.
 
 ## Identified installation
 
@@ -42,7 +45,9 @@ The optional `--dxvk <existing-d3d9.dll>` stages only the pinned x86 DXVK 3.1.1
 binary already used by WePlay. It does not download anything or qualify the
 renderer. The test configuration requests strict floating-point emulation,
 16x anisotropic filtering and a 60-frame cap; it has no global negative mip
-bias. Native Gold detail/shadow hooks and ReShade effects are not ported.
+bias. Separate native detail/shadow and effects candidates are described in the
+[Gold graphics checkpoint](GOLD-GRAPHICS-PORT.md); this preparation command
+does not install or qualify those candidates.
 
 Preparation:
 

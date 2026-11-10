@@ -1,5 +1,6 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$Lab)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$Lab,[switch]$Gold)
 $ErrorActionPreference='Stop'
+if($Gold -and $Lab){throw 'Gold uses its separate production-period, hash-locked candidate; no lab exception.'}
 $source=$PSScriptRoot
 $repository=[IO.Path]::GetFullPath((Join-Path $source '..'))
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -18,6 +19,7 @@ try {
  & .\atmosphere_clock_tests.exe
  if($LASTEXITCODE){throw 'Atmosphere clock regression failed'}
  if($Lab){$common+='/DWEPLAY_ATMOSPHERE_LAB'}
+ if($Gold){$common+='/DWEPLAY_ATMOSPHERE_GOLD'}
  & cl.exe @common /LD (Join-Path $source 'atmosphere_addon.cpp') /Fe:WePlayAtmosphere.addon32 /link /DYNAMICBASE /NXCOMPAT /Brepro
  if($LASTEXITCODE){throw 'Atmosphere add-on did not compile'}
  $sha=[Security.Cryptography.SHA256]::Create()

@@ -42,10 +42,14 @@ bool Same(const unsigned char* value,const char* hex){
 }
 void Initialize(){
     unsigned char digest[32]{};if(!FileHash(digest))return;
+#ifdef WEPLAY_ATMOSPHERE_GOLD
+    if(Same(digest,"76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab"))profile=&atmosphere::Gold;
+#else
     if(Same(digest,"4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"))profile=&atmosphere::Ubisoft;
     else if(Same(digest,"8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410"))profile=&atmosphere::Steam;
 #ifdef WEPLAY_ATMOSPHERE_LAB
     else if(Same(digest,"c853e8a4d4386a6beaf674dac86882faf4920a0f0288148d365940d0230819b9"))profile=&atmosphere::Ubisoft;
+#endif
 #endif
     if(!profile)return;
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));

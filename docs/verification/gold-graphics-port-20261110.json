@@ -1,0 +1,61 @@
+{
+  "format": "s7-gold-graphics-port-candidate-v1",
+  "date": "2026-11-10",
+  "status": "experimental-partial-runtime-qualification",
+  "native_actual_game": {
+    "dxvk_required": true,
+    "legacy_fallback_used": false,
+    "resolution": [1920, 1080],
+    "quality": "high",
+    "profile_manager_rendered": true,
+    "actual_shadow_map_size": 4096,
+    "actual_filter_inverse_vector": [0.000244140625, 0.000244140625, 0.000244140625, 0.000244140625],
+    "lod_scale_both_operands": 0.005,
+    "detailed_shadow_terminal": 19200,
+    "far_and_culling_shadow_terminal": 76800,
+    "frida_used": false
+  },
+  "assets": {
+    "gold_original_shared_sha256": "736077c195660aa90edc601049672b64ac335dcc10870c78c2ddf93901a26655",
+    "generated_interface_sha256": "a99643101a7d3683fe4b4fcac83dce921c74fa08224f5a7e6c3667ebe6985c51",
+    "generated_shared_sha256": "01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f",
+    "changed_interface_members": 5,
+    "all_changed_actual_lua_compile_51": true,
+    "all_original_shared_members_preserved": true,
+    "new_shared_environment_members": 1
+  },
+  "gold_clock": {
+    "separate_gold_only_build": true,
+    "addon_sha256": "60e8f3d4acaf5240b9c034c843c9bbc33954bf629c6c01b70388de3318a1d4fe",
+    "actual_neutral_layout_observed": true,
+    "actual_midsummer_ready_output_verified": false
+  },
+  "verification": {
+    "gold_python_lua51_tests": 33,
+    "native_graphics_changed_site_rejections": 25,
+    "native_shadow_filter_abi_combinations": 60,
+    "mapped_original_instruction_sequences": 13,
+    "atmosphere_reader_fpu_checks": 214,
+    "existing_midsummer_tests": 17,
+    "gold_standard_and_local_simulation_builds": "passed",
+    "ordinary_network_guard_checks_each": 75,
+    "gold_specific_network_guards_each": "passed"
+  },
+  "actual_effects_start": {
+    "smaa_enabled_start_reached_menu": false,
+    "unresponsive_owned_client_diagnosed_and_stopped": true,
+    "shared_profile_and_save_files_unchanged": 16,
+    "dxvk_comparison_subsequently_reached_menu": true,
+    "initialization_delay_cause_resolved": false
+  },
+  "qualified": {
+    "save_reload": false,
+    "human_construction_delivery": false,
+    "midsummer_rendering": false,
+    "smaa_output": false,
+    "maximum_output": false,
+    "full_graphics_port": false,
+    "gold_history_crossplay": false,
+    "normal_installer_admission": false
+  }
+}

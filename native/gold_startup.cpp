@@ -196,6 +196,7 @@ bool AddBytes(std::vector<Patch>& patches, uintptr_t rva, const void* before, co
     patches.push_back({at, {original, original + size}, {replacement, replacement + size}});
     return true;
 }
+#include "gold_visual.inc"
 #ifdef S7_GOLD_LOCAL_SIMULATION
 // Experimental, single-player-only ownership of the local message handler.
 // No legacy session, cloud callback, packet acknowledgement or clock is created.
@@ -466,7 +467,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     auto* branch = reinterpret_cast<unsigned char*>(image + 0x12c5);
     if (branch[0] != 0x74 || branch[1] != 0x25) return 0;
     patches.push_back({branch, {0x74,0x25}, {0x75,0x25}});
-    if (!ProfileNames() || !ProfilePatches(patches)) return 0;
+    if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)) return 0;
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationPatches(patches)
         || !Add(patches, 0x40ed4, {0xe8,0x57,0x1c,0x00,0x00}, LocalAdvance)) return 0;

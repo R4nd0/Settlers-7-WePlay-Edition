@@ -39,7 +39,7 @@ propagation, existing/primary/cheaper-alternative/fallback result selection,
 changed entry/caller rejection and transactional restoration. Thirteen fatal
 context checks pass. Both candidate and ordinary builds pass the existing
 75 network guards and Gold-specific import/loopback guards, with no compiler
-warnings or errors. The 26 Gold Python tests include actual Lua 5.1 execution
+warnings or errors. The 33 Gold Python tests include actual Lua 5.1 execution
 of the profile fallback and preservation checks.
 
 ## Observed game result
@@ -50,11 +50,16 @@ The diagnostic launcher initialized before the game entry point and restored
 that entry; Frida was not used.
 
 On Monhaim Valley with three normal AI opponents, native observations recorded
-turns 321, 1,039 and 3,862. Both controller queues remained empty and the native
+turns 321, 1,039, 3,862 and 12,304. Both controller queues remained empty and the native
 error flag stayed clear. The UI showed ordinary resources/population and AI
 trading, research and conquest notifications. A newly written save contains
 `LogicTurn=2667`; this is serialized simulation progress, not just a display
 counter. These observations establish progress beyond the prior waits.
+
+This diagnostic interval exited normally. All 16 shared profile/save files
+retained their file set, hashes and timestamps. A subsequent client reached
+the profile manager with the [native graphics port](GOLD-GRAPHICS-PORT.md);
+this is not a verified save reload or completed gameplay restart.
 
 Building placement was exercised, but completed human construction and its
 deliveries are not yet qualified. Loading the new save, restarting the client,

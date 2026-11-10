@@ -329,6 +329,7 @@ bool LocalPatchGuards() {
 }
 #endif
 }
+#include "gold_visual_tests.inc"
 int main(int argc,char** argv) {
     if (argc==3 && !strcmp(argv[1],"renderer-probe")) {
         if (!ModernRenderer()) return 30;
@@ -376,6 +377,7 @@ int main(int argc,char** argv) {
         if (GoldStartup::Empty(&value,0)) return 6;
     }
     Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi() || !ProfileIsolation() || !RendererFileGuards()) return 7;
+    if (!GoldVisualGuards() || !GoldFilterCases()) return 34;
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationAbi() || !LocalPatchGuards()) return 33;
 #endif
