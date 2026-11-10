@@ -6,6 +6,13 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
+#ifdef WEPLAY_GOLD_PRE_UI
+#ifndef WEPLAY_ATMOSPHERE_GOLD
+#error Gold pre-UI rendering requires the separate Gold profile
+#endif
+#include <unordered_map>
+#include <algorithm>
+#endif
 #include "atmosphere_clock.h"
 #include "atmosphere_fp.h"
 #include "third_party/reshade/reshade.hpp"
@@ -60,10 +67,20 @@ void Initialize(){
        ||pe.FileHeader.Machine!=IMAGE_FILE_MACHINE_I386||pe.OptionalHeader.SizeOfImage!=profile->image_size){profile=nullptr;return;}
     image_base=static_cast<uint32_t>(base);
 }
-void Begin(reshade::api::effect_runtime* runtime,reshade::api::command_list*,reshade::api::resource_view,reshade::api::resource_view){
-    atmosphere::FpScope fp;if(!fp.valid)return;
+#ifdef WEPLAY_GOLD_PRE_UI
+void EnsureInitialized(){
     static std::once_flag initialization;
     std::call_once(initialization,[]{try{Initialize();}catch(...){profile=nullptr;}});
+}
+#endif
+void Begin(reshade::api::effect_runtime* runtime,reshade::api::command_list*,reshade::api::resource_view,reshade::api::resource_view){
+    atmosphere::FpScope fp;if(!fp.valid)return;
+#ifdef WEPLAY_GOLD_PRE_UI
+    EnsureInitialized();
+#else
+    static std::once_flag initialization;
+    std::call_once(initialization,[]{try{Initialize();}catch(...){profile=nullptr;}});
+#endif
     atmosphere::Clock clock;Memory memory;bool ready=false;
     if(profile)ready=atmosphere::Read(memory,image_base,*profile,clock,
 #ifdef WEPLAY_ATMOSPHERE_LAB
@@ -80,8 +97,21 @@ void Begin(reshade::api::effect_runtime* runtime,reshade::api::command_list*,res
 #endif
 }
 }
+#ifdef WEPLAY_GOLD_PRE_UI
+#include "gold_pre_ui_pipeline.inc"
+#include "gold_pre_ui_state.inc"
+#include "gold_pre_ui.inc"
+#endif
 BOOL APIENTRY DllMain(HMODULE module,DWORD reason,LPVOID){
-    if(reason==DLL_PROCESS_ATTACH){if(!reshade::register_addon(module))return FALSE;reshade::register_event<reshade::addon_event::reshade_begin_effects>(Begin);}
-    else if(reason==DLL_PROCESS_DETACH){reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(Begin);reshade::unregister_addon(module);}
+    if(reason==DLL_PROCESS_ATTACH){if(!reshade::register_addon(module))return FALSE;reshade::register_event<reshade::addon_event::reshade_begin_effects>(Begin);
+#ifdef WEPLAY_GOLD_PRE_UI
+        pre_ui::Register();gold_pipeline::Register();
+#endif
+    }
+    else if(reason==DLL_PROCESS_DETACH){
+#ifdef WEPLAY_GOLD_PRE_UI
+        gold_pipeline::Unregister();pre_ui::Unregister();
+#endif
+        reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(Begin);reshade::unregister_addon(module);}
     return TRUE;
 }

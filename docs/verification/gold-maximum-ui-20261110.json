@@ -1,0 +1,68 @@
+{
+  "format": "s7-gold-maximum-ui-candidate-v1",
+  "date": "2026-11-10",
+  "status": "reproduced-menu-overlay-corrected-in-local-candidate",
+  "identity": {
+    "prepared_gold_exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+    "dxvk_x86_sha256": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "reshade_base_commit": "18deaa52de0c425a78b329e9cb3c497281cd00ec",
+    "reshade_patch_lf_sha256": "66612956c1960f9aa9f50589fadd77f8988674373cfbf62c0eaa89e24706f435",
+    "tested_reshade_dll_sha256": "dc4fed1d519f8f6c45c464a26e18d1f1833c8789e41c4165ff7865ab2c49d989",
+    "source_built_pre_ui_addon_sha256": "2544463b15172e4585c9e25a405ce75ecb309f2dba78f538ef8379d0d9b9c19b",
+    "earlier_source_candidate_sha256": "8ad6ed68e4965d5810455ceb973a81aa73a74ea66f4c760f92cad1ab5459b0bf",
+    "local_simulation_adapter_sha256": "437dcc081c5149ddcf11308c43ee28f162dffbf019343c272599eddb07c85ce5"
+  },
+  "configuration": {
+    "resolution": [1920, 1080],
+    "native_quality": "high",
+    "gpu_family": "AMD Radeon RX 9070 XT",
+    "legacy_fallback_used": false,
+    "child_dxvk_config": "dxvk.enableDescriptorHeap = False; dxvk.enableDescriptorBuffer = False",
+    "maximum_techniques_removed": 0,
+    "screen_mask_added": false
+  },
+  "synthetic": {
+    "clock_fpu_checks": 214,
+    "actual_wrapper_body_fixtures": "passed-x86-W4-WX",
+    "dynamic_descriptor_offsets_and_constants_restored": true,
+    "state_reset_bounds_snapshot_and_internal_event_fixtures": "passed",
+    "cache_capacity_lifetime_owner_and_pipeline_library_fixtures": "passed",
+    "gold_python_tests_run": 39,
+    "gold_python_tests_skipped_optional_lua": 4,
+    "gold_python_tests_failed": 0,
+    "actual_patch_replay_three_output_hashes_and_idempotence": true,
+    "gpu_execution_established_by_synthetic_tests": false
+  },
+  "actual_game": {
+    "baseline_overlay_confirmed_by_local_tester": true,
+    "source_candidate_profile_manager_clean": true,
+    "source_candidate_main_menu_clean": true,
+    "source_candidate_load_dialog_clean": true,
+    "source_candidate_reloaded_world_rendered": true,
+    "source_candidate_in_game_menu_clean": true,
+    "pre_ui_application_continued_after_menu_transitions": true,
+    "earlier_source_candidate_turns_observed": [14096, 14855],
+    "final_source_candidate_turns_observed": [17124, 17609],
+    "initial_loaded_turn_not_sampled_in_final_candidate": true,
+    "actual_shadow_map_size": 4096,
+    "lod_scale_both_operands": 0.005,
+    "detailed_shadow_terminal": 19200,
+    "far_and_culling_shadow_terminal": 76800,
+    "environment": "WePlayMidsummer",
+    "environment_period_ms": 1200000,
+    "normal_exit_code": 0,
+    "protected_shared_files_unchanged": 16,
+    "frida_used": false
+  },
+  "qualified": {
+    "reproduced_maximum_menu_overlay_corrected": true,
+    "all_effect_output_comparisons": false,
+    "full_midsummer_cycle": false,
+    "other_resolutions_and_gpus": false,
+    "resize_and_display_recovery": false,
+    "performance_benchmark": false,
+    "full_graphics_port": false,
+    "gold_history_crossplay": false,
+    "normal_installer_admission": false
+  }
+}

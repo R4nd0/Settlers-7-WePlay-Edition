@@ -1,0 +1,167 @@
+diff --git a/source/vulkan/vulkan.cpp b/source/vulkan/vulkan.cpp
+index dd5e6f4..2ceebca 100644
+--- a/source/vulkan/vulkan.cpp
++++ b/source/vulkan/vulkan.cpp
+@@ -90,6 +90,16 @@ PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device, const char *p
+ #endif
+ #if RESHADE_ADDON
+ 	RESHADE_VULKAN_HOOK_PROC(CmdSetViewport);
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdSetViewportWithCount, );
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdSetViewportWithCount, EXT);
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdSetScissorWithCount, );
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdSetScissorWithCount, EXT);
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdBindDescriptorSets2, );
++	if (0 == std::strcmp(name_without_prefix, "CmdBindDescriptorSets2KHR") && g_vulkan_devices.at(dispatch_key_from_handle(device))->_dispatch_table.GetDeviceProcAddr(device, pName) != nullptr)
++		return reinterpret_cast<PFN_vkVoidFunction>(vkCmdBindDescriptorSets2);
++	RESHADE_VULKAN_HOOK_PROC_OPTIONAL(CmdPushConstants2, );
++	if (0 == std::strcmp(name_without_prefix, "CmdPushConstants2KHR") && g_vulkan_devices.at(dispatch_key_from_handle(device))->_dispatch_table.GetDeviceProcAddr(device, pName) != nullptr)
++		return reinterpret_cast<PFN_vkVoidFunction>(vkCmdPushConstants2);
+ 	RESHADE_VULKAN_HOOK_PROC(CmdSetScissor);
+ #endif
+ #if RESHADE_ADDON >= 2
+diff --git a/source/vulkan/vulkan_hooks.hpp b/source/vulkan/vulkan_hooks.hpp
+index 6e42fdb..9d46436 100644
+--- a/source/vulkan/vulkan_hooks.hpp
++++ b/source/vulkan/vulkan_hooks.hpp
+@@ -284,3 +284,8 @@ void     VKAPI_CALL vkCmdDrawMeshTasksEXT(VkCommandBuffer commandBuffer, uint32_
+ void     VKAPI_CALL vkCmdDrawMeshTasksIndirectEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride);
+ void     VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride);
+ #endif
++
++void VKAPI_CALL vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport *pViewports);
++void VKAPI_CALL vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D *pScissors);
++void VKAPI_CALL vkCmdBindDescriptorSets2(VkCommandBuffer commandBuffer, const VkBindDescriptorSetsInfo *pBindDescriptorSetsInfo);
++void VKAPI_CALL vkCmdPushConstants2(VkCommandBuffer commandBuffer, const VkPushConstantsInfo *pPushConstantsInfo);
+diff --git a/source/vulkan/vulkan_hooks_command_list.cpp b/source/vulkan/vulkan_hooks_command_list.cpp
+index 2f7c174..884fdf7 100644
+--- a/source/vulkan/vulkan_hooks_command_list.cpp
++++ b/source/vulkan/vulkan_hooks_command_list.cpp
+@@ -2300,3 +2300,128 @@ void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer commandBuffer
+ 	trampoline(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+ }
+ #endif
++
++// WePlay experimental Vulkan 1.3/1.4 state-event coverage.
++void VKAPI_CALL vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport *pViewports)
++{
++	reshade::vulkan::device_impl *const device_impl = g_vulkan_devices.at(dispatch_key_from_handle(commandBuffer));
++
++	RESHADE_VULKAN_GET_DEVICE_DISPATCH_PTR(CmdSetViewportWithCount, device_impl);
++	trampoline(commandBuffer, viewportCount, pViewports);
++	const uint32_t firstViewport = 0;
++
++#if RESHADE_ADDON
++	if (!reshade::has_addon_event<reshade::addon_event::bind_viewports>())
++		return;
++
++	reshade::vulkan::command_list_impl *const cmd_impl = device_impl->get_private_data_for_object<VK_OBJECT_TYPE_COMMAND_BUFFER>(commandBuffer);
++
++	temp_mem<reshade::api::viewport> viewport_data(viewportCount);
++	for (uint32_t i = 0; i < viewportCount; ++i)
++	{
++		std::memcpy(&viewport_data[i], &pViewports[i], sizeof(VkViewport));
++
++		// Flip viewport vertically (see 'command_list_impl::bind_viewports')
++		viewport_data[i].y += viewport_data[i].height;
++		viewport_data[i].height = -viewport_data[i].height;
++	}
++
++	reshade::invoke_addon_event<reshade::addon_event::bind_viewports>(cmd_impl, firstViewport, viewportCount, viewport_data.p);
++#endif
++}
++
++void VKAPI_CALL vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D *pScissors)
++{
++	reshade::vulkan::device_impl *const device_impl = g_vulkan_devices.at(dispatch_key_from_handle(commandBuffer));
++
++	RESHADE_VULKAN_GET_DEVICE_DISPATCH_PTR(CmdSetScissorWithCount, device_impl);
++	trampoline(commandBuffer, scissorCount, pScissors);
++	const uint32_t firstScissor = 0;
++
++#if RESHADE_ADDON
++	if (!reshade::has_addon_event<reshade::addon_event::bind_scissor_rects>())
++		return;
++
++	reshade::vulkan::command_list_impl *const cmd_impl = device_impl->get_private_data_for_object<VK_OBJECT_TYPE_COMMAND_BUFFER>(commandBuffer);
++
++	temp_mem<reshade::api::rect> rect_data(scissorCount);
++	for (uint32_t i = 0; i < scissorCount; ++i)
++	{
++		rect_data[i].left = pScissors[i].offset.x;
++		rect_data[i].top = pScissors[i].offset.y;
++		rect_data[i].right = pScissors[i].offset.x + static_cast<int32_t>(pScissors[i].extent.width);
++		rect_data[i].bottom = pScissors[i].offset.y + static_cast<int32_t>(pScissors[i].extent.height);
++	}
++
++	reshade::invoke_addon_event<reshade::addon_event::bind_scissor_rects>(cmd_impl, firstScissor, scissorCount, rect_data.p);
++#endif
++}
++
++void VKAPI_CALL vkCmdBindDescriptorSets2(VkCommandBuffer commandBuffer, const VkBindDescriptorSetsInfo *pBindDescriptorSetsInfo)
++{
++	reshade::vulkan::device_impl *const device_impl = g_vulkan_devices.at(dispatch_key_from_handle(commandBuffer));
++
++	assert(device_impl != nullptr);
++	PFN_vkCmdBindDescriptorSets2 trampoline = device_impl->_dispatch_table.CmdBindDescriptorSets2;
++	if (trampoline == nullptr)
++		trampoline = reinterpret_cast<PFN_vkCmdBindDescriptorSets2>(device_impl->_dispatch_table.GetDeviceProcAddr(reinterpret_cast<VkDevice>(device_impl->get_native()), "vkCmdBindDescriptorSets2KHR"));
++	assert(trampoline != nullptr);
++	trampoline(commandBuffer, pBindDescriptorSetsInfo);
++	const auto& info = *pBindDescriptorSetsInfo;
++	const auto layout = info.layout;
++	const auto firstSet = info.firstSet;
++	const auto descriptorSetCount = info.descriptorSetCount;
++	const auto pDescriptorSets = info.pDescriptorSets;
++	const auto dynamicOffsetCount = info.dynamicOffsetCount;
++	const auto pDynamicOffsets = info.pDynamicOffsets;
++
++#if RESHADE_ADDON >= 2
++	if (!reshade::has_addon_event<reshade::addon_event::bind_descriptor_tables>())
++		return;
++
++	reshade::vulkan::command_list_impl *const cmd_impl = device_impl->get_private_data_for_object<VK_OBJECT_TYPE_COMMAND_BUFFER>(commandBuffer);
++
++	reshade::invoke_addon_event<reshade::addon_event::bind_descriptor_tables>(
++		cmd_impl,
++		static_cast<reshade::api::shader_stage>(info.stageFlags),
++		reshade::api::pipeline_layout { (uint64_t)layout },
++		firstSet, descriptorSetCount,
++		reinterpret_cast<const reshade::api::descriptor_table *>(pDescriptorSets),
++		dynamicOffsetCount, pDynamicOffsets);
++#endif
++}
++
++void VKAPI_CALL vkCmdPushConstants2(VkCommandBuffer commandBuffer, const VkPushConstantsInfo *pPushConstantsInfo)
++{
++	reshade::vulkan::device_impl *const device_impl = g_vulkan_devices.at(dispatch_key_from_handle(commandBuffer));
++
++	assert(device_impl != nullptr);
++	PFN_vkCmdPushConstants2 trampoline = device_impl->_dispatch_table.CmdPushConstants2;
++	if (trampoline == nullptr)
++		trampoline = reinterpret_cast<PFN_vkCmdPushConstants2>(device_impl->_dispatch_table.GetDeviceProcAddr(reinterpret_cast<VkDevice>(device_impl->get_native()), "vkCmdPushConstants2KHR"));
++	assert(trampoline != nullptr);
++	trampoline(commandBuffer, pPushConstantsInfo);
++	const auto& info = *pPushConstantsInfo;
++	const auto layout = info.layout;
++	const auto stageFlags = info.stageFlags;
++	const auto offset = info.offset;
++	const auto size = info.size;
++	const auto pValues = info.pValues;
++
++#if RESHADE_ADDON >= 2
++	if (!reshade::has_addon_event<reshade::addon_event::push_constants>())
++		return;
++
++	reshade::vulkan::command_list_impl *const cmd_impl = device_impl->get_private_data_for_object<VK_OBJECT_TYPE_COMMAND_BUFFER>(commandBuffer);
++	const auto layout_data = device_impl->get_private_data_for_object<VK_OBJECT_TYPE_PIPELINE_LAYOUT>(layout);
++
++	reshade::invoke_addon_event<reshade::addon_event::push_constants>(
++		cmd_impl,
++		static_cast<reshade::api::shader_stage>(stageFlags),
++		reshade::api::pipeline_layout { (uint64_t)layout },
++		static_cast<uint32_t>(layout_data->set_layouts.size()),
++		offset / 4,
++		size / 4,
++		static_cast<const uint32_t *>(pValues));
++#endif
++}

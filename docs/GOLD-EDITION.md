@@ -13,7 +13,9 @@ save, autosave and reload checks. The
 [graphics-port candidate](GOLD-GRAPHICS-PORT.md) renders the world with actual
 4096 shadows, extended detail/range and selectable Mittsommer lighting. Its
 camera correction removes rotation caused by the cumulative turn counter.
-Complete effects qualification remains pending.
+The separate Maximum candidate also corrects the reproduced duplicate-castle
+menu overlay by rendering effects before the UI. Complete effects qualification
+remains pending.
 
 ## Identified installation
 

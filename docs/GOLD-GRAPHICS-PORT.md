@@ -2,8 +2,81 @@
 
 Development checkpoint, 2026-11-10. This is not a Gold-compatible WePlay
 release. The native renderer and Mittsommer have actual Gold world observations;
-save reload and the camera correction passed a local check. SMAA output,
-Maximum and multiplayer remain unqualified.
+save reload and the camera correction passed a local check. The separate
+Maximum pre-UI candidate now removes the reproduced menu overlay in actual
+Gold tests. Complete effects qualification and multiplayer remain pending.
+
+## Maximum menu correction
+
+The original Maximum trial showed a pale duplicate castle over menus, also
+confirmed by the local tester. The new opt-in `-Gold -GoldPreUI` add-on renders
+the selected effects after Gold's final scene composite and before its UI.
+The profile manager, main menu, load dialog, reloaded world and in-game menu
+now render without that strong duplicate. All four selected Maximum shaders
+remain compiled and enabled; no UI mask or reduced preset is used.
+
+Two separate faults had prevented a reliable early injection. The pinned
+ReShade 6.8.0 runtime did not report the newer Vulkan viewport/scissor and
+descriptor/push-constant entry points used by DXVK. The reviewed
+`tools/gold/reshade_state.patch` forwards those calls unchanged and supplies the
+same add-on events as the older hooks. It preserves availability of core and
+EXT/KHR aliases, including KHR-only Vulkan 1.3 devices. The patch applies only
+to exact upstream commit `18deaa52de0c425a78b329e9cb3c497281cd00ec` and verifies
+all three input/output file hashes. Its upstream code retains the accompanying
+[ReShade license](../tools/gold/RESHade-LICENSE.txt).
+
+The pipeline metadata cache also retained completed command lists until later
+reuse. It reached its fixed bound during menu transitions, so new lists lost
+their shader identities. Entries now expire on close, reset and destruction.
+Pipeline-library metadata is copied only from the same device; explicit
+shader/blend state wins and linked pipelines survive library destruction.
+Bounds remain in place. The source candidate excludes per-draw tracing.
+
+The add-on checks the exact Gold executable/clock layout, owned Vulkan runtime,
+single full-HD render target without depth, and the observed scene-to-UI
+shader/blend sequence. FNV shader fingerprints select the rendering phase;
+they are not a security or cross-edition compatibility identity. The launcher
+still pins actual executable, renderer, runtime, add-on and asset bytes.
+Before rendering effects it snapshots bounded command state, including dynamic
+descriptor offsets and push constants, then resumes the native render pass
+with LOAD/STORE and restores that state. Unsupported state invalidates the
+capture. Resource views follow image/device lifetime and runtime access is
+serialized. No simulation callback or game memory write is introduced.
+
+Developer build commands, using a separate upstream source checkout with its
+official submodules/dependencies already prepared:
+
+```powershell
+pwsh -File tools/gold/build_reshade_hooks.ps1 -SourceDirectory work/reshade-v6.8.0 -OutputDirectory work/gold-hook-fixtures -BuildRuntime
+pwsh -File native/build_atmosphere.ps1 -Gold -GoldPreUI -OutputDirectory work/gold-pre-ui
+```
+
+These commands build developer artifacts under `work/`; they install and
+launch nothing. Rebuilt runtime hashes must be reviewed before admission.
+`tools/gold/pre_ui_runtime.py` isolates the actually tested candidate pins and
+sets descriptor heaps/buffers off only in the child process. Normal Gold and
+History runtime pins, global Vulkan layers and the original game installation
+stay unchanged. This remains an explicitly selected development candidate,
+not a normal-installer release.
+
+The source build passed 214 clock/FPU checks and the actual bounded state/cache
+fixtures; wrapper fixtures cover unchanged native forwards, state conversion,
+dynamic offsets, constant ranges, disabled events and KHR fallback. These use
+mock GPU APIs. Separately, actual Gold reloaded a saved world and advanced through
+14,096 to 14,855 with the first source-built add-on. The final build synchronizes
+initialization before its early callback and advanced from 17,124 to 17,609
+after a fresh reload; its initial loaded turn was not sampled. The ordinary
+Gold clock remains byte-identical to its earlier build. Native 4096 shadows,
+1/200 detail, extended ranges and the real Mittsommer timeline were observed. All successful
+comparison clients exited normally and all 16 protected shared files retained
+their file set, hashes and timestamps. See the
+[Maximum verification receipt](verification/gold-maximum-ui-20261110.json).
+
+Qualification is limited to the tested 1920x1080/high DXVK configuration on the
+local AMD GPU. Other resolutions/devices, display/resize recovery, a complete
+Mittsommer cycle, measured performance and independent output comparisons of
+every effect remain open. This graphics correction does not implement Gold
+networking or establish Gold/History determinism.
 
 ## Native renderer
 
@@ -77,7 +150,8 @@ comparison subsequently reached the menu after a long initialization. The
 delay and effects interaction remain unresolved. A later SMAA-enabled start
 reached the menu and the reloaded world; its log confirms successful SMAA
 compilation and its preset selects that technique. A rendered effect comparison
-and Maximum output remain unqualified. DXVK stayed active; no legacy fallback
+and full Maximum output qualification remain pending. The later pre-UI
+correction above addresses the reproduced menu artifact. DXVK stayed active; no legacy fallback
 was used.
 
 ## Verification and next checks
@@ -94,7 +168,8 @@ normally with all 16 shared profile/save files unchanged. The stopped effects
 test also retained those shared files. The SMAA/Mittsommer interval and subsequent
 Maximum/save-correction interval also exited normally with all 16 shared files
 unchanged. Maximum compiled all four shaders, loaded the Gold clock add-on and
-rendered the reloaded world, but visible menu overlays remain unresolved.
+rendered the reloaded world, but showed visible menu overlays in the original
+trial. The separate pre-UI candidate above corrects that reproduced artifact.
 
 The saved turn 2,667 reloaded after a client restart and advanced through
 2,731, 3,881 and 7,920. Another reload with the camera correction advanced
@@ -102,7 +177,7 @@ through 2,890 and 4,745. The local tester confirmed completed construction and
 material delivery; completed buildings were observed and their turn-11,982
 checkpoint loaded after a client restart. This remains a single-map check.
 
-Next: resolve the Maximum menu overlays and qualify the remaining effects,
+Next: qualify the remaining effects and display lifecycle,
 then implement and test Gold's
 multiplayer adapter and command/save contract against both History editions.
 Normal installer admission and network compatibility identities stay closed.

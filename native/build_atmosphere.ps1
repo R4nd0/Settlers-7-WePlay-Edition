@@ -1,6 +1,7 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$Lab,[switch]$Gold)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$Lab,[switch]$Gold,[switch]$GoldPreUI)
 $ErrorActionPreference='Stop'
 if($Gold -and $Lab){throw 'Gold uses its separate production-period, hash-locked candidate; no lab exception.'}
+if($GoldPreUI -and (!$Gold -or $Lab)){throw 'GoldPreUI requires the exact Gold profile without Lab.'}
 $source=$PSScriptRoot
 $repository=[IO.Path]::GetFullPath((Join-Path $source '..'))
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -18,8 +19,18 @@ try {
  if($LASTEXITCODE){throw 'Atmosphere clock tests did not compile'}
  & .\atmosphere_clock_tests.exe
  if($LASTEXITCODE){throw 'Atmosphere clock regression failed'}
+ if($GoldPreUI){
+  $fixtureFlags=@($common | Where-Object {$_ -ne '/DNDEBUG'})
+  foreach($fixture in @('gold_pre_ui_state_tests','gold_pre_ui_pipeline_tests')){
+   & cl.exe @fixtureFlags (Join-Path $source ($fixture+'.cpp')) ('/Fe:'+ $fixture+'.exe')
+   if($LASTEXITCODE){throw 'Gold Vulkan fixtures did not compile'}
+   & (Join-Path $output ($fixture+'.exe'))
+   if($LASTEXITCODE){throw 'Gold Vulkan regression failed'}
+  }
+ }
  if($Lab){$common+='/DWEPLAY_ATMOSPHERE_LAB'}
  if($Gold){$common+='/DWEPLAY_ATMOSPHERE_GOLD'}
+ if($GoldPreUI){$common+='/DWEPLAY_GOLD_PRE_UI'}
  & cl.exe @common /LD (Join-Path $source 'atmosphere_addon.cpp') /Fe:WePlayAtmosphere.addon32 /link /DYNAMICBASE /NXCOMPAT /Brepro
  if($LASTEXITCODE){throw 'Atmosphere add-on did not compile'}
  $sha=[Security.Cryptography.SHA256]::Create()

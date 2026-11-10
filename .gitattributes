@@ -3,6 +3,8 @@
 ###############################################################################
 * text=auto
 *.sh text eol=lf
+# Unified-diff context markers precede upstream tab indentation by design.
+tools/gold/reshade_state.patch text eol=lf whitespace=-space-before-tab
 
 ###############################################################################
 # Set default behavior for command prompt diff.
