@@ -1,8 +1,69 @@
 # Gold transport development checkpoint
 
-Gold/History crossplay is not implemented. The new Gold packet decoder is a
-passive development component, has no caller in the local service, and opens
-no socket. Gold remains excluded from normal multiplayer admission.
+Gold's opt-in native SDK connection/login adapter now completes a genuine
+local login and backend registration under DXVK. The separate loopback service
+uses a fresh launch secret and tickets owned by that service. Gold/History
+crossplay is not implemented: the CNetwork account/lobby bridge and shared
+simulation transport remain incomplete. Gold is excluded from normal
+multiplayer admission. The History service has no fallback to this protocol.
+
+## Native SDK login adapter, 2026-11-10
+
+`native/gold_local_login.inc`, enabled explicitly by the native build's
+`-LocalLogin` switch, finds the initialized Gold RendezVous service on its owner thread,
+allocates a native CallContext and calls the original eight-argument async
+login function. Native QString values contain a UTF-16 pointer; constructors,
+destructors, the native job queue and backend output assignment remain in the
+SDK. Executable identity, callsite bytes, function entry bytes, object types,
+pointer ranges and owner thread are guarded. The local access-key setter is
+redirected before native stream initialization; its verified stream-3 checksum
+seed is 3. The renderer preflight still requires DXVK.
+
+`tools/gold/login_server.py` is an independent bounded developer service on two
+ephemeral IPv4 loopback UDP ports. It implements SYN/CONNECT, reliable DATA ACKs,
+bounded response retries, keepalive/disconnect ACKs, packet-local RC4/ZLib
+compatibility framing, numeric RMC correlation, TicketGranting LoginEx and
+RequestTicket, the owned-ticket backend challenge and SecureConnection Register.
+It parses complete bounded argument shapes and rejects wrong credentials,
+ticket MACs, principals, sessions, signatures, ordering, lengths and unsupported
+RPCs. It neither imports account caches nor impersonates a vendor service.
+Compatibility RC4/checksums are protocol requirements, not a new security layer.
+
+The launch environment supplies `WEPLAY_GOLD_LOCAL_PORT`,
+`WEPLAY_GOLD_LOCAL_NAME` and a fresh 64-character lowercase hexadecimal
+`WEPLAY_GOLD_LOCAL_SECRET`. The server takes the same name/secret; its ready
+file supplies the auth port. The native adapter removes the secret from its
+environment, dispatches once, then clears its temporary secret buffer. An
+optional `WEPLAY_GOLD_LOCAL_STATUS` file contains numeric state/result and
+backend presence only. The server reports counters only, never raw packets,
+credentials, tickets, keys, challenges or URLs. These are developer launch
+inputs; the normal launcher does not yet configure or enable this mode.
+
+```console
+python tests/gold_login_tests.py
+powershell -File native/build_gold.ps1 -OutputDirectory work/gold-login-build -LocalSimulation -LocalLogin
+```
+
+Eleven synthetic tests include 10,000 malformed packets, independently known
+cipher/checksum vectors, strict credential shapes, authenticated ticket
+challenges, cross-instance replay rejection, duplicate request idempotence,
+ordering/session/signature rejection, expiry, disconnect and bounded retry/ACK
+behavior. They do not substitute for live game observations.
+
+The private live DXVK test of the repository adapter completed auth handshake,
+LoginEx, RequestTicket, backend handshake/challenge and registration. Gold's
+own CallContext reached state 2, result `0x00010001`, with its backend output
+non-null. It closed normally; all 16 backed-up shared profile/save files were
+unchanged. A separate deliberately mismatched launch-secret test checks the
+native failure path: state 3, no backend, no registration, normal exit and the
+same 16 shared files unchanged. The final response-retry version passed a second
+fresh-secret positive test. See the [sanitized login receipt](verification/gold-sdk-login-20261110.json).
+
+This adapter owns one login interval per process. Its context and backend output
+slot stay valid through normal process shutdown; runtime unload, retries/new
+accounts, cancellation and reconnect are not supported. It does not attach that
+backend to CNetwork's account manager, expose a lobby or translate game commands.
+Steam History and Ubisoft History crossplay cannot be qualified from SDK login.
 
 ## Independently mapped differences
 
@@ -19,8 +80,9 @@ authenticate players or replace simulation state checksums.
 little-endian 32-bit words with 32-bit wrapping, fold the resulting four
 bytes, then add remaining bytes and the explicit stream seed modulo 256.
 A simple sum of every input byte gives different results after word overflow.
-The live stream seed and the Gold connection/bootstrap contract are still
-unverified; the decoder requires a caller-supplied seed and assumes no default.
+The passive C# decoder still requires a caller-supplied seed and assumes no
+default. The separate explicit local login profile above verifies seed 3 for
+its own access key; that does not establish a vendor server's key or seed.
 
 `GoldPrudpPacketDecoder` accepts only a bounded single packet and returns
 metadata and a payload slice. It requires the checksum and exact declared
@@ -34,8 +96,8 @@ four-byte body length, one protocol byte with its request bit, four-byte call
 ID and four-byte method ID, followed by opaque arguments. It rejects responses,
 unmapped protocol encodings, truncation, trailing/coalesced messages and inputs
 above its local 64-KiB bound. Protocol/method IDs are metadata; decoding one
-does not authorize a response. No login argument parser or service caller is
-added. History's named-RPC codec remains separate.
+does not authorize a response. The separate loopback login adapter above owns
+its own admission and argument parser. History's named-RPC codec remains separate.
 
 ## Verification
 

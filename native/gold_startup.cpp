@@ -458,6 +458,9 @@ bool Write(const Patch& patch, bool install) {
     if (memcmp(patch.at, after.data(), after.size())) Stop();
     return true;
 }
+#ifdef S7_GOLD_LOCAL_LOGIN
+#include "gold_local_login.inc"
+#endif
 }
 
 // Called explicitly before the suspended game's entry point, never in DllMain.
@@ -485,6 +488,9 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     auto* branch = reinterpret_cast<unsigned char*>(image + 0x12c5);
     if (branch[0] != 0x74 || branch[1] != 0x25) return 0;
     patches.push_back({branch, {0x74,0x25}, {0x75,0x25}});
+#ifdef S7_GOLD_LOCAL_LOGIN
+    if (!LocalLoginPrepare(patches)) return 0;
+#endif
     if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)
         || !CloudSavePatches(patches)) return 0;
 #ifdef S7_GOLD_LOCAL_SIMULATION
@@ -497,5 +503,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
         for (size_t undo = i; undo; --undo) if (!Write(patches[undo - 1], false)) Stop();
         return 0;
     }
+#ifdef S7_GOLD_LOCAL_LOGIN
+    if (!LocalLoginInstall()) return 0;
+#endif
     return 1;
 }

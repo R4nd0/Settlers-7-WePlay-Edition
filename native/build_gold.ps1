@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$IsolatedLabExecutable,
-      [switch]$LocalSimulation)
+      [switch]$LocalSimulation, [switch]$LocalLogin)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -18,6 +18,7 @@ foreach ($line in $compilerEnvironment) {
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS','/DS7_GOLD_STARTUP')
 if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
+if ($LocalLogin) { $common += '/DS7_GOLD_LOCAL_LOGIN' }
 if ($IsolatedLabExecutable) {
     $labPath = (Resolve-Path -LiteralPath $IsolatedLabExecutable).Path
     $workspace = [System.IO.Path]::GetFullPath((Join-Path $nativeSource '..\work\'))
@@ -29,7 +30,7 @@ if ($IsolatedLabExecutable) {
 }
 Push-Location $nativeOutput
 try {
-    & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Gold native fixture build failed.' }
     & (Join-Path $nativeOutput 'gold_startup_tests.exe')
     if ($LASTEXITCODE -ne 0) { throw "Gold native startup fixtures failed ($LASTEXITCODE)." }
@@ -41,7 +42,7 @@ try {
         & (Join-Path $nativeOutput "$testName.exe")
         if ($LASTEXITCODE -ne 0) { throw "Gold $testName failed ($LASTEXITCODE)." }
     }
-    & cl.exe @common /LD (Join-Path $nativeSource 'gold_startup.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:weplay_gold_startup.dll /link "/DEF:$(Join-Path $nativeSource 'gold_startup.def')" bcrypt.lib ws2_32.lib winhttp.lib shell32.lib /DYNAMICBASE /NXCOMPAT
+    & cl.exe @common /LD (Join-Path $nativeSource 'gold_startup.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:weplay_gold_startup.dll /link "/DEF:$(Join-Path $nativeSource 'gold_startup.def')" bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib /DYNAMICBASE /NXCOMPAT
     if ($LASTEXITCODE -ne 0) { throw 'Gold native startup build failed.' }
 } finally { Pop-Location }
 Write-Output 'Built experimental Gold startup only. No game was launched or installed.'

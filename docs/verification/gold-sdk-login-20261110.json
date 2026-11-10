@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-10",
+  "scope": "Opt-in native Gold SDK login on IPv4 loopback; no game-session admission",
+  "gold_original_executable_sha256": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+  "gold_prepared_executable_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+  "tested_native_adapter_sha256": "26456b9f3f0e9544f892f216510c99e8c7df4af45f65de7a239436a4efa3af46",
+  "graphics": {"backend": "DXVK 3.1.1", "resolution": "1920x1080", "legacy_fallback": false},
+  "live_positive_tests": {
+    "count": 2,
+    "fresh_disposable_launch_secret_each_time": true,
+    "observed_steps": ["auth SYN/CONNECT", "TicketGranting LoginEx", "RequestTicket", "backend SYN/CONNECT with owned ticket and authenticated challenge", "SecureConnection Register"],
+    "native_call_context_state": 2,
+    "native_result": "0x00010001",
+    "native_backend_present": true,
+    "normal_exit_code_each_time": 0,
+    "shared_profile_save_files_checked_each_time": 16,
+    "shared_files_unchanged_each_time": true
+  },
+  "live_negative_test": {
+    "mismatched_disposable_launch_secret": true,
+    "server_login_rejected": true,
+    "server_backend_registered": false,
+    "native_call_context_state": 3,
+    "native_result": "0x80010001",
+    "native_backend_present": false,
+    "normal_exit_code": 0,
+    "shared_profile_save_files_checked": 16,
+    "shared_files_unchanged": true
+  },
+  "synthetic_tests": {"cases": 11, "malformed_datagrams": 10000, "passed": true},
+  "native_builds": {
+    "local_login_enabled": "passed /W4 /WX",
+    "local_login_disabled": "passed /W4 /WX",
+    "startup_local_logistics_abi_profile_renderer_transaction_guards": "passed",
+    "cloud_save_instruction_rejections": 28,
+    "network_guard_checks": 75,
+    "gold_wide_dns_wsaconnect_child_shell_guards": "passed"
+  },
+  "raw_payloads_saved": false,
+  "frida_used": false,
+  "force_stop_used": false,
+  "original_installation_modified": false,
+  "remaining": {
+    "cnetwork_account_manager_backend_present_after_sdk_login": false,
+    "cnetwork_account_manager_state_after_sdk_login": 0,
+    "normal_launcher_integration": false,
+    "reconnect_cancellation_runtime_unload": false,
+    "lobby_and_game_transport_bridge": false,
+    "gold_gold_multiplayer": "not tested",
+    "gold_ubisoft_history_crossplay": "not tested",
+    "gold_steam_history_crossplay": "not tested"
+  }
+}
