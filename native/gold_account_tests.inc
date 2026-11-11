@@ -96,9 +96,24 @@ bool GoldAccountGuards() {
         if (result!=(value ? 1u : 0u)) return false;
     }
     for (auto& patch : patches) if (!Write(patch,false)) return false;
-    strcpy_s(local_login_name,"another-local-identity");account_config_port=0;
-    std::vector<Patch> rejected;
-    if (AccountLoginPrepare(rejected)) return false;
+    for (const char* label : {"WePlayGoldPeer", "X",
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"}) {
+        strcpy_s(local_login_name,label); account_config_port=0;
+        std::vector<Patch> alternate;
+        if (!AccountLoginPrepare(alternate) || alternate.size()!=11) return false;
+        std::wstring wide_label; for (const char* p=label; *p; ++p) wide_label+=static_cast<wchar_t>(*p);
+        if (!IdentityAbi(label,wide_label.c_str())) return false;
+    }
+    for (const char* invalid : {"", "fixture\n", "fixture\x7f", "fixture\x80"}) {
+        strcpy_s(local_login_name,invalid); account_config_port=0;
+        std::vector<Patch> rejected;
+        if (AccountLoginPrepare(rejected)) return false;
+    }
+    memset(local_login_name,'X',sizeof(local_login_name));account_config_port=0;
+    std::vector<Patch> unterminated;
+    if (AccountLoginPrepare(unterminated)) return false;
+    strcpy_s(local_login_name,"WePlayGoldLocal");
+    if (!ConfigureLocalIdentity(local_login_name) || !IdentityAbi()) return false;
     SetEnvironmentVariableA("WEPLAY_GOLD_CONFIG_PORT",nullptr);
     account_http_owned=false;if (!AccountTestMethod()) return false;
     account_http_owned=true;if (!AccountTestMethod()) return false;

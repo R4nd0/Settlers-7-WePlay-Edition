@@ -1,4 +1,5 @@
 """Synthetic independent clients over actual loopback sockets; no game evidence."""
+from dataclasses import replace
 import hashlib
 import hmac
 import http.client
@@ -98,6 +99,83 @@ class PeerTests(unittest.TestCase):
     def authenticate(self):
         for client, peer in zip(self.clients, self.peers):
             self.assertTrue(client.login(peer["name"], peer["secret"]))
+
+    def host(self, client):
+        value = replace(self.value, strings=("fixture-app", "fixture-data", "InLobby", "fixture-map"),
+            words=(4, 3, 0, 0, 16, 0))
+        identifier = int.from_bytes(client.rpc(True, 21, 1, codec.encode(value))[14:], "little")
+        self.assertEqual(client.rpc(True, 21, 11,
+            struct.pack("<I", identifier) + gold.text(""))[14:], b"\1")
+        self.assertEqual(client.rpc(True, 21, 40, struct.pack("<I", identifier))[4:6], b"\x15\1")
+        return identifier
+
+    def test_native_catalogue_lists_real_active_host_and_removes_released_session(self):
+        self.authenticate()
+        host, guest = self.clients
+        query = struct.pack("<III", 0, 20, 16)
+        self.assertEqual(guest.rpc(True, 121, 1, query)[14:], b"\0" * 4)
+        identifier = self.host(host)
+        value = self.service.gatherings.records[identifier].value
+        self.assertEqual(guest.rpc(True, 121, 1, query)[14:], struct.pack("<I", 1) + codec.encode(value))
+        self.assertEqual(guest.rpc(True, 121, 1, struct.pack("<III", 1, 20, 16))[14:], b"\0" * 4)
+        self.assertEqual(guest.rpc(True, 121, 5, b"\5" + struct.pack("<I", 16))[14:], b"\0" * 4)
+        self.assertEqual(host.rpc(True, 21, 12, struct.pack("<I", identifier) + gold.text(""))[14:], b"\1")
+        self.assertEqual(guest.rpc(True, 121, 1, query)[14:], b"\0" * 4)
+
+    def test_catalogue_excludes_private_started_full_mismatched_and_expired_records(self):
+        self.authenticate()
+        identifier = self.host(self.clients[0])
+        record = self.service.gatherings.records[identifier]
+        registry = self.service.gatherings
+        now = 0  # Both actually authenticated connections remain live.
+        self.assertEqual(registry.catalogue(0, 20, 16, now), (record.value,))
+        variants = [replace(record, host_claimed=False), replace(record, participating=False),
+            replace(record, released=True),
+            replace(record, value=replace(record.value, words=(4, 3, 0, 4, 16, 0))),
+            replace(record, value=replace(record.value, words=(4, 0, 3, 0, 16, 0))),
+            replace(record, value=replace(record.value, words=(4, 3, 0, 0, 17, 0))),
+            replace(record, value=replace(record.value, strings=("app", "data", "InGame", "map"))),
+            replace(record, value=replace(record.value, strings=("", "data", "InLobby", "map")))]
+        for variant in variants:
+            registry.records[identifier] = variant
+            self.assertEqual(registry.catalogue(0, 20, 16, now), ())
+        registry.records[identifier] = record
+        self.assertEqual(registry.catalogue(0, 20, 16, record.owner.expires), ())
+
+    def test_catalogue_malformed_or_unqualified_query_never_mutates_host(self):
+        self.authenticate()
+        identifier = self.host(self.clients[0])
+        record = self.service.gatherings.records[identifier]
+        guest = self.clients[1]
+        for method, args in [(1, struct.pack("<III", offset, count, version))
+                for offset, count, version in ((4097, 20, 16), (0, 21, 16), (0, 20, 17))] + [
+                (1, b""), (1, struct.pack("<III", 0, 20, 16) + b"x"),
+                (5, b"\4" + struct.pack("<I", 16)), (5, b"\5" + struct.pack("<I", 17)),
+                (5, b"\5" + struct.pack("<I", 16) + b"x")]:
+            self.assertEqual(guest.rpc(True, 121, method, args)[4:6], b"\x79\0")
+            self.assertIs(self.service.gatherings.records[identifier], record)
+        self.assertEqual(guest.rpc(True, 121, 1, struct.pack("<III", 0, 0, 16))[14:], b"\0" * 4)
+
+    def test_native_endpoint_query_uses_observed_host_and_revokes_on_leave(self):
+        self.authenticate()
+        host, guest = self.clients
+        identifier = self.host(host)
+        record = self.service.gatherings.records[identifier]
+        response = guest.rpc(True, 21, 16, struct.pack("<I", identifier))
+        self.assertEqual(response[4:6], b"\x15\1")
+        reader = gold.Reader(response[14:])
+        self.assertEqual(reader.u32(), 1)
+        url = reader.text(256).decode("ascii")
+        reader.finish()
+        self.assertEqual(url, record.owner.public_url)
+        self.assertIn(f"port={host.sockets[1].getsockname()[1]};", url)
+        self.assertIn(f"PID={host.principal};", url)
+        self.assertNotIn("port=50000;", url)  # Authored request's station is not authority.
+        for args in (b"", struct.pack("<I", identifier) + b"x", struct.pack("<I", identifier + 1)):
+            self.assertEqual(guest.rpc(True, 21, 16, args)[4:6], b"\x15\0")
+            self.assertIs(self.service.gatherings.records[identifier], record)
+        host.rpc(True, 21, 12, struct.pack("<I", identifier) + gold.text(""))
+        self.assertEqual(guest.rpc(True, 21, 16, struct.pack("<I", identifier))[4:6], b"\x15\0")
 
     def test_independent_login_ticket_profile_and_shared_owner_authority(self):
         self.authenticate()

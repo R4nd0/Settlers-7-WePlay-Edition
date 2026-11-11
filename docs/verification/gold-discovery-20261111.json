@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "date": "2026-11-11",
+  "component": "Gold independent native identities and local discovery",
+  "native_adapter_sha256": "598e0ad40cd7fed90eecfc8f4eb39e63c0a516df0c30168ba9d4482fcc647749",
+  "synthetic_verification": {
+    "peer_tests": 10,
+    "existing_login_account_registration_codec_tests": 40,
+    "native_account_instruction_byte_rejections": 119,
+    "native_network_guard_checks": 75,
+    "independent_name_lengths": [1, 13, 64],
+    "malformed_names_rejected": true,
+    "sdk_only_regression_passed": true,
+    "gameplay_evidence": false
+  },
+  "actual_game_verification": {
+    "pair_cases": [75, 76],
+    "simultaneous_gold_clients": 2,
+    "independent_native_account_logins": true,
+    "independent_executable_derived_profiles": true,
+    "dxvk": true,
+    "resolution": "1920x1080",
+    "quality": "High",
+    "legacy_fallback": false,
+    "native_named_host_lobby_created": true,
+    "native_catalogue_triggered_host_url_query": true,
+    "pair_76_native_host_url_requests_answered": true,
+    "selectable_browser_entry_observed": false,
+    "all_four_process_exit_codes": [0, 0, 0, 0],
+    "shared_files_checked_per_process": 16,
+    "shared_files_unchanged": true
+  },
+  "remaining_observations": {
+    "pair_75_first_client_create_failed_before_registration_rpc": true,
+    "pair_75_second_client_create_succeeded": true,
+    "first_client_failure_cause_resolved": false,
+    "endpoint_reachability_qualified": false
+  },
+  "limits": {
+    "loopback_only": true,
+    "peer_join_implemented": false,
+    "common_simulation_transport_implemented": false,
+    "gold_history_crossplay_verified": false,
+    "history_clients_launched": 0,
+    "raw_payloads_saved": false
+  }
+}

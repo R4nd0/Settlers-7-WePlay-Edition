@@ -1,8 +1,8 @@
 """Disposable Gold registrations and own-host participation; no peer/game admission.
 
 Title fields are retained only in memory. Client-supplied principal/member
-fields never establish authority. Catalogue publication awaits semantic and
-content compatibility qualification.
+fields never establish authority. Explicit peer-laboratory discovery publishes
+eligible local host records; content and simulation admission remain excluded.
 """
 from dataclasses import dataclass, replace
 
@@ -21,9 +21,45 @@ class Registration:
 
 
 class LocalGatherings:
-    def __init__(self):
+    def __init__(self, *, discovery=False):
+        if type(discovery) is not bool:
+            raise ValueError("Expected explicit local discovery mode")
+        self.discovery = discovery
         self.records: dict[int, Registration] = {}
         self.next_identifier = 1
+
+    def catalogue(self, offset, count, version, now):
+        if (not self.discovery or type(offset) is not int or not 0 <= offset <= 4096
+                or type(count) is not int or not 0 <= count <= 20
+                or type(version) is not int or version != 16):
+            raise ValueError("Unsupported local session query")
+        values = []
+        for record in sorted(self.records.values(), key=lambda item: item.identifier):
+            value = record.value
+            maximum, opened, ai, private, title_version, _template = value.words
+            if (record.released or not record.participating or not record.host_claimed
+                    or not getattr(record.owner, "connected", False)
+                    or not getattr(record.owner, "registered", False)
+                    or getattr(record.owner, "closed", True)
+                    or getattr(record.owner, "expires", 0) <= now
+                    or title_version != version or not 2 <= maximum <= 4
+                    or not 0 < opened < maximum or ai > maximum or private
+                    or value.strings[2] != "InLobby"
+                    or any(not value.strings[index] for index in (0, 1, 3))):
+                continue
+            values.append(value)
+        return tuple(values[offset:offset + count])
+
+    def session_urls(self, identifier, now):
+        record = self.records.get(identifier)
+        if record is None or record.value not in self.catalogue(0, 20, 16, now):
+            raise ValueError("Local session unavailable")
+        # This URL was minted by the authenticated backend registration from
+        # its observed loopback source, never copied from title/request data.
+        url = getattr(record.owner, "public_url", None)
+        if not url:
+            raise ValueError("Local host endpoint unavailable")
+        return (url,)
 
     def create(self, owner, principal, data, reader_type):
         value = decode(data, reader_type)

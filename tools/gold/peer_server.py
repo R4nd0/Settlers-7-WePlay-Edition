@@ -42,7 +42,7 @@ class PeerLoginService:
     def __init__(self, peers):
         validate_peers(peers)
         self.resources = ExitStack()
-        self.gatherings = LocalGatherings()
+        self.gatherings = LocalGatherings(discovery=True)
         self.adapters = []
         self.configs = []
         self.routes = {}

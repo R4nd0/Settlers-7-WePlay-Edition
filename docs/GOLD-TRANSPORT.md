@@ -15,7 +15,9 @@ launches. Each has its own launch secret, principal, ticket, profile, UDP auth
 and backend sockets, and HTTP configuration origin. Only the bounded Gold
 registration registry is shared. Credentials and tickets from another launch
 are rejected. Registration authority remains the exact authenticated connection;
-another fully logged-in peer cannot read, update, delete or claim its host record.
+another fully logged-in peer cannot update, delete or claim its host record.
+Only explicitly eligible public title records and their registered endpoint are
+readable through the opt-in peer laboratory's discovery routes.
 Disconnect and expiry remove only that connection's records. Endpoints bind only
 to IPv4 loopback; this service does not yet admit peer joins or History clients.
 
@@ -28,14 +30,38 @@ only indexed endpoint triples. Set each child's existing `WEPLAY_GOLD_LOCAL_NAME
 `WEPLAY_GOLD_LOCAL_SECRET`, `WEPLAY_GOLD_LOCAL_PORT` and `WEPLAY_GOLD_CONFIG_PORT`
 to that launch's own values. Never give another client the host's secret.
 
-Six synthetic tests use actual loopback sockets to check independent logins,
+Ten synthetic tests use actual loopback sockets to check independent logins,
 ticket/credential rejection, native configuration routing, connection ownership,
 disconnect/expiry isolation and input bounds. The existing 40 login, account,
 registration and codec tests also pass. Separately, the actual DXVK Gold client
 completed its native account login, opened the Session Browser and created a
 named host lobby on this service. It exited normally; all 16 backed-up shared
 profile/save files were unchanged. The second configured identity remained
-unused in that game test. See the [peer-service receipt](verification/gold-peers-20261111.json).
+unused in that initial game test. See the [peer-service receipt](verification/gold-peers-20261111.json).
+
+The subsequent native account change accepts one bounded printable ASCII launch
+name per process instead of requiring the original fixed label. The facade's
+original string constructors, SDK login and authenticated native player creation
+now use the same independent name. Re-login and vendor authentication remain
+outside this local adapter. Native fixtures cover one-, thirteen- and 64-character
+labels, malformed names, stack/nonvolatile registers and the SDK-only regression.
+
+Two actual Gold clients subsequently completed independent account logins at the
+same time, with separate executable-derived profiles, secrets and endpoints.
+Both used DXVK at 1920x1080 with High settings. One created the original named
+Monheim host lobby. The other's native browser accepted the `121/1` dynamic
+session catalogue and requested `21/16` host URLs. The service now returns that
+exact native StationURL list shape; `121/5` returns the genuinely empty recent
+session history. Publication requires a live authenticated owner, claimed host,
+open public slots, version 16 and populated title hashes/map. Leaving, expiry,
+private/full/started sessions and malformed queries exclude publication.
+
+In actual pair test 76, catalogue and endpoint requests succeeded, but the native
+browser still showed no selectable session. Endpoint reachability and the later
+peer join are **not qualified**. No participant or match was created on the
+searching client. Both processes exited normally and all 16 shared files checked
+by each runner remained unchanged. See the
+[two-client receipt](verification/gold-discovery-20261111.json).
 
 The original multiplayer Start button also correctly refused a sole human with
 an AI: it requires another human participant. That is a legitimate prerequisite,

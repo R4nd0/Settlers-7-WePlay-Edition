@@ -188,6 +188,7 @@ class Connection:
     next_in: int = 2
     next_out: int = 1
     registered: bool = False
+    public_url: str | None = None
     fragments: bytes = b""
     fragment_next: int = 1
     fragment_until: float = 0
@@ -306,9 +307,60 @@ class GoldLoginAdapter:
             self.registered = True
             if state is not None:
                 state.registered = True
+                state.public_url = url
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
+            if (self.gatherings is not None and self.gatherings.discovery
+                    and (protocol, method) == (21, 16)):
+                if state.closed or not state.connected or state.expires <= now:
+                    return rpc_rejection(protocol, call)
+                try:
+                    reader = Reader(args)
+                    identifier = reader.u32()
+                    reader.finish()
+                    urls = self.gatherings.session_urls(identifier, now)
+                    # Native CB18B0 sends the sole gathering u32. Its method-16
+                    # response dispatches through CB61C0 to CB5D40: list count,
+                    # then each StationURL's QString (C6A390), with no bool.
+                    arguments = struct.pack("<I", len(urls)) + b"".join(text(url) for url in urls)
+                except (ValueError, struct.error, UnicodeError):
+                    self.event("local_session_urls_rejected")
+                    return rpc_rejection(protocol, call)
+                self.event("local_session_urls_read")
+                return rpc_response(protocol, call, method, arguments)
+            if (self.gatherings is not None and self.gatherings.discovery
+                    and protocol == 121 and method in (1, 5)):
+                if state.closed or not state.connected or state.expires <= now:
+                    return rpc_rejection(protocol, call)
+                try:
+                    reader = Reader(args)
+                    if method == 1:
+                        # Native ACA770: ResultRange's two u32s, then the
+                        # title's protocol-version constant (16). ACB100/150
+                        # write/read a count followed by dynamic holders.
+                        offset, count, version = reader.u32(), reader.u32(), reader.u32()
+                        reader.finish()
+                        values = self.gatherings.catalogue(offset, count, version, now)
+                        from gathering_codec import encode as encode_gathering
+                        arguments = struct.pack("<I", len(values)) + b"".join(
+                            encode_gathering(value) for value in values)
+                        event = "local_session_catalogue_read"
+                    else:
+                        # Native ACADB0: the original browser asks for kind 5
+                        # (recent sessions). This disposable service retains no
+                        # match history; the native result uses the same list.
+                        kind, version = reader.take(1)[0], reader.u32()
+                        reader.finish()
+                        if kind != 5 or version != 16:
+                            raise ValueError("Unsupported local history query")
+                        arguments = struct.pack("<I", 0)
+                        event = "local_recent_sessions_read"
+                except (ValueError, struct.error, UnicodeError):
+                    self.event("local_session_query_rejected")
+                    return rpc_rejection(protocol, call)
+                self.event(event)
+                return rpc_response(protocol, call, method, arguments)
             if self.gatherings is not None and protocol == 21 and method in (1, 2, 4, 11, 12, 17, 21, 40):
                 if state.closed or not state.connected or state.expires <= now:
                     return rpc_rejection(protocol, call)

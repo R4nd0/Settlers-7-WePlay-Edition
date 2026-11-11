@@ -186,10 +186,10 @@ void LocalLoginPoll() {
 #include "gold_participant.inc"
 
 bool AccountLoginPrepare(std::vector<Patch>& patches) {
-    // Gold's existing local identity adapter uses this exact independent name.
-    // Re-login, another identity, persistent progression and lobby admission
-    // require their own lifecycle implementation, not changed account flags.
-    if (strcmp(local_login_name, "WePlayGoldLocal")) return false;
+    // One independent launch identity per process, shared by the original
+    // facade labels, authenticated SDK login and native player creation.
+    // This does not enable re-login, persistent progression or peer admission.
+    if (!ConfigureLocalIdentity(local_login_name)) return false;
     char port[8]{};
     const DWORD length = GetEnvironmentVariableA("WEPLAY_GOLD_CONFIG_PORT", port, 8);
     if (!length || length >= 8) return false;

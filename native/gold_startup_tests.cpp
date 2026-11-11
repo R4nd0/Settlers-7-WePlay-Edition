@@ -15,12 +15,16 @@ void* assigned = nullptr;
 const char* appended_text = nullptr;
 const wchar_t* assigned_text = nullptr;
 unsigned int assigned_length = 0;
+void __cdecl FakeAppendName(GoldStartup::AsciiString* output, const char* text) {
+    appended = output; appended_text = text;
+    output->length = static_cast<unsigned int>(strlen(text));
+}
 __declspec(naked) void FakeAppend() {
     __asm {
-        mov appended, eax
-        mov edx, dword ptr [esp + 4]
-        mov appended_text, edx
-        mov dword ptr [eax + 8], 15
+        push dword ptr [esp + 4]
+        push eax
+        call FakeAppendName
+        add esp, 8
         ret 4
     }
 }
@@ -50,7 +54,9 @@ void Setup() {
         call InitOrbitBridge
     }
 }
-bool IdentityAbi() {
+bool IdentityAbi(const char* expected_name = "WePlayGoldLocal",
+    const wchar_t* expected_display = L"WePlay Gold Local") {
+    name = {}; ticket = {}; display = {}; display.capacity = 7;
     auto* at=reinterpret_cast<unsigned char*>(image+0xe577);
     at[0]=0xe8;
     const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(LocalIdentityBridge)-reinterpret_cast<uintptr_t>(at)-5);
@@ -76,8 +82,8 @@ bool IdentityAbi() {
         mov after, esp
     }
     return before==after && observed_bx==0x12345678 && observed_si==0x34567890 && observed_di==0x56789012
-        && appended==&name && assigned==&display && assigned_length==17
-        && !strcmp(appended_text,"WePlayGoldLocal") && !wcscmp(assigned_text,L"WePlay Gold Local")
+        && appended==&name && assigned==&display && assigned_length==wcslen(expected_display)
+        && !strcmp(appended_text,expected_name) && !wcscmp(assigned_text,expected_display)
         && !ticket.length && !identity_active.load();
 }
 bool CloudSaveAbi(uintptr_t rva) {

@@ -27,6 +27,29 @@ std::atomic<LONG> initialized{0};
 std::atomic<LONG> identity_active{0};
 GoldProfile::Names profile_names{};
 HANDLE renderer_file = INVALID_HANDLE_VALUE;
+char local_identity_name[65] = "WePlayGoldLocal";
+wchar_t local_identity_display[65] = L"WePlay Gold Local";
+unsigned int local_identity_name_length = 15, local_identity_display_length = 17;
+
+#ifdef S7_GOLD_ACCOUNT_LOGIN
+bool ConfigureLocalIdentity(const char (&launch_name)[65]) {
+    const size_t length = strnlen_s(launch_name, sizeof(launch_name));
+    if (!length || length >= sizeof(launch_name)) return false;
+    for (size_t i = 0; i < length; ++i)
+        if (launch_name[i] < 32 || launch_name[i] > 126) return false;
+    strcpy_s(local_identity_name, launch_name);
+    local_identity_name_length = static_cast<unsigned int>(length);
+    if (!strcmp(launch_name, "WePlayGoldLocal")) {
+        wcscpy_s(local_identity_display, L"WePlay Gold Local");
+        local_identity_display_length = 17;
+    } else {
+        for (size_t i = 0; i <= length; ++i)
+            local_identity_display[i] = static_cast<wchar_t>(launch_name[i]);
+        local_identity_display_length = static_cast<unsigned int>(length);
+    }
+    return true;
+}
+#endif
 
 __declspec(noreturn) void Stop() {
     TerminateProcess(GetCurrentProcess(), Failure);
@@ -100,18 +123,19 @@ void __cdecl LocalIdentity(void* outer, GoldStartup::AsciiString* ticket,
         || !GoldStartup::EmptyOutputs(name, display, ticket)) Stop();
     // These are local labels. The legacy ticket stays empty and no Ubisoft
     // account, session, ownership result or credential is manufactured.
-    const char* local_name = "WePlayGoldLocal";
-    const wchar_t* local_display = L"WePlay Gold Local";
+    const char* local_name = local_identity_name;
+    const wchar_t* local_display = local_identity_display;
     __asm {
         mov eax, name
         push local_name
         call dword ptr [ascii_append]
-        mov ecx, 17
+        mov ecx, local_identity_display_length
         push local_display
         push display
         call dword ptr [wide_assign]
     }
-    if (ticket->length || name->length != 15 || display->length != 17) Stop();
+    if (ticket->length || name->length != local_identity_name_length
+        || display->length != local_identity_display_length) Stop();
     identity_active.store(0);
 }
 __declspec(naked) void LocalIdentityBridge() {
