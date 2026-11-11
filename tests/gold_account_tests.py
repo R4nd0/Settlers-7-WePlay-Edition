@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/gold"))
 import account_config
 import account_profile
 import login_server as gold
+import gathering_codec
 import gold_login_tests as fixture
 
 request = fixture.request
@@ -90,6 +91,21 @@ class AccountTests(unittest.TestCase):
                                 and isinstance(count, int) for shape, count in records.items()))
             self.assertNotIn(sentinel.decode(), repr(records))
         self.assertEqual(self.adapter.profile.title_option, 0)
+
+    def test_gathering_decode_is_passive_and_requires_this_registration(self):
+        value = gathering_codec.Gathering((0,) * 7, (0, 4), "Local", b"opaque")
+        data = gathering_codec.encode(value)
+        server = self.register()
+        reply = self.send(server, 3, 21, 1, data)
+        self.assertEqual(gold.unwrap(reply[1][13:-1])[4:6], b"\x15\0")
+        self.assertEqual(self.adapter.events["gathering_shape_valid"], 1)
+        reply = self.send(server, 4, 21, 1, data[:-1])
+        self.assertEqual(gold.unwrap(reply[1][13:-1])[4:6], b"\x15\0")
+        self.assertEqual(self.adapter.events["gathering_shape_rejected"], 1)
+        self.backend = "127.0.0.1", 51002
+        unregistered = self.connect(True)
+        self.send(unregistered, 2, 21, 1, data)
+        self.assertEqual(self.adapter.events["gathering_shape_valid"], 1)
         self.assertIsNone(gold.GoldLoginAdapter("local-fixture", "a" * 64, 55123).profile)
 
     def test_fragmented_profile_round_trip_duplicate_reordering_and_acks(self):

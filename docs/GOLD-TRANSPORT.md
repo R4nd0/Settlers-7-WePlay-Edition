@@ -8,6 +8,48 @@ Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
+## Owned Gold registrations, 2026-11-11
+
+`--account-mode --session-mode` adds an isolated registration laboratory. The
+native `21/1` request creates an actual in-memory record, returns its allocated
+u32 identifier and binds authority to the authenticated connection object.
+Only that connection may remove it or participate as its own host. Replayed
+transport packets return the retained reply without repeating the mutation;
+another connection, even with the same local principal, cannot claim ownership.
+Disconnect and expiry remove owned registrations. Identifiers never wrap or
+recycle during the service lifetime; records and one-registration-per-owner
+are bounded. This is not peer joining or network game admission.
+
+The codec covers `DynamicGathering`, `S7Session` and `S7SessionMM`. It preserves
+the original scalar order, nullable versus empty QStrings, UTF-8 byte bounds,
+canonical serialized booleans and raw dynamic attribute tail. Holder length and
+the nested OutputStream length must both match exactly. Native `C646D0` fills
+that inner length; treating stream finalization as a no-op gives an incorrect
+wire shape. The comparison harness now executes the original finalization and
+checks 156 authored writer cases, including null/empty/Unicode strings and both
+session variants. Borrowed QString lifetime, stream construction/destruction,
+arena allocation, reserve, memcpy and Windows text conversion are stubbed;
+this is not a full native session or reader test.
+
+The separate DXVK client accepted registration `21/1`, own-host participation
+`21/11` and the owner-control RPC `21/40` used by its original host workflow.
+Earlier rejection tests cancelled participation and removed the registration.
+The final client read the actual stored record with `21/21` and opened its
+original Host Match screen. Its own player row remained an open slot; no match
+was started. Back cancelled participation, and normal disconnect removed the
+remaining record. The client exited with code 0 and all 16 backed-up shared
+profile/save files unchanged. This does not establish a populated lobby.
+The service has no predefined `S7Multiplayer` groups and returns an empty,
+bounded catalogue for that exact group query. It does not publish unqualified
+session metadata or fabricate a group to make the query nonempty. See the
+[sanitized registration receipt](verification/gold-registration-20261111.json).
+
+Gold's unresolved title fields remain positional; decoded fields do not grant
+authority, validate map content, or translate to History identities. The shared
+History registry, peer join/endpoint exchange and common simulation transport
+are still outstanding. Neither History client has been tested with Gold at this
+checkpoint.
+
 ## Original account integration, 2026-11-10
 
 The account mode restores the original `IsLoggedIn` Lua binding's boolean

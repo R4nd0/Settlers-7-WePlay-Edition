@@ -196,8 +196,9 @@ class Connection:
 
 
 class GoldLoginAdapter:
-    """One disposable local principal. No lobbies, ownership claims or vendor login."""
-    def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False):
+    """One disposable local principal; optional owned registration laboratory."""
+    def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False,
+                 session_mode: bool = False):
         self.username = username.encode("ascii")
         self.password = password.encode("ascii")
         if (not 1 <= len(self.username) <= 64 or b"\0" in self.username
@@ -214,6 +215,12 @@ class GoldLoginAdapter:
         self.connections: dict[tuple[bool, tuple[str, int]], Connection] = {}
         self.registered = False
         self.profile = None
+        self.gatherings = None
+        if session_mode:
+            if not account_mode:
+                raise ValueError("Local registrations require account mode")
+            from local_gatherings import LocalGatherings
+            self.gatherings = LocalGatherings()
         if account_mode:
             from account_profile import LocalProfile
             self.profile = LocalProfile(username)
@@ -298,6 +305,84 @@ class GoldLoginAdapter:
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
+            if self.gatherings is not None and protocol == 21 and method in (1, 2, 11, 12, 17, 21, 40):
+                if state.closed or not state.connected or state.expires <= now:
+                    return rpc_rejection(protocol, call)
+                try:
+                    if method == 1:
+                        identifier = self.gatherings.create(state, self.principal, args, Reader)
+                        arguments = struct.pack("<I", identifier)
+                        event = "gathering_registered"
+                    elif method == 2:
+                        reader = Reader(args)
+                        identifier = reader.u32()
+                        reader.finish()
+                        removed = self.gatherings.remove(state, identifier)
+                        arguments = bytes((removed,))
+                        event = "gathering_removed" if removed else "gathering_remove_rejected"
+                    elif method in (11, 12):
+                        reader = Reader(args)
+                        identifier = reader.u32()
+                        # Only the original own-host empty message is qualified.
+                        if reader.text(256):
+                            raise ValueError("Unsupported participation message")
+                        reader.finish()
+                        accepted = self.gatherings.participate(state, identifier, method == 11)
+                        arguments = bytes((accepted,))
+                        event = ("gathering_owner_participated" if method == 11 else
+                            "gathering_owner_left") if accepted else "gathering_participation_rejected"
+                    elif method == 17:
+                        reader = Reader(args)
+                        kind = reader.text(64)
+                        offset, count = reader.u32(), reader.u32()
+                        reader.finish()
+                        # No predefined S7Multiplayer groups are installed in
+                        # this disposable service. Registered S7Session objects
+                        # are a different type and are not published here.
+                        if kind != b"S7Multiplayer" or offset > 4096 or count > 64:
+                            raise ValueError("Unsupported group catalogue query")
+                        arguments = struct.pack("<I", 0)
+                        event = "gathering_multiplayer_group_catalogue_read"
+                    elif method == 21:
+                        from gathering_codec import encode as encode_gathering
+                        reader = Reader(args)
+                        identifier = reader.u32()
+                        reader.finish()
+                        value = self.gatherings.get_owned(state, identifier)
+                        arguments = b"\1" + encode_gathering(value)
+                        event = "gathering_owned_record_read"
+                    else:
+                        reader = Reader(args)
+                        identifier = reader.u32()
+                        reader.finish()
+                        self.gatherings.claim_host(state, identifier)
+                        arguments = b""
+                        event = "gathering_owner_host_claimed"
+                except (ValueError, struct.error, UnicodeError):
+                    self.event("gathering_registration_rejected")
+                    return rpc_rejection(protocol, call)
+                self.event(event)
+                return rpc_response(protocol, call, method, arguments)
+            if (protocol, method) == (21, 1):
+                # Passive schema qualification only. The request still reaches
+                # the explicit unsupported rejection below; no session is made.
+                from gathering_codec import decode as decode_gathering
+                try:
+                    decode_gathering(args, Reader)
+                except (ValueError, struct.error, UnicodeError) as error:
+                    self.event("gathering_shape_rejected")
+                    # Fixed categories only; never include payload-derived text.
+                    reasons = {"Gathering string bound": "string_bound",
+                        "Unsupported gathering class": "class",
+                        "Gathering body bound": "body_bound",
+                        "Trailing arguments": "trailing", "Truncated argument": "truncated",
+                        "Gathering string terminator": "terminator",
+                        "Gathering stream length mismatch": "stream_length",
+                        "Noncanonical gathering boolean": "boolean"}
+                    reason = reasons.get(str(error), "other")
+                    self.event("gathering_rejection_" + reason)
+                else:
+                    self.event("gathering_shape_valid")
             try:
                 result = self.profile.response(protocol, method, args, Reader)
             except (ValueError, struct.error, UnicodeError):
@@ -324,6 +409,10 @@ class GoldLoginAdapter:
         stage = "packet"
         try:
             packet = decode(data)
+            if self.gatherings is not None:
+                for expired in self.connections.values():
+                    if expired.expires <= now:
+                        self.gatherings.remove_owner(expired)
             self.connections = {k: v for k, v in self.connections.items() if v.expires > now}
             key = backend, peer
             if packet.kind == 0:
@@ -443,6 +532,8 @@ class GoldLoginAdapter:
             if packet.kind == 3 and packet.flags == 48 and not packet.payload:
                 # Keep the record for duplicate disconnect ACKs until its TTL.
                 state.closed = True
+                if self.gatherings is not None:
+                    self.gatherings.remove_owner(state)
                 state.pending.clear()
                 state.fragments = b""
                 state.history.clear()
@@ -458,6 +549,8 @@ class GoldLoginAdapter:
         replies = []
         for (backend, peer), state in self.connections.items():
             if state.closed or state.expires <= now:
+                if self.gatherings is not None:
+                    self.gatherings.remove_owner(state)
                 state.pending.clear()
                 continue
             for sequence, (packet, due, attempts) in list(state.pending.items()):
@@ -473,14 +566,15 @@ class GoldLoginAdapter:
 
 
 def serve(username: str, password: str, ready: Path, report: Path, duration: int,
-          *, account_mode: bool = False) -> None:
+          *, account_mode: bool = False, session_mode: bool = False) -> None:
     if not 1 <= duration <= 600:
         raise ValueError("Duration must be bounded to 1..600 seconds")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as auth, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as backend:
         for sock in (auth, backend):
             sock.bind(("127.0.0.1", 0))
             sock.setblocking(False)
-        adapter = GoldLoginAdapter(username, password, backend.getsockname()[1], account_mode=account_mode)
+        adapter = GoldLoginAdapter(username, password, backend.getsockname()[1],
+            account_mode=account_mode, session_mode=session_mode)
         config_context = nullcontext(None)
         if account_mode:
             from account_config import ConfigService
@@ -512,6 +606,7 @@ def serve(username: str, password: str, ready: Path, report: Path, duration: int
                     "config_responses": config.responses if config is not None else 0,
                     "config_rejections": config.rejections if config is not None else {},
                     "config_host_rejections": config.host_rejections if config is not None else {},
+                    "local_registrations": len(adapter.gatherings.records) if adapter.gatherings is not None else 0,
                     "raw_payload_saved": False, "game_session_admission": False}), encoding="utf-8")
 
 
@@ -521,10 +616,14 @@ def main() -> None:
     parser.add_argument("--report-file", required=True, type=Path)
     parser.add_argument("--duration", type=int, default=120)
     parser.add_argument("--account-mode", action="store_true", help="Fresh in-memory local account prototype; no lobby/progression admission")
+    parser.add_argument("--session-mode", action="store_true", help="Connection-owned registration prototype; no peer/game admission")
     args = parser.parse_args()
+    if args.session_mode and not args.account_mode:
+        parser.error("--session-mode requires --account-mode")
     password = os.environ.pop("WEPLAY_GOLD_LOCAL_SECRET", "")
     username = os.environ.pop("WEPLAY_GOLD_LOCAL_NAME", "WePlayGoldLocal")
-    serve(username, password, args.ready_file, args.report_file, args.duration, account_mode=args.account_mode)
+    serve(username, password, args.ready_file, args.report_file, args.duration,
+        account_mode=args.account_mode, session_mode=args.session_mode)
 
 
 if __name__ == "__main__":

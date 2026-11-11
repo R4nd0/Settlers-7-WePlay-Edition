@@ -1,0 +1,38 @@
+{
+  "format": "s7-gold-registration-verification-v1",
+  "date": "2026-11-11",
+  "native_sha256": "95d95fbd3edab5e6a39de9ec653bf3a3133d77d9f6b11956e623397bb6dfeaa0",
+  "renderer": "DXVK",
+  "legacy_fallback": false,
+  "loopback_only": true,
+  "observed": {
+    "registration_created": true,
+    "own_participation_accepted": true,
+    "own_host_control_accepted": true,
+    "empty_predefined_group_catalogue_read": true,
+    "owned_record_read": true,
+    "original_host_match_screen_opened": true,
+    "own_player_row_populated": false,
+    "match_started": false,
+    "back_cancelled_participation": true,
+    "disconnect_removed_registration": true,
+    "remaining_registrations": 0,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true
+  },
+  "synthetic_checks": {
+    "native_writer_cases": 156,
+    "gathering_tests": 7,
+    "registration_tests": 8,
+    "account_tests": 11,
+    "login_tests": 11,
+    "native_reader_emulated": false
+  },
+  "working_catalogue": false,
+  "game_session_admission": false,
+  "gold_ubisoft_history_match_observed": false,
+  "gold_steam_history_match_observed": false,
+  "raw_payload_saved": false,
+  "account_data_included": false
+}
