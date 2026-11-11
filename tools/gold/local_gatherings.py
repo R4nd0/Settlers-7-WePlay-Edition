@@ -61,6 +61,14 @@ class LocalGatherings:
             raise ValueError("Local host endpoint unavailable")
         return (url,)
 
+    def principal_urls(self, principal, now):
+        # Only a currently published host may be resolved by another launch.
+        # The registration's authenticated owner supplies both PID and URL.
+        records = [record for record in self.records.values() if record.principal == principal]
+        if len(records) != 1:
+            raise ValueError("Local host unavailable")
+        return self.session_urls(records[0].identifier, now)
+
     def create(self, owner, principal, data, reader_type):
         value = decode(data, reader_type)
         previous = [record for record in self.records.values() if record.owner is owner]

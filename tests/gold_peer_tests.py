@@ -174,6 +174,7 @@ class PeerTests(unittest.TestCase):
         url = reader.text(256).decode("ascii")
         reader.finish()
         self.assertEqual(url, record.owner.public_url)
+        self.assertTrue(url.startswith("prudp:/"))
         self.assertIn(f"port={host.sockets[1].getsockname()[1]};", url)
         self.assertIn(f"PID={host.principal};", url)
         self.assertIn(f"RVCID={self.service.adapters[0].connection_id};", url)
@@ -185,6 +186,43 @@ class PeerTests(unittest.TestCase):
             self.assertIs(self.service.gatherings.records[identifier], record)
         host.rpc(True, 21, 12, struct.pack("<I", identifier) + gold.text(""))
         self.assertEqual(guest.rpc(True, 21, 16, struct.pack("<I", identifier))[4:6], b"\x15\0")
+
+    def test_native_principal_endpoint_query_is_bounded_and_revoked(self):
+        self.authenticate()
+        host, guest = self.clients
+        identifier = self.host(host)
+        record = self.service.gatherings.records[identifier]
+        query = struct.pack("<II", 0, host.principal)
+        response = guest.rpc(True, 11, 3, query)
+        self.assertEqual(response[4:6], b"\x0b\1")
+        self.assertEqual(response[14:], b"\1" + struct.pack("<I", 1) + gold.text(record.owner.public_url))
+        for args in (b"", query[:-1], query + b"x", struct.pack("<II", 1, host.principal),
+                struct.pack("<II", 0, guest.principal), struct.pack("<II", 0, 0)):
+            self.assertEqual(guest.rpc(True, 11, 3, args)[4:6], b"\x0b\0")
+            self.assertIs(self.service.gatherings.records[identifier], record)
+        host.rpc(True, 21, 12, struct.pack("<I", identifier) + gold.text(""))
+        self.assertEqual(guest.rpc(True, 11, 3, query)[4:6], b"\x0b\0")
+
+    def test_principal_endpoint_query_requires_live_published_host_and_requester(self):
+        self.authenticate()
+        host, guest = self.clients
+        identifier = self.host(host)
+        record = self.service.gatherings.records[identifier]
+        registry = self.service.gatherings
+        self.assertEqual(registry.principal_urls(host.principal, 0), (record.owner.public_url,))
+        self.assertRaises(ValueError, registry.principal_urls, host.principal, record.owner.expires)
+        registry.records[identifier] = replace(record, host_claimed=False)
+        self.assertRaises(ValueError, registry.principal_urls, host.principal, 0)
+        registry.records[identifier] = record
+        state = next(value for (backend, _peer), value in self.service.adapters[1].connections.items() if backend)
+        query = fixture.request(11, 777, 3, struct.pack("<II", 0, host.principal))
+        for attribute, value in (("closed", True), ("connected", False), ("expires", 0)):
+            prior = getattr(state, attribute)
+            setattr(state, attribute, value)
+            reply = gold.unwrap(self.service.adapters[1].response(True,
+                guest.sockets[1].getsockname(), query, 1, state))
+            self.assertEqual(reply[4:6], b"\x0b\0")
+            setattr(state, attribute, prior)
 
     def test_independent_login_ticket_profile_and_shared_owner_authority(self):
         self.authenticate()

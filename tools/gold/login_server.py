@@ -302,8 +302,12 @@ class GoldLoginAdapter:
             for _ in range(count):
                 reader.text(256)
             reader.finish()
-            url = (f"prudps:/address=127.0.0.1;port={peer[1]};CID=1;PID={self.principal};"
+            url = (f"prudp:/address=127.0.0.1;port={peer[1]};CID=1;PID={self.principal};"
                    f"RVCID={self.connection_id};sid=15;stream=3;type=3")
+            # Peer stations use Gold's plain PRUDP scheme, as supplied by the
+            # native registration. C97F40's initial traversal batches support
+            # scheme 1 (prudp), not scheme 2 (prudps). Login's server URL above
+            # remains prudps and requires the independent ticket challenge.
             # Gold C32E50 reads the distinct RVCID key (initialized at E8DA00).
             # NATTraversalEngine C97EB0 rejects a missing/zero RVCID before
             # sending its echo. Use the same server-issued registration ID;
@@ -315,6 +319,25 @@ class GoldLoginAdapter:
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
+            if (self.gatherings is not None and self.gatherings.discovery
+                    and (protocol, method) == (11, 3)):
+                if state.closed or not state.connected or state.expires <= now:
+                    return rpc_rejection(protocol, call)
+                try:
+                    reader = Reader(args)
+                    selector, principal = reader.u32(), reader.u32()
+                    reader.finish()
+                    if selector != 0:
+                        raise ValueError("Unsupported local endpoint selector")
+                    urls = self.gatherings.principal_urls(principal, now)
+                    # C6AF00/CDBE40: zero selector and host PID. Method 3's
+                    # CDCBE0 response reads a bool, then CB5D40's URL list.
+                    arguments = b"\1" + struct.pack("<I", len(urls)) + b"".join(text(url) for url in urls)
+                except (ValueError, struct.error, UnicodeError):
+                    self.event("local_principal_urls_rejected")
+                    return rpc_rejection(protocol, call)
+                self.event("local_principal_urls_read")
+                return rpc_response(protocol, call, method, arguments)
             if (self.gatherings is not None and self.gatherings.discovery
                     and (protocol, method) == (21, 16)):
                 if state.closed or not state.connected or state.expires <= now:

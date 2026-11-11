@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "date": "2026-11-11",
+  "component": "Gold native peer station scheme and principal endpoint resolution",
+  "synthetic_verification": {
+    "peer_tests": 13,
+    "existing_gold_tests": 40,
+    "malformed_unknown_released_expired_and_unpublished_hosts_rejected": true,
+    "live_authenticated_requester_required": true
+  },
+  "actual_game_verification": {
+    "pair_case": 83,
+    "gold_clients": 2,
+    "independent_native_logins": true,
+    "dxvk": true,
+    "resolution": "1920x1080",
+    "quality": "high",
+    "legacy_fallback": false,
+    "metadata_only_native_diagnostic": true,
+    "native_named_host_lobby_created": true,
+    "native_ping_valid": true,
+    "principal_endpoint_query_answered": true,
+    "selectable_browser_entry_observed": true,
+    "map": "Monheim Valley",
+    "players_displayed": "1/4",
+    "host_name_displayed": false,
+    "join_attempt": "Session no longer exists",
+    "peer_join_succeeded": false,
+    "exit_codes": [0, 0],
+    "shared_files_checked_per_process": 16,
+    "shared_files_unchanged": true
+  },
+  "limits": {
+    "loopback_only": true,
+    "gameplay_transport_implemented": false,
+    "history_clients_launched": 0,
+    "gold_history_crossplay_verified": false,
+    "raw_payloads_saved": false
+  }
+}

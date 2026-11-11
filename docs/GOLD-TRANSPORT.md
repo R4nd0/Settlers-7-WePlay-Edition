@@ -79,6 +79,25 @@ not evidence of another turn-zero stall. No participant or readiness gate was
 fabricated or removed. Genuine peer discovery, join and simulation transport
 are still required before Gold/History matches can be tested.
 
+The next native endpoint correction distinguishes the secure login-server URL
+(`prudps`) from a registered player's station (`prudp`). Gold's initial NAT
+traversal batching at `C97F40` supports the latter scheme. The opt-in laboratory
+also answers the subsequent `11/3` query: zero selector and authenticated host
+principal, returning a bool followed by the native StationURL list. Resolution
+requires a currently published, live host and a live authenticated requester;
+unknown, released and expired hosts and malformed queries are rejected.
+
+In actual pair 83, both original clients logged in under DXVK High at 1920x1080.
+The searching client displayed an actual selectable Monheim Valley row with
+1/4 players and a valid native ping. Its host-name field remained empty. Joining
+then failed with the original "Session no longer exists" dialog: the later
+foreign-record read remains excluded. This establishes discovery and endpoint
+resolution, not peer admission or a network match. Thirteen synthetic peer tests
+and the existing 40 Gold tests passed. A metadata-only diagnostic native build
+was used for this game observation; no ping/readiness/participant was fabricated.
+Both clients exited normally with all 16 shared files checked by each runner
+unchanged. See the [endpoint receipt](verification/gold-peer-endpoints-20261111.json).
+
 ## Native local player identity, 2026-11-11
 
 The opt-in account adapter now supplies its independent launch name when Gold
