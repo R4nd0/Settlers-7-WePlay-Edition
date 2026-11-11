@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-11",
+  "scope": "private loopback roster, backend host projection and native lobby chat",
+  "ordinary_adapter_builds_changed": false,
+  "source_data": "Steam History",
+  "runtime_profile": "Ubisoft History",
+  "steam_client_required_by_standalone": false,
+  "steam_client_closed_for_test": false,
+  "standalone_copy_files_hash_verified": 54,
+  "steam_sdk_in_standalone_copy": false,
+  "renderer": "DXVK",
+  "quality": "High",
+  "resolution": "1920x1080",
+  "runtime": {
+    "original_native_rosters_bound": true,
+    "native_preparation_ids_slots_and_human_states_equal": true,
+    "history_backend_recognizes_gold_host": true,
+    "verified_by_read_only_owned_process_inspection": true,
+    "steam_api_loaded_in_either_game": false,
+    "test_copy_d3d9_loaded_in_both_games": true,
+    "actual_ui_chat_messages_per_direction": 1,
+    "each_message_visible_once_in_both_windows": true,
+    "authenticated_records_before_shutdown": 9,
+    "rejections_before_shutdown": 0,
+    "shutdown_retirement_rejections": 1,
+    "exit_codes": [0, 0],
+    "profiles_options_and_adapters_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true,
+    "world_started": false
+  },
+  "offline_guard_checks": {
+    "history_role_method_checks": 52,
+    "checks_per_history_profile": 26,
+    "native_methods_guarded_per_profile": 8,
+    "codec_abi_range_and_ownership_checks": 28,
+    "original_game_code_executed_by_role_guard_test": false
+  },
+  "original_steam_executable_runtime": {
+    "attempt_exited_before_menu": true,
+    "mixed_runtime_qualified": false
+  },
+  "native_guest_ui_and_join_lifecycle_qualified": false,
+  "native_ready_qualified": false,
+  "gameplay_content_qualified": false,
+  "mixed_gameplay_qualified": false
+}

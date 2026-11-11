@@ -13,7 +13,7 @@ extern "C" __declspec(dllexport) uint32_t __cdecl WePlayCodecTablesOracle(uint32
     return CrossplayNativeCodec::Detail::Tables(CrossplayNativeCodec::Detail::ChatPin(edition),edition)?1u:0u;
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl WePlayHistoryRoleMethodsOracle(uint32_t value) {
-    return value==2 && CrossplayNative::HistoryRoleDetail::Methods()?1u:0u;
+    return CrossplayNative::HistoryRoleDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
 }
 
 namespace {

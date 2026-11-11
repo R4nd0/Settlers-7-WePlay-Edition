@@ -240,8 +240,9 @@ remote slot from `CSessionConfig` using StationID; a preassigned field in a
 remote event does not bypass that lookup. The real preparation state must
 agree on both engines before world event transport is enabled.
 
-`native/crossplay_history_role.h` adds an excluded, one-shot Ubisoft guest
+`native/crossplay_history_role.h` adds an excluded, one-shot History guest
 backend projection for an already authenticated, exact two-member roster.
+Ubisoft and native Steam images have independent address and method guards.
 It checks the fingerprinted process, owner thread, native guest/host members,
 backend session class and local CID before calling the original host-CID setter
 with the admitted foreign CID. The local CID and backend principals stay
@@ -254,15 +255,45 @@ inspection confirmed the backend changed from host to guest while both
 preparation player IDs and slots still matched. An actual chat message in each
 direction remained visible once in both windows. Nine records completed without
 a pre-shutdown rejection; both clients closed normally with restored profiles
-and unchanged saves/cloud/shared files. The subsequently expanded inner-method
-guards have 26 compiled offline mutation/range checks, alongside the 28 x86
-ABI/range checks above. This is host projection, not the complete native guest
-join lifecycle. UI transition, session replacement/departure and Steam mapping
+and unchanged saves/cloud/shared files. The expanded inner-method guards have
+52 compiled offline mutation/range checks (26 per History image), alongside
+the 28 x86 ABI/range checks above. The Ubisoft path also passed the later
+standalone-data runtime below. Native Steam coverage remains offline only.
+This is host projection, not the complete native guest join lifecycle.
+UI transition, session replacement/departure and native Steam runtime coverage
 still need integration before this helper can enter ordinary builds.
 
 ```powershell
-python tools/gold/verify_history_role_guards.py --ubisoft <ubisoft-original.exe> --thunk-executable work/crossplay-build/crossplay_event_codec_tests.exe work/history-role-guard-receipt.json
+python tools/gold/verify_history_role_guards.py --ubisoft <ubisoft-original.exe> --steam-analysis <steam-unpacked-analysis.exe> --thunk-executable work/crossplay-build/crossplay_event_codec_tests.exe work/history-role-guard-receipt.json
 ```
+
+## Client-free Steam-data standalone runtime
+
+The standalone target does not require the Steam client. Its existing private
+Steam-data conversion uses the owned Ubisoft startup image after checking the
+shared original assets; see [standalone integration](PRIVATE-STANDALONE.md).
+Data source and executable profile are separate: this path uses the Ubisoft
+native ABI, and cannot qualify the original Steam executable's ABI at runtime.
+
+A fresh separate copy of that client-free Steam-data standalone passed the
+Gold pair test under DXVK High at 1920x1080. Both original native rosters bound;
+read-only inspection verified matching preparation IDs, slots and human states,
+and History's original backend recognized the foreign Gold host. One actual
+UI chat message in each direction appeared once in both windows. Neither game
+loaded `steam_api.dll` or `steam_api64.dll`; both loaded their test-copy D3D9
+module. The Steam client was not closed or modified for this test, so it is not
+a new client-absent environment test.
+
+Nine authenticated records completed with no pre-shutdown rejection and one
+normal retirement rejection. Both clients exited normally; profiles, adapters
+and options were restored, and saves, cloud and shared files remained unchanged.
+No world was started. The original Steam-executable attempt had exited before
+its menu and established no mixed runtime result. Neither result establishes
+native Ready, a complete guest UI/join lifecycle, compatible gameplay content
+or playable crossplay. See the
+[standalone-data receipt](verification/gold-history-standalone-20261111.json).
+
+## Remaining gameplay bridge
 
 The inspected participant events are insufficient by themselves: their native
 constructors and dispatchers also consume local-only flags and additional

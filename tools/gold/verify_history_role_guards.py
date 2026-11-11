@@ -9,11 +9,14 @@ from verify_codec_guards import check_image
 
 METHODS=((0xecbb00,23),(0xed2b30,10),(0xed2af0,53),(0xed7550,10),
          (0xed7290,75),(0x65e870,17),(0x65df30,17),(0x65e8b0,22))
+STEAM_METHODS=((0xecb1f0,23),(0xed2220,10),(0xed21e0,53),(0xed6c40,10),
+               (0xed6980,75),(0x65e450,17),(0x65db10,17),(0x65e490,22))
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ubisoft',type=Path,required=True)
+    parser.add_argument('--steam-analysis',type=Path)
     parser.add_argument('--thunk-executable',type=Path,required=True)
     parser.add_argument('output',type=Path)
     args=parser.parse_args()
@@ -28,8 +31,11 @@ def main():
         raise ValueError('Expected bounded x86 guard fixture')
     native.EVENTS=()
     image=native.Image('ubisoft',args.ubisoft)
-    checks=check_image(image,fixture,2,oracle=b'WePlayHistoryRoleMethodsOracle',methods=METHODS)
-    receipt={'checks':checks,'native_methods_guarded':len(METHODS),
+    results={'ubisoft':check_image(image,fixture,2,oracle=b'WePlayHistoryRoleMethodsOracle',methods=METHODS)}
+    if args.steam_analysis:
+        image=native.Image('steam_analysis',args.steam_analysis)
+        results['steam_analysis']=check_image(image,fixture,3,oracle=b'WePlayHistoryRoleMethodsOracle',methods=STEAM_METHODS)
+    receipt={'checks':sum(results.values()),'per_profile':results,'native_methods_guarded_per_profile':len(METHODS),
              'fixture_sha256':hashlib.sha256(raw).hexdigest(),
              'compiled_guard_executed':True,'original_game_code_executed':False,
              'game_process_started':False,'network_used':False,'mixed_gameplay_qualified':False}
