@@ -78,7 +78,7 @@ class Client:
         reply, = self.connect(True, self.challenge)
         assert gold.unwrap(reply[16:-1]) == struct.pack("<II", 4, 8)
         registration = self.rpc(True, 11, 1, struct.pack("<I", 1)
-            + gold.text("prudps:/address=127.0.0.1;port=50000;sid=15;stream=3"))
+            + gold.text("prudps:/address=127.0.0.1;port=50000;RVCID=0;sid=15;stream=3"))
         assert registration[4:6] == b"\x0b\1"
         return True
 
@@ -99,6 +99,12 @@ class PeerTests(unittest.TestCase):
     def authenticate(self):
         for client, peer in zip(self.clients, self.peers):
             self.assertTrue(client.login(peer["name"], peer["secret"]))
+
+    def test_rendezvous_connection_identifiers_cannot_alias_another_peer(self):
+        # Independent principals alone are insufficient: native echo uses RVCID.
+        with patch.object(gold.secrets, "randbelow", side_effect=[10, 20, 11, 20]):
+            with self.assertRaisesRegex(ValueError, "Local connection collision"):
+                peer_server.PeerLoginService(self.peers)
 
     def host(self, client):
         value = replace(self.value, strings=("fixture-app", "fixture-data", "InLobby", "fixture-map"),
@@ -170,6 +176,9 @@ class PeerTests(unittest.TestCase):
         self.assertEqual(url, record.owner.public_url)
         self.assertIn(f"port={host.sockets[1].getsockname()[1]};", url)
         self.assertIn(f"PID={host.principal};", url)
+        self.assertIn(f"RVCID={self.service.adapters[0].connection_id};", url)
+        self.assertNotIn(f"RVCID={self.service.adapters[1].connection_id};", url)
+        self.assertNotIn("RVCID=0;", url)
         self.assertNotIn("port=50000;", url)  # Authored request's station is not authority.
         for args in (b"", struct.pack("<I", identifier) + b"x", struct.pack("<I", identifier + 1)):
             self.assertEqual(guest.rpc(True, 21, 16, args)[4:6], b"\x15\0")

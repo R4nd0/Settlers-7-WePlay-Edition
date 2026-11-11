@@ -49,7 +49,7 @@ class PeerLoginService:
         self.endpoints = []
         self.closed = False
         try:
-            principals = set()
+            principals, connection_ids = set(), set()
             for peer in peers:
                 auth, backend = [self.resources.enter_context(socket.socket(
                     socket.AF_INET, socket.SOCK_DGRAM)) for _ in range(2)]
@@ -61,7 +61,10 @@ class PeerLoginService:
                 # No authenticated identifier may alias another configured peer.
                 if adapter.principal in principals:
                     raise ValueError("Local principal collision; start a fresh service")
+                if adapter.connection_id in connection_ids:
+                    raise ValueError("Local connection collision; start a fresh service")
                 principals.add(adapter.principal)
+                connection_ids.add(adapter.connection_id)
                 config = self.resources.enter_context(ConfigService(auth.getsockname()[1]))
                 self.adapters.append(adapter)
                 self.configs.append(config)

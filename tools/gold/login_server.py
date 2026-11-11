@@ -303,7 +303,11 @@ class GoldLoginAdapter:
                 reader.text(256)
             reader.finish()
             url = (f"prudps:/address=127.0.0.1;port={peer[1]};CID=1;PID={self.principal};"
-                   "sid=15;stream=3;type=3")
+                   f"RVCID={self.connection_id};sid=15;stream=3;type=3")
+            # Gold C32E50 reads the distinct RVCID key (initialized at E8DA00).
+            # NATTraversalEngine C97EB0 rejects a missing/zero RVCID before
+            # sending its echo. Use the same server-issued registration ID;
+            # neither a supplied station URL nor the principal establishes it.
             self.registered = True
             if state is not None:
                 state.registered = True

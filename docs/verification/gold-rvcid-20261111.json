@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "date": "2026-11-11",
+  "component": "Gold server-issued RendezVous connection ID in station URLs",
+  "synthetic_verification": {
+    "peer_tests": 11,
+    "existing_login_account_registration_codec_tests": 40,
+    "foreign_and_client_supplied_rvcid_not_used": true,
+    "duplicate_server_rvcid_rejected": true
+  },
+  "actual_game_verification": {
+    "pair_case": 79,
+    "gold_clients": 2,
+    "dxvk": true,
+    "legacy_fallback": false,
+    "independent_native_account_logins": true,
+    "native_named_host_lobby_created": true,
+    "catalogue_and_host_url_requests_answered": true,
+    "original_asynchronous_ping_phase_observed": true,
+    "approximate_ping_timeout_seconds": 2,
+    "selectable_browser_entry_observed": false,
+    "exit_codes": [0, 0],
+    "shared_files_checked_per_process": 16,
+    "shared_files_unchanged": true
+  },
+  "limits": {
+    "loopback_only": true,
+    "endpoint_reachability_qualified": false,
+    "peer_join_implemented": false,
+    "gold_history_crossplay_verified": false,
+    "history_clients_launched": 0,
+    "raw_payloads_saved": false
+  }
+}

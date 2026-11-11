@@ -63,6 +63,16 @@ searching client. Both processes exited normally and all 16 shared files checked
 by each runner remained unchanged. See the
 [two-client receipt](verification/gold-discovery-20261111.json).
 
+The registered address also carries the server-issued `RVCID`, independently of
+`CID` and `PID`. Gold's original NAT reader requires that exact key before
+starting its echo attempt. Another launch's connection ID and a station URL's
+supplied `RVCID` cannot establish this value; duplicate server connection IDs
+reject service startup. In actual pair 79, both native logins and named host
+creation still succeeded. The search entered the original asynchronous ping
+phase, waited approximately two seconds and removed the unreachable candidate.
+This corrects the missing address field, while endpoint reachability remains
+unqualified. Both clients exited normally with all 16 shared files unchanged.
+
 The original multiplayer Start button also correctly refused a sole human with
 an AI: it requires another human participant. That is a legitimate prerequisite,
 not evidence of another turn-zero stall. No participant or readiness gate was
