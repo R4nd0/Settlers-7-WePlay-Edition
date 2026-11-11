@@ -217,6 +217,24 @@ class AccountTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_configured_loopback_source_is_exact(self):
+        with account_config.ConfigService(55123, loopback_slot=2) as server:
+            for address, expected in (("127.0.0.2", 200), ("127.0.0.1", 400), ("127.0.0.3", 400)):
+                worker = threading.Thread(target=server.handle_request)
+                worker.start()
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port,
+                    timeout=2, source_address=(address, 0))
+                try:
+                    connection.request("GET", account_config.ROUTE)
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, expected)
+                    response.read()
+                finally:
+                    connection.close()
+                    worker.join(2)
+                    self.assertFalse(worker.is_alive())
+            self.assertEqual(server.responses, 1)
+
     def test_native_route_host_and_body_bounds(self):
         with account_config.ConfigService(55123) as server:
             def fetch(path, host=None, body=None):

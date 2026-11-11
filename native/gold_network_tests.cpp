@@ -5,8 +5,11 @@
 #include <shellapi.h>
 #include <cstdio>
 extern "C" __declspec(dllimport) bool __cdecl S7TestInstallGuard();
+extern "C" __declspec(dllimport) bool __cdecl S7TestGoldLoopback(unsigned int);
 int main() {
-    WSADATA data{}; if (WSAStartup(MAKEWORD(2,2),&data) || !S7TestInstallGuard()) return 1;
+    WSADATA data{}; if (WSAStartup(MAKEWORD(2,2),&data)) return 1;
+    if (S7TestGoldLoopback(0) || S7TestGoldLoopback(1) || S7TestGoldLoopback(10)
+        || !S7TestGoldLoopback(2) || !S7TestInstallGuard() || S7TestGoldLoopback(3)) return 12;
     PADDRINFOW result=nullptr;
     if (GetAddrInfoW(L"203.0.113.1",nullptr,nullptr,&result)!=EAI_NONAME || result) return 2;
     if (GetAddrInfoW(L"::2",nullptr,nullptr,&result)!=EAI_NONAME || result) return 3;
@@ -25,6 +28,32 @@ int main() {
         || WSAConnect(client,reinterpret_cast<sockaddr*>(&local),sizeof(local),nullptr,nullptr,nullptr,nullptr)) return 10;
     SOCKET accepted=accept(listener,nullptr,nullptr);if (accepted==INVALID_SOCKET) return 11;
     closesocket(accepted);closesocket(client);closesocket(listener);
+    SOCKET isolated=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+    local.sin_port=0;local.sin_addr.s_addr=htonl(INADDR_ANY);size=sizeof(local);
+    if (isolated==INVALID_SOCKET || bind(isolated,reinterpret_cast<sockaddr*>(&local),sizeof(local))
+        || getsockname(isolated,reinterpret_cast<sockaddr*>(&local),&size)
+        || local.sin_addr.s_addr!=htonl(0x7f000002u)) return 13;
+    // The same native port remains available on another loopback address.
+    using NativeBind=int(WSAAPI*)(SOCKET,const sockaddr*,int);
+    const auto original_bind=reinterpret_cast<NativeBind>(GetProcAddress(GetModuleHandleW(L"ws2_32.dll"),"bind"));
+    SOCKET receiver=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP),sender=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+    sockaddr_in destination=local;destination.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    if (!original_bind || receiver==INVALID_SOCKET || sender==INVALID_SOCKET
+        || original_bind(receiver,reinterpret_cast<sockaddr*>(&destination),sizeof(destination))) return 15;
+    const DWORD timeout=1000;
+    if (setsockopt(receiver,SOL_SOCKET,SO_RCVTIMEO,reinterpret_cast<const char*>(&timeout),sizeof(timeout))
+        || sendto(sender,"x",1,0,reinterpret_cast<sockaddr*>(&destination),sizeof(destination))!=1) return 16;
+    sockaddr_in source{};size=sizeof(source);char received=0;
+    if (recvfrom(receiver,&received,1,0,reinterpret_cast<sockaddr*>(&source),&size)!=1
+        || received!='x' || source.sin_addr.s_addr!=htonl(0x7f000002u)) return 17;
+    closesocket(sender);closesocket(receiver);
+    closesocket(isolated);
+    isolated=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+    local.sin_port=0;local.sin_addr.s_addr=htonl(INADDR_LOOPBACK);size=sizeof(local);
+    if (isolated==INVALID_SOCKET || bind(isolated,reinterpret_cast<sockaddr*>(&local),sizeof(local))
+        || getsockname(isolated,reinterpret_cast<sockaddr*>(&local),&size)
+        || local.sin_addr.s_addr!=htonl(0x7f000002u)) return 14;
+    closesocket(isolated);
     STARTUPINFOA sa{};sa.cb=sizeof(sa);STARTUPINFOW sw{};sw.cb=sizeof(sw);PROCESS_INFORMATION child{};
     if (CreateProcessA("?:\\weplay-invented-missing.exe",nullptr,nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&sa,&child)
         || GetLastError()!=ERROR_ACCESS_DENIED) return 6;

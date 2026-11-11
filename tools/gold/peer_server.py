@@ -22,10 +22,15 @@ from nat_traversal import ProbeRelay
 def validate_peers(peers):
     if not isinstance(peers, (list, tuple)) or not 2 <= len(peers) <= 8:
         raise ValueError("Expected two to eight independent local launches")
-    names, secrets = set(), set()
+    names, secrets, slots = set(), set(), set()
     for peer in peers:
-        if not isinstance(peer, dict) or set(peer) != {"name", "secret"}:
+        if not isinstance(peer, dict) or set(peer) not in ({"name", "secret"}, {"name", "secret", "loopback_slot"}):
             raise ValueError("Invalid local launch configuration")
+        slot = peer.get("loopback_slot", 1)
+        if (type(slot) is not int or not 1 <= slot <= 9
+                or (slot != 1 and slot in slots)):
+            raise ValueError("Expected independent bounded loopback slots")
+        slots.add(slot)
         name, secret = peer["name"], peer["secret"]
         if (not isinstance(name, str) or not 1 <= len(name) <= 64
                 or any(not 32 <= ord(c) <= 126 for c in name)
@@ -58,7 +63,8 @@ class PeerLoginService:
                     sock.bind(("127.0.0.1", 0))
                     sock.setblocking(False)
                 adapter = GoldLoginAdapter(peer["name"], peer["secret"], backend.getsockname()[1],
-                    account_mode=True, session_mode=True, gatherings=self.gatherings)
+                    account_mode=True, session_mode=True, gatherings=self.gatherings,
+                    loopback_slot=peer.get("loopback_slot", 1))
                 # No authenticated identifier may alias another configured peer.
                 if adapter.principal in principals:
                     raise ValueError("Local principal collision; start a fresh service")
@@ -66,7 +72,8 @@ class PeerLoginService:
                     raise ValueError("Local connection collision; start a fresh service")
                 principals.add(adapter.principal)
                 connection_ids.add(adapter.connection_id)
-                config = self.resources.enter_context(ConfigService(auth.getsockname()[1]))
+                config = self.resources.enter_context(ConfigService(auth.getsockname()[1],
+                    loopback_slot=peer.get("loopback_slot", 1)))
                 self.adapters.append(adapter)
                 self.configs.append(config)
                 self.routes[auth] = adapter, False

@@ -20,12 +20,12 @@ import gold_login_tests as fixture
 
 
 class Client:
-    def __init__(self, service, index):
+    def __init__(self, service, index, *, address="127.0.0.1"):
         self.service = service
         self.endpoint = service.endpoints[index]
         self.sockets = [socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in range(2)]
         for sock in self.sockets:
-            sock.bind(("127.0.0.1", 0))
+            sock.bind((address, 0))
             sock.settimeout(1)
         self.servers = [0, 0]
         self.sequences = [2, 2]
@@ -105,6 +105,29 @@ class PeerTests(unittest.TestCase):
         with patch.object(gold.secrets, "randbelow", side_effect=[10, 20, 11, 20]):
             with self.assertRaisesRegex(ValueError, "Local connection collision"):
                 peer_server.PeerLoginService(self.peers)
+
+    def test_independent_loopback_slots_preserve_observed_station_addresses(self):
+        peers = [dict(peer, loopback_slot=i + 2) for i, peer in enumerate(self.peers)]
+        with peer_server.PeerLoginService(peers) as service:
+            clients = [Client(service, i, address=f"127.0.0.{i + 2}") for i in range(2)]
+            try:
+                for i, (client, peer) in enumerate(zip(clients, peers)):
+                    self.assertTrue(client.login(peer["name"], peer["secret"]))
+                    state = next(s for (backend, _), s in service.adapters[i].connections.items() if backend)
+                    self.assertIn(f"address=127.0.0.{i + 2};port={client.sockets[1].getsockname()[1]};", state.public_url)
+                    # Exact source ownership remains mandatory on every endpoint.
+                    self.assertEqual(service.adapters[i].handle(False, ("127.0.0.1", 50000), fixture.incoming(0), 0), [])
+                    self.assertEqual(service.adapters[i].handle(False, (f"127.0.0.{3 - i}", 50000), fixture.incoming(0), 0), [])
+            finally:
+                for client in clients:
+                    client.close()
+
+    def test_loopback_slots_reject_duplicate_external_and_noninteger_configuration(self):
+        for slot in (True, "2", 0, 10, "192.168.1.2"):
+            with self.subTest(slot=slot), self.assertRaises(ValueError):
+                peer_server.PeerLoginService([dict(self.peers[0], loopback_slot=slot), self.peers[1]])
+        with self.assertRaises(ValueError):
+            peer_server.PeerLoginService([dict(peer, loopback_slot=2) for peer in self.peers])
 
     def host(self, client):
         value = replace(self.value, strings=("fixture-app", "fixture-data", "InLobby", "fixture-map"),

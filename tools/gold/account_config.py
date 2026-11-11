@@ -9,7 +9,10 @@ ROUTE = "/OnlineConfigService.svc/GetOnlineConfig?onlineConfigID=WePlayGoldLoopb
 class ConfigService(HTTPServer):
     request_queue_size = 8
 
-    def __init__(self, auth_port: int):
+    def __init__(self, auth_port: int, *, loopback_slot: int = 1):
+        if type(loopback_slot) is not int or not 1 <= loopback_slot <= 9:
+            raise ValueError("Expected bounded loopback slot")
+        self.allowed_client_address = f"127.0.0.{loopback_slot}"
         if not 1024 <= auth_port <= 65535:
             raise ValueError("Expected own loopback auth port")
         self.responses = 0
@@ -47,7 +50,7 @@ class ConfigHandler(BaseHTTPRequestHandler):
             "route": (not target.scheme and not target.netloc and not target.fragment
                       and target.path == ROUTE.split("?")[0]
                       and query == {"onlineConfigID": ["WePlayGoldLoopback"], "target": ["client"]}),
-            "host": (self.client_address[0] == "127.0.0.1"
+            "host": (self.client_address[0] == self.server.allowed_client_address
                      and self.headers.get_all("Host", []) in ([expected_host], ["127.0.0.1"])),
             "body": (self.headers.get_all("Content-Length", ["0"]) == ["0"]
                      and self.headers.get("Transfer-Encoding") is None)

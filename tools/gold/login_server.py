@@ -199,7 +199,10 @@ class Connection:
 class GoldLoginAdapter:
     """One disposable local principal; optional owned registration laboratory."""
     def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False,
-                 session_mode: bool = False, gatherings=None):
+                 session_mode: bool = False, gatherings=None, loopback_slot: int = 1):
+        if type(loopback_slot) is not int or not 1 <= loopback_slot <= 9:
+            raise ValueError("Expected bounded loopback slot")
+        self.client_address = f"127.0.0.{loopback_slot}"
         self.username = username.encode("ascii")
         self.password = password.encode("ascii")
         if (not 1 <= len(self.username) <= 64 or b"\0" in self.username
@@ -303,7 +306,7 @@ class GoldLoginAdapter:
             for _ in range(count):
                 reader.text(256)
             reader.finish()
-            url = (f"prudp:/address=127.0.0.1;port={peer[1]};CID=1;PID={self.principal};"
+            url = (f"prudp:/address={peer[0]};port={peer[1]};CID=1;PID={self.principal};"
                    f"RVCID={self.connection_id};sid=15;stream=3;type=3")
             # Peer stations use Gold's plain PRUDP scheme, as supplied by the
             # native registration. C97F40's initial traversal batches support
@@ -513,7 +516,7 @@ class GoldLoginAdapter:
         return rpc_rejection(protocol, call)
 
     def handle(self, backend: bool, peer: tuple[str, int], data: bytes, now: float) -> list[bytes]:
-        if peer[0] != "127.0.0.1" or not 1 <= peer[1] <= 65535:
+        if peer[0] != self.client_address or not 1 <= peer[1] <= 65535:
             return []
         stage = "packet"
         try:

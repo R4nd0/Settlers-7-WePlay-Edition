@@ -16,6 +16,11 @@ extern "C" __declspec(dllexport) void __cdecl S7TestLabAddress(unsigned long add
 extern "C" __declspec(dllexport) bool __cdecl S7TestInstallGuard() {
     return InstallOfflineNetworkGuard();
 }
+#ifdef S7_GOLD_STARTUP
+extern "C" __declspec(dllexport) bool __cdecl S7TestGoldLoopback(unsigned int slot) {
+    return ConfigureGoldLoopbackGuard(slot);
+}
+#endif
 extern "C" __declspec(dllexport) bool __cdecl S7TestEndpoint(const sockaddr* address, int length) {
     return IsOfflineEndpointAllowed(address, length);
 }

@@ -29,6 +29,10 @@ namespace {
 std::atomic<unsigned long> lan_local{0}, lan_peer{0};
 std::atomic<bool> lan_configured{false};
 std::atomic<bool> lan_group{false};
+#ifdef S7_GOLD_STARTUP
+std::atomic<unsigned long> gold_loopback{0};
+std::atomic<bool> gold_guard_started{false};
+#endif
 SRWLOCK membership_lock = SRWLOCK_INIT;
 lan_membership::Snapshot membership;
 std::wstring membership_root;
@@ -56,6 +60,9 @@ bool AllowedV4(unsigned long network_order) {
     return allowed;
 }
 unsigned long LocalBindAddress() {
+#ifdef S7_GOLD_STARTUP
+    if (const auto address = gold_loopback.load(std::memory_order_acquire)) return address;
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
     return htonl(local_pair_bind.load());
 #else
@@ -63,6 +70,13 @@ unsigned long LocalBindAddress() {
 #endif
 }
 }
+#ifdef S7_GOLD_STARTUP
+bool ConfigureGoldLoopbackGuard(unsigned int slot) {
+    if (slot < 2 || slot > 9 || lan_configured.load() || gold_guard_started.load()) return false;
+    unsigned long unset = 0;
+    return gold_loopback.compare_exchange_strong(unset, htonl(0x7f000000u | slot));
+}
+#endif
 bool ConfigureLanNetworkGuard(const char* local, const char* peer) {
     uint32_t left = 0, right = 0;
     if (lan_configured.load() || !ValidLanPair(local, peer)
@@ -306,6 +320,9 @@ bool BindLocalSender(SOCKET socket, const sockaddr* destination) {
         const auto* target = reinterpret_cast<const sockaddr_in*>(destination);
         address.sin_addr.s_addr = (ntohl(target->sin_addr.s_addr) >> 24) == 127
             ? htonl(INADDR_LOOPBACK) : LocalBindAddress();
+#ifdef S7_GOLD_STARTUP
+        if (gold_loopback.load()) address.sin_addr.s_addr = LocalBindAddress();
+#endif
 #endif
         return ::bind(socket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0;
     }
@@ -576,6 +593,10 @@ int WSAAPI GuardBind(SOCKET socket, const sockaddr* address, int length) {
     if (length >= sizeof(sockaddr_in) && address->sa_family == AF_INET) {
         sockaddr_in local = *reinterpret_cast<const sockaddr_in*>(address);
         if (local.sin_addr.s_addr == INADDR_ANY) local.sin_addr.s_addr = LocalBindAddress();
+#ifdef S7_GOLD_STARTUP
+        if (gold_loopback.load() && local.sin_addr.s_addr == htonl(INADDR_LOOPBACK))
+            local.sin_addr.s_addr = LocalBindAddress();
+#endif
 #ifdef S7_LOCAL_PAIR_LAB
         if (local.sin_addr.s_addr == htonl(INADDR_LOOPBACK)) local.sin_addr.s_addr = LocalBindAddress();
 #endif
@@ -828,6 +849,9 @@ bool MarkLanGroupTestSendPending(SOCKET socket, LPWSAOVERLAPPED overlapped) {
 #endif
 
 bool InstallOfflineNetworkGuard() {
+#ifdef S7_GOLD_STARTUP
+    gold_guard_started.store(true);
+#endif
     static bool installed = false;
     if (installed) return true;
     std::vector<Patch> patches;

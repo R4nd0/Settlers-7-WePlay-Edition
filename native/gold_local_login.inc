@@ -129,6 +129,11 @@ LRESULT CALLBACK LocalLoginMessage(int code, WPARAM wparam, LPARAM lparam) {
 }
 
 bool LocalLoginPrepare(std::vector<Patch>& patches) {
+    // Optional isolated loopback slot. Never accepts a LAN/external address.
+    char slot[3]{};
+    const DWORD slot_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOOPBACK_SLOT", slot, 3);
+    if (slot_length && (slot_length != 1 || slot[0] < '2' || slot[0] > '9'
+        || !ConfigureGoldLoopbackGuard(static_cast<unsigned int>(slot[0] - '0')))) return false;
     const struct { uintptr_t rva; std::vector<unsigned char> bytes; } guards[] = {
         {0x791ff0, {0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,0x08}},
         {0x82b780, {0x56,0x8b,0xf1,0xe8,0x98,0x2a,0xf8,0xff}},

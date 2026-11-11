@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-11",
+  "scope": "Gold native login and connection with independent loopback addresses",
+  "synthetic": {
+    "gold_python_tests_passed": 64,
+    "native_network_guard_checks_passed": 75,
+    "native_gold_bind_and_unbound_sender_checks_passed": true,
+    "native_account_and_simulation_abi_fixtures_passed": true,
+    "actual_loopback_sockets": true
+  },
+  "game_observation": {
+    "pair": 94,
+    "clients": 2,
+    "native_account_login": true,
+    "renderer": "DXVK x86",
+    "resolution": "1920x1080",
+    "quality": "High",
+    "legacy_fallback": false,
+    "observation_only_native_probe_sha256": "7b923319ccebdb9c0e9c41f5bd997690c06af748e6b1943c9beb7c347f72b2c1",
+    "native_guards_retained": true,
+    "both_native_fixed_port_binds_succeeded": true,
+    "both_default_socket_keys_registered": true,
+    "previously_failing_client_created_host": true,
+    "native_probe_request_and_response_handlers_observed": true,
+    "selectable_browser_session": true,
+    "browser_ping_ms": 1,
+    "native_two_human_join": true,
+    "ready_propagated_to_host": true,
+    "two_human_loading_screen": true,
+    "native_session_state_at_ready": 2,
+    "native_session_mode_at_ready": 2,
+    "connected_and_assigned_humans_per_client": 2,
+    "native_world_started": false,
+    "retained_simulation_guard_exit_codes": [3763564705, 3763564705],
+    "shared_files_checked_per_runner": 16,
+    "shared_files_unchanged": true
+  },
+  "qualifications": {
+    "independent_loopback_login_and_native_lobby_observed": true,
+    "repeated_run_reliability_established": false,
+    "network_simulation": false,
+    "gold_ubisoft_history_crossplay": false,
+    "gold_steam_history_crossplay": false
+  },
+  "no_raw_payloads_or_identities_in_receipt": true
+}

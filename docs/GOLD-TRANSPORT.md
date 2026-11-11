@@ -117,6 +117,40 @@ still excludes network calls. Backend peer participation also remains rejected;
 the native NetZ join succeeded independently and does not qualify backend
 admission, capacity enforcement or cross-edition identity/content checks.
 
+### Independent loopback addresses
+
+Several Gold processes sharing `127.0.0.1` can collide on the original fixed
+UDP ports 9100/9103. A live diagnostic reproduced a failed 9103 bind and a
+native "Cannot create new session" result. Earlier receive diagnostics also
+found a default socket key absent from the native socket table; original NAT
+request parsing still ran, but the original send queue discarded packets whose
+local socket key could not be found. These observations do not justify choosing
+an arbitrary remaining socket or manufacturing a ping result.
+
+The account startup now optionally accepts `WEPLAY_GOLD_LOOPBACK_SLOT=2` through
+`9`, binding wildcard and explicit `127.0.0.1` IPv4 sockets, plus previously
+unbound senders, to `127.0.0.<slot>`. Native port numbers, packet bytes and native
+socket ownership remain unchanged. Configuration is immutable after guard
+installation begins. Existing launches without the variable retain their
+previous binding behavior; external network access remains denied.
+
+Configure the matching optional integer `loopback_slot` in each disposable
+`PeerLoginService` peer entry. Nondefault slots must be distinct. The HTTP
+configuration endpoint and login adapter accept only that peer's configured
+source address. The registration response uses the authenticated connection's
+observed source address and port. It never copies an advertised endpoint from
+the request. Synthetic real-socket tests cover independent authenticated
+registrations, exact source ownership, invalid/duplicate slots, HTTP ownership,
+native port reuse across addresses and the source of an initially unbound UDP
+sender. The complete Gold Python suite passes 64 tests.
+
+Live DXVK High test pair 94 confirms both original fixed-port binds, native
+probe request/reply callbacks, a selectable 1 ms browser entry, two-human
+joining, readiness propagation and the two-human loading screen. Both clients
+then stopped at the retained simulation guard. This qualifies the observed
+login/lobby transition, not gameplay or cross-edition compatibility. See the
+[sanitized receipt](verification/gold-loopback-slots-20261111.json).
+
 ### Native probe initiation
 
 The opt-in peer service now relays Gold's native NAT traversal request `3/1`
