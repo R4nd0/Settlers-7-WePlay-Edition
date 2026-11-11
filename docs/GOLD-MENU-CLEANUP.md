@@ -1,83 +1,106 @@
-# Gold startup and quiet menu
+# Gold startup and quiet interface
 
-Verified in the separate Gold laboratory copy on 2026-11-11. This ports the
-History startup/menu cleanup to the independently fingerprinted Gold build.
-It is a source/development milestone, not a replacement public installer.
+Verified in a separate Gold laboratory copy on 2026-11-11/12. This ports History's
+startup/menu cleanup to the independently fingerprinted Gold build and removes
+additional vendor UI found in an archive-wide audit. Published installers have
+not been replaced.
 
-Gold now answers only its startup-options reset question with No. The guarded
-call is `40DEF8 -> 41C400`; the original boolean consumer and `RET 4` epilogue
-are checked independently of History. The in-memory replacement returns false
-in AL and discards one stack argument. Existing executable identity checks,
-transactional installation and rollback remain. Options.ini, Startup.tag and
-other message boxes retain their original handling.
+Gold answers only its startup-options reset question with No. The guarded call
+is `40DEF8 -> 41C400`; its original boolean consumer and `RET 4` epilogue are
+checked independently of History. The replacement returns false in AL and
+discards one stack argument. Executable guards, transactional installation and
+rollback remain. Other message boxes retain their original handling.
+Options.ini and Startup.tag are not rewritten by this patch.
 
-`tools/gold/menu_interface.py` builds a new Interface.bba from the exact
-original Gold archive. It also includes the existing local-profile correction.
-The menu changes are:
+`tools/gold/menu_interface.py` stages an archive from the exact original Gold
+Interface.bba and includes the existing local-profile correction. It:
 
-- Skip both startup movies and the timed camera flight/click blocker.
-- Default to the black menu without loading the background castle map.
-- Remove the separate left-side Quickstart and legacy Store, code-entry,
-  Uplay, My Realm, Facebook and My City links.
-- Remove the Shop entry under Customize, the Expansions/store/redeem group,
-  and the coin balance/shop button in the player card.
-- Replace the news ticker with an empty, correctly owned frame. It keeps the
-  original create/getFrame/update/destroy lifecycle without fetching feeds or
-  registering promotional URL callbacks.
-- Disable the expansion-advertising popup. Existing profile creation, owned
-  content and progression are not rewritten by these menu edits.
+- Skips startup movies, camera flight and click blocker; defaults to a black
+  main menu without loading the background castle map.
+- Removes Quickstart/promotional links, Store, Uplay, Facebook, My City, My
+  Realm, Expansions and redeem routes, including scenario navigation and
+  unavailable-map dialogs.
+- Reduces the player card to portrait/name: no coins, store, mail, chat, mentor,
+  friends, ladder or achievement icons/polling, or developer connection footer.
+- Replaces news and the green online status with empty lifecycle-compatible
+  frames. Status still reports actual network transitions to its caller; it
+  cannot log in, log out or invent connection state.
+- Retires eleven social/shop/ladder/unlock/template-exchange pages and redirects
+  their actions before dispatch. Removes vendor invitations, achievement/Uplay
+  popups, Facebook authorization/credential polling, template votes and the
+  Map Forge publish control.
+- Removes store/code controls below map lists, both DLC padlock badge variants,
+  Mentor/AboutMe profile controls, and the shop-currency presentation and
+  purchase-content nag at game end.
+- Removes external shop/browser/feed callback references and menu tracking
+  references across the archive, including callbacks passed as values.
+- Makes all installed base-campaign and Chronicles mini-campaign maps directly
+  selectable. Base campaign uses native GetUnlockedCampaignMaps(true), whose
+  independently inspected Gold branch enumerates the complete campaign vector;
+  Chronicles marks the full native RotR enumeration active. Saved
+  completion, rewards and map existence/availability are not fabricated.
 
-The script pins the original archive plus all five original menu members,
-preserves their Lua constant-table headers and checks every resulting archive
-payload. Together with the two existing profile corrections, seven of the 284
-file payloads change; the rest match the original bytes.
+Real map availability, local rewards, campaign/technology progression, native
+profile serialization and actual multiplayer state remain authoritative. Normal
+Play, Campaign, Skirmish, Chronicles, Multiplayer, Load, local Map Forge, Castle
+Forge, Profile and Settings remain. Publisher credits/copyright remain intact.
+Dormant helper definitions and compatibility field names may still contain
+vendor words; they do not establish visible or actionable vendor UI.
+
+The original archive is SHA-256 pinned. Primary script fingerprints, unique
+source anchors and full archive readback guard edits. Lua constant-table headers
+are retained. Forty of 284 payloads change; the other 244 retain their
+original bytes. Map/template lists now resolve Gold's existing
+`local.ui.listControl` module instead of a missing legacy global factory,
+including the campaign difficulty dropdown.
+Native Locked/isUnlocked values are unchanged.
 
 ```console
 python -B tools/gold/menu_interface.py "path/to/original/Interface.bba" --output work/gold-quiet-menu
 powershell -NoProfile -File native/build_gold.ps1 -OutputDirectory work/gold-quiet-native -LocalSimulation
 ```
 
-The first command only stages an archive. The second builds the separate Gold
-adapter and runs its fixtures. Neither command installs or launches a game.
-Use a backed-up test copy and the existing explicit Gold initializer; the
-History loader is not compatible. The ordinary Gold preparation command and
-published packages have not been changed to install this candidate.
+These commands stage/build and verify; they do not install or launch a game.
+Use a backed-up test copy and the explicit Gold initializer. The History loader
+is incompatible. Never replace an archive or adapter loaded by a running game.
+Castle Forge requires the background map: `-mapInMainMenu` explicitly retains
+it; `-noMapInMainMenu` takes precedence. Castle Forge operation without that map
+is not qualified by this cleanup.
 
-The original Castle Forge requires the menu map. `-mapInMainMenu` explicitly
-retains that mode; `-noMapInMainMenu` takes precedence. This change does not
-qualify Castle Forge operation without its required map.
+Validation separates fixtures from actual observations:
 
-Validation separates authored fixtures from actual game observations:
+- Native x86 `/W4 /WX`: actual replacement bytes return false with exact stack
+  cleanup and an intact sentinel. Rollback, 19 byte-guard rejections, 75 network
+  checks and Gold import guards pass. Loopback checks need unrestricted sockets.
+- All 40 changed scripts compile with Lua 5.1; all 284 payloads verify. Twelve
+  authored menu tests and nine existing profile tests pass. The audit finds
+  zero references to the enumerated vendor browser/tracking callbacks, eleven
+  inert legacy pages and no vendor controls in the card.
+- Actual Gold uses pinned DXVK at High/1920x1080. With Startup.tag present, the
+  reset question is absent and native No bytes are verified in the owned process.
+  Local-profile confirmation remains. The black menu, compact card and absence
+  of the green online box are observed. Skirmish lists fully populate; scrollbar
+  movement, Amber Coast selection/description and Back work without lock badges,
+  store or redeem. Map Forge selection/Cancel work without store controls.
+  Profile and Customize show the cleanup. No world or match is started.
+- All twelve base-campaign markers appear. The first and final mission
+  (The Final Frontier) can be selected directly; the Easy/Normal/Hard dropdown
+  and Back work. Chronicles exposes all five mini-campaign missions; its final
+  Rebel Realm selection updates the description and retains Start/Back.
+- Owned test games exit normally with code 0. All sixteen backed-up shared
+  save/options/profile files retain hashes and timestamps. Startup-only
+  verification leaves the owned Options.ini byte-identical.
 
-- x86 build with `/W4 /WX`; installed replacement bytes execute with the false
-  result, exact stack cleanup and an intact sentinel. Rollback and all 19
-  single-byte guard rejections pass. The 75 network guard checks and Gold
-  network import checks also pass outside the socket-restricted sandbox.
-- All seven modified scripts compile with Lua 5.1. Full archive readback and
-  member comparison pass. Authored quiet-news lifecycle and rejection tests
-  pass alongside the existing Gold profile tests.
-- The final candidate runs with pinned DXVK, High settings and 1920x1080.
-  Startup.tag already exists; the reset question is absent and the installed
-  native No instruction bytes are verified in the owned process. After the
-  existing local-profile confirmation, the black main menu and Customize panel
-  show the cleanup. Settings open and cancel back normally.
-- The final game exits normally with code 0. Options.ini is byte-identical;
-  all 16 backed-up shared save/options/profile files retain their hashes and
-  timestamps. No world or match is started by this verification.
+Opening and cancelling the original Gold Settings dialog separately serialized
+DepthOfField/System defaults in the owned diagnostic profile. Those options
+were restored from backup before subsequent startup-only checks; shared
+profiles were unchanged. This patch does not change that original dialog.
 
-One intermediate player-card candidate failed to enter the menu because its
-layout still measured a removed cash local. The final script retains an empty
-local for that width calculation; the corrected candidate passes the live UI
-check. It performs no Shop cash query.
+Scenario navigation is checked live. Game-end promotion removal, template voting
+and Map Forge's post-selection publish control are checked in source/compilation
+and authored service fixtures; no completed world or forge publication workflow
+is claimed. Accessible menus do not qualify multiplayer.
 
-The separate navigation check also found that opening and cancelling Gold's
-original Settings dialog serializes DepthOfField/System defaults. The owned
-diagnostic options were restored from backup before the final startup-only
-test, which leaves Options.ini byte-identical. This patch does not change the
-original Settings dialog.
-
-Sanitized receipt: [Gold menu verification](verification/gold-menu-20261111.json).
-The concurrent crossplay laboratories use their own pinned builds and archives;
-this menu test did not deploy over or stop those clients. New crossplay builds
-must refresh their source checkpoints deliberately to incorporate this native
-startup change. Multiplayer qualification is tracked separately.
+Sanitized receipt: [Gold interface verification](verification/gold-menu-20261111.json).
+Concurrent crossplay laboratories retain their own pinned builds/archives;
+this test did not deploy over or stop those clients.
