@@ -65,6 +65,54 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.arguments(reply, 21, 2), b"\0")
         self.assertIs(self.adapter.gatherings.records[identifier].owner, owner)
 
+    def test_explicit_owner_leave_allows_fresh_registration_without_delete(self):
+        server = self.register()
+        owner = self.adapter.connections[True, self.backend]
+        identifier = int.from_bytes(self.arguments(self.send(server, 3, 21, 1, self.data), 21, 1), "little")
+        control = struct.pack("<I", identifier)
+        self.send(server, 4, 21, 11, control + gold.text(""))
+        self.send(server, 5, 21, 40, control)
+        self.assertEqual(self.arguments(self.send(server, 6, 21, 12,
+            control + gold.text("")), 21, 12), b"\1")
+        released = self.adapter.gatherings.records[identifier]
+        self.assertTrue(released.released)
+        self.assertFalse(self.adapter.gatherings.participate(owner, identifier, True))
+        self.assertFalse(self.adapter.gatherings.participate(object(), identifier, False))
+        for sequence, data in enumerate((self.data[:-1], self.data + b"x",
+                codec.encode(replace(self.value, base=replace(self.value.base,
+                    words=(identifier,) + (0,) * 6)))), 7):
+            self.send(server, sequence, 21, 1, data)
+            self.assertIs(self.adapter.gatherings.records[identifier], released)
+        new_id = int.from_bytes(self.arguments(self.send(server, 10, 21, 1, self.data), 21, 1), "little")
+        self.assertGreater(new_id, identifier)
+        self.assertEqual(set(self.adapter.gatherings.records), {new_id})
+        self.assertFalse(self.adapter.gatherings.records[new_id].released)
+        self.assertFalse(self.adapter.gatherings.records[new_id].host_claimed)
+        self.assertFalse(self.adapter.gatherings.remove(owner, identifier))
+        # An old transport replay cannot release or replace the new registration.
+        self.send(server, 6, 21, 12, control + gold.text(""))
+        self.assertEqual(set(self.adapter.gatherings.records), {new_id})
+
+    def test_replacement_capacity_and_exhaustion_preserve_released_owner(self):
+        registry = LocalGatherings()
+        owners = [object() for _ in range(8)]
+        identifiers = [registry.create(owner, 1, self.data, gold.Reader) for owner in owners]
+        self.assertTrue(registry.participate(owners[0], identifiers[0], False))
+        prior = registry.records[identifiers[0]]
+        for principal in (0, 2):
+            with self.assertRaises(ValueError):
+                registry.create(owners[0], principal, self.data, gold.Reader)
+            self.assertIs(registry.records[identifiers[0]], prior)
+        registry.next_identifier = 0x100000000
+        with self.assertRaises(ValueError):
+            registry.create(owners[0], 1, self.data, gold.Reader)
+        self.assertIs(registry.records[identifiers[0]], prior)
+        registry.next_identifier = 0xffffffff
+        replacement = registry.create(owners[0], 1, self.data, gold.Reader)
+        self.assertEqual(replacement, 0xffffffff)
+        self.assertEqual(len(registry.records), 8)
+        self.assertNotIn(identifiers[0], registry.records)
+
     def test_disconnect_and_expiry_remove_registrations(self):
         for through_packet in (False, True):
             self.setUp()

@@ -17,6 +17,7 @@ class Registration:
     value: SessionGathering
     participating: bool = False
     host_claimed: bool = False
+    released: bool = False
 
 
 class LocalGatherings:
@@ -26,10 +27,11 @@ class LocalGatherings:
 
     def create(self, owner, principal, data, reader_type):
         value = decode(data, reader_type)
+        previous = [record for record in self.records.values() if record.owner is owner]
         if (owner is None or type(principal) is not int or not 0 < principal <= 0x7fffffff
                 or not isinstance(value, SessionGathering) or value.matchmaking_word is not None
-                or value.base.words[0] != 0 or len(self.records) >= 8
-                or any(record.owner is owner for record in self.records.values())
+                or value.base.words[0] != 0 or len(self.records) - len(previous) >= 8
+                or any(not record.released or record.principal != principal for record in previous)
                 or self.next_identifier > 0xffffffff):
             raise ValueError("Registration not eligible")
         identifier = self.next_identifier
@@ -39,6 +41,11 @@ class LocalGatherings:
         base = replace(value.base, words=(identifier, value.base.words[1], 0)
             + value.base.words[3:])
         record = Registration(identifier, owner, principal, replace(value, base=base))
+        # Gold leaves through 21/12 and may immediately register another map
+        # without deleting the old object. Retire only explicitly released own
+        # records, after the complete new request and allocation are validated.
+        for prior in previous:
+            del self.records[prior.identifier]
         self.records[identifier] = record
         self.next_identifier += 1
         return identifier
@@ -56,14 +63,14 @@ class LocalGatherings:
 
     def participate(self, owner, identifier, present):
         record = self.records.get(identifier)
-        if record is None or record.owner is not owner:
+        if record is None or record.owner is not owner or (present and record.released):
             return False
         value = record.value
         if not present:
             value = replace(value, base=replace(value.base,
                 words=value.base.words[:2] + (0,) + value.base.words[3:]))
         self.records[identifier] = replace(record, value=value, participating=present,
-            host_claimed=record.host_claimed if present else False)
+            host_claimed=record.host_claimed if present else False, released=not present)
         return True
 
     def claim_host(self, owner, identifier):

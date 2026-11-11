@@ -1,0 +1,39 @@
+{
+  "format": "s7-gold-registration-reuse-verification-v1",
+  "date": "2026-11-11",
+  "native_sha256": "b173edbda25f272ffd8581485776fecd47e57c5101abc1b100aefe70705b49af",
+  "renderer": "DXVK",
+  "legacy_fallback": false,
+  "loopback_only": true,
+  "observed": {
+    "same_process_host_lobbies": 2,
+    "own_human_named_in_both_lobbies": true,
+    "registrations_created": 2,
+    "own_participations": 2,
+    "authenticated_host_assignments": 2,
+    "owned_record_reads": 2,
+    "owned_title_updates": 2,
+    "explicit_owner_leaves": 2,
+    "remaining_registrations_after_disconnect": 0,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true,
+    "match_started": false
+  },
+  "synthetic_checks": {
+    "registration_tests": 11,
+    "account_tests": 11,
+    "login_tests": 11,
+    "gathering_tests": 7,
+    "malformed_replacement_preserves_old_record": true,
+    "foreign_or_live_owner_replacement_rejected": true,
+    "id_exhaustion_preserves_old_record": true,
+    "replacement_at_capacity_checked": true,
+    "old_transport_replay_checked": true
+  },
+  "gold_ubisoft_history_match_observed": false,
+  "gold_steam_history_match_observed": false,
+  "game_session_admission": false,
+  "account_data_included": false,
+  "raw_payload_saved": false
+}

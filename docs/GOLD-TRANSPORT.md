@@ -37,6 +37,24 @@ checks also passed. This qualifies the local host's identity only: no network
 match was started and neither History edition was connected. See the
 [sanitized participant receipt](verification/gold-participant-20261111.json).
 
+The subsequent registration-lifecycle correction permits a fresh registration
+after the same authenticated owner explicitly leaves through `21/12`. Gold
+does not necessarily delete the previous record before registering another map.
+The service retires only released records of that exact connection and principal,
+after fully validating the replacement, and allocates a new monotonic identifier.
+Live registrations, foreign ownership, malformed replacements and exhausted
+identifiers remain rejected without discarding the old record. A released record
+cannot regain participation. Transport retries retain their original response.
+
+The actual DXVK client completed two create/host/leave cycles in one process,
+with the named human visible in both lobbies. Both registrations were created,
+participated, assigned the authenticated host, read, updated and left; normal
+disconnect left no records. The client exited normally with all 16 shared files
+unchanged. Eleven registration tests cover replacement, ownership, capacity,
+exhaustion and old transport replay. This corrects the preceding server error,
+without admitting a peer or network match. See the
+[reuse receipt](verification/gold-registration-reuse-20261111.json).
+
 ## Owned Gold registrations, 2026-11-11
 
 `--account-mode --session-mode` adds an isolated registration laboratory. The
