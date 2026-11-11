@@ -305,7 +305,7 @@ class GoldLoginAdapter:
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
-            if self.gatherings is not None and protocol == 21 and method in (1, 2, 11, 12, 17, 21, 40):
+            if self.gatherings is not None and protocol == 21 and method in (1, 2, 4, 11, 12, 17, 21, 40):
                 if state.closed or not state.connected or state.expires <= now:
                     return rpc_rejection(protocol, call)
                 try:
@@ -320,6 +320,10 @@ class GoldLoginAdapter:
                         removed = self.gatherings.remove(state, identifier)
                         arguments = bytes((removed,))
                         event = "gathering_removed" if removed else "gathering_remove_rejected"
+                    elif method == 4:
+                        self.gatherings.update(state, args, Reader)
+                        arguments = b"\1"
+                        event = "gathering_owned_record_updated"
                     elif method in (11, 12):
                         reader = Reader(args)
                         identifier = reader.u32()

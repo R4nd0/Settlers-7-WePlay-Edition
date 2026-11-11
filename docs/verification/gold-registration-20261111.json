@@ -24,7 +24,7 @@
   "synthetic_checks": {
     "native_writer_cases": 156,
     "gathering_tests": 7,
-    "registration_tests": 8,
+    "registration_tests": 9,
     "account_tests": 11,
     "login_tests": 11,
     "native_reader_emulated": false
@@ -34,5 +34,19 @@
   "gold_ubisoft_history_match_observed": false,
   "gold_steam_history_match_observed": false,
   "raw_payload_saved": false,
-  "account_data_included": false
+  "account_data_included": false,
+  "owned_host_follow_up": {
+    "incoming_host_ignored": true,
+    "authenticated_host_serialized": true,
+    "native_session_handle_present": true,
+    "native_session_host": true,
+    "native_local_network_slot": 1,
+    "owned_title_updates_accepted": 3,
+    "own_player_row_populated": false,
+    "back_cancelled_participation": true,
+    "remaining_registrations_after_disconnect": 0,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true
+  }
 }

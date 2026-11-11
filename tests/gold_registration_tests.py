@@ -110,7 +110,11 @@ class RegistrationTests(unittest.TestCase):
 
     def test_only_owned_participating_registration_can_claim_host(self):
         server = self.register()
+        self.data = codec.encode(replace(self.value, base=replace(self.value.base,
+            words=(0, 0, 0x12345678, 0, 0, 0, 0))))
         identifier = int.from_bytes(self.arguments(self.send(server, 3, 21, 1, self.data), 21, 1), "little")
+        self.assertEqual(self.adapter.gatherings.get_owned(
+            self.adapter.connections[True, self.backend], identifier).base.words[2], 0)
         control = struct.pack("<I", identifier)
         participation = control + gold.text("")
         denied = self.send(server, 4, 21, 40, control)
@@ -119,10 +123,14 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.arguments(self.send(server, 6, 21, 40, control), 21, 40), b"")
         self.assertTrue(self.adapter.gatherings.records[identifier].host_claimed)
         record = self.adapter.gatherings.records[identifier]
+        self.assertEqual(record.value.base.words[2], self.adapter.principal)
+        wire = codec.decode(codec.encode(record.value), gold.Reader)
+        self.assertEqual(wire.base.words[2], self.adapter.principal)
         self.send(server, 7, 21, 12, participation + b"trailing")
         self.assertIs(self.adapter.gatherings.records[identifier], record)
         self.assertEqual(self.arguments(self.send(server, 8, 21, 12, participation), 21, 12), b"\1")
         self.assertFalse(self.adapter.gatherings.records[identifier].host_claimed)
+        self.assertEqual(self.adapter.gatherings.records[identifier].value.base.words[2], 0)
         self.assertFalse(self.adapter.gatherings.participate(object(), identifier, True))
         with self.assertRaises(ValueError):
             self.adapter.gatherings.claim_host(object(), identifier)
@@ -139,6 +147,30 @@ class RegistrationTests(unittest.TestCase):
             denied = self.send(server, sequence, 21, 17, args)
             self.assertEqual(gold.unwrap(denied[1][13:-1])[4:6], b"\x15\0")
         self.assertEqual(self.adapter.gatherings.records, snapshot)
+
+    def test_title_update_requires_current_owned_host_and_preserves_authority(self):
+        server = self.register()
+        identifier = int.from_bytes(self.arguments(self.send(server, 3, 21, 1, self.data), 21, 1), "little")
+        owner = self.adapter.connections[True, self.backend]
+        control = struct.pack("<I", identifier)
+        value = self.adapter.gatherings.get_owned(owner, identifier)
+        denied = self.send(server, 4, 21, 4, codec.encode(value))
+        self.assertEqual(gold.unwrap(denied[1][13:-1])[4:6], b"\x15\0")
+        self.send(server, 5, 21, 11, control + gold.text(""))
+        self.send(server, 6, 21, 40, control)
+        value = self.adapter.gatherings.get_owned(owner, identifier)
+        updated = replace(value, words=(4, 2, 1, 0, 1, 0), flags=(True, False, False, False))
+        self.assertEqual(self.arguments(self.send(server, 7, 21, 4,
+            codec.encode(updated)), 21, 4), b"\1")
+        snapshot = self.adapter.gatherings.records[identifier]
+        self.assertEqual(snapshot.value, updated)
+        for sequence, data in enumerate((codec.encode(updated)[:-1], codec.encode(updated) + b"x",
+                codec.encode(replace(updated, base=replace(updated.base,
+                    words=(identifier, 0, 1, 0, 0, 0, 0))))), 8):
+            self.send(server, sequence, 21, 4, data)
+            self.assertIs(self.adapter.gatherings.records[identifier], snapshot)
+        with self.assertRaises(ValueError):
+            self.adapter.gatherings.update(object(), codec.encode(updated), gold.Reader)
 
     def test_owned_record_read_roundtrips_authoritative_id_without_publication(self):
         server = self.register()

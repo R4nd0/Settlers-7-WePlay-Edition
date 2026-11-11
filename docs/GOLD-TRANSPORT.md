@@ -50,6 +50,23 @@ History registry, peer join/endpoint exchange and common simulation transport
 are still outstanding. Neither History client has been tested with Gold at this
 checkpoint.
 
+The follow-up DXVK test assigns the authenticated local principal to the native
+host field (`Gathering+0xc`) only after owned participation and `21/40`.
+Gold's original host predicate at `A89360` compares that field with its backend
+principal. A client-provided host is cleared at creation; leaving clears the
+assigned host. The owned `21/4` update accepts mapped title attributes while
+requiring the current base record, connection and participating host role.
+The actual client accepted three updates. Read-only native observation found a
+session handle, host role and local network slot 1. The player row was still
+empty; no network match or History crossplay was observed. Normal exit and all
+16 unchanged shared files were verified again.
+
+The original Gold attribute setter independently maps the session's four
+strings to `ApplHash`, `DataHash`, `LobbyState`, `Map`; six words to `MaxSlots`,
+`OpenSlots`, `AISlots`, `PrivateSlots`, `Version`, `TemplateId`; and four flags
+to `Teams`, `FixedPositions`, `TemplateLoaded`, `Coop`. This maps field names,
+not content equivalence, identity conversion or wire compatibility with History.
+
 ## Original account integration, 2026-11-10
 
 The account mode restores the original `IsLoggedIn` Lua binding's boolean
