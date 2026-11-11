@@ -2,6 +2,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include "crossplay_admission.h"
+#include "crossplay_connection.h"
 #include <algorithm>
 #include <cstring>
 
@@ -111,16 +112,7 @@ struct LobbyAdmission::Impl {
             // remains zero: original code uses the common assigned slot then.
             remote={0,host?2u:1u,remote_hello.principal,0,remote_hello.name,!host,false};
             if(!DistinctPlayers(own,remote)) return Fail();
-            if(edition==Crossplay::Edition::Gold) {
-                size_t at=0;const std::vector<unsigned char> alias(peer.peer_in_local_namespace.begin(),peer.peer_in_local_namespace.end());
-                if(!TakeWord(alias,at,remote.connection) || !remote.connection || remote.connection>0x7fffffffu
-                    || std::any_of(alias.begin()+4,alias.end(),[](unsigned char c){return c!=0;})) return Fail();
-            } else {
-                // Connection IDs are native numeric routing slots even in HE.
-                // This common-backend CID is independent of the Storm GUID.
-                remote.connection=own.connection==0?1u:0u;
-            }
-            if(remote.connection==own.connection) return Fail();
+            if(!ProjectConnection(edition,own.connection,peer.peer_in_local_namespace,remote.connection))return Fail();
             remote.station=remote.connection;
             if(host) {
                 if(!Send(Message::Assign)) return Fail();

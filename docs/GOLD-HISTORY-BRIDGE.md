@@ -4,9 +4,10 @@ Playable Gold ↔ History crossplay is **not implemented**. Private DXVK adapter
 now connect Gold and Ubisoft History to the authenticated channel and deliver
 foreign participant events through their original native queues. Both session
 managers have accepted matching two-player rosters and host/guest roles. The
-preparation defaults now show both participants in both windows, but History
-still displays the host page despite its native guest role; no mixed gameplay
-test has run. The guarded public native codec has also delivered repeated
+preparation defaults now show both participants in both windows. The latest
+private configuration path also selects History's original guest page and
+delivers Gold's native map value. Complete guest initialization, Ready exchange
+and mixed gameplay remain incomplete. The guarded public native codec has also delivered repeated
 lobby-chat messages in each direction between Gold and Ubisoft History. Normal game builds and
 matchmaking admission are unchanged.
 
@@ -53,27 +54,33 @@ compatibility or executable binding.
 
 ## Automated development tests
 
-The opt-in `tools/gold/native_lobby_driver.lua` removes mouse and keyboard
-steps from the isolated lobby experiment. It waits for the actual login,
+The opt-in `tools/gold/native_lobby_driver.lua` is an **unqualified development
+experiment**. It waits for the actual login,
 enters the original session browser, waits for native network startup, selects
 one unambiguous Monhaim map and calls the edition's original `SessionCreate`
 API. Gold keeps its seven arguments; History keeps its eight arguments.
 Only a real boolean success selects the original host-lobby action. A latch
 prevents a native job's callbacks from creating a second session.
 
+The driver runs after the original module manager updates, waits for the
+browser's real `isCreated()` result and resolves Monhaim through the engine's
+map metadata. Its map query retains the original single release argument.
+Lua job errors stop creation while retaining the normal shutdown deadline.
 The driver requests normal engine shutdown after 90 seconds of observation
 following creation, or after its initial waiting deadline if creation never
 occurs. An engine stall can prevent the Lua update and shutdown from running.
 It never supplies Ready, start, acknowledgement, turn or checksum results.
 It is excluded from ordinary interfaces and launchers.
 
-This is an unattended **real-engine DXVK test**, not a proven headless game
-mode. Renderer-free protocol, ABI and memory-layout checks run separately.
+Real-engine follow-ups reached the browser, but direct map loading/session
+creation inside the main-state update stalled at `creating` in both clients.
+The original GUI creation sequence subsequently worked. Do not use this driver
+as an unattended or headless test runner; its inline native-job lifecycle still
+needs correction. Renderer-free protocol, ABI and memory-layout checks run separately.
 The private pair launcher verifies executable, adapter, extension source and
 archive hashes, backs up the actual profiles and restores the test archives.
-Memory preflight now precedes archive staging. Its first attempted automated
-pair was stopped before game startup because available physical memory was
-below the laboratory's 4-GiB threshold; no runtime success is claimed.
+Memory preflight precedes archive staging and retains the laboratory's 4-GiB
+threshold. Successful configuration tests below used the original GUI sequence.
 
 `tools/gold/history_guest_lobby.lua` also adds an experimental guest-page
 transition. It requires the actual guest role and local slot 2 plus a strict
@@ -82,15 +89,72 @@ checks confirmed ownership, matching native preparation IDs, slots, names and
 human states, inactive-buffer roots and foreign backend host ownership for
 each independently pinned History layout. This presentation gate does not
 establish a Storm join, content agreement or permission to start a world.
-Its real-engine transition remains unqualified. The private History build
+The transition has now been observed with both standalone History data sources.
+It is a presentation transition after native queueing, not a completed join.
+The private History build
 must select the existing `GameDirectory` console bridge for that query;
 the earlier laboratory build returned no Lua value because it omitted it.
 
-Ten Lua 5.1 driver tests, five guest-page tests and 598 synthetic read-only
+Thirteen Lua 5.1 driver tests, five guest-page tests and 598 synthetic read-only
 preparation checks pass. These exercise reentry, native failure, edition
 argument lists, readiness gates, ownership changes and unreadable memory;
 they do not execute a mixed game. See the
 [automation receipt](verification/gold-lobby-automation-20261111.json).
+
+## Native session configuration candidate
+
+The experimental native path now supports a bounded `CSessionConfigEvent`,
+in addition to participants and chat. It remains excluded from ordinary
+adapters. The private Gold host can capture its actual configuration under
+the original configuration lock and invoke the original Gold constructor.
+The constructor owns independent map strings and slot storage; its original
+destructor releases them after serialization. This provides an initial
+configuration source without claiming that a vendor backend joined a peer.
+
+The authenticated frame carries the original map, empty save path and eight
+native network-slot records. The current policy admits two human slots,
+optional original AI slots in positions 3–4, and native unused/open/closed
+states. It preserves actual Ready, privacy, intermediate state and slot values.
+Resume configurations and unsupported shapes are rejected before the reader.
+
+Both original `GetSlotByStation` implementations compare Station with a numeric
+routing CID. Station stays separate from principals and Storm GUIDs. For the
+two admitted humans, the source snapshot acquires the authenticated roster's
+receiver-local CIDs. Reception translates those two Station fields and the
+base sender CID into the target namespace. No Ready value, native object
+handle, join result or acknowledgement is supplied by that translation.
+
+The receiver checks the current guest roster, event class, complete payload,
+map path and scoped identities before using its original factory reader. It
+requires exact reserialization, then asks the original mode-zero transport
+to clone the event into its local queue and destroys only the factory-owned
+original. The private runtime handles configuration and chat through one
+receive loop. The experimental guest-page query additionally waits for a
+configuration to have been enqueued; this is not a consumer acknowledgement.
+
+Offline verification passes 7,141 framing/projection checks, 80 native ABI and
+source-bound checks, and 87 compiled integrity-guard checks across all three
+profiles. Original per-event writer/reader visitors agree in emulation.
+Two Gold constructor/clone/destructor cases also execute original code through
+the compiled ABI thunk, retain their borrowed inputs and release their modeled
+allocations. These tests do not execute a real queue consumer or establish a
+mixed lobby. See the [configuration receipt](verification/gold-session-config-20261111.json).
+
+Two manual real-engine pairs now pass initial snapshot capture, authenticated
+delivery, original factory/clone enqueue and the original History guest-page
+transition. One uses Steam History data, the other Ubisoft History data; both
+use the separately guarded Ubisoft runtime without a loaded Steam SDK. Both
+clients load DXVK at High 1920×1080 and close normally, with profiles, options,
+adapters and archives restored and saves/cloud/shared files unchanged.
+
+The second pair deliberately created History on Tower Island while Gold used
+Monhaim. Read-only inspection subsequently found Monhaim in History's native
+configuration cache: a real consumer effect, beyond queue insertion. Its map
+preview still showed Tower Island, and the native host Ready cache differed.
+The original Ready button emitted `CToggleReadyStateEvent` (29), which the
+current cross-edition path does not relay. Complete guest map initialization,
+Ready exchange, session intake, content agreement, world start and synchronized
+turns remain unqualified. No mixed world has started.
 
 ## Verification
 
@@ -105,6 +169,7 @@ work/crossplay-build/crossplay_admission_tests.exe
 work/crossplay-build/crossplay_chat_tests.exe
 work/crossplay-build/crossplay_event_codec_runtime_tests.exe
 work/crossplay-build/crossplay_preparation_tests.exe
+work/crossplay-build/crossplay_session_config_tests.exe
 python tests/gold_guest_lobby_tests.py
 python tests/gold_lobby_driver_tests.py
 ```

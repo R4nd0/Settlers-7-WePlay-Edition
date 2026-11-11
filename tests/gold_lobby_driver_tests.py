@@ -7,17 +7,20 @@ sys.path.insert(0,str(ROOT/'work/lua-test-runtime'))
 from lupa.lua51 import LuaRuntime
 
 BACKEND='''
-local C={now=0,loggedIn=false,natReady=true,inSession=false,success=true,creates=0,transitions=0,closes=0,privateCalls=0,phases={},maps={"Maps/Skirmish/Monhaim"}}
-C.Main={};C.Profile={};C.Browser={};C.State={};C.State.currentPageModule=C.Browser
+local C={now=0,loggedIn=false,natReady=true,browserCreated=true,inSession=false,success=true,creates=0,transitions=0,closes=0,privateCalls=0,phases={},maps={"Maps/Skirmish/Monhaim"}}
+C.Main={};C.Profile={};C.Browser={isCreated=function() return C.browserCreated end};C.State={};C.State.currentPageModule=C.Browser
+C.State.actionManager={createCallbacks=function(sender) assert(sender==C.Browser);return {shutdown=function() C.closes=C.closes+1 end} end}
 C.actions={toMainMenu=4,toSessionList=105,toHostLobby=108};C.options={gold=false,duration=90000}
 C.report=function(phase) C.phases[#C.phases+1]=phase end
 C.transition=function(action) C.transitions=C.transitions+1;C.action=action end
-C.G={Game={GetRunTime=function() return C.now end},system={exitApi=function() C.closes=C.closes+1 end},
+C.G={release=true,Game={GetRunTime=function() return C.now end},system={exitApi=function() error('must use original shutdown action') end},
  Network={IsLoggedIn=function() return C.loggedIn end,IsNATReady=function() return C.natReady end,SessionIsInSession=function() return C.inSession end,
  SetIsPrivate=function(value) assert(value==false);C.privateCalls=C.privateCalls+1 end,
  SessionCreate=function(...) C.creates=C.creates+1;C.args={n=select('#',...),...};if C.reenter then C.driver.tick() end;return C.success end,
  StartGame=function() error('driver must not start a game') end,TogglePlayerReadyState=function() error('driver must not forge readiness') end},
- MapSetup={GetSkirmishMaps=function(a,b) assert(a and b);return C.maps end,SetCoopMode=function(mode) C.coop=mode end},
+ MapSetup={GetSkirmishMaps=function(...) assert(select('#',...)==1 and select(1,...)==true);return C.maps end,
+ GetMapDataByFilename=function(path) return {Name=C.mapName or path,MapPath=C.mapPath or path,Locked=false} end,
+ SetCoopMode=function(mode) C.coop=mode end},
  map={loadSetupMapConfig=function(path,template) C.map=path;C.template=template end}}
 return C
 '''
@@ -78,18 +81,34 @@ class DriverTests(unittest.TestCase):
         self.c.State.currentPageModule=self.c.Browser;self.driver.tick()
         self.assertEqual(self.c.creates,1)
 
-    def test_opens_original_browser_once_and_waits_for_real_startup_readiness(self):
+    def test_opens_original_browser_once_and_hosts_without_quickmatch_nat_gate(self):
         self.c.loggedIn=True;self.c.State.currentPageModule=self.c.Main
         self.driver.tick();self.driver.tick()
         self.assertEqual(self.c.transitions,1);self.assertEqual(self.c.action.actionType,105)
         self.assertEqual(self.c.creates,0)
         self.c.State.currentPageModule=self.c.Browser;self.c.natReady=False
-        self.driver.tick();self.assertEqual(self.c.creates,0)
-        self.c.natReady=True;self.driver.tick();self.assertEqual(self.c.creates,1)
+        self.driver.tick();self.assertEqual(self.c.creates,1)
 
     def test_bounded_run_closes_normally_only_once(self):
         self.c.now=90000;self.driver.tick();self.driver.tick()
         self.assertEqual(self.c.closes,1);self.assertEqual(self.c.creates,0)
         self.assertEqual(self.driver.state(),'closing')
+
+    def test_queued_page_waits_until_original_browser_is_created(self):
+        self.c.loggedIn=True;self.c.browserCreated=False;self.driver.tick()
+        self.assertEqual(self.c.creates,0)
+        self.c.browserCreated=True;self.driver.tick();self.assertEqual(self.c.creates,1)
+
+    def test_map_selection_uses_native_metadata_and_canonical_path(self):
+        self.c.loggedIn=True;self.c.maps=self.lua.table_from(['map_001'])
+        self.c.mapName='Monhaim';self.c.mapPath='Maps/Canonical/001'
+        self.driver.tick();self.assertEqual(self.c.args[1],'Maps/Canonical/001')
+
+    def test_lua_job_error_fails_then_reaches_normal_shutdown_deadline(self):
+        self.c.loggedIn=True
+        self.lua.execute("local c=...;c.G.map.loadSetupMapConfig=function() error('synthetic loader failure') end",self.c)
+        self.driver.tick();self.assertEqual(self.driver.state(),'failed')
+        self.assertEqual(self.c.creates,0)
+        self.c.now=90000;self.driver.tick();self.assertEqual(self.c.closes,1)
 
 if __name__=='__main__':unittest.main()
