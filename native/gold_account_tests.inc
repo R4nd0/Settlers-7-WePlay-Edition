@@ -44,6 +44,8 @@ bool GoldAccountGuards() {
             0x8b,0x55,0x08,0x33,0xc9,0x84,0xc0}},
         {0x690c0e,{0x0f,0x94,0xc1}},
         {0x8c94a0,{0x8b,0x44,0x24,0x04,0x85,0xc0}},
+        {0x652610,{0x55,0x8b,0xec,0xa1}},
+        {0x652618,{0x8b,0x48,0x04,0x53,0x8b,0x5d,0x14,0x56,0x57}},
         {0x84f3f0,{0x8b,0x44,0x24,0x04,0x50,0xe8,0x86,0xc7,0xfd,0xff}},
         {0x84a963,{0xe8,0xf8,0x97,0xf4,0xff}},
         {0x89880d,{0xe8,0x2e,0xb9,0xef,0xff}},
@@ -52,18 +54,28 @@ bool GoldAccountGuards() {
         {0x860c7f,{0xe8,0x3c,0x9f,0x06,0x00}},
         {0x860f5c,{0xe8,0x3f,0x85,0x06,0x00}},
         {0x6580da,{0xe8,0xe1,0x01,0x1f,0x00}},
-        {0x658162,{0xe8,0x89,0x72,0x1f,0x00}}
+        {0x658162,{0xe8,0x89,0x72,0x1f,0x00}},
+        {0x68674d,{0xe8,0xbe,0xbe,0xfc,0xff}},
+        {0x687bec,{0xe8,0x1f,0xaa,0xfc,0xff}}
     };
     strcpy_s(local_login_name,"WePlayGoldLocal");
     if (!SetEnvironmentVariableA("WEPLAY_GOLD_CONFIG_PORT","55123")) return false;
     for (const auto& field : fixture)
         memcpy(reinterpret_cast<void*>(image+field.rva),field.bytes.data(),field.bytes.size());
+    *reinterpret_cast<uintptr_t*>(image+0x652614)=image+0xcf83d8;
     account_config_port=0;
     std::vector<Patch> patches;
-    if (!AccountLoginPrepare(patches) || patches.size()!=9) return false;
+    if (!AccountLoginPrepare(patches) || patches.size()!=11) return false;
     unsigned int rejections=0;
     for (const auto& field : fixture) for (size_t i=0;i<field.bytes.size();++i) {
         auto* at=reinterpret_cast<unsigned char*>(image+field.rva+i);*at^=1;
+        account_config_port=0;std::vector<Patch> rejected;
+        const bool accepted=AccountLoginPrepare(rejected);*at^=1;
+        if (accepted) return false;
+        ++rejections;
+    }
+    for (unsigned int i=0;i<4;++i) {
+        auto* at=reinterpret_cast<unsigned char*>(image+0x652614+i);*at^=1;
         account_config_port=0;std::vector<Patch> rejected;
         const bool accepted=AccountLoginPrepare(rejected);*at^=1;
         if (accepted) return false;
@@ -95,6 +107,71 @@ bool GoldAccountGuards() {
     return true;
 }
 #ifdef S7_GOLD_LOCAL_SIMULATION
+std::array<uintptr_t,7> participant_arguments{};
+std::string participant_name;
+unsigned int participant_result=0;
+unsigned int __stdcall AccountTestCreate(void* session, const GoldStartup::AsciiString* input,
+    unsigned int field70, unsigned int field7c, unsigned int principal,
+    unsigned int flag75, unsigned int flag74) {
+    participant_arguments={reinterpret_cast<uintptr_t>(session),reinterpret_cast<uintptr_t>(input),
+        field70,field7c,principal,flag75,flag74};
+    participant_name.assign(static_cast<const char*>(input->bytes),input->length);
+    SetLastError(43);
+    return participant_result;
+}
+bool AccountParticipantAbi(void* session) {
+    auto* target=reinterpret_cast<unsigned char*>(image+0x652610);target[0]=0xe9;
+    const uint32_t jump=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(AccountTestCreate)
+        -reinterpret_cast<uintptr_t>(target)-5);
+    memcpy(target+1,&jump,4);
+    strcpy_s(local_login_name,"WePlayGoldLocal");
+    char existing[]="Existing local name";
+    for (uintptr_t rva : {0x68674du,0x687becu}) for (bool supplied : {false,true})
+        for (unsigned int native_result : {0u,0xfa123u}) {
+        GoldStartup::AsciiString input{supplied ? nullptr : existing,
+            supplied ? 0u : 19u,supplied ? 0u : 19u,0};
+        const auto* input_pointer=&input;
+        auto* at=reinterpret_cast<unsigned char*>(image+rva);at[0]=0xe8;
+        const uint32_t call=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(AccountCreateParticipant)
+            -reinterpret_cast<uintptr_t>(at)-5);
+        memcpy(at+1,&call,4);at[5]=0xc3;
+        DWORD before=0,after=0,observed_bx=0,observed_si=0,observed_di=0,result=0;
+        participant_result=native_result;
+        __asm {
+            mov before,esp
+            mov ebx,0x12345678
+            mov esi,0x34567890
+            mov edi,0x56789012
+            lea eax,participant_return
+            push eax
+            push 0xdeadbeef
+            push 0xabcdef42
+            push 42
+            push 0x76543210
+            push 0x13572468
+            push input_pointer
+            push session
+            jmp at
+        participant_return:
+            mov result,eax
+            mov after,esp
+            mov observed_bx,ebx
+            mov observed_si,esi
+            mov observed_di,edi
+        }
+        const DWORD error=GetLastError();
+        if (before!=after || observed_bx!=0x12345678 || observed_si!=0x34567890 || observed_di!=0x56789012
+            || result!=native_result || error!=43
+            || participant_arguments[0]!=reinterpret_cast<uintptr_t>(session)
+            || (!supplied && participant_arguments[1]!=reinterpret_cast<uintptr_t>(input_pointer))
+            || participant_arguments[2]!=0x13572468 || participant_arguments[3]!=0x76543210
+            || participant_arguments[4]!=42 || participant_arguments[5]!=0xabcdef42
+            || participant_arguments[6]!=0xdeadbeef
+            || participant_name!=(supplied ? "WePlayGoldLocal" : existing)
+            || input.length!=(supplied ? 0u : 19u) || input.bytes!=(supplied ? nullptr : existing)) return false;
+    }
+    return true;
+}
 bool GoldAccountLocalScene() {
     LocalSetup();
     std::array<uintptr_t,40> account{};
@@ -111,6 +188,44 @@ bool GoldAccountLocalScene() {
     account_login_owner=reinterpret_cast<uintptr_t>(account.data());
     local_login_backend=message_backend.data();local_login_dispatched=true;account_login_observed=true;
     if (!AccountLocalSceneAllowed()) return false;
+    std::array<uintptr_t,18> session{};
+    std::array<uintptr_t,3> session_node{},rendezvous_node{},context{};
+    std::array<uintptr_t,9> rendezvous_service{};
+    std::array<uintptr_t,48> rendezvous{};
+    session[0]=image+0xb569bc;main[0x14/4]=reinterpret_cast<uintptr_t>(session.data());
+    node[0]=reinterpret_cast<uintptr_t>(session_node.data());
+    session_node[0]=reinterpret_cast<uintptr_t>(rendezvous_node.data());
+    session_node[2]=reinterpret_cast<uintptr_t>(session.data());
+    rendezvous_node[0]=reinterpret_cast<uintptr_t>(head.data());
+    rendezvous_node[2]=reinterpret_cast<uintptr_t>(rendezvous_service.data());
+    rendezvous_service[0]=image+0xb56bbc;
+    rendezvous_service[2]=reinterpret_cast<uintptr_t>(rendezvous.data());
+    rendezvous[0]=image+0xaec274;
+    rendezvous[0x78/4]=reinterpret_cast<uintptr_t>(context.data());context[2]=42;
+    rendezvous[0xb0/4]=1;
+    if (LocalLoginRendezVous()!=0
+        || LocalLoginRendezVous(false)!=reinterpret_cast<uintptr_t>(rendezvous.data())) return false;
+    GoldStartup::AsciiString empty{};
+    const auto eligible=[&]() { return AccountParticipantNameEligible(session.data(),&empty,42); };
+    if (!eligible() || !AccountParticipantAbi(session.data())) return false;
+    empty.length=1;if (eligible()) return false;empty.length=0;
+    empty.capacity=4097;if (eligible()) return false;empty.capacity=0;
+    char nonempty[]="x";empty.bytes=nonempty;if (eligible()) return false;empty.bytes=nullptr;
+    if (AccountParticipantNameEligible(session.data(),nullptr,42)
+        || AccountParticipantNameEligible(session.data(),&empty,0)
+        || AccountParticipantNameEligible(session.data(),&empty,43)
+        || AccountParticipantNameEligible(nullptr,&empty,42)) return false;
+    session[0]++;if (eligible()) return false;session[0]--;
+    session_node[2]=0;if (eligible()) return false;session_node[2]=main[0x14/4];
+    rendezvous_service[2]=0;if (eligible()) return false;
+    rendezvous_service[2]=reinterpret_cast<uintptr_t>(rendezvous.data());
+    rendezvous[0]++;if (eligible()) return false;rendezvous[0]--;
+    rendezvous[0x78/4]=0;if (eligible()) return false;
+    rendezvous[0x78/4]=reinterpret_cast<uintptr_t>(context.data());
+    account[0x50/4]=0;if (eligible()) return false;account[0x50/4]=6;
+    const DWORD thread=owner_thread.exchange(0);const bool wrong_thread=eligible();owner_thread.store(thread);
+    if (wrong_thread || !eligible()) return false;
+    std::printf("Gold native participant creation: both callers, original success/failure, seven arguments, stack/register/error preservation and identity exclusions passed.\n");
     const unsigned char selected[]={0xb0,0x01,0xc3};
     memcpy(reinterpret_cast<void*>(image+0x58c910),selected,sizeof(selected));
     for (bool result : {false,true}) {

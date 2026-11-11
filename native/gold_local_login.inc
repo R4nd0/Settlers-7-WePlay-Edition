@@ -51,7 +51,7 @@ void __cdecl LocalLoginAccessKey(const GoldQString*) {
     local_login_key_set = true;
 }
 
-uintptr_t LocalLoginRendezVous() {
+uintptr_t LocalLoginRendezVous(bool before_login = true) {
     const uintptr_t main = *reinterpret_cast<uintptr_t*>(image + 0xcf83dc);
     if (!main || !ValidRange(reinterpret_cast<void*>(main), 0x48)
         || *reinterpret_cast<uintptr_t*>(main) != image + 0xb55600) return 0;
@@ -72,7 +72,7 @@ uintptr_t LocalLoginRendezVous() {
     }
     if (!rendezvous || !ValidRange(reinterpret_cast<void*>(rendezvous), 0xc0, true)
         || *reinterpret_cast<uintptr_t*>(rendezvous) != image + 0xaec274
-        || *reinterpret_cast<uintptr_t*>(rendezvous + 0xb0)) return 0;
+        || (before_login && *reinterpret_cast<uintptr_t*>(rendezvous + 0xb0))) return 0;
     return rendezvous;
 }
 

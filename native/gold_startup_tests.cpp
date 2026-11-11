@@ -418,6 +418,10 @@ int main(int argc,char** argv) {
         if (mode==3) facade[0x1c]=1;
         if (mode==4) ticket.length=1;
 #ifdef S7_GOLD_ACCOUNT_LOGIN
+        if (mode==23) {
+            AccountCreateParticipant(nullptr,nullptr,0,0,0,0,0);
+            return 3;
+        }
         if (mode>=19 && mode<=21) {
             account_http_owned=true;
             AccountTestMethod(mode==19,mode==20 ? 7 : 0,mode==21 ? 0 : 1);
@@ -461,6 +465,7 @@ int main(int argc,char** argv) {
     if (!CloudSaveGuards() || !CloudSaveAbi(0x185b) || !CloudSaveAbi(0x40f58)) return 35;
 #ifdef S7_GOLD_ACCOUNT_LOGIN
     if (!GoldAccountGuards()) return 36;
+    if (!RejectedChild(23)) return 103;
     for (unsigned int mode=19;mode<=21;++mode) if (!RejectedChild(mode)) return 80+static_cast<int>(mode);
 #endif
 #ifdef S7_GOLD_LOCAL_SIMULATION

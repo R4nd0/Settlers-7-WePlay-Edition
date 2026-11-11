@@ -1,0 +1,43 @@
+{
+  "format": "s7-gold-participant-verification-v1",
+  "date": "2026-11-11",
+  "native_sha256": "b173edbda25f272ffd8581485776fecd47e57c5101abc1b100aefe70705b49af",
+  "renderer": "DXVK",
+  "legacy_fallback": false,
+  "loopback_only": true,
+  "observed": {
+    "native_account_authenticated": true,
+    "original_host_lobby_opened": true,
+    "own_human_player_named": true,
+    "own_player_controls_visible": true,
+    "native_connected_status": true,
+    "native_network_slot_assigned": true,
+    "native_preparation_name_present": true,
+    "original_ai_selection_applied": true,
+    "own_name_retained_after_ai_selection": true,
+    "lobby_leave_completed": true,
+    "second_session_creation_succeeded": false,
+    "second_session_creation_server_error": true,
+    "match_started": false,
+    "exit_code": 0,
+    "shared_profile_save_files": 16,
+    "shared_files_unchanged": true
+  },
+  "synthetic_checks": {
+    "creation_callsites": 2,
+    "forwarded_arguments": 7,
+    "native_failure_preserved": true,
+    "native_object_identifier_preserved": true,
+    "stack_nonvolatile_registers_and_last_error_preserved": true,
+    "identity_exclusions_checked": true,
+    "unexpected_caller_rejected": true,
+    "altered_instruction_bytes_rejected": 119,
+    "network_guard_checks": 75,
+    "sdk_only_regression_passed": true
+  },
+  "gold_ubisoft_history_match_observed": false,
+  "gold_steam_history_match_observed": false,
+  "game_session_admission": false,
+  "account_data_included": false,
+  "raw_payload_saved": false
+}

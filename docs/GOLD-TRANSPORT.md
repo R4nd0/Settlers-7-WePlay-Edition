@@ -8,6 +8,35 @@ Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
+## Native local player identity, 2026-11-11
+
+The opt-in account adapter now supplies its independent launch name when Gold
+originally creates the authenticated local NetZ player. A later edit of the
+preparation record is overwritten by incoming native player metadata. The two
+online creation calls are guarded separately; offline callers are unchanged.
+The adapter requires the owner thread, authenticated account, owned native
+session, empty bounded name and the actual principal from the service-owned
+RendezVous ClientContext. Account management's protocol client is unrelated to
+that context. Existing names and excluded contexts retain the original input.
+The original constructor copies the name and returns its own object identifier;
+no participant, connected flag or readiness result is fabricated.
+
+In the actual DXVK client, the original Host Match screen now showed the named
+human player with colour, team and position controls. The name remained present
+after selecting Bishop Matheusz through the original AI dialog. Read-only native
+inspection confirmed a human player, connected status, assigned network slot and
+nonempty name. Leaving the lobby worked, but creating another session in that
+process returned a server error; registration reuse remains unresolved. Normal
+exit and all 16 unchanged shared profile/save files were verified.
+
+Native fixtures cover both creation callsites, all seven arguments, native
+failure and success returns, stack/nonvolatile registers, LastError, excluded
+identity contexts and an unexpected-caller process rejection. All 119 altered
+instruction bytes were rejected. The SDK-only regression and 75 network guard
+checks also passed. This qualifies the local host's identity only: no network
+match was started and neither History edition was connected. See the
+[sanitized participant receipt](verification/gold-participant-20261111.json).
+
 ## Owned Gold registrations, 2026-11-11
 
 `--account-mode --session-mode` adds an isolated registration laboratory. The
