@@ -21,6 +21,7 @@ PROFILES = {
 }
 EVENTS = ('CEndOfTurnEvent', 'CEndOfTurnBatchEvent', 'CLogicStateEvent', 'CGameStartEvent')
 WRITER = 'CBinarySerializationWriterNoOverhead@CBase'
+READER = 'CBinarySerializationReaderNoOverhead@CBase'
 SCRATCH, STACK = 0x20000000, 0x30000000
 OBJECT, VISITOR, STREAM = SCRATCH+0x1000, SCRATCH+0x2000, SCRATCH+0x3000
 STREAM_VTABLE, POSITION, WRITE = SCRATCH+0x4000, SCRATCH+0x5000, SCRATCH+0x5010
@@ -59,7 +60,7 @@ class Image:
                 start = at+4
 
         self.tables = {}
-        for name in (*EVENTS, WRITER):
+        for name in (*EVENTS, WRITER, READER):
             qualified = name if '@' in name else name+'@CNetwork'
             needle = ('.?AV'+qualified+'@@').encode()+b'\0'
             at = raw.find(needle)
@@ -73,7 +74,7 @@ class Image:
                     continue
                 for reference in refs(col):
                     table = reference+4
-                    count = 39 if name == WRITER else 6
+                    count = 39 if name == WRITER else 34 if name == READER else 6
                     methods = [word(table+4*i) for i in range(count)]
                     if all(any(a <= method < b for a, b in executable) for method in methods):
                         tables.append((table, methods))
@@ -82,7 +83,15 @@ class Image:
             self.tables[name] = tables[0]
 
 
-def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
+class InputBoundError(RuntimeError):
+    """The synthetic input stream refused an overread or trailing payload."""
+
+
+def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None):
+    reading = read_wire is not None
+    if reading and (name != EVENTS[0] or nonempty or type(read_wire) is not bytes
+                    or len(read_wire) > 65536):
+        raise ValueError('Only bounded scalar end-of-turn input is mapped')
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_EBP,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_ECX, UC_X86_REG_ESP, UC_X86_REG_EIP)
@@ -103,6 +112,8 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
     words(OBJECT, table, 0x11112222, 0x33334444, asynchronous)
     for offset in range(0x10, 0x80, 4):
         words(OBJECT+offset, (scalar+offset) & 0xffffffff)
+    if reading:
+        u.mem_write(OBJECT+4, bytes(0x20))
     if name == 'CGameStartEvent':
         text = b'synthetic/map' if scalar else b''
         u.mem_write(NAME+0x100, text+b'\0')
@@ -123,14 +134,15 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
             words(OBJECT+offset, NESTED, NESTED+2*0x24, NESTED+2*0x24)
         else:
             raise ValueError('Only container events accept nested fixtures')
-    words(VISITOR, image.tables[WRITER][0], 0, STREAM, 0)
+    words(VISITOR, image.tables[READER if reading else WRITER][0], int(reading), STREAM, 0)
     words(STREAM, STREAM_VTABLE)
     words(STREAM_VTABLE+0x14, POSITION)
-    words(STREAM_VTABLE+0x28, WRITE)
+    words(STREAM_VTABLE+(0x20 if reading else 0x28), WRITE)
     u.mem_write(NAME, b'class SyntheticEvent\0')
     if image.label == 'gold':
         words(0xebf574, REFLECTION)
     output = bytearray()
+    read_position = 0
     completed = False
 
     def returned(count, value=0):
@@ -140,7 +152,7 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
         u.reg_write(UC_X86_REG_EIP, word(esp))
 
     def code(uc, address, size, data):
-        nonlocal completed
+        nonlocal completed, read_position
         if address == STOP:
             completed = True
             uc.emu_stop()
@@ -151,22 +163,35 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
         elif address == POSITION:
             if uc.reg_read(UC_X86_REG_ECX) != STREAM:
                 raise RuntimeError('Unexpected stream ownership')
-            returned(0, len(output))
+            returned(0, read_position if reading else len(output))
         elif address == WRITE:
             esp = uc.reg_read(UC_X86_REG_ESP)
             pointer, length = word(esp+4), word(esp+8)
-            if (uc.reg_read(UC_X86_REG_ECX) != STREAM or length > 4096
+            if reading:
+                if (uc.reg_read(UC_X86_REG_ECX) != STREAM or word(esp+12) != 0
+                        or length > 4096 or not (
+                            OBJECT+4 <= pointer <= pointer+length <= OBJECT+0x24
+                            or STACK <= pointer <= pointer+length <= STACK+0x10000)):
+                    raise RuntimeError('Unexpected native read destination/ownership')
+                if read_position+length > len(read_wire):
+                    raise InputBoundError('Synthetic input stream overread')
+                uc.mem_write(pointer, read_wire[read_position:read_position+length])
+                read_position += length
+                returned(12, length)
+            elif (uc.reg_read(UC_X86_REG_ECX) != STREAM or length > 4096
                     or len(output)+length > 65536):
                 raise RuntimeError('Synthetic stream bound/ownership')
-            output.extend(uc.mem_read(pointer, length))
-            returned(8)
+            else:
+                output.extend(uc.mem_read(pointer, length))
+                returned(8)
         elif not image.base <= address < image.base+image.size:
             raise RuntimeError('Unexpected execution outside native image')
 
     def writes(uc, access, address, size, value, data):
         if not (STACK <= address <= address+size <= STACK+0x10000
                 or address == 0 and size == 4
-                or VISITOR+0xc <= address <= address+size <= VISITOR+0x214):
+                or VISITOR+0xc <= address <= address+size <= VISITOR+0x214
+                or reading and OBJECT+4 <= address <= address+size <= OBJECT+0x24):
             raise RuntimeError('Native serializer wrote outside its stack/writer')
 
     u.hook_add(UC_HOOK_CODE, code)
@@ -182,10 +207,16 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0):
     u.emu_start(methods[3], STOP+1, timeout=2_000_000, count=100000)
     if (not completed or u.reg_read(UC_X86_REG_ESP) != esp+12
             or any(u.reg_read(k) != v for k, v in preserved.items())
-            or bytes(u.mem_read(OBJECT, 0x100)) != before
+            or (not reading and bytes(u.mem_read(OBJECT, 0x100)) != before)
             or bytes(u.mem_read(NESTED, 2*0x24)) != nested_before
             or word(VISITOR+0xc) != 0):
         raise RuntimeError('Native serializer changed its bounded ABI/input state')
+    if reading:
+        if word(OBJECT) != table or bytes(u.mem_read(OBJECT+0x24, 0xdc)) != before[0x24:]:
+            raise RuntimeError('Native reader changed fields outside the mapped event')
+        if read_position != len(read_wire):
+            raise InputBoundError('Trailing native input payload')
+        return tuple(word(OBJECT+offset) for offset in range(4, 0x24, 4))
     return bytes(output)
 
 

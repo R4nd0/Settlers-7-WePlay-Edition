@@ -593,8 +593,28 @@ map identity or mixed-edition deterministic simulation. Original installations
 and the Steam SDK/ownership path remain unchanged. Analysis images are neither
 distributed nor used as launch images.
 
+The complementary `tools/gold/emulate_event_receivers.py` now checks the scalar
+end-of-turn receive path. Each original writer's two synthetic fixtures are
+read by all three original `CBinarySerializationReaderNoOverhead` instances
+and event visitors: 18 successful combinations, including 12 between different
+editions. All eight output fields match, with stack, nonvolatile registers,
+full consumption and output-memory bounds checked. The reader uses its native
+reading-mode flag. Its synthetic stream additionally refuses every truncated
+prefix and one trailing-byte variant: 180 boundary rejections. These rejections
+belong to the harness, not a claim about malformed-input validation by the game.
+
+This receiver check supplies neither native event construction/registration nor
+the session callbacks, participant ownership, NetZ/Storm connection or live
+transport. It covers no arbitrary command or container receive path. Both
+Gold/History gameplay combinations remain untested. See the
+[receiver receipt](verification/gold-event-receivers-20261111.json).
+
 ```console
 python tools/gold/emulate_event_payloads.py --gold <owned-gold-exe> --ubisoft <owned-ubisoft-he-exe> --steam-analysis <pinned-private-analysis-image> work/event-payloads.json
+```
+
+```console
+python tools/gold/emulate_event_receivers.py --gold <owned-gold-exe> --ubisoft <owned-ubisoft-he-exe> --steam-analysis <pinned-private-analysis-image> work/event-receivers.json
 ```
 
 The guarded Gold bootstrap and bounded two-human Gold gameplay are now observed

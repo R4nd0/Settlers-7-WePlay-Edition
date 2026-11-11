@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-11",
+  "scope": "bounded offline scalar end-of-turn writer/reader compatibility",
+  "profiles": ["Gold Ubisoft 1.12.1396", "Ubisoft History", "Steam History private analysis image"],
+  "synthetic_fixtures_per_writer": 2,
+  "original_writer_executions": 6,
+  "successful_original_reader_executions": 18,
+  "combinations_between_different_editions": 12,
+  "output_fields_checked_per_case": 8,
+  "payload_bytes_per_case": 29,
+  "native_reader_mode_enabled": true,
+  "stack_nonvolatile_registers_output_bounds_and_full_consumption": true,
+  "synthetic_input_boundary_rejections": 180,
+  "malformed_input_rejection_is_harness_policy": true,
+  "synthetic_stream_and_reflection_helpers": true,
+  "existing_native_writer_fixture_regression_executions": 36,
+  "existing_writer_fixtures_unchanged": true,
+  "native_factory_executed": false,
+  "actual_game_test": false,
+  "gold_ubisoft_history_gameplay_tested": false,
+  "gold_steam_history_gameplay_tested": false,
+  "history_crossplay_implemented": false,
+  "unqualified": [
+    "event factory and registry construction",
+    "arbitrary command and container receive paths",
+    "participant ownership and session callbacks",
+    "NetZ to Storm connection and transport",
+    "mixed-edition deterministic simulation"
+  ]
+}
