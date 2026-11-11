@@ -1,0 +1,52 @@
+{
+  "format": "weplay-native-roster-binding-v1",
+  "date": "2026-11-11",
+  "ordinary_game_adapters_changed": false,
+  "crossplay_qualified": false,
+  "standalone": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "participant_checks": 177,
+    "admission_framing_ownership_checks": 920,
+    "original_image_cases": 312,
+    "original_image_cases_per_profile": 104,
+    "original_native_top_level_calls": 1560,
+    "compiled_thunk_calls": 624,
+    "modeled_heap_lock_and_deque_storage": true,
+    "native_queue_consumers_executed_in_emulation": false,
+    "castle_variants": ["empty", "three-part"]
+  },
+  "gold_constructor_runtime": {
+    "renderer": "DXVK",
+    "original_added_and_confirmed_constructed_and_destroyed": true,
+    "normal_exit": true,
+    "shared_files_unchanged": true
+  },
+  "private_slot_followup_runtime": {
+    "pair": ["Gold", "Ubisoft History"],
+    "renderer": "DXVK",
+    "original_gold_slot_query_bound_to_authenticated_foreign_station": true,
+    "gold_visible_foreign_player_row": true,
+    "history_complete_visible_lobby": false,
+    "slot_callback_in_public_component": false,
+    "both_exit_codes": [0, 0],
+    "profiles_restored_and_saves_unchanged": true,
+    "world_started": false
+  },
+  "mixed_runtime": {
+    "pair": ["Gold", "Ubisoft History"],
+    "renderer": "DXVK",
+    "loopback_only": true,
+    "authenticated_admission_records": 7,
+    "native_original_queue_consumers_and_dispatchers": true,
+    "gold": {"members": 2, "local_slot": 1, "host": true},
+    "history": {"members": 2, "local_slot": 2, "host": false},
+    "shared_preparation_frame": false,
+    "complete_visible_lobby": false,
+    "gameplay_content_qualified": false,
+    "world_started": false,
+    "both_exit_codes": [0, 0],
+    "adapters_and_options_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true,
+    "steam_history_mixed_runtime_tested": false
+  }
+}

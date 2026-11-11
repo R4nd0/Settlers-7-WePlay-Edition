@@ -19,5 +19,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay channel test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_participant_tests.cpp') /Fe:crossplay_participant_tests.exe /link bcrypt.lib /BASE:0x18000000 /FIXED /DYNAMICBASE:NO "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay participant test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_admission_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') (Join-Path $nativeSource 'crossplay_channel.cpp') /Fe:crossplay_admission_tests.exe /link ws2_32.lib bcrypt.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Native crossplay admission test build failed.' }
 } finally { Pop-Location }
-Write-Output 'Built channel and participant construction tests. No game adapter was installed or launched.'
+Write-Output 'Built channel, participant and admission tests. No game adapter was installed or launched.'

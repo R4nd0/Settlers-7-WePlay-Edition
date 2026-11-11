@@ -134,7 +134,7 @@ void TransportGuards(const Profile& original) {
     unsigned char send[10]={0x55,0x8b,0xec,0x83,0xec,0x18,0x89,0x4d,0xfc,0x8b};
     const unsigned char gold[]={0x55,0x8b,0xec,0x8b,0x45,0x0c,0x83,0xe8,0x00,0x56};
     if(profile.edition==Crossplay::Edition::Gold) memcpy(send,gold,10);
-    uint32_t table[6]{},manager[24]{},main[5]{};CRITICAL_SECTION lock{};
+    uint32_t table[6]{},manager[24]{},main[6]{};CRITICAL_SECTION lock{};
     auto address=[](const void* value){return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value));};
     uint32_t main_pointer=address(main);
     profile.main_pointer=address(&main_pointer);profile.main_vtable=123;
@@ -150,6 +150,45 @@ void TransportGuards(const Profile& original) {
     manager[lock_index]=0;Check(!CurrentTransport(profile),"missing native queue lock excluded");manager[lock_index]=address(&lock);
     table[5]^=1;Check(!CurrentTransport(profile),"changed virtual send excluded");table[5]^=1;
     for(auto& byte:send) { byte^=1;Check(!CurrentTransport(profile),"changed local-send instructions excluded");byte^=1; }
+    uint32_t session[12]{},head[2]{},node[15]{};
+    main[5]=address(session);session[0]=profile.session_vtable;session[3]=1;session[4]=1;session[5]=1;
+    const auto list=profile.roster_offset/4;session[list]=address(head);session[list+1]=1;
+    head[0]=head[1]=address(node);node[0]=node[1]=address(head);
+    const char name[]="Crossplay";
+    const uint32_t connection=profile.edition==Crossplay::Edition::Gold?1u:0u;
+    PlayerData player{2,connection,0,1,{name,10,9,0},0,1,0,0,0,connection,0,0};
+    memcpy(node+2,&player,sizeof(player));
+    LobbySnapshot snapshot;
+    Check(SnapshotLobby(profile,snapshot) && snapshot.members.size()==1 && snapshot.local_slot==1
+        && snapshot.host && snapshot.members[0].player.local && snapshot.members[0].player.principal==0
+        && snapshot.members[0].player.connection==connection && snapshot.members[0].player.name==name,
+        "live lobby capture preserves native namespaces, own slot and names");
+    session[4]=2;Check(!SnapshotLobby(profile,snapshot) && snapshot.members.empty(),"active world cannot become a fresh admission");session[4]=1;
+    session[0]^=1;Check(!SnapshotLobby(profile,snapshot),"foreign session class excluded");session[0]^=1;
+    session[list+1]=2;Check(!SnapshotLobby(profile,snapshot),"short/cyclic native roster excluded");session[list+1]=1;
+    node[1]=0;Check(!SnapshotLobby(profile,snapshot),"broken roster backlink excluded");node[1]=address(head);
+    session[3]=2;Check(!SnapshotLobby(profile,snapshot),"absent local participant excluded");session[3]=1;
+    auto* data=reinterpret_cast<PlayerData*>(node+2);
+    data->name.capacity=9;Check(!SnapshotLobby(profile,snapshot),"invalid native name extent excluded");data->name.capacity=10;
+    data->status=1;Check(!SnapshotLobby(profile,snapshot),"unconfirmed local participant excluded");data->status=2;
+    session[5]=0;Check(!SnapshotLobby(profile,snapshot),"host ownership disagreement excluded");
+}
+void CastleGuards(const Profile& profile) {
+    castle_wire::Design design{"woodland",{{"Keep",UINT32_MAX,0},{"Tower",0,3},{"Gate",0,4}}};
+    CastleSource source(profile,design);castle_wire::Design captured;
+    Check(SnapshotCastle(profile,source.Get(profile),captured),"target-edition castle view can be captured");
+    std::vector<unsigned char> expected,actual;
+    Check(castle_wire::Encode(design,expected) && castle_wire::Encode(captured,actual) && expected==actual,
+        "castle type, assets, parents and slots have one canonical representation");
+    CastleSource empty(profile,{});
+    Check(SnapshotCastle(profile,empty.Get(profile),captured) && captured.parts.empty() && captured.type.empty(),"empty castle is explicit");
+    auto* vector=profile.edition==Crossplay::Edition::Gold?&source.gold.parents.value:&source.history.parents;
+    const auto saved=*vector;vector->end=vector->begin;
+    Check(!SnapshotCastle(profile,source.Get(profile),captured),"different castle vector cardinalities excluded");*vector=saved;
+    vector->capacity=nullptr;
+    Check(!SnapshotCastle(profile,source.Get(profile),captured),"invalid castle vector capacity excluded");*vector=saved;
+    source.parts[1].length=castle_wire::MaxAsset+1;
+    Check(!SnapshotCastle(profile,source.Get(profile),captured),"unbounded castle asset excluded");
 }
 }
 int main() {
@@ -164,6 +203,7 @@ int main() {
     Participant member{1,1,9,1,"Crossplay",true,true};
     for(const auto& profile:Profiles) {
         TransportGuards(profile);
+        CastleGuards(profile);
         for(auto change:{Change::Added,Change::Confirmed,Change::Leaving,Change::Removed}) Check(Eligible(change,member,profile),"known changes");
         auto candidate=member;candidate.connection=0;candidate.station=0;candidate.principal=0;
         Check(Eligible(Change::Confirmed,candidate,profile)==(profile.edition!=Crossplay::Edition::Gold),"zero CID retained for History independently of principal");
@@ -185,6 +225,8 @@ int main() {
     }
     Check(!Readable(nullptr,1) && !Readable(reinterpret_cast<void*>(UINTPTR_MAX-1),4),"read range guards");
     ParticipantEvent event;
+    LobbySnapshot unbound_snapshot;
+    Check(!event.CaptureLobby(unbound_snapshot),"unbound game snapshot cannot create admission");
     Check(!event.Get() && event.Reset() && !event.Construct(Change::Added,member),"unbound event has no native calls");
     Check(!event.EnqueueLocal(),"unbound delivery has no native calls");
     Check(event.Failure()==ParticipantFailure::State,"unbound failure is identified");

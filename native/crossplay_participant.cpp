@@ -21,6 +21,11 @@ struct PlayerData {
     unsigned char host, reserved25, reserved26, reserved27;
     uint32_t station, reserved2c, reserved30;
 };
+struct CastleVector { const void* begin; const void* end; const void* capacity; };
+struct CheckedCastleVector { uint32_t proxy; CastleVector value; };
+struct GoldCastle { NativeString type,name;CheckedCastleVector parts,parents,slots; };
+struct HistoryCastle { uint32_t vtable;NativeString type,name;CastleVector parts,parents,slots; };
+static_assert(sizeof(GoldCastle)==0x50 && sizeof(HistoryCastle)==0x48,"Native castle source layouts");
 static_assert(sizeof(PlayerData)==0x34 && sizeof(NativeString)==16,"Native player ABI");
 struct Profile {
     Crossplay::Edition edition;
@@ -28,20 +33,21 @@ struct Profile {
     uint32_t file_size, added, confirmed, vtable, destroy, castle_vtable, clone;
     size_t object_size, extra_offset, local_offset, castle_size;
     uint32_t main_pointer, main_vtable, transport_vtable, send;
+    uint32_t session_vtable, roster_offset;
 };
 constexpr Profile Profiles[] = {
     {Crossplay::Edition::Gold,
      "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
      14141768,0xa50370,0xaa6fe0,0xf56238,0xa47620,0,0xa475b0,0x9c,0x94,0x98,0x50,
-     0x10f83dc,0xf55600,0xf566cc,0xa4e430},
+     0x10f83dc,0xf55600,0xf566cc,0xa4e430,0xf569bc,0x1c},
     {Crossplay::Edition::UbisoftHistory,
      "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
      17333680,0x656f50,0x690c20,0x113f2f4,0x657060,0x11372d0,0x656fe0,0x94,0x8c,0x90,0x48,
-     0x13a5210,0x113f2c0,0x11404f0,0xedb300},
+     0x13a5210,0x113f2c0,0x11404f0,0xedb300,0x11403fc,0x18},
     {Crossplay::Edition::SteamHistory,
      "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
      17459856,0x656b30,0x690800,0x113d814,0x656c40,0x11357f8,0x656bc0,0x94,0x8c,0x90,0x48,
-     0x13a230c,0x113d7ec,0x113ea18,0xeda9f0}
+     0x13a230c,0x113d7ec,0x113ea18,0xeda9f0,0x113e924,0x18}
 };
 
 bool Readable(const void* pointer,size_t size) {
@@ -197,6 +203,111 @@ void* CurrentTransport(const Profile& profile) {
     if(!Readable(lock,sizeof(CRITICAL_SECTION))) return nullptr;
     return transport;
 }
+bool SnapshotLobby(const Profile& profile,LobbySnapshot& result) {
+    result={};
+    if(!CurrentTransport(profile)) return false;
+    const auto* main=*reinterpret_cast<const unsigned char* const*>(profile.main_pointer);
+    if(!Readable(main,0x18)) return false;
+    const auto* session=*reinterpret_cast<const unsigned char* const*>(main+0x14);
+    if(!Readable(session,profile.roster_offset+8)
+        || *reinterpret_cast<const uint32_t*>(session)!=profile.session_vtable
+        || *reinterpret_cast<const uint32_t*>(session+0x10)!=1 || session[0x14]>1) return false;
+    LobbySnapshot snapshot; snapshot.instance=reinterpret_cast<uintptr_t>(session);
+    snapshot.local_slot=*reinterpret_cast<const uint32_t*>(session+0xc);snapshot.host=session[0x14]!=0;
+    if(snapshot.local_slot<1 || snapshot.local_slot>24) return false;
+    const auto* head=*reinterpret_cast<const unsigned char* const*>(session+profile.roster_offset);
+    const auto count=*reinterpret_cast<const uint32_t*>(session+profile.roster_offset+4);
+    if(!count || count>24 || !Readable(head,8)) return false;
+    const auto* node=*reinterpret_cast<const unsigned char* const*>(head);
+    const auto* previous=head;uint32_t local_count=0;
+    for(uint32_t i=0;i<count;++i) {
+        if(node==head || !Readable(node,8+sizeof(PlayerData))
+            || *reinterpret_cast<const unsigned char* const*>(node+4)!=previous) return false;
+        const auto* data=reinterpret_cast<const PlayerData*>(node+8);
+        if(data->status<1 || data->status>6 || data->host>1 || data->name.length>64
+            || (data->name.length && (data->name.capacity<=data->name.length
+                || !Readable(data->name.data,data->name.length+1) || data->name.data[data->name.length]))) return false;
+        Participant member{data->connection,data->slot,data->principal,data->station,
+            data->name.length?std::string(data->name.data,data->name.length):std::string(),
+            data->host!=0,data->slot==snapshot.local_slot};
+        if(!Eligible(data->status==1?Change::Added:data->status==2?Change::Confirmed:Change::Leaving,member,profile)) return false;
+        for(const auto& prior:snapshot.members)
+            if(prior.player.connection==member.connection || (member.slot!=UINT32_MAX && prior.player.slot==member.slot)) return false;
+        if(member.local) {
+            if(member.host!=snapshot.host || data->status!=2) return false;
+            ++local_count;
+        }
+        snapshot.members.push_back({std::move(member),data->status});previous=node;
+        node=*reinterpret_cast<const unsigned char* const*>(node);
+    }
+    if(node!=head || *reinterpret_cast<const unsigned char* const*>(head+4)!=previous || local_count!=1) return false;
+    result=std::move(snapshot);return true;
+}
+NativeString BorrowedText(const std::string& value) {
+    return {value.c_str(),static_cast<uint32_t>(value.size()+1),static_cast<uint32_t>(value.size()),0};
+}
+struct CastleSource {
+    GoldCastle gold{};HistoryCastle history{};
+    std::vector<NativeString> parts;std::vector<uint32_t> parents,slots;
+    CastleSource(const Profile& profile,const castle_wire::Design& design) {
+        for(const auto& part:design.parts) {
+            parts.push_back(BorrowedText(part.asset));parents.push_back(part.parent);slots.push_back(part.slot);
+        }
+        static const std::string empty;
+        gold.type=history.type=BorrowedText(design.type);gold.name=history.name=BorrowedText(empty);
+        history.vtable=profile.castle_vtable;
+        if(!parts.empty()) {
+            gold.parts.value=history.parts={parts.data(),parts.data()+parts.size(),parts.data()+parts.size()};
+            gold.parents.value=history.parents={parents.data(),parents.data()+parents.size(),parents.data()+parents.size()};
+            gold.slots.value=history.slots={slots.data(),slots.data()+slots.size(),slots.data()+slots.size()};
+        }
+    }
+    const void* Get(const Profile& profile) const {
+        return profile.edition==Crossplay::Edition::Gold?static_cast<const void*>(&gold):static_cast<const void*>(&history);
+    }
+};
+bool CastleText(const NativeString& source,std::string& result) {
+    result.clear();
+    if(source.length>castle_wire::MaxAsset || source.capacity<=source.length
+        || !Readable(source.data,source.length+1) || source.data[source.length]) return false;
+    result.assign(source.data,source.length);
+    return result.empty() || castle_wire::Asset(result);
+}
+bool VectorCount(const CastleVector& vector,size_t stride,size_t& result) {
+    const auto begin=reinterpret_cast<uintptr_t>(vector.begin),end=reinterpret_cast<uintptr_t>(vector.end);
+    const auto capacity=reinterpret_cast<uintptr_t>(vector.capacity);
+    if(end<begin || capacity<end || (end-begin)%stride || (end-begin)/stride>castle_wire::MaxParts) return false;
+    result=(end-begin)/stride;
+    return !result || Readable(vector.begin,end-begin);
+}
+bool SnapshotCastle(const Profile& profile,const void* source,castle_wire::Design& result) {
+    result={};
+    if(!Readable(source,profile.castle_size)) return false;
+    NativeString type{};CastleVector parts{},parents{},slots{};
+    if(profile.edition==Crossplay::Edition::Gold) {
+        const auto& value=*static_cast<const GoldCastle*>(source);
+        type=value.type;parts=value.parts.value;parents=value.parents.value;slots=value.slots.value;
+    } else {
+        const auto& value=*static_cast<const HistoryCastle*>(source);
+        if(value.vtable!=profile.castle_vtable) return false;
+        type=value.type;parts=value.parts;parents=value.parents;slots=value.slots;
+    }
+    castle_wire::Design design;
+    // Original default castles use a null CString, capacity zero and length zero.
+    if(type.length ? !CastleText(type,design.type) : type.data && (!Readable(type.data,1) || *type.data)) return false;
+    size_t count=0,parent_count=0,slot_count=0;
+    if(!VectorCount(parts,16,count) || !VectorCount(parents,4,parent_count)
+        || !VectorCount(slots,4,slot_count) || count!=parent_count || count!=slot_count) return false;
+    for(size_t i=0;i<count;++i) {
+        castle_wire::Part part;
+        if(!CastleText(static_cast<const NativeString*>(parts.begin)[i],part.asset)) return false;
+        part.parent=static_cast<const uint32_t*>(parents.begin)[i];part.slot=static_cast<const uint32_t*>(slots.begin)[i];
+        design.parts.push_back(std::move(part));
+    }
+    std::vector<unsigned char> encoded;
+    if(!castle_wire::Encode(design,encoded)) return false;
+    result=std::move(design);return true;
+}
 }
 
 struct ParticipantEvent::Impl {
@@ -276,8 +387,28 @@ bool ParticipantEvent::Construct(Change change,const Participant& member,const v
     impl->failure=ParticipantFailure::None;
     return true;
 }
+bool ParticipantEvent::ConstructConfirmed(const Participant& member,const castle_wire::Design& castle,uint32_t extra) {
+    if(impl->owner && impl->owner!=GetCurrentThreadId()) return false;
+    impl->failure=ParticipantFailure::State;
+    if(!impl->profile || impl->live) return false;
+    impl->failure=ParticipantFailure::Castle;
+    std::vector<unsigned char> encoded;
+    if(!castle_wire::Encode(castle,encoded)) return false;
+    const CastleSource source(*impl->profile,castle);
+    return Construct(Change::Confirmed,member,source.Get(*impl->profile),extra);
+}
+bool ParticipantEvent::CaptureCastle(const void* source,castle_wire::Design& result) const {
+    result={};
+    return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
+        && SnapshotCastle(*impl->profile,source,result);
+}
 const void* ParticipantEvent::Get() const {
     return impl->owner==GetCurrentThreadId() && impl->live?impl->storage.data():nullptr;
+}
+bool ParticipantEvent::CaptureLobby(LobbySnapshot& result) const {
+    result={};
+    return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
+        && SnapshotLobby(*impl->profile,result);
 }
 bool ParticipantEvent::EnqueueLocal() {
     if(impl->owner && impl->owner!=GetCurrentThreadId()) return false;

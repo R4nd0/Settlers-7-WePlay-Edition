@@ -1,6 +1,6 @@
 """Run compiled participant thunks and pinned original constructors/queues in x86 emulation.
 
-Only bounded synthetic names, IDs and original empty castle values are used.
+Only bounded synthetic names, IDs and empty/three-part castle values are used.
 Imports are emulated heap/memory operations; no game process or network runs.
 This verifies construction, cloning and local enqueue/destruction, not native
 session admission, queue-consumer dispatch or crossplay. Empty deque maps and
@@ -19,7 +19,7 @@ PROFILES={'gold':(0xa50370,0xaa6fe0,0x51f7b0,0x9c,0x94,0x98),
 S=0x20000000;O=S+0x1000;D=S+0x2000;N=S+0x3000;C=S+0x4000;STOP=S+0x5000;H=S+0x10000;STACK=0x30000000
 T=S+0x8000;MAP=S+0x9000
 SEND={'gold':0xa4e430,'ubisoft':0xedb300,'steam_analysis':0xeda9f0}
-def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,local_offset,subtype=2,text=b'Crossplay',connection=0,local=False,host=False):
+def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,local_offset,subtype=2,text=b'Crossplay',connection=0,local=False,host=False,castle_parts=False):
  u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(im.base,(im.size+4095)&~4095);u.mem_write(im.base,im.mapped)
  u.mem_map(0,4096);u.mem_map(S,0x100000);u.mem_map(STACK,0x10000)
  def words(a,*v):u.mem_write(a,struct.pack('<'+'I'*len(v),*v))
@@ -83,6 +83,18 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
  try:
   # Independent original default castle object; never reinterpret another edition's memory.
   call(castle_default,[C] if im.label=='gold' else [],C if im.label!='gold' else None)
+  if castle_parts:
+   if subtype!=3:raise ValueError('A foreign design needs the confirmed constructor')
+   type_offset=0 if im.label=='gold' else 4
+   arrays=S+0xa000
+   def native_text(where,text,pointer):
+    u.mem_write(pointer,text+b'\0');words(where,pointer,len(text)+1,len(text),0)
+   native_text(C+type_offset,b'woodland',arrays+0x300)
+   for index,asset in enumerate((b'Keep',b'Tower',b'Gate')):
+    native_text(arrays+index*16,asset,arrays+0x340+index*32)
+   words(arrays+0x100,0xffffffff,0,0);words(arrays+0x200,0,3,4)
+   for vector,begin,stride in ((0x24,arrays,16),(0x34 if im.label=='gold' else 0x30,arrays+0x100,4),(0x44 if im.label=='gold' else 0x3c,arrays+0x200,4)):
+    words(C+vector,begin,begin+3*stride,begin+3*stride)
   source=bytes(u.mem_read(D,0x34));castle=bytes(u.mem_read(C,0x50 if im.label=='gold' else 0x48))
   extra=0x10203040
   if im.label=='gold':
@@ -98,6 +110,18 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
    source==bytes(u.mem_read(D,0x34)) and castle==bytes(u.mem_read(C,len(castle))),
    bytes(u.mem_read(O-16,16))==b'\xa5'*16 and bytes(u.mem_read(O+obj_size,16))==b'\xa5'*16)
   if not all(checks):raise RuntimeError('Native construction output/ownership mismatch '+str(checks))
+  def check_castle(event):
+   if not castle_parts:return
+   castle=event+0x44
+   type_at=castle+(0 if im.label=='gold' else 4)
+   if bytes(u.mem_read(word(type_at),9))!=b'woodland\0' or word(type_at)==arrays+0x300:raise RuntimeError('castle type copy')
+   parts=word(castle+0x24)
+   if parts==arrays or word(castle+0x28)-parts!=48:raise RuntimeError('castle vector copy')
+   for index,asset in enumerate((b'Keep',b'Tower',b'Gate')):
+    if bytes(u.mem_read(word(parts+16*index),len(asset)+1))!=asset+b'\0' or word(parts+16*index)==arrays+0x340+index*32:raise RuntimeError('castle part string copy')
+   for offset,values in ((0x34 if im.label=='gold' else 0x30,(0xffffffff,0,0)),(0x44 if im.label=='gold' else 0x3c,(0,3,4))):
+    if tuple(word(word(castle+offset)+4*i) for i in range(3))!=values:raise RuntimeError('castle parent/slot copy')
+  check_castle(O)
   # The real local-only transport method must clone and choose its own queue.
   # Preallocated empty maps model valid native deque storage. No send/factory/
   # clone/queue helper is stubbed; only imported heap/lock operations are.
@@ -113,6 +137,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
   if word(selected+count_offset)!=1 or word(other+count_offset)!=0:raise RuntimeError('native queue selection/count')
   block=word(MAP+async_value*0x40);queued=word(block)
   if queued==O or queued not in allocs or word(queued)!=word(O):raise RuntimeError('native queue did not take an owned clone')
+  check_castle(queued)
   if bytes(u.mem_read(O,obj_size))!=original or bytes(u.mem_read(queued+4,0x1c))!=original[4:0x20]:raise RuntimeError('native send changed event scalars')
   queued_name=word(queued+0x20)
   if len(text) and (queued_name==word(O+0x20) or bytes(u.mem_read(queued_name,len(text)+1))!=text+b'\0'):raise RuntimeError('queued string ownership')
@@ -149,14 +174,19 @@ def main():
        execute(im,imports,thunk,*p,subtype=subtype,text=b'x'*length,connection=connection,local=local,host=host)
        count+=1
        if count%8==0:gc.collect()
-  result[label]={'construction_and_destruction_cases':count,'native_local_queue_cases':count,'passed':True};total+=count
+  for local in (False,True):
+   for host in (False,True):
+    for connection in ((1,0x12345678) if label=='gold' else (0,0x12345678)):
+     execute(im,imports,thunk,*p,subtype=3,connection=connection,local=local,host=host,castle_parts=True)
+     count+=1;gc.collect()
+  result[label]={'construction_and_destruction_cases':count,'native_local_queue_cases':count,'nonempty_castle_cases':8,'passed':True};total+=count
   print(json.dumps({'profile':label,'passed_cases':count}),flush=True)
  receipt={'format':'native-participant-local-queue-v2','image_fingerprints':pins,
   'compiled_thunk_sha256':hashlib.sha256(thunk_raw).hexdigest(),'profiles':result,
   'original_native_calls':5*total,'compiled_thunk_calls':2*total,'emulated_heap':True,
   'native_clone_and_queue_executed':True,'emulated_lock_imports':True,
   'synthetic_empty_native_deques':True,'native_queue_consumer_executed':False,
-  'original_empty_castle_only':True,'original_destructors':True,'actual_game_test':False,
+  'original_empty_castle_only':False,'three_part_castles':True,'original_destructors':True,'actual_game_test':False,
   'session_admission_implemented':False,'crossplay_qualified':False}
  with output.open('x',encoding='utf-8') as stream:json.dump(receipt,stream,indent=2)
  print(json.dumps(receipt))

@@ -1,15 +1,16 @@
 # Gold / History native bridge development
 
-Actual Gold ↔ History crossplay is **not implemented**. The new x86 connection
-module is a working, independently tested transport component. It has not been
-attached to either game's native session or event callbacks, and no mixed
-gameplay test has run. The normal game builds and matchmaking admission are
-unchanged. DXVK remains the intended renderer for subsequent game tests.
+Playable Gold ↔ History crossplay is **not implemented**. Private DXVK adapters
+now connect Gold and Ubisoft History to the authenticated channel and deliver
+foreign participant events through their original native queues. Both session
+managers have accepted matching two-player rosters and host/guest roles. The
+preparation frame and visible lobby still differ; no mixed gameplay test has
+run. Normal game builds and matchmaking admission are unchanged.
 
-The November 11 participant component adds original native event construction
-and local clone-and-queue delivery for all three executable profiles. This is
-still a separate component, excluded from ordinary game adapter builds. Native
-session admission and mixed-edition game tests remain incomplete.
+The November 11 components add original native event construction, local
+clone-and-queue delivery, copied castle designs and a bounded roster-binding
+protocol. They remain excluded from ordinary game adapter builds. Complete
+native admission and mixed-edition gameplay tests remain incomplete.
 
 ## Implemented connection component
 
@@ -30,7 +31,8 @@ game slot indices are a separate layer and still need native binding.
 `State::Connected` means that both channel launches authenticated. It does not
 mean a native participant exists, a session joined, a player is Ready, or a
 world may advance. The ready file explicitly reports
-`native_session_admission: false`.
+`native_session_admission: false`. The separate roster-binding experiment does
+not change that transport-only service contract.
 
 Payloads are bounded to 64 KiB, each direction to 8 MiB, and receive queues to
 4,096 messages. Parsing and socket operations are bounded per owner tick.
@@ -67,8 +69,8 @@ The optional broker CLI consumes `WEPLAY_CROSSPLAY_LAUNCHES`, an environment-onl
 JSON array containing two records with `edition`, `key`, `native_identity` and
 `content` (hexadecimal bytes for the last three). Keys must be independent;
 the expected content digest must match. It writes a fresh ready file under
-`work/` and runs for at most 600 seconds. No game launcher currently consumes
-this service, and its test executable is not a game adapter.
+`work/` and runs for at most 600 seconds. Ordinary game launchers do not consume
+this service; private laboratory adapters use it for the bounded roster test.
 
 ## Native participant construction and local delivery
 
@@ -77,8 +79,9 @@ values for Added (2), Confirmed (3), Leaving (4) and Removed (44). Each profile
 pins the actual process executable hash/size, constructor instructions, event
 vtable, destructor and clone method. Gold's custom ESI/EDX constructor ABI is
 separate from History's thiscall ABI. Names are copied by the native allocator;
-Confirmed requires a castle already owned by the same engine. Foreign castle
-memory is never reinterpreted. Empty callback names and zero native principal
+Confirmed can use a castle already owned by the same engine, or a bounded
+canonical design copied into the target engine's own representation. Foreign
+castle memory is never reinterpreted. Empty callback names and zero native principal
 IDs are retained. History connection ID zero is valid; Gold's connection ID
 constraints remain distinct.
 
@@ -91,29 +94,63 @@ The caller retains its own event until Reset. Duplicate enqueue of the same
 constructed event and foreign-thread operations are excluded. This method
 does not establish a session or validate foreign participant admission.
 
-The standalone x86 executable passes 131 ABI/policy/transport-guard checks.
+The standalone x86 executable passes 177 ABI/policy/transport/lobby/castle checks.
 `tools/gold/emulate_participant_events.py` executes its compiled thunks with
-all three pinned original images: 288 cases cover all four changes, local/host
-flags, zero versus nonzero History connections, three name lengths and both
-native queues. Native constructor, clone, enqueue and destructor code runs;
+all three pinned original images: 312 cases cover all four changes, local/host
+flags, zero versus nonzero History connections, three name lengths, empty and
+three-part castles, and both native queues. Native constructor, clone, enqueue and destructor code runs;
 heap/lock imports and empty deque storage are modeled. Input immutability,
 stack/nonvolatile preservation, independent string ownership and allocation
 cleanup are checked. The real queue consumer and session dispatcher do not run.
 See the [sanitized receipt](verification/gold-history-participants-20261111.json).
 
-The Gold DXVK runtime probe reached the online menu. Earlier constructor
-observers stopped at an input guard; the corrected observer's lobby check is
-pending because window activation failed. No corrected runtime constructor or
-mixed-session success is claimed. The test remains isolated from the original
-installation. Native source integration and game testing must follow the
-admission work below.
+The corrected Gold DXVK runtime probe completed original Added and Confirmed
+construction/destruction in a real Monhaim lobby and exited normally. The
+subsequent mixed roster test also ran actual queue consumers and participant
+dispatchers. Tests remain isolated from the original installation.
+
+## Authenticated native roster binding
+
+`native/crossplay_admission.cpp` binds one authenticated Gold/History channel
+to two actual single-member native lobbies. It captures native source CIDs,
+names and castles on the owner thread. Bounded Hello/Assign/Applied/Commit
+records carry reciprocal session identities and common host ownership. A
+foreign participant receives a receiver-local numeric CID, independently of
+its source CID or Storm GUID. Backend object handles remain local; the bridge
+does not invent a NetZ handle.
+
+Original Added and Confirmed events enter the native queue. The protocol waits
+for the original consumers to produce the exact two-member roster, assigned
+slots and roles in the same session object. Both peers must observe those
+postconditions before `AdmissionState::RosterBound`. This state establishes
+member lists only: it does not qualify a shared preparation frame, visible
+lobby, Ready result, content agreement or simulation.
+
+The framing/ownership executable passes 920 checks. In the private Gold ↔
+Ubisoft History DXVK run, seven authenticated records completed roster binding
+on both sides. Gold remained host at slot 1; History became guest at slot 2.
+The UI exposed the remaining mismatch: Gold still showed an open second slot,
+and History's first preparation row changed to the Gold player while its own
+second row stayed open. No world was started. Both clients exited normally;
+adapters and options were restored, and saves and shared files were unchanged.
+Steam History has constructor/ABI coverage but no mixed runtime result yet.
+
+A subsequent private DXVK run bound Gold's original `CSessionConfig` slot
+query to the authenticated foreign StationID. The guarded callback returned the
+common slot only for the owned Gold session and original Added callsite, and
+forwarded other calls. Gold then displayed the History player in its second
+row with the native portrait, color and position. History still lacked its
+second preparation row. Both clients again exited normally with restored
+profiles and unchanged saves. This private slot callback is not part of the
+public roster component or normal adapter builds.
 
 ## Remaining native integration
 
-The missing bridge must translate an authenticated common session into each
-engine's genuine participant creation, assignment, join acknowledgement and
-departure callbacks. Gold's NetZ and History's Storm ownership intervals must
-be tied to the same common session before native event transport is enabled.
+The remaining bridge must complete native slot/preparation assignment, join
+acknowledgement and departure handling. Gold's native Added handler obtains a
+remote slot from `CSessionConfig` using StationID; a preassigned field in a
+remote event does not bypass that lookup. The real preparation state must
+agree on both engines before world event transport is enabled.
 
 The inspected participant events are insufficient by themselves: their native
 constructors and dispatchers also consume local-only flags and additional
