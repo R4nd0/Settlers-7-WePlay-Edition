@@ -6,6 +6,11 @@ attached to either game's native session or event callbacks, and no mixed
 gameplay test has run. The normal game builds and matchmaking admission are
 unchanged. DXVK remains the intended renderer for subsequent game tests.
 
+The November 11 participant component adds original native event construction
+and local clone-and-queue delivery for all three executable profiles. This is
+still a separate component, excluded from ordinary game adapter builds. Native
+session admission and mixed-edition game tests remain incomplete.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel
@@ -64,6 +69,44 @@ JSON array containing two records with `edition`, `key`, `native_identity` and
 the expected content digest must match. It writes a fresh ready file under
 `work/` and runs for at most 600 seconds. No game launcher currently consumes
 this service, and its test executable is not a game adapter.
+
+## Native participant construction and local delivery
+
+`native/crossplay_participant.cpp` constructs original `CPlayerConnectionEvent`
+values for Added (2), Confirmed (3), Leaving (4) and Removed (44). Each profile
+pins the actual process executable hash/size, constructor instructions, event
+vtable, destructor and clone method. Gold's custom ESI/EDX constructor ABI is
+separate from History's thiscall ABI. Names are copied by the native allocator;
+Confirmed requires a castle already owned by the same engine. Foreign castle
+memory is never reinterpreted. Empty callback names and zero native principal
+IDs are retained. History connection ID zero is valid; Gold's connection ID
+constraints remain distinct.
+
+`ParticipantEvent::EnqueueLocal()` resolves the current native transport from
+the pinned main object and checks its class, virtual method, instructions and
+queue lock. It invokes the original send method with mode zero. That branch
+clones the event and transfers the clone into the native synchronous or
+asynchronous queue, without a NetZ/Storm send or immediate session dispatch.
+The caller retains its own event until Reset. Duplicate enqueue of the same
+constructed event and foreign-thread operations are excluded. This method
+does not establish a session or validate foreign participant admission.
+
+The standalone x86 executable passes 131 ABI/policy/transport-guard checks.
+`tools/gold/emulate_participant_events.py` executes its compiled thunks with
+all three pinned original images: 288 cases cover all four changes, local/host
+flags, zero versus nonzero History connections, three name lengths and both
+native queues. Native constructor, clone, enqueue and destructor code runs;
+heap/lock imports and empty deque storage are modeled. Input immutability,
+stack/nonvolatile preservation, independent string ownership and allocation
+cleanup are checked. The real queue consumer and session dispatcher do not run.
+See the [sanitized receipt](verification/gold-history-participants-20261111.json).
+
+The Gold DXVK runtime probe reached the online menu. Earlier constructor
+observers stopped at an input guard; the corrected observer's lobby check is
+pending because window activation failed. No corrected runtime constructor or
+mixed-session success is claimed. The test remains isolated from the original
+installation. Native source integration and game testing must follow the
+admission work below.
 
 ## Remaining native integration
 
