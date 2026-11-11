@@ -14,7 +14,7 @@ Crossplay::Peer Reverse(const Crossplay::Peer& peer) {
 int main() {
     Crossplay::Peer peer{};peer.local_id.fill(0x11);peer.remote_id.fill(0x22);
     const auto reverse=Reverse(peer);
-    Hello hello{0,13,"Crossplay",{"woodland",{{"Keep",UINT32_MAX,0},{"Tower",0,3}}}};
+    Hello hello{0,13,0,"Crossplay",{"woodland",{{"Keep",UINT32_MAX,0},{"Tower",0,3}}}};
     for(bool host:{false,true}) {
         for(auto type:{Message::Hello,Message::Assign,Message::Applied,Message::Commit,Message::Committed}) {
             auto frame=Frame(type,host,peer);Message observed{};
@@ -29,14 +29,29 @@ int main() {
         auto frame=Frame(Message::Hello,host,peer);Check(AppendHello(frame,hello),"native lobby hello encoded");
         Hello decoded;
         Check(ReadHello(frame,Crossplay::Edition::UbisoftHistory,decoded) && decoded.connection==0
-            && decoded.name==hello.name && decoded.extra==13 && decoded.castle.parts.size()==2,"History CID zero and canonical castle decoded");
+            && decoded.name==hello.name && decoded.extra==13 && decoded.principal==0 && decoded.castle.parts.size()==2,"History zero CID/principal and canonical castle decoded");
         Check(!ReadHello(frame,Crossplay::Edition::Gold,decoded),"zero Gold source connection excluded");
         for(size_t end=0;end<frame.size();++end) {
             const std::vector<unsigned char> truncated(frame.begin(),frame.begin()+end);
             Check(!ReadHello(truncated,Crossplay::Edition::UbisoftHistory,decoded),"truncated hello excluded");
         }
         auto changed=frame;changed.push_back(0);Check(!ReadHello(changed,Crossplay::Edition::UbisoftHistory,decoded),"trailing hello data excluded");
-        changed=frame;changed[FrameHeader+8]=65;Check(!ReadHello(changed,Crossplay::Edition::UbisoftHistory,decoded),"unbounded display name excluded");
+        changed=frame;changed[FrameHeader+12]=65;Check(!ReadHello(changed,Crossplay::Edition::UbisoftHistory,decoded),"unbounded display name excluded");
+        changed=frame;changed[7]=1;Message old{};
+        Check(!Header(changed,!host,reverse,old),"old admission version cannot silently lose principal");
+        for(auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {
+            for(uint32_t principal:{0u,1u,2u,2028987018u,0x80000001u,UINT32_MAX-1}) {
+                auto offered=hello;offered.connection=7;offered.principal=principal;
+                auto encoded=Frame(Message::Hello,host,peer);
+                Check(AppendHello(encoded,offered) && ReadHello(encoded,edition,decoded)
+                    && decoded.principal==principal && decoded.connection==7,"source principal stays independent of CID/role/edition");
+            }
+            changed=frame;for(size_t at=FrameHeader+8;at<FrameHeader+12;++at)changed[at]=0xff;
+            Check(!ReadHello(changed,edition,decoded),"sentinel principal excluded before native construction");
+        }
+        auto invalid=hello;invalid.principal=UINT32_MAX;
+        auto invalid_frame=Frame(Message::Hello,host,peer);
+        Check(!AppendHello(invalid_frame,invalid),"sentinel principal cannot be offered");
     }
     for(auto edition:{Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {
         Check(Mixed(Crossplay::Edition::Gold,edition) && Mixed(edition,Crossplay::Edition::Gold),"both History launch profiles supported");
@@ -72,6 +87,18 @@ int main() {
             default: changed.members[1].player.host=host;break;
             }
             Check(!BoundRoster(changed,own,remote,host),"departed/replaced/reassigned roster invalidates committed binding");
+        }
+    }
+    for(bool host:{false,true}) {
+        const uint32_t own_slot=host?1u:2u,remote_slot=host?2u:1u;
+        for(uint32_t local:{0u,1u,2u,2028987018u,UINT32_MAX}) {
+            for(uint32_t foreign:{0u,1u,2u,2028987018u,UINT32_MAX}) {
+                const Participant own{11,own_slot,local,11,"Local",host,true};
+                const Participant remote{12,remote_slot,foreign,12,"Remote",!host,false};
+                const uint32_t a=local?local:own_slot,b=foreign?foreign:remote_slot;
+                Check(DistinctPlayers(own,remote)==(a!=UINT32_MAX && b!=UINT32_MAX && a!=b),
+                    "native preparation fallback collisions excluded independently of routing slots");
+            }
         }
     }
     std::printf("PASS %u admission framing/ownership checks; no game was launched.\n",checks);

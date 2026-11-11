@@ -4,9 +4,10 @@ Playable Gold ↔ History crossplay is **not implemented**. Private DXVK adapter
 now connect Gold and Ubisoft History to the authenticated channel and deliver
 foreign participant events through their original native queues. Both session
 managers have accepted matching two-player rosters and host/guest roles. The
-preparation frame and visible lobby still differ; no mixed gameplay test has
-run. A private native codec has also delivered an actual lobby-chat message in
-each direction between Gold and Ubisoft History. Normal game builds and
+preparation defaults now show both participants in both windows, but History
+still displays the host page despite its native guest role; no mixed gameplay
+test has run. The guarded public native codec has also delivered repeated
+lobby-chat messages in each direction between Gold and Ubisoft History. Normal game builds and
 matchmaking admission are unchanged.
 
 The November 11 components add original native event construction, local
@@ -131,7 +132,15 @@ postconditions before `AdmissionState::RosterBound`. This state establishes
 member lists only: it does not qualify a shared preparation frame, visible
 lobby, Ready result, content agreement or simulation.
 
-The framing/ownership executable passes 946 checks. Once bound, it leaves later
+Admission protocol version 2 retains each source's actual numeric principal as
+well as its source CID. A zero principal stays zero, allowing the original
+preparation setter's assigned-slot fallback. The two effective preparation
+player IDs must be distinct and non-sentinel before any foreign native event
+is constructed. These native metadata values do not authenticate vendor
+accounts. Version 1 is rejected explicitly; it substituted the common slot for
+the foreign principal and could produce different frontend IDs across engines.
+
+The framing/ownership executable passes 1,050 checks. Once bound, it leaves later
 channel records for the event dispatcher and continues checking the exact native
 session, member statuses, IDs, names, slots and roles. A departed, replaced,
 additional or reassigned member invalidates the interval. In the private Gold ↔
@@ -195,13 +204,29 @@ exited normally; profiles/adapters were restored and saves, cloud and all 16
 shared files checked by each runner were unchanged. One broker rejection
 occurred during normal peer shutdown, after the nine valid records.
 
-The runtime result belongs to the private predecessor of the public codec.
-The added public roster/table guards have build, ABI and offline coverage;
-their runtime requalification and the next History preparation-slot candidate
-were blocked before launch by the existing 4-GiB host-memory preflight. Steam
-has no mixed chat runtime result. This does not qualify native Ready, setup,
+After available host memory recovered, the current public codec and its
+roster/table guards passed a further actual DXVK run. Two UI messages from each
+engine appeared once in both windows: eleven authenticated records, no
+pre-shutdown rejection, and one retirement rejection during normal shutdown.
+Both clients exited with code zero and the same profile/save/shared-file checks
+passed. The private History preparation candidate also claimed its own second
+slot through the original open-to-connecting and connecting-to-human methods,
+copied its name through the original setter, and queued its own Confirmed event.
+Both participants then appeared with portraits, colors, teams and positions in
+both windows. This establishes default row population only; the host page on
+History, general setup synchronization and frontend player-ID agreement remain
+unqualified. Steam has no mixed chat runtime result. This does not qualify native Ready, setup,
 gameplay events, content compatibility or either mixed-edition match. See the
 [sanitized event receipt](verification/gold-history-events-20261111.json).
+
+A subsequent protocol-v2 DXVK run also completed the seven-record admission
+transaction. Read-only inspection of both owned processes verified identical
+frontend player IDs, names' lengths, assigned slots and human slot states in
+the two preparation rows. The same inspection confirmed a separate lifecycle
+mismatch: History's legacy backend still considers itself host while its native
+member list is guest. Both clients exited normally with profiles and adapters
+restored and saves/cloud/shared files unchanged. This verifies principal
+retention, not general setup or a completed guest join.
 
 ## Remaining native integration
 

@@ -7,10 +7,15 @@
 
 namespace CrossplayNative {
 namespace {
-constexpr unsigned char AdmissionMagic[8]={'S','7','L','O','B','B','Y',1};
-constexpr size_t FrameHeader=60,MaximumFrame=FrameHeader+4+4+1+64+4+castle_wire::Limit;
+constexpr unsigned char AdmissionMagic[8]={'S','7','L','O','B','B','Y',2};
+constexpr size_t FrameHeader=60,MaximumFrame=FrameHeader+4+4+4+1+64+4+castle_wire::Limit;
 enum class Message : unsigned char { Hello=1, Assign=2, Applied=3, Commit=4, Committed=5 };
-struct Hello { uint32_t connection=0,extra=0;std::string name;castle_wire::Design castle; };
+struct Hello { uint32_t connection=0,extra=0,principal=0;std::string name;castle_wire::Design castle; };
+uint32_t PreparationPlayer(const Participant& player) {return player.principal?player.principal:player.slot;}
+bool DistinctPlayers(const Participant& own,const Participant& remote) {
+    const uint32_t local=PreparationPlayer(own),foreign=PreparationPlayer(remote);
+    return local && foreign && local!=UINT32_MAX && foreign!=UINT32_MAX && local!=foreign;
+}
 void Word(std::vector<unsigned char>& bytes,uint32_t value) { castle_wire::Put(bytes,value); }
 bool TakeWord(const std::vector<unsigned char>& bytes,size_t& at,uint32_t& value) {
     if(at>bytes.size() || bytes.size()-at<4) return false;
@@ -41,15 +46,16 @@ bool Header(const std::vector<unsigned char>& bytes,bool host,const Crossplay::P
 }
 bool AppendHello(std::vector<unsigned char>& bytes,const Hello& hello) {
     std::vector<unsigned char> castle;
-    if(hello.connection==UINT32_MAX || !Name(hello.name) || !castle_wire::Encode(hello.castle,castle)) return false;
-    Word(bytes,hello.connection);Word(bytes,hello.extra);bytes.push_back(static_cast<unsigned char>(hello.name.size()));
+    if(hello.connection==UINT32_MAX || hello.principal==UINT32_MAX || !Name(hello.name) || !castle_wire::Encode(hello.castle,castle)) return false;
+    Word(bytes,hello.connection);Word(bytes,hello.extra);Word(bytes,hello.principal);bytes.push_back(static_cast<unsigned char>(hello.name.size()));
     bytes.insert(bytes.end(),hello.name.begin(),hello.name.end());Word(bytes,static_cast<uint32_t>(castle.size()));
     bytes.insert(bytes.end(),castle.begin(),castle.end());return bytes.size()<=MaximumFrame;
 }
 bool ReadHello(const std::vector<unsigned char>& bytes,Crossplay::Edition edition,Hello& result) {
     result={};Hello hello;size_t at=FrameHeader;
     if(!TakeWord(bytes,at,hello.connection) || hello.connection==UINT32_MAX
-        || (edition==Crossplay::Edition::Gold && !hello.connection) || !TakeWord(bytes,at,hello.extra) || at==bytes.size()) return false;
+        || (edition==Crossplay::Edition::Gold && !hello.connection) || !TakeWord(bytes,at,hello.extra)
+        || !TakeWord(bytes,at,hello.principal) || hello.principal==UINT32_MAX || at==bytes.size()) return false;
     const auto length=bytes[at++];
     if(!length || length>64 || length>bytes.size()-at) return false;
     hello.name.assign(reinterpret_cast<const char*>(bytes.data()+at),length);at+=length;
@@ -100,7 +106,11 @@ struct LobbyAdmission::Impl {
         if(type==Message::Hello) {
             if(state!=AdmissionState::AwaitingPeer || received_hello || !ReadHello(bytes,peer.edition,remote_hello)) return Fail();
             received_hello=true;
-            remote={0,host?2u:1u,host?2u:1u,0,remote_hello.name,!host,false};
+            // Preserve the actual source scalar used by original preparation
+            // setters. This is neither a vendor login nor a routing CID. Zero
+            // remains zero: original code uses the common assigned slot then.
+            remote={0,host?2u:1u,remote_hello.principal,0,remote_hello.name,!host,false};
+            if(!DistinctPlayers(own,remote)) return Fail();
             if(edition==Crossplay::Edition::Gold) {
                 size_t at=0;const std::vector<unsigned char> alias(peer.peer_in_local_namespace.begin(),peer.peer_in_local_namespace.end());
                 if(!TakeWord(alias,at,remote.connection) || !remote.connection || remote.connection>0x7fffffffu
@@ -152,6 +162,7 @@ bool LobbyAdmission::Begin(Crossplay::Channel& channel,Crossplay::Edition editio
         || !Name(snapshot.members[0].player.name) || !impl->native.CaptureCastle(castle,impl->hello.castle)) return impl->Fail();
     impl->own=snapshot.members[0].player;impl->instance=snapshot.instance;
     impl->hello.name=impl->own.name;impl->hello.connection=impl->own.connection;impl->hello.extra=extra;
+    impl->hello.principal=impl->own.principal;
     impl->own.host=host;impl->own.slot=host?1u:2u;
     auto bytes=Frame(Message::Hello,host,*peer);
     if(!AppendHello(bytes,impl->hello) || !channel.Send(bytes)) return impl->Fail();
