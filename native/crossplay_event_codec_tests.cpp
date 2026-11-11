@@ -5,6 +5,7 @@
 #include "crossplay_event_codec.h"
 #include "crossplay_history_role.h"
 #include "crossplay_session_config_codec.h"
+#include "crossplay_ready_codec.h"
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -18,6 +19,9 @@ extern "C" __declspec(dllexport) uint32_t __cdecl WePlayHistoryRoleMethodsOracle
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl WePlaySessionConfigMethodsOracle(uint32_t value) {
     return CrossplayNativeCodec::SessionConfigDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
+}
+extern "C" __declspec(dllexport) uint32_t __cdecl WePlayReadyMethodsOracle(uint32_t value) {
+    return CrossplayNativeCodec::ReadyDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
 }
 extern "C" __declspec(dllexport) void* __cdecl WePlayGoldConfigCtorOracle(uintptr_t address,const void* map,void* output,uint32_t source,const void* save,const void* slots) {
     return CrossplayNativeCodec::SessionConfigDetail::GoldConstruct(address,map,output,source,save,slots);
@@ -117,6 +121,22 @@ void GoldAbi(bool reading) {
     Check(visitor_seen==0x56789abc && name_seen==0x789abcde,"native visitor and field-name arguments");
     Check(reading?(result==0x87654321 && !ecx_seen):(event_seen==0x6789abcd && !flags_seen),"native read result/context or write object/flags");
 }
+void ReadySourcePolicy(Crossplay::Edition edition) {
+    const auto pin=CrossplayNativeCodec::ReadyDetail::Pin(edition);unsigned char object[0x18]{};
+    memcpy(object,&pin.event_vt,4);CrossplayChat::Put(object+4,CrossplayReady::Type);
+    object[12]=1;CrossplayChat::Put(object+0x10,2);
+    auto source=[&]{return CrossplayNativeCodec::ReadyDetail::Source(pin,object,0);};
+    Check(source(),"actual zero History CID and native slot 2 allowed for Ready request");
+    object[0x14]=1;Check(source(),"actual request header is independent of unused native tail");
+    object[0x14]=255;Check(source(),"uninitialized History ReadyState is never read or serialized");object[0x14]=0;
+    CrossplayChat::Put(object+0x10,UINT32_MAX);Check(source(),"uninitialized History NetworkSlot is never interpreted as a target");CrossplayChat::Put(object+0x10,2);
+    CrossplayChat::Put(object+8,42);Check(!source(),"foreign source CID excluded before serializer");CrossplayChat::Put(object+8,0);
+    object[12]=0;Check(!source(),"wrong native queue excluded");object[12]=1;
+    object[4]^=1;Check(!source(),"wrong native type excluded");object[4]^=1;
+    object[0]^=1;Check(!source(),"foreign event vtable excluded");object[0]^=1;
+    Check(!CrossplayNativeCodec::ReadyDetail::Source(pin,nullptr,0),"unreadable native request excluded");
+    Check(!CrossplayNativeCodec::ReadyDetail::Source(pin,object,UINT32_MAX),"sentinel guest excluded");
+}
 void ConfigSourcePolicy(Crossplay::Edition edition) {
     struct NativeString {const char* data;uint32_t capacity,length,extra;};
     struct Slot {uint32_t state;unsigned char ready,pad1[3];uint32_t slot;unsigned char privacy,pad2[3];uint32_t station,extra;};
@@ -171,6 +191,7 @@ int main() {
     CrossplayNative::ParticipantEvent binding;std::vector<unsigned char> wire{1,2,3};
     for(auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {
         ConfigSourcePolicy(edition);
+        ReadySourcePolicy(edition);
         Check(!binding.Bind(edition),"test executable cannot acquire native image identity");
         Check(!CrossplayNativeCodec::EncodeChat(edition,binding,0,1,nullptr,wire) && wire.empty(),"unbound encode cannot touch game addresses or retain output");
         Check(!CrossplayNativeCodec::EnqueueChat(edition,binding,0,1,wire),"unbound receive cannot invoke a native factory");
@@ -178,6 +199,10 @@ int main() {
         Check(!CrossplayNativeCodec::EncodeSessionConfig(edition,binding,ids,nullptr,wire) && wire.empty(),"unbound config cannot serialize a foreign object");
         Check(!CrossplayNativeCodec::EnqueueSessionConfig(edition,binding,ids,wire),"unbound config cannot enter a native queue");
         Check(!CrossplayNativeCodec::CaptureGoldSessionConfig(binding,ids,wire) && wire.empty(),"unbound initial snapshot cannot access or construct native configuration");
+        Check(!CrossplayNativeCodec::EncodeReadyRequest(edition,binding,ids,nullptr,wire) && wire.empty(),"unbound Ready source cannot serialize an object");
+        CrossplayNativeCodec::PendingReadyToggle pending;
+        Check(!CrossplayNativeCodec::EnqueueReadyToggle(edition,binding,ids,wire,pending) && !pending.configuration,"unbound Ready receiver cannot invoke native factory");
+        Check(CrossplayNativeCodec::ObserveReadyToggle(binding,pending)==CrossplayNativeCodec::ReadyObservation::Invalid,"empty Ready observation cannot acknowledge a request");
     }
     bool denied=false;std::thread other([&]{denied=!CrossplayNativeCodec::Roster(binding,0,1);});other.join();Check(denied,"foreign-thread binding excluded");
     std::printf("PASS %u native codec ABI/range/ownership rejection checks; no game code executed\n",checks);

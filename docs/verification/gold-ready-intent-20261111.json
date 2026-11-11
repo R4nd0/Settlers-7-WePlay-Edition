@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-11",
+  "scope": "experimental History guest toggle intent to original Gold native state consumer",
+  "ordinary_adapter_builds_changed": false,
+  "semantic_translation": {
+    "same_event_class_and_type_have_different_native_semantics": true,
+    "history_uninitialized_tail_read_or_serialized": false,
+    "intent_payload_bytes": 13,
+    "intent_contains_ready_result": false,
+    "source_requires_actual_guest_roster": true,
+    "target_requires_gold_host_roster": true,
+    "gold_actual_configuration_lock_required": true,
+    "gold_manual_native_mode_required": 2,
+    "automatic_native_mode_3_excluded": true,
+    "gold_original_factory_reader_and_clone_used": true,
+    "native_gold_consumer_bytes_guarded": true,
+    "next_toggle_waits_for_actual_native_change": true,
+    "consumer_acknowledgement_manufactured": false
+  },
+  "offline_verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "intent_and_native_state_framing_checks": 782,
+    "native_abi_source_and_rejection_checks": 119,
+    "compiled_integrity_guard_checks": 93,
+    "gold_guard_checks": 35,
+    "ubisoft_guard_checks": 29,
+    "steam_guard_checks": 29,
+    "original_ready_writer_reader_synthetic_cases": 6,
+    "synthetic_cases_establish_semantic_equivalence": false
+  },
+  "real_engine_verification": {
+    "history_source_data": "Steam History",
+    "history_runtime": "Ubisoft History",
+    "renderer": "DXVK",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "steam_sdk_loaded_in_either_client": false,
+    "both_native_session_modes": 2,
+    "genuine_guest_button_requests": 2,
+    "authenticated_intents_received_at_gold": 2,
+    "native_gold_consumer_changes_observed": 2,
+    "gold_guest_cache_ready_sequence": [0, 1, 0],
+    "history_cache_ready_sequence": [0, 0, 0],
+    "authenticated_relay_records": 10,
+    "rejections_before_normal_retirement": 0,
+    "normal_exit_codes": [0, 0],
+    "profiles_options_adapters_and_archives_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true,
+    "ubisoft_data_repeat_stopped_before_launch_due_to_other_game": true
+  },
+  "remaining_unqualified": [
+    "authoritative Ready response to History",
+    "preparation-model Ready propagation",
+    "complete guest map initialization",
+    "complete native session join",
+    "content agreement",
+    "shared world start",
+    "synchronized turns",
+    "mixed gameplay"
+  ]
+}

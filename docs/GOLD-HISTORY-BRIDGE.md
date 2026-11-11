@@ -156,6 +156,43 @@ current cross-edition path does not relay. Complete guest map initialization,
 Ready exchange, session intake, content agreement, world start and synchronized
 turns remain unqualified. No mixed world has started.
 
+## Native Ready request translation candidate
+
+`native/crossplay_ready.h` carries a genuine History guest's toggle intent,
+scoped to the authenticated two-player roster. It contains the original event
+header and sender CID, with no desired or achieved Ready value. History's
+original caller leaves the event's NetworkSlot and ReadyState tail fields
+uninitialized. Its host consumer resolves the sender and toggles its state;
+Gold's event consumer instead expects an explicit slot and state. Matching
+event class IDs and serialized layouts do not establish matching semantics.
+
+The source gate reads only the typed native header and never serializes that
+History tail. The Gold receiver checks the actual host roster, original
+configuration object, lock and manual lobby mode. Under that lock it translates
+the requested toggle from the current native guest state into Gold's original
+factory format, requires exact reader/writer round-trip equality and enqueues
+the native clone. Full original Gold state-consumer bytes are also guarded.
+Only one translated operation may await observation at a time; subsequent
+intents wait for the actual cache change. A timeout or ownership change stops
+the experimental path. It supplies no consumer acknowledgement or world-start
+permission.
+
+A real DXVK pair with Steam History data now demonstrates two genuine guest
+Ready clicks and two original Gold consumer effects: the guest's configuration
+Ready cache changes `0 → 1 → 0`. Both actual native session modes were 2, both
+processes loaded DXVK without a Steam SDK, and both closed normally with the
+existing profile/save restoration checks passing. The guest cache and player
+indicators still do not receive the authoritative state. Ready response and
+preparation-model propagation remain incomplete; this is not a complete Ready
+exchange. The corresponding Ubisoft-data repeat stopped before game startup
+when another Settlers test was detected.
+
+Offline checks pass 782 intent/native-state framing cases, 119 native ABI and
+source checks, and 93 compiled integrity-guard cases. Original Ready visitors
+also agree across three profiles for six synthetic writer/reader cases; those
+tests establish layout only. See the
+[Ready receipt](verification/gold-ready-intent-20261111.json).
+
 ## Verification
 
 Build with the existing Visual Studio x86 toolchain:
@@ -170,6 +207,7 @@ work/crossplay-build/crossplay_chat_tests.exe
 work/crossplay-build/crossplay_event_codec_runtime_tests.exe
 work/crossplay-build/crossplay_preparation_tests.exe
 work/crossplay-build/crossplay_session_config_tests.exe
+work/crossplay-build/crossplay_ready_tests.exe
 python tests/gold_guest_lobby_tests.py
 python tests/gold_lobby_driver_tests.py
 ```
