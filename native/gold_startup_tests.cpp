@@ -222,16 +222,19 @@ bool RendererFileGuards() {
 std::array<unsigned char,0x200> local_game{}, message_core{};
 std::array<uintptr_t,3> message_backend{};
 bool fixture_result=false,fixture_called=false;
+bool fixture_expected_network=false;
 bool __fastcall FixtureReady(void* backend,void*,unsigned int turn,unsigned char* ready,unsigned int delay,bool network) {
-    fixture_called=backend==message_backend.data() && turn==121 && delay==18 && !network
+    fixture_called=backend==message_backend.data() && turn==121 && delay==18 && network==fixture_expected_network
+        && GetLastError()==43
         && !message_core[0x16] && !message_core[0x3a] && message_core[0x58]==1 && message_core[0x14]==7;
     *ready=fixture_result ? 1 : 0;
+    SetLastError(71);
     return fixture_result;
 }
 bool __stdcall FixtureAdvance(void* core) {
-    fixture_called=core==message_core.data() && !message_core[0x16] && message_core[0x58]==1
+    fixture_called=core==message_core.data() && GetLastError()==43 && !message_core[0x16] && message_core[0x58]==1
         && message_core[0x1f0]==1 && message_core[0x14]==7;
-    return fixture_result;
+    SetLastError(71);return fixture_result;
 }
 void LocalSetup() {
     outer[2]=reinterpret_cast<uintptr_t>(message_backend.data());
@@ -256,6 +259,7 @@ bool LocalReadyAbi(bool native_network = false) {
     DWORD before=0,after=0,observed_bx=0,observed_si=0,observed_di=0,result=0;
     unsigned char ready=9;auto* output=&ready;auto* owner=outer.data();
     fixture_called=false;message_core[0x16]=1;message_core[0x3a]=1;message_core[0x58]=0;
+    fixture_expected_network=native_network;SetLastError(43);
     __asm {
         mov before, esp
         mov ebx, 0x12345678
@@ -278,7 +282,7 @@ bool LocalReadyAbi(bool native_network = false) {
         mov observed_di, edi
         mov after, esp
     }
-    return fixture_called && before==after && observed_bx==0x12345678 && observed_si==0x34567890 && observed_di==0x56789012
+    return GetLastError()==71 && fixture_called && before==after && observed_bx==0x12345678 && observed_si==0x34567890 && observed_di==0x56789012
         && result==static_cast<DWORD>(fixture_result) && ready==static_cast<unsigned char>(fixture_result) && !local_step_active.load();
 }
 bool LocalAdvanceAbi() {
@@ -286,6 +290,7 @@ bool LocalAdvanceAbi() {
     const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(LocalAdvance)-reinterpret_cast<uintptr_t>(at)-5);
     memcpy(at+1,&relative,4);at[5]=0xc3;
     DWORD before=0,after=0,result=0;auto* core=message_core.data();fixture_called=false;
+    SetLastError(43);
     __asm {
         mov before, esp
         lea eax, local_advance_return
@@ -297,7 +302,7 @@ bool LocalAdvanceAbi() {
         mov result, eax
         mov after, esp
     }
-    return fixture_called && before==after && result==static_cast<DWORD>(fixture_result) && !local_step_active.load();
+    return GetLastError()==71 && fixture_called && before==after && result==static_cast<DWORD>(fixture_result) && !local_step_active.load();
 }
 std::array<unsigned int,58> local_task{};
 unsigned int choice_mode=0;

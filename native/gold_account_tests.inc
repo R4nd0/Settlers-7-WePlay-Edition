@@ -247,6 +247,60 @@ bool GoldAccountLocalScene() {
         fixture_result=result;
         if (!LocalReadyAbi() || !LocalAdvanceAbi()) return false;
     }
+    // Native playing-session ownership and exact connected roster are required
+    // independently of successful account login or the global network flag.
+    std::array<uintptr_t,0x1ac/4> preparation{};
+    std::vector<uintptr_t> players(25*0x5c4/4);
+    uintptr_t players_ref=reinterpret_cast<uintptr_t>(players.data());
+    preparation[0xa4/4]=reinterpret_cast<uintptr_t>(&players_ref);
+    *reinterpret_cast<uintptr_t*>(image+0xcf834c)=reinterpret_cast<uintptr_t>(preparation.data());
+    session[0x10/4]=2;session[0x30/4]=2;session[0xc/4]=1;
+    session[0x3c/4]=7;session[0x40/4]=9;
+    for (unsigned int i=1;i<=2;++i) {
+        players[(i*0x5c4+0x64)/4]=1;
+        players[(i*0x5c4+0x60)/4]=3;
+        players[(i*0x5c4+0x5c)/4]=i;
+    }
+    if (NetworkLocalReadyAllowed()) return false;
+    local_multiplayer_enabled=true;
+    for (unsigned int local : {1u,2u}) {
+        session[0xc/4]=local;
+        if (!NetworkLocalReadyAllowed()) return false;
+        for (bool result : {false,true}) {
+            fixture_result=result;
+            if (!LocalReadyAbi(true) || !LocalAdvanceAbi()) return false;
+        }
+    }
+    unsigned int network_denials=0;
+    const auto denied=[&](uintptr_t& field,uintptr_t bad) {
+        const auto prior=field;field=bad;
+        const bool accepted=NetworkLocalReadyAllowed();field=prior;
+        ++network_denials;return !accepted && NetworkLocalReadyAllowed();
+    };
+    for (unsigned int value : {0u,1u,3u,0xffffffffu})
+        if (!denied(session[0x10/4],value)) return false;
+    for (unsigned int value : {0u,1u,3u})
+        if (!denied(session[0x30/4],value)) return false;
+    for (unsigned int offset : {0x3cu,0x40u}) for (unsigned int value : {0u,0xffffffffu})
+        if (!denied(session[offset/4],value)) return false;
+    for (unsigned int value : {0u,3u,0xffffffffu})
+        if (!denied(session[0xc/4],value)) return false;
+    if (!denied(session[0],0) || !denied(session_node[2],0)
+        || !denied(account[0x50/4],0) || !denied(preparation[0xa4/4],0)
+        || !denied(players_ref,0)) return false;
+    for (unsigned int i=1;i<=2;++i) {
+        for (unsigned int kind : {0u,2u}) if (!denied(players[(i*0x5c4+0x64)/4],kind)) return false;
+        for (unsigned int status : {0u,1u,2u}) if (!denied(players[(i*0x5c4+0x60)/4],status)) return false;
+        for (unsigned int index : {0u,3u,0xffffffffu,3u-i})
+            if (!denied(players[(i*0x5c4+0x5c)/4],index)) return false;
+    }
+    if (!denied(players[(3*0x5c4+0x64)/4],2)) return false;
+    const auto original_thread=owner_thread.exchange(0);
+    const bool wrong_network_thread=NetworkLocalReadyAllowed();owner_thread.store(original_thread);
+    if (wrong_network_thread || !NetworkLocalReadyAllowed()) return false;
+    local_multiplayer_enabled=false;
+    *reinterpret_cast<uintptr_t*>(image+0xcf834c)=0;
+    std::printf("Gold two-human native network Ready: both roles, original false/true/output/error/ABI forwarding and %u session/roster denials passed.\n",network_denials+2);
     // None of these invalid account contexts authorizes even a local scene.
     account[0x50/4]=0;if (AccountLocalSceneAllowed()) return false;account[0x50/4]=6;
     account[0x18/4]=0;if (AccountLocalSceneAllowed()) return false;

@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-11",
+  "scope": "opt-in two-human Gold loopback simulation",
+  "release_qualified": false,
+  "history_crossplay_implemented": false,
+  "regular_build": {
+    "sha256": "26decc21bb8ac043d7aa9527ed0cf470f2cb7f8264780d397fb486275a3c2599",
+    "diagnostic_network_hooks": false,
+    "renderer": "DXVK x86",
+    "resolution": "1920x1080",
+    "graphics": "High",
+    "map": "Monhaim Valley",
+    "independent_logins": true,
+    "native_browser_ping_ms": 1,
+    "native_two_human_join_and_ready": true,
+    "both_worlds_visibly_loaded": true,
+    "sequential_host_turn_samples": [32, 301],
+    "sequential_guest_turn_samples": [138, 451],
+    "native_core_progress": true,
+    "controller_queues_empty": true,
+    "host_exit_code": 0,
+    "remaining_guest_exit_code": "0xe05370a1",
+    "shared_profile_save_files_unchanged_per_runner": 16,
+    "frida_used": false
+  },
+  "earlier_diagnostic_build": {
+    "sha256": "a55111f91232e5f3fd1f7ea7f80f4c10bb2db68a7e30ab2f600d3256d7ef71ea",
+    "sequential_final_turn_samples": [3620, 3646],
+    "host_residence_completed_and_visible_on_guest": true,
+    "guest_foundation_visible_on_host": true,
+    "guest_residence_completion_observed": false
+  },
+  "synthetic_verification": {
+    "additional_session_roster_denials": 40,
+    "native_both_roles_true_false_output_error_abi": true,
+    "account_changed_instruction_rejections": 119,
+    "cloud_changed_instruction_rejections": 28,
+    "network_guards": 75,
+    "gold_python_tests": 64
+  },
+  "unqualified": [
+    "same-turn native checksum equality",
+    "graceful peer departure and reconnect",
+    "multiplayer save/resume",
+    "AI in this network path",
+    "Gold with Ubisoft History",
+    "Gold with Steam History",
+    "LAN and Internet transport",
+    "Maximum graphics overlap correction"
+  ]
+}

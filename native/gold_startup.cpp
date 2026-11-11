@@ -232,8 +232,10 @@ bool AddBytes(std::vector<Patch>& patches, uintptr_t rva, const void* before, co
 #ifdef S7_GOLD_LOCAL_SIMULATION
 #ifdef S7_GOLD_ACCOUNT_LOGIN
 bool AccountLocalSceneAllowed();
+bool AccountIsService(uintptr_t account);
 #endif
-// Experimental, single-player-only ownership of the local message handler.
+#include "gold_network_session.inc"
+// Experimental ownership of the local message handler.
 // No legacy session, cloud callback, packet acknowledgement or clock is created.
 std::atomic<LONG> local_step_active{0};
 uintptr_t local_core = 0;
@@ -272,7 +274,7 @@ uintptr_t LocalCore(void* outer) {
         // Opening the original multiplayer UI sets this global predicate even
         // while the menu still owns its local OSF message handler. Permit only
         // that authenticated account mode; all local owner/core/type guards
-        // below and the Ready call's network-argument rejection still apply.
+        // below and the Ready call's independent session checks still apply.
         if (!AccountLocalSceneAllowed()) Stop();
 #else
         Stop();
@@ -289,8 +291,10 @@ uintptr_t LocalCore(void* outer) {
 }
 __declspec(noinline) bool __fastcall LocalReady(void* outer, void*, unsigned int turn,
     unsigned char* ready, unsigned int delay, bool network) {
+    const DWORD error = GetLastError();
     if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x1a6a98
-        || network || delay != 18 || !ValidRange(ready, 1, true) || local_step_active.exchange(1)) Stop();
+        || (network && !NetworkLocalReadyAllowed()) || delay != 18
+        || !ValidRange(ready, 1, true) || local_step_active.exchange(1)) Stop();
     const uintptr_t core = LocalCore(outer);
     // The same local preparation performed by History's message-handler entry.
     // Native Gold still computes the result, processes its queues and reports
@@ -300,11 +304,13 @@ __declspec(noinline) bool __fastcall LocalReady(void* outer, void*, unsigned int
     *reinterpret_cast<unsigned char*>(core + 0x58) = 1;
     local_core = core;
     const uintptr_t backend = *reinterpret_cast<uintptr_t*>(static_cast<unsigned char*>(outer) + 8);
+    SetLastError(error);
     const bool result = local_ready(reinterpret_cast<void*>(backend), turn, ready, delay, network);
     local_step_active.store(0);
     return result;
 }
 __declspec(noinline) bool __stdcall LocalAdvance(void* core_pointer) {
+    const DWORD error = GetLastError();
     if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x40ed9 || local_step_active.exchange(1)) Stop();
     const uintptr_t game = *reinterpret_cast<uintptr_t*>(image + 0xcf8310);
     if (!ValidRange(reinterpret_cast<void*>(game), 0xd0)) Stop();
@@ -313,6 +319,7 @@ __declspec(noinline) bool __stdcall LocalAdvance(void* core_pointer) {
     *reinterpret_cast<unsigned char*>(core + 0x16) = 0;
     *reinterpret_cast<unsigned char*>(core + 0x58) = 1;
     *reinterpret_cast<unsigned char*>(core + 0x1f0) = 1;
+    SetLastError(error);
     const bool result = local_advance(core_pointer);
     local_step_active.store(0);
     return result;

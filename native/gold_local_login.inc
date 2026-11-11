@@ -134,6 +134,14 @@ bool LocalLoginPrepare(std::vector<Patch>& patches) {
     const DWORD slot_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOOPBACK_SLOT", slot, 3);
     if (slot_length && (slot_length != 1 || slot[0] < '2' || slot[0] > '9'
         || !ConfigureGoldLoopbackGuard(static_cast<unsigned int>(slot[0] - '0')))) return false;
+#if defined(S7_GOLD_ACCOUNT_LOGIN) && defined(S7_GOLD_LOCAL_SIMULATION)
+    char multiplayer[3]{};
+    const DWORD multiplayer_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOCAL_MULTIPLAYER", multiplayer, 3);
+    if (multiplayer_length) {
+        if (multiplayer_length != 1 || multiplayer[0] != '1' || slot_length != 1) return false;
+        local_multiplayer_enabled = true;
+    }
+#endif
     const struct { uintptr_t rva; std::vector<unsigned char> bytes; } guards[] = {
         {0x791ff0, {0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,0x08}},
         {0x82b780, {0x56,0x8b,0xf1,0xe8,0x98,0x2a,0xf8,0xff}},

@@ -3,7 +3,42 @@
 Development checkpoint, 2026-11-10. Build with
 `native/build_gold.ps1 -OutputDirectory <private-output> -LocalSimulation`.
 The ordinary build excludes the candidate. Gold/History crossplay and release
-admission remain unavailable.
+admission remain unavailable. The separately enabled two-human Gold experiment
+below now advances in an actual native network match.
+
+## Two-human network experiment, 2026-11-11
+
+With `-LocalSimulation -AccountLogin`, the additional process opt-in
+`WEPLAY_GOLD_LOCAL_MULTIPLAYER=1` requires an independent loopback slot 2–9.
+It permits the original Ready call's network argument only for the authenticated,
+service-owned playing session: exact native types, state/mode 2, valid handles,
+local index 1 or 2, and exactly two connected human rows with unique indices.
+AI rows are excluded. Caller, thread, facade, backend, core, output and
+reentrancy guards remain active. Native Ready/Advance results, readiness output,
+network argument and LastError are forwarded; no turn or checksum is invented.
+
+Forty additional fixture checks exercise invalid session/roster contexts, with
+both local roles and original true/false results checked through the x86 ABI.
+Ordinary, local-simulation, SDK-login and account builds retain their checks.
+
+Actual DXVK High pair 96 used the regular source build, without diagnostic
+network hooks. Both players logged in independently, joined Monhaim Valley,
+propagated readiness and entered visible worlds. Read-only samples recorded
+host turns 32 then 301 and guest turns 138 then 451, with corresponding native
+core progress and empty controller queues. Samples were sequential, so these
+numbers are neither a same-turn comparison nor a checksum equality claim.
+
+An earlier diagnostic build ran both worlds beyond 3,600 turns. A host-built
+residence completed and appeared on the guest, including its enemy-building
+tooltip. A guest-placed foundation subsequently appeared on the host; its
+completion was not observed. These command observations belong to that earlier
+build, not the shorter regular-build run.
+
+Closing the host exited normally; the remaining client terminated at the
+retained two-human guard. Graceful peer departure, reconnect, AI, multiplayer
+save/resume and sustained equal native checksums remain unqualified. Each
+runner verified all 16 shared profile/save files unchanged. See the
+[network simulation receipt](verification/gold-network-simulation-20261111.json).
 
 ## Two separate waits
 
@@ -32,7 +67,8 @@ The candidate requires the pinned Gold executable and independently checked
 native entries, caller bytes, vtables and object layouts. Runtime checks require
 the owning main thread, active single-player state, absent legacy controller,
 matching facade/backend/core, writable result storage and an idle request task.
-Network mode and unexpected contexts terminate the owned candidate process.
+Network calls outside the separately enabled two-human experiment and unexpected
+contexts terminate the owned candidate process.
 
 Authored x86 fixtures exercise stack/register preservation, native true/false
 propagation, existing/primary/cheaper-alternative/fallback result selection,

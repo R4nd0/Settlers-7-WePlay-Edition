@@ -8,6 +8,31 @@ Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
+## Running Gold network simulation, 2026-11-11
+
+The regular-source account/local-simulation build now has a separate
+`WEPLAY_GOLD_LOCAL_MULTIPLAYER=1` opt-in, requiring an independent loopback slot.
+It forwards the native network Ready call only for an authenticated, owned
+playing session with exactly two connected humans and valid unique indices.
+Native participant creation, readiness, commands, turns and checksums remain
+owned by the original game. AI and unexpected session contexts are excluded.
+
+Actual DXVK High pair 96 completed independent logins, 1 ms native discovery,
+join, readiness and world loading. Repeated read-only observations showed
+both original simulations advancing beyond turn zero (host 32→301, guest
+138→451, sampled sequentially). A prior diagnostic build exceeded 3,600 turns
+and visibly replicated a completed host residence to the guest. These are
+Gold-to-Gold observations; no History client participated.
+
+Host shutdown exited normally, but the remaining client stopped at the retained
+two-human guard. Graceful departure, reconnect, sustained equal native checksums,
+AI and multiplayer save/resume remain unqualified. All 16 shared profile/save
+files checked by each runner stayed unchanged. Backend `21/11`/`21/12`
+participation remains rejected; native NetZ joining is independent of that
+registry admission. The ordinary launcher does not enable this experiment.
+See [simulation details](GOLD-LOCAL-SIMULATION.md#two-human-network-experiment-2026-11-11)
+and the [sanitized receipt](verification/gold-network-simulation-20261111.json).
+
 ## Independent local peers, 2026-11-11
 
 `tools/gold/peer_server.py` serves two to eight separately configured local
