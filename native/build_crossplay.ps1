@@ -19,6 +19,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay channel test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_participant_tests.cpp') /Fe:crossplay_participant_tests.exe /link bcrypt.lib /BASE:0x18000000 /FIXED /DYNAMICBASE:NO "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay participant test build failed.' }
+    # The fixed image above is an emulator fixture. Use a relocatable image
+    # for Windows execution, where system DLLs can occupy the fixture base.
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_participant_tests.cpp') /Fe:crossplay_participant_runtime_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Relocatable native participant test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_admission_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') (Join-Path $nativeSource 'crossplay_channel.cpp') /Fe:crossplay_admission_tests.exe /link ws2_32.lib bcrypt.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay admission test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_chat_tests.cpp') /Fe:crossplay_chat_tests.exe /link "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
@@ -29,5 +33,7 @@ try {
     # run on Windows, where a system DLL may already occupy that image base.
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_event_codec_tests.cpp') /Fe:crossplay_event_codec_runtime_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable native codec test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_preparation_tests.cpp') /Fe:crossplay_preparation_tests.exe /link /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'History preparation test build failed.' }
 } finally { Pop-Location }
-Write-Output 'Built channel, participant, admission, chat and native codec tests. No game adapter was installed or launched.'
+Write-Output 'Built channel, participant, admission, chat, native codec and History preparation tests. No game adapter was installed or launched.'

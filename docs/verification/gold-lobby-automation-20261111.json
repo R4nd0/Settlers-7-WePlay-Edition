@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-11",
+  "scope": "opt-in real-engine lobby driver and read-only History presentation gate",
+  "ordinary_adapter_builds_changed": false,
+  "offline_verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "lua_runtime": "Lua 5.1 via Lupa",
+    "driver_tests_passed": 10,
+    "guest_page_tests_passed": 5,
+    "synthetic_preparation_checks_passed": 598,
+    "relocatable_participant_abi_policy_checks_passed": 177,
+    "fixed_participant_emulator_image_preserved": true,
+    "original_game_code_executed_by_these_tests": false
+  },
+  "automated_runtime": {
+    "renderer_required": "DXVK",
+    "mouse_keyboard_actions_required_by_driver": false,
+    "fully_headless_game_mode_proven": false,
+    "first_attempt_blocked_by_memory_preflight": true,
+    "games_started_in_first_attempt": 0,
+    "staged_gold_archive_restored_after_first_attempt": true,
+    "driver_runtime_qualified": false,
+    "native_guest_page_transition_qualified": false,
+    "native_world_start_qualified": false,
+    "synchronized_turns_qualified": false
+  }
+}

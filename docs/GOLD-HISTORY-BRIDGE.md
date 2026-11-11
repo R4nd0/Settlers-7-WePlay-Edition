@@ -51,6 +51,47 @@ bootstrap before it supplies those values. The socket tests use synthetic
 identities and content metadata; they do not prove game ownership, content
 compatibility or executable binding.
 
+## Automated development tests
+
+The opt-in `tools/gold/native_lobby_driver.lua` removes mouse and keyboard
+steps from the isolated lobby experiment. It waits for the actual login,
+enters the original session browser, waits for native network startup, selects
+one unambiguous Monhaim map and calls the edition's original `SessionCreate`
+API. Gold keeps its seven arguments; History keeps its eight arguments.
+Only a real boolean success selects the original host-lobby action. A latch
+prevents a native job's callbacks from creating a second session.
+
+The driver requests normal engine shutdown after 90 seconds of observation
+following creation, or after its initial waiting deadline if creation never
+occurs. An engine stall can prevent the Lua update and shutdown from running.
+It never supplies Ready, start, acknowledgement, turn or checksum results.
+It is excluded from ordinary interfaces and launchers.
+
+This is an unattended **real-engine DXVK test**, not a proven headless game
+mode. Renderer-free protocol, ABI and memory-layout checks run separately.
+The private pair launcher verifies executable, adapter, extension source and
+archive hashes, backs up the actual profiles and restores the test archives.
+Memory preflight now precedes archive staging. Its first attempted automated
+pair was stopped before game startup because available physical memory was
+below the laboratory's 4-GiB threshold; no runtime success is claimed.
+
+`tools/gold/history_guest_lobby.lua` also adds an experimental guest-page
+transition. It requires the actual guest role and local slot 2 plus a strict
+boolean from the guarded native query. `native/crossplay_history_preparation.h`
+checks confirmed ownership, matching native preparation IDs, slots, names and
+human states, inactive-buffer roots and foreign backend host ownership for
+each independently pinned History layout. This presentation gate does not
+establish a Storm join, content agreement or permission to start a world.
+Its real-engine transition remains unqualified. The private History build
+must select the existing `GameDirectory` console bridge for that query;
+the earlier laboratory build returned no Lua value because it omitted it.
+
+Ten Lua 5.1 driver tests, five guest-page tests and 598 synthetic read-only
+preparation checks pass. These exercise reentry, native failure, edition
+argument lists, readiness gates, ownership changes and unreadable memory;
+they do not execute a mixed game. See the
+[automation receipt](verification/gold-lobby-automation-20261111.json).
+
 ## Verification
 
 Build with the existing Visual Studio x86 toolchain:
@@ -59,10 +100,20 @@ Build with the existing Visual Studio x86 toolchain:
 powershell -NoProfile -File native/build_crossplay.ps1 -OutputDirectory work/crossplay-build
 python tests/crossplay_channel_tests.py work/crossplay-build/crossplay_channel_tests.exe
 python tests/crossplay_broker_tests.py
+work/crossplay-build/crossplay_participant_runtime_tests.exe
 work/crossplay-build/crossplay_admission_tests.exe
 work/crossplay-build/crossplay_chat_tests.exe
 work/crossplay-build/crossplay_event_codec_runtime_tests.exe
+work/crossplay-build/crossplay_preparation_tests.exe
+python tests/gold_guest_lobby_tests.py
+python tests/gold_lobby_driver_tests.py
 ```
+
+The two Lua tests use Lupa's Lua 5.1 runtime. An existing private installation
+under `work/lua-test-runtime` is supported; otherwise install Lupa in the
+test Python environment. No game archives are required for these unit tests.
+The fixed-base participant and codec executables remain separate emulator
+fixtures; the `_runtime_tests.exe` variants use ASLR for Windows execution.
 
 The native build uses `/W4 /WX`. Twenty actual C++ ↔ Python TCP scenarios pass:
 ordered bidirectional payloads through the 64-KiB boundary, bursts of 1,024 tiny
