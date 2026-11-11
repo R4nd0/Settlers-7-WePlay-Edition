@@ -490,6 +490,19 @@ bool CloudSavePatches(std::vector<Patch>& patches) {
     return Add(patches,0x185b,{0xe8,0xd0,0x86,0x04,0x00},UnavailableCloudSave)
         && Add(patches,0x40f58,{0xe8,0xd3,0x8f,0x00,0x00},UnavailableCloudSave);
 }
+bool StartupOptionsPatches(std::vector<Patch>& patches) {
+    // Gold's own reset question at 40DEF8 -> 41C400 returns a bool in AL and
+    // cleans one stack argument (RET 4). Follow its original No continuation.
+    // Startup.tag can survive a successful menu-only launch. Keep parsed options,
+    // marker handling and all other message boxes unchanged.
+    const unsigned char consumer[] = {0x84,0xc0,0xc6,0x85,0xa3,0xfa,0xff,0xff,0x01,0x75,0x06};
+    const unsigned char epilogue[] = {0xc2,0x04,0x00};
+    if (memcmp(reinterpret_cast<void*>(image + 0xdefd), consumer, sizeof(consumer))
+        || memcmp(reinterpret_cast<void*>(image + 0x1c4e9), epilogue, sizeof(epilogue))) return false;
+    const unsigned char before[] = {0xe8,0x03,0xe5,0x00,0x00};
+    const unsigned char after[] = {0x32,0xc0,0x83,0xc4,0x04};
+    return AddBytes(patches, 0xdef8, before, after, sizeof(before));
+}
 bool Write(const Patch& patch, bool install) {
     const auto& before = install ? patch.before : patch.after;
     const auto& after = install ? patch.after : patch.before;
@@ -536,7 +549,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     if (!LocalLoginPrepare(patches)) return 0;
 #endif
     if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)
-        || !CloudSavePatches(patches)) return 0;
+        || !CloudSavePatches(patches) || !StartupOptionsPatches(patches)) return 0;
 #ifdef S7_GOLD_LOCAL_SIMULATION
     if (!LocalSimulationPatches(patches)
         || !Add(patches, 0x40ed4, {0xe8,0x57,0x1c,0x00,0x00}, LocalAdvance)) return 0;

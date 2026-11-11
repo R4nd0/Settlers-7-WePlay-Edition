@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-11",
+  "scope": "Gold startup and quiet menu; separate development copy",
+  "original_archive_sha256": "5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215",
+  "final_archive_sha256": "35316bd95040092be72f47a4cde6f4d06cf845514ee4e11222f6e63ae63a203b",
+  "native_dll_sha256": "5ecdcf1f3c20ddf2088f342606bf0de77594e04820810e95ba15e72cabd2e840",
+  "archive_files_verified": 284,
+  "changed_members": [
+    "Script/local/menu/game.lua",
+    "Script/local/menu/panel/hud.lua",
+    "Script/local/menu/panel/menu/newsTicker.lua",
+    "Script/local/menu/panel/menu/playerCard.lua",
+    "Script/local/menu/panel/menu/customize/profileManager.lua",
+    "Script/local/menu/panel/menu/sectionMenus/mainMenu.lua",
+    "Script/local/tools/boot.lua"
+  ],
+  "unchanged_members": 277,
+  "modified_scripts_lua51_compile": 7,
+  "authored_menu_tests_passed": 4,
+  "existing_profile_tests_passed": 9,
+  "native_startup_no": {
+    "call_va": "0x40def8",
+    "original_target_va": "0x41c400",
+    "original_bytes": "e803e50000",
+    "replacement_bytes": "32c083c404",
+    "guard_byte_rejections": 19,
+    "stack_abi_and_rollback_passed": true,
+    "original_gold_image_guards_passed": true
+  },
+  "build": {
+    "x86_w4_wx": true,
+    "network_guard_checks_passed": 75,
+    "gold_network_import_checks_passed": true,
+    "loopback_tests_require_unrestricted_local_sockets": true
+  },
+  "final_live": {
+    "renderer": "pinned DXVK",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "quality": "High",
+    "existing_startup_tag": true,
+    "startup_reset_question_absent": true,
+    "native_no_bytes_verified": true,
+    "local_profile_confirmation_retained": true,
+    "black_main_menu_observed": true,
+    "no_promotional_left_links_or_quickstart": true,
+    "no_shop_coin_in_player_card": true,
+    "no_expansions_redeem_group": true,
+    "customize_without_shop_observed": true,
+    "settings_open_cancel_return_observed": true,
+    "normal_exit_code": 0,
+    "options_byte_identical": true,
+    "shared_files_unchanged": 16,
+    "world_started": false
+  },
+  "intermediate_candidate": "Removed cash local was still used for card width; corrected with empty local, then live-verified.",
+  "original_settings_dialog_observation": "Opening and cancelling original Settings serialized DepthOfField/System defaults in the owned diagnostic profile. Owned options were restored from backup before the final startup-only test; shared profiles were unchanged.",
+  "original_installation_modified": false,
+  "existing_crossplay_copies_deployed_or_stopped": false,
+  "published_packages_changed": false,
+  "multiplayer_qualified_by_this_test": false
+}

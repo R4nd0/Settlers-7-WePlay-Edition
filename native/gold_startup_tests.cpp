@@ -147,6 +147,49 @@ bool CloudSaveGuards() {
     std::printf("Gold cloud-save instruction rejections: %u\n",rejected);
     return true;
 }
+bool StartupOptionsGuards() {
+    const unsigned char call[]={0xe8,0x03,0xe5,0x00,0x00};
+    const unsigned char consumer[]={0x84,0xc0,0xc6,0x85,0xa3,0xfa,0xff,0xff,0x01,0x75,0x06};
+    const unsigned char epilogue[]={0xc2,0x04,0x00};
+    memcpy(reinterpret_cast<void*>(image+0xdef8),call,sizeof(call));
+    memcpy(reinterpret_cast<void*>(image+0xdefd),consumer,sizeof(consumer));
+    memcpy(reinterpret_cast<void*>(image+0x1c4e9),epilogue,sizeof(epilogue));
+    std::vector<Patch> valid;
+    if (!StartupOptionsPatches(valid) || valid.size()!=1 || !Write(valid[0],true)) return false;
+    // Execute the actual installed instruction bytes after one caller-owned
+    // argument. A separate sentinel detects over/under-cleanup of the stack.
+    unsigned char code[]={0x68,0x78,0x56,0x34,0x12,0,0,0,0,0,0xc3};
+    memcpy(code+5,valid[0].at,5);
+    auto* executable=VirtualAlloc(nullptr,sizeof(code),MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+    if (!executable) return false;
+    memcpy(executable,code,sizeof(code));
+    DWORD before=0,after=0,sentinel=0,result=0;
+    __asm {
+        mov before, esp
+        push 0x76543210
+        mov eax, 0xffffffff
+        call executable
+        mov result, eax
+        pop sentinel
+        mov after, esp
+    }
+    VirtualFree(executable,0,MEM_RELEASE);
+    if (before!=after || sentinel!=0x76543210 || (result&0xff)!=0
+        || !Write(valid[0],false) || memcmp(valid[0].at,call,sizeof(call))
+        || memcmp(reinterpret_cast<void*>(image+0xdefd),consumer,sizeof(consumer))) return false;
+    unsigned int rejected=0;
+    for (const auto& site:std::vector<std::pair<uintptr_t,size_t>>{
+        {0xdef8,sizeof(call)},{0xdefd,sizeof(consumer)},{0x1c4e9,sizeof(epilogue)}}) {
+        for (size_t index=0;index<site.second;++index) {
+            auto* byte=reinterpret_cast<unsigned char*>(image+site.first+index);*byte^=1;
+            std::vector<Patch> changed;const bool accepted=StartupOptionsPatches(changed);*byte^=1;
+            if (accepted || !changed.empty() || memcmp(valid[0].at,call,sizeof(call))) return false;
+            ++rejected;
+        }
+    }
+    std::printf("Gold startup-options No/stack ABI, rollback and %u instruction rejections passed.\n",rejected);
+    return true;
+}
 bool RejectedChild(unsigned int mode) {
     wchar_t path[32768]{};if (!GetModuleFileNameW(nullptr,path,32768)) return false;
     std::wstring command=L"\""+std::wstring(path)+L"\" reject "+std::to_wstring(mode);
@@ -474,6 +517,7 @@ int main(int argc,char** argv) {
     Setup();if (!GoldStartup::Empty(&record,1) || !IdentityAbi() || !ProfileIsolation() || !RendererFileGuards()) return 7;
     if (!GoldVisualGuards() || !GoldFilterCases()) return 34;
     if (!CloudSaveGuards() || !CloudSaveAbi(0x185b) || !CloudSaveAbi(0x40f58)) return 35;
+    if (!StartupOptionsGuards()) return 38;
 #ifdef S7_GOLD_ACCOUNT_LOGIN
     if (!GoldAccountGuards()) return 36;
     if (!RejectedChild(23)) return 103;

@@ -24,6 +24,11 @@ turn checksums. A further explicit departure experiment keeps the remaining
 guest running after a host leaves. These are loopback development results;
 Gold remains excluded from normal WePlay admission and has no History bridge.
 
+The [Gold menu cleanup](GOLD-MENU-CLEANUP.md) independently ports the automatic
+startup-options No answer, skipped intros, black main menu and removal of old
+store/redeem/news/web promotions. Its separate DXVK test copy passes the visible
+menu and options-preservation checks; existing published packages are unchanged.
+
 ## Identified installation
 
 The selected Ubisoft installation uses the nested layout
