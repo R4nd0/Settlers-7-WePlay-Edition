@@ -217,6 +217,7 @@ class GoldLoginAdapter:
         self.registered = False
         self.profile = None
         self.gatherings = None
+        self.probe_relay = None
         if session_mode:
             if not account_mode:
                 raise ValueError("Local registrations require account mode")
@@ -319,6 +320,13 @@ class GoldLoginAdapter:
             self.event("registered")
             return rpc_response(protocol, call, method, struct.pack("<II", 0x10001, self.connection_id) + text(url))
         if backend and state is not None and state.registered and self.profile is not None:
+            if self.probe_relay is not None and (protocol, method) == (3, 1):
+                try:
+                    self.probe_relay.request(self, state, args, now)
+                except (ValueError, UnicodeError):
+                    self.event("native_probe_initiation_rejected")
+                    return rpc_rejection(protocol, call)
+                return rpc_response(protocol, call, method, b"")
             if (self.gatherings is not None and self.gatherings.discovery
                     and (protocol, method) == (11, 3)):
                 if state.closed or not state.connected or state.expires <= now:
@@ -602,10 +610,18 @@ class GoldLoginAdapter:
                         return []
                     request = wrap(state.fragments + part)
                     stage = "rpc"
-                    response = self.response(backend, peer, request, now, state)
-                    plain = unwrap(response)
+                    if backend and self.probe_relay is not None and part[4:5] == b"\3":
+                        if state.fragments:
+                            raise ValueError("Fragmented probe response")
+                        self.probe_relay.response(self, state, part)
+                        plain = b""
+                    else:
+                        response = self.response(backend, peer, request, now, state)
+                        plain = unwrap(response)
+                        if not plain:
+                            raise ValueError("Missing RPC response")
                     parts = [plain[i:i + 900] for i in range(0, len(plain), 900)]
-                    if (not 1 <= len(parts) <= 64 or len(state.pending) + len(parts) > 64
+                    if (len(parts) > 64 or len(state.pending) + len(parts) > 64
                             or state.next_out + len(parts) > 0x10000):
                         raise ValueError("Excessive pending response")
                     packets = tuple(encode(2, 112, state.session, state.client, state.next_out + index,

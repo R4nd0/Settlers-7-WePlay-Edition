@@ -16,6 +16,7 @@ import time
 from account_config import ConfigService
 from local_gatherings import LocalGatherings
 from login_server import GoldLoginAdapter, MAX_DATAGRAM
+from nat_traversal import ProbeRelay
 
 
 def validate_peers(peers):
@@ -72,6 +73,9 @@ class PeerLoginService:
                 self.routes[backend] = adapter, True
                 self.endpoints.append({"port": auth.getsockname()[1],
                     "backend_port": backend.getsockname()[1], "config_port": config.server_port})
+            self.probes = ProbeRelay(self.adapters, self.gatherings)
+            for adapter in self.adapters:
+                adapter.probe_relay = self.probes
         except BaseException:
             self.resources.close()
             raise
@@ -85,6 +89,7 @@ class PeerLoginService:
         # Every owner belongs to this disposable service. Release its records
         # without serializing profiles, launch secrets or station URLs.
         self.gatherings.records.clear()
+        self.probes.jobs.clear()
 
     def pump(self, timeout=.1):
         if self.closed or not 0 <= timeout <= 1:
@@ -99,6 +104,7 @@ class PeerLoginService:
             for reply in adapter.handle(backend, peer, data, time.monotonic()):
                 sock.sendto(reply, peer)
         now = time.monotonic()
+        self.probes.pump(now)
         for adapter in self.adapters:
             for backend, peer, reply in adapter.retransmissions(now):
                 sock = next(sock for sock, route in self.routes.items()

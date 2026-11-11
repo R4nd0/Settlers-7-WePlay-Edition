@@ -117,6 +117,33 @@ still excludes network calls. Backend peer participation also remains rejected;
 the native NetZ join succeeded independently and does not qualify backend
 admission, capacity enforcement or cross-edition identity/content checks.
 
+### Native probe initiation
+
+The opt-in peer service now relays Gold's native NAT traversal request `3/1`
+(a bounded StationURL list) to the selected host as `3/2` (one StationURL).
+These methods are probe initiation, not a second account login. Each target
+must be another live, authenticated, currently published host. StationURL
+attribute order may change during the native read/write cycle; the complete
+field values must still match the service-issued registration. Duplicate,
+unknown or altered stations are rejected. The forwarded source is taken from
+the authenticated registration, never supplied by the request.
+
+The relay bounds outstanding jobs, time, native sequence numbers and pending
+packets. Leaving, disconnection or expiry cancels its own pending notification.
+Only the exact target connection can answer its issued RPC correlation. Real
+transport ACKs remain required; duplicate packets do not repeat the operation.
+Six additional loopback tests cover the native request/response shape,
+correlation, replay, bounds, station normalization, backpressure and revocation;
+all 61 Gold tests pass.
+
+In actual DXVK pair 88, both native account logins succeeded. The host accepted
+and answered the relayed `3/2` request, then sent its own 24-byte UDP probes to
+the searching client. The browser still showed no selectable session: a valid
+return ping was not observed. Both clients exited normally with all 16 shared
+files checked by each runner unchanged. This qualifies native probe dispatch,
+not reliable discovery, a running match or Gold/History crossplay. See the
+[probe receipt](verification/gold-probe-relay-20261111.json).
+
 ## Native local player identity, 2026-11-11
 
 The opt-in account adapter now supplies its independent launch name when Gold
