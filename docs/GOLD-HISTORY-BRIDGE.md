@@ -5,7 +5,9 @@ now connect Gold and Ubisoft History to the authenticated channel and deliver
 foreign participant events through their original native queues. Both session
 managers have accepted matching two-player rosters and host/guest roles. The
 preparation frame and visible lobby still differ; no mixed gameplay test has
-run. Normal game builds and matchmaking admission are unchanged.
+run. A private native codec has also delivered an actual lobby-chat message in
+each direction between Gold and Ubisoft History. Normal game builds and
+matchmaking admission are unchanged.
 
 The November 11 components add original native event construction, local
 clone-and-queue delivery, copied castle designs and a bounded roster-binding
@@ -56,6 +58,9 @@ Build with the existing Visual Studio x86 toolchain:
 powershell -NoProfile -File native/build_crossplay.ps1 -OutputDirectory work/crossplay-build
 python tests/crossplay_channel_tests.py work/crossplay-build/crossplay_channel_tests.exe
 python tests/crossplay_broker_tests.py
+work/crossplay-build/crossplay_admission_tests.exe
+work/crossplay-build/crossplay_chat_tests.exe
+work/crossplay-build/crossplay_event_codec_tests.exe
 ```
 
 The native build uses `/W4 /WX`. Twenty actual C++ ↔ Python TCP scenarios pass:
@@ -126,7 +131,10 @@ postconditions before `AdmissionState::RosterBound`. This state establishes
 member lists only: it does not qualify a shared preparation frame, visible
 lobby, Ready result, content agreement or simulation.
 
-The framing/ownership executable passes 920 checks. In the private Gold ↔
+The framing/ownership executable passes 946 checks. Once bound, it leaves later
+channel records for the event dispatcher and continues checking the exact native
+session, member statuses, IDs, names, slots and roles. A departed, replaced,
+additional or reassigned member invalidates the interval. In the private Gold ↔
 Ubisoft History DXVK run, seven authenticated records completed roster binding
 on both sides. Gold remained host at slot 1; History became guest at slot 2.
 The UI exposed the remaining mismatch: Gold still showed an open second slot,
@@ -144,6 +152,57 @@ second preparation row. Both clients again exited normally with restored
 profiles and unchanged saves. This private slot callback is not part of the
 public roster component or normal adapter builds.
 
+## Native lobby-chat event path
+
+`native/crossplay_chat.h` admits only the full `CChatEvent` wire with category 7,
+subtype 20 and an asynchronous flag. Both native strings, their terminators,
+lengths and the trailing fields are checked before any native factory call.
+This initial gate supports printable ASCII strings up to 1,024 characters;
+other characters and event classes are excluded. A separate envelope binds the
+authenticated sender and receiver. Only the sender's admitted source CID is
+accepted and translated to its receiver-local CID. Channel sequence and epoch
+checks still apply. The framing executable passes 503 checks.
+
+`native/crossplay_event_codec.h` uses the original binary writer, registered
+factory and reader. A fingerprinted owner-thread participant binding and the
+current two-member native roster are required. The codec checks stream and
+visitor layouts, all 84 stream/writer/reader virtual slots and method prefixes,
+the six chat methods, the transport method and queue lock. Gold's EAX stream
+constructor and ESI/EDI visitor calls are distinct from History's thiscall ABI.
+After decoding, complete consumption and identical reserialization are required.
+Original mode-zero delivery makes a receiver-owned clone; the codec destroys
+only its own factory allocation. Ordinary adapters do not include this header.
+
+Twenty-four synthetic x86 checks cover those custom call ABIs, stack/register
+preservation, memory ranges and unbound/foreign-thread exclusions. The compiled
+table guard also passes 42 offline checks against all three fingerprinted
+analysis images, including changed table entries, changed method prefixes and
+unreadable methods. That test executes our compiled guard and models
+`VirtualQuery`; no original game code, game process or network runs. It needs
+the existing `pefile` and Unicorn dependencies:
+
+```powershell
+python tools/gold/verify_codec_guards.py --gold <gold-analysis.exe> --ubisoft <ubisoft-original.exe> --steam-analysis <steam-unpacked-analysis.exe> --thunk-executable work/crossplay-build/crossplay_event_codec_tests.exe work/codec-guard-receipt.json
+```
+
+In the actual private Gold ↔ Ubisoft History DXVK High run, both original native
+factories first completed same-engine Confirmed-event write/read round trips.
+Then seven authenticated admission records bound the rosters. An actual UI chat
+message from each game passed through the channel, the opposite engine's native
+factory and its original queue consumer. Both game windows displayed each
+message once, with no duplicate local echo. No world was started. Both clients
+exited normally; profiles/adapters were restored and saves, cloud and all 16
+shared files checked by each runner were unchanged. One broker rejection
+occurred during normal peer shutdown, after the nine valid records.
+
+The runtime result belongs to the private predecessor of the public codec.
+The added public roster/table guards have build, ABI and offline coverage;
+their runtime requalification and the next History preparation-slot candidate
+were blocked before launch by the existing 4-GiB host-memory preflight. Steam
+has no mixed chat runtime result. This does not qualify native Ready, setup,
+gameplay events, content compatibility or either mixed-edition match. See the
+[sanitized event receipt](verification/gold-history-events-20261111.json).
+
 ## Remaining native integration
 
 The remaining bridge must complete native slot/preparation assignment, join
@@ -159,8 +218,8 @@ payload cannot reproduce the original callback lifecycle. Numeric network slot
 IDs also exist in History; its account/Storm GUIDs cannot replace those fields.
 The full native mapping and its runtime qualification remain incomplete.
 
-After that mapping, the adapters still need the original native event factory,
-receiver ownership and local event queue, a common content admission check,
+After that mapping, the adapters still need bounded native event-factory and
+queue integration for setup and world events, a common content admission check,
 and actual Gold ↔ Ubisoft History and Gold ↔ Steam History matches under DXVK.
 Native Ready results, acknowledgements, checksums and turn progression must
 remain consequences of those real operations. A channel test or matching

@@ -63,6 +63,16 @@ bool SameMember(const Participant& left,const Participant& right) {
     return left.connection==right.connection && left.slot==right.slot && left.principal==right.principal
         && left.station==right.station && left.name==right.name && left.host==right.host && left.local==right.local;
 }
+bool BoundRoster(const LobbySnapshot& snapshot,const Participant& own,const Participant& remote,bool host) {
+    if(snapshot.members.size()!=2 || snapshot.local_slot!=own.slot || snapshot.host!=host) return false;
+    unsigned own_count=0,remote_count=0;
+    for(const auto& member:snapshot.members) {
+        if(member.status!=2) return false;
+        own_count+=SameMember(member.player,own)?1u:0u;
+        remote_count+=SameMember(member.player,remote)?1u:0u;
+    }
+    return own_count==1 && remote_count==1;
+}
 }
 struct LobbyAdmission::Impl {
     DWORD owner=GetCurrentThreadId();
@@ -156,8 +166,15 @@ bool LobbyAdmission::Poll() {
     if(impl->state!=AdmissionState::RosterBound && GetTickCount64()-impl->started>120000) return impl->Fail();
     LobbySnapshot snapshot;
     if(!impl->native.CaptureLobby(snapshot) || snapshot.instance!=impl->instance) return impl->Fail();
+    // Once the roster transaction finishes, the session's event dispatcher
+    // owns subsequent channel records. Continue checking native ownership
+    // without swallowing a gameplay record as an admission message.
+    if(impl->state==AdmissionState::RosterBound) return BoundRoster(snapshot,impl->own,impl->remote,impl->host) || impl->Fail();
     std::vector<unsigned char> bytes;
-    for(unsigned i=0;i<8 && impl->channel->Receive(bytes);++i) if(!impl->Record(bytes)) return false;
+    for(unsigned i=0;i<8 && impl->channel->Receive(bytes);++i) {
+        if(!impl->Record(bytes)) return false;
+        if(impl->state==AdmissionState::RosterBound) break;
+    }
     if(impl->state==AdmissionState::Applying && snapshot.members.size()==2) {
         unsigned own=0,remote=0;
         for(const auto& member:snapshot.members) {

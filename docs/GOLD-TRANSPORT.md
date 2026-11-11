@@ -10,8 +10,10 @@ multiplayer admission. The History service has no fallback to this protocol.
 
 The separate [Gold / History connection component](GOLD-HISTORY-BRIDGE.md) now
 passes native x86 ↔ Python loopback transport tests with independent launch
-keys and explicit identity projections. It is not connected to the games'
-native session or event callbacks; it does not change multiplayer admission.
+keys and explicit identity projections. Private DXVK experiments have bound
+both native rosters and delivered original lobby-chat events in both directions
+between Gold and Ubisoft History. Preparation, full session admission and mixed
+gameplay remain incomplete; ordinary multiplayer admission is unchanged.
 
 ## Running Gold network simulation, 2026-11-11
 

@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-11",
+  "scope": "experimental loopback lobby-chat events only",
+  "ordinary_adapter_builds_changed": false,
+  "synthetic_checks": {
+    "admission_framing_and_ownership": 946,
+    "chat_framing_and_cid_projection": 503,
+    "native_codec_abi_ranges_and_ownership": 24,
+    "compiled_table_guard_against_pinned_images": 42,
+    "table_guard_checks_per_profile": 14,
+    "table_guard_original_game_code_executed": false
+  },
+  "private_predecessor_runtime": {
+    "editions": ["Gold", "Ubisoft History"],
+    "renderer": "DXVK",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "same_engine_native_factory_roundtrip": ["Gold", "Ubisoft History"],
+    "native_rosters_bound": true,
+    "authenticated_admission_records": 7,
+    "actual_ui_chat_messages": {
+      "gold_to_ubisoft_history": 1,
+      "ubisoft_history_to_gold": 1,
+      "visible_in_both_game_windows": true,
+      "duplicate_local_echo_observed": false
+    },
+    "receiver_native_factory_and_original_queue_used": true,
+    "authenticated_records_before_shutdown": 9,
+    "rejections_before_shutdown": 0,
+    "shutdown_retirement_rejections": 1,
+    "world_started": false,
+    "exit_codes": [0, 0],
+    "profiles_and_adapters_restored": true,
+    "saves_and_cloud_unchanged": true,
+    "shared_files_checked_per_runner": 16,
+    "shared_files_unchanged": true
+  },
+  "current_public_codec_runtime_requalified": false,
+  "next_runtime_blocker": "host-memory preflight rejected launch before creating a game process",
+  "history_preparation_slot_candidate_runtime_qualified": false,
+  "steam_mixed_runtime_qualified": false,
+  "native_ready_qualified": false,
+  "content_compatibility_qualified": false,
+  "mixed_gameplay_qualified": false
+}

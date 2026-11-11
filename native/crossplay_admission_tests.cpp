@@ -50,5 +50,29 @@ int main() {
     Check(!admission.Begin(channel,Crossplay::Edition::Gold,true,nullptr,0)
         && admission.GetState()==AdmissionState::Failed,"unauthenticated channel cannot begin native admission");
     Check(!admission.Poll(),"failed admission does not pump native callbacks");
+    for(bool host:{false,true}) {
+        const Participant own{0,host?1u:2u,0,0,"Local",host,true};
+        const Participant remote{1,host?2u:1u,2,1,"Remote",!host,false};
+        LobbySnapshot snapshot{123,own.slot,host,{{own,2},{remote,2}}};
+        Check(BoundRoster(snapshot,own,remote,host),"committed native roster retains channel ownership");
+        for(unsigned change=0;change<12;++change) {
+            auto changed=snapshot;
+            switch(change) {
+            case 0: changed.members.pop_back();break;
+            case 1: changed.members.push_back({remote,2});break;
+            case 2: changed.local_slot=remote.slot;break;
+            case 3: changed.host=!host;break;
+            case 4: changed.members[0].status=3;break;
+            case 5: changed.members[1].status=6;break;
+            case 6: changed.members[1].player.connection=2;break;
+            case 7: changed.members[1].player.name="Replacement";break;
+            case 8: changed.members[1].player.slot=own.slot;break;
+            case 9: changed.members[1].player.principal=3;break;
+            case 10: changed.members[1].player.station=2;break;
+            default: changed.members[1].player.host=host;break;
+            }
+            Check(!BoundRoster(changed,own,remote,host),"departed/replaced/reassigned roster invalidates committed binding");
+        }
+    }
     std::printf("PASS %u admission framing/ownership checks; no game was launched.\n",checks);
 }
