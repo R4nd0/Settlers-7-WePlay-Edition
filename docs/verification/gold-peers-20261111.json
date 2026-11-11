@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "date": "2026-11-11",
+  "component": "Gold independent local peer login service",
+  "synthetic_verification": {
+    "peer_tests": 6,
+    "existing_login_account_registration_codec_tests": 40,
+    "real_loopback_udp_and_http": true,
+    "separate_credentials_tickets_principals_profiles_and_endpoints": true,
+    "foreign_credential_ticket_and_host_authority_rejected": true,
+    "disconnect_and_expiry_preserve_other_owner": true,
+    "gameplay_evidence": false
+  },
+  "actual_game_verification": {
+    "case": 72,
+    "native_adapter_sha256": "7b1e18a94ec716b995c46c6aa71f3044b1d029cc907117504a7d3f91a9194645",
+    "diagnostic_adapter_retained_original_guards": true,
+    "dxvk": true,
+    "legacy_fallback": false,
+    "configured_independent_identities": 2,
+    "actual_gold_clients": 1,
+    "native_login_succeeded": true,
+    "session_browser_opened": true,
+    "native_named_host_lobby_created": true,
+    "second_identity_used_by_game": false,
+    "exit_code": 0,
+    "shared_files_checked": 16,
+    "shared_files_unchanged": true
+  },
+  "prior_start_observation": {
+    "case": 71,
+    "own_human_and_original_ai": true,
+    "native_ui_required_another_human": true,
+    "network_match_started": false,
+    "exit_code": 0,
+    "shared_files_unchanged": true
+  },
+  "limits": {
+    "loopback_only": true,
+    "peer_join_implemented": false,
+    "common_simulation_transport_implemented": false,
+    "gold_history_crossplay_verified": false,
+    "history_clients_launched": 0,
+    "raw_payloads_saved": false
+  }
+}

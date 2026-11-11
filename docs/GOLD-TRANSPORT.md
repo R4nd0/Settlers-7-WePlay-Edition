@@ -8,6 +8,41 @@ Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
+## Independent local peers, 2026-11-11
+
+`tools/gold/peer_server.py` serves two to eight separately configured local
+launches. Each has its own launch secret, principal, ticket, profile, UDP auth
+and backend sockets, and HTTP configuration origin. Only the bounded Gold
+registration registry is shared. Credentials and tickets from another launch
+are rejected. Registration authority remains the exact authenticated connection;
+another fully logged-in peer cannot read, update, delete or claim its host record.
+Disconnect and expiry remove only that connection's records. Endpoints bind only
+to IPv4 loopback; this service does not yet admit peer joins or History clients.
+
+Run `python tools/gold/peer_server.py --ready-file <private-ready-path>
+--report-file <private-report-path> --duration 600` with a fresh, environment-only
+`WEPLAY_GOLD_LOCAL_PEERS` JSON array of `{ "name": ..., "secret": ... }` objects.
+Names and 256-bit hexadecimal launch secrets must be distinct. The environment
+entry is consumed at startup; do not store or commit it. The ready file contains
+only indexed endpoint triples. Set each child's existing `WEPLAY_GOLD_LOCAL_NAME`,
+`WEPLAY_GOLD_LOCAL_SECRET`, `WEPLAY_GOLD_LOCAL_PORT` and `WEPLAY_GOLD_CONFIG_PORT`
+to that launch's own values. Never give another client the host's secret.
+
+Six synthetic tests use actual loopback sockets to check independent logins,
+ticket/credential rejection, native configuration routing, connection ownership,
+disconnect/expiry isolation and input bounds. The existing 40 login, account,
+registration and codec tests also pass. Separately, the actual DXVK Gold client
+completed its native account login, opened the Session Browser and created a
+named host lobby on this service. It exited normally; all 16 backed-up shared
+profile/save files were unchanged. The second configured identity remained
+unused in that game test. See the [peer-service receipt](verification/gold-peers-20261111.json).
+
+The original multiplayer Start button also correctly refused a sole human with
+an AI: it requires another human participant. That is a legitimate prerequisite,
+not evidence of another turn-zero stall. No participant or readiness gate was
+fabricated or removed. Genuine peer discovery, join and simulation transport
+are still required before Gold/History matches can be tested.
+
 ## Native local player identity, 2026-11-11
 
 The opt-in account adapter now supplies its independent launch name when Gold

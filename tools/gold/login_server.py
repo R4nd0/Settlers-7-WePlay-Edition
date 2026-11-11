@@ -198,7 +198,7 @@ class Connection:
 class GoldLoginAdapter:
     """One disposable local principal; optional owned registration laboratory."""
     def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False,
-                 session_mode: bool = False):
+                 session_mode: bool = False, gatherings=None):
         self.username = username.encode("ascii")
         self.password = password.encode("ascii")
         if (not 1 <= len(self.username) <= 64 or b"\0" in self.username
@@ -220,7 +220,11 @@ class GoldLoginAdapter:
             if not account_mode:
                 raise ValueError("Local registrations require account mode")
             from local_gatherings import LocalGatherings
-            self.gatherings = LocalGatherings()
+            if gatherings is not None and not isinstance(gatherings, LocalGatherings):
+                raise ValueError("Expected local gathering registry")
+            self.gatherings = gatherings if gatherings is not None else LocalGatherings()
+        elif gatherings is not None:
+            raise ValueError("Shared registrations require session mode")
         if account_mode:
             from account_profile import LocalProfile
             self.profile = LocalProfile(username)
