@@ -61,6 +61,25 @@ class LocalGatherings:
             raise ValueError("Local host endpoint unavailable")
         return (url,)
 
+    def catalogue_by_ids(self, identifiers, version, now):
+        if (not isinstance(identifiers, tuple) or len(identifiers) > 20
+                or any(type(item) is not int or not 0 < item <= 0xffffffff for item in identifiers)
+                or len(set(identifiers)) != len(identifiers)):
+            raise ValueError("Invalid local session identifiers")
+        visible = {value.base.words[0]: value for value in self.catalogue(0, 20, version, now)}
+        return tuple(visible[item] for item in identifiers if item in visible)
+
+    def get_visible(self, owner, identifier, now):
+        record = self.records.get(identifier)
+        if record is None:
+            raise ValueError("Local session unavailable")
+        if record.owner is owner:
+            return record.value
+        values = self.catalogue_by_ids((identifier,), 16, now)
+        if not values:
+            raise ValueError("Local session unavailable")
+        return values[0]
+
     def principal_urls(self, principal, now):
         # Only a currently published host may be resolved by another launch.
         # The registration's authenticated owner supplies both PID and URL.

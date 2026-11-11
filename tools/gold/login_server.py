@@ -357,22 +357,34 @@ class GoldLoginAdapter:
                 self.event("local_session_urls_read")
                 return rpc_response(protocol, call, method, arguments)
             if (self.gatherings is not None and self.gatherings.discovery
-                    and protocol == 121 and method in (1, 5)):
+                    and protocol == 121 and method in (1, 2, 5)):
                 if state.closed or not state.connected or state.expires <= now:
                     return rpc_rejection(protocol, call)
                 try:
                     reader = Reader(args)
-                    if method == 1:
+                    if method in (1, 2):
                         # Native ACA770: ResultRange's two u32s, then the
                         # title's protocol-version constant (16). ACB100/150
                         # write/read a count followed by dynamic holders.
-                        offset, count, version = reader.u32(), reader.u32(), reader.u32()
-                        reader.finish()
-                        values = self.gatherings.catalogue(offset, count, version, now)
+                        if method == 1:
+                            offset, count, version = reader.u32(), reader.u32(), reader.u32()
+                            reader.finish()
+                            values = self.gatherings.catalogue(offset, count, version, now)
+                            event = "local_session_catalogue_read"
+                        else:
+                            # ACA9D8/ACB260: bounded u32 ID list, then version.
+                            # AC9C30 uses the same dynamic-holder list reader.
+                            count = reader.u32()
+                            if count > 20:
+                                raise ValueError("Excessive local session identifiers")
+                            identifiers = tuple(reader.u32() for _ in range(count))
+                            version = reader.u32()
+                            reader.finish()
+                            values = self.gatherings.catalogue_by_ids(identifiers, version, now)
+                            event = "local_session_selection_read"
                         from gathering_codec import encode as encode_gathering
                         arguments = struct.pack("<I", len(values)) + b"".join(
                             encode_gathering(value) for value in values)
-                        event = "local_session_catalogue_read"
                     else:
                         # Native ACADB0: the original browser asks for kind 5
                         # (recent sessions). This disposable service retains no
@@ -435,9 +447,11 @@ class GoldLoginAdapter:
                         reader = Reader(args)
                         identifier = reader.u32()
                         reader.finish()
-                        value = self.gatherings.get_owned(state, identifier)
+                        value = (self.gatherings.get_visible(state, identifier, now)
+                            if self.gatherings.discovery else self.gatherings.get_owned(state, identifier))
                         arguments = b"\1" + encode_gathering(value)
-                        event = "gathering_owned_record_read"
+                        event = ("gathering_owned_record_read"
+                            if self.gatherings.records[identifier].owner is state else "gathering_public_record_read")
                     else:
                         reader = Reader(args)
                         identifier = reader.u32()

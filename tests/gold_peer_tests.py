@@ -148,6 +148,40 @@ class PeerTests(unittest.TestCase):
         registry.records[identifier] = record
         self.assertEqual(registry.catalogue(0, 20, 16, record.owner.expires), ())
 
+    def test_native_selected_records_and_public_read_preserve_owner_authority(self):
+        self.authenticate()
+        host, guest = self.clients
+        identifier = self.host(host)
+        record = self.service.gatherings.records[identifier]
+        selection = struct.pack("<III", 1, identifier, 16)
+        self.assertEqual(guest.rpc(True, 121, 2, selection)[14:],
+            struct.pack("<I", 1) + codec.encode(record.value))
+        self.assertEqual(guest.rpc(True, 21, 21, struct.pack("<I", identifier))[14:],
+            b"\1" + codec.encode(record.value))
+        for method in (2, 40):
+            reply = guest.rpc(True, 21, method, struct.pack("<I", identifier))
+            self.assertEqual(reply[14:] if method == 2 else reply[4:6], b"\0" if method == 2 else b"\x15\0")
+        self.assertEqual(guest.rpc(True, 21, 4, codec.encode(record.value))[4:6], b"\x15\0")
+        self.assertIs(self.service.gatherings.records[identifier], record)
+        host.rpc(True, 21, 12, struct.pack("<I", identifier) + gold.text(""))
+        self.assertEqual(guest.rpc(True, 121, 2, selection)[14:], b"\0" * 4)
+        self.assertEqual(guest.rpc(True, 21, 21, struct.pack("<I", identifier))[4:6], b"\x15\0")
+
+    def test_selection_rejects_malformed_duplicate_excessive_and_wrong_version_ids(self):
+        self.authenticate()
+        identifier = self.host(self.clients[0])
+        record = self.service.gatherings.records[identifier]
+        guest = self.clients[1]
+        for args in (b"", struct.pack("<I", 21), struct.pack("<III", 1, identifier, 17),
+                struct.pack("<IIII", 2, identifier, identifier, 16), struct.pack("<III", 1, 0, 16),
+                struct.pack("<III", 1, identifier, 16) + b"x"):
+            self.assertEqual(guest.rpc(True, 121, 2, args)[4:6], b"\x79\0")
+            self.assertIs(self.service.gatherings.records[identifier], record)
+        for args in (struct.pack("<II", 0, 16), struct.pack("<III", 1, identifier + 1, 16)):
+            self.assertEqual(guest.rpc(True, 121, 2, args)[14:], b"\0" * 4)
+        registry = self.service.gatherings
+        self.assertEqual(registry.catalogue_by_ids((identifier,), 16, record.owner.expires), ())
+
     def test_catalogue_malformed_or_unqualified_query_never_mutates_host(self):
         self.authenticate()
         identifier = self.host(self.clients[0])

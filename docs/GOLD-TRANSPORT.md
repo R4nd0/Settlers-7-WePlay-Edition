@@ -98,6 +98,25 @@ was used for this game observation; no ping/readiness/participant was fabricated
 Both clients exited normally with all 16 shared files checked by each runner
 unchanged. See the [endpoint receipt](verification/gold-peer-endpoints-20261111.json).
 
+The subsequent selection adapter answers native `121/2` with the currently
+published records requested by a bounded, unique u32 ID list and version 16.
+The original `21/21` read also permits a live public record to be inspected by
+another authenticated client. These read permissions grant no update/delete/
+host authority and do not publish private, full, started or expired sessions.
+Fifteen peer tests and the existing 40 Gold tests pass.
+
+Actual pair 84 used the regular native account adapter. The second original
+Gold client joined the first through native NetZ: both windows displayed the
+same two named human players, and read-only native inspection confirmed host/
+guest roles, distinct local slots and connected participants. The guest's Ready
+change propagated to the host. Start opened the original two-player loading
+screen, then both processes ended with adapter guard code `0xe05370a1`.
+All 16 shared files checked by each runner were unchanged. This establishes a
+native Gold lobby, not a running simulation. The single-player simulation bridge
+still excludes network calls. Backend peer participation also remains rejected;
+the native NetZ join succeeded independently and does not qualify backend
+admission, capacity enforcement or cross-edition identity/content checks.
+
 ## Native local player identity, 2026-11-11
 
 The opt-in account adapter now supplies its independent launch name when Gold

@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "date": "2026-11-11",
+  "component": "Gold native public session selection and lobby join",
+  "synthetic_verification": {
+    "peer_tests": 15,
+    "existing_gold_tests": 40,
+    "selection_bounds_versions_and_owner_authority_checked": true
+  },
+  "actual_game_verification": {
+    "pair_case": 84,
+    "gold_clients": 2,
+    "regular_native_account_adapter": true,
+    "dxvk": true,
+    "legacy_fallback": false,
+    "resolution": "1920x1080",
+    "quality": "high",
+    "native_public_record_read": true,
+    "native_netz_peer_join": true,
+    "both_windows_showed_two_named_humans": true,
+    "native_host_guest_roles_and_distinct_slots_confirmed": true,
+    "guest_ready_propagated_to_host": true,
+    "two_player_loading_screen_observed": true,
+    "game_process_exit_codes": [3763564705, 3763564705],
+    "adapter_guard_code": "0xe05370a1",
+    "shared_files_checked_per_process": 16,
+    "shared_files_unchanged": true
+  },
+  "limits": {
+    "loopback_only": true,
+    "backend_peer_participation_accepted": false,
+    "network_simulation_qualified": false,
+    "history_clients_launched": 0,
+    "gold_history_crossplay_verified": false,
+    "raw_payloads_saved": false
+  }
+}
