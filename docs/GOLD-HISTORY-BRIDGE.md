@@ -61,7 +61,7 @@ python tests/crossplay_channel_tests.py work/crossplay-build/crossplay_channel_t
 python tests/crossplay_broker_tests.py
 work/crossplay-build/crossplay_admission_tests.exe
 work/crossplay-build/crossplay_chat_tests.exe
-work/crossplay-build/crossplay_event_codec_tests.exe
+work/crossplay-build/crossplay_event_codec_runtime_tests.exe
 ```
 
 The native build uses `/W4 /WX`. Twenty actual C++ ↔ Python TCP scenarios pass:
@@ -182,7 +182,7 @@ After decoding, complete consumption and identical reserialization are required.
 Original mode-zero delivery makes a receiver-owned clone; the codec destroys
 only its own factory allocation. Ordinary adapters do not include this header.
 
-Twenty-four synthetic x86 checks cover those custom call ABIs, stack/register
+Twenty-eight synthetic x86 checks cover those custom call ABIs, stack/register
 preservation, memory ranges and unbound/foreign-thread exclusions. The compiled
 table guard also passes 42 offline checks against all three fingerprinted
 analysis images, including changed table entries, changed method prefixes and
@@ -193,6 +193,10 @@ the existing `pefile` and Unicorn dependencies:
 ```powershell
 python tools/gold/verify_codec_guards.py --gold <gold-analysis.exe> --ubisoft <ubisoft-original.exe> --steam-analysis <steam-unpacked-analysis.exe> --thunk-executable work/crossplay-build/crossplay_event_codec_tests.exe work/codec-guard-receipt.json
 ```
+
+The fixed-base executable is an offline analysis fixture. Run the separately
+built `crossplay_event_codec_runtime_tests.exe` for Windows checks; it allows
+relocation when a system DLL occupies the analysis fixture's preferred base.
 
 In the actual private Gold ↔ Ubisoft History DXVK High run, both original native
 factories first completed same-engine Confirmed-event write/read round trips.
@@ -235,6 +239,30 @@ acknowledgement and departure handling. Gold's native Added handler obtains a
 remote slot from `CSessionConfig` using StationID; a preassigned field in a
 remote event does not bypass that lookup. The real preparation state must
 agree on both engines before world event transport is enabled.
+
+`native/crossplay_history_role.h` adds an excluded, one-shot Ubisoft guest
+backend projection for an already authenticated, exact two-member roster.
+It checks the fingerprinted process, owner thread, native guest/host members,
+backend session class and local CID before calling the original host-CID setter
+with the admitted foreign CID. The local CID and backend principals stay
+unchanged. The original role getter must then report guest. All eight methods
+in the getter/setter call path are guarded; the target field must be writable.
+No Storm connection handle, Connected flag or acknowledgement is constructed.
+
+The private DXVK probe executed this original assignment successfully. Read-only
+inspection confirmed the backend changed from host to guest while both
+preparation player IDs and slots still matched. An actual chat message in each
+direction remained visible once in both windows. Nine records completed without
+a pre-shutdown rejection; both clients closed normally with restored profiles
+and unchanged saves/cloud/shared files. The subsequently expanded inner-method
+guards have 26 compiled offline mutation/range checks, alongside the 28 x86
+ABI/range checks above. This is host projection, not the complete native guest
+join lifecycle. UI transition, session replacement/departure and Steam mapping
+still need integration before this helper can enter ordinary builds.
+
+```powershell
+python tools/gold/verify_history_role_guards.py --ubisoft <ubisoft-original.exe> --thunk-executable work/crossplay-build/crossplay_event_codec_tests.exe work/history-role-guard-receipt.json
+```
 
 The inspected participant events are insufficient by themselves: their native
 constructors and dispatchers also consume local-only flags and additional

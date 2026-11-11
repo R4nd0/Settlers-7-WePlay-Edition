@@ -22,7 +22,7 @@ STOP, QUERY = SCRATCH, SCRATCH+16
 STREAMS = {'gold': 0xf26560, 'ubisoft': 0x112f5bc, 'steam_analysis': 0x112db4c}
 
 
-def check_image(image, fixture, edition):
+def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', methods=()):
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base, (image.size+4095) & ~4095)
     u.mem_write(image.base, image.mapped)
@@ -32,7 +32,7 @@ def check_image(image, fixture, edition):
     u.mem_map(SCRATCH, 4096)
     u.mem_map(STACK, 65536)
     entry = next(base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols
-                 if e.name == b'WePlayCodecTablesOracle')
+                 if e.name == oracle)
     queries = [imp.address for library in fixture.DIRECTORY_ENTRY_IMPORT
                for imp in library.imports if imp.name == b'VirtualQuery']
     if len(queries) != 1:
@@ -83,10 +83,21 @@ def check_image(image, fixture, edition):
                 or any(u.reg_read(k) != v for k, v in preserved.items())):
             raise RuntimeError('Compiled native table guard result/ABI mismatch')
 
-    tables = ((STREAMS[image.label], 11), (image.tables[native.WRITER][0], 39),
-              (image.tables[native.READER][0], 34))
+    tables = () if methods else ((STREAMS[image.label], 11), (image.tables[native.WRITER][0], 39),
+                                 (image.tables[native.READER][0], 34))
     call(True)
     checks = 1
+    for address, length in methods:
+        for offset in (0, length-1):
+            original = bytes(u.mem_read(address+offset, 1))
+            u.mem_write(address+offset, bytes((original[0] ^ 1,)))
+            call(False)
+            u.mem_write(address+offset, original)
+            checks += 1
+        blocked = address
+        call(False)
+        blocked = None
+        checks += 1
     for table, count in tables:
         for index in (0, count-1):
             address = table+4*index

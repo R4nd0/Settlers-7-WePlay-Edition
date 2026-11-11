@@ -5,7 +5,9 @@
   "synthetic_checks": {
     "admission_framing_and_ownership": 1050,
     "chat_framing_and_cid_projection": 503,
-    "native_codec_abi_ranges_and_ownership": 24,
+    "native_codec_abi_ranges_and_ownership": 28,
+    "compiled_history_role_method_guards": 26,
+    "history_role_native_methods_guarded": 8,
     "compiled_table_guard_against_pinned_images": 42,
     "table_guard_checks_per_profile": 14,
     "table_guard_original_game_code_executed": false
@@ -72,7 +74,25 @@
     "profiles_and_adapters_restored": true,
     "saves_cloud_and_shared_files_unchanged": true
   },
-  "next_runtime_blocker": "History legacy backend remains host despite guest member list; native join lifecycle and setup incomplete",
+  "native_backend_role_projection_runtime": {
+    "editions": ["Gold", "Ubisoft History"],
+    "renderer": "DXVK",
+    "original_native_host_setter_and_role_getter_used": true,
+    "history_backend_changed_from_host_to_guest": true,
+    "local_cid_unchanged": true,
+    "preparation_player_ids_and_slots_equal": true,
+    "chat_messages_per_direction": 1,
+    "visible_once_in_both_windows": true,
+    "authenticated_records_before_shutdown": 9,
+    "rejections_before_shutdown": 0,
+    "shutdown_retirement_rejections": 1,
+    "additional_inner_callpath_guards_verified_offline_only": true,
+    "world_started": false,
+    "exit_codes": [0, 0],
+    "profiles_and_adapters_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true
+  },
+  "next_runtime_blocker": "native guest UI/join lifecycle, setup and gameplay transport remain incomplete",
   "history_preparation_slot_candidate_runtime_qualified": true,
   "steam_mixed_runtime_qualified": false,
   "native_ready_qualified": false,

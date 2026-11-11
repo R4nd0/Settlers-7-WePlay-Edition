@@ -3,6 +3,7 @@
 #define NOMINMAX
 #include "crossplay_participant.cpp"
 #include "crossplay_event_codec.h"
+#include "crossplay_history_role.h"
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -10,6 +11,9 @@
 extern "C" __declspec(dllexport) uint32_t __cdecl WePlayCodecTablesOracle(uint32_t value) {
     const auto edition=static_cast<Crossplay::Edition>(value);
     return CrossplayNativeCodec::Detail::Tables(CrossplayNativeCodec::Detail::ChatPin(edition),edition)?1u:0u;
+}
+extern "C" __declspec(dllexport) uint32_t __cdecl WePlayHistoryRoleMethodsOracle(uint32_t value) {
+    return value==2 && CrossplayNative::HistoryRoleDetail::Methods()?1u:0u;
 }
 
 namespace {
@@ -100,6 +104,11 @@ int main() {
     auto* pages=static_cast<unsigned char*>(VirtualAlloc(nullptr,8192,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));Check(pages!=nullptr,"owned guard-page allocation");
     DWORD previous=0;Check(VirtualProtect(pages+4096,4096,PAGE_NOACCESS,&previous)!=FALSE,"owned guard-page protection");
     Check(Readable(pages,4096) && !Readable(pages+4094,4) && !Readable(pages+4096,1),"unreadable native spans excluded");
+    using CrossplayNative::HistoryRoleDetail::Writable;
+    Check(Writable(pages,4) && !Writable(pages+4096,4),"role setter requires writable owned memory");
+    Check(VirtualProtect(pages,4096,PAGE_READONLY,&previous)!=FALSE,"owned read-only page protection");
+    Check(Readable(pages,4) && !Writable(pages,4),"read-only native fields cannot reach role setter");
+    Check(!Writable(nullptr,4) && !Writable(reinterpret_cast<void*>(UINTPTR_MAX-1),4),"role write bounds reject null and wrapping span");
     Check(VirtualFree(pages,0,MEM_RELEASE)!=FALSE,"owned guard-page release");
     CrossplayNative::ParticipantEvent binding;std::vector<unsigned char> wire{1,2,3};
     for(auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {

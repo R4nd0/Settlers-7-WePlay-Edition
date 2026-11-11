@@ -25,5 +25,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay chat test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_event_codec_tests.cpp') /Fe:crossplay_event_codec_tests.exe /link bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Native crossplay event codec test build failed.' }
+    # Keep the fixed analysis fixture separate from the relocatable executable
+    # run on Windows, where a system DLL may already occupy that image base.
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_event_codec_tests.cpp') /Fe:crossplay_event_codec_runtime_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Relocatable native codec test build failed.' }
 } finally { Pop-Location }
 Write-Output 'Built channel, participant, admission, chat and native codec tests. No game adapter was installed or launched.'
