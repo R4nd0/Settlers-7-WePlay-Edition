@@ -40,6 +40,25 @@ save/resume and sustained equal native checksums remain unqualified. Each
 runner verified all 16 shared profile/save files unchanged. See the
 [network simulation receipt](verification/gold-network-simulation-20261111.json).
 
+### Native checksum comparison
+
+Subsequent DXVK High pair 98 used the same regular simulation path with a
+private observer on the native transport Send entry. It recorded only the
+original end-of-turn scalar fields, then forwarded all five original arguments
+and LastError. The native writer, packets, results and game state were unchanged.
+The two clients independently produced equal type-1 native checksums for every
+turn 0–2,768: 2,769 comparisons, zero mismatches. Type-zero records and the
+initial sentinel turn were excluded. This is a bounded same-edition result;
+other checksum types and longer games remain unqualified.
+
+A new host residence foundation appeared on the guest with the original
+enemy-residence tooltip. It remained unfinished because its entrance lacked
+a road connection; this run does not qualify completed construction or delivery.
+The multiplayer menu exposed no manual-save action. Both worlds continued
+past turn 2,650, the host exited normally, and the guest stopped at the retained
+peer-departure guard. Both runners again verified 16 unchanged shared files.
+See the [checksum receipt](verification/gold-network-checksums-20261111.json).
+
 ## Two separate waits
 
 Gold's launcher facade waits for its former controller before calling the

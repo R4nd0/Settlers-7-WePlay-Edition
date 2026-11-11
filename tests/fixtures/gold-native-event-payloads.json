@@ -1,0 +1,99 @@
+{
+  "format": "native-event-payload-oracle-v1",
+  "fingerprints": {
+    "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+    "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+  },
+  "native_executions": 36,
+  "native_writer_and_event_visitors": true,
+  "synthetic_output_stream": true,
+  "actual_game_test": false,
+  "crossplay_qualified": false,
+  "fixtures": [
+    {
+      "event": "CEndOfTurnEvent",
+      "nested": false,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "2222111144443333001000000014000000180000001c00000020000000"
+    },
+    {
+      "event": "CEndOfTurnEvent",
+      "nested": false,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "2222111144443333010000000004000000080000000c00000010000000"
+    },
+    {
+      "event": "CEndOfTurnBatchEvent",
+      "nested": false,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "2222111144443333001000000000000000"
+    },
+    {
+      "event": "CEndOfTurnBatchEvent",
+      "nested": false,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "2222111144443333010000000000000000"
+    },
+    {
+      "event": "CEndOfTurnBatchEvent",
+      "nested": true,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "222211114444333300100000000200000000100000002000000000300000004000000050000000600000007000000110000001200000010130000001400000015000000160000001700000"
+    },
+    {
+      "event": "CEndOfTurnBatchEvent",
+      "nested": true,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "222211114444333301000000000200000000100000002000000000300000004000000050000000600000007000000110000001200000010130000001400000015000000160000001700000"
+    },
+    {
+      "event": "CLogicStateEvent",
+      "nested": false,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "222211114444333300000000000000000000"
+    },
+    {
+      "event": "CLogicStateEvent",
+      "nested": false,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "222211114444333301000000000000000000"
+    },
+    {
+      "event": "CLogicStateEvent",
+      "nested": true,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "222211114444333300e9d94cb900100000002000000000300000004000000050000000600000007000000000000000"
+    },
+    {
+      "event": "CLogicStateEvent",
+      "nested": true,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "222211114444333301e9d94cb900100000002000000000300000004000000050000000600000007000000000000000"
+    },
+    {
+      "event": "CGameStartEvent",
+      "nested": false,
+      "scalar": 0,
+      "asynchronous": 0,
+      "hex": "2222111144443333005374725f00000000"
+    },
+    {
+      "event": "CGameStartEvent",
+      "nested": false,
+      "scalar": 4294967280,
+      "asynchronous": 1,
+      "hex": "2222111144443333015374725f0e00000073796e7468657469632f6d617000"
+    }
+  ]
+}

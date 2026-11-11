@@ -33,6 +33,13 @@ registry admission. The ordinary launcher does not enable this experiment.
 See [simulation details](GOLD-LOCAL-SIMULATION.md#two-human-network-experiment-2026-11-11)
 and the [sanitized receipt](verification/gold-network-simulation-20261111.json).
 
+A later original-forwarding diagnostic compared 2,769 matching type-1 native
+checksums for identical Gold turns 0–2,768 under DXVK High, including a new
+foundation replicated to the other player. No mismatch occurred in that interval.
+This narrows the same-edition checksum gap; it does not qualify a History match,
+longer games or other checksum types. See the
+[checksum receipt](verification/gold-network-checksums-20261111.json).
+
 ## Independent local peers, 2026-11-11
 
 `tools/gold/peer_server.py` serves two to eight separately configured local
@@ -562,8 +569,29 @@ The History storm connectivity facade is absent from Gold, and several
 native session/transport vtables have different slot counts. Reusing its
 addresses or admitting Gold under the History profile cannot provide crossplay.
 
-The next gate is an independently guarded Gold loopback bootstrap with genuine
-local connection callbacks, followed by Gold-to-Gold gameplay. Only then can
-Gold/Ubisoft History/Steam History be tested in both host directions for
-commands, sustained native checksums, castles, AI, content and save/resume.
+`tools/gold/emulate_event_payloads.py` now executes both the native event visitors
+and each edition's original `CBinarySerializationWriterNoOverhead` in bounded
+x86 emulation. Thirty-six executions compare Gold, Ubisoft History and a pinned
+private Steam analysis image: start events with empty/nonempty synthetic map
+strings, end-of-turn events, empty/two-element batches and empty/nested logic
+wrappers, with boolean and scalar-overflow variants. Their payload bytes match.
+The output stream and reflection name helpers are synthetic; inputs, stack,
+nonvolatile registers, writer depth, execution and writes are checked.
+
+The [reproducible synthetic fixtures](../tests/fixtures/gold-native-event-payloads.json)
+contain invented values only. This comparison does not cover arbitrary commands,
+the outer packet envelope, receive/factory execution, session negotiation, real
+map identity or mixed-edition deterministic simulation. Original installations
+and the Steam SDK/ownership path remain unchanged. Analysis images are neither
+distributed nor used as launch images.
+
+```console
+python tools/gold/emulate_event_payloads.py --gold <owned-gold-exe> --ubisoft <owned-ubisoft-he-exe> --steam-analysis <pinned-private-analysis-image> work/event-payloads.json
+```
+
+The guarded Gold bootstrap and bounded two-human Gold gameplay are now observed
+as described above. The next gate is a real mixed-edition session/transport
+adapter, including authenticated identity and shared content admission. It must
+then be tested with Gold/Ubisoft History/Steam History in both host directions
+for commands, sustained native checksums, castles, AI, content and save/resume.
 See the [sanitized receipt](verification/gold-transport-20261110.json).
