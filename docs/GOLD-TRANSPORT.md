@@ -8,6 +8,11 @@ Gold/History crossplay is not implemented: the lobby bridge and shared
 simulation transport remain incomplete. Gold is excluded from normal
 multiplayer admission. The History service has no fallback to this protocol.
 
+The separate [Gold / History connection component](GOLD-HISTORY-BRIDGE.md) now
+passes native x86 ↔ Python loopback transport tests with independent launch
+keys and explicit identity projections. It is not connected to the games'
+native session or event callbacks; it does not change multiplayer admission.
+
 ## Running Gold network simulation, 2026-11-11
 
 The regular-source account/local-simulation build now has a separate
