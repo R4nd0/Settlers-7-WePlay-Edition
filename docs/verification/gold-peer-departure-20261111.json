@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-11",
+  "scope": "opt-in native Gold host departure on loopback",
+  "release_qualified": false,
+  "history_crossplay_implemented": false,
+  "reproduction": {
+    "pair": 99,
+    "failure_observer_only": true,
+    "original_host_exit_to_menu": true,
+    "service_still_running": true,
+    "guest_account_and_session_still_valid": true,
+    "native_remote_row_kind_before": 1,
+    "native_remote_row_kind_after": 2,
+    "guest_exit_code": "0xe05370a1"
+  },
+  "candidate": {
+    "pair": 100,
+    "sha256": "4ff481883c28edd4fef010a7d4b7e098284fb9634a95db32405b3a0b98ef2203",
+    "extra_opt_in": "WEPLAY_GOLD_LOCAL_PEER_LEAVE=1",
+    "renderer": "DXVK x86",
+    "legacy_fallback": false,
+    "resolution": "1920x1080",
+    "graphics": "High",
+    "map": "Monhaim Valley",
+    "independent_native_logins_join_and_ready": true,
+    "both_worlds_loaded": true,
+    "sequential_pre_departure_host_guest_turns": [103, 128],
+    "original_host_exit_to_menu": true,
+    "host_returned_to_session_browser": true,
+    "guest_native_player_left_dialog": true,
+    "dialog_dismissed": true,
+    "native_kind_2_remote_row_observed": true,
+    "post_departure_guest_turn_samples": [798, 1113, 1391],
+    "host_exit_code": 0,
+    "guest_exit_code": 0,
+    "shared_profile_save_files_unchanged_per_runner": 16,
+    "frida_used": false,
+    "raw_packets_saved": false
+  },
+  "subsequent_reconnect_hardening": {
+    "sha256": "a69ade07f90126e34e49ba30c213dce1be37e4561fc820e24cb3c9f0c9679318",
+    "rejects_returned_human_even_with_changed_handles": true,
+    "native_fixture_build_passed": true,
+    "new_live_game_test": false
+  },
+  "synthetic_verification": {
+    "additional_lifecycle_denials": 26,
+    "both_roles_original_ready_advance_results_output_error_and_abi": true,
+    "existing_session_roster_denials": 40,
+    "account_instruction_rejections": 119,
+    "cloud_instruction_rejections": 28,
+    "network_guards_per_build": 75,
+    "ordinary_local_sdk_and_account_builds": "passed with warnings as errors"
+  },
+  "unqualified": [
+    "guest departure with host remaining",
+    "initial or active AI strategy",
+    "reconnect and new session reuse",
+    "multiplayer save/resume",
+    "Gold with Ubisoft History",
+    "Gold with Steam History",
+    "LAN or Internet transport",
+    "Maximum graphics effects"
+  ]
+}

@@ -141,6 +141,12 @@ bool LocalLoginPrepare(std::vector<Patch>& patches) {
         if (multiplayer_length != 1 || multiplayer[0] != '1' || slot_length != 1) return false;
         local_multiplayer_enabled = true;
     }
+    char peer_leave[3]{};
+    const DWORD peer_leave_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOCAL_PEER_LEAVE", peer_leave, 3);
+    if (peer_leave_length) {
+        if (peer_leave_length != 1 || peer_leave[0] != '1' || !local_multiplayer_enabled) return false;
+        local_peer_leave_enabled = true;
+    }
 #endif
     const struct { uintptr_t rva; std::vector<unsigned char> bytes; } guards[] = {
         {0x791ff0, {0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,0x08}},

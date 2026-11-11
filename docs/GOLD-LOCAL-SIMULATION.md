@@ -59,6 +59,37 @@ past turn 2,650, the host exited normally, and the guest stopped at the retained
 peer-departure guard. Both runners again verified 16 unchanged shared files.
 See the [checksum receipt](verification/gold-network-checksums-20261111.json).
 
+### Native peer departure
+
+Pair 99 isolated the earlier shutdown from service expiry. After the host used
+the original Exit to Menu action, Gold changed its former human row from kind 1
+to kind 2 while keeping the guest's account and playing-session context valid.
+The exact-two-human guard then stopped the guest. No transport login failed.
+
+The additional `WEPLAY_GOLD_LOCAL_PEER_LEAVE=1` experiment requires the existing
+local multiplayer opt-in. It remembers a successfully qualified two-human world
+and permits only that world's native remote-row transition to kind 2. Session,
+both handles, world, roster storage, local index and both row assignments must
+remain identical, with a nondecreasing native turn. The local row must remain
+human. Initial AI, additional players, reconnect, changed ownership and a
+replacement world are rejected. The adapter never changes the roster, supplies
+a participant, computes a turn or replaces native Ready/Advance results.
+
+Actual DXVK High pair 100 used the regular source candidate. Both worlds loaded
+and advanced. The host's original Exit to Menu returned to its Session Browser.
+The remaining guest displayed the original player-left dialog; read-only
+inspection confirmed the native kind-2 remote row. Its world continued through
+turns 798, 1,113 and 1,391 after departure. The dialog could be dismissed, and
+both processes subsequently exited normally. Each runner verified all 16 shared
+profile/save files unchanged. This qualifies that bounded host-departure path;
+it does not establish active AI strategy, guest-departure behavior, reconnect,
+save/resume or any History match. The option remains separate and disabled by
+default. After departure, another connection or match requires a fresh process;
+the final source also rejects a returned human row with changed session handles.
+Twenty-six additional lifecycle denials and both roles' original
+Ready/Advance ABI pass; all four native build configurations retain their tests.
+See the [departure receipt](verification/gold-peer-departure-20261111.json).
+
 ## Two separate waits
 
 Gold's launcher facade waits for its former controller before calling the

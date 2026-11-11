@@ -298,6 +298,62 @@ bool GoldAccountLocalScene() {
     const auto original_thread=owner_thread.exchange(0);
     const bool wrong_network_thread=NetworkLocalReadyAllowed();owner_thread.store(original_thread);
     if (wrong_network_thread || !NetworkLocalReadyAllowed()) return false;
+    // A departing peer is converted by native Gold to kind 2. Qualify that
+    // transition only after two humans were seen in this exact world/session.
+    std::array<uintptr_t,0x30/4> network_world{}, other_world{};
+    network_world[0]=other_world[0]=image+0xb32a50;
+    network_world[0x2c/4]=other_world[0x2c/4]=20;
+    auto& active_world=*reinterpret_cast<uintptr_t*>(image+0xcf83f0);
+    active_world=reinterpret_cast<uintptr_t>(network_world.data());
+    local_peer_leave_enabled=true;
+    unsigned int departure_denials=0;
+    for (unsigned int local : {1u,2u}) {
+        session[0xc/4]=local;
+        auto& peer_kind=players[((3-local)*0x5c4+0x64)/4];
+        const auto qualify=[&]() {
+            network_qualification={};peer_kind=1;
+            network_world[0x2c/4]=20;
+            return NetworkLocalReadyAllowed();
+        };
+        network_qualification={};peer_kind=2;
+        if (NetworkLocalReadyAllowed()) return false;
+        ++departure_denials;
+        if (!qualify()) return false;
+        peer_kind=2;
+        if (!NetworkLocalReadyAllowed() || !network_qualification.departed) return false;
+        network_world[0x2c/4]=21;
+        for (bool result : {false,true}) {
+            fixture_result=result;
+            if (!LocalReadyAbi(true) || !LocalAdvanceAbi()) return false;
+        }
+        if (!NetworkLocalReadyAllowed()) return false;
+        peer_kind=1;
+        if (NetworkLocalReadyAllowed()) return false; // No reconnect admission.
+        ++departure_denials;
+        session[0x3c/4]=8;
+        const bool reconnected=NetworkLocalReadyAllowed();session[0x3c/4]=7;
+        if (reconnected) return false;
+        ++departure_denials;
+        const auto departure_denied=[&](uintptr_t& field,uintptr_t bad) {
+            if (!qualify()) return false;
+            peer_kind=2;const auto prior=field;field=bad;
+            const bool accepted=NetworkLocalReadyAllowed();field=prior;
+            ++departure_denials;return !accepted;
+        };
+        if (!departure_denied(active_world,reinterpret_cast<uintptr_t>(other_world.data()))
+            || !departure_denied(network_world[0],image+0xb32a51)
+            || !departure_denied(network_world[0x2c/4],19)
+            || !departure_denied(network_world[0x2c/4],0)
+            || !departure_denied(network_world[0x2c/4],0xffffffffu)
+            || !departure_denied(session[0x3c/4],8)
+            || !departure_denied(session[0x40/4],10)
+            || !departure_denied(players[(local*0x5c4+0x64)/4],2)
+            || !departure_denied(players[((3-local)*0x5c4+0x60)/4],2)
+            || !departure_denied(players[(3*0x5c4+0x64)/4],2)) return false;
+        peer_kind=1;
+    }
+    network_qualification={};local_peer_leave_enabled=false;active_world=0;
+    std::printf("Gold native peer departure: both roles, original Ready/Advance ABI and %u lifecycle denials passed.\n",departure_denials);
     local_multiplayer_enabled=false;
     *reinterpret_cast<uintptr_t*>(image+0xcf834c)=0;
     std::printf("Gold two-human native network Ready: both roles, original false/true/output/error/ABI forwarding and %u session/roster denials passed.\n",network_denials+2);

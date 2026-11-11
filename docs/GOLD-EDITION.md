@@ -17,9 +17,12 @@ The separate Maximum candidate also corrects the reproduced duplicate-castle
 menu overlay by rendering effects before the UI. Complete effects qualification
 remains pending.
 
-The separate [transport checkpoint](GOLD-TRANSPORT.md) adds a passive Gold
-packet decoder and an independently checked one-byte checksum. It does not
-connect Gold to the History service or enable multiplayer admission.
+The separate [transport checkpoint](GOLD-TRANSPORT.md) now completes independent
+native Gold account logins, discovery, join and running two-human Gold matches
+under DXVK. A bounded original-forwarding observation compared 2,769 equal native
+turn checksums. A further explicit departure experiment keeps the remaining
+guest running after a host leaves. These are loopback development results;
+Gold remains excluded from normal WePlay admission and has no History bridge.
 
 ## Identified installation
 

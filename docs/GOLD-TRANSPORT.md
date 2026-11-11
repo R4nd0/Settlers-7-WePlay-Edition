@@ -40,6 +40,14 @@ This narrows the same-edition checksum gap; it does not qualify a History match,
 longer games or other checksum types. See the
 [checksum receipt](verification/gold-network-checksums-20261111.json).
 
+The subsequent opt-in native departure candidate preserves the remaining
+guest after Gold itself changes the departed host's row to kind 2. An exact
+previously qualified world/session/roster binding is required; initial AI and
+reconnect are excluded. Actual DXVK pair 100 returned the host to its browser
+and kept the guest advancing through turn 1,391, with normal shutdown and all
+16 shared files unchanged on both runners. This remains a Gold-only experiment.
+See [departure details](GOLD-LOCAL-SIMULATION.md#native-peer-departure).
+
 ## Independent local peers, 2026-11-11
 
 `tools/gold/peer_server.py` serves two to eight separately configured local
