@@ -43,22 +43,41 @@ there; they are excluded from the successful-run qualification.
 The tested Lua state was each game's early profile-script state. Running-world
 breakpoints, longer debugging sessions, other threads/states and multiplayer
 pause behavior remain unqualified. A debugger pause can stall game/network
-updates. Use an isolated local session. No world was started in this test.
+updates. Use an isolated local session. No world was started in those Gold and
+Ubisoft debugger tests. The later Steam standalone test below started a world
+only after the debugger had restored its hooks and detached.
 
 | Version | API map and offline checks | Actual game breakpoint/stepping |
 | --- | --- | --- |
 | Ubisoft History, isolated A/B profiles | Verified | Passed in B |
 | Gold 1.12.1396, prepared standalone image | Verified | Passed |
-| Steam History, isolated C/D profiles | Verified | Blocked before Lua by genuine SDK initialization |
+| Steam History, isolated C/D profiles | Verified | Passed in D with the separate local-facade candidate |
 
 Steam's real `SteamAPI_Init()` returned false in the diagnostic runs, including
 the documented temporary `steam_appid.txt` developer-launch setup. The process
 exited with code 0 before creating a Lua state. A control startup without Frida
 also exited before debugger attachment. The visible Steam client was signed in,
 and controller/client integrity levels matched. No ownership result was changed.
-Do not treat this exit code as a passed debugger test. Steam's native port is
-implemented and checked offline, but is **not live qualified**. Its remaining
-platform dependency is recorded in the separate
+Do not treat this exit code as a passed debugger test. That genuine-SDK startup
+remains unresolved. Subsequently the separate
+[local-facade candidate](../platform-standalone/README.md) reached the Steam D
+game's menu using an explicitly unavailable local API boundary. Its real VM
+passed eleven stops, in/over/out, locals, three results of 25, stale-stop rejection,
+the five-second timeout, balanced stacks and original hook restoration. The
+first three stops were in the installed local UI's `Script/local/core.lua`,
+lines 58 -> 19 -> 58, with depth 1 -> 2 -> 1; fixture depths were 2 -> 3 -> 2.
+These are actual native Steam VM tests, not original unmodified-script tests.
+The subsequent client-absent cold start passed eleven more stops, including
+`Script/localState.lua` 1 -> 3 -> 5 and fixture depths 14 -> 15 -> 14. Steam,
+SteamService and Ubisoft client processes were absent under normal host process
+inspection. After detaching, the game reloaded the diagnostic save into a world
+and exited normally with 0. All restoration checks passed.
+The final observer/pinning source was then rechecked in Gold and Ubisoft B:
+eleven real stops each, no script/hook errors, normal exit 0 and all restoration
+checks passed. These current-source regressions and the client-absent Steam run
+are included in the [follow-up receipt](../../docs/receipts/steam-local-facade-20261112.json);
+the earlier receipt remains pinned to its original source revision.
+The local startup path and its narrower qualification are documented in the
 [standalone follow-up](../../docs/PLATFORM-INDEPENDENCE-FOLLOWUP.md).
 
 ## Requirements and preparation
@@ -120,8 +139,9 @@ Its bundle must already contain the prepared `Data/Base/_Dbg/Bin/Release` game.
 For Steam, retain the genuine SDK and ownership check if diagnosing its startup;
 the launcher sets app ID 965320 and defers injection until the initial input-idle
 boundary. Existing Lua states are registered at their next owner-thread protected
-call. The offline-verified Steam backend does not replace the unresolved
-standalone/platform-detachment work and has not passed a live Lua stop here.
+call. The separate local-facade launcher can instead deploy its guarded candidate
+temporarily for a Steam lab C/D copy. Its real Lua stops do not establish complete
+platform isolation or qualify the unchanged production Steam executable.
 
 `--self-test` adds the small, local-only fixture to an existing game Lua state at
 an owner-thread protected-call return. It runs after the original-script stops;
@@ -203,6 +223,10 @@ rtk proxy node tools/lua-debugger/test_stepping.js
 These sixteen policy checks cover source matching, recursion depth, breakpoint
 priority, stepping and invalid commands. They supplement the real game test;
 they do not establish native ABI or gameplay correctness by themselves.
+
+`rtk proxy python tools/lua-debugger/test_startup.py` checks eight controller
+handshake regressions, including optional Steam diagnostics before ready,
+fatal initialization failures, cleanup and the fixed readiness deadline.
 
 `verify_profiles.py` additionally checks all ten APIs independently in each of
 the three fingerprinted original/analysis images using unique normalized native

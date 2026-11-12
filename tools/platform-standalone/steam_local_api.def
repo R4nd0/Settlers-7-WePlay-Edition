@@ -1,0 +1,12 @@
+LIBRARY steam_api
+EXPORTS
+    WePlayLocalSteamBoundary
+    SteamAPI_Init
+    SteamAPI_GetHSteamUser
+    SteamAPI_GetHSteamPipe
+    SteamInternal_CreateInterface
+    SteamAPI_Shutdown
+    SteamAPI_RunCallbacks
+    SteamInternal_ContextInit
+    SteamAPI_RegisterCallback
+    SteamAPI_UnregisterCallback

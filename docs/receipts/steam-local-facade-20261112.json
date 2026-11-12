@@ -1,0 +1,465 @@
+{
+  "format": "s7-steam-local-facade-lab-v1",
+  "date": "2026-11-12",
+  "scope": "native Steam laboratory D, explicit local API boundary; production Steam EXE remains unqualified",
+  "debugger_source_pins": {
+    "agent.js": "c37bd6da2858a6b90b53c86d6c51d3ee6f3c240e1734981d6859434249b74ca9",
+    "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+    "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+    "debugger.py": "847401ee0fa4eaf259b61871a7f9f4059fb8037360af59895d05e1a7ac04be65",
+    "launch.py": "c5922ff5f50f2bca115cd5d3761a5e6565652e2564f22dbee63689bf895588e7",
+    "profiles.py": "cee0f8e43a3c0a7d07566b66315fdc916ed2adb5a9d9b7ab33e6c7c1330f8ab4"
+  },
+  "standalone_source_pins": {
+    "api_tests.cpp": "48aabd80ff22dde7cb0d5b22c3e61b8aacf1815e7dc07410eaa3ac33043f22c5",
+    "build.ps1": "548e3555352144ed6bff3433522b0fc7dacc51c53a5702f8b0275eda21bbe9cf",
+    "facade_tests.cpp": "1ea60ae5e27660e999819876e3aced7a8eb1299cf166f2feacc7f6d5fb06b10d",
+    "launch.py": "fc8016a0f0391b664eb8276ecf41645081bfc1764b7c913268c153daff3d11d6",
+    "steam_local_api.cpp": "697d2ecf3a19dab8cb5128e9d35176182593272076dc5b675a1bfe3329ca9a3c",
+    "steam_local_api.def": "af3db85e9f12dbb9242463e6ebc6fd65d545521dd5b178b12c3abd93ad4259c2",
+    "steam_local_facade.h": "0189b2a5764e35e8921b46fc493de9c3353e37f366ef06a7edb28c122e2fe744",
+    "verify.py": "e6816261f66989dc2d23fbc27c9fa4d7df7ee63593347828358c43011749adc2"
+  },
+  "native_source_checkpoint_sha256": "46fe76469315828734332e44d7be48a74b75de08bc8ac679be777cd9156b8e80",
+  "native_binary_pins": {
+    "steam_api.dll": "4e5353ca75aeb964c3b3b4c791c1a7741b5815470336db851a76fab89963297e",
+    "uplay_r1_loader.dll": "71f4b4d99e7430503e36b5ffb5f0bd6308bccc02651563da01ad1c13c24234a1"
+  },
+  "offline_checks": {
+    "compiled_x86_native_scenarios": 12,
+    "bootstrap_patch_checks": 4071,
+    "steam_profile_checks": 1873,
+    "loopback_network_guard_checks": 92,
+    "debugger_policy_checks": 16,
+    "controller_handshake_regressions": 8
+  },
+  "debugger": {
+    "original_game_stops": [
+      {
+        "source": "Script/local/core.lua",
+        "line": 58,
+        "depth": 1
+      },
+      {
+        "source": "Script/local/core.lua",
+        "line": 19,
+        "depth": 2
+      },
+      {
+        "source": "Script/local/core.lua",
+        "line": 58,
+        "depth": 1
+      }
+    ],
+    "fixture_stops": [
+      {
+        "run": 1,
+        "line": 8,
+        "depth": 2,
+        "reason": "breakpoint"
+      },
+      {
+        "run": 1,
+        "line": 3,
+        "depth": 3,
+        "reason": "stepIn"
+      },
+      {
+        "run": 1,
+        "line": 4,
+        "depth": 3,
+        "reason": "next"
+      },
+      {
+        "run": 1,
+        "line": 9,
+        "depth": 2,
+        "reason": "stepOut"
+      },
+      {
+        "run": 1,
+        "line": 10,
+        "depth": 2,
+        "reason": "next"
+      },
+      {
+        "run": 2,
+        "line": 8,
+        "depth": 2,
+        "reason": "breakpoint"
+      },
+      {
+        "run": 2,
+        "line": 9,
+        "depth": 2,
+        "reason": "next"
+      },
+      {
+        "run": 3,
+        "line": 8,
+        "depth": 2,
+        "reason": "breakpoint"
+      }
+    ],
+    "fixture_executions": 3,
+    "lua_stacks_balanced": true,
+    "stale_stop_rejected": true,
+    "pause_timeout_verified": true,
+    "hooks_restored": true,
+    "real_game_lua": true
+  },
+  "gameplay": {
+    "menu_observed": true,
+    "local_monhaim_world_observed": true,
+    "new_named_save_observed_in_load_list": true,
+    "new_save_files": 1,
+    "older_save_files_retained": 2,
+    "all_older_saves_retained": true,
+    "game_exit": 0,
+    "settings_restored": true,
+    "shared_original_profiles_unchanged": true,
+    "original_exe_and_interface_unchanged": true,
+    "both_original_dlls_restored": true
+  },
+  "module_check": {
+    "local_platform_modules": {
+      "steam_api.dll": "4e5353ca75aeb964c3b3b4c791c1a7741b5815470336db851a76fab89963297e",
+      "uplay_r1_loader.dll": "71f4b4d99e7430503e36b5ffb5f0bd6308bccc02651563da01ad1c13c24234a1"
+    },
+    "steamclient_loaded": false,
+    "ubiorbit_loaded": false,
+    "steam_overlay_loaded": false,
+    "child_processes_observed": 0,
+    "exhaustive_ipc_or_egress_audit": false
+  },
+  "reload": {
+    "status": "passed-full-exit-new-process-load-visible-world-normal-exit",
+    "game_exit": 0,
+    "saves_unchanged": true,
+    "all_restoration_checks_passed": true
+  },
+  "client_absent_start": {
+    "status": "passed-menu-debugger-and-loaded-world",
+    "process_counts_before": {
+      "steam.exe": 0,
+      "steamwebhelper.exe": 0,
+      "steamservice.exe": 0,
+      "upc.exe": 0,
+      "ubisoftconnect.exe": 0,
+      "uplay.exe": 0
+    },
+    "process_counts_at_menu": {
+      "steam.exe": 0,
+      "steamwebhelper.exe": 0,
+      "steamservice.exe": 0,
+      "upc.exe": 0,
+      "ubisoftconnect.exe": 0,
+      "uplay.exe": 0
+    },
+    "process_counts_in_world": {
+      "steam.exe": 0,
+      "steamwebhelper.exe": 0,
+      "steamservice.exe": 0,
+      "upc.exe": 0,
+      "ubisoftconnect.exe": 0,
+      "uplay.exe": 0
+    },
+    "process_checks_used_normal_host_rights": true,
+    "restricted_process_snapshots_not_used_as_absence_proof": true,
+    "debugger": {
+      "original_game_stops": [
+        {
+          "source": "Script/localState.lua",
+          "line": 1,
+          "depth": 1
+        },
+        {
+          "source": "Script/localState.lua",
+          "line": 3,
+          "depth": 1
+        },
+        {
+          "source": "Script/localState.lua",
+          "line": 5,
+          "depth": 1
+        }
+      ],
+      "fixture_stops": [
+        {
+          "run": 1,
+          "line": 8,
+          "depth": 14,
+          "reason": "breakpoint"
+        },
+        {
+          "run": 1,
+          "line": 3,
+          "depth": 15,
+          "reason": "stepIn"
+        },
+        {
+          "run": 1,
+          "line": 4,
+          "depth": 15,
+          "reason": "next"
+        },
+        {
+          "run": 1,
+          "line": 9,
+          "depth": 14,
+          "reason": "stepOut"
+        },
+        {
+          "run": 1,
+          "line": 10,
+          "depth": 14,
+          "reason": "next"
+        },
+        {
+          "run": 2,
+          "line": 8,
+          "depth": 14,
+          "reason": "breakpoint"
+        },
+        {
+          "run": 2,
+          "line": 9,
+          "depth": 14,
+          "reason": "next"
+        },
+        {
+          "run": 3,
+          "line": 8,
+          "depth": 14,
+          "reason": "breakpoint"
+        }
+      ],
+      "fixture_executions": 3,
+      "lua_stacks_balanced": true,
+      "stale_stop_rejected": true,
+      "pause_timeout_verified": true,
+      "hooks_restored": true,
+      "real_game_lua": true
+    },
+    "game_exit": 0,
+    "all_restoration_checks_passed": true
+  },
+  "earlier_memory_block": {
+    "required_free_mib": 4096,
+    "measured_free_mib": {
+      "host_physical_free": 3884.1,
+      "host_commit_free": 12197.1
+    },
+    "game_started": false,
+    "deployment_started": false
+  },
+  "final_other_edition_regressions": {
+    "ubisoft-final-2": {
+      "source_pins": {
+        "agent.js": "c37bd6da2858a6b90b53c86d6c51d3ee6f3c240e1734981d6859434249b74ca9",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "debugger.py": "847401ee0fa4eaf259b61871a7f9f4059fb8037360af59895d05e1a7ac04be65",
+        "launch.py": "c5922ff5f50f2bca115cd5d3761a5e6565652e2564f22dbee63689bf895588e7",
+        "profiles.py": "cee0f8e43a3c0a7d07566b66315fdc916ed2adb5a9d9b7ab33e6c7c1330f8ab4"
+      },
+      "cleanup": {
+        "exit": 0,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "cloud_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "result": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      }
+    },
+    "gold-final-3": {
+      "source_pins": {
+        "agent.js": "c37bd6da2858a6b90b53c86d6c51d3ee6f3c240e1734981d6859434249b74ca9",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "debugger.py": "847401ee0fa4eaf259b61871a7f9f4059fb8037360af59895d05e1a7ac04be65",
+        "launch.py": "c5922ff5f50f2bca115cd5d3761a5e6565652e2564f22dbee63689bf895588e7",
+        "profiles.py": "cee0f8e43a3c0a7d07566b66315fdc916ed2adb5a9d9b7ab33e6c7c1330f8ab4",
+        "gold_launch.py": "d56d07c11e0f282ae2911bd26c46d7108890343ba00c76538544ce6a41c5c753"
+      },
+      "cleanup": {
+        "exit": 0,
+        "native_entry_restored": true,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "result": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      }
+    }
+  },
+  "memory": {
+    "max_pressure": 1,
+    "recovery_required": false,
+    "monitor_failed": false,
+    "performance_or_stability_qualified": false
+  },
+  "earlier_failed_debugger_case": {
+    "reason": "optional Steam diagnostic could not intercept tiny local API stub",
+    "visible_menu_observed": true,
+    "debugger_test_passed": false,
+    "normal_exit": 0,
+    "forced_termination": false,
+    "all_restoration_checks_passed": true
+  },
+  "limits": [
+    "No original packed production Steam executable qualification",
+    "No running-world breakpoint or multiplayer pause test",
+    "Native network guards are bounded; no exhaustive communication capture",
+    "No performance or broad memory-stability claim"
+  ]
+}

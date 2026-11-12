@@ -11,8 +11,15 @@ now passed real breakpoints, locals, step-in/over/out, timeout and restoration
 checks inside isolated Gold and Ubisoft History games. Qualification is limited to an original early
 profile script and a small fixture in that same actual Lua state; no world or
 multiplayer pause behavior was tested. The Steam native API port is independently
-verified offline, but its live test exits before Lua because genuine SDK
+verified offline. Its genuine-SDK live test exits before Lua because SDK
 initialization fails, including a control startup without debugger injection.
+The later, separate [native Steam local-facade candidate](../tools/platform-standalone/README.md)
+then passed actual Steam D Lua stops, locals, stepping, timeout and restoration,
+including a client-absent start with `Script/localState.lua` 1 -> 3 -> 5 and the
+real VM fixture. After detaching, that candidate started a local world, added a
+save, exited, restarted and reloaded it. It also loaded the world with all
+Steam/SteamService/Ubisoft clients absent under normal host process inspection.
+Complete platform-communication isolation and production integration remain open.
 The original binary audit below remains
 separate from that subsequent live result.
 

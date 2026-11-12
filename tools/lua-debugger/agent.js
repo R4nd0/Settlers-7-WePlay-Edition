@@ -47,7 +47,7 @@ const states = new Map();
 let nextState = 1, nextStop = 1, paused = null, stopping = false, active = 0;
 let firstGameLine = !!CONFIG.firstGameLine, fixturePending = false, fixtureRunning = false;
 const listeners = [];
-Script.pin();
+let pinned = false;
 if (CONFIG.identity.version === 'history-steam') {
   const exit = Process.getModuleByName('ntdll.dll').getExportByName('RtlExitUserProcess');
   listeners.push(Interceptor.attach(exit, { onEnter(args) {
@@ -59,11 +59,20 @@ if (CONFIG.identity.version === 'history-steam') {
   }}));
   listeners.push(Process.attachModuleObserver({ onAdded(module) {
     if (module.name.toLowerCase() !== 'steam_api.dll') return;
+    if (module.findExportByName('WePlayLocalSteamBoundary')) {
+      emit('local-steam-boundary-observed');
+      return;
+    }
     for (const name of ['SteamAPI_Init', 'SteamAPI_RestartAppIfNecessary']) {
       const address = module.findExportByName(name);
-      if (address) listeners.push(Interceptor.attach(address, { onLeave(result) {
-        emit('steam-startup-result', { api: name, result: (result.toUInt32() & 255) !== 0 });
-      }}));
+      if (address) try {
+        listeners.push(Interceptor.attach(address, { onLeave(result) {
+          emit('steam-startup-result', { api: name, result: (result.toUInt32() & 255) !== 0 });
+        }}));
+      } catch (_) {
+        // Optional read-only diagnostics must not invalidate the Lua hook.
+        emit('steam-observer-unavailable', { api: name });
+      }
     }
   }}));
 }
@@ -189,6 +198,9 @@ function registerState(L, thread) {
   const state = { id: nextState++, L: ptr(main.toString()), thread, oldHook, oldMask,
     oldCount: g.add(0xb4).readS32(), policy, sources: new Set(), failed: false };
   states.set(key, state);
+  // Only raw Lua hook ownership requires pinning. Initialization failures before
+  // the first hook must remain unloadable without waiting for the game to exit.
+  if (!pinned) { Script.pin(); pinned = true; }
   if (!api.sethook(L, hook, 4, 0)) throw new Error('hook-install-failed');
   emit('state-added', { state: state.id, thread: state.thread });
 }
@@ -254,6 +266,7 @@ listeners.push(Interceptor.attach(at(CONFIG.api.pcall), {
 const cleanup = setInterval(() => {
   if (!stopping || states.size !== 0 || active !== 0 || paused || fixtureRunning) return;
   for (const listener of listeners) listener.detach();
-  clearInterval(cleanup); close(wake); emit('detached', { hooksRestored: true }); Script.unpin();
+  clearInterval(cleanup); close(wake); emit('detached', { hooksRestored: true });
+  if (pinned) { pinned = false; Script.unpin(); }
 }, 50);
 emit('ready', { profile: CONFIG.identity.version, slot: CONFIG.identity.slot, nativeHooks: true });

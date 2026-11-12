@@ -91,9 +91,14 @@ class Adapter:
         self.closed = False
         try:
             self.script.load()
-            initial = self.events.get(timeout=10)
-            if initial.get('event') != 'ready':
-                raise RuntimeError('Debugger initialization rejected: '+json.dumps(initial))
+            deadline = time.monotonic()+10
+            while True:
+                initial = self.events.get(timeout=max(.01, deadline-time.monotonic()))
+                if initial.get('event') == 'ready':
+                    break
+                if initial.get('event') not in ('local-steam-boundary-observed', 'steam-observer-unavailable',
+                                                'steam-startup-result') or time.monotonic() >= deadline:
+                    raise RuntimeError('Debugger initialization rejected: '+json.dumps(initial))
         except BaseException:
             self.session.detach()
             self.log.close()
