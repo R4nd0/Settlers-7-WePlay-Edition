@@ -21,6 +21,12 @@ The [map initialization correction](GOLD-HISTORY-MAP-INITIALIZATION.md) fixes
 premature guest loading while the original configuration event is still queued.
 It is verified for both History data sets on the isolated standalone runtime.
 
+The [native fresh-start primitive](GOLD-HISTORY-START.md) adds strict original
+event transport and an owned, single-attempt local receiver. Original native
+construction/visitors/cloning passed bounded offline checks for all three
+profiles. It is not enabled in the lobby-only runtime and has not started a
+mixed world; actual full setup/content agreement remains required.
+
 The [offline logistics task audit](GOLD-NEO-LAYOUT.md) records native Gold and
 both History task field layouts for the NEO port. Original serializer runs
 show that a constant offset shift is incorrect. These modeled visitor checks

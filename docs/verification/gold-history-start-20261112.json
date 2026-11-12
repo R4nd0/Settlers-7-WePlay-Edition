@@ -1,0 +1,50 @@
+{
+  "format": "gold-history-fresh-start-development-verification-v1",
+  "date": "2026-11-12",
+  "source_sha256": {
+    "native/crossplay_game_start.h": "6ca26ea2fddb830259bc41dd355fbaaa0fdddbdc904d19e71c92af5d14390e61",
+    "native/crossplay_game_start_codec.h": "c5f11cb76c8410bd4d5eb63ebb3d46ec66696e4dfa7d10a0de71a9fbd69c10c5",
+    "native/crossplay_game_start_tests.cpp": "d6659db2d4d193bd7a785a730e0d083df8f3dd27a129ca8052d3107b74094021",
+    "tools/gold/emulate_game_start.py": "d8f6cf64fdaadcc16fde227c5128ebad4e92ed5610cffaf0457f41942be7e45e",
+    "tools/gold/verify_game_start_guards.py": "ab8d44543c69a4083127a5f57290288036593eac963bed8f011610fa9789a5bb"
+  },
+  "x86_w4_wx_build_passed": true,
+  "windows_protocol_and_binding_checks_passed": 264,
+  "compiled_method_guard_checks": 69,
+  "compiled_guard_fixture_sha256": "76c3071ba26120ac37dc4b506b4243655a8bd1823cf9cd1de1720453b6d38c18",
+  "original_native_emulator": {
+    "format": "native-fresh-start-oracle-v1",
+    "profiles": {
+      "gold": 3,
+      "ubisoft": 3,
+      "steam_analysis": 3
+    },
+    "successful_native_cases": 9,
+    "fingerprints": {
+      "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+      "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+    },
+    "synthetic_wire_fixtures": {
+      "0": "e90af08b0700070000000000015374725f00000000",
+      "42": "e90af08b070007002a000000015374725f00000000",
+      "2147483647": "e90af08b07000700ffffff7f015374725f00000000"
+    },
+    "native_construction_visitors_clone_local_enqueue_destructors": true,
+    "synthetic_heap_locks_stream_and_reflection": true,
+    "compiled_local_send_thunk_sha256": "e9c2ce3cfdd5dba5894d51e587551b608c9030770141e49c86aa9ef0ffcbc77b",
+    "native_factory_executed": false,
+    "native_queue_consumer_executed": false,
+    "game_process_started": false,
+    "crossplay_qualified": false
+  },
+  "enabled_in_ordinary_adapters": false,
+  "enabled_in_lobby_runtime": false,
+  "high_level_factory_positive_runtime_test": false,
+  "full_setup_content_agreement_implemented": false,
+  "mixed_world_started": false,
+  "synchronized_turns_qualified": false,
+  "gold_neo_qualified": false,
+  "custom_templates_qualified": false,
+  "mixed_save_cold_reload_qualified": false
+}
