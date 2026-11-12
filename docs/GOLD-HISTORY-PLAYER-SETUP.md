@@ -39,10 +39,28 @@ paths and builds successfully; its repeat pair has not run because the unchanged
 exited normally and options, saves, cloud data, adapters, interface and shared
 profiles were restored or unchanged.
 
-Thus all-25-row equality is **not yet qualified**. The Steam-data pair is also
+The corrected immutable repeat pair now confirms **all 25 version-8 rows equal**.
+The complete original preparation writers also produce identical 32,236-byte
+streams with SHA-256 c7070c16216a2483da1b222ca14f121ec0bbce05c91b99bb6697e0fbd7485494.
+A separate read-only field/enum comparison agrees. Both clients exited normally
+with all restoration checks passing. This supersedes the first pair's remaining
+three row differences and its earlier RAM-blocked repeat.
+
+The Steam-data pair is still
 **not a native Steam-executable pair**. Version-8 preparation diagnostics do not
 qualify the original enclosing setup's nested version-1 format. Native setup
 reading/content agreement, shared world start, synchronized turns, Gold NEO and
 mixed save/cold-reload remain unqualified.
+
+A further corrected pair with Ubisoft game data now also captures the original
+nested **preparation format 1**: both clients produce 31,059 bytes with SHA-256
+`871ea11e5031bbee1107634397f312e1da376f17171e83f909bff4df2d02bd9b`.
+Its version-8 preparation and all 25 version-8 rows agree too. The capture API
+accepts only the qualified diagnostic versions 1 and 8, labels the captured
+format, and rejects unsupported versions before native calls. Dependency,
+owner, position-list and method guards remain in both paths; 42 dependency and
+failure-path checks pass. Both clients exited normally with all restoration
+checks passing. This qualifies the observed preparation streams, while the
+enclosing rules/root reader and complete content agreement remain separate.
 
 See the [sanitized verification receipt](verification/gold-history-player-setup-20261113.json).

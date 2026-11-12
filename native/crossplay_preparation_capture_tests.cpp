@@ -67,6 +67,11 @@ int main() {
     out.complete.bytes=17;out.positions[0]=1;out.players.rows[24].bytes=9;
     Require(!CrossplayPreparationCapture::Capture(static_cast<Crossplay::Edition>(0),binding,{},false,out)
         && !out.complete.bytes && !out.players.rows[24].bytes && !CrossplaySetupCheckpoint::Nonzero(out.positions),"failed complete capture clears all output");
+    for(uint32_t version:{0u,2u,7u,9u,UINT32_MAX}) {
+        out.format_version=8;out.complete.bytes=17;
+        Require(!CrossplayPreparationCapture::Capture(Crossplay::Edition::Gold,binding,{},true,out,nullptr,version)
+            && !out.format_version && !out.complete.bytes,"unsupported live preparation format clears output");
+    }
     Crossplay::Digest digest{};digest[0]=1;
     Require(!CrossplayPreparationCapture::Detail::Positions(reinterpret_cast<const unsigned char*>(1),true,digest)
         && !CrossplaySetupCheckpoint::Nonzero(digest),"inaccessible preparation clears output");

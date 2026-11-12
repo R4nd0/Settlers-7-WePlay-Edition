@@ -6,6 +6,7 @@
 // and complete content closure remain outside this snapshot. No start consent.
 namespace CrossplayPreparationCapture {
 struct Snapshot {
+    uint32_t format_version=0;
     CrossplayActiveSetupCapture::Snapshot players{};
     Crossplay::Digest positions{};
     CrossplayActiveSetupCapture::Row complete{};
@@ -38,8 +39,12 @@ inline bool Positions(const unsigned char* rows,bool gold,Crossplay::Digest& dig
 }
 }
 inline bool Capture(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
-                    CrossplaySessionConfig::Connections ids,bool host,Snapshot& result,unsigned* diagnostic=nullptr) {
+                    CrossplaySessionConfig::Connections ids,bool host,Snapshot& result,unsigned* diagnostic=nullptr,uint32_t version=8) {
     result={};Snapshot captured{};
+    // The enclosing original setup selects 1; 8 is the existing diagnostic.
+    // Other versions have not been qualified against this live capture path.
+    if(version!=1 && version!=8)return false;
+    captured.format_version=version;
     if(!CrossplayActiveSetupCapture::Capture(edition,binding,ids,host,captured.players,diagnostic))return false;
     const auto stage=[diagnostic](unsigned value){if(diagnostic)*diagnostic=value;};stage(300);
     CrossplayPreparationWriter::Pin pin{};
@@ -50,7 +55,7 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     stage(302);
     CrossplayNativeCodec::Detail::OwnedStream stream(profile);if(!stream.initialized)return false;
     CrossplayNativeCodec::Detail::Writer visitor{profile.writer_vt,0,&stream.value,0};
-    CrossplayPreparationWriter::Detail::Write(edition,pin,rows,&visitor,8);
+    CrossplayPreparationWriter::Detail::Write(edition,pin,rows,&visitor,version);
     const auto& s=stream.value;
     if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>262144 || s.position!=s.length
         || s.capacity<s.length || visitor.flags || !CrossplayNativeCodec::Detail::Readable(s.bytes,s.length))return false;
