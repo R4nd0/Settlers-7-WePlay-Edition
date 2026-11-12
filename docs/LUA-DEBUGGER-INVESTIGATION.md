@@ -4,7 +4,17 @@ S7 retains both a stripped game-debugger interface and a substantially intact
 LuaJIT debug library. The examined retail builds do **not** contain a working
 F9 debugger frontend that can simply be enabled. They do retain native hooks,
 stack inspection, locals/upvalues access and traceback code that could support
-a new debugger adapter. Actual in-game breakpoints and stepping remain untested.
+a new debugger adapter. Live qualification is recorded separately below.
+
+Update: the opt-in [multi-version debugger adapter](../tools/lua-debugger/README.md)
+now passed real breakpoints, locals, step-in/over/out, timeout and restoration
+checks inside isolated Gold and Ubisoft History games. Qualification is limited to an original early
+profile script and a small fixture in that same actual Lua state; no world or
+multiplayer pause behavior was tested. The Steam native API port is independently
+verified offline, but its live test exits before Lua because genuine SDK
+initialization fails, including a control startup without debugger injection.
+The original binary audit below remains
+separate from that subsequent live result.
 
 ## What the S6 project tells us
 

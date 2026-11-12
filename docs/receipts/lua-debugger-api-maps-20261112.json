@@ -1,0 +1,250 @@
+{
+  "native_api_maps": {
+    "ubisoft": {
+      "newstate": {
+        "address": "0x458170",
+        "unique_match": true,
+        "prefix_sha256": "771ffe79cd56a750e72dab178239317d553d1536ba6e33e85b6848039109bae9"
+      },
+      "close": {
+        "address": "0x44bf90",
+        "unique_match": true,
+        "prefix_sha256": "05fbff7d7dcaf0a4851d817ee52937129445876ee14b48a7e1499ae233a8cb90"
+      },
+      "sethook": {
+        "address": "0x445ea0",
+        "unique_match": true,
+        "prefix_sha256": "0d03c09bdd57d4dd5c8460d86766cb0762623eca5b3e652467a772ce27b75aab"
+      },
+      "getstack": {
+        "address": "0x444ce0",
+        "unique_match": true,
+        "prefix_sha256": "74bea29feb90c17a25fce592428059b005dff81f931c7899b00a291932d6dff1"
+      },
+      "getinfo": {
+        "address": "0x45af70",
+        "unique_match": true,
+        "prefix_sha256": "82e34aa4fdba92f5e55d6b2b87bf9aab4eeaaed8438077798622089b7bc24a64"
+      },
+      "getlocal": {
+        "address": "0x44cfc0",
+        "unique_match": true,
+        "prefix_sha256": "cac88c235b374e04d21e065c45e6d306be0acb97499d9cd46d4a871d82361e9a"
+      },
+      "settop": {
+        "address": "0x44c570",
+        "unique_match": true,
+        "prefix_sha256": "0adc2e1f43cb5863388f7ba232bb78fe692089941e4a4800115c8a553fa64b9f"
+      },
+      "load": {
+        "address": "0x4714d0",
+        "unique_match": true,
+        "prefix_sha256": "848687d246226957725d3f4c0ea9270d1e484d3ba6d0278733afecad33fa4500"
+      },
+      "reader": {
+        "address": "0x44b3c0",
+        "unique_match": true,
+        "prefix_sha256": "afc313c42da8c14ffe46d19a26673f942f1c0dd1a9dbb3e01529e004dd389da9"
+      },
+      "pcall": {
+        "address": "0x446500",
+        "unique_match": true,
+        "prefix_sha256": "af108502c0432430d98ac6427833a6082546c971bc18ff4f57335a3404bb70e4"
+      }
+    },
+    "steam_analysis": {
+      "newstate": {
+        "address": "0x458180",
+        "unique_match": true,
+        "prefix_sha256": "4ef03fec10c583dc62ecff764c3cefb8b9bd3ebac4cee6b1847f3813168d7920"
+      },
+      "close": {
+        "address": "0x44bfa0",
+        "unique_match": true,
+        "prefix_sha256": "43d3d0af0fd1c9ef86c3a44e221b902c318532cab89801ef944fe1958e523bc7"
+      },
+      "sethook": {
+        "address": "0x445eb0",
+        "unique_match": true,
+        "prefix_sha256": "0d03c09bdd57d4dd5c8460d86766cb0762623eca5b3e652467a772ce27b75aab"
+      },
+      "getstack": {
+        "address": "0x444cf0",
+        "unique_match": true,
+        "prefix_sha256": "74bea29feb90c17a25fce592428059b005dff81f931c7899b00a291932d6dff1"
+      },
+      "getinfo": {
+        "address": "0x45af80",
+        "unique_match": true,
+        "prefix_sha256": "82e34aa4fdba92f5e55d6b2b87bf9aab4eeaaed8438077798622089b7bc24a64"
+      },
+      "getlocal": {
+        "address": "0x44cfd0",
+        "unique_match": true,
+        "prefix_sha256": "cac88c235b374e04d21e065c45e6d306be0acb97499d9cd46d4a871d82361e9a"
+      },
+      "settop": {
+        "address": "0x44c580",
+        "unique_match": true,
+        "prefix_sha256": "0adc2e1f43cb5863388f7ba232bb78fe692089941e4a4800115c8a553fa64b9f"
+      },
+      "load": {
+        "address": "0x4714e0",
+        "unique_match": true,
+        "prefix_sha256": "7c0c05a9015abea5f33e7a55bedf2f9eb5625fe7c71515c47205a2a8f48df534"
+      },
+      "reader": {
+        "address": "0x44b3d0",
+        "unique_match": true,
+        "prefix_sha256": "afc313c42da8c14ffe46d19a26673f942f1c0dd1a9dbb3e01529e004dd389da9"
+      },
+      "pcall": {
+        "address": "0x446510",
+        "unique_match": true,
+        "prefix_sha256": "af108502c0432430d98ac6427833a6082546c971bc18ff4f57335a3404bb70e4"
+      }
+    },
+    "gold": {
+      "newstate": {
+        "address": "0xbe1550",
+        "unique_match": true,
+        "prefix_sha256": "9056d0cf02fa401eabebebaa123d8ce4a074238dd99640f56b6ad2960d66fa20"
+      },
+      "close": {
+        "address": "0xbd4910",
+        "unique_match": true,
+        "prefix_sha256": "4540e599074cfe2ab50d88dd391c5223cefa094cf8ddcc29b22fb5015281bcd6"
+      },
+      "sethook": {
+        "address": "0xbcd6d0",
+        "unique_match": true,
+        "prefix_sha256": "0d03c09bdd57d4dd5c8460d86766cb0762623eca5b3e652467a772ce27b75aab"
+      },
+      "getstack": {
+        "address": "0xbcc360",
+        "unique_match": true,
+        "prefix_sha256": "74bea29feb90c17a25fce592428059b005dff81f931c7899b00a291932d6dff1"
+      },
+      "getinfo": {
+        "address": "0xbe45b0",
+        "unique_match": true,
+        "prefix_sha256": "82e34aa4fdba92f5e55d6b2b87bf9aab4eeaaed8438077798622089b7bc24a64"
+      },
+      "getlocal": {
+        "address": "0xbd59e0",
+        "unique_match": true,
+        "prefix_sha256": "25c5020fc23362c4c83116fafbb63f384085ca756587d39957100d28e302c55c"
+      },
+      "settop": {
+        "address": "0xbd4f00",
+        "unique_match": true,
+        "prefix_sha256": "14dae2e7724c9b660fdb1d4855afb3e51e0ed60278ae6cf10325a8da24b3db89"
+      },
+      "load": {
+        "address": "0xbfb350",
+        "unique_match": true,
+        "prefix_sha256": "bedbcf0f98184f691f8004c7c9f1cae7c3208c5654dc9b6515160d27b4058584"
+      },
+      "reader": {
+        "address": "0xbd3a50",
+        "unique_match": true,
+        "prefix_sha256": "57be71d75c7161e48fd2ce5956c03ff2224e05ef2a39bfb2f697aa822755ee02"
+      },
+      "pcall": {
+        "address": "0xbce030",
+        "unique_match": true,
+        "prefix_sha256": "af108502c0432430d98ac6427833a6082546c971bc18ff4f57335a3404bb70e4"
+      }
+    }
+  },
+  "hook_audits": {
+    "ubisoft": {
+      "image_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "image_bytes": 17333680,
+      "debugger_callbacks_empty": true,
+      "public_debugger_handlers_noop": true,
+      "s6_loader_marker_hits": [],
+      "lua_import_modules": [],
+      "lua_named_exports": [],
+      "luaopen_debug": "0x46c3f0",
+      "lua_sethook": "0x445ea0",
+      "debug_library_functions": {
+        "getregistry": "0x44ba50",
+        "getmetatable": "0x456330",
+        "setmetatable": "0x457230",
+        "getfenv": "0x456370",
+        "setfenv": "0x4563a0",
+        "getinfo": "0x464810",
+        "getlocal": "0x464b00",
+        "setlocal": "0x464c00",
+        "getupvalue": "0x464d00",
+        "setupvalue": "0x464d80",
+        "sethook": "0x464f00",
+        "gethook": "0x465020",
+        "debug": "0x4719f0",
+        "traceback": "0x465130"
+      },
+      "original_hook_calls_emulated": 6
+    },
+    "steam_analysis": {
+      "image_sha256": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4",
+      "image_bytes": 17460224,
+      "debugger_callbacks_empty": true,
+      "public_debugger_handlers_noop": true,
+      "s6_loader_marker_hits": [],
+      "lua_import_modules": [],
+      "lua_named_exports": [],
+      "luaopen_debug": "0x46c400",
+      "lua_sethook": "0x445eb0",
+      "debug_library_functions": {
+        "getregistry": "0x44ba60",
+        "getmetatable": "0x4562a0",
+        "setmetatable": "0x457240",
+        "getfenv": "0x4562e0",
+        "setfenv": "0x456310",
+        "getinfo": "0x464820",
+        "getlocal": "0x464b10",
+        "setlocal": "0x464c10",
+        "getupvalue": "0x464d10",
+        "setupvalue": "0x464d90",
+        "sethook": "0x464f10",
+        "gethook": "0x465030",
+        "debug": "0x471a00",
+        "traceback": "0x465140"
+      },
+      "original_hook_calls_emulated": 6
+    },
+    "gold": {
+      "image_sha256": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+      "image_bytes": 14141768,
+      "debugger_callbacks_empty": true,
+      "public_debugger_handlers_noop": true,
+      "s6_loader_marker_hits": [],
+      "lua_import_modules": [],
+      "lua_named_exports": [],
+      "luaopen_debug": "0xbf6220",
+      "lua_sethook": "0xbcd6d0",
+      "debug_library_functions": {
+        "getregistry": "0xbd42f0",
+        "getmetatable": "0xbdf4c0",
+        "setmetatable": "0xbe0560",
+        "getfenv": "0xbdf500",
+        "setfenv": "0xbdf530",
+        "getinfo": "0xbee400",
+        "getlocal": "0xbee6f0",
+        "setlocal": "0xbee7f0",
+        "getupvalue": "0xbee980",
+        "setupvalue": "0xbeea00",
+        "sethook": "0xbeeb80",
+        "gethook": "0xbeeca0",
+        "debug": "0xbfb870",
+        "traceback": "0xbeedb0"
+      },
+      "original_hook_calls_emulated": 6
+    }
+  },
+  "total_native_api_matches": 30,
+  "original_hook_calls": 18,
+  "game_process_started": false,
+  "lua_bytecode_executed": false
+}

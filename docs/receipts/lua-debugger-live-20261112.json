@@ -1,0 +1,374 @@
+{
+  "format": "s7-lua-debugger-live-v1",
+  "date": "2026-11-12",
+  "live_profiles": {
+    "history_ubisoft": {
+      "executable_sha256": "dbc108237301f329fed5372f79915c82acd9085f58d32adefa4efe434208ef72",
+      "test": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      },
+      "local_value_observations": [
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        },
+        {
+          "line": 3,
+          "depth": 5,
+          "locals": {
+            "value": 11
+          }
+        },
+        {
+          "line": 4,
+          "depth": 5,
+          "locals": {
+            "value": 11,
+            "doubled": 22
+          }
+        },
+        {
+          "line": 9,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22
+          }
+        },
+        {
+          "line": 10,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22,
+            "result": 25
+          }
+        },
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        },
+        {
+          "line": 9,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22
+          }
+        },
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        }
+      ],
+      "restoration": {
+        "exit": 0,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "cloud_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "source_sha256": {
+        "agent.js": "b9610a4d4e6bc09c9c7f36aec0528cde9a5151012f5b25e3cc260d20cbe8699b",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "debugger.py": "4349460c34550def82cabd642a89ee84857e3b545ec9e7fdb205a4bd683f6e83",
+        "launch.py": "c5922ff5f50f2bca115cd5d3761a5e6565652e2564f22dbee63689bf895588e7",
+        "profiles.py": "cee0f8e43a3c0a7d07566b66315fdc916ed2adb5a9d9b7ab33e6c7c1330f8ab4"
+      },
+      "trace_sha256": "cb935c278188f9c3e3fc8cc4ce9bd23934b1bc79f08a29af78b8fdcb378cb6ac",
+      "menu_observed_after_detach": true,
+      "profile_manager_observed_after_detach": false,
+      "running_world_tested": false,
+      "multiplayer_pause_tested": false
+    },
+    "gold": {
+      "executable_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "test": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      },
+      "local_value_observations": [
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        },
+        {
+          "line": 3,
+          "depth": 5,
+          "locals": {
+            "value": 11
+          }
+        },
+        {
+          "line": 4,
+          "depth": 5,
+          "locals": {
+            "value": 11,
+            "doubled": 22
+          }
+        },
+        {
+          "line": 9,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22
+          }
+        },
+        {
+          "line": 10,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22,
+            "result": 25
+          }
+        },
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        },
+        {
+          "line": 9,
+          "depth": 4,
+          "locals": {
+            "first": 11,
+            "second": 22
+          }
+        },
+        {
+          "line": 8,
+          "depth": 4,
+          "locals": {
+            "first": 11
+          }
+        }
+      ],
+      "restoration": {
+        "exit": 0,
+        "native_entry_restored": true,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "source_sha256": {
+        "agent.js": "b9610a4d4e6bc09c9c7f36aec0528cde9a5151012f5b25e3cc260d20cbe8699b",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "debugger.py": "4349460c34550def82cabd642a89ee84857e3b545ec9e7fdb205a4bd683f6e83",
+        "launch.py": "c5922ff5f50f2bca115cd5d3761a5e6565652e2564f22dbee63689bf895588e7",
+        "profiles.py": "cee0f8e43a3c0a7d07566b66315fdc916ed2adb5a9d9b7ab33e6c7c1330f8ab4",
+        "gold_launch.py": "d56d07c11e0f282ae2911bd26c46d7108890343ba00c76538544ce6a41c5c753"
+      },
+      "trace_sha256": "3cc3a0f7c18ba666f189403c2e0f08564bc6f8c42cdb99d40308511531e565c8",
+      "menu_observed_after_detach": false,
+      "profile_manager_observed_after_detach": true,
+      "running_world_tested": false,
+      "multiplayer_pause_tested": false
+    }
+  },
+  "steam": {
+    "native_port_implemented": true,
+    "live_qualified": false,
+    "observed_steam_api_init": false,
+    "observed_lua_states": 0,
+    "control_without_frida_exited_before_attach": true,
+    "normal_sdk_result_preserved": true,
+    "temporary_documented_appid_file_restored": true,
+    "test_platform_dll_restored": true,
+    "restoration": {
+      "steam-live-2": {
+        "exit": 0,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "cloud_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "steam-live-3": {
+        "exit": 0,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "cloud_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "steam-live-4": {
+        "exit": 0,
+        "settings_restored": true,
+        "saves_unchanged": true,
+        "cloud_unchanged": true,
+        "shared_unchanged": true,
+        "game_files_unchanged": true
+      }
+    },
+    "standalone_qualified": false
+  },
+  "node_stepping_policy_checks": 16,
+  "unsupported_image_rejected_before_attach": true,
+  "offline_native_api_matches": 30,
+  "offline_original_hook_calls": 18,
+  "game_files_or_archives_distributed": false,
+  "account_caches_read": false
+}
