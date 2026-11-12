@@ -1,0 +1,129 @@
+{
+  "format": "native-active-player-writer-audit-v1",
+  "fingerprints": {
+    "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+    "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+  },
+  "original_row_calls": 108,
+  "compiled_thunks_executed": true,
+  "fixture_sha256": "db63206834a832f26d38d68fc5f14331eabb9cdab260c62ff4edb49f644b7d13",
+  "guard_checks": {
+    "gold": 8,
+    "ubisoft": 8,
+    "steam_analysis": 8
+  },
+  "nested_nodes_traversed": true,
+  "original_binary_visitors_executed": true,
+  "heap_and_stream_modeled": true,
+  "live_format_version_qualified": false,
+  "native_save_reader_tested": false,
+  "game_process_started": false,
+  "crossplay_qualified": false,
+  "maintainer": "WePlay Community",
+  "source_sha256": {
+    "native/crossplay_active_player_writer.h": "0783338142f5acddb17783638e7711d0abccdd6149962347557594fbb2b50375",
+    "native/crossplay_active_player_writer_tests.cpp": "bbe2ef6a962d7cf7bd67dd702661595256232510f677d08e50f96591a0ca8317",
+    "native/build_crossplay.ps1": "7db510baeee15eca9151174a03df1c9aafd0abe0433b03e2b0b6f01c81023a81",
+    "tools/gold/emulate_active_players.py": "a2be10f394789d6d3ce1d28844c8b7b77e0830dc9d8073203822b8e3701fe81e",
+    "tools/gold/verify_codec_guards.py": "551f84cb05bfd13fbf33cf073b252198935332d55fc8c5179461387052a1475b",
+    "tests/fixtures/gold-native-active-player-fields.json": "6df3822c2f85397fb1e34080978b9a4b2c58d0f0bb2c5d2aaa127fa4f76950fc"
+  },
+  "field_fixture": "tests/fixtures/gold-native-active-player-fields.json",
+  "synthetic_binary_cases": {
+    "v1-empty": {
+      "length": 935,
+      "sha256": "f2e0a3e35794c1d96a96c4314aa8f9637f70de06fe7ac32194aa45ce22b7da9e"
+    },
+    "v1-populated": {
+      "length": 1115,
+      "sha256": "ae0638794edd66af9ead341028d438e7174520da92266ef37aaa5894c8dd72bf"
+    },
+    "v2-empty": {
+      "length": 943,
+      "sha256": "17a6dfc84555ef9f8cdc8808288f070a1f755ddc5e9ae68fe0fff44a3a73b519"
+    },
+    "v2-populated": {
+      "length": 1123,
+      "sha256": "da35a76c9de0ca7a4dec43547ac817c71524aa2523facc0b1902823dfdf03236"
+    },
+    "v3-empty": {
+      "length": 943,
+      "sha256": "17a6dfc84555ef9f8cdc8808288f070a1f755ddc5e9ae68fe0fff44a3a73b519"
+    },
+    "v3-populated": {
+      "length": 1123,
+      "sha256": "da35a76c9de0ca7a4dec43547ac817c71524aa2523facc0b1902823dfdf03236"
+    },
+    "v4-empty": {
+      "length": 947,
+      "sha256": "bdb41268fd7ba4f51f4443f10c7da7d25374a907955b679c8490c09210f11634"
+    },
+    "v4-populated": {
+      "length": 1127,
+      "sha256": "2c54b75145c28d891f491eb96023676b701f94eb379b05dd68cd1ea93afbe4fe"
+    },
+    "v5-empty": {
+      "length": 951,
+      "sha256": "044f95d8b062da058ff66746adbfa4fafc053e786fe26423d0bea14641962786"
+    },
+    "v5-populated": {
+      "length": 1131,
+      "sha256": "068bdefcc7493dd130dabc1a03688bbde0c035c532f6e59b7d2c10ac868c940f"
+    },
+    "v6-empty": {
+      "length": 952,
+      "sha256": "529aa05e7fcff358a31a21c1c4dac2ece3932df94eab2f14a72340596ff261dc"
+    },
+    "v6-populated": {
+      "length": 1132,
+      "sha256": "f9f44d8f3eaf0d1af1b50528b5e0bcc6c575e25e31dd2ce887f507c829351de1"
+    },
+    "v7-empty": {
+      "length": 956,
+      "sha256": "3048926036a7f2c1374cf145045d822e3f7058fb71d9ff666b7dd03b359015ef"
+    },
+    "v7-populated": {
+      "length": 1139,
+      "sha256": "e278574d653012d6d397530f95d7d5c3cfd0ea54a9629d21a6bc175b4f4a1e89"
+    },
+    "v8-empty": {
+      "length": 957,
+      "sha256": "e6f9b9e094701c36b02fd3c11e39656761a54e8ba11b130833978728ab1e4515"
+    },
+    "v8-populated": {
+      "length": 1140,
+      "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+    },
+    "v9-empty": {
+      "length": 957,
+      "sha256": "e6f9b9e094701c36b02fd3c11e39656761a54e8ba11b130833978728ab1e4515"
+    },
+    "v9-populated": {
+      "length": 1140,
+      "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+    }
+  },
+  "comparison_rejection_checks": 7,
+  "public_build": {
+    "script": "native/build_crossplay.ps1",
+    "result": "pass",
+    "compiler": "MSVC x86 /W4 /WX",
+    "fixed_fixture_executed_as_windows_process": false
+  },
+  "previous_writer_regression": {
+    "original_calls": 6,
+    "guard_checks": 24,
+    "fixture_sha256": "2ad62a12313605203b80cffce033ae85f941fcd9dfc4306e7909612e57eebbca",
+    "default_instruction_budget_unchanged": true
+  },
+  "scope": {
+    "actual_row_array_captured": false,
+    "original_save_reader_executed": false,
+    "live_ownership_capture_implemented": false,
+    "shared_world_started": false,
+    "world_permission": false,
+    "gold_neo_qualified": false,
+    "mixed_save_coldreload_qualified": false
+  }
+}

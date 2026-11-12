@@ -51,6 +51,12 @@ exchange, while rechecking local native ownership and storage. Actual pairs
 passed with both History data sources under DXVK High. It supplies no full
 active-configuration/content agreement or permission to start a world.
 
+The [active-player writer ABI](GOLD-HISTORY-ACTIVE-PLAYERS.md) now executes the
+original row writers, nested Castle Forge fields and binary visitors through
+compiled edition-specific call thunks. Empty/populated synthetic rows agree
+across all three analysis profiles and formats 1–9. Live full setup capture and
+common start remain unimplemented; these headless checks supply no world permission.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel

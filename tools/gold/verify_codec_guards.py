@@ -22,7 +22,9 @@ STOP, QUERY = SCRATCH, SCRATCH+16
 STREAMS = {'gold': 0xf26560, 'ubisoft': 0x112f5bc, 'steam_analysis': 0x112db4c}
 
 
-def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', methods=()):
+def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', methods=(), instruction_limit=500000):
+    if type(instruction_limit) is not int or not 1 <= instruction_limit <= 2000000:
+        raise ValueError('Guard instruction budget outside bound')
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base, (image.size+4095) & ~4095)
     u.mem_write(image.base, image.mapped)
@@ -77,7 +79,7 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
         u.mem_write(sp, struct.pack('<2I', STOP, edition))
         for register, value in {**preserved, UC_X86_REG_ESP: sp}.items():
             u.reg_write(register, value)
-        u.emu_start(entry, STOP+1, count=500000, timeout=5000000)
+        u.emu_start(entry, STOP+1, count=instruction_limit, timeout=5000000)
         if (u.reg_read(UC_X86_REG_EIP) != STOP or u.reg_read(UC_X86_REG_ESP) != sp+4
                 or bool(u.reg_read(UC_X86_REG_EAX)) != expected
                 or any(u.reg_read(k) != v for k, v in preserved.items())):

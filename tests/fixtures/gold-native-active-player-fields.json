@@ -1,0 +1,1172 @@
+{
+  "version8_fields": {
+    "gold": [
+      {
+        "kind": "field",
+        "name": "DefaultProfileID",
+        "visitor_slot": 52,
+        "offset": 0
+      },
+      {
+        "kind": "field",
+        "name": "ProfileID",
+        "visitor_slot": 52,
+        "offset": 24
+      },
+      {
+        "kind": "field",
+        "name": "PlayerName",
+        "visitor_slot": 44,
+        "offset": 28
+      },
+      {
+        "kind": "field",
+        "name": "PlayerColorID",
+        "visitor_slot": 96,
+        "offset": 44
+      },
+      {
+        "kind": "field",
+        "name": "Immediate",
+        "visitor_slot": 88,
+        "offset": 57
+      },
+      {
+        "kind": "field",
+        "name": "MagicBuildLimit",
+        "visitor_slot": 68,
+        "offset": 60
+      },
+      {
+        "kind": "field",
+        "name": "MagicBuildUsed",
+        "visitor_slot": 68,
+        "offset": 64
+      },
+      {
+        "kind": "field",
+        "name": "PopulationLimit",
+        "visitor_slot": 68,
+        "offset": 68
+      },
+      {
+        "kind": "field",
+        "name": "Population",
+        "visitor_slot": 68,
+        "offset": 72
+      },
+      {
+        "kind": "field",
+        "name": "PopulationPeak",
+        "visitor_slot": 68,
+        "offset": 76
+      },
+      {
+        "kind": "field",
+        "name": "CastleID1",
+        "visitor_slot": 52,
+        "offset": 80
+      },
+      {
+        "kind": "field",
+        "name": "CastleID2",
+        "visitor_slot": 52,
+        "offset": 84
+      },
+      {
+        "kind": "field",
+        "name": "Active",
+        "visitor_slot": 88,
+        "offset": 56
+      },
+      {
+        "kind": "field",
+        "name": "SlotID",
+        "visitor_slot": 60,
+        "offset": 88
+      },
+      {
+        "kind": "field",
+        "name": "NetworkSlot",
+        "visitor_slot": 68,
+        "offset": 92
+      },
+      {
+        "kind": "field",
+        "name": "TradeBoardSlot",
+        "visitor_slot": 52,
+        "offset": 1308
+      },
+      {
+        "kind": "node",
+        "name": "CurrentExpedition"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1312
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1316
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "container",
+        "name": "TradeOptions",
+        "count": 2
+      },
+      {
+        "kind": "node",
+        "name": "Item"
+      },
+      {
+        "kind": "node",
+        "name": "First"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "Second",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "node",
+        "name": "Item"
+      },
+      {
+        "kind": "node",
+        "name": "First"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "Second",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "node",
+        "name": "NearestTradePost"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1336
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1340
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "OwnedTradePostCount",
+        "visitor_slot": 68,
+        "offset": 1344
+      },
+      {
+        "kind": "node",
+        "name": "CurrentCoopFreightQuest"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1348
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1352
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "VictoryPointChangeTurn",
+        "visitor_slot": 52,
+        "offset": 1360
+      },
+      {
+        "kind": "field",
+        "name": "VictoryPointCount",
+        "visitor_slot": 68,
+        "offset": 1356
+      },
+      {
+        "kind": "field",
+        "name": "State",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Type",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container",
+        "name": "Rewards",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Reward",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Reward",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "bitfield",
+        "name": "ProfileAccess",
+        "length": 512,
+        "set_bits": [
+          0,
+          31,
+          32,
+          63,
+          64,
+          255,
+          511
+        ]
+      },
+      {
+        "kind": "bitfield",
+        "name": "BlueprintAccess",
+        "length": 256,
+        "set_bits": [
+          0,
+          31,
+          32,
+          63,
+          127,
+          255
+        ]
+      },
+      {
+        "kind": "container",
+        "name": "PrestigeBlueprintList",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "ResearchBlueprintList",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "PrestigePoints",
+        "visitor_slot": 68,
+        "offset": 1276
+      },
+      {
+        "kind": "field",
+        "name": "PrestigeLevelPeak",
+        "visitor_slot": 52,
+        "offset": 1284
+      },
+      {
+        "kind": "field",
+        "name": "KilledSoldiers",
+        "visitor_slot": 52,
+        "offset": 1288
+      },
+      {
+        "kind": "field",
+        "name": "DestroyedFortifications",
+        "visitor_slot": 52,
+        "offset": 1292
+      },
+      {
+        "kind": "field",
+        "name": "RecentAttackTurn",
+        "visitor_slot": 52,
+        "offset": 1296
+      },
+      {
+        "kind": "field",
+        "name": "AverageEcoEfficiency",
+        "visitor_slot": 84,
+        "offset": 1300
+      },
+      {
+        "kind": "field",
+        "name": "FreeTools",
+        "visitor_slot": 88,
+        "offset": 1304
+      },
+      {
+        "kind": "field",
+        "name": "Necromancy",
+        "visitor_slot": 88,
+        "offset": 1305
+      },
+      {
+        "kind": "container",
+        "name": "Untouchable",
+        "count": 3
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "Lost",
+        "visitor_slot": 88,
+        "offset": 1380
+      },
+      {
+        "kind": "container",
+        "name": "Allies",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "ID",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "TeamID",
+        "visitor_slot": 60,
+        "offset": 104
+      },
+      {
+        "kind": "field",
+        "name": "PortraitIndex",
+        "visitor_slot": 52,
+        "offset": 48
+      },
+      {
+        "kind": "node",
+        "name": "CastleForgeData"
+      },
+      {
+        "kind": "field",
+        "name": "Name",
+        "visitor_slot": 44,
+        "offset": 1396
+      },
+      {
+        "kind": "field",
+        "name": "Type",
+        "visitor_slot": 44,
+        "offset": 1412
+      },
+      {
+        "kind": "container",
+        "name": "CFParts",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Part",
+        "visitor_slot": 44,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Part",
+        "visitor_slot": 44,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "CFParents",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Parent",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Parent",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "CFSlots",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Slots",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Slots",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "DifficultyLevel",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Peaceful",
+        "visitor_slot": 88,
+        "offset": 112
+      }
+    ],
+    "ubisoft": [
+      {
+        "kind": "field",
+        "name": "DefaultProfileID",
+        "visitor_slot": 52,
+        "offset": 0
+      },
+      {
+        "kind": "field",
+        "name": "ProfileID",
+        "visitor_slot": 52,
+        "offset": 24
+      },
+      {
+        "kind": "field",
+        "name": "PlayerName",
+        "visitor_slot": 44,
+        "offset": 28
+      },
+      {
+        "kind": "field",
+        "name": "PlayerColorID",
+        "visitor_slot": 96,
+        "offset": 44
+      },
+      {
+        "kind": "field",
+        "name": "Immediate",
+        "visitor_slot": 88,
+        "offset": 57
+      },
+      {
+        "kind": "field",
+        "name": "MagicBuildLimit",
+        "visitor_slot": 68,
+        "offset": 60
+      },
+      {
+        "kind": "field",
+        "name": "MagicBuildUsed",
+        "visitor_slot": 68,
+        "offset": 64
+      },
+      {
+        "kind": "field",
+        "name": "PopulationLimit",
+        "visitor_slot": 68,
+        "offset": 68
+      },
+      {
+        "kind": "field",
+        "name": "Population",
+        "visitor_slot": 68,
+        "offset": 72
+      },
+      {
+        "kind": "field",
+        "name": "PopulationPeak",
+        "visitor_slot": 68,
+        "offset": 76
+      },
+      {
+        "kind": "field",
+        "name": "CastleID1",
+        "visitor_slot": 52,
+        "offset": 80
+      },
+      {
+        "kind": "field",
+        "name": "CastleID2",
+        "visitor_slot": 52,
+        "offset": 84
+      },
+      {
+        "kind": "field",
+        "name": "Active",
+        "visitor_slot": 88,
+        "offset": 56
+      },
+      {
+        "kind": "field",
+        "name": "SlotID",
+        "visitor_slot": 60,
+        "offset": 88
+      },
+      {
+        "kind": "field",
+        "name": "NetworkSlot",
+        "visitor_slot": 68,
+        "offset": 92
+      },
+      {
+        "kind": "field",
+        "name": "TradeBoardSlot",
+        "visitor_slot": 52,
+        "offset": 1296
+      },
+      {
+        "kind": "node",
+        "name": "CurrentExpedition"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1300
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1304
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "container",
+        "name": "TradeOptions",
+        "count": 2
+      },
+      {
+        "kind": "node",
+        "name": "Item"
+      },
+      {
+        "kind": "node",
+        "name": "First"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "Second",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "node",
+        "name": "Item"
+      },
+      {
+        "kind": "node",
+        "name": "First"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "Second",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "node",
+        "name": "NearestTradePost"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1320
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1324
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "OwnedTradePostCount",
+        "visitor_slot": 68,
+        "offset": 1328
+      },
+      {
+        "kind": "node",
+        "name": "CurrentCoopFreightQuest"
+      },
+      {
+        "kind": "field",
+        "name": "ID1",
+        "visitor_slot": 52,
+        "offset": 1332
+      },
+      {
+        "kind": "field",
+        "name": "ID2",
+        "visitor_slot": 52,
+        "offset": 1336
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "VictoryPointChangeTurn",
+        "visitor_slot": 52,
+        "offset": 1344
+      },
+      {
+        "kind": "field",
+        "name": "VictoryPointCount",
+        "visitor_slot": 68,
+        "offset": 1340
+      },
+      {
+        "kind": "field",
+        "name": "State",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Type",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container",
+        "name": "Rewards",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Reward",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Reward",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "bitfield",
+        "name": "ProfileAccess",
+        "length": 512,
+        "set_bits": [
+          0,
+          31,
+          32,
+          63,
+          64,
+          255,
+          511
+        ]
+      },
+      {
+        "kind": "bitfield",
+        "name": "BlueprintAccess",
+        "length": 256,
+        "set_bits": [
+          0,
+          31,
+          32,
+          63,
+          127,
+          255
+        ]
+      },
+      {
+        "kind": "container",
+        "name": "PrestigeBlueprintList",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "ResearchBlueprintList",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Blueprint",
+        "visitor_slot": 52,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "PrestigePoints",
+        "visitor_slot": 68,
+        "offset": 1264
+      },
+      {
+        "kind": "field",
+        "name": "PrestigeLevelPeak",
+        "visitor_slot": 52,
+        "offset": 1272
+      },
+      {
+        "kind": "field",
+        "name": "KilledSoldiers",
+        "visitor_slot": 52,
+        "offset": 1276
+      },
+      {
+        "kind": "field",
+        "name": "DestroyedFortifications",
+        "visitor_slot": 52,
+        "offset": 1280
+      },
+      {
+        "kind": "field",
+        "name": "RecentAttackTurn",
+        "visitor_slot": 52,
+        "offset": 1284
+      },
+      {
+        "kind": "field",
+        "name": "AverageEcoEfficiency",
+        "visitor_slot": 84,
+        "offset": 1288
+      },
+      {
+        "kind": "field",
+        "name": "FreeTools",
+        "visitor_slot": 88,
+        "offset": 1292
+      },
+      {
+        "kind": "field",
+        "name": "Necromancy",
+        "visitor_slot": 88,
+        "offset": 1293
+      },
+      {
+        "kind": "container",
+        "name": "Untouchable",
+        "count": 3
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Flag",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "Lost",
+        "visitor_slot": 88,
+        "offset": 1360
+      },
+      {
+        "kind": "container",
+        "name": "Allies",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "ID",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "ID",
+        "visitor_slot": 60,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "field",
+        "name": "TeamID",
+        "visitor_slot": 60,
+        "offset": 104
+      },
+      {
+        "kind": "field",
+        "name": "PortraitIndex",
+        "visitor_slot": 52,
+        "offset": 48
+      },
+      {
+        "kind": "node",
+        "name": "CastleForgeData"
+      },
+      {
+        "kind": "field",
+        "name": "Name",
+        "visitor_slot": 44,
+        "offset": 1376
+      },
+      {
+        "kind": "field",
+        "name": "Type",
+        "visitor_slot": 44,
+        "offset": 1392
+      },
+      {
+        "kind": "container",
+        "name": "CFParts",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Part",
+        "visitor_slot": 44,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Part",
+        "visitor_slot": 44,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "CFParents",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Parent",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Parent",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "container",
+        "name": "CFSlots",
+        "count": 2
+      },
+      {
+        "kind": "field",
+        "name": "Slots",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Slots",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "container_end"
+      },
+      {
+        "kind": "node_end"
+      },
+      {
+        "kind": "field",
+        "name": "DifficultyLevel",
+        "visitor_slot": 68,
+        "offset": null
+      },
+      {
+        "kind": "field",
+        "name": "Peaceful",
+        "visitor_slot": 88,
+        "offset": 112
+      }
+    ]
+  },
+  "synthetic_binary_cases": {
+    "v1-empty": {
+      "length": 935,
+      "sha256": "f2e0a3e35794c1d96a96c4314aa8f9637f70de06fe7ac32194aa45ce22b7da9e"
+    },
+    "v1-populated": {
+      "length": 1115,
+      "sha256": "ae0638794edd66af9ead341028d438e7174520da92266ef37aaa5894c8dd72bf"
+    },
+    "v2-empty": {
+      "length": 943,
+      "sha256": "17a6dfc84555ef9f8cdc8808288f070a1f755ddc5e9ae68fe0fff44a3a73b519"
+    },
+    "v2-populated": {
+      "length": 1123,
+      "sha256": "da35a76c9de0ca7a4dec43547ac817c71524aa2523facc0b1902823dfdf03236"
+    },
+    "v3-empty": {
+      "length": 943,
+      "sha256": "17a6dfc84555ef9f8cdc8808288f070a1f755ddc5e9ae68fe0fff44a3a73b519"
+    },
+    "v3-populated": {
+      "length": 1123,
+      "sha256": "da35a76c9de0ca7a4dec43547ac817c71524aa2523facc0b1902823dfdf03236"
+    },
+    "v4-empty": {
+      "length": 947,
+      "sha256": "bdb41268fd7ba4f51f4443f10c7da7d25374a907955b679c8490c09210f11634"
+    },
+    "v4-populated": {
+      "length": 1127,
+      "sha256": "2c54b75145c28d891f491eb96023676b701f94eb379b05dd68cd1ea93afbe4fe"
+    },
+    "v5-empty": {
+      "length": 951,
+      "sha256": "044f95d8b062da058ff66746adbfa4fafc053e786fe26423d0bea14641962786"
+    },
+    "v5-populated": {
+      "length": 1131,
+      "sha256": "068bdefcc7493dd130dabc1a03688bbde0c035c532f6e59b7d2c10ac868c940f"
+    },
+    "v6-empty": {
+      "length": 952,
+      "sha256": "529aa05e7fcff358a31a21c1c4dac2ece3932df94eab2f14a72340596ff261dc"
+    },
+    "v6-populated": {
+      "length": 1132,
+      "sha256": "f9f44d8f3eaf0d1af1b50528b5e0bcc6c575e25e31dd2ce887f507c829351de1"
+    },
+    "v7-empty": {
+      "length": 956,
+      "sha256": "3048926036a7f2c1374cf145045d822e3f7058fb71d9ff666b7dd03b359015ef"
+    },
+    "v7-populated": {
+      "length": 1139,
+      "sha256": "e278574d653012d6d397530f95d7d5c3cfd0ea54a9629d21a6bc175b4f4a1e89"
+    },
+    "v8-empty": {
+      "length": 957,
+      "sha256": "e6f9b9e094701c36b02fd3c11e39656761a54e8ba11b130833978728ab1e4515"
+    },
+    "v8-populated": {
+      "length": 1140,
+      "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+    },
+    "v9-empty": {
+      "length": 957,
+      "sha256": "e6f9b9e094701c36b02fd3c11e39656761a54e8ba11b130833978728ab1e4515"
+    },
+    "v9-populated": {
+      "length": 1140,
+      "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+    }
+  }
+}
