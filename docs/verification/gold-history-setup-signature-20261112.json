@@ -1,0 +1,27 @@
+{
+  "format": "gold-history-native-rule-signature-v1",
+  "date": "2026-11-12",
+  "scope": "experimental loopback lobby diagnostic",
+  "graphics": {"api": "DXVK", "quality": "High", "resolution": "1920x1080", "legacy_fallback": false},
+  "live_pairs": [
+    {"history_data": "Ubisoft History", "history_runtime": "isolated Ubisoft History", "rules_bytes_per_engine": 2152, "template_player_bytes_per_engine": 41, "authenticated_digest_equal": true, "native_guest_ready": true, "normal_exit_codes": [0, 0]},
+    {"history_data": "Steam History", "history_runtime": "isolated Ubisoft History", "rules_bytes_per_engine": 2152, "template_player_bytes_per_engine": 41, "authenticated_digest_equal": true, "native_guest_ready": true, "normal_exit_codes": [0, 0]}
+  ],
+  "steam_sdk_loaded": false,
+  "map": "Monhaim Valley, default template",
+  "raw_native_payloads_published": false,
+  "windows_x86_checks": 186,
+  "offline_original_visitor_calls": 6,
+  "offline_compiled_method_guard_checks": 24,
+  "offline_profiles": ["Gold", "Ubisoft History", "Steam analysis"],
+  "offline_visitor_and_reflection_modeled": true,
+  "offline_nonempty_containers_tested": false,
+  "offline_nested_nodes_traversed": false,
+  "ordinary_adapters_include_diagnostic": false,
+  "original_steam_executable_runtime_qualified": false,
+  "complete_setup_agreement_qualified": false,
+  "mixed_world_started": false,
+  "mixed_turns_qualified": false,
+  "gold_neo_logistics_qualified": false,
+  "mixed_save_reload_qualified": false
+}

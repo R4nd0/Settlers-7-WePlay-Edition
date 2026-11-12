@@ -47,5 +47,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native fresh-start guard fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_game_start_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_game_start_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable native fresh-start test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_setup_signature_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_setup_signature_tests.exe /link ws2_32.lib bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Native setup-signature guard fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_setup_signature_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_setup_signature_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Relocatable setup-signature test build failed.' }
 } finally { Pop-Location }
-Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent, map initialization and fresh-start tests. No game adapter was installed or launched.'
+Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent, map initialization, fresh-start and rule-signature tests. No game adapter was installed or launched.'

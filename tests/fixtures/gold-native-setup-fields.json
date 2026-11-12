@@ -1,0 +1,65 @@
+{
+  "rules": [
+    {
+      "kind": "field",
+      "visitor_slot": 56,
+      "name": "NeededVictoryPoints",
+      "offset": 0
+    },
+    {
+      "kind": "field",
+      "visitor_slot": 44,
+      "name": "StartResources",
+      "offset": 4
+    },
+    {
+      "kind": "field",
+      "visitor_slot": 44,
+      "name": "TechboardProfile",
+      "offset": 36
+    },
+    {
+      "kind": "field",
+      "visitor_slot": 44,
+      "name": "TradeboardProfile",
+      "offset": 20
+    },
+    {
+      "kind": "container",
+      "name": "VictoryPointList",
+      "count": 0
+    },
+    {
+      "kind": "container",
+      "name": "SectorInfoList",
+      "count": 0
+    }
+  ],
+  "players": [
+    {
+      "kind": "node",
+      "name": "PlayerSetup"
+    },
+    {
+      "kind": "node",
+      "name": "HumanProfile"
+    },
+    {
+      "kind": "field",
+      "visitor_slot": 60,
+      "name": "CastleSlot",
+      "offset": null
+    },
+    {
+      "kind": "field",
+      "visitor_slot": 60,
+      "name": "Team",
+      "offset": null
+    },
+    {
+      "kind": "container",
+      "name": "AIProfiles",
+      "count": 0
+    }
+  ]
+}
