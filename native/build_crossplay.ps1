@@ -59,5 +59,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native position-list guard fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_position_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_position_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable native position-list test build failed.' }
+    # Fixed analysis fixture for offline CPU execution, not a Windows launch.
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_gold_local_observer_tests.cpp') /Fe:crossplay_gold_local_observer_tests.exe /link ws2_32.lib bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Gold local-event observer ABI fixture build failed.' }
 } finally { Pop-Location }
 Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent, map initialization, fresh-start, rule-signature, player-option and position-list tests. No game adapter was installed or launched.'
