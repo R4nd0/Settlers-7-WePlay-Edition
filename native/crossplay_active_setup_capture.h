@@ -59,9 +59,12 @@ inline bool Dependencies(const unsigned char* rows,bool gold,Crossplay::Digest& 
     std::vector<unsigned char> bytes;
     const auto* table=rows+(gold?0x9024:0x8d68);
     const auto* registry=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(table+0x18));
-    if(!Append(bytes,registry,12))return false;
+    // Original reserve routines in all three profiles read/write capacity at
+    // +0x0c. +0x04 is an opaque pool pointer, not a capacity. Retain its local
+    // value without dereferencing storage the write-only visitor never reads.
+    if(!Append(bytes,registry,16))return false;
     const auto* symbols=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(registry));
-    const uint32_t count=CrossplayChat::Word(registry+8),capacity=CrossplayChat::Word(registry+4);
+    const uint32_t count=CrossplayChat::Word(registry+8),capacity=CrossplayChat::Word(registry+12);
     if(!count || count>4096 || capacity<count || capacity>4096 || !Append(bytes,symbols,count*4))return false;
     for(size_t i=0;i<RowCount;++i) {
         const auto* row=rows+i*stride;

@@ -12,8 +12,8 @@ struct Fixture {
     unsigned char *registry=nullptr,*symbols=nullptr,*array=nullptr;
     std::array<unsigned char*,75> heads{};
     explicit Fixture(bool value):gold(value),stride(value?0x5c4:0x5a8),rows(value?0x9079:0x8db9) {
-        registry=Allocate(12);symbols=Allocate(32);array=Allocate(8);
-        Pointer(registry,array);Word(registry+4,2);Word(registry+8,2);
+        registry=Allocate(16);symbols=Allocate(32);array=Allocate(8);
+        Pointer(registry,array);Pointer(registry+4,Allocate(12));Word(registry+8,2);Word(registry+12,2);
         Pointer(array,symbols);Pointer(array+4,symbols+16);
         Text(symbols+16,"Synthetic Color");
         Pointer(rows.data()+(gold?0x9024:0x8d68)+0x18,registry);
@@ -54,8 +54,17 @@ int main() {
             Fixture bad(gold);Fixture::Word(bad.registry+8,count);
             Require(!bad.Capture(after),"symbol count bounds");
         }
-        Fixture capacity(gold);Fixture::Word(capacity.registry+4,1);
+        Fixture capacity(gold);Fixture::Word(capacity.registry+12,1);
         Require(!capacity.Capture(after),"symbol capacity bound");
+        Fixture opaque(gold);Require(opaque.Capture(before),"owned symbol allocator identity");
+        Fixture::Word(opaque.registry+4,UINT32_MAX);
+        Require(opaque.Capture(after) && before!=after,"opaque pool pointer retained without dereference");
+        Fixture::Word(opaque.registry+12,1);
+        Require(!opaque.Capture(after),"opaque pool pointer never substitutes for capacity");
+        for(uint32_t value:{0u,4097u,UINT32_MAX}) {
+            Fixture bad(gold);Fixture::Word(bad.registry+12,value);
+            Require(!bad.Capture(after),"true symbol capacity bounds");
+        }
         Fixture missing(gold);Fixture::Pointer(missing.array,reinterpret_cast<void*>(1));
         Require(!missing.Capture(after),"inaccessible selected symbol");
         Fixture text(gold);text.Text(text.Row(1)+0x1c,"Synthetic Player");

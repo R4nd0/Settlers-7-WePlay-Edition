@@ -36,7 +36,7 @@ rule/template-writer agreement and cannot be used as a confirmed setup checkpoin
 
 ## Verification and remaining test
 
-The x86 MSVC `/W4 /WX` dependency fixture passes 66 checks: valid 25-row graphs,
+The corrected x86 MSVC `/W4 /WX` dependency fixture passes 78 checks: valid 25-row graphs,
 stable hashes, selected-color bounds, inaccessible pointers, string lengths and
 terminators, pointed-to text/vector/list/Castle mutations, vector alignment/counts,
 list cycles/backlinks/count mismatches, unequal Castle arrays, total byte limits,
@@ -81,3 +81,9 @@ unimplemented or unqualified. Original Steam-executable runtime qualification is
 separate from both History data sets on the isolated Ubisoft runtime.
 
 See the [sanitized candidate receipt](verification/gold-history-active-capture-20261112.json).
+
+The earlier 66-check candidate used an incorrect symbol-registry fixture:
+`+0x04` is an allocator pointer, while capacity is at `+0x0c`. The
+[original-routine layout audit and correction](GOLD-HISTORY-SYMBOL-REGISTRY.md)
+replace that assumption. The linked earlier candidate receipt remains a
+historical record; its pair never reached the defective guard.

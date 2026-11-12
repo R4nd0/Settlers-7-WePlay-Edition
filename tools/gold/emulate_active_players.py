@@ -108,7 +108,8 @@ def survey(image, version, rich, binary, fixture=None):
     string(symbols, '')
     string(symbols+16, 'Synthetic Color')
     symbol_array = owned(struct.pack('<2I', symbols, symbols+16))
-    symbol_registry = owned(struct.pack('<3I', symbol_array, 2, 2))
+    symbol_pool = owned(bytes(12))  # Opaque to the original binary writer.
+    symbol_registry = owned(struct.pack('<4I', symbol_array, symbol_pool, 2, 2))
     symbol_table = ROWS+(0x9024 if gold else 0x8d68)
     words(symbol_table+0x18, symbol_registry)
     if rich:

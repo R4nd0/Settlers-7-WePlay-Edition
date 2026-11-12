@@ -1,0 +1,88 @@
+{
+  "format": "native-symbol-registry-layout-v1",
+  "fingerprints": {
+    "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+    "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+  },
+  "reserve_region_sha256": {
+    "gold": "604ade3072150fd26e97e40a669757d18c1bb2d75fe2a69245662b57937341f3",
+    "ubisoft": "1eeab0eab5f420035185f70486e55f7aab0d1591f6833654a25c48b9be0d848d",
+    "steam_analysis": "fafc06effc81b5e358a2ca8df0378a326ea556df6a6597ba07b40cb011918c1b"
+  },
+  "original_reserve_calls": 15,
+  "layout": {
+    "entries": 0,
+    "allocator": 4,
+    "count": 8,
+    "capacity": 12
+  },
+  "modeled_crt_and_pool_helpers": true,
+  "game_started": false,
+  "live_capture_qualified": false,
+  "crossplay_qualified": false,
+  "maintainer": "WePlay Community",
+  "parent_commit": "584e046",
+  "source_sha256": {
+    "native/crossplay_active_setup_capture.h": "cdec12ef6d5ea14c8b9bd7f2f869ea3e889521a4679af4b136f1086bef763576",
+    "native/crossplay_active_setup_capture_tests.cpp": "88538e8d9c7eafca803f5ea01ad66b3712f3030361d596332cc3bf1542c59939",
+    "tools/gold/emulate_symbol_registry.py": "eb6fb726432098607f21971490b387f72a83ddb9a9e95b030a351d20853214f3",
+    "tools/gold/emulate_active_players.py": "4e30ffa933fb1a2aea6efd5c418ae44a55f7656a52bc64568b6dd259f82a6c12"
+  },
+  "verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "full_public_crossplay_build": "pass",
+    "dependency_checks": 78,
+    "realistic_fixture_failed_previous_candidate": true,
+    "windows_executions": {
+      "dependency": {
+        "result": "pass",
+        "fixture_sha256": "7dfdf7587eaf0c061ef56dbf904301b2f614d02f441f84c72a65df617a2ff492",
+        "stdout": "PASS 78 active-setup dependency checks; no original writer or live game executed."
+      },
+      "gold_observer_abi": {
+        "result": "pass",
+        "fixture_sha256": "e493f2e89574623fa4573fdb55ffe5d45099171a91d12bcac1250e9071c9becb",
+        "stdout": "PASS observer preserves original thiscall arguments, stack, registers, result, flags and LastError."
+      },
+      "history_observer_abi": {
+        "result": "pass",
+        "fixture_sha256": "562e3f212d4a4a3e6b6fb177a9209e24c1e0aae0adb9bcd98c9e7c1ac6f21953",
+        "stdout": "PASS observer preserves original thiscall arguments, stack, registers, result, flags and LastError."
+      }
+    }
+  },
+  "original_writer_regression": {
+    "original_row_calls": 108,
+    "compiled_guard_checks": 24,
+    "reviewed_schema_and_binary_outputs_unchanged": true,
+    "compiled_fixture_sha256": "e13b1867e65563767c27af07fa945aaf4ea165cd866bdecdb54e0ecbc71fcaa6"
+  },
+  "private_runtime12": {
+    "frozen_source_sha256": "83445dbcc6daf383443779a90b49001305d5785a1fd3ee39b83b76653f7922cd",
+    "source_files": 240,
+    "includes_relocated": 71,
+    "builds": {
+      "gold": {
+        "source_manifest_sha256": "4e733c6a999807af41052728bd33453329ef14ba78927977c60f50764cedc63b",
+        "adapter_sha256": "fbffd3d2214613d489585c24d171af43f0ec056a1ecf8448aea6b5ee95740a97"
+      },
+      "history": {
+        "source_manifest_sha256": "ae000469d8af58cd287944f4210310b524c1ba70e0f16829e682de304280d372",
+        "adapter_sha256": "0f8575bd89fa4ed2ba1ef063ffe38cbe5595d39fea8af649168d1e26df6d1ec9"
+      }
+    },
+    "original_outgoing_fixture_is_historical": true,
+    "start_enabled": false
+  },
+  "limits": {
+    "positive_live_capture_qualified": false,
+    "atomic_setup_lock": false,
+    "complete_setup_root_or_content_capture": false,
+    "identities_normalized": false,
+    "shared_world_started": false,
+    "mixed_turns_qualified": false,
+    "gold_neo_qualified": false,
+    "mixed_save_coldreload_qualified": false
+  }
+}
