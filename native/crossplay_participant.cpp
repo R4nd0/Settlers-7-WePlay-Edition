@@ -334,7 +334,7 @@ bool ParticipantEvent::Bind(Crossplay::Edition edition) {
     }
     return false;
 }
-bool ParticipantEvent::Construct(Change change,const Participant& member,const void* castle,uint32_t extra) {
+bool ParticipantEvent::Construct(Change change,const Participant& member,const void* castle,uint32_t extra,bool ready) {
     if(impl->owner && impl->owner!=GetCurrentThreadId()) return false;
     const auto* profile=impl->profile;
     impl->failure=ParticipantFailure::State;
@@ -342,7 +342,7 @@ bool ParticipantEvent::Construct(Change change,const Participant& member,const v
     impl->failure=ParticipantFailure::NativeMethods;
     if(!Methods(*profile)) return false;
     impl->failure=ParticipantFailure::Participant;
-    if(!Eligible(change,member,*profile)) return false;
+    if(!Eligible(change,member,*profile) || (ready && (change!=Change::Confirmed || profile->edition==Crossplay::Edition::Gold))) return false;
     impl->failure=ParticipantFailure::Castle;
     if(change==Change::Confirmed) {
         if(!Readable(castle,profile->castle_size)) return false;
@@ -353,7 +353,7 @@ bool ParticipantEvent::Construct(Change change,const Participant& member,const v
     const uint32_t status=change==Change::Added?1u:change==Change::Confirmed?2u:6u;
     PlayerData data{status,member.connection,0,member.slot,
         {member.name.c_str(),static_cast<uint32_t>(member.name.size()+1),static_cast<uint32_t>(member.name.size()),0},
-        member.principal,static_cast<unsigned char>(member.host),0,0,0,member.station,0,0};
+        member.principal,static_cast<unsigned char>(member.host),static_cast<unsigned char>(ready),0,0,member.station,0,0};
     impl->storage.fill(0);
     void* output=impl->storage.data();void* result=nullptr;
     const uint32_t subtype=static_cast<uint32_t>(change),local=member.local?1u:0u;
@@ -375,6 +375,7 @@ bool ParticipantEvent::Construct(Change change,const Participant& member,const v
         || copied->connection!=member.connection || copied->slot!=member.slot
         || copied->principal!=member.principal || copied->station!=member.station
         || copied->host!=static_cast<unsigned char>(member.host)
+        || copied->reserved25!=static_cast<unsigned char>(ready)
         || copied->name.length!=member.name.size()
         || (member.name.empty()
             ? (copied->name.data && (!Readable(copied->name.data,1) || *copied->name.data))
@@ -387,7 +388,7 @@ bool ParticipantEvent::Construct(Change change,const Participant& member,const v
     impl->failure=ParticipantFailure::None;
     return true;
 }
-bool ParticipantEvent::ConstructConfirmed(const Participant& member,const castle_wire::Design& castle,uint32_t extra) {
+bool ParticipantEvent::ConstructConfirmed(const Participant& member,const castle_wire::Design& castle,uint32_t extra,bool ready) {
     if(impl->owner && impl->owner!=GetCurrentThreadId()) return false;
     impl->failure=ParticipantFailure::State;
     if(!impl->profile || impl->live) return false;
@@ -395,7 +396,7 @@ bool ParticipantEvent::ConstructConfirmed(const Participant& member,const castle
     std::vector<unsigned char> encoded;
     if(!castle_wire::Encode(castle,encoded)) return false;
     const CastleSource source(*impl->profile,castle);
-    return Construct(Change::Confirmed,member,source.Get(*impl->profile),extra);
+    return Construct(Change::Confirmed,member,source.Get(*impl->profile),extra,ready);
 }
 bool ParticipantEvent::CaptureCastle(const void* source,castle_wire::Design& result) const {
     result={};

@@ -6,6 +6,7 @@
 #include "crossplay_history_role.h"
 #include "crossplay_session_config_codec.h"
 #include "crossplay_ready_codec.h"
+#include "crossplay_ready_state_codec.h"
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -22,6 +23,9 @@ extern "C" __declspec(dllexport) uint32_t __cdecl WePlaySessionConfigMethodsOrac
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl WePlayReadyMethodsOracle(uint32_t value) {
     return CrossplayNativeCodec::ReadyDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
+}
+extern "C" __declspec(dllexport) uint32_t __cdecl WePlayReadyStateMethodsOracle(uint32_t value) {
+    return CrossplayNativeCodec::ReadyStateDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
 }
 extern "C" __declspec(dllexport) void* __cdecl WePlayGoldConfigCtorOracle(uintptr_t address,const void* map,void* output,uint32_t source,const void* save,const void* slots) {
     return CrossplayNativeCodec::SessionConfigDetail::GoldConstruct(address,map,output,source,save,slots);
@@ -180,7 +184,13 @@ int main() {
     using CrossplayNativeCodec::Detail::Readable;
     Check(!Readable(nullptr,1) && !Readable(&output,0) && !Readable(reinterpret_cast<void*>(UINTPTR_MAX-1),4),"native range exclusions");
     auto* pages=static_cast<unsigned char*>(VirtualAlloc(nullptr,8192,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));Check(pages!=nullptr,"owned guard-page allocation");
-    DWORD previous=0;Check(VirtualProtect(pages+4096,4096,PAGE_NOACCESS,&previous)!=FALSE,"owned guard-page protection");
+    using CrossplayNativeCodec::ReadyStateDetail::WritableReadyRow;
+    Check(WritableReadyRow(pages),"owned preparation Ready field writable");
+    pages[0x71]=2;Check(!WritableReadyRow(pages),"noncanonical preparation state excluded");pages[0x71]=0;
+    DWORD previous=0;Check(VirtualProtect(pages+4096,4096,PAGE_READONLY,&previous)!=FALSE,"owned Ready target page protection");
+    Check(!WritableReadyRow(pages+4096-0x71),"readable row beginning on writable page cannot authorize a read-only Ready field");
+    Check(!WritableReadyRow(nullptr) && !WritableReadyRow(reinterpret_cast<unsigned char*>(UINTPTR_MAX-1)),"Ready row null and wrap rejected");
+    Check(VirtualProtect(pages+4096,4096,PAGE_NOACCESS,&previous)!=FALSE,"owned guard-page protection");
     Check(Readable(pages,4096) && !Readable(pages+4094,4) && !Readable(pages+4096,1),"unreadable native spans excluded");
     using CrossplayNative::HistoryRoleDetail::Writable;
     Check(Writable(pages,4) && !Writable(pages+4096,4),"role setter requires writable owned memory");
@@ -203,6 +213,11 @@ int main() {
         CrossplayNativeCodec::PendingReadyToggle pending;
         Check(!CrossplayNativeCodec::EnqueueReadyToggle(edition,binding,ids,wire,pending) && !pending.configuration,"unbound Ready receiver cannot invoke native factory");
         Check(CrossplayNativeCodec::ObserveReadyToggle(binding,pending)==CrossplayNativeCodec::ReadyObservation::Invalid,"empty Ready observation cannot acknowledge a request");
+        CrossplayReadyState::Snapshot observed{42,1,1};
+        Check(!CrossplayNativeCodec::CaptureGoldReadySnapshot(binding,pending,1,observed) && !observed.revision,"no snapshot without actual native pending ownership");
+        CrossplayNativeCodec::PendingHistoryReadyState history_pending;
+        Check(!CrossplayNativeCodec::ApplyHistoryReadySnapshot(edition,binding,ids,{1,1,1},history_pending) && !history_pending.session,"unbound snapshot cannot change preparation or enqueue updates");
+        Check(CrossplayNativeCodec::ObserveHistoryReadySnapshot(edition,binding,ids,history_pending)==CrossplayNativeCodec::ReadyObservation::Invalid,"missing snapshot consumer cannot report applied");
     }
     bool denied=false;std::thread other([&]{denied=!CrossplayNativeCodec::Roster(binding,0,1);});other.join();Check(denied,"foreign-thread binding excluded");
     std::printf("PASS %u native codec ABI/range/ownership rejection checks; no game code executed\n",checks);

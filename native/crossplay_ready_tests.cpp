@@ -1,4 +1,5 @@
 #include "crossplay_ready.h"
+#include "crossplay_ready_state.h"
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
@@ -49,5 +50,28 @@ int main() {
         auto native=Wire(0);native.resize(CrossplayReady::NativeStateSize);CrossplayChat::Put(native.data()+13,2);native[17]=static_cast<unsigned char>(value);
         Check(!CrossplayReady::NativeState(native,0),"nonboolean Gold native ReadyState excluded");
     }
-    std::printf("PASS %u native Ready request framing checks; no engine, readiness result or world start\n",checks);
+    for(unsigned host=0;host<2;++host)for(unsigned guest=0;guest<2;++guest) {
+        CrossplayReadyState::Snapshot state{1,static_cast<unsigned char>(host),static_cast<unsigned char>(guest)},decoded;
+        std::vector<unsigned char> frame;
+        Check(CrossplayReadyState::Encode(sender,state,frame),"encode observed two-human Ready snapshot");
+        Check(CrossplayReadyState::Decode(receiver,frame,0,decoded) && decoded.revision==1 && decoded.host==host && decoded.guest==guest,"snapshot preserves actual bits");
+        Check(!CrossplayReadyState::Decode(sender,frame,0,decoded),"snapshot requires reciprocal identities");
+        Check(!CrossplayReadyState::Decode(receiver,frame,1,decoded) && !decoded.revision,"duplicate snapshot excluded");
+        Check(!CrossplayReadyState::Decode(receiver,frame,UINT32_MAX,decoded),"revision cannot wrap");
+        for(size_t i=0;i<frame.size();++i) {
+            auto damaged=frame;damaged[i]^=0x80;
+            Check(!CrossplayReadyState::Decode(receiver,damaged,0,decoded) && !decoded.revision,"all noncanonical fields excluded");
+            damaged=frame;damaged.resize(i);
+            Check(!CrossplayReadyState::Decode(receiver,damaged,0,decoded),"all truncated snapshots excluded");
+        }
+        frame.push_back(0);Check(!CrossplayReadyState::Decode(receiver,frame,0,decoded),"trailing snapshot bytes excluded");
+        state.revision=3;Check(CrossplayReadyState::Encode(sender,state,frame) && !CrossplayReadyState::Decode(receiver,frame,1,decoded),"missing revision fails closed");
+        state.revision=2;Check(CrossplayReadyState::Encode(sender,state,frame) && CrossplayReadyState::Decode(receiver,frame,1,decoded),"next revision allowed");
+        state.revision=0;Check(!CrossplayReadyState::Encode(sender,state,frame) && frame.empty(),"zero revision excluded");
+        for(unsigned value=2;value<256;++value) {
+            state={1,static_cast<unsigned char>(value),0};Check(!CrossplayReadyState::Encode(sender,state,frame),"host boolean strict");
+            state={1,0,static_cast<unsigned char>(value)};Check(!CrossplayReadyState::Encode(sender,state,frame),"guest boolean strict");
+        }
+    }
+    std::printf("PASS %u Ready intent and observed-state framing checks; no engine or world start\n",checks);
 }

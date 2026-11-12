@@ -1,0 +1,101 @@
+{
+  "date": "2026-11-12",
+  "scope": "experimental observed Gold Ready state return to admitted History guests",
+  "ordinary_adapter_builds_changed": false,
+  "source": {
+    "original_gold_consumer_change_required": true,
+    "actual_configuration_recaptured_under_original_lock": true,
+    "two_human_ready_bits_preserved": true,
+    "native_acknowledgement_manufactured": false
+  },
+  "receiver": {
+    "authenticated_scoped_identities_required": true,
+    "strict_consecutive_revisions": true,
+    "current_guest_roster_and_backend_ownership_required": true,
+    "native_manual_lobby_mode_required": 2,
+    "original_confirmed_constructors_and_local_clones": true,
+    "original_preparation_ready_setters": true,
+    "existing_castles_names_ids_and_slots_preserved": true,
+    "actual_cache_and_preparation_observed_before_completion": true
+  },
+  "offline_verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "intent_and_state_framing_checks": 3250,
+    "codec_abi_and_rejection_checks": 133,
+    "participant_abi_and_policy_checks": 177,
+    "compiled_method_guard_checks": 22,
+    "original_history_constructor_clone_queue_destructor_ready_cases": 16,
+    "original_history_consumer_and_preparation_setter_cases": 8,
+    "consumer_cases_model_guest_role_and_lock_callbacks": true,
+    "real_queue_dispatcher_executed_by_offline_cases": false,
+    "admission_regression_checks": 1050,
+    "configuration_regression_checks": 7141
+  },
+  "request_only_ubisoft_data_runtime_repeat": {
+    "history_runtime": "Ubisoft History",
+    "renderer": "DXVK",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "steam_sdk_loaded_in_either_client": false,
+    "genuine_guest_button_requests": 2,
+    "gold_guest_configuration_ready_sequence": [0, 1, 0],
+    "gold_actual_room_guest_record_present": true,
+    "gold_original_room_ready_changes_observed": [1, 0],
+    "history_cache_ready_sequence": [0, 0, 0],
+    "history_preparation_ready_sequence": [0, 0, 0],
+    "authenticated_relay_records": 10,
+    "rejections_before_normal_retirement": 0,
+    "normal_exit_codes": [0, 0],
+    "profiles_options_adapters_and_archives_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true
+  },
+  "observed_return_runtime_pairs": [
+    {
+      "history_source_data": "Ubisoft History",
+      "history_runtime": "Ubisoft History standalone",
+      "genuine_guest_button_requests": 2,
+      "gold_guest_cache_and_room_ready_sequence": [0, 1, 0],
+      "history_guest_cache_and_preparation_ready_sequence": [0, 1, 0],
+      "history_host_cache_and_preparation_after_projection": 1,
+      "both_ui_indicators_observed_on_and_off": true,
+      "authenticated_relay_records": 12,
+      "rejections_before_normal_retirement": 0,
+      "normal_retirement_rejections": 1,
+      "actual_game_exit_codes": [0, 0]
+    },
+    {
+      "history_source_data": "Steam History",
+      "history_runtime": "Ubisoft History standalone",
+      "genuine_guest_button_requests": 2,
+      "gold_guest_cache_and_room_ready_sequence": [0, 1, 0],
+      "history_guest_cache_and_preparation_ready_sequence": [0, 1, 0],
+      "history_host_cache_and_preparation_after_projection": 1,
+      "both_ui_indicators_observed_on_and_off": true,
+      "authenticated_relay_records": 12,
+      "rejections_before_normal_retirement": 0,
+      "normal_retirement_rejections": 1,
+      "actual_game_exit_codes": [0, 0]
+    }
+  ],
+  "return_runtime_environment": {
+    "renderer": "DXVK",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "steam_sdk_loaded_in_either_client": false,
+    "profiles_options_adapters_and_archives_restored": true,
+    "saves_cloud_and_shared_files_unchanged": true,
+    "original_steam_executable_runtime_qualified": false,
+    "scope": "two admitted humans in the original manual lobby"
+  },
+  "earlier_service_expired_attempt": {
+    "reached_admission": false,
+    "gold_exit_code": 0,
+    "history_exit_code": 3221225477,
+    "cause_attributed_to_return_candidate": false,
+    "restoration_verified": true
+  },
+  "new_return_candidate_runtime_qualified": true,
+  "mixed_world_started": false,
+  "synchronized_mixed_turns_qualified": false,
+  "gold_neo_custom_map_save_reload_qualified": false
+}

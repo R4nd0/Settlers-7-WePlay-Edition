@@ -36,8 +36,10 @@ public:
     // Never pass a castle object from the other edition: layouts differ.
     // Other changes use their original native default-castle constructor.
     bool Construct(Change change, const Participant& participant,
-                   const void* native_castle = nullptr, uint32_t extra = 0);
-    bool ConstructConfirmed(const Participant& participant, const castle_wire::Design& castle, uint32_t extra = 0);
+                   const void* native_castle = nullptr, uint32_t extra = 0, bool ready = false);
+    // Only a History Confirmed update may carry an observed authoritative Ready
+    // value. Gold uses its separate original state event. This is not admission.
+    bool ConstructConfirmed(const Participant& participant, const castle_wire::Design& castle, uint32_t extra = 0, bool ready = false);
     bool CaptureCastle(const void* native_castle, castle_wire::Design& result) const;
     // Borrowed original event, valid until Reset/destruction. Does not enqueue,
     // dispatch, assert readiness or change any native session flags.

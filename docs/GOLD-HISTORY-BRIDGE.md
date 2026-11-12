@@ -462,3 +462,67 @@ and actual Gold ↔ Ubisoft History and Gold ↔ Steam History matches under DXV
 Native Ready results, acknowledgements, checksums and turn progression must
 remain consequences of those real operations. A channel test or matching
 serialization fixture cannot qualify those outcomes.
+
+## Observed Ready return candidate, November 12
+
+The request path has now also passed the Ubisoft-data standalone pair: two
+genuine guest clicks changed Gold's native configuration from 0 to 1 and back
+to 0. A separately validated, read-only process inspection found the guest's
+slot record in the actual Gold NetZ room and observed its corresponding
+changes. The earlier hypothesis that this record was absent was incorrect.
+Both games used DXVK High at 1920×1080 without a loaded Steam SDK, exited
+normally, restored their profiles and adapters, and preserved saves, cloud
+and shared files. History's configuration and preparation Ready values remained
+zero in this request-only run. No world started.
+
+The new excluded candidate adds an authenticated, sequential snapshot of the
+two actual Gold Ready values. The source requires an observed original Gold
+consumer change and recaptures the current configuration under its native lock.
+Session-scoped identities, exact length, strict booleans and consecutive
+revisions reject foreign, duplicate, missing or malformed updates.
+
+History's original configuration-event consumer copies the map name but does
+not apply that event's Ready vector. Its normal player-data callback instead
+sets preparation Ready and constructs a Confirmed participant update whose
+local player-data field carries the result. The configuration consumer reads
+that field. The candidate follows those original constructors, local clones
+and preparation setters for the already admitted two-player guest roster. It
+preserves existing IDs, names, slots, native castle designs and extra values.
+It then waits for both actual configuration and preparation values to match.
+It supplies no start, connection handle or simulation acknowledgement.
+
+Independent Ubisoft and Steam method guards cover the complete relevant
+constructor, configuration consumer and leaf setter. Offline verification
+passes 3,250 framing checks, 133 codec rejection/ABI checks, 177 participant
+checks and 22 compiled method-integrity checks. Sixteen bounded original
+constructor/clone/queue/destructor cases preserve Ready 0 and 1. Eight further
+original consumer/setter cases update the correct synthetic slot with modeled
+guest-role and lock callbacks. Those cases do not execute a real queue
+dispatcher. The writable-field guard also rejects a preparation row whose Ready
+byte crosses into a read-only page, even when the row's first page is writable.
+
+Two fresh, separate-copy runtime pairs now passed this return path, one with
+Ubisoft History data and one with Steam History data. Both use the standalone
+Ubisoft executable profile. Two genuine History Ready-button clicks per pair
+produced actual Gold cache and NetZ guest-record changes from 0 to 1 and back
+to 0. The authenticated return then passed through the original History local
+queue consumers: its configuration cache and preparation Ready field followed
+the same sequence. Both windows showed green guest indicators while ready and
+red after the reverse change. The host Ready value remained 1 after projection.
+
+Each pair used DXVK High at 1920×1080 with no Steam SDK loaded, completed twelve
+authenticated relay records with no pre-retirement rejection, and had one
+normal channel-retirement rejection. All four game processes exited with code
+zero. Profiles, options, adapters and archives were restored; saves, cloud and
+shared files stayed unchanged. These results qualify the bounded two-human
+Ready return on that standalone runtime, not the original Steam executable or
+a mixed world. The earlier service-expired attempt never reached admission;
+its History shutdown exited with an access violation and is not a successful
+Ready test. See the [verification receipt](verification/gold-ready-state-20261112.json).
+
+The requested completion target additionally includes a real mixed world,
+native synchronized turns, NEO logistics and identical customized multiplayer
+templates, followed by real saving, cold reload and continued logistics. The
+existing History-only NEO and Map Forge results do not qualify Gold. Template
+name and native rules must also agree: checksum agreement alone previously
+missed unequal victory-point rules in the History template investigation.

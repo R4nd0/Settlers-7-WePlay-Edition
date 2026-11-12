@@ -19,7 +19,7 @@ PROFILES={'gold':(0xa50370,0xaa6fe0,0x51f7b0,0x9c,0x94,0x98),
 S=0x20000000;O=S+0x1000;D=S+0x2000;N=S+0x3000;C=S+0x4000;STOP=S+0x5000;H=S+0x10000;STACK=0x30000000
 T=S+0x8000;MAP=S+0x9000
 SEND={'gold':0xa4e430,'ubisoft':0xedb300,'steam_analysis':0xeda9f0}
-def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,local_offset,subtype=2,text=b'Crossplay',connection=0,local=False,host=False,castle_parts=False):
+def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,local_offset,subtype=2,text=b'Crossplay',connection=0,local=False,host=False,castle_parts=False,ready=False):
  u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(im.base,(im.size+4095)&~4095);u.mem_write(im.base,im.mapped)
  u.mem_map(0,4096);u.mem_map(S,0x100000);u.mem_map(STACK,0x10000)
  def words(a,*v):u.mem_write(a,struct.pack('<'+'I'*len(v),*v))
@@ -27,7 +27,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
  if subtype not in (2,3,4,44) or not 0<=len(text)<=64 or any(c<32 or c>126 for c in text):raise ValueError('Unsupported synthetic participant')
  words(D,2 if subtype==3 else 6 if subtype in(4,44) else 1,connection,0,1 if host else 0xffffffff if subtype==2 else 2)
  principal=0 if local else 0x3456
- words(D+0x10,N,len(text)+1,len(text),0);words(D+0x20,principal);u.mem_write(D+0x24,bytes((int(host),0,0,0)));words(D+0x28,connection,0,0)
+ words(D+0x10,N,len(text)+1,len(text),0);words(D+0x20,principal);u.mem_write(D+0x24,bytes((int(host),int(ready),0,0)));words(D+0x28,connection,0,0)
  u.mem_write(N,text+b'\0');u.mem_write(O-16,b'\xa5'*16);u.mem_write(O+obj_size,b'\xa5'*16)
  next_heap=H;allocs={};stubs={};copies=set();last=[];locks=[]
  u.mem_map(thunk.OPTIONAL_HEADER.ImageBase,(thunk.OPTIONAL_HEADER.SizeOfImage+4095)&~4095)
@@ -137,6 +137,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
   if word(selected+count_offset)!=1 or word(other+count_offset)!=0:raise RuntimeError('native queue selection/count')
   block=word(MAP+async_value*0x40);queued=word(block)
   if queued==O or queued not in allocs or word(queued)!=word(O):raise RuntimeError('native queue did not take an owned clone')
+  if u.mem_read(queued+0x35,1)!=bytes((int(ready),)):raise RuntimeError('native clone lost observed Ready field')
   check_castle(queued)
   if bytes(u.mem_read(O,obj_size))!=original or bytes(u.mem_read(queued+4,0x1c))!=original[4:0x20]:raise RuntimeError('native send changed event scalars')
   queued_name=word(queued+0x20)
@@ -149,7 +150,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
   # Original virtual destructor, with native delete flag zero for caller-owned storage.
   call(im.tables[m.EVENTS[0]][1][0],[0],O)
   if allocs:raise RuntimeError('Native destructor left owned allocations')
-  return {'ok':True,'subtype':subtype,'connection_zero':connection==0,'local':local,'host':host,'name_length':len(text)}
+  return {'ok':True,'subtype':subtype,'connection_zero':connection==0,'local':local,'host':host,'name_length':len(text),'ready':ready}
  except Exception as e:raise RuntimeError(im.label+' '+str(e)+' near '+str([hex(x) for x in last])) from e
 def main():
  parser=argparse.ArgumentParser(description=__doc__)
@@ -179,7 +180,14 @@ def main():
     for connection in ((1,0x12345678) if label=='gold' else (0,0x12345678)):
      execute(im,imports,thunk,*p,subtype=3,connection=connection,local=local,host=host,castle_parts=True)
      count+=1;gc.collect()
-  result[label]={'construction_and_destruction_cases':count,'native_local_queue_cases':count,'nonempty_castle_cases':8,'passed':True};total+=count
+  ready_cases=0
+  if label!='gold':
+   for local in (False,True):
+    for host in (False,True):
+     for ready in (False,True):
+      execute(im,imports,thunk,*p,subtype=3,connection=0 if local else 42,local=local,host=host,castle_parts=True,ready=ready)
+      count+=1;ready_cases+=1;gc.collect()
+  result[label]={'construction_and_destruction_cases':count,'native_local_queue_cases':count,'nonempty_castle_cases':8+ready_cases,'ready_field_cases':ready_cases,'passed':True};total+=count
   print(json.dumps({'profile':label,'passed_cases':count}),flush=True)
  receipt={'format':'native-participant-local-queue-v2','image_fingerprints':pins,
   'compiled_thunk_sha256':hashlib.sha256(thunk_raw).hexdigest(),'profiles':result,
