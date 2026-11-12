@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-12",
+  "scope": "Bounded Gold host Color/Team notifications for a two-human Monhaim preparation lobby",
+  "ordinary_adapters_include_module": false,
+  "public_module_live_integration_tested": false,
+  "windows_x86": {
+    "compiler_warnings_as_errors": true,
+    "checks": 682,
+    "process_exit_code": 0,
+    "embedded_as_invoker_manifest": true,
+    "game_process_started": false
+  },
+  "compiled_guard_emulation": {
+    "profiles": ["Gold", "Ubisoft History", "Steam History analysis"],
+    "checks": 148,
+    "fixture_sha256": "b0fd3e3a3fcfc710c6d9a9cf71e46e87e25a00dde33b6318373f361908065568",
+    "virtual_query_modeled": true,
+    "original_game_code_executed": false
+  },
+  "private_candidate_two_live": {
+    "history_data": "Ubisoft History",
+    "history_runtime": "Isolated standalone Ubisoft History",
+    "steam_sdk_loaded": false,
+    "renderer": "DXVK High",
+    "host_menu_color_change": "Red to Blue",
+    "host_menu_team_change": "I to III to I",
+    "native_player_values_agree": true,
+    "color_projection": "Original factory/clone queue plus explicitly guarded original preparation setter",
+    "team_projection": "Original native event consumer",
+    "guest_original_ready_button": true,
+    "native_ready_caches_agree": true,
+    "normal_game_exit_codes": [0, 0],
+    "runner_exit_codes": [0, 0],
+    "profile_adapter_interface_restored": true,
+    "saves_cloud_shared_unchanged": true
+  },
+  "steam_data_live_repeat_passed": false,
+  "native_start_positions_live_tested": false,
+  "shared_world_started": false,
+  "synchronized_turns_qualified": false,
+  "gold_neo_logistics_qualified": false,
+  "mixed_save_and_cold_reload_qualified": false
+}

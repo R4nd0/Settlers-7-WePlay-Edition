@@ -51,5 +51,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native setup-signature guard fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_setup_signature_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_setup_signature_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable setup-signature test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_player_option_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_player_option_tests.exe /link ws2_32.lib bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Native player-option guard fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_player_option_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_player_option_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Relocatable native player-option test build failed.' }
 } finally { Pop-Location }
-Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent, map initialization, fresh-start and rule-signature tests. No game adapter was installed or launched.'
+Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent, map initialization, fresh-start, rule-signature and player-option tests. No game adapter was installed or launched.'
