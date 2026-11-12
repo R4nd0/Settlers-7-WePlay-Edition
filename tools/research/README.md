@@ -1,5 +1,11 @@
 # S7 History bootstrap routing probe
 
+For the separate, offline Lua debugger investigation, see
+[the findings and reproduction command](../../docs/LUA-DEBUGGER-INVESTIGATION.md).
+`audit_lua_debugger.py` checks fingerprinted original/analysis images and runs
+bounded native LuaJIT hook calls against synthetic state. It never attaches to
+or launches a game.
+
 This is a research observer, **not a replacement multiplayer server**. By default it replies HTTP 503 and cannot create, find, join, or run a game. The ordinary Ubisoft/UbiServices initialization and login remain in place. Its HTTP result is a local bootstrap request temporally correlated with the guarded hook's redirect. The listener cannot prove which process sent that request. An optional hook-only mode leaves HTTP to an already running separate local service.
 
 Use only a user-authorized test process. The Ubisoft launcher may replace a separately launched copy with the installed executable; the target must match the actual authorized process. The watcher never launches or stops a game. It checks the exact process executable path, the executable SHA256, PE32/ia32 architecture, and the target function's bytes on disk and in memory. It temporarily replaces one sandbox-selection argument with `localhost` and detaches after the observation or deadline. It never edits the executable on disk. The temporary hook is limited to the validated S7 History Ubisoft binary with SHA256 `4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f`.
