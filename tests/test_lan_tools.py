@@ -6,6 +6,7 @@ All output is written to a new temporary directory, never into the installation.
 import copy
 import gzip
 import json
+import mmap
 import os
 from pathlib import Path
 import struct
@@ -58,6 +59,44 @@ def specification():
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_read_only_mapping_is_borrowed_without_copy_and_replacement_preserves_input(self):
+        original = synthetic_archive()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'invented.bba'
+            path.write_bytes(original)
+            with path.open('rb') as file, mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
+                archive = bba.Archive(mapped, copy=False)
+                self.assertIs(archive.raw, mapped)
+                self.assertEqual(archive.read('Script/example.lua'), b'return false\n')
+                self.assertEqual(archive.read('Script/unchanged.lua'), b'return 123\n')
+                changed = bba.Archive(archive.replace({'Script/example.lua': b'return true\n'}))
+                self.assertEqual(changed.read('Script/example.lua'), b'return true\n')
+                self.assertEqual(mapped[:], original)
+            self.assertEqual(path.read_bytes(), original)
+
+    def test_borrowing_rejects_mutable_or_noncontiguous_buffers(self):
+        original = synthetic_archive()
+        for raw in (bytearray(original), memoryview(original)[::2]):
+            with self.subTest(kind=type(raw).__name__), self.assertRaisesRegex(ValueError, 'read-only byte buffer'):
+                bba.Archive(raw, copy=False)
+        with tempfile.TemporaryFile() as file:
+            file.write(original)
+            file.flush()
+            with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_WRITE) as mapped:
+                with self.assertRaisesRegex(ValueError, 'read-only byte buffer'):
+                    bba.Archive(mapped, copy=False)
+
+    def test_borrowed_input_retains_directory_and_payload_corruption_checks(self):
+        original = bytearray(synthetic_archive())
+        original[-1] ^= 1
+        with self.assertRaisesRegex(ValueError, 'directory CRC32'):
+            bba.Archive(bytes(original), copy=False)
+        original = bytearray(synthetic_archive())
+        entry = bba.Archive(original).entries['Script/unchanged.lua']
+        original[entry.values[6]] ^= 1
+        with self.assertRaisesRegex(ValueError, 'decompressed size/CRC32'):
+            bba.Archive(bytes(original), copy=False).read(entry.name)
+
     def test_append_preserves_old_bytes_untouched_file_and_hash_table(self):
         original = synthetic_archive()
         archive = bba.Archive(original)

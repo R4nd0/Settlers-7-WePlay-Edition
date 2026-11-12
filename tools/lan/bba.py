@@ -100,8 +100,19 @@ class Entry:
 
 
 class Archive:
-    def __init__(self, raw):
-        self.raw = bytes(raw)
+    def __init__(self, raw, *, copy=True):
+        """Parse an archive; optionally borrow a caller-owned read-only buffer.
+
+        A borrowed mapping must stay open for this object's entire lifetime.
+        Directory/payload checks are identical; replace() still returns new bytes.
+        """
+        if copy:
+            self.raw = bytes(raw)
+        else:
+            with memoryview(raw) as view:
+                if not view.readonly or not view.c_contiguous or view.itemsize != 1:
+                    raise ValueError("Borrowed BBA input must be a contiguous read-only byte buffer")
+            self.raw = raw
         if len(raw) < 32 or raw[:4] != b"BAF\x06":
             raise ValueError("Not a supported production BBA v6 archive")
         self.header_size = struct.unpack_from("<I", raw, 8)[0]

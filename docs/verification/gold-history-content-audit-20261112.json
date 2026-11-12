@@ -1,0 +1,107 @@
+{
+  "format": "weplay-gold-history-content-audit-v1",
+  "date": "2026-11-12",
+  "sources": {
+    "tools/lan/bba.py": "91fb72a6ae1c8f808fe354557f006eb2da9ee050b521c359a8231c0eb718a70c",
+    "tools/gold/content_audit.py": "ecbee74538258766bf4da54dacceb528f3fbe6214092d5ef98a35ad2fb27ccba",
+    "tests/test_lan_tools.py": "a257db4dbfce87f62d29cb83844666da6f170db665a0b606f2fff356bcf1cdab",
+    "tests/test_crossplay_content_audit.py": "27cce0731a14655a04c68d220e972f40f5f694aec3494dcffb1bb51cedb009a6"
+  },
+  "actual_archive_audit": {
+    "profiles": {
+      "gold": {
+        "interface": {
+          "archive_sha256": "2beb62af0c8da7fff58b5f73fb2f2fe9ff27ad92b8e4fec686e4da8f135f04aa",
+          "entry_digest": "530af70f7a393bce34d98307cbfe4a74e4b71ec38b0b9fadcc97cc714aa836a4",
+          "file_count": 284,
+          "prefix": null
+        },
+        "shared": {
+          "archive_sha256": "01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f",
+          "entry_digest": "682914063077c7cfff5340a8bf3338def962fcb77862328bc9e5546bfa579d8c",
+          "file_count": 733,
+          "prefix": null
+        },
+        "monhaim": {
+          "archive_sha256": "ec5f8a8d1de7490334e1b9abb56bcfe5772357f8d19dea1e3d72235a691151f7",
+          "entry_digest": "5b840ea7e6aac89b702902d2dd27909a263eea3b257eb99ab087f5f3d44a40d9",
+          "file_count": 15,
+          "prefix": "Maps/Skirmish/s04_m06_Monhaim_Valley/"
+        }
+      },
+      "ubisoft": {
+        "interface": {
+          "archive_sha256": "9bf48a7f08632edbc88311b0b7f696b1d2cb4c0f3958686fd08f5df00852226b",
+          "entry_digest": "4dbf961af42576cbf56dab3d6c78d43893f43f3ca9346f6bad567ba0c2b37d2a",
+          "file_count": 284,
+          "prefix": null
+        },
+        "shared": {
+          "archive_sha256": "30d679720e14ec9007f359c5703d854b78a866480f856810c934e439d620e3ed",
+          "entry_digest": "b413cabc06ee10499d82989df528c659f60cee590d6453b9486fb0d2ec0bc6bb",
+          "file_count": 732,
+          "prefix": null
+        },
+        "monhaim": {
+          "archive_sha256": "745a6a535be9b026557f4588b6f5eb13d4534fb4c400e0297bd96660705934d1",
+          "entry_digest": "5b840ea7e6aac89b702902d2dd27909a263eea3b257eb99ab087f5f3d44a40d9",
+          "file_count": 15,
+          "prefix": "Maps/Skirmish/s04_m06_Monhaim_Valley/"
+        }
+      },
+      "steam": {
+        "interface": {
+          "archive_sha256": "bb536da72b54138c3a14229734f5873284a1f7c3ea7b6b5a7d1dee9074d563c8",
+          "entry_digest": "7d7e13361a5e470eb09690c5ef73ffa084e95017cb17b0fb9fef51092ddf72bf",
+          "file_count": 284,
+          "prefix": null
+        },
+        "shared": {
+          "archive_sha256": "30d679720e14ec9007f359c5703d854b78a866480f856810c934e439d620e3ed",
+          "entry_digest": "b413cabc06ee10499d82989df528c659f60cee590d6453b9486fb0d2ec0bc6bb",
+          "file_count": 732,
+          "prefix": null
+        },
+        "monhaim": {
+          "archive_sha256": "745a6a535be9b026557f4588b6f5eb13d4534fb4c400e0297bd96660705934d1",
+          "entry_digest": "5b840ea7e6aac89b702902d2dd27909a263eea3b257eb99ab087f5f3d44a40d9",
+          "file_count": 15,
+          "prefix": "Maps/Skirmish/s04_m06_Monhaim_Valley/"
+        }
+      }
+    },
+    "comparison": {
+      "interface": {
+        "entries": 284,
+        "differences": 58
+      },
+      "monhaim": {
+        "entries": 15,
+        "differences": 0
+      },
+      "shared": {
+        "entries": 733,
+        "differences": 13
+      }
+    },
+    "peak_process_commit_mib": 239.0,
+    "peak_working_set_mib": 262.4,
+    "game_process_started": false,
+    "inputs_read_only": true
+  },
+  "tests": {
+    "total": 27,
+    "passed": 25,
+    "skipped": 2,
+    "skip_reasons": [
+      "optional real installation integration",
+      "junction creation unavailable in restricted environment"
+    ]
+  },
+  "complete_dependency_closure": false,
+  "content_compatibility_qualified": false,
+  "bootstrap_behavior_qualified": false,
+  "native_setup_acknowledgement": false,
+  "mixed_world_started": false,
+  "world_permission": false
+}

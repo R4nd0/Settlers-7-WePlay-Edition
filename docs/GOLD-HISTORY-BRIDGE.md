@@ -40,6 +40,11 @@ with both History data sources on the isolated Ubisoft History standalone
 runtime under DXVK High. This remains a lobby-state milestone, with no mixed
 world or original Steam-executable qualification.
 
+The [read-only content audit](GOLD-HISTORY-CONTENT-AUDIT.md) compares decoded
+archive entries using read-only mappings. The selected Monhaim files agree;
+Interface/shared differences remain explicit. It supplies no compatibility
+normalization or world permission.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel
