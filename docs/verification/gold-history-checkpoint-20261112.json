@@ -1,0 +1,208 @@
+{
+  "format": "weplay-gold-history-diagnostic-checkpoint-v1",
+  "date": "2026-11-12",
+  "scope": "Owner-bound diagnostic agreement on original rules/template writers; no full setup or world permission",
+  "sources": {
+    "native/crossplay_setup_checkpoint.h": "0936c45e1540618e640f455289081bd78a4d69508ed8ee377e4b3a21b4647c65",
+    "native/crossplay_setup_checkpoint_native.h": "aef7371784551cb10d5466d60398d4801a740c082c485ecd136d571bb59a8e59",
+    "native/crossplay_setup_checkpoint_tests.cpp": "0fa5c1de67c00f29aa0e38ff8ae427d23587a4629f1c76bcbee0a662670376f8",
+    "native/build_crossplay.ps1": "785f00374077330228abae52a054e086ba698cbe9b3913794c016c91575bc62c"
+  },
+  "native_source_snapshot": {
+    "files": 166,
+    "canonical_manifest_sha256": "51d6d31f7785c2ba7589c3cd083c9160647caa2ea80d00637fa0f81079414b8a"
+  },
+  "windows_x86": {
+    "warning_policy": "/W4 /WX",
+    "protocol_checks": 5916,
+    "fixture_sha256": "f89e3b2368d78a262d88d9ce57bb1c8b37cb64900e40aa6447f3999712ab5350",
+    "synthetic_protocol_snapshots": true,
+    "native_unbound_rejection_checked": true,
+    "game_started_by_fixture": false
+  },
+  "private_runtime": {
+    "gold_sha256": "40480f62550fef56a1fc44c01255fceec983fba4bc7280a21b6e0414da556418",
+    "history_sha256": "512fcf0a5f4fe37571c3318e707b5e9f8627fa210d46e6a844ca4e95885dc860",
+    "gold_build": {
+      "AccountLogin": true,
+      "LocalSimulation": false,
+      "IsolatedLabExecutableSha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab"
+    },
+    "history_build": {
+      "LocalPairLab": true,
+      "LocalNetworkPump": true,
+      "MaximumPhysicalCores": 2,
+      "ResumeCatchup": true,
+      "GameDirectory": true,
+      "NeoLogistics": false,
+      "NeoFifoLab": false
+    },
+    "source_checkpoints_verified": true,
+    "original_outgoing_cpu_wrappers_verified": 6,
+    "observer_abi_fixtures_passed": 2
+  },
+  "actual_pairs": [
+    {
+      "history_data": "Steam History",
+      "history_runtime": "isolated Ubisoft History standalone runtime",
+      "dxvk_loaded_both": true,
+      "graphics_quality": "High",
+      "steam_sdk_loaded_either": false,
+      "actual_ready_map_roster_verified": true,
+      "original_closed_slot_consumers_verified": true,
+      "checkpoint_phases": {
+        "gold": {
+          "native-writer-checkpoint-local-snapshot-bound": 1,
+          "native-writer-checkpoint-offer-authenticated-send": 1,
+          "native-writer-checkpoint-authenticated-receive": 1,
+          "native-writer-checkpoint-reply-authenticated-send": 1,
+          "native-writer-checkpoint-confirmed-world-still-excluded": 1
+        },
+        "history": {
+          "native-writer-checkpoint-local-snapshot-bound": 1,
+          "native-writer-checkpoint-offer-authenticated-send": 0,
+          "native-writer-checkpoint-authenticated-receive": 2,
+          "native-writer-checkpoint-reply-authenticated-send": 1,
+          "native-writer-checkpoint-confirmed-world-still-excluded": 1
+        }
+      },
+      "post_transition_original_writers": {
+        "native_original_writers": true,
+        "rules_bytes": 2152,
+        "players_bytes": 41,
+        "sha256": "a95193de1f31870999bd42e7182fd202ccd2548eb49dd56bcd5f359c67735d10",
+        "world_permission": false
+      },
+      "independent_closed_slot_code_guards_match": true,
+      "authenticated_records_relayed": 20,
+      "functional_exchange_rejections": 0,
+      "normal_disconnect_rejections": 1,
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "restoration_verified": true,
+      "memory": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 125,
+        "peak_private_mib": 773,
+        "min_free_mib": 2553,
+        "min_largest_mib": 2045,
+        "monitor_failed": false,
+        "peak_probe_ms": 23.624,
+        "min_host_physical_free_mib": 6914,
+        "min_host_commit_free_mib": 14590
+      },
+      "start_suppressed": true,
+      "world_started": false
+    },
+    {
+      "history_data": "Ubisoft History",
+      "history_runtime": "isolated Ubisoft History standalone runtime",
+      "dxvk_loaded_both": true,
+      "graphics_quality": "High",
+      "steam_sdk_loaded_either": false,
+      "actual_ready_map_roster_verified": true,
+      "original_closed_slot_consumers_verified": true,
+      "checkpoint_phases": {
+        "gold": {
+          "native-writer-checkpoint-local-snapshot-bound": 1,
+          "native-writer-checkpoint-offer-authenticated-send": 1,
+          "native-writer-checkpoint-authenticated-receive": 1,
+          "native-writer-checkpoint-reply-authenticated-send": 1,
+          "native-writer-checkpoint-confirmed-world-still-excluded": 1
+        },
+        "history": {
+          "native-writer-checkpoint-local-snapshot-bound": 1,
+          "native-writer-checkpoint-offer-authenticated-send": 0,
+          "native-writer-checkpoint-authenticated-receive": 2,
+          "native-writer-checkpoint-reply-authenticated-send": 1,
+          "native-writer-checkpoint-confirmed-world-still-excluded": 1
+        }
+      },
+      "post_transition_original_writers": {
+        "native_original_writers": true,
+        "rules_bytes": 2152,
+        "players_bytes": 41,
+        "sha256": "a95193de1f31870999bd42e7182fd202ccd2548eb49dd56bcd5f359c67735d10",
+        "world_permission": false
+      },
+      "independent_closed_slot_code_guards_match": true,
+      "authenticated_records_relayed": 20,
+      "functional_exchange_rejections": 0,
+      "normal_disconnect_rejections": 1,
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "restoration_verified": true,
+      "memory": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 124,
+        "peak_private_mib": 780,
+        "min_free_mib": 2499,
+        "min_largest_mib": 2045,
+        "monitor_failed": false,
+        "peak_probe_ms": 28.128,
+        "min_host_physical_free_mib": 3547,
+        "min_host_commit_free_mib": 12002
+      },
+      "start_suppressed": true,
+      "world_started": false
+    }
+  ],
+  "earlier_attempts": [
+    {
+      "outcome": "Gold laboratory local login variant could not create original lobby",
+      "checkpoint_reached": false,
+      "normal_exit_and_restoration": true
+    },
+    {
+      "outcome": "History laboratory build omitted Directory/Lua bridge; guest UI did not transition",
+      "checkpoint_reached": false,
+      "normal_exit_and_restoration": true
+    }
+  ],
+  "limits": {
+    "ordinary_adapter_enabled": false,
+    "public_release_changed": false,
+    "full_active_player_configuration_compared": false,
+    "local_snapshot_recursively_complete": false,
+    "content_dependency_closure_qualified": false,
+    "fresh_start_receiver_wired": false,
+    "mixed_world_started": false,
+    "mixed_turns_verified": false,
+    "gold_neo_qualified": false,
+    "mixed_save_reload_qualified": false,
+    "original_steam_executable_runtime_qualified": false
+  },
+  "public_build": {
+    "script": "native/build_crossplay.ps1",
+    "complete_build_passed": true,
+    "warning_policy": "/W4 /WX",
+    "executed_fixtures": {
+      "crossplay_setup_checkpoint_tests": {
+        "checks": 5916,
+        "sha256": "9299f4fb3aee4d4d47778df07b96d770630a13e8796946b74ea89887bfea2b8a"
+      },
+      "crossplay_game_start_runtime_tests": {
+        "checks": 328,
+        "sha256": "1df10fcc7e108d7c16b3dd96fb12123432d682903b70903f690a6713cec92e52"
+      },
+      "crossplay_closed_slot_runtime_tests": {
+        "checks": 151,
+        "sha256": "cc452587f2524821efce6d1f789207d1d7127859f7e07dc22ce43f0726f8cd6b"
+      },
+      "crossplay_setup_signature_runtime_tests": {
+        "checks": 186,
+        "sha256": "52c379b7bb65f32773b0e822d04b0ec688de7a6bb1b02e02c71fdf302c04275c"
+      }
+    },
+    "total_checks": 6581,
+    "game_started": false
+  }
+}

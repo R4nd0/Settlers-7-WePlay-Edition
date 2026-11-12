@@ -45,6 +45,12 @@ archive entries using read-only mappings. The selected Monhaim files agree;
 Interface/shared differences remain explicit. It supplies no compatibility
 normalization or world permission.
 
+The [diagnostic setup checkpoint](GOLD-HISTORY-CHECKPOINT.md) now confirms
+original writer snapshots through fresh challenges and a bounded acknowledgement
+exchange, while rechecking local native ownership and storage. Actual pairs
+passed with both History data sources under DXVK High. It supplies no full
+active-configuration/content agreement or permission to start a world.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel
