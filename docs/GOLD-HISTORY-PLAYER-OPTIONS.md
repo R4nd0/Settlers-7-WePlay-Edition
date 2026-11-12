@@ -13,10 +13,14 @@ The guest's original Ready button also reached both native configuration caches.
 Both processes exited normally; settings, adapters and Interface were restored,
 and saves, cloud files and shared profiles remained unchanged.
 
-This live result qualifies that private candidate and data combination. The
-public module adds narrower bounds, preparation ownership checks and a receiver
-object; its exact integration has not yet had a live game test. The Steam-data
-repeat remains pending. Neither result qualifies the original Steam executable.
+The later third candidate used the public encoder and receiver with their
+narrower bounds and preparation ownership checks. Fresh DXVK High pairs passed
+the same actual Color/Team changes with both Steam History and Ubisoft History
+data, followed by native [castle-position swaps](GOLD-HISTORY-POSITIONS.md) and
+guest Ready. Both data sets used the same isolated standalone Ubisoft executable,
+without a Steam SDK. The original Steam executable remains unqualified by these
+live tests. The Steam-data run recorded memory pressure; this is a bounded lobby
+functional result, not sustained gameplay or resource-stability qualification.
 
 ## Native behavior
 
@@ -67,8 +71,8 @@ History preparation/backend ownership gate before its original setter call.
 It does not acknowledge a world transition or prove that every unrelated native
 queue entry has drained. Changes must invalidate any earlier setup agreement.
 The rule/template signature described in
-[the signature investigation](GOLD-HISTORY-SETUP-SIGNATURE.md) excludes active
-multiplayer options and cannot replace a fresh complete setup comparison.
+[the signature investigation](GOLD-HISTORY-SETUP-SIGNATURE.md) omits Color and the
+complete admitted roster, and cannot replace a fresh complete setup comparison.
 
 ## Verification
 
@@ -88,5 +92,6 @@ times and the three option writers/readers eighteen times with modeled scalar
 fields/streams. They do not establish constructor, factory or world behavior.
 
 See the [sanitized verification receipt](verification/gold-history-player-options-20261112.json).
-Native start positions, local Start capture, common world start, commands/turns,
-Gold NEO logistics and mixed save/cold reload remain unfinished.
+The separate castle-position projection now has bounded live lobby evidence.
+Local Start capture, common world start, commands/turns, Gold NEO logistics and
+mixed save/cold reload remain unfinished.

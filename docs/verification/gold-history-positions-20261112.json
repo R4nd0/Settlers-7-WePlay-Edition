@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-12",
+  "scope": "Original History preparation setter for authenticated Gold host castle-position notifications",
+  "ordinary_adapters_include_module": false,
+  "windows_x86": {
+    "compiler_warnings_as_errors": true,
+    "checks": 115,
+    "process_exit_code": 0,
+    "game_process_started": false
+  },
+  "offline_native_verification": {
+    "profiles": ["Ubisoft History", "Steam History analysis"],
+    "compiled_guard_checks": 16,
+    "original_setter_and_helper_calls": 12,
+    "fixture_sha256": "c384675aaafd0600a7d2750b1fd63626005d7ca25322efb8b8812d413659c478",
+    "synthetic_lists_and_rows": true,
+    "virtual_query_modeled": true,
+    "high_level_projection_executed": false
+  },
+  "actual_pairs": [
+    {
+      "history_data": "Steam History",
+      "native_human_castle_slots_before": [1, 2],
+      "native_human_castle_slots_after": [2, 1],
+      "original_writer_rules_bytes": 2152,
+      "original_writer_players_bytes": 41,
+      "both_original_writer_sha256": "a01902dd454314ed9fba1c238bd46a11ca0a9a25cf8bce793f2436179d023856",
+      "memory_pressure_observed": true
+    },
+    {
+      "history_data": "Ubisoft History",
+      "native_human_castle_slots_before": [1, 2],
+      "native_human_castle_slots_swapped": [2, 1],
+      "native_human_castle_slots_after_reverse": [1, 2],
+      "original_writer_rules_bytes": 2152,
+      "original_writer_players_bytes": 41,
+      "both_original_writer_sha256": "a95193de1f31870999bd42e7182fd202ccd2548eb49dd56bcd5f359c67735d10",
+      "memory_pressure_observed": false
+    }
+  ],
+  "actual_pairs_common": {
+    "history_runtime": "Same isolated standalone Ubisoft executable for both data sets",
+    "original_steam_executable_live_tested": false,
+    "steam_sdk_loaded": false,
+    "renderer": "DXVK High",
+    "native_high_level_projection_executed": true,
+    "original_factory_and_clone_delivery": true,
+    "native_two_human_position_values_agree": true,
+    "original_history_guest_view_observed": true,
+    "original_guest_ready_used": true,
+    "ready_caches_and_writer_signatures_agree": true,
+    "normal_game_exit_codes": [0, 0],
+    "runner_exit_codes": [0, 0],
+    "profile_adapter_interface_restored": true,
+    "saves_cloud_shared_unchanged": true
+  },
+  "sustained_gameplay_qualified": false,
+  "shared_world_started": false,
+  "gold_neo_logistics_qualified": false,
+  "mixed_save_and_cold_reload_qualified": false
+}
