@@ -1,0 +1,264 @@
+{
+  "CRequestTask@ELLog": [
+    {
+      "name": "A",
+      "visitor_slot": 68,
+      "gold_offset": 4,
+      "history_offset": 4
+    },
+    {
+      "name": "B",
+      "visitor_slot": 52,
+      "gold_offset": 8,
+      "history_offset": 8
+    },
+    {
+      "name": "C",
+      "visitor_slot": 68,
+      "gold_offset": 12,
+      "history_offset": 12
+    },
+    {
+      "name": "D",
+      "visitor_slot": 68,
+      "gold_offset": 16,
+      "history_offset": 16
+    },
+    {
+      "name": "E",
+      "visitor_slot": 68,
+      "gold_offset": 20,
+      "history_offset": 20
+    },
+    {
+      "name": "F",
+      "visitor_slot": 68,
+      "gold_offset": 24,
+      "history_offset": 24
+    },
+    {
+      "name": "G",
+      "visitor_slot": 68,
+      "gold_offset": null,
+      "history_offset": null
+    },
+    {
+      "name": "H",
+      "visitor_slot": 68,
+      "gold_offset": null,
+      "history_offset": null
+    },
+    {
+      "name": "I",
+      "visitor_slot": 88,
+      "gold_offset": 40,
+      "history_offset": 40
+    },
+    {
+      "name": "J",
+      "visitor_slot": 88,
+      "gold_offset": 41,
+      "history_offset": 41
+    },
+    {
+      "name": "K",
+      "visitor_slot": 52,
+      "gold_offset": 36,
+      "history_offset": 36
+    },
+    {
+      "name": "L",
+      "visitor_slot": 52,
+      "gold_offset": 44,
+      "history_offset": 44
+    },
+    {
+      "name": "M",
+      "visitor_slot": 52,
+      "gold_offset": 48,
+      "history_offset": 48
+    },
+    {
+      "name": "N",
+      "visitor_slot": 60,
+      "gold_offset": 52,
+      "history_offset": 52
+    },
+    {
+      "name": "a",
+      "visitor_slot": 68,
+      "gold_offset": 76,
+      "history_offset": 72
+    },
+    {
+      "name": "c",
+      "visitor_slot": 88,
+      "gold_offset": 136,
+      "history_offset": 132
+    },
+    {
+      "name": "d",
+      "visitor_slot": 88,
+      "gold_offset": 137,
+      "history_offset": 133
+    },
+    {
+      "name": "f",
+      "visitor_slot": 88,
+      "gold_offset": 138,
+      "history_offset": 134
+    },
+    {
+      "name": "g",
+      "visitor_slot": 68,
+      "gold_offset": 84,
+      "history_offset": 80
+    },
+    {
+      "name": "h",
+      "visitor_slot": 88,
+      "gold_offset": 88,
+      "history_offset": 84
+    },
+    {
+      "name": "i",
+      "visitor_slot": 52,
+      "gold_offset": 140,
+      "history_offset": 136
+    },
+    {
+      "name": "n",
+      "visitor_slot": 52,
+      "gold_offset": 144,
+      "history_offset": 140
+    },
+    {
+      "name": "o",
+      "visitor_slot": 52,
+      "gold_offset": null,
+      "history_offset": null
+    },
+    {
+      "name": "q",
+      "visitor_slot": 88,
+      "gold_offset": 228,
+      "history_offset": 216
+    }
+  ],
+  "CProductionTask@ELLog": [
+    {
+      "name": "A",
+      "visitor_slot": 68,
+      "gold_offset": 4,
+      "history_offset": 4
+    },
+    {
+      "name": "B",
+      "visitor_slot": 52,
+      "gold_offset": 8,
+      "history_offset": 8
+    },
+    {
+      "name": "C",
+      "visitor_slot": 68,
+      "gold_offset": 12,
+      "history_offset": 12
+    },
+    {
+      "name": "D",
+      "visitor_slot": 68,
+      "gold_offset": 16,
+      "history_offset": 16
+    },
+    {
+      "name": "E",
+      "visitor_slot": 68,
+      "gold_offset": 20,
+      "history_offset": 20
+    },
+    {
+      "name": "F",
+      "visitor_slot": 68,
+      "gold_offset": 24,
+      "history_offset": 24
+    },
+    {
+      "name": "G",
+      "visitor_slot": 68,
+      "gold_offset": null,
+      "history_offset": null
+    },
+    {
+      "name": "H",
+      "visitor_slot": 68,
+      "gold_offset": null,
+      "history_offset": null
+    },
+    {
+      "name": "I",
+      "visitor_slot": 88,
+      "gold_offset": 40,
+      "history_offset": 40
+    },
+    {
+      "name": "J",
+      "visitor_slot": 88,
+      "gold_offset": 41,
+      "history_offset": 41
+    },
+    {
+      "name": "K",
+      "visitor_slot": 52,
+      "gold_offset": 36,
+      "history_offset": 36
+    },
+    {
+      "name": "L",
+      "visitor_slot": 52,
+      "gold_offset": 44,
+      "history_offset": 44
+    },
+    {
+      "name": "M",
+      "visitor_slot": 52,
+      "gold_offset": 48,
+      "history_offset": 48
+    },
+    {
+      "name": "N",
+      "visitor_slot": 60,
+      "gold_offset": 52,
+      "history_offset": 52
+    },
+    {
+      "name": "OfferID",
+      "visitor_slot": 52,
+      "gold_offset": 92,
+      "history_offset": 88
+    },
+    {
+      "name": "Running",
+      "visitor_slot": 88,
+      "gold_offset": 88,
+      "history_offset": 84
+    },
+    {
+      "name": "Finished",
+      "visitor_slot": 88,
+      "gold_offset": 89,
+      "history_offset": 85
+    },
+    {
+      "name": "BoostMultiplier",
+      "visitor_slot": 68,
+      "gold_offset": 100,
+      "history_offset": 96
+    },
+    {
+      "name": "StartToRunTurn",
+      "visitor_slot": 52,
+      "gold_offset": 124,
+      "history_offset": 116
+    }
+  ]
+}

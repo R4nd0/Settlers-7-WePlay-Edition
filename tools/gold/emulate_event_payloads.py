@@ -30,7 +30,7 @@ STOP, NAME, NESTED, REFLECTION = (SCRATCH+0x6000, SCRATCH+0x7000,
 
 
 class Image:
-    def __init__(self, label, path):
+    def __init__(self, label, path, *, types=None):
         import pefile
         pin, size, self.name_helper, self.compare_helper = PROFILES[label]
         path = Path(path)
@@ -60,7 +60,7 @@ class Image:
                 start = at+4
 
         self.tables = {}
-        for name in (*EVENTS, WRITER, READER):
+        for name in (*(EVENTS if types is None else types), WRITER, READER):
             qualified = name if '@' in name else name+'@CNetwork'
             needle = ('.?AV'+qualified+'@@').encode()+b'\0'
             at = raw.find(needle)

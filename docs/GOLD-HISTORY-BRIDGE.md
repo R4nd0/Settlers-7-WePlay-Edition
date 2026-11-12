@@ -16,6 +16,11 @@ clone-and-queue delivery, copied castle designs and a bounded roster-binding
 protocol. They remain excluded from ordinary game adapter builds. Complete
 native admission and mixed-edition gameplay tests remain incomplete.
 
+The [offline logistics task audit](GOLD-NEO-LAYOUT.md) records native Gold and
+both History task field layouts for the NEO port. Original serializer runs
+show that a constant offset shift is incorrect. These modeled visitor checks
+do not qualify Gold NEO or mixed gameplay.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel
