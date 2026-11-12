@@ -26,6 +26,21 @@ pressure. A successful preflight cannot guarantee later allocations will work.
 The strict experimental graphics launcher keeps its original 4 GiB budget.
 This change does not qualify an experimental renderer or fix the Kartograph.
 
+An address-space scan that exceeds its 50 ms deadline is discarded and restarted
+once from address zero. Each attempt retains the 20,000-region limit and all
+query/range checks. A second timeout or any other error still fails monitoring
+and requests recovery; incomplete or old measurements are never substituted.
+The final query must also finish within the deadline. Memory-pressure thresholds,
+the ten-second scan interval and the startup budgets are unchanged.
+
+This addresses transient scan timeouts, which are distinct from measured memory
+pressure. An isolated DXVK lobby diagnostic identified a scan-budget failure;
+the following run recorded no monitoring failure, but did encounter later physical
+memory pressure and a separate Gold connection error. Neither run establishes
+stable crossplay or proves the cause of the scheduling delay. Seventeen memory
+guard regression checks pass, including repeated-timeout failure, invalid-query
+failure and rejection of a slow final query.
+
 Regression checks exercise low physical RAM with high commit, the former 4 GiB
 commit boundary as a warning, the critical 1 GiB boundary, invalid samples and
 the real desktop before-game callback using invented process fixtures.

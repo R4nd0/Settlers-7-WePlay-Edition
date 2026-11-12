@@ -97,6 +97,52 @@ class MemoryTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 probe.address_space()
 
+    def test_one_timed_out_scan_restarts_without_publishing_partial_or_stale_data(self):
+        probe = guard.Probe.__new__(guard.Probe)
+        probe.address_sample = {'free':17, 'largest':9}
+        probe.last_scan = float('-inf')
+        probe.handle = Mock(); probe.psapi = Mock()
+        def counters(handle,pointer,size):
+            pointer._obj.private = 1000*guard.MIB
+            return True
+        probe.psapi.GetProcessMemoryInfo.side_effect = counters
+        fresh = {'free':2000*guard.MIB, 'largest':500*guard.MIB}
+        probe.address_space = Mock(side_effect=[guard.AddressScanTimeout(), fresh])
+        with patch.object(guard, 'host_memory', return_value={}):
+            self.assertEqual(probe.sample(), dict(private=1000*guard.MIB, **fresh))
+        self.assertEqual(probe.address_space.call_count, 2)
+        self.assertEqual(probe.address_sample, fresh)
+
+    def test_second_scan_timeout_and_non_timeout_errors_remain_fail_closed(self):
+        for errors, calls in [([guard.AddressScanTimeout(), guard.AddressScanTimeout()], 2),
+                              ([OSError('invalid region')], 1)]:
+            with self.subTest(errors=errors):
+                probe = guard.Probe.__new__(guard.Probe)
+                probe.address_sample = {'free':17, 'largest':9}
+                previous = dict(probe.address_sample)
+                probe.last_scan = float('-inf')
+                probe.handle = Mock(); probe.psapi = Mock()
+                probe.psapi.GetProcessMemoryInfo.return_value = True
+                probe.address_space = Mock(side_effect=errors)
+                with self.assertRaises(OSError):
+                    probe.sample()
+                self.assertEqual(probe.address_space.call_count, calls)
+                self.assertEqual(probe.address_sample, previous)
+                self.assertEqual(probe.last_scan, float('-inf'))
+
+    def test_slow_final_region_is_not_published_after_deadline(self):
+        probe = guard.Probe.__new__(guard.Probe)
+        probe.handle = Mock(); probe.kernel = Mock()
+        def region(handle,address,pointer,size):
+            pointer._obj.base = 0
+            pointer._obj.size = guard.LIMIT
+            pointer._obj.state = 0x10000
+            return size
+        probe.kernel.VirtualQueryEx.side_effect = region
+        with patch.object(guard.time, 'monotonic', side_effect=[0, 0, 0.06]):
+            with self.assertRaises(guard.AddressScanTimeout):
+                probe.address_space()
+
     def test_monitor_failure_latches_recovery_without_stopping_existing_game(self):
         child, probe = Mock(), Mock()
         child.poll.return_value = None

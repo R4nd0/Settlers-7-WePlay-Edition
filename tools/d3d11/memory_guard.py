@@ -63,6 +63,10 @@ class HostMemoryError(RuntimeError):
         self.code = code
 
 
+class AddressScanTimeout(OSError):
+    """An incomplete scan is discarded, never published as a measurement."""
+
+
 def require_host_headroom(sample=None):
     """Conservative budget for the isolated graphics experiments only."""
     sample = host_memory() if sample is None else sample
@@ -180,7 +184,14 @@ class Probe:
         if not self.psapi.GetProcessMemoryInfo(self.handle,C.byref(counters),counters.cb):
             raise OSError('Speicherzaehler nicht verfuegbar.')
         if self.address_sample is None or time.monotonic()-self.last_scan >= ADDRESS_SCAN_SECONDS:
-            self.address_sample = self.address_space()
+            try:
+                address_sample = self.address_space()
+            except AddressScanTimeout:
+                # One scheduling delay must not permanently disable monitoring.
+                # Restart from address zero with the same 50 ms / 20,000-region
+                # limits. A second timeout (or any other error) remains fatal.
+                address_sample = self.address_space()
+            self.address_sample = address_sample
             self.last_scan = time.monotonic()
         return {'private':counters.private,**self.address_sample,**host_memory()}
 
@@ -191,7 +202,7 @@ class Probe:
             if address >= LIMIT:
                 break
             if time.monotonic() > deadline:
-                raise OSError('Adressraumpruefung hat ihr Zeitbudget ueberschritten.')
+                raise AddressScanTimeout('Adressraumpruefung hat ihr Zeitbudget ueberschritten.')
             region = Region()
             if self.kernel.VirtualQueryEx(self.handle,C.c_void_p(address),C.byref(region),C.sizeof(region)) != C.sizeof(region):
                 raise OSError('Adressraumpruefung unvollstaendig.')
@@ -203,6 +214,8 @@ class Probe:
             address = end
         else:
             raise OSError('Adressraumpruefung nicht abgeschlossen.')
+        if time.monotonic() > deadline:
+            raise AddressScanTimeout('Adressraumpruefung hat ihr Zeitbudget ueberschritten.')
         return {'free':free,'largest':largest}
 
 
