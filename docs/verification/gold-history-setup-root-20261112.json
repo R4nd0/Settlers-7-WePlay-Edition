@@ -1,0 +1,84 @@
+{
+  "format": "native-setup-root-writer-audit-v1",
+  "fingerprints": {
+    "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+    "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+  },
+  "original_root_calls": 24,
+  "original_whole_preparation_calls": 24,
+  "original_row_calls": 600,
+  "rows_per_call": 25,
+  "nested_preparation_version": 1,
+  "compiled_thunks_executed": true,
+  "fixture_sha256": "02407132f3ce10631cc383b199b4bffc37dfaf1c47ac3ed2462c653df8050d2d",
+  "guard_checks": {
+    "gold": 17,
+    "ubisoft": 17,
+    "steam_analysis": 17
+  },
+  "original_binary_visitors_executed": true,
+  "heap_and_stream_modeled": true,
+  "root_seed_writeback_preserves_value": true,
+  "nonempty_victory_or_sector_vectors_tested": false,
+  "live_root_capture_qualified": false,
+  "live_format_version_qualified": false,
+  "native_reader_tested": false,
+  "game_process_started": false,
+  "shared_world_started": false,
+  "gold_neo_qualified": false,
+  "mixed_save_coldreload_qualified": false,
+  "crossplay_qualified": false,
+  "maintainer": "WePlay Community",
+  "parent_commit": "edae5ef",
+  "source_sha256": {
+    "native/crossplay_setup_root_writer.h": "4f5e3628d64b2bd05f90888165db41cefb4696550208ce0ef59dbf400256764e",
+    "native/crossplay_setup_root_writer_tests.cpp": "ec2fc3feb99db0281acab9fbcb67c5f49768c8134d49d5a58e8484f1b419d837",
+    "native/build_crossplay.ps1": "24ba2438957923ff7fc275e3264c96025be1e66c2a8a123d63afd630df19062d",
+    "tools/gold/emulate_active_players.py": "1a61b6beb1562c81988cf153cdc24869a2cdc7eefaae4ef7b8487749a1454538",
+    "tools/gold/emulate_setup_root_writer.py": "bf013b0dd7cf6996e468fb3249c708d785dc03e1890c6820379697a186ad68be",
+    "tests/fixtures/gold-native-setup-root-writer.json": "590244e81cec6f910ff83bbb7cf0595ca067e94e972575153ad4d8b58795f87d"
+  },
+  "synthetic_fixtures": {
+    "v1-empty-players": {
+      "binary": {
+        "length": 23469,
+        "sha256": "e19ea561d42941ce059b2a254f5dd6cb972e8d1b534382ef86ab5e78d6dc94e8"
+      },
+      "field_events": 1569,
+      "schema_sha256": "aa7f3bc588314de438527cc6253a0381b8b948ba580c38c6656c887ebe10a2a9"
+    },
+    "v1-populated-players": {
+      "binary": {
+        "length": 23653,
+        "sha256": "2b67679f115007d89f3cc1c09b93c427bd04a44153165c782cc6ebb4c51f491f"
+      },
+      "field_events": 1601,
+      "schema_sha256": "3f72325a11621361e9707fc138df5dcb4e35a143d08b043807d9c8b8b601aff4"
+    },
+    "v2-empty-players": {
+      "binary": {
+        "length": 23473,
+        "sha256": "b9c6f426c1f66a01cde8ec95608c7289d53c1a3df799d69790d5b122f38d1309"
+      },
+      "field_events": 1570,
+      "schema_sha256": "fc9c701f10c7375a29b8f9ce61c89d123532685c2cd7f6383b9ff8bc70d99fcc"
+    },
+    "v2-populated-players": {
+      "binary": {
+        "length": 23657,
+        "sha256": "0e20af53461ea56f6a41b63a1c0db5d6d19648093584b1b5e4adc549364967cf"
+      },
+      "field_events": 1602,
+      "schema_sha256": "18952e052df9f22c097132e4a29fea9b75b4a103a3a31781328a2d8e334d7efe"
+    }
+  },
+  "comparison_rejection_checks": 6,
+  "verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "full_public_build": "pass",
+    "row_regression_calls": 108,
+    "row_regression_guard_checks": 24
+  },
+  "live_adapter_integration": false
+}

@@ -24,21 +24,24 @@ LAYOUTS = {
     'steam_analysis': (0x58e650, 0x5a8, 0xa2217d, 0xa222e4),
 }
 PREPARATION_WRITERS = {'gold': 0x520a20, 'ubisoft': 0x58e910, 'steam_analysis': 0x58e3d0}
+SETUP_ROOT_WRITERS = {'gold': 0x9ce7b0, 'ubisoft': 0x5f5790, 'steam_analysis': 0x5f52f0}
 S, STACK = 0x20000000, 0x30000000
 ROWS, VISITOR, TABLE, STOP, STUB = (S+x for x in (0x10000, 0x2000, 0x3000, 0x4000, 0x5000))
 STREAM, STREAM_TABLE, POSITION, WRITE = (S+x for x in (0x6000, 0x6100, 0x6200, 0x6210))
 ARENA, HEAP = S+0x20000, S+0x50000
-WIDTHS = {0x2c: 16, 0x34: 4, 0x3c: 1, 0x44: 4, 0x54: 4, 0x58: 1, 0x60: 4}
+WIDTHS = {0x2c: 16, 0x34: 4, 0x38: 2, 0x3c: 1, 0x44: 4, 0x54: 4, 0x58: 1, 0x60: 4}
 BINARY_WRITER_SIZE = 0x210  # 16-byte header plus 128 saved stream positions.
+ROOT, CONFIG = S+0x8000, S+0x9000
 
 
 def survey(image, version, rich, binary, fixture=None, *, preparation=False, long_allies=False,
-           writer_storage_size=BINARY_WRITER_SIZE):
+           writer_storage_size=BINARY_WRITER_SIZE, setup_root=False):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
     if (version not in range(1, 10) or type(rich) is not bool or type(binary) is not bool
-            or type(preparation) is not bool or type(long_allies) is not bool
+            or type(preparation) is not bool or type(long_allies) is not bool or type(setup_root) is not bool
+            or setup_root and (not preparation or version not in (1, 2))
             or long_allies and (not preparation or not rich)
             or type(writer_storage_size) is not int or writer_storage_size not in (16, BINARY_WRITER_SIZE)):
         raise ValueError('Unsupported synthetic fixture')
@@ -46,6 +49,9 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
     entry, stride, allocate, free = LAYOUTS[image.label]
     if preparation:
         entry = PREPARATION_WRITERS[image.label]
+    if setup_root:
+        entry = SETUP_ROOT_WRITERS[image.label]
+    player_version = 1 if setup_root else version
     row = ROWS+stride  # Deliberately exercise slot one, not only slot zero.
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base, (image.size+4095)&~4095)
@@ -59,6 +65,8 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
         u.mem_map(base, (fixture_size+4095)&~4095)
         u.mem_write(base, fixture.get_memory_mapped_image())
         oracle = b'WePlayPreparationWriteOracle' if preparation else b'WePlayActivePlayerWriteOracle'
+        if setup_root:
+            oracle = b'WePlaySetupRootWriteOracle'
         entry = next(base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols if e.name == oracle)
 
     def words(at, *values):
@@ -164,6 +172,16 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
         vector(castle+(0x34 if gold else 0x30), struct.pack('<2i', -1, 0))
         vector(castle+(0x44 if gold else 0x3c), struct.pack('<2i', 2, 5))
 
+    if setup_root:
+        # Synthetic enclosing rules have populated strings but empty victory
+        # and sector vectors. This deliberately does not qualify those bodies.
+        words(ROOT, 7)
+        words(ROOT+(0x64 if gold else 0x58), 0x2468ace)
+        for offset, value in ((4, 'Synthetic Start'), (0x14, 'Synthetic Trade'), (0x24, 'Synthetic Tech')):
+            string(ROOT+offset, value)
+        words(ROOT+(0x70 if gold else 0x64), CONFIG)
+        words(CONFIG, ROWS, ROWS)
+    original_root = bytes(u.mem_read(ROOT, 0xa0))
     words(VISITOR, image.tables[WRITER][0] if binary else TABLE, 0, STREAM, 0)
     canary = bytes.fromhex('df9b5713e0ac6824')
     u.mem_write(VISITOR-8, canary)
@@ -180,6 +198,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
     fields, output, allocations = [], bytearray(), {}
     allocation_count, completed = 0, False
     row_slots = []
+    preparation_versions = []
     scopes = []
 
     def returned(count, value=0):
@@ -190,6 +209,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
 
     def span(pointer, size):
         return (ROWS <= pointer <= pointer+size <= ROWS+0x9094
+                or setup_root and ROOT <= pointer <= pointer+size <= ROOT+0xa0
                 or ARENA <= pointer <= pointer+size <= cursor
                 or STACK <= pointer <= pointer+size <= STACK+0x10000
                 or image.base <= pointer <= pointer+size <= image.base+image.size
@@ -200,6 +220,13 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
         if at == STOP:
             completed = True
             uc.emu_stop()
+        elif setup_root and at == PREPARATION_WRITERS[image.label]:
+            sp = uc.reg_read(UC_X86_REG_ESP)
+            if ((word(sp+4) if gold else uc.reg_read(UC_X86_REG_ECX)) != ROWS
+                    or (uc.reg_read(UC_X86_REG_EAX) if gold else word(sp+4)) != VISITOR
+                    or word(sp+8) != 1 or preparation_versions):
+                raise RuntimeError('Original root preparation dispatch differs')
+            preparation_versions.append(word(sp+8))
         elif preparation and at == LAYOUTS[image.label][0]:
             sp = uc.reg_read(UC_X86_REG_ESP)
             # Both native callees consume a byte slot. Their original caller
@@ -208,7 +235,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             if (number != len(row_slots) or number >= 25
                     or uc.reg_read(UC_X86_REG_ECX) != ROWS
                     or (uc.reg_read(UC_X86_REG_EDI) if gold else word(sp+4)) != VISITOR
-                    or word(sp+(8 if gold else 12)) != version):
+                    or word(sp+(8 if gold else 12)) != player_version):
                 raise RuntimeError('Original preparation row dispatch differs')
             row_slots.append(number)
         elif at == allocate:
@@ -255,7 +282,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             elif index == 3:
                 count = word(sp+8)
                 tag = name(word(sp+4))
-                if count > 3 and not (preparation and not scopes and count == 25
+                if count > 3 and not (preparation and count == 25 and (setup_root or not scopes)
                         or long_allies and tag == 'Allies' and count == 26 and row_slots[-1] in (21, 24)):
                     raise RuntimeError('Unexpected fixture container length')
                 fields.append({'kind': 'container', 'name': tag, 'count': count})
@@ -280,6 +307,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
                 if not (row <= pointer <= row+stride-width
                         or preparation and ROWS <= pointer <= ROWS+0x9094-width
                         or STACK <= pointer <= STACK+0x10000-width
+                        or setup_root and ROOT <= pointer <= ROOT+0xa0-width
                         or ARENA <= pointer <= cursor-width):
                     raise RuntimeError('Foreign field storage')
                 offset = pointer-row if row <= pointer <= row+stride-width else None
@@ -294,6 +322,10 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             raise RuntimeError('Foreign code')
 
     def write(uc, access, at, size, value, data):
+        # Root format 2 writes its temporary RNG seed back through the field
+        # pointer, even on the writing branch. Permit only the unchanged value.
+        if setup_root and at == ROOT+(0x64 if gold else 0x58) and size == 4 and value == 0x2468ace:
+            return
         if VISITOR <= at < VISITOR+BINARY_WRITER_SIZE and at+size > VISITOR+writer_storage_size:
             raise RuntimeError('Binary writer exceeded owned visitor storage')
         if not (at == 0 and size == 4 or STACK <= at <= at+size <= STACK+0x10000
@@ -312,16 +344,24 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
     arguments = (STOP, 1, version) if gold else (STOP, VISITOR, 1, version)
     if preparation:
         arguments = (STOP, ROWS, version) if gold else (STOP, VISITOR, version)
+    if setup_root:
+        arguments = (STOP, version) if gold else (STOP, VISITOR, version)
     if fixture is not None:
         arguments = (STOP, tuple(PROFILES).index(image.label)+1, ROWS, VISITOR, 1, version)
         if preparation:
             arguments = (STOP, tuple(PROFILES).index(image.label)+1, ROWS, VISITOR, version)
+        if setup_root:
+            arguments = (STOP, tuple(PROFILES).index(image.label)+1, ROOT, VISITOR, version)
     words(sp, *arguments)
     kept = {UC_X86_REG_EBX: 0x12345678, UC_X86_REG_ESI: 0x34567890,
             UC_X86_REG_EDI: VISITOR if gold and fixture is None and not preparation else 0x456789ab, UC_X86_REG_EBP: 0x23456789}
-    registers = {**kept, UC_X86_REG_ECX: ROWS, UC_X86_REG_ESP: sp}
+    registers = {**kept, UC_X86_REG_ECX: ROOT if setup_root else ROWS, UC_X86_REG_ESP: sp}
     if preparation and gold:
         registers[UC_X86_REG_EAX] = VISITOR
+    if setup_root and gold and fixture is None:
+        registers[UC_X86_REG_EAX] = ROOT
+        registers[UC_X86_REG_ESI] = VISITOR
+        kept[UC_X86_REG_ESI] = VISITOR
     for reg, value in registers.items():
         u.reg_write(reg, value)
     u.emu_start(entry, STOP+1, count=6250000 if preparation else 250000,
@@ -329,10 +369,12 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
     if (not completed or u.reg_read(UC_X86_REG_EIP) != STOP or scopes or allocations
             or allocation_count != (50 if preparation else 2) or word(0) != 0
             or preparation and row_slots != list(range(25))
-            or u.reg_read(UC_X86_REG_ESP) != sp+(4 if fixture is not None else 12 if gold or preparation else 16)
+            or setup_root and preparation_versions != [1]
+            or u.reg_read(UC_X86_REG_ESP) != sp+(4 if fixture is not None else 8 if setup_root and gold else 12 if gold or preparation else 16)
             or any(u.reg_read(k) != v for k, v in kept.items())
             or bytes(u.mem_read(ROWS, 0x9094)) != original_rows
             or bytes(u.mem_read(ARENA, cursor-ARENA)) != original_arena
+            or bytes(u.mem_read(ROOT, 0xa0)) != original_root
             or binary and word(VISITOR+0xc)
             or bytes(u.mem_read(VISITOR-8, 8)) != canary
             or bytes(u.mem_read(VISITOR+writer_storage_size, 8)) != canary):
