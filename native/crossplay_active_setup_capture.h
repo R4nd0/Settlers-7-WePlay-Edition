@@ -115,7 +115,7 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     for(uint32_t slot=0;slot<RowCount;++slot) {
         stage(100+slot);
         CrossplayNativeCodec::Detail::OwnedStream stream(profile);if(!stream.initialized)return false;
-        CrossplayNativeCodec::Detail::Visitor visitor{profile.writer_vt,0,&stream.value,0};
+        CrossplayNativeCodec::Detail::Writer visitor{profile.writer_vt,0,&stream.value,0};
         CrossplayActivePlayerWriter::Detail::Write(edition,pin,const_cast<unsigned char*>(rows),&visitor,slot,8);
         const auto& s=stream.value;
         if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>65536 || s.position!=s.length

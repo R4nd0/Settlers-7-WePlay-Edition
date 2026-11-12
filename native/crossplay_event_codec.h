@@ -19,6 +19,14 @@ inline Profile Pin(Crossplay::Edition edition) {
 struct Stream { uintptr_t vt;void* bytes;uint32_t capacity,length,position;uint32_t external;uint32_t aux[4]; };
 struct Visitor { uintptr_t vt;uint32_t reading;Stream* stream;uint32_t flags; };
 static_assert(sizeof(Stream)==0x28 && sizeof(Visitor)==16,"Native codec views");
+// The binary writer extends this header with 128 saved stream positions.
+// Original scope entry stores at +0x10+4*depth and rejects depth >= 128.
+// Readers use the header alone. Never pass that smaller view to a writer.
+struct Writer {
+    uintptr_t vt;uint32_t reading;Stream* stream;uint32_t flags;
+    uint32_t scope_positions[128]{};
+};
+static_assert(sizeof(Writer)==0x210 && offsetof(Writer,scope_positions)==0x10,"Native binary writer storage");
 inline void GoldCtor(uintptr_t address,void* output) {
     __asm {
         mov eax,output
@@ -101,7 +109,7 @@ struct OwnedStream {
 inline bool Encode(const Profile& p,const void* event,std::vector<unsigned char>& result) {
     result.clear();if(!Readable(event,0x10) || *static_cast<const uintptr_t*>(event)!=p.event_vt)return false;
     OwnedStream stream(p);if(!stream.initialized)return false;
-    Visitor visitor{p.writer_vt,0,&stream.value,0};const char* name="WePlayEvent";
+    Writer visitor{p.writer_vt,0,&stream.value,0};const char* name="WePlayEvent";
     if(p.gold)GoldWrite(p.write,&visitor,event,name);
     else reinterpret_cast<void (__thiscall*)(void*,const void*,const char*,uint32_t)>(p.write)(&visitor,event,name,0);
     const auto& s=stream.value;

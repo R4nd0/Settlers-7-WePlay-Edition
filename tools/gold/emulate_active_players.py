@@ -29,15 +29,18 @@ ROWS, VISITOR, TABLE, STOP, STUB = (S+x for x in (0x10000, 0x2000, 0x3000, 0x400
 STREAM, STREAM_TABLE, POSITION, WRITE = (S+x for x in (0x6000, 0x6100, 0x6200, 0x6210))
 ARENA, HEAP = S+0x20000, S+0x50000
 WIDTHS = {0x2c: 16, 0x34: 4, 0x3c: 1, 0x44: 4, 0x54: 4, 0x58: 1, 0x60: 4}
+BINARY_WRITER_SIZE = 0x210  # 16-byte header plus 128 saved stream positions.
 
 
-def survey(image, version, rich, binary, fixture=None, *, preparation=False, long_allies=False):
+def survey(image, version, rich, binary, fixture=None, *, preparation=False, long_allies=False,
+           writer_storage_size=BINARY_WRITER_SIZE):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
     if (version not in range(1, 10) or type(rich) is not bool or type(binary) is not bool
             or type(preparation) is not bool or type(long_allies) is not bool
-            or long_allies and (not preparation or not rich)):
+            or long_allies and (not preparation or not rich)
+            or type(writer_storage_size) is not int or writer_storage_size not in (16, BINARY_WRITER_SIZE)):
         raise ValueError('Unsupported synthetic fixture')
     gold = image.label == 'gold'
     entry, stride, allocate, free = LAYOUTS[image.label]
@@ -162,6 +165,9 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
         vector(castle+(0x44 if gold else 0x3c), struct.pack('<2i', 2, 5))
 
     words(VISITOR, image.tables[WRITER][0] if binary else TABLE, 0, STREAM, 0)
+    canary = bytes.fromhex('df9b5713e0ac6824')
+    u.mem_write(VISITOR-8, canary)
+    u.mem_write(VISITOR+writer_storage_size, canary)
     words(STREAM, STREAM_TABLE)
     words(STREAM_TABLE+0x14, POSITION)
     words(STREAM_TABLE+0x28, WRITE)
@@ -288,8 +294,10 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             raise RuntimeError('Foreign code')
 
     def write(uc, access, at, size, value, data):
+        if VISITOR <= at < VISITOR+BINARY_WRITER_SIZE and at+size > VISITOR+writer_storage_size:
+            raise RuntimeError('Binary writer exceeded owned visitor storage')
         if not (at == 0 and size == 4 or STACK <= at <= at+size <= STACK+0x10000
-                or binary and VISITOR+0xc <= at <= at+size <= VISITOR+0x214
+                or binary and VISITOR+0xc <= at <= at+size <= VISITOR+writer_storage_size
                 or any(p <= at <= at+size <= p+n for p, n in allocations.items())):
             raise RuntimeError('Unexpected object/global write')
 
@@ -325,7 +333,9 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             or any(u.reg_read(k) != v for k, v in kept.items())
             or bytes(u.mem_read(ROWS, 0x9094)) != original_rows
             or bytes(u.mem_read(ARENA, cursor-ARENA)) != original_arena
-            or binary and word(VISITOR+0xc)):
+            or binary and word(VISITOR+0xc)
+            or bytes(u.mem_read(VISITOR-8, 8)) != canary
+            or bytes(u.mem_read(VISITOR+writer_storage_size, 8)) != canary):
         raise RuntimeError('Incomplete writer or changed ABI/input state')
     return {'fields': fields} if not binary else {
         'length': len(output), 'sha256': hashlib.sha256(output).hexdigest()}

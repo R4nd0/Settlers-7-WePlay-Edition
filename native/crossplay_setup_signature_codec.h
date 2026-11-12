@@ -71,7 +71,7 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     signature.insert(signature.end(),name.begin(),name.end());signature.push_back(0);
     for(bool players:{false,true}) {
         Detail::OwnedStream stream(p);if(!stream.initialized)return false;
-        Detail::Visitor visitor{p.writer_vt,0,&stream.value,0};
+        Detail::Writer visitor{p.writer_vt,0,&stream.value,0};
         if(trace)trace(players?"native-setup-signature-players-begin":"native-setup-signature-rules-begin");
         if(players)Players(edition,pin,root,&visitor);else Rules(edition,pin,root,&visitor);
         if(trace)trace(players?"native-setup-signature-players-returned":"native-setup-signature-rules-returned");

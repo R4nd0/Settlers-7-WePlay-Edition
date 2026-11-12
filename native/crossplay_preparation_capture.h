@@ -49,7 +49,7 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     stage(301);if(!Detail::Positions(rows,profile.gold,captured.positions))return false;
     stage(302);
     CrossplayNativeCodec::Detail::OwnedStream stream(profile);if(!stream.initialized)return false;
-    CrossplayNativeCodec::Detail::Visitor visitor{profile.writer_vt,0,&stream.value,0};
+    CrossplayNativeCodec::Detail::Writer visitor{profile.writer_vt,0,&stream.value,0};
     CrossplayPreparationWriter::Detail::Write(edition,pin,rows,&visitor,8);
     const auto& s=stream.value;
     if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>262144 || s.position!=s.length

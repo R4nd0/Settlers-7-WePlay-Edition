@@ -95,3 +95,38 @@ diagnostic with Start held; the authenticated loopback channel stays available
 for the other client to finish its own diagnostic. File-output errors and the
 existing admission/start/memory guards still fail closed. This changes no world
 permission and does not qualify a common world or synchronized gameplay.
+
+## Pair 81 and binary-writer storage correction
+
+The runtime-15 DXVK High pair retained successful reports from all 25 original
+row writers on both clients. Twenty-two row outputs matched exactly; slots 1,
+3 and 4 differed. This is serialization evidence, not an agreed game setup.
+Both complete captures passed owner, dependency and position checks, then
+rejected the final method guard (stage 309). Read-only inspection of the owned
+processes confirmed that all six whole/row/Castle code regions still matched
+their original fingerprints. Both games exited normally, and profile, saves,
+cloud, adapters and shared-state restoration checks passed. No world started.
+
+Offline reproduction identified a concrete memory error: the binary writer
+stores 128 stream positions after its 16-byte visitor header. The diagnostic
+had reserved only the header. Original scope entry in all three pinned images
+writes at `+0x10 + 4*depth`, with a native depth limit of 128. The correct writer
+storage is 528 bytes (`0x210`). Readers retain their separate 16-byte header
+view. All four diagnostic writer call sites now use the complete writer.
+
+The new storage audit rejects the old allocation for both a populated row and
+the complete preparation in all three editions. It also executes each original
+scope primitive at all 128 levels against actual compiled C++ stack storage,
+checking guards on both sides and preserved registers. Exact-size storage with
+canaries passes original row and complete serialization. The existing whole
+writer regression still passes 36 calls, 900 nested row calls and 33 method
+guard checks against the unchanged reviewed fixtures. The x86 public build and
+the codec, setup-signature and dependency rejection suites pass.
+
+Immutable runtime 16 contains the four corrected headers and is built for both
+clients. Its live confirmation is pending. The overwrite explains a real ABI
+defect; the stage-309 diagnosis still requires a corrected live run. Neither
+the fix nor the 22 equal rows qualifies content, world start, turns, Gold NEO or
+mixed-edition save/cold-reload.
+
+See the [writer-storage verification receipt](verification/gold-history-writer-storage-20261112.json).

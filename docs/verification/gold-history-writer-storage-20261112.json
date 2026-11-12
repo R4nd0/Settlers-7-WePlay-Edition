@@ -1,0 +1,164 @@
+{
+  "format": "native-binary-writer-storage-audit-v1",
+  "fixture_sha256": "edd77b150e87e30bd175d47f1b22f3315a00dfe24cd1d0844c9342d5f60c11ff",
+  "fingerprints": {
+    "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+    "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+  },
+  "profiles": {
+    "gold": {
+      "compiled_writer_bytes": 528,
+      "maximum_scope_depth": 128,
+      "original_scope_entries": 128,
+      "original_scope_exits": 128,
+      "cpp_stack_canaries_intact": true,
+      "nonvolatile_registers_preserved": true,
+      "old_16_byte_allocations_rejected": 2,
+      "exact_storage_canaries_intact": true,
+      "binary_cases": {
+        "row": {
+          "length": 1140,
+          "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+        },
+        "whole": {
+          "length": 24177,
+          "sha256": "eca353b142b598a6bdff6bd77199a00add4f9421ea0969a51abc8661f6be038e"
+        }
+      }
+    },
+    "ubisoft": {
+      "compiled_writer_bytes": 528,
+      "maximum_scope_depth": 128,
+      "original_scope_entries": 128,
+      "original_scope_exits": 128,
+      "cpp_stack_canaries_intact": true,
+      "nonvolatile_registers_preserved": true,
+      "old_16_byte_allocations_rejected": 2,
+      "exact_storage_canaries_intact": true,
+      "binary_cases": {
+        "row": {
+          "length": 1140,
+          "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+        },
+        "whole": {
+          "length": 24177,
+          "sha256": "eca353b142b598a6bdff6bd77199a00add4f9421ea0969a51abc8661f6be038e"
+        }
+      }
+    },
+    "steam_analysis": {
+      "compiled_writer_bytes": 528,
+      "maximum_scope_depth": 128,
+      "original_scope_entries": 128,
+      "original_scope_exits": 128,
+      "cpp_stack_canaries_intact": true,
+      "nonvolatile_registers_preserved": true,
+      "old_16_byte_allocations_rejected": 2,
+      "exact_storage_canaries_intact": true,
+      "binary_cases": {
+        "row": {
+          "length": 1140,
+          "sha256": "20ebd890951e42a8cfe5083b0503fb1a6d285607bb964ff063995ef7a066fdaf"
+        },
+        "whole": {
+          "length": 24177,
+          "sha256": "eca353b142b598a6bdff6bd77199a00add4f9421ea0969a51abc8661f6be038e"
+        }
+      }
+    }
+  },
+  "original_code_executed_in_offline_cpu_only": true,
+  "game_process_started": false,
+  "shared_world_started": false,
+  "gold_neo_qualified": false,
+  "mixed_save_coldreload_qualified": false,
+  "maintainer": "WePlay Community",
+  "parent_commit": "616b090",
+  "source_sha256": {
+    "native/crossplay_event_codec.h": "5d6f88c29825b4fae38baf961efb558c634715477ec12f840b1579a071ea7db8",
+    "native/crossplay_active_setup_capture.h": "d0d38e9d5be3f7785851b8e97136eea62e55b831eb89fd9e8bed0bfd8a018ab9",
+    "native/crossplay_preparation_capture.h": "c55bed96ec89567ac5a777a95520a50f2b8648713cf6f030a6cf97ab466be984",
+    "native/crossplay_setup_signature_codec.h": "6dd8701629ddd06a7cd8a526cccb019b99ae5c9bcc25af5fa94c8564a31036b5",
+    "native/crossplay_preparation_writer_tests.cpp": "90b660849051da7b6769bd6b502df4acd92dbd0a17ef486c57375fb5209b1779",
+    "tools/gold/emulate_active_players.py": "26aa82fa49113232fd64dfc67b0c521f5a70b552b2e27d1e23ab66ea3c6273a0",
+    "tools/gold/audit_binary_writer_storage.py": "060119ffe72ff5a704ce2c6e6b995a51dd5184e7034d169d12beea2de3025477"
+  },
+  "verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "full_public_build": "pass",
+    "runtime_rejection_suite_checks": {
+      "codec": 133,
+      "setup_signature": 186,
+      "row_dependencies": 86,
+      "positions": 37
+    },
+    "whole_writer_regression_calls": 36,
+    "nested_row_regression_calls": 900,
+    "method_guard_checks": 33
+  },
+  "runtime_pair81": {
+    "graphics": "DXVK High 1920x1080",
+    "history_data": "Steam History",
+    "history_runtime": "isolated Ubisoft History standalone",
+    "steam_sdk_required": false,
+    "both_25_row_reports_retained": true,
+    "exactly_equal_rows": 22,
+    "different_row_slots": [
+      1,
+      3,
+      4
+    ],
+    "both_full_captures_rejected_stage": 309,
+    "postflight_native_code_fingerprints_matched": true,
+    "regular_exit_codes": [
+      0,
+      0
+    ],
+    "restoration_passed": true,
+    "fresh_s7_windows_after_close": 0,
+    "authenticated_records": 20,
+    "transport_rejections": 1,
+    "memory": {
+      "format": "s7-memory-summary-v1",
+      "recovery_required": false,
+      "max_pressure": 0,
+      "samples": 444,
+      "peak_private_mib": 772,
+      "min_free_mib": 2517,
+      "min_largest_mib": 2045,
+      "monitor_failed": false,
+      "peak_probe_ms": 93.794,
+      "min_host_physical_free_mib": 3118,
+      "min_host_commit_free_mib": 16918
+    }
+  },
+  "private_runtime16": {
+    "source_proof_sha256": "9b224694ba362c2da2f56e317c177ee6b56fd338592f1ecf1822d507c8379125",
+    "build_proof_sha256": "91be24ef18f8090afb9c1bc78eedc1379e2668f79a521e42a363abe399dfd762",
+    "source_files": 244,
+    "builds": {
+      "gold": {
+        "source_manifest_sha256": "2a0cc25fe99065a331b68c4379152faaaf8d112d2f8a4808231d8d9423ce1e6d",
+        "adapter_sha256": "794945247ebd3146f2682f848bfcbcda854aa30805c42b3684162ded769d8b9c"
+      },
+      "history": {
+        "source_manifest_sha256": "97c34ed7b450a37c4a6a5882f3fa50917190407766d473e5de421f080947b841",
+        "adapter_sha256": "30e35e883c59ff80e9666d297ca6843f32ca74c877738f8c7ae16ce48450695b"
+      }
+    },
+    "both_observer_abi_checks_passed": true,
+    "outgoing_cpu_fixture_is_historical": true,
+    "live_run_performed": false,
+    "start_enabled": false
+  },
+  "limits": {
+    "stage309_fixed_in_live_run": false,
+    "actual_complete_capture_qualified": false,
+    "portable_setup_agreement": false,
+    "enclosing_setup_or_content_captured": false,
+    "synchronized_turns_qualified": false,
+    "gold_neo_qualified": false,
+    "mixed_save_coldreload_qualified": false
+  }
+}
