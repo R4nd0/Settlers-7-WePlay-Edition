@@ -57,6 +57,11 @@ compiled edition-specific call thunks. Empty/populated synthetic rows agree
 across all three analysis profiles and formats 1–9. Live full setup capture and
 common start remain unimplemented; these headless checks supply no world permission.
 
+An [owned active-player capture candidate](GOLD-HISTORY-ACTIVE-CAPTURE.md) adds
+bounded pointer/container validation and local before/after checks for all 25
+row-writer calls. Synthetic dependency checks and both test-adapter builds pass;
+the positive live pair is pending after its RAM preflight refused the launch.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel

@@ -1,0 +1,84 @@
+{
+  "format": "gold-history-active-row-capture-candidate-v1",
+  "maintainer": "WePlay Community",
+  "abi_reference_commit": "b16ad26",
+  "source_sha256": {
+    "native/crossplay_active_setup_capture.h": "ff1c7c964a2180a4da17f9dada6878b8d7c17791e8f7965c894130d79e5f3512",
+    "native/crossplay_active_setup_capture_tests.cpp": "4a7a508fa5a0c837e5d0b719a50972d40e361f97682ee32641aaac740fbb8fbd",
+    "native/build_crossplay.ps1": "6da71aaaae6d225d247d9d7fc9bc44f4a853110983d4f25de94a7545ee6c8f99",
+    "native/crossplay_active_player_writer.h": "0783338142f5acddb17783638e7711d0abccdd6149962347557594fbb2b50375"
+  },
+  "verification": {
+    "compiler": "MSVC x86 /W4 /WX",
+    "full_public_crossplay_build": "pass",
+    "dependency_checks": 66,
+    "positive_native_capture_executed": false,
+    "fixture_sha256": "028fc65606f3cd095d3a122ea9134c84d6e21a68d0a67813c9d5fb4bcbd7153b"
+  },
+  "private_runtime9_builds": {
+    "gold": {
+      "adapter_sha256": "00d42239c20e17c0bd86c3cf20524d5a6086c73746dabe7dff68399502936547",
+      "source_manifest_sha256": "27c3f58c098e700914de82320ec0f605e24e9d2f174da433a6c8735518e4db4f",
+      "abi_fixture_passed": true,
+      "game_launched_after_preflight": true
+    },
+    "history": {
+      "adapter_sha256": "d799f9acded0882c70ef3b3db2726a3eb7f87ede47db562fb8cb0eb4bfb35951",
+      "source_manifest_sha256": "cc02e1547cb7b705851b5d27c2df6a46bb90b6d6db543dc5fba38aefe4a44052",
+      "abi_fixture_passed": true,
+      "game_launched_after_preflight": true
+    }
+  },
+  "initial_preflight": {
+    "physical_free_mib": 3521,
+    "commit_free_mib": 16610.3,
+    "refused_before_game_start": true,
+    "working_set_trim_performed": false
+  },
+  "runtime_pair": {
+    "id": 76,
+    "history_data": "Steam History",
+    "history_runtime": "isolated Ubisoft History standalone",
+    "steam_sdk_required": false,
+    "graphics": "DXVK High 1920x1080",
+    "loopback_only": true,
+    "preflight_physical_free_mib": 11507.6,
+    "preflight_commit_free_mib": 26509.3,
+    "native_roster_and_map_reload_observed": true,
+    "checkpoint_confirmed": false,
+    "active_rows_captured": false,
+    "authenticated_records": 8,
+    "rejections": 0,
+    "exit_codes": [
+      0,
+      0
+    ],
+    "restoration_passed": true,
+    "fresh_s7_window_count_after_close": 0,
+    "memory": {
+      "format": "s7-memory-summary-v1",
+      "recovery_required": true,
+      "max_pressure": 2,
+      "samples": 142,
+      "peak_private_mib": 770,
+      "min_free_mib": 2536,
+      "min_largest_mib": 2045,
+      "monitor_failed": false,
+      "peak_probe_ms": 29.57,
+      "min_host_physical_free_mib": 578,
+      "min_host_commit_free_mib": 12450
+    }
+  },
+  "limits": {
+    "atomic_setup_lock": false,
+    "continuous_mutation_watch": false,
+    "complete_setup_root_or_content_capture": false,
+    "identities_normalized": false,
+    "shared_world_started": false,
+    "world_permission": false,
+    "mixed_turns_qualified": false,
+    "gold_neo_qualified": false,
+    "mixed_save_coldreload_qualified": false,
+    "original_steam_executable_runtime_qualified": false
+  }
+}
