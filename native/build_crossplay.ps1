@@ -39,5 +39,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Session configuration test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_ready_tests.cpp') /Fe:crossplay_ready_tests.exe /link /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Native Ready request test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_map_reload_tests.cpp') /Fe:crossplay_map_reload_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'History map-reload guard fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_session_map_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_session_map_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'History session-map observer test build failed.' }
 } finally { Pop-Location }
-Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration and Ready intent tests. No game adapter was installed or launched.'
+Write-Output 'Built channel, participant, admission, chat, native codec, History preparation, configuration, Ready intent and map initialization tests. No game adapter was installed or launched.'

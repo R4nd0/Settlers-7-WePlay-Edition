@@ -1,0 +1,87 @@
+{
+  "format": "gold-history-map-initialization-verification-v1",
+  "date": "2026-11-12",
+  "loopback_only": true,
+  "dxvk": true,
+  "resolution": "1920x1080",
+  "graphics_quality": "High",
+  "steam_sdk_loaded": false,
+  "source_sha256": {
+    "native/crossplay_history_map_reload.h": "ad62ad0776a4cb5aa76044e6ff2b34ee04e1f1055df6fe17f0bfa778054f9192",
+    "native/crossplay_session_map_observer.h": "6eb9495eec366f969e4c2f30d80a2c7758c440a81ce9d08255b42d3dfac95210",
+    "tools/gold/history_guest_lobby.lua": "d7ab57dd9345a7c2bfce1b56fc360cf6f88772b64ba49b113789c330e13626d9"
+  },
+  "runtime_cases": [
+    {
+      "history_data": "Ubisoft History",
+      "history_runtime": "isolated Ubisoft History executable",
+      "gold_adapter_sha256": "22b2c92c8b1b2f561815527588d8cfbc2084f39c7880426146da4d43567ba3ae",
+      "history_adapter_sha256": "102e3673e1e7836c99f4080a5f8099c0d6c2e8e65124a7420b29bf30a01c0f85",
+      "public_observer_integrated": false,
+      "native_preparation_maps_and_room_descriptor_match": true,
+      "matching_admitted_player_ids": true,
+      "original_guest_page_observed": true,
+      "default_template_only": true,
+      "actual_ready_roundtrip_0_1_0": true,
+      "authenticated_relay_records": 12,
+      "pre_retirement_rejections": 0,
+      "retirement_rejections": 1,
+      "actual_exit_codes": [
+        0,
+        0
+      ],
+      "diagnostic_files_restored": true,
+      "saves_cloud_shared_unchanged": true
+    },
+    {
+      "history_data": "Steam History",
+      "history_runtime": "isolated Ubisoft History executable",
+      "gold_adapter_sha256": "22b2c92c8b1b2f561815527588d8cfbc2084f39c7880426146da4d43567ba3ae",
+      "history_adapter_sha256": "102e3673e1e7836c99f4080a5f8099c0d6c2e8e65124a7420b29bf30a01c0f85",
+      "public_observer_integrated": false,
+      "native_preparation_maps_and_room_descriptor_match": true,
+      "matching_admitted_player_ids": true,
+      "original_guest_page_observed": true,
+      "default_template_only": true,
+      "actual_ready_roundtrip_0_1_0": true,
+      "authenticated_relay_records": 12,
+      "pre_retirement_rejections": 0,
+      "retirement_rejections": 1,
+      "actual_exit_codes": [
+        0,
+        0
+      ],
+      "diagnostic_files_restored": true,
+      "saves_cloud_shared_unchanged": true
+    },
+    {
+      "history_data": "Ubisoft History",
+      "history_runtime": "isolated Ubisoft History executable",
+      "gold_adapter_sha256": "22b2c92c8b1b2f561815527588d8cfbc2084f39c7880426146da4d43567ba3ae",
+      "history_adapter_sha256": "518298397bfa2b1aa36bddbb2b67c1f8f3a3ce12276e398e7135a1aeb2b39bff",
+      "public_observer_integrated": true,
+      "native_preparation_maps_and_room_descriptor_match": true,
+      "matching_admitted_player_ids": true,
+      "original_guest_page_observed": true,
+      "default_template_only": true,
+      "actual_ready_roundtrip_0_1_0": false,
+      "authenticated_relay_records": 8,
+      "pre_retirement_rejections": 0,
+      "retirement_rejections": 1,
+      "actual_exit_codes": [
+        0,
+        0
+      ],
+      "diagnostic_files_restored": true,
+      "saves_cloud_shared_unchanged": true
+    }
+  ],
+  "lua51_tests_passed": 14,
+  "session_map_early_exclusion_checks_passed": 6,
+  "original_steam_executable_qualified": false,
+  "custom_templates_qualified": false,
+  "mixed_world_started": false,
+  "synchronized_turns_qualified": false,
+  "gold_neo_qualified": false,
+  "mixed_save_cold_reload_qualified": false
+}

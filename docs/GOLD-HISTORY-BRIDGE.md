@@ -5,9 +5,10 @@ now connect Gold and Ubisoft History to the authenticated channel and deliver
 foreign participant events through their original native queues. Both session
 managers have accepted matching two-player rosters and host/guest roles. The
 preparation defaults now show both participants in both windows. The latest
-private configuration path also selects History's original guest page and
-delivers Gold's native map value. Complete guest initialization, Ready exchange
-and mixed gameplay remain incomplete. The guarded public native codec has also delivered repeated
+private configuration path also selects History's original guest page,
+loads Gold's map after native cache adoption and restores the admitted players.
+Ready exchange has passed bounded standalone tests. Common world start and
+mixed gameplay remain incomplete. The guarded public native codec has also delivered repeated
 lobby-chat messages in each direction between Gold and Ubisoft History. Normal game builds and
 matchmaking admission are unchanged.
 
@@ -15,6 +16,10 @@ The November 11 components add original native event construction, local
 clone-and-queue delivery, copied castle designs and a bounded roster-binding
 protocol. They remain excluded from ordinary game adapter builds. Complete
 native admission and mixed-edition gameplay tests remain incomplete.
+
+The [map initialization correction](GOLD-HISTORY-MAP-INITIALIZATION.md) fixes
+premature guest loading while the original configuration event is still queued.
+It is verified for both History data sets on the isolated standalone runtime.
 
 The [offline logistics task audit](GOLD-NEO-LAYOUT.md) records native Gold and
 both History task field layouts for the NEO port. Original serializer runs
