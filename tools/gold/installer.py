@@ -61,13 +61,21 @@ def verify_package(app):
     app = gold.plain(app)
     value = read_json(app / 'package.json')
     if (value.get('format') != FORMAT or value.get('menu_sha256') != gold.MENU_SHA256
+            or type(value.get('platform_independent',False)) is not bool
             or value.get('multiplayer') is not False):
         raise ValueError('Unbekanntes Gold-Installationspaket.')
     verified_files(app, value.get('files'), ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses'))
     if inventory(app, ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses')) != value['files']:
         raise ValueError('Gold-Paketinventar verändert.')
+    adapter=ADAPTER_SHA256
+    if value.get('platform_independent',False):
+        import platform_standalone
+        adapter=platform_standalone.GOLD
+        platform_standalone.payload(app/'Payload/Platform')
+        if any(('Tools/gold/'+name) not in value['files'] for name in (*platform_standalone.TOOLS,'compatibility.py')):
+            raise ValueError('Die Gold-Standalone-Werkzeuge fehlen.')
     for name, expected in (
-        ('Payload/weplay_gold_startup.dll', ADAPTER_SHA256),
+        ('Payload/weplay_gold_startup.dll', adapter),
         ('Payload/d3d9.dll', gold.DXVK_SHA256), ('Definitions/Definitions.bin', gold.DEFINITIONS_SHA256)):
         if value['files'].get(name) != expected:
             raise ValueError('Gold-Paket enthält einen ungeprüften Laufzeitstand.')
@@ -83,9 +91,14 @@ def verify_game(app):
     if (root / 'PREPARATION-INCOMPLETE.txt').exists():
         raise ValueError('Gold-Vorbereitung unvollständig.')
     verified_files(root, value.get('files'), ('Data', 'Launcher', 'Backup'))
+    adapter=ADAPTER_SHA256
+    if value.get('platform_independent',False):
+        import platform_standalone
+        platform_standalone.load(root)
+        adapter=platform_standalone.GOLD
     for name, expected in ((gold.EXE.as_posix(), EXE_SHA256),
                            (gold.INTERFACE.as_posix(), gold.MENU_SHA256),
-                           ('Launcher/weplay_gold_startup.dll', ADAPTER_SHA256),
+                           ('Launcher/weplay_gold_startup.dll', adapter),
                            (gold.EXE.with_name('d3d9.dll').as_posix(), gold.DXVK_SHA256)):
         if value['files'].get(name) != expected:
             raise ValueError('Gold-Installation hat einen ungeprüften Spielstand.')
@@ -94,12 +107,15 @@ def verify_game(app):
 
 def install(app, source, *, emit=print):
     app = gold.plain(app)
-    verify_package(app)
+    package=verify_package(app)
     # Never overwrite a loaded game/adapter or reuse an existing game directory.
     from bootstrap import ensure_closed
     ensure_closed(app)
     source = gold.source_root(source)
     target = gold.plain(app / 'Game')
+    if package.get('platform_independent',False):
+        import platform_standalone
+        platform_standalone.validate_location(target,gold=True)
     if target.exists():
         raise ValueError('Die Gold-Spielkopie existiert bereits. Einen neuen Zielordner wählen.')
     if app.is_relative_to(source) or source.is_relative_to(app):
@@ -111,6 +127,10 @@ def install(app, source, *, emit=print):
     launcher = stage / 'Launcher'
     launcher.mkdir()
     shutil.copy2(app / 'Payload/weplay_gold_startup.dll', launcher / 'weplay_gold_startup.dll')
+    independent=package.get('platform_independent',False)
+    if independent:
+        import platform_standalone
+        platform_standalone.prepare(stage,app/'Payload/Platform',gold=True)
     report.update(starter_created=True, shared_profile_isolated=True, offline_startup_adapter=True)
     (stage / 'gold-development.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf8')
     (stage / 'README.txt').write_text(
@@ -118,11 +138,13 @@ def install(app, source, *, emit=print):
         'Start über die WePlay-Gold-Verknüpfung im Startmenü.\n'
         'Bereinigtes Interface und vollständige Kampagnenauswahl sind installiert.\n'
         'Original-EXE und Original-Interface liegen unverändert in Backup.\n'
-        'Spielstände: isoliertes Profil unter Documents/WePlay/Gold.\n', encoding='utf8')
+        + ('Spielstände/Einstellungen: innerhalb der Kopie unter LocalData/ProfileRoot/Profiles.\n'
+           'Steam und Ubisoft Connect werden nicht benötigt; Windows-Netzisolation beim ersten Start bestätigen.\n'
+           if independent else 'Spielstände: isoliertes Profil unter Documents/WePlay/Gold.\n'), encoding='utf8')
     files = inventory(stage, ('Data', 'Launcher', 'Backup'))
-    value = {'format': INSTALLED, 'files': files, 'multiplayer': False,
+    value = {'format': INSTALLED, 'files': files, 'multiplayer': False,'platform_independent':independent,
              'quiet_interface': True, 'all_campaign_maps_selectable': True,
-             'profile_isolation': 'native-path-derived', 'source_files_verified': len(report['source_files'])}
+             'profile_isolation': 'portable' if independent else 'native-path-derived', 'source_files_verified': len(report['source_files'])}
     (stage / 'gold-install.json').write_text(json.dumps(value, indent=2) + '\n', encoding='utf8')
     ensure_closed(app)
     stage.rename(target)

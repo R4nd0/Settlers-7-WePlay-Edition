@@ -162,7 +162,7 @@ def run(args, helpers):
         backup(p, output/'before'/('Shared'+str(i)), shared_before[str(p)])
     immutable = {str(p): digest(p) for p in (exe, dll, root/'Data/Base/BBA/Interface.bba')}
     (output/'source-checkpoint.private.json').write_text(json.dumps({n: digest(Path(__file__).with_name(n)) for n in
-        ('agent.js', 'stepping.js', 'fixture.lua', 'debugger.py', 'launch.py', 'profiles.py', 'gold_launch.py')}, indent=2))
+        ('agent.js', 'stepping.js','lua_errors.js', 'fixture.lua', 'debugger.py', 'launch.py', 'profiles.py', 'gold_launch.py')}, indent=2))
     game = adapter = sentinel = None
     resumed = False
     failure = None

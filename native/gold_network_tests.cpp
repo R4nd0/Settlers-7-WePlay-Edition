@@ -6,6 +6,10 @@
 #include <cstdio>
 extern "C" __declspec(dllimport) bool __cdecl S7TestInstallGuard();
 extern "C" __declspec(dllimport) bool __cdecl S7TestGoldLoopback(unsigned int);
+#ifdef S7_PLATFORM_INDEPENDENT
+extern "C" __declspec(dllimport) BOOL WINAPI InternetGetCookieExW(LPCWSTR,LPCWSTR,LPWSTR,LPDWORD,DWORD,LPVOID);
+extern "C" __declspec(dllimport) DWORD WINAPI InternetSetCookieExW(LPCWSTR,LPCWSTR,LPCWSTR,DWORD,DWORD_PTR);
+#endif
 int main() {
     WSADATA data{}; if (WSAStartup(MAKEWORD(2,2),&data)) return 1;
     if (S7TestGoldLoopback(0) || S7TestGoldLoopback(1) || S7TestGoldLoopback(10)
@@ -63,5 +67,13 @@ int main() {
     if (ShellExecuteExA(&shell_a) || GetLastError()!=ERROR_ACCESS_DENIED) return 8;
     SHELLEXECUTEINFOW shell_w{};shell_w.cbSize=sizeof(shell_w);shell_w.fMask=SEE_MASK_FLAG_NO_UI;shell_w.lpFile=L"?:\\weplay-invented-missing.exe";
     if (ShellExecuteExW(&shell_w) || GetLastError()!=ERROR_ACCESS_DENIED) return 9;
+#ifdef S7_PLATFORM_INDEPENDENT
+    wchar_t untouched[]=L"authored sentinel";DWORD cookie_size=32;
+    if (InternetGetCookieExW(L"https://weplay-test.invalid/",nullptr,untouched,&cookie_size,0,nullptr)
+        || GetLastError()!=ERROR_NO_MORE_ITEMS || cookie_size || wcscmp(untouched,L"authored sentinel")) return 18;
+    if (InternetSetCookieExW(L"https://weplay-test.invalid/",L"authored",L"invented",0,0)!=5
+        || GetLastError()!=ERROR_ACCESS_DENIED) return 19;
+    std::puts("Gold WinINet cookie imports rejected without reading/writing cookie data.");
+#endif
     WSACleanup();std::puts("Gold-specific wide DNS, WSAConnect and child/shell import guards passed.");return 0;
 }

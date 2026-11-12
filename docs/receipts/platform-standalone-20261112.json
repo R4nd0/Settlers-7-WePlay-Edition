@@ -1,0 +1,572 @@
+{
+  "format": "weplay-platform-standalone-verification-v1",
+  "date": "2026-11-13",
+  "started": "2026-11-12",
+  "status": "all-three-known-families-qualified",
+  "actual_game_intervals": [
+    {
+      "edition": "history-steam",
+      "interval": "Steam-live-2",
+      "exe_sha256": "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
+      "adapter_sha256": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 117,
+        "peak_private_mib": 1672,
+        "min_free_mib": 2109,
+        "min_largest_mib": 2020,
+        "monitor_failed": false,
+        "peak_probe_ms": 96.975,
+        "min_host_physical_free_mib": 5367,
+        "min_host_commit_free_mib": 20214
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63",
+        "uplay_r1_loader.dll": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+        "steam_api.dll": "2e9836aeb19373dc1cc0743a9d8bdd5f322fbb426d077ea2718005c5a4bef140"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 228
+    },
+    {
+      "edition": "history-ubisoft",
+      "interval": "Ubisoft-live-1",
+      "exe_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "adapter_sha256": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 75,
+        "peak_private_mib": 1645,
+        "min_free_mib": 2088,
+        "min_largest_mib": 2046,
+        "monitor_failed": false,
+        "peak_probe_ms": 42.769,
+        "min_host_physical_free_mib": 5347,
+        "min_host_commit_free_mib": 20534
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "uplay_r1_loader.dll": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 146
+    },
+    {
+      "edition": "gold",
+      "interval": "Gold-live-1",
+      "exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "adapter_sha256": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": true,
+        "max_pressure": 0,
+        "samples": 105,
+        "peak_private_mib": 1996,
+        "min_free_mib": 1023,
+        "min_largest_mib": 989,
+        "monitor_failed": true,
+        "peak_probe_ms": 99.58,
+        "min_host_physical_free_mib": 4550,
+        "min_host_commit_free_mib": 19273
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "weplay_gold_startup.dll": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 481
+    },
+    {
+      "edition": "gold",
+      "interval": "Gold-live-2",
+      "exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "adapter_sha256": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": true,
+        "max_pressure": 0,
+        "samples": 35,
+        "peak_private_mib": 1392,
+        "min_free_mib": 2286,
+        "min_largest_mib": 2045,
+        "monitor_failed": true,
+        "peak_probe_ms": 39.676,
+        "min_host_physical_free_mib": 4482,
+        "min_host_commit_free_mib": 19459
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "weplay_gold_startup.dll": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 381
+    },
+    {
+      "edition": "gold",
+      "interval": "Gold-live-3",
+      "exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "adapter_sha256": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": true,
+        "max_pressure": 0,
+        "samples": 30,
+        "peak_private_mib": 1409,
+        "min_free_mib": 2265,
+        "min_largest_mib": 2045,
+        "monitor_failed": true,
+        "peak_probe_ms": 27.022,
+        "min_host_physical_free_mib": 5168,
+        "min_host_commit_free_mib": 18885
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "weplay_gold_startup.dll": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 361
+    },
+    {
+      "edition": "gold",
+      "interval": "GoldFixed-live-1",
+      "exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "adapter_sha256": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": true,
+        "max_pressure": 0,
+        "samples": 40,
+        "peak_private_mib": 1845,
+        "min_free_mib": 1881,
+        "min_largest_mib": 1844,
+        "monitor_failed": true,
+        "peak_probe_ms": 36.224,
+        "min_host_physical_free_mib": 3316,
+        "min_host_commit_free_mib": 16574
+      },
+      "kernel_probe_flags": 7,
+      "observed_runtime_modules": {
+        "weplay_miles_original.dll": "301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf",
+        "weplay_gold_startup.dll": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+        "mss32.dll": "ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63"
+      },
+      "exit_code": 0,
+      "shared_profiles_unchanged": true,
+      "executable_unchanged": true,
+      "platform_processes_initially_absent": true,
+      "unexpected_network_or_platform_observations": 0,
+      "samples": 136
+    }
+  ],
+  "actual_debugger_cold_starts": [
+    {
+      "edition": "history-steam",
+      "exe_sha256": "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
+      "kernel_probe_flags": 7,
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 65,
+        "peak_private_mib": 1656,
+        "min_free_mib": 2092,
+        "min_largest_mib": 2014,
+        "monitor_failed": false,
+        "peak_probe_ms": 32.927,
+        "min_host_physical_free_mib": 4534,
+        "min_host_commit_free_mib": 19480
+      },
+      "sources": {
+        "debugger.py": "3cf9c1ec103b9ed3b9d5d158230331c56ae2ec87fe8670c12258cce5b0966c3e",
+        "agent.js": "c37bd6da2858a6b90b53c86d6c51d3ee6f3c240e1734981d6859434249b74ca9",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "profiles.py": "0a154e1a9115d641296955afa821bd75f31c8e65e522c291c44f98c2dc74635f",
+        "standalone_launch.py": "395ce5d1bc89f8c7cdb0f988fd8f203619d4d109536ea67a7579bc274305afaa"
+      },
+      "checks": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      },
+      "closure": {
+        "exit_code": 0,
+        "shared_profiles_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "prior_save_loaded_to_rendered_world": true
+    },
+    {
+      "edition": "history-ubisoft",
+      "exe_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "kernel_probe_flags": 7,
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": true,
+        "max_pressure": 1,
+        "samples": 146,
+        "peak_private_mib": 1658,
+        "min_free_mib": 2084,
+        "min_largest_mib": 2041,
+        "monitor_failed": false,
+        "peak_probe_ms": 36.892,
+        "min_host_physical_free_mib": 1085,
+        "min_host_commit_free_mib": 14760
+      },
+      "sources": {
+        "debugger.py": "3cf9c1ec103b9ed3b9d5d158230331c56ae2ec87fe8670c12258cce5b0966c3e",
+        "agent.js": "c37bd6da2858a6b90b53c86d6c51d3ee6f3c240e1734981d6859434249b74ca9",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "profiles.py": "0a154e1a9115d641296955afa821bd75f31c8e65e522c291c44f98c2dc74635f",
+        "standalone_launch.py": "58bb77dc573b49fa09b04103f9bf3ba81c3c492ec8df2c7700c49b1d832e4a9f"
+      },
+      "checks": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      },
+      "closure": {
+        "exit_code": 0,
+        "shared_profiles_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "prior_save_loaded_to_rendered_world": true
+    },
+    {
+      "edition": "gold",
+      "exe_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "kernel_probe_flags": 7,
+      "memory_monitor": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 39,
+        "peak_private_mib": 1903,
+        "min_free_mib": 1206,
+        "min_largest_mib": 1156,
+        "monitor_failed": false,
+        "peak_probe_ms": 48.191,
+        "min_host_physical_free_mib": 3075,
+        "min_host_commit_free_mib": 16287
+      },
+      "sources": {
+        "debugger.py": "0716ed1af30005a547231faa608a462fe7c4af1533f051cbcc0d5962384b2799",
+        "agent.js": "8cdf9b87dc570f797c20120372870ba80cf89015a0bd7119c0b6edb10398d0b3",
+        "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+        "lua_errors.js": "ce2851904865056d32de85380b60ea9575f857b67903de55a0dc211a71839336",
+        "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+        "profiles.py": "0a154e1a9115d641296955afa821bd75f31c8e65e522c291c44f98c2dc74635f",
+        "standalone_launch.py": "53ae6b11028a4db9c803e3c4da333471ec3ecc22d093dd1a8a5ef1f88a145628"
+      },
+      "checks": {
+        "original_game_stops": [
+          {
+            "source": "Script/profiles.lua",
+            "line": 1,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 3,
+            "depth": 1
+          },
+          {
+            "source": "Script/profiles.lua",
+            "line": 5,
+            "depth": 1
+          }
+        ],
+        "fixture_stops": [
+          {
+            "run": 1,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 1,
+            "line": 3,
+            "depth": 5,
+            "reason": "stepIn"
+          },
+          {
+            "run": 1,
+            "line": 4,
+            "depth": 5,
+            "reason": "next"
+          },
+          {
+            "run": 1,
+            "line": 9,
+            "depth": 4,
+            "reason": "stepOut"
+          },
+          {
+            "run": 1,
+            "line": 10,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 2,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          },
+          {
+            "run": 2,
+            "line": 9,
+            "depth": 4,
+            "reason": "next"
+          },
+          {
+            "run": 3,
+            "line": 8,
+            "depth": 4,
+            "reason": "breakpoint"
+          }
+        ],
+        "fixture_executions": 3,
+        "lua_stacks_balanced": true,
+        "stale_stop_rejected": true,
+        "pause_timeout_verified": true,
+        "hooks_restored": true,
+        "real_game_lua": true
+      },
+      "closure": {
+        "exit_code": 0,
+        "shared_profiles_unchanged": true,
+        "game_files_unchanged": true
+      },
+      "prior_save_loaded_to_rendered_world": true
+    }
+  ],
+  "history_new_world_and_manual_save": true,
+  "steam_same_process_save_reload": true,
+  "native_fixture_checks": {
+    "bridge_before_crt": true,
+    "entry_restored": true,
+    "child_process_denied": true,
+    "direct_load_denied": true,
+    "miles_real_name_and_ordinal_exports": 355,
+    "image_cases": 11,
+    "history_feature_fixtures": 25,
+    "save_archive_cases": 7,
+    "wfp_control_and_filtered_delivery": true,
+    "private_peer_port_delivery_and_lease_expiry": true
+  },
+  "python_checks": {
+    "platform_standalone": 9,
+    "installer": 35,
+    "gold_installer": 10,
+    "gold_edition": 19,
+    "gold_menu": 13,
+    "display": 10,
+    "graphics_launcher": 10,
+    "desktop_backend": 50,
+    "debugger_startup": 12,
+    "stepping_policy": 16,
+    "lua_error_redaction": 15,
+    "release_documents": 3
+  },
+  "gold_qualification": {
+    "loading_overlay_absent": true,
+    "hud_interactive": true,
+    "manual_save_and_cold_reload_qualified": true,
+    "portable_debugger_path_qualified": true,
+    "save_bytes": 3840240,
+    "normal_run_uses_shipped_embedded_python": true,
+    "interface_sha256": "16fda9a2a1cbf766eb74a4b72b93f110309e8d06059c2e0458c4d7955ecc6e72",
+    "earlier_failure": "Retired global-chat replacement omitted hide(); original gameChatMessages initialization stopped at line269.",
+    "regression": "Old page fails create/hide lifecycle; actual newly installed archive passes with real Lua5.1.",
+    "earlier_debugger_attach_failure": "Cold Frida setup exhausted bounded pre-entry preparation; owned process closed, shared files unchanged.",
+    "controller_preparation": "Successful Gold run prepares local Frida before native entry wait; public backend now performs the same preparation."
+  },
+  "limits": [
+    "Known exact executable families only; unknown images rejected.",
+    "Socket/module/process observations are periodic, not packet capture.",
+    "Actual process kernel probes and exact persistent WFP filter checks supplement observations.",
+    "Earlier Gold intervals are retained as failed UI diagnostics, not successful save qualifications.",
+    "Some memory-monitor intervals failed; their recorded monitor_failed/recovery_required flags are retained, not claimed as clean telemetry.",
+    "Running-world Lua pauses, long debug sessions and other Lua states are not qualified.",
+    "No multiplayer synchronization or mixed-edition world qualification."
+  ],
+  "private_game_data_included": false,
+  "packet_payloads_recorded": false,
+  "platform_account_caches_read": false
+}

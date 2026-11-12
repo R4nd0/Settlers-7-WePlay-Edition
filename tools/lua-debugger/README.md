@@ -82,19 +82,72 @@ The local startup path and its narrower qualification are documented in the
 
 ## Requirements and preparation
 
+The launcher also recognizes the portable packages described in
+[platform standalone](../../docs/PLATFORM-STANDALONE.md). For those copies,
+`--bundle` selects the prepared game root for Gold, Ubisoft History or Steam
+History; no lab EXE variant is needed. The packaged, fingerprinted starter
+initializes on the real main thread and validates Windows network isolation
+before the debugger attaches, then releases the original game entry. The
+regular Steam EXE remains unchanged on disk. Before accepting its Lua API
+addresses, the controller checks the SHA-256 of the complete 12,853,248-byte
+decoded text in the owned process, and the agent checks each API prefix again.
+Unknown images or modified decoded code are refused. This portable path still
+requires version-specific real-game qualification; earlier lab results do not
+establish that qualification. The regular Steam and Ubisoft History images
+and portable Gold have now each passed eleven real stops, into/over/out, locals,
+three fixture
+results, balanced stacks, stale-stop rejection, timeout and hook restoration.
+Afterward each loaded its previously saved world following the cold start and
+exited normally with unchanged shared profiles and game files. Portable Gold
+also passed its new-world/manual-save/cold-reload test after correcting the
+retired global-chat page's missing lifecycle method. Cold Frida initialization
+now occurs before the native entry wait; the bounded wait and target checks
+remain unchanged. See the
+[portable receipt](../../docs/receipts/platform-standalone-20261112.json).
+
+For a prepared portable copy, use:
+
+```powershell
+rtk proxy python tools/lua-debugger/launch.py --bundle work/portable-game --output work/portable-debugger-run --self-test --pause-ms 5000
+```
+
+The History loopback service defaults to the runtimes inside that copy. Gold
+uses no History service. Its private profile remains inside the game copy;
+shared Documents profiles are backed up and compared after closure. Existing
+portable saves are backed up but never replaced with older diagnostic data.
+The optional lab-only affinity override is rejected for this path, which uses
+the portable starter's verified physical-core policy.
+
+`--trace-errors-only` observes protected-call failures from the first native
+entry without installing Lua line hooks, breakpoints or a fixture. It accepts
+no command file. The log retains only status, a bounded `Script/` resource
+location and standard missing-member diagnostics; arbitrary error text and
+game strings remain redacted. This mode is intended for initial UI failures
+that may happen before a later observer can attach. Its parser and controller
+guards have offline checks. The early Gold observer caught the initial protected
+call failure that a later observer missed. A bounded read-only diagnostic then
+localized the truncated resource to the original game chat initialization at
+line 269; its `globalChat.create(); globalChat.hide()` exposed the replacement
+page's missing method. The corrected installed archive and real save/cold-reload
+tests passed. Arbitrary error text was not retained.
+
+```powershell
+rtk proxy python tools/lua-debugger/launch.py --bundle work/portable-game --output work/portable-errors --trace-errors-only
+```
+
 Use Windows, Python with `frida` and `pefile`, Node for the policy tests, an
 existing local bootstrap service, and a separate prepared game bundle beneath
 repository `work/`. The bundle needs DXVK and the project's lab-compatible
 platform adapter. The source-only tool ships no game files or runtime DLLs.
 
-The exact accepted EXE hashes and native APIs are in `profiles.PROFILES`. History
-uses the existing A/B variants of the Ubisoft image and C/D variants of the
+The exact accepted EXE hashes and native APIs are in `profiles.PROFILES`. The
+legacy History labs use the existing A/B variants of the Ubisoft image and C/D variants of the
 Steam analysis image. Their native profiles resolve through Windows Documents
 to repository `work/A` through `work/D`. The launcher verifies that resolution and refuses an
 already-used diagnostic profile. Do not replace a loaded platform adapter.
-The ordinary installer/release adapter is unchanged by this work.
+The platform-independent packages above have their own pinned release adapters.
 
-Gold accepts the existing prepared image fingerprint and uses its native
+The legacy Gold lab accepts the existing prepared image fingerprint and uses its native
 path-derived `Documents/WePlay/Gold/<digest>` profile/mutex isolation. It requires
 an explicitly selected x86 native startup DLL beneath `work/`, with a
 `GoldInitialize` export. The original guarded entry bridge initializes that DLL
@@ -195,8 +248,9 @@ reported. There is no arbitrary expression-evaluation command.
 
 The host verifies the exact prepared EXE hash, work-copy location and live PID,
 parent and path before attachment to its owned child. It pins the original
-primary thread before Frida introduces other threads. Steam's startup control
-defers attachment until the SDK has initialized. The agent independently
+primary thread before Frida introduces other threads. The legacy genuine-SDK
+Steam diagnostic defers attachment until SDK initialization; the portable
+starter attaches before the original entry. The agent independently
 checks the named EXE module, path, PE identity and ASLR-adjusted original API
 bytes before installing any hook. It refuses pre-existing debug hooks.
 
@@ -224,7 +278,7 @@ These sixteen policy checks cover source matching, recursion depth, breakpoint
 priority, stepping and invalid commands. They supplement the real game test;
 they do not establish native ABI or gameplay correctness by themselves.
 
-`rtk proxy python tools/lua-debugger/test_startup.py` checks eight controller
+`rtk proxy python tools/lua-debugger/test_startup.py` checks twelve controller
 handshake regressions, including optional Steam diagnostics before ready,
 fatal initialization failures, cleanup and the fixed readiness deadline.
 

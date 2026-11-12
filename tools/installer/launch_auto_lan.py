@@ -151,8 +151,8 @@ def run(args, *, picker=None, network=None):
             print('Entwicklermodus ist im LAN gesperrt. Bitte das Starterfenster geoeffnet lassen.', flush=True)
             if getattr(args, 'before_game', None) is not None:
                 args.before_game()
-            command, environment = host_runtime.game_command(root, game_arguments, environment)
-            game = subprocess.Popen(command, cwd=root / 'Base/Bin', env=environment)
+            game = launch_local.spawn_game(root,game_arguments,environment,
+                lan={'local':interface.address,'coordinator':coordinator,'group':True})
             code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux', monitor=getattr(args, 'game_monitor', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)

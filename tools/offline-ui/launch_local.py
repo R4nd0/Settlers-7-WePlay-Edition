@@ -27,6 +27,16 @@ EXE_HASH = "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f"
 STEAM_EXE_HASH = "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410"
 
 
+def has_platform_runtime(root):
+    root=Path(root)
+    if (root/'Launcher/platform_standalone.py').is_file() or (root/'Launcher/platform-standalone.json').exists():return True
+    record=root/'local-bundle.json'
+    if record.is_file():
+        if record.stat().st_size>16384:raise ValueError('Das lokale Startmanifest ist zu groß.')
+        return json.loads(record.read_text(encoding='utf-8')).get('platform_independent',False) is True
+    return False
+
+
 def game_launch_environment(root, inherited=None):
     """Bind Steam SDK startup to the checked title, in the child only.
 
@@ -37,6 +47,12 @@ def game_launch_environment(root, inherited=None):
     if executable not in (EXE_HASH, STEAM_EXE_HASH):
         raise ValueError('Unbekannte Spielversion beim Vorbereiten des Spielstarts.')
     result = dict(os.environ if inherited is None else inherited)
+    if has_platform_runtime(root):
+        import platform_standalone
+        if platform_standalone.enabled(root):
+            platform_standalone.load(root)
+            import isolated_process
+            return isolated_process.child_environment(result)
     if executable == STEAM_EXE_HASH:
         for key in list(result):
             if key.upper() in ('STEAMAPPID', 'STEAMGAMEID'):
@@ -74,6 +90,7 @@ def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
     """Keep the owned window controller alive until this game's exit."""
     controller = None
     observer = None
+    managed=getattr(game,'_weplay_owned',False) is True
     try:
         if monitor is not None:
             observer = monitor(game)
@@ -82,14 +99,16 @@ def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
                 controller = _graphics_module().start_window_mode(root, game)
             except (OSError, ValueError, RuntimeError):
                 print('Borderless fullscreen unavailable. The game remains windowed.', flush=True)
-        return game.wait()
+        return game.wait(close=False) if managed else game.wait()
     finally:
         try:
             if controller is not None:
                 controller.close()
         finally:
-            if observer is not None:
-                observer.close()
+            try:
+                if observer is not None:observer.close()
+            finally:
+                if managed and game.poll() is not None:game.close()
 
 
 def plain_path(path, root):
@@ -117,6 +136,8 @@ def verify_bundle(root):
     expected_paths = {"Base/Bin/Settlers7R.exe", "Base/Bin/uplay_r1_loader.dll", "Base/BBA/Interface.bba"}
     if manifest.get("format") != "s7-local-experimental-v1" or set(manifest.get("files", {})) != expected_paths:
         raise ValueError("Die Testversion hat kein gueltiges Manifest.")
+    if type(manifest.get('platform_independent',False)) is not bool:
+        raise ValueError('Unbekannte Plattformisolation.')
     if manifest["files"]["Base/Bin/Settlers7R.exe"] not in (EXE_HASH, STEAM_EXE_HASH):
         raise ValueError("Diese Spielversion wird nicht unterstuetzt.")
     for name, expected in manifest["files"].items():
@@ -124,6 +145,20 @@ def verify_bundle(root):
         plain_path(path, root)
         if not re.fullmatch("[0-9a-f]{64}", expected) or digest(path) != expected:
             raise ValueError("Die Dateien der Testversion haben sich geaendert.")
+
+
+def spawn_game(root, arguments, environment,*,lan=None):
+    if os.name == 'nt' and has_platform_runtime(root):
+        import platform_standalone
+        if platform_standalone.enabled(root):
+            return platform_standalone.launch(root, environment=environment, arguments=arguments,lan=lan)
+        raise ValueError('Die Standalone-Laufzeit ist unvollständig.')
+    if os.name == 'posix':
+        import linux_runtime
+        command, environment = linux_runtime.game_command(root, arguments, environment)
+    else:
+        command = [str(Path(root)/'Base/Bin/Settlers7R.exe'), *arguments]
+    return subprocess.Popen(command, cwd=Path(root)/'Base/Bin', env=environment)
 
 
 def local_identity(data):
@@ -302,13 +337,7 @@ def run(args):
                     game_options['env'] = game_environment
                 if getattr(args, 'before_game', None) is not None:
                     args.before_game()
-                if os.name == 'posix':
-                    import linux_runtime
-                    command, game_environment = linux_runtime.game_command(root, game_arguments, game_environment)
-                    game_options['env'] = game_environment
-                else:
-                    command = [str(root / "Base/Bin/Settlers7R.exe"), *game_arguments]
-                game = subprocess.Popen(command, **game_options)
+                game = spawn_game(root, game_arguments, game_environment)
                 code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True),
                                              monitor=getattr(args, 'game_monitor', None))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:

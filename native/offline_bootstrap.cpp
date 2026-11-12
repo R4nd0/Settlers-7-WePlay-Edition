@@ -1401,6 +1401,9 @@ bool WritePatch(const Patch& patch, bool restore) {
 #include "neo_logistics_patches.inc"
 #endif
 #include "visual_detail.inc"
+#ifdef S7_PLATFORM_INDEPENDENT
+#include "../tools/platform-standalone/steam_local_facade.h"
+#endif
 bool Install() {
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (local_connect_probe && memcmp(Native<const void*>(0x795967), PriorityNextEntryGuard,
@@ -1527,6 +1530,9 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
         SecureZeroMemory(local_ticket, sizeof(local_ticket));
         return false;
     }
+#ifdef S7_PLATFORM_INDEPENDENT
+    if (steam_history && !SteamLocalFacade::Install(image_base,bootstrap_thread.load())) Stop(PatchFailure);
+#endif
     if (lan_game) ReportLocalStatus("local-lan-developer-mode-disabled");
     if (!ApplyLocalCpuAffinity()) Stop(PatchFailure);
 #if S7_MAX_PHYSICAL_CORES == 2

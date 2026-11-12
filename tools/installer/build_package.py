@@ -37,7 +37,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -62,7 +62,11 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig'))!={'format':'weplay-windows-capabilities-v1','directory_crypto':1,'internet_firewall':2}:
             raise ValueError('Directory cryptography or restricted Internet firewall helper is missing')
     check_output_location(repo, output, (service, dotnet, python_zip.parent, adapter.parent))
-    if content.digest(adapter) != adapter_fingerprint(game_directory,neo_logistics) or content.digest(python_zip) != PYTHON_SHA256:
+    if platform_runtime is not None:
+        import platform_standalone
+        platform_runtime=platform_standalone.payload(platform_runtime)
+        check_output_location(repo,output,(platform_runtime,))
+    if content.digest(adapter) != adapter_fingerprint(game_directory,neo_logistics,platform_runtime is not None) or content.digest(python_zip) != PYTHON_SHA256:
         raise ValueError('Adapter or Python distribution fingerprint mismatch')
     if content.digest(service / 'S7Patcher.dll') != SERVICE_SHA256:
         raise ValueError('Service fingerprint does not match the tested LAN build')
@@ -119,6 +123,9 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     for name in ('S7Patcher.dll', 'S7Patcher.deps.json', 'S7Patcher.runtimeconfig.json'):
         shutil.copyfile(service / name, server / name)
     shutil.copyfile(adapter, output / 'Payload/uplay_r1_loader.dll')
+    if platform_runtime is not None:
+        folder=output/'Payload/Platform';folder.mkdir()
+        for name in platform_standalone.PAYLOAD:shutil.copyfile(platform_runtime/name,folder/name)
     if graphics_probe is not None:
         helpers=output/'Payload/Helpers';helpers.mkdir()
         shutil.copyfile(windows_helpers/'Update/WePlay.UpdateHelper.exe',helpers/'WePlay.UpdateHelper.exe')
@@ -152,6 +159,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)+list(PUBLIC_DIRECTORY_PACKAGE_TOOLS)
     names += [original for original,_ in WINDOWS_API_TOOLS]
     names += ['installer/portable_lock.py', 'installer/host_runtime.py']
+    if platform_runtime is not None:names+=['installer/'+name for name in platform_standalone.TOOLS]
     names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +170,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         shutil.copyfile(repo/'native/third_party/puff/puff.h',licenses/'NEO-Logistics-puff.txt')
         shutil.copyfile(repo/'tools/lan/LICENSE.S7Packer.txt',licenses/'NEO-Logistics-S7Packer.txt')
     write_json(output / 'package.json', {'format': FORMAT,
+        'platform_independent':platform_runtime is not None,
         'steam_history': True,
         'multiplayer_castles': True,
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
@@ -230,6 +239,12 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
                 'FIFO richtet sich nach dem Auftragsalter. Gruppenprioritaeten sind deaktiviert; '
                 'Einzelprioritaeten bleiben aktiv. Im Mehrspieler benoetigen alle denselben Kandidaten. '
                 'Einzelspieler-Speichern/Laden ist geprueft. Mehrspieler-Prioritaeten werden wiederhergestellt; der nachgewiesene KI-Desync nach dem Laden ist korrigiert. Langzeit- und separate-PC-Tests bleiben begrenzt.\n')
+    if platform_runtime is not None:
+        with (output/'LIESMICH.txt').open('a',encoding='utf-8') as stream:
+            stream.write('\nPlattformunabhängig: Steam/Ubisoft Connect werden nicht benötigt. Die reguläre Steam-EXE bleibt auf Platte unverändert. '
+                'Die Windows-Netzisolation beim ersten Start dieser Kopie bestätigen. Spielstände und Einstellungen bleiben '
+                'in der Kopie unter LocalData/ProfileRoot. Für WePlay-LAN werden nur aktuelle private Mitspieler/Spielports '
+                'zeitlich begrenzt freigegeben. Nach Verschieben der Kopie die Netzisolation am neuen Pfad bestätigen.\n')
     if dxvk_dll is not None:
         shutil.copyfile(repo / 'docs/RC-GRAPHICS.md', output / 'START-HIER.txt')
         for name, action in (('Grafikprofil-aktivieren.cmd','install'),('Standardgrafik-wiederherstellen.cmd','restore')):
@@ -254,7 +269,8 @@ if __name__ == '__main__':
     parser.add_argument('--neo-logistics',action='store_true',help='Include the experimental NEO-Logistics map mode (matching adapter required)')
     parser.add_argument('--midsummer-profile',action='store_true',help='Include optional bright twilight/day lighting and ReShade tone support')
     parser.add_argument('--atmosphere-addon',help='Tested x86 read-only sun-clock bridge (required for Mittsommer)')
+    parser.add_argument('--platform-runtime',help='Pinned platform-independent SDK, entry gates and Windows filtering helper')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,platform_runtime=args.platform_runtime))

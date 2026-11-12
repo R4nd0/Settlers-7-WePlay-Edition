@@ -67,7 +67,10 @@ INTERNET_TOOLS = tuple(('installer/' + name, name) for name in (
     'internet_room.py', 'easytier_runtime.py', 'easytier_elevation.py', 'easytier-runtime.json',
     'launch_internet.py', 'internet_private_channel.py', 'Configure-Internet-Firewall.ps1'))
 
-def adapter_fingerprint(game_directory=False,neo_logistics=False):
+def adapter_fingerprint(game_directory=False,neo_logistics=False,platform_independent=False):
+    if platform_independent:
+        from platform_standalone import HISTORY_PINS
+        return HISTORY_PINS[(game_directory,neo_logistics)]
     if neo_logistics:return NEO_DIRECTORY_ADAPTER_SHA256 if game_directory else NEO_ADAPTER_SHA256
     return DIRECTORY_ADAPTER_SHA256 if game_directory else STEAM_ADAPTER_SHA256
 
@@ -89,6 +92,9 @@ def update_package_tools(manifest):
 def launcher_sources(manifest):
     files=[('offline-ui/launch_local.py','launch_local.py'),('installer/compatibility.py','compatibility.py'),
            ('installer/launch_lan.py','launch_lan.py'),('installer/start.py','start.py')]
+    if manifest.get('platform_independent',False):
+        from platform_standalone import TOOLS
+        files.extend(('installer/'+name,name) for name in TOOLS)
     if 'tools/installer/portable_lock.py' in manifest['files']:
         files.append(('installer/portable_lock.py','portable_lock.py'))
     if 'tools/installer/host_runtime.py' in manifest['files']:
@@ -212,7 +218,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -237,7 +243,12 @@ def package_manifest(root):
         verify_runtime(root)
     if type(manifest.get('steam_history',False)) is not bool:
         raise ValueError('Unbekannte Steam-Adapterversion.')
-    required_adapter=adapter_fingerprint(manifest.get('game_directory',False),manifest.get('neo_logistics',False))
+    independent=manifest.get('platform_independent',False)
+    required_adapter=adapter_fingerprint(manifest.get('game_directory',False),manifest.get('neo_logistics',False),independent)
+    if independent:
+        from platform_standalone import PAYLOAD,TOOLS
+        if manifest.get('linux_native',False) or any(expected.get('payload/platform/'+name)!=digest for name,digest in PAYLOAD.items()) or any(('tools/installer/'+name) not in expected for name in TOOLS):
+            raise ValueError('Die Plattformisolation im Paket ist unvollständig oder ungeprüft.')
     if manifest.get('neo_logistics',False) and (not manifest.get('multiplayer_resume',False)
             or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
             or any(('tools/'+name).lower() not in expected for name in NEO_LOGISTICS_TOOLS)):
@@ -350,7 +361,10 @@ SHARED_REPAIR_INPUT = 'base/bba/shr.bba'
 SHARED_ARCHIVE_SHA256 = '30d679720e14ec9007f359c5703d854b78a866480f856810c934e439d620e3ed'
 REPAIR_LAYOUT = dict(zip(REPAIR_INPUTS, ('Base/Bin/Settlers7R.exe', 'Base/BBA/Interface.bba')))
 REPAIR_LAYOUT[SHARED_REPAIR_INPUT] = 'Base/BBA/shr.bba'
-GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', 'base/bin/d3d9.dll', 'base/bin/dxvk.conf')
+PLATFORM_REPAIR = {'base/bin/mss32.dll':'Base/Bin/mss32.dll','base/bin/steam_api.dll':'Base/Bin/steam_api.dll'}
+REPAIR_LAYOUT.update(PLATFORM_REPAIR)
+GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', 'base/bin/d3d9.dll', 'base/bin/dxvk.conf',
+                  'base/bin/weplay_miles_original.dll','base/bin/.weplay-isolation')
 
 
 def repair_source(root, *, steam_supported=False, tools=None):
@@ -398,6 +412,14 @@ def repair_source(root, *, steam_supported=False, tools=None):
         if shared.stat().st_size > 16*1024*1024 or content.digest(shared) != SHARED_ARCHIVE_SHA256:
             raise ValueError('Die gesicherte Original-Lichtressource wurde veraendert.')
         inputs[SHARED_REPAIR_INPUT] = shared.read_bytes()
+    for name,relative in PLATFORM_REPAIR.items():
+        retained=content.plain(saved/relative)
+        if retained.is_file():
+            from platform_standalone import MILES_ORIGINAL,STEAM_ORIGINAL
+            raw=retained.read_bytes()
+            if hashlib.sha256(raw).hexdigest()!=(MILES_ORIGINAL if name.endswith('mss32.dll') else STEAM_ORIGINAL):
+                raise ValueError('Die gesicherte originale Plattformbibliothek wurde verändert.')
+            inputs[name]=raw
     accepted = (EXPECTED_EXE, STEAM_EXE) if steam_supported else (EXPECTED_EXE,)
     if (hashlib.sha256(inputs[REPAIR_INPUTS[0]]).hexdigest() not in accepted
             or hashlib.sha256(inputs[REPAIR_INPUTS[1]]).hexdigest() != EXPECTED_ARCHIVE
@@ -464,10 +486,24 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         raise ValueError('Bitte einen neuen Testordner in einem vorhandenen Ordner angeben.')
     if progress: progress('package',0,0)
     manifest = package_manifest(package)
+    if manifest.get('platform_independent',False):
+        from platform_standalone import validate_location
+        validate_location(destination)
     if progress: progress('source',0,0)
     recovery = repair_source(source,steam_supported=manifest.get('steam_history',False),tools=package/'Tools') if managed else None
     base = content.plain(source/'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
     repair_names = tuple(recovery[1]) if managed else REPAIR_INPUTS
+    if manifest.get('platform_independent',False):
+        needed=tuple(name for name,relative in PLATFORM_REPAIR.items()
+                     if name.endswith('mss32.dll') or (hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe'))==STEAM_EXE)
+        for name in needed:
+            if name not in repair_names:
+                raw=content.member(base,name.removeprefix('base/')).read_bytes()
+                from platform_standalone import MILES_ORIGINAL,STEAM_ORIGINAL
+                if hashlib.sha256(raw).hexdigest()!=(MILES_ORIGINAL if name.endswith('mss32.dll') else STEAM_ORIGINAL):
+                    raise ValueError('Die Originalbibliothek für Standalone wurde verändert.')
+                repair_names=(*repair_names,name)
+                if managed:recovery[1][name]=raw
     if manifest.get('midsummer_profile',False) and SHARED_REPAIR_INPUT not in repair_names:
         shared = content.plain(base / 'BBA/shr.bba')
         if not shared.is_file() or content.digest(shared) != SHARED_ARCHIVE_SHA256:
@@ -627,8 +663,12 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     for original, target in launcher_sources(manifest):
         content.plain(destination / 'Launcher' / target).parent.mkdir(parents=True, exist_ok=True)
         copy_payload(tools / original, destination / 'Launcher' / target)
+    if manifest.get('platform_independent',False):
+        from platform_standalone import prepare as prepare_standalone
+        prepare_standalone(destination,package/'Payload/Platform',tracker=tracker)
     copy_payload(tools / 'LICENSE.txt', destination / 'Launcher/LICENSE.txt')
     bundle = {'format': 's7-local-experimental-v1', 'runtime_verified': False, 'lan_verified': False,
+              'platform_independent':manifest.get('platform_independent',False),
               'files': {name: content.digest(destination / name) for name in
                         ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll', 'Base/BBA/Interface.bba')}}
     if bundle['files']['Base/Bin/Settlers7R.exe'] != source_exe_hash:

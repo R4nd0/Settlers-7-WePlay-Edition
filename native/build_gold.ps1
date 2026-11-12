@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$IsolatedLabExecutable,
-      [switch]$LocalSimulation, [switch]$LocalLogin, [switch]$AccountLogin)
+      [switch]$LocalSimulation, [switch]$LocalLogin, [switch]$AccountLogin, [switch]$PlatformIndependent)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -20,6 +20,16 @@ $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_W
 if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
 if ($LocalLogin -or $AccountLogin) { $common += '/DS7_GOLD_LOCAL_LOGIN' }
 if ($AccountLogin) { $common += '/DS7_GOLD_ACCOUNT_LOGIN' }
+$standaloneSources = @()
+if ($PlatformIndependent) {
+    if ($IsolatedLabExecutable -or $AccountLogin -or $LocalLogin) { throw 'Standalone Gold uses the verified local simulation and original prepared executable only.' }
+    if (!$LocalSimulation) { throw 'Standalone Gold requires LocalSimulation.' }
+    $common += '/DS7_PLATFORM_INDEPENDENT'
+    foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp')) {
+        $standaloneSources += (Join-Path $nativeSource $name)
+    }
+    $standaloneSources += '/DS7_KERNEL_PROBE_LIBRARY'
+}
 if ($IsolatedLabExecutable) {
     $labPath = (Resolve-Path -LiteralPath $IsolatedLabExecutable).Path
     $workspace = [System.IO.Path]::GetFullPath((Join-Path $nativeSource '..\work\'))
@@ -38,12 +48,14 @@ try {
     & cl.exe @common /LD /DS7_GUARD_TESTING (Join-Path $nativeSource 'network_guard.cpp') (Join-Path $nativeSource 'network_guard_test_exports.cpp') /Fe:network_guard_test.dll /link ws2_32.lib winhttp.lib shell32.lib
     if ($LASTEXITCODE -ne 0) { throw 'Gold network fixture DLL build failed.' }
     foreach ($testName in @('network_guard_tests','gold_network_tests')) {
-        & cl.exe @common (Join-Path $nativeSource "$testName.cpp") "/Fe:$testName.exe" /link network_guard_test.lib ws2_32.lib winhttp.lib shell32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+        & cl.exe @common (Join-Path $nativeSource "$testName.cpp") "/Fe:$testName.exe" /link network_guard_test.lib ws2_32.lib winhttp.lib wininet.lib shell32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
         if ($LASTEXITCODE -ne 0) { throw "Gold $testName build failed." }
         & (Join-Path $nativeOutput "$testName.exe")
         if ($LASTEXITCODE -ne 0) { throw "Gold $testName failed ($LASTEXITCODE)." }
     }
-    & cl.exe @common /LD (Join-Path $nativeSource 'gold_startup.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:weplay_gold_startup.dll /link "/DEF:$(Join-Path $nativeSource 'gold_startup.def')" bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib /DYNAMICBASE /NXCOMPAT
+    $standaloneExport = @()
+    if ($PlatformIndependent) { $standaloneExport += @('/EXPORT:WePlayInitializeStandalone=_WePlayInitializeStandalone@4','/Brepro') }
+    & cl.exe @common /LD (Join-Path $nativeSource 'gold_startup.cpp') (Join-Path $nativeSource 'network_guard.cpp') @standaloneSources /Fe:weplay_gold_startup.dll /link "/DEF:$(Join-Path $nativeSource 'gold_startup.def')" bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib iphlpapi.lib /DYNAMICBASE /NXCOMPAT @standaloneExport
     if ($LASTEXITCODE -ne 0) { throw 'Gold native startup build failed.' }
 } finally { Pop-Location }
 Write-Output 'Built experimental Gold startup only. No game was launched or installed.'

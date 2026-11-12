@@ -1,5 +1,6 @@
 """Controller handshake regressions; native execution is tested separately."""
 import json
+import hashlib
 from contextlib import nullcontext
 from pathlib import Path
 import sys
@@ -8,7 +9,7 @@ import types
 import unittest
 from unittest.mock import patch
 import debugger
-from profiles import STEAM
+from profiles import STEAM,select,STEAM_PACKED
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,6 +46,27 @@ class Session:
 
 
 class Startup(unittest.TestCase):
+    def test_error_only_mode_rejects_execution_before_target_or_attachment(self):
+        with patch.dict(sys.modules,frida=types.SimpleNamespace()),patch.object(debugger,'validate_target') as validate:
+            for kwargs in (dict(selftest=True),dict(breakpoints=[dict(source='Script/test.lua',line=1)])):
+                with self.assertRaisesRegex(ValueError,'Error-only tracing'):
+                    debugger.Adapter(ROOT/'work/unused.exe',123,ROOT/'work/unused.jsonl',trace_errors_only=True,**kwargs)
+            validate.assert_not_called()
+
+    def test_original_history_profiles(self):
+        self.assertEqual(select(STEAM_PACKED)['api'],STEAM)
+        self.assertIsNone(select('4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f')['slot'])
+        with self.assertRaises(ValueError):select('0'*64)
+
+    def test_complete_decoded_image_is_required_before_native_guards(self):
+        text=bytes(range(256));address=0x401040
+        with patch.object(debugger,'STEAM_TEXT',(0x1000,len(text),hashlib.sha256(text).hexdigest())):
+            self.assertEqual(debugger.decoded_steam_guards(text,[address])[0]['bytes'],text[64:96].hex())
+            corrupt=bytearray(text);corrupt[-1]^=1
+            with self.assertRaisesRegex(ValueError,'reviewed image'):
+                debugger.decoded_steam_guards(bytes(corrupt),[address])
+            with self.assertRaises(ValueError):debugger.decoded_steam_guards(text,[0x400fff])
+
     def run_adapter(self, events, *, failure=None, clock=None):
         session = Session(events, failure)
         selected = (ROOT/'work/mock.exe', [], dict(version='history-steam', slot='D'), STEAM)
@@ -76,6 +98,10 @@ class Startup(unittest.TestCase):
     def test_sdk_result_precedes_ready(self):
         events = [dict(event='steam-startup-result', result=False), dict(event='ready')]
         self.assertEqual(self.run_adapter(events), events)
+
+    def test_redacted_game_error_does_not_hide_debugger_ready(self):
+        events=[dict(event='lua-runtime-error',status=2,location=dict(source='Script/profiles.lua',line=1)),dict(event='ready')]
+        self.assertEqual(self.run_adapter(events),events)
 
     def test_fatal_agent_error_still_rejected(self):
         with self.assertRaisesRegex(RuntimeError, 'initialization rejected'):

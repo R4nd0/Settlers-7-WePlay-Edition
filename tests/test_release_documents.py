@@ -7,6 +7,14 @@ sys.path.insert(0,str(ROOT/'tools/desktop'))
 import build_rc2
 
 class ReleaseDocumentTests(unittest.TestCase):
+    def test_new_standalone_receipt_uses_exact_source_commit(self):
+        revision='a'*40
+        text=build_rc2.public_document(ROOT/'docs/PLATFORM-STANDALONE.md',revision=revision)
+        self.assertIn('/blob/'+revision+'/docs/receipts/platform-standalone-20261112.json)',text)
+        self.assertNotIn('/blob/'+build_rc2.RELEASE_TAG+'/',text)
+        with self.assertRaises(ValueError):
+            build_rc2.public_document(ROOT/'docs/PLATFORM-STANDALONE.md',revision='../../invalid')
+
     def test_release_and_credit_links_are_versioned_and_targets_exist(self):
         for source in (build_rc2.RELEASE_GUIDE,ROOT/'README.md',ROOT/'CREDITS.md',ROOT/'docs/DISCORD-INTEGRATION.md'):
             with self.subTest(source=source.name):

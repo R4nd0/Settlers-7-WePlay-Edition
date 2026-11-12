@@ -16,7 +16,7 @@ TOOLS = ('prepare.py', 'menu_interface.py', 'profile_interface.py', 'installer.p
          'start.py', 'bootstrap.py', 'entry_bridge.py')
 
 
-def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler):
+def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler,platform_runtime=None):
     stage, output, adapter, python_zip, dxvk, dxvk_license, compiler = map(
         gold.plain, (stage, output, adapter, python_zip, dxvk, dxvk_license, compiler))
     if (stage.exists() or not stage.parent.is_dir() or not stage.is_relative_to(REPO / 'work')
@@ -25,7 +25,13 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler):
     for path in (adapter, python_zip, dxvk, dxvk_license, compiler):
         if stage.is_relative_to(path.parent) or output.is_relative_to(path.parent):
             raise ValueError('Gold installer output overlaps an input directory.')
-    for path, expected in ((adapter, installer.ADAPTER_SHA256), (python_zip, installer.PYTHON_SHA256),
+    expected_adapter=installer.ADAPTER_SHA256
+    if platform_runtime is not None:
+        sys.path.insert(0,str(REPO/'tools/installer'))
+        import platform_standalone
+        platform_runtime=platform_standalone.payload(platform_runtime)
+        expected_adapter=platform_standalone.GOLD
+    for path, expected in ((adapter, expected_adapter), (python_zip, installer.PYTHON_SHA256),
                            (dxvk, gold.DXVK_SHA256), (REPO / 'Definitions/Definitions.bin', gold.DEFINITIONS_SHA256)):
         if gold.digest(path) != expected:
             raise ValueError('Gold installer input fingerprint differs: ' + path.name)
@@ -42,12 +48,18 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler):
     for name in TOOLS:
         target = app / 'Tools/gold' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / 'tools/gold' / name, target)
+    if platform_runtime is not None:
+        for name in (*platform_standalone.TOOLS,'compatibility.py'):
+            shutil.copy2(REPO/'tools/installer'/name,app/'Tools/gold'/name)
     lan = app / 'Tools/lan'; lan.mkdir()
     shutil.copy2(REPO / 'tools/lan/bba.py', lan / 'bba.py')
     definitions = app / 'Definitions'; definitions.mkdir()
     shutil.copy2(REPO / 'Definitions/Definitions.bin', definitions / 'Definitions.bin')
     payload = app / 'Payload'; payload.mkdir()
     shutil.copy2(adapter, payload / 'weplay_gold_startup.dll')
+    if platform_runtime is not None:
+        folder=payload/'Platform';folder.mkdir()
+        for name in platform_standalone.PAYLOAD:shutil.copy2(platform_runtime/name,folder/name)
     shutil.copy2(dxvk, payload / 'd3d9.dll')
     licenses = app / 'Licenses'; licenses.mkdir()
     for source, name in ((REPO / 'LICENSE', 'WePlay-MIT.txt'),
@@ -55,7 +67,7 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler):
                          (dxvk_license, 'DXVK.txt')):
         shutil.copy2(source, licenses / name)
     (app / 'package.json').write_text(json.dumps({
-        'format': installer.FORMAT, 'menu_sha256': gold.MENU_SHA256, 'multiplayer': False,
+        'format': installer.FORMAT, 'menu_sha256': gold.MENU_SHA256, 'multiplayer': False,'platform_independent':platform_runtime is not None,
         'files': installer.inventory(app, ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses'))}, indent=2) + '\n', encoding='utf8')
     installer.verify_package(app)
     # Exercise the shipped interpreter, dependencies and menu compressor before
@@ -81,7 +93,9 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler):
         'WePlay-Gold-Setup.exe starten und die eigene unveränderte Gold-Installation 1.12.1396 auswählen.\n'
         'Setup erstellt eine separate Kopie mit bereinigtem Interface und vollständiger Kampagnenauswahl.\n'
         'Start über die Verknüpfung „WePlay Gold“. Python und DXVK sind enthalten.\n'
-        'Das Original bleibt unverändert. Spielstände liegen im isolierten Documents/WePlay/Gold-Profil.\n'
+        + ('Das Original bleibt unverändert. Spielstände/Einstellungen liegen innerhalb der Kopie unter LocalData/ProfileRoot/Profiles.\n'
+           'Steam und Ubisoft Connect werden nicht benötigt; Windows-Netzisolation beim ersten Start bestätigen.\n'
+           if platform_runtime is not None else 'Das Original bleibt unverändert. Spielstände liegen im isolierten Documents/WePlay/Gold-Profil.\n') +
         'Mindestens 4 GiB freier RAM und eine DXVK/Vulkan-kompatible Grafikkarte erforderlich.\n'
         'Dieses Gold-Paket enthält keine freigegebene Mehrspieler-/History-Crossplay-Integration.\n'
         'Vorhandene Gold-Testkopien werden nicht überschrieben; für diese Version einen neuen Zielordner wählen.\n', encoding='utf8')
@@ -93,6 +107,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('stage', 'output', 'adapter', 'python-zip', 'dxvk', 'dxvk-license', 'compiler'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--platform-runtime',type=Path)
     args = parser.parse_args()
     build(args.stage, args.output, adapter=args.adapter, python_zip=args.python_zip,
-          dxvk=args.dxvk, dxvk_license=args.dxvk_license, compiler=args.compiler)
+          dxvk=args.dxvk, dxvk_license=args.dxvk_license, compiler=args.compiler,platform_runtime=args.platform_runtime)

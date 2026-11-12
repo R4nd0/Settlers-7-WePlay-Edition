@@ -432,7 +432,14 @@ bool ProfileNames() {
         && BCryptFinishHash(hash, digest, sizeof(digest), 0) >= 0;
     if (hash) BCryptDestroyHash(hash);
     if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
-    if (valid) profile_names = GoldProfile::FromDigest(digest);
+    if (valid) {
+        profile_names = GoldProfile::FromDigest(digest);
+#ifdef S7_PLATFORM_INDEPENDENT
+        // Portable saves retain the native constructors and a per-copy mutex.
+        profile_names.suffix.fill(0);
+        memcpy(profile_names.suffix.data(),"\\Profiles",10);
+#endif
+    }
     return valid;
 }
 bool ProfileDirectory() {

@@ -117,6 +117,20 @@ return count
         popup.update(); popup.destroy()
         self.assertFalse(popup.isCreated()); self.assertFalse(popup.isRunning())
 
+    def test_retired_global_chat_keeps_singleplayer_bootstrap_and_callbacks(self):
+        lua=LuaRuntime()
+        lua.execute('l=setmetatable({},{__index=function()error("unexpected UI or platform dependency")end})')
+        chat=lua.execute(menu.QUIET_GLOBAL_CHAT)
+        bootstrap=lua.eval('function(chat) chat.create();chat.hide();return true end')
+        self.assertTrue(bootstrap(chat))
+        for _ in range(3):
+            chat.show();chat.hide();chat.update();chat.createChatRoom(1,'ignored')
+            chat.receiveChatMessagesCallback({});chat.destroy()
+            self.assertFalse(chat.isCreated());self.assertFalse(chat.isVisible());self.assertIsNone(chat.getFrame())
+        calls=lua.table_from({'count':0})
+        callbacks=lua.eval('function(c)return {toMainMenu=function()c.count=c.count+1 end}end')(calls)
+        chat.create(callbacks);self.assertEqual(calls.count,1)
+
     def test_vendor_controls_never_create_buttons_or_evaluate_callbacks(self):
         body = '''
 local created,hidden,bookkeeping=0,0,0

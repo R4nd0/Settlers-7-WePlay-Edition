@@ -739,6 +739,17 @@ BOOL WINAPI GuardChildW(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRI
     LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
 BOOL WINAPI GuardShellExA(SHELLEXECUTEINFOA*) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
 BOOL WINAPI GuardShellExW(SHELLEXECUTEINFOW*) { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
+#ifdef S7_PLATFORM_INDEPENDENT
+// Gold imports these directly from WinINet. Offline startup must neither read
+// nor change the Windows browser/account-cookie store, even without a socket.
+BOOL WINAPI GuardCookieGet(LPCWSTR,LPCWSTR,LPWSTR,LPDWORD size,DWORD,LPVOID) {
+    if (!size) { SetLastError(ERROR_INVALID_PARAMETER); return FALSE; }
+    *size=0;SetLastError(ERROR_NO_MORE_ITEMS);return FALSE;
+}
+DWORD WINAPI GuardCookieSet(LPCWSTR,LPCWSTR,LPCWSTR,DWORD,DWORD_PTR) {
+    SetLastError(ERROR_ACCESS_DENIED);return 5; // COOKIE_STATE_REJECT
+}
+#endif
 #endif
 
 struct Binding { const char* dll; const char* name; void* replacement; };
@@ -748,6 +759,9 @@ const Binding bindings[] = {
     BIND("WS2_32.dll", "WSAConnect", GuardWSAConnect), BIND("WS2_32.dll", "GetAddrInfoW", GuardWideAddrInfo),
     BIND("KERNEL32.dll", "CreateProcessA", GuardChildA), BIND("KERNEL32.dll", "CreateProcessW", GuardChildW),
     BIND("SHELL32.dll", "ShellExecuteExA", GuardShellExA), BIND("SHELL32.dll", "ShellExecuteExW", GuardShellExW),
+#ifdef S7_PLATFORM_INDEPENDENT
+    BIND("WININET.dll", "InternetGetCookieExW", GuardCookieGet), BIND("WININET.dll", "InternetSetCookieExW", GuardCookieSet),
+#endif
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
     BIND("IPHLPAPI.DLL", "GetUnicastIpAddressTable", LabUnicastTable),

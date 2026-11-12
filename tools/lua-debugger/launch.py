@@ -92,20 +92,28 @@ def main():
     parser.add_argument('--gold-adapter', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--trace-errors-only',action='store_true')
     parser.add_argument('--commands', type=Path)
     parser.add_argument('--breakpoint', action='append', default=[], metavar='SOURCE:LINE')
     parser.add_argument('--pause-ms', type=int, default=10000)
     parser.add_argument('--affinity-mask', type=lambda text: int(text, 0))
     args = parser.parse_args()
+    if args.trace_errors_only and (args.self_test or args.breakpoint or args.commands is not None):
+        parser.error('Error-only tracing cannot be combined with fixtures, breakpoints or commands')
     root, output = args.bundle.resolve(), args.output.resolve()
     if not root.is_relative_to((ROOT/'work').resolve()) or not output.is_relative_to((ROOT/'work').resolve()):
         parser.error('Bundle and fresh output must be beneath repository work/')
     if output.exists() or not output.parent.is_dir():
         parser.error('Use a fresh output directory with an existing parent')
-    if not args.self_test and args.commands is None:
+    if not args.self_test and not args.trace_errors_only and args.commands is None:
         parser.error('Ordinary mode requires a local JSON-lines --commands file')
     if args.commands and not args.commands.resolve().is_relative_to((ROOT/'work').resolve()):
         parser.error('Keep commands under repository work/')
+    if (root/'Launcher/platform-standalone.json').exists():
+        if args.affinity_mask is not None:parser.error('Portable copies use the verified physical-core policy')
+        import standalone_launch
+        return standalone_launch.run(args,dict(snapshot=snapshot,backup=backup,digest=digest))
+    if args.trace_errors_only:parser.error('Error-only tracing requires a prepared portable copy')
     gold_exe = root/'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
     if gold_exe.is_file():
         if args.gold_adapter is None:
@@ -121,6 +129,8 @@ def main():
     slot = selected['slot']
     if selected['version'] not in ('history-ubisoft', 'history-steam'):
         parser.error('Unexpected History profile')
+    if slot is None:
+        parser.error('Original History images require a prepared portable package copy')
     docs_buffer = c.create_unicode_buffer(32768)
     if c.WinDLL('shell32').SHGetFolderPathW(None, 5, None, 0, docs_buffer) != 0:
         raise RuntimeError('Cannot resolve actual Windows Documents')
@@ -158,7 +168,7 @@ def main():
     immutable = {name: digest(root/name) for name in
                  ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll', 'Base/BBA/Interface.bba')}
     sources = {name: digest(Path(__file__).with_name(name)) for name in
-               ('agent.js', 'stepping.js', 'fixture.lua', 'debugger.py', 'launch.py', 'profiles.py')}
+               ('agent.js', 'stepping.js','lua_errors.js', 'fixture.lua', 'debugger.py', 'launch.py', 'profiles.py')}
     (output/'source-checkpoint.private.json').write_text(json.dumps(sources, indent=2))
     service = game = sentinel = adapter = None
     resumed = False

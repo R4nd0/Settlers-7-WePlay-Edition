@@ -19,28 +19,33 @@ RELEASE_GUIDE = REPO/'docs/RC3.25-STANDALONE-UPDATE.md'
 RELEASE_TAG = 'v2.0.0-rc3.25'
 
 
-def public_document(source):
+def public_document(source,*,revision=None):
     """Packaged documents link to versioned sources, not absent local folders."""
     source = Path(source)
+    if revision is None:revision=RELEASE_TAG
+    elif not isinstance(revision,str) or not re.fullmatch('[0-9a-f]{40}',revision):
+        raise ValueError('Use the exact source commit for new packaged documents')
     def link(match):
         path, separator, fragment = match[1].partition('#')
         target = (source.parent / path).resolve()
         if not target.is_relative_to(REPO.resolve()) or not target.is_file():
             raise ValueError('Missing public document target: ' + match[1])
         relative = target.relative_to(REPO.resolve()).as_posix()
-        return '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/' + RELEASE_TAG + '/' + quote(relative) + (separator + fragment if separator else '') + ')'
+        return '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/' + revision + '/' + quote(relative) + (separator + fragment if separator else '') + ')'
     return re.sub(r'\]\((?!https?://|#)([^)]+)\)', link, source.read_text(encoding='utf-8'))
 
 
-def copy_documents(app):
-    for original, destination in ((RELEASE_GUIDE,'LIESMICH.txt'),
-            (RELEASE_GUIDE,'RELEASE-NOTES.md'),(RELEASE_GUIDE,'README.md'),
+def copy_documents(app,*,platform_independent=False):
+    guide=REPO/'docs/PLATFORM-STANDALONE.md' if platform_independent else RELEASE_GUIDE
+    revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip() if platform_independent else None
+    for original, destination in ((guide,'LIESMICH.txt'),
+            (guide,'RELEASE-NOTES.md'),(guide,'README.md'),
             (REPO/'CREDITS.md','CREDITS.md'),(REPO/'docs/DISCORD-INTEGRATION.md','DISCORD-INTEGRATION.md')):
-        (app/destination).write_text(public_document(original),encoding='utf-8',newline='\n')
+        (app/destination).write_text(public_document(original,revision=revision),encoding='utf-8',newline='\n')
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=25,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=25,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -69,12 +74,12 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
-        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon)
+        easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,platform_runtime=platform_runtime)
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
     for name in ('LIESMICH.txt','START-HIER.txt'):(app/'Package'/name).unlink(missing_ok=True)
-    copy_documents(app)
+    copy_documents(app,platform_independent=platform_runtime is not None)
     if easytier_runtime is not None:
         sys.path.insert(0,str(REPO/'tools/easytier'))
         import source_bundle
@@ -83,7 +88,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
     release={'format':'s7-desktop-release-v1','release':'RC3.25 Standalone Update Hotfix','network_revision':9,'game_bits':32,
              'version':'2.0.0-rc3.25','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
-             'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,
+             'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
@@ -127,7 +132,7 @@ def refresh_stage(app,desktop_publish):
     install.package_manifest(package)
     for path in desktop_publish.iterdir():
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
-    copy_documents(app)
+    copy_documents(app,platform_independent=manifest.get('platform_independent',False))
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
 
@@ -144,7 +149,8 @@ if __name__=='__main__':
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')
     parser.add_argument('--atmosphere-addon')
+    parser.add_argument('--platform-runtime')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,platform_runtime=values.platform_runtime)

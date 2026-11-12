@@ -4,6 +4,12 @@
 #include <windows.h>
 #include <intrin.h>
 #include <stdint.h>
+#ifdef S7_PLATFORM_INDEPENDENT
+#include "../../native/standalone_gate.h"
+BOOL WINAPI DllMain(HINSTANCE,DWORD reason,LPVOID) {
+    return reason != DLL_PROCESS_ATTACH || StandaloneLaunchGate();
+}
+#endif
 
 extern "C" uint32_t __cdecl WePlayLocalSteamBoundary() { return 0x53374c31; }
 extern "C" bool __cdecl SteamAPI_Init() { return false; }

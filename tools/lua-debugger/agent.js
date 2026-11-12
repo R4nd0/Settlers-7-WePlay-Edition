@@ -48,6 +48,7 @@ let nextState = 1, nextStop = 1, paused = null, stopping = false, active = 0;
 let firstGameLine = !!CONFIG.firstGameLine, fixturePending = false, fixtureRunning = false;
 const listeners = [];
 let pinned = false;
+let runtimeErrors = 0;
 if (CONFIG.identity.version === 'history-steam') {
   const exit = Process.getModuleByName('ntdll.dll').getExportByName('RtlExitUserProcess');
   listeners.push(Interceptor.attach(exit, { onEnter(args) {
@@ -209,6 +210,7 @@ function commands() {
   recv('command', message => {
     try {
       const c = message.payload;
+      if (CONFIG.traceErrorsOnly && c.op !== 'detach') throw new Error('error-trace-has-no-execution-commands');
       if (c.op === 'detach') {
         stopping = true;
         if (paused) { paused.command = 'continue'; signal(wake); }
@@ -228,7 +230,7 @@ function commands() {
 commands();
 listeners.push(Interceptor.attach(at(CONFIG.api.newstate), {
   onLeave(L) {
-    if (stopping || L.isNull()) return;
+    if (CONFIG.traceErrorsOnly || stopping || L.isNull()) return;
     registerState(L, this.threadId);
   }
 }));
@@ -241,9 +243,23 @@ listeners.push(Interceptor.attach(at(CONFIG.api.close), {
 listeners.push(Interceptor.attach(at(CONFIG.api.pcall), {
   onEnter(args) {
     this.L = ptr(args[0].toString());
-    if (CONFIG.attachExisting && !stopping && !record(this.L)) registerState(this.L, this.threadId);
+    if (!CONFIG.traceErrorsOnly && CONFIG.attachExisting && !stopping && !record(this.L)) registerState(this.L, this.threadId);
   },
   onLeave(result) {
+    if (!stopping && result.toInt32() !== 0 && runtimeErrors < 128) {
+      runtimeErrors++;
+      let location = null;
+      try {
+        const v = top(this.L).sub(8);
+        // Reviewed x86 LuaJIT GCstr: len at 12, payload at 16. Read only
+        // protected-call errors; the log retains only the strict parser result.
+        if (v.add(4).readU32() === 0xfffffffb) {
+          const s = v.readPointer(), length = s.add(12).readU32();
+          if (length > 0 && length <= 512) location = S7LuaError(s.add(16).readUtf8String(length));
+        }
+      } catch (_) { /* Opaque errors remain redacted. */ }
+      emit('lua-runtime-error', { status: result.toInt32(), location });
+    }
     if (!fixturePending || fixtureRunning || stopping || result.toInt32() !== 0) return;
     const L = this.L, state = record(L);
     if (!state || !owner(state) || active || paused) return;

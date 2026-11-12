@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics, [switch]$PlatformIndependent)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -17,6 +17,15 @@ foreach ($line in $compilerEnvironment) {
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS')
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
+$standaloneSources = @()
+if ($PlatformIndependent) {
+    if ($LocalPairLab -or $NeoFifoLab) { throw 'Standalone release builds accept original executable fingerprints only.' }
+    $common += '/DS7_PLATFORM_INDEPENDENT'
+    foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp')) {
+        $standaloneSources += (Join-Path $nativeSource $name)
+    }
+    $standaloneSources += '/DS7_KERNEL_PROBE_LIBRARY'
+}
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
 if ($NeoFifoLab) {
     if ($NeoLogistics) { throw 'NeoFifoLab and NeoLogistics are different candidates; select one.' }
@@ -38,6 +47,7 @@ function Compile-Native([string[]]$Arguments) {
     if ($Arguments -notcontains '/link') { $Arguments += '/link' }
     # Avoid Windows' filename-based installer detection for test executables.
     $Arguments += @('/MANIFEST:EMBED', "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
+    if ($PlatformIndependent) { $Arguments += '/Brepro' }
     & cl.exe @common @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
 }
@@ -83,9 +93,9 @@ try {
     if ($GameDirectory) { Compile-Native @((Join-Path $nativeSource 'game_directory_bridge_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:game_directory_bridge_tests.exe') }
     Compile-Native @((Join-Path $nativeSource 'lobby_team_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:lobby_team_tests.exe')
     Compile-Native @((Join-Path $nativeSource 'logistics_priority_tests.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:logistics_priority_tests.exe')
-    Compile-Native @('/LD', (Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'network_guard.cpp'),
-        (Join-Path $nativeSource 'offline_bootstrap.cpp'), (Join-Path $nativeSource 'runtime_config.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp'), '/Fe:uplay_r1_loader.dll',
-        '/link', "/DEF:$(Join-Path $nativeSource 'local_platform.def')", 'ws2_32.lib','winhttp.lib','shell32.lib','bcrypt.lib','crypt32.lib',
-        '/DYNAMICBASE','/NXCOMPAT')
+    Compile-Native (@('/LD', (Join-Path $nativeSource 'local_platform.cpp'), (Join-Path $nativeSource 'network_guard.cpp'),
+        (Join-Path $nativeSource 'offline_bootstrap.cpp'), (Join-Path $nativeSource 'runtime_config.cpp'), (Join-Path $nativeSource 'cpu_affinity.cpp')) + $standaloneSources + @('/Fe:uplay_r1_loader.dll',
+        '/link', "/DEF:$(Join-Path $nativeSource 'local_platform.def')", 'ws2_32.lib','winhttp.lib','shell32.lib','bcrypt.lib','crypt32.lib','iphlpapi.lib',
+        '/DYNAMICBASE','/NXCOMPAT') + $(if ($PlatformIndependent) { '/EXPORT:WePlayInitializeStandalone=_WePlayInitializeStandalone@4' }))
 } finally { Pop-Location }
 Write-Output 'Built experimental x86 adapter and synthetic tests. No game was launched or installed.'

@@ -69,7 +69,7 @@ def replace(raw,value):
 def prepare(root):
     value=load(root)
     graphics.ensure_closed()
-    path=graphics._plain(display.options_path())
+    path=graphics._plain(display.options_path(root) if display.uses_portable_profile(root) else display.options_path())
     before=graphics._read(path,65536) if path.exists() else None
     after=replace(before or b'',value)
     if after==before:return

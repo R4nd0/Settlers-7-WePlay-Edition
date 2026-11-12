@@ -101,7 +101,8 @@ def run(args):
             print('LAN-Sitzungstest: Beitritt und Spielstart sind noch in Entwicklung.', flush=True)
             game_options = {'cwd': root / 'Base/Bin'}
             game_options['env'] = launch_local.game_launch_environment(root, game_environment)
-            game = subprocess.Popen([str(root / 'Base/Bin/Settlers7R.exe'), *game_arguments], **game_options)
+            game = launch_local.spawn_game(root,game_arguments,game_options['env'],
+                lan={'local':local,'coordinator':address,'peer':peer,'group':False})
             code = launch_local.wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True))
             with (data / (run_id + '-game-exit.txt')).open('x', encoding='ascii') as output:
                 output.write(str(code) + '\n')

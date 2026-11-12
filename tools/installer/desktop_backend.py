@@ -414,11 +414,12 @@ class Desktop:
         for name in ('local-profile-id.txt','player-settings.json','graphics-choice.json','graphics-quality.json'):
             path=graphics._plain(old/'LocalData'/name)
             if path.is_file():total+=path.stat().st_size
-        saves=graphics._plain(old/'LocalData/saves')
-        if saves.is_dir():
-            for path in saves.rglob('*'):
-                path=graphics._plain(path)
-                if path.is_file():total+=path.stat().st_size
+        for folder in ('saves','ProfileRoot'):
+            saves=graphics._plain(old/'LocalData'/folder)
+            if saves.is_dir():
+                for path in saves.rglob('*'):
+                    path=graphics._plain(path)
+                    if path.is_file():total+=path.stat().st_size
         return total
 
     def cleanup_preparations(self):
@@ -465,10 +466,23 @@ class Desktop:
                 except (OSError,ValueError):
                     self.emit('warning',code='preferences_reset');continue
                 shutil.copyfile(source,graphics._plain(data/name))
-        saves=graphics._plain(old/'LocalData/saves')
-        if saves.is_dir():
+        for folder in ('saves','ProfileRoot'):
+            saves=graphics._plain(old/'LocalData'/folder)
+            if not saves.is_dir():continue
             for path in saves.rglob('*'):graphics._plain(path)
-            shutil.copytree(saves,data/'saves')
+            def copy_progress(source,target):
+                source,target=map(graphics._plain,(source,target))
+                # A newly prepared profile has empty directories. Never replace
+                # an independently created/newer save while publishing repair.
+                if target.exists():
+                    if content.digest(source)!=content.digest(target):raise ValueError('profile_changed')
+                    return str(target)
+                with source.open('rb') as incoming,target.open('xb') as outgoing:
+                    shutil.copyfileobj(incoming,outgoing,1024*1024)
+                shutil.copystat(source,target,follow_symlinks=False)
+                if content.digest(source)!=content.digest(target):raise ValueError('profile_changed')
+                return str(target)
+            shutil.copytree(saves,data/folder,dirs_exist_ok=True,copy_function=copy_progress)
 
     @verified_operation
     def install_game(self,source,container=None):

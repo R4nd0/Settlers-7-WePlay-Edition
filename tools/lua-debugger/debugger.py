@@ -1,8 +1,8 @@
-"""Explicit, local-only Frida debugger for the fingerprinted S7 History lab-A EXE.
+"""Explicit, local-only Frida debugger for fingerprinted isolated S7 copies.
 
 Use attach_suspended() from an isolated launcher before resuming its owned game.
 No launch, registry, profile, archive or game-file modifications occur here.
-Only the separate lab executable is accepted, never an installed original.
+Only owned copies under work/ are accepted, never an installed original.
 """
 import hashlib
 import json
@@ -11,7 +11,19 @@ from pathlib import Path
 import queue
 import threading
 import time
-from profiles import select, PROFILES
+from profiles import select, PROFILES, STEAM_PACKED, STEAM_TEXT
+
+
+def decoded_steam_guards(text, addresses):
+    rva,size,expected=STEAM_TEXT
+    if len(text)!=size or hashlib.sha256(text).hexdigest()!=expected:
+        raise ValueError('Decoded Steam text does not match the reviewed image')
+    result=[]
+    for address in addresses:
+        offset=address-0x400000-rva
+        if not 0<=offset<=size-32:raise ValueError('Lua API outside decoded Steam text')
+        result.append(dict(address=address,bytes=text[offset:offset+32].hex(),relocations=[]))
+    return result
 
 LAB_SHA256 = '6dd278274aa885ff402a277f6d2f3ba05600e1ff841462e038f44bf233ce992f'
 LAB_HASHES = {'A': LAB_SHA256,
@@ -28,7 +40,8 @@ def validate_target(executable, pid, parent):
     if not executable.is_relative_to((root/'work').resolve()):
         raise ValueError('Debugger requires an isolated repository work copy')
     raw = executable.read_bytes()
-    selected = select(hashlib.sha256(raw).hexdigest())
+    pin=hashlib.sha256(raw).hexdigest()
+    selected = select(pin)
     slot = selected['slot']
     # Reuse the project's exact native PID/parent/path observer, without caches.
     import sys
@@ -56,6 +69,28 @@ def validate_target(executable, pid, parent):
                    relocations=[dict(offset=r-address, word=int.from_bytes(pe.get_data(r-0x400000, 4), 'little'))
                                 for r in relocations if address-3 <= r < address+32])
               for address in selected['api'].values()]
+    if pin==STEAM_PACKED:
+        import ctypes as C
+        from ctypes import wintypes as W
+        rva,size,_=STEAM_TEXT
+        text=next((s for s in pe.sections if s.Name.rstrip(b'\0')==b'.text'),None)
+        if (text is None or text.VirtualAddress!=rva or text.SizeOfRawData!=size
+                or pe.OPTIONAL_HEADER.DllCharacteristics&0x40):
+            raise ValueError('Unexpected packed Steam code layout')
+        reader=C.WinDLL('kernel32',use_last_error=True)
+        reader.OpenProcess.argtypes=[W.DWORD,W.BOOL,W.DWORD];reader.OpenProcess.restype=W.HANDLE
+        reader.ReadProcessMemory.argtypes=[W.HANDLE,C.c_void_p,C.c_void_p,C.c_size_t,C.POINTER(C.c_size_t)]
+        reader.ReadProcessMemory.restype=W.BOOL
+        reader.CloseHandle.argtypes=[W.HANDLE];reader.CloseHandle.restype=W.BOOL
+        handle=reader.OpenProcess(0x1010,False,pid)
+        if not handle:raise ValueError('Cannot verify decoded Steam image')
+        try:
+            if api.path(handle)!=executable:raise ValueError('Live target path mismatch')
+            buffer=C.create_string_buffer(size);done=C.c_size_t()
+            if not reader.ReadProcessMemory(handle,0x400000+rva,buffer,size,C.byref(done)) or done.value!=size:
+                raise ValueError('Cannot read complete decoded Steam text')
+            guards=decoded_steam_guards(buffer.raw,selected['api'].values())
+        finally:reader.CloseHandle(handle)
     identity = dict(imageSize=pe.OPTIONAL_HEADER.SizeOfImage, timestamp=pe.FILE_HEADER.TimeDateStamp,
                     slot=slot, version=selected['version'])
     pe.close()
@@ -63,8 +98,10 @@ def validate_target(executable, pid, parent):
 
 
 class Adapter:
-    def __init__(self, executable, pid, output, *, selftest=False, pause_ms=10000, breakpoints=()):
+    def __init__(self, executable, pid, output, *, selftest=False, pause_ms=10000, breakpoints=(),trace_errors_only=False):
         import frida
+        if trace_errors_only and (selftest or breakpoints):
+            raise ValueError('Error-only tracing cannot install breakpoints or execute a fixture')
         executable, guards, identity, api = validate_target(executable, pid, os.getpid())
         if not 1000 <= pause_ms <= 30000:
             raise ValueError('Pause deadline must be 1..30 seconds')
@@ -79,12 +116,13 @@ class Adapter:
         here = Path(__file__).resolve().parent
         config = dict(path=str(executable), api=api, guards=guards, identity=identity, pauseMs=pause_ms,
                       firstGameLine=selftest, breakpoints=list(breakpoints), fixture=None,
-                      attachExisting=identity['version'] == 'history-steam')
+                      attachExisting=identity['version'] == 'history-steam',traceErrorsOnly=bool(trace_errors_only))
         if selftest:
             config['fixture'] = (here/'fixture.lua').read_text(encoding='utf-8')
             config['breakpoints'] = [dict(source='weplay/debugger-fixture.lua', line=8)]
         source = 'const CONFIG = '+json.dumps(config)+';\n'
         source += (here/'stepping.js').read_text(encoding='utf-8')+'\n'
+        source += (here/'lua_errors.js').read_text(encoding='utf-8')+'\n'
         source += (here/'agent.js').read_text(encoding='utf-8')
         self.script = self.session.create_script(source)
         self.script.on('message', self.message)
@@ -97,7 +135,7 @@ class Adapter:
                 if initial.get('event') == 'ready':
                     break
                 if initial.get('event') not in ('local-steam-boundary-observed', 'steam-observer-unavailable',
-                                                'steam-startup-result') or time.monotonic() >= deadline:
+                                                'steam-startup-result','lua-runtime-error') or time.monotonic() >= deadline:
                     raise RuntimeError('Debugger initialization rejected: '+json.dumps(initial))
         except BaseException:
             self.session.detach()

@@ -178,7 +178,22 @@ def windowed_options(raw):
     return result
 
 
-def options_path():
+def uses_portable_profile(root):
+    root=Path(root)
+    if (root/'Launcher/platform_standalone.py').is_file() or (root/'Launcher/platform-standalone.json').exists():return True
+    record=root/'local-bundle.json'
+    if record.is_file():
+        if record.stat().st_size>16384:raise ValueError('Das lokale Startmanifest ist zu groß.')
+        import json
+        return json.loads(record.read_text(encoding='utf-8')).get('platform_independent',False) is True
+    return False
+
+
+def options_path(root=None):
+    if root is not None and uses_portable_profile(root):
+        import platform_standalone
+        if not platform_standalone.enabled(root):raise ValueError('Das portable Profil ist unvollständig.')
+        return platform_standalone.options_path(root)
     # Same known Documents folder used by the game, including redirection.
     buffer = C.create_unicode_buffer(32768)
     api = C.WinDLL('shell32').SHGetFolderPathW
@@ -189,17 +204,17 @@ def options_path():
     return Path(buffer.value) / 'THE SETTLERS 7 - History Edition' / 'Options.ini'
 
 
-def prepare_windowed():
+def prepare_windowed(root=None):
     """Atomic, single-key preparation; a running game prevents any mutation."""
     import graphics_profile as graphics
-    path = graphics._plain(options_path())
+    path = graphics._plain(options_path(root) if root is not None else options_path())
     before = graphics._read(path, 65536) if path.exists() else None
     after = windowed_options(before or b'')
     if after == before:
         return
     graphics.ensure_closed()
     parent = graphics._plain(path.parent)
-    parent.mkdir(exist_ok=True)
+    parent.mkdir(parents=True,exist_ok=True)
     path = graphics._plain(path)
     if (graphics._read(path, 65536) if path.exists() else None) != before:
         raise ValueError('Display settings changed during startup. Reopen Graphics.')

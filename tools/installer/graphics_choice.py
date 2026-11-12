@@ -24,7 +24,8 @@ VISUAL_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16
 
 
 def visual_supported(root):
-    return content.digest(graphics._plain(root / graphics.LOADER)) == VISUAL_ADAPTER_SHA256
+    return content.digest(graphics._plain(root / graphics.LOADER)) in (VISUAL_ADAPTER_SHA256,
+        'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112')
 
 
 def _require_visual_support(root, selected):
@@ -99,7 +100,8 @@ def game_arguments(root):
         arguments += display.game_arguments(selected['display'], displays)
         # Do not race another S7 copy with shared Options.ini preparation.
         graphics.ensure_closed()
-        display.prepare_windowed()
+        if display.uses_portable_profile(root):display.prepare_windowed(root)
+        else:display.prepare_windowed()
     return arguments
 
 

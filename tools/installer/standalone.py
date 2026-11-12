@@ -277,7 +277,13 @@ def build(app, source, output):
     backend.install.prepare(desktop.package, source, game, publish_starters=False)
     backend.content.verify(game)
     if (game / 'LocalData').exists():
-        raise ValueError('Der frische Export darf keine lokalen Identitaeten enthalten.')
+        if not manifest.get('platform_independent',False):
+            raise ValueError('Der frische Export darf keine lokalen Identitaeten enthalten.')
+        allowed={'ProfileRoot','ProfileRoot/THE SETTLERS 7 - History Edition'}
+        for path in (game/'LocalData').rglob('*'):
+            backend.graphics._plain(path)
+            if not path.is_dir() or path.relative_to(game/'LocalData').as_posix() not in allowed:
+                raise ValueError('Der frische Standalone-Export enthält bereits persönliche Daten.')
     # No absolute source path, machine settings, accounts, rooms or identities.
     (output / RECORD).write_text(json.dumps({
         'format': FORMAT, 'instance': instance, 'package_id': desktop.package_id(full=True)}, indent=2) + '\n', encoding='utf-8')
@@ -295,7 +301,10 @@ def build(app, source, output):
         'Danach im normalen WePlay-Starter Namen eingeben und Spielmodus waehlen.\n'
         'Uplay/Ubisoft Connect und eine zweite Installation werden fuer diese\n'
         'vorbereitete Kopie nicht vom lokalen Adapter geladen.\n'
-        + ('Bei der Steam-Version Steam geoeffnet lassen; die normale Steam-Spielpruefung bleibt aktiv.\n' if edition == 'Steam' else '') +
+        + ('Steam und Ubisoft Connect werden fuer diese Kopie nicht benoetigt. Windows-Netzisolation beim ersten Start bestaetigen.\n'
+           'Spielstaende und Einstellungen liegen innerhalb der Kopie unter LocalData/ProfileRoot.\n'
+           if manifest.get('platform_independent',False) else
+           ('Bei der Steam-Version Steam geoeffnet lassen; die normale Steam-Spielpruefung bleibt aktiv.\n' if edition == 'Steam' else '')) +
         'Python und .NET sind dabei; fuer LAN/Internet ggf. Windows-Freigabe bestaetigen.\n'
         'Windows 10 x64 ab Build 19045 oder Windows 11 erforderlich.\n\n'
         'Dies ist eine frische Kopie ohne deine Spielstaende, Konten, Discord-Verbindung\n'

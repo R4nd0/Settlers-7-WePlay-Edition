@@ -28,6 +28,7 @@ CONFIRM = 'Script/local/ui/confirmDialog.lua'
 HOST = 'Script/local/menu/panel/menu/play/multiplayer/hostLobby.lua'
 BROWSER = 'Script/local/menu/panel/menu/play/multiplayer/sessionList.lua'
 UI_CORE = 'Script/local/ui/core.lua'
+GLOBAL_CHAT = 'Script/local/menu/panel/menu/community/globalChat.lua'
 SCENARIO = 'Script/local/menu/panel/menu/play/scenario.lua'
 GAME_END = 'Script/local/menu/panel/gameEnd.lua'
 FACEBOOK = 'Script/local/control/facebookHelper.lua'
@@ -117,6 +118,24 @@ function page.getFrame() return nil end
 function page.update() end
 function page.destroy() end
 return page
+'''
+
+# The original in-game chat bootstrap calls create() followed by hide(), even
+# in single-player. Retain the retired global channel's complete public shape
+# while keeping all channel creation, vendor queries and UI absent.
+QUIET_GLOBAL_CHAT = '''
+local chat = {}
+function chat.create(callbacks) if callbacks and callbacks.toMainMenu then callbacks.toMainMenu() end end
+function chat.isCreated() return false end
+function chat.getFrame() return nil end
+function chat.show() end
+function chat.hide() end
+function chat.isVisible() return false end
+function chat.destroy() end
+function chat.update() end
+function chat.createChatRoom() end
+function chat.receiveChatMessagesCallback() end
+return chat
 '''
 
 REDIRECT = '''
@@ -511,6 +530,7 @@ def build(raw):
                MISC: misc_script, STATE: state_script, ACHIEVEMENT: achievement_script,
                UPLAY: uplay_script, profile.MEMBER: profile_details_script,
                **{name: page_script for name in OBSOLETE}}
+    patches[GLOBAL_CHAT] = lambda raw: replace_body(raw,QUIET_GLOBAL_CHAT)
     for name, patch in patches.items():
         script = original.read(name)
         if hashlib.sha256(script).hexdigest() != PINS[name]:

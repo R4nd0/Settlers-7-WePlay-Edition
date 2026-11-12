@@ -16,14 +16,21 @@ def run(app, *, check_only=False, on_ready=None):
     installer.verify_game(app)
     if check_only:
         return {'verified': True, 'game_launched': False}
-    from bootstrap import launch
     root = app / 'Game'
     logs = gold.plain(root / 'LocalData'); logs.mkdir(exist_ok=True)
     environment = {key: value for key, value in os.environ.items()
                    if not key.upper().startswith(('DXVK_', 'S7_', 'WEPLAY_'))}
     environment.update(DXVK_LOG_PATH=str(logs), DXVK_STATE_CACHE_PATH=str(logs))
-    result = launch(root / gold.EXE, root / 'Launcher/weplay_gold_startup.dll',
-                    environment=environment, on_ready=on_ready)
+    package=installer.verify_package(app)
+    if package.get('platform_independent',False):
+        import platform_standalone
+        game=platform_standalone.launch(root,environment=environment,arguments=('-vSynch',))
+        if on_ready:on_ready(game.pid)
+        result={'native_initialized':game.native_initialized,'exit_code':game.wait(),'platform_independent':True}
+    else:
+        from bootstrap import launch
+        result = launch(root / gold.EXE, root / 'Launcher/weplay_gold_startup.dll',
+                        environment=environment, on_ready=on_ready)
     (logs / 'last-launch.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf8')
     return result
 

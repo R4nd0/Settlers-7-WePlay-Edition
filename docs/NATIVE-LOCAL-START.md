@@ -509,3 +509,27 @@ as evidence for this prototype.
 
 Every game outbound path, campaign saves, sustained server
 protocol, lobby/matchmaking and two-computer LAN remain unverified or missing.
+
+
+## Platform-independent package runtime, verified 2026-11-13
+
+The opt-in production standalone path now supports the regular packed Steam
+History EXE, original Ubisoft History EXE and prepared Gold1.12.1396. See
+[platform standalone](PLATFORM-STANDALONE.md) for exact scope and live receipt.
+It uses a verified pre-CRT main-thread entry bridge, original entry restoration,
+Windows child-process restriction, per-copy WFP IPv4/IPv6 nonloopback blocks,
+and a private profile inside the copy. The initializer directly verifies actual
+kernel isolation before allowing the game's original entry. Steam decoding is
+memory-only and exact whole-image/text hashes are required. A local unavailable
+Steam boundary performs no SDK/client/ownership communication. Original Miles
+remains retained locally behind355 verified export forwarders.
+
+Build with native/build_standalone.ps1 and pass platform_runtime to the package
+builders; do not substitute these pins into older lab or crossplay candidates.
+The separate copies have each passed world/manualsave/coldreload plus11 real
+Lua debugger stops and normal exit0 with shared profiles and EXE unchanged.
+Gold's retired chat replacement now satisfies create/hide and the full original
+lifecycle, fixing the prior stuck load overlay. The portable debugger prepares
+Frida before the bounded original-entry release wait; no protection is weakened.
+This supersedes older unknown-Steam/single-player-start notes for these exact
+standalone families only. It establishes no multiplayer or crossplay world.
