@@ -2,8 +2,10 @@
 
 Verified in a separate Gold laboratory copy on 2026-11-11/12. This ports History's
 startup/menu cleanup to the independently fingerprinted Gold build and removes
-additional vendor UI found in an archive-wide audit. Published installers have
-not been replaced.
+additional vendor UI found in an archive-wide audit. The dedicated
+[Gold single-player installer](GOLD-INSTALLER.md) now includes this interface
+and the full campaign selection by default. Existing History release assets
+have not been replaced.
 
 Gold answers only its startup-options reset question with No. The guarded call
 is `40DEF8 -> 41C400`; its original boolean consumer and `RET 4` epilogue are

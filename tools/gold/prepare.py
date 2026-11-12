@@ -7,6 +7,7 @@ This is a development tool, not a History Edition installer profile.
 import argparse
 import gzip
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import shutil
@@ -16,6 +17,9 @@ import struct
 GOLD_SHA256 = 'ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94'
 DEFINITIONS_SHA256 = '98f30124c274c1de15f46e1701a819358394dfeebaa0d9924b1f56596b6b6a7f'
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
+INTERFACE = Path('Data/Base/BBA/Interface.bba')
+INTERFACE_SHA256 = '5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215'
+MENU_SHA256 = '183aae77273ae9a89929fc459ee3465dedb372e34c6e1e32e653b948557054c5'
 EXE = Path('Data/Base/_Dbg/Bin/Release/Settlers7R.exe')
 DEFINITIONS = Path(__file__).resolve().parents[2] / 'Definitions/Definitions.bin'
 DXVK_CONFIG = (b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
@@ -64,7 +68,12 @@ def sha256(value):
 
 def digest(path):
     with plain(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        result = hashlib.sha256()
+        # Large original archives may live on a network-backed game drive.
+        # Bound memory while avoiding thousands of small remote reads.
+        for block in iter(lambda: stream.read(8 * 1024 * 1024), b''):
+            result.update(block)
+        return result.hexdigest()
 
 
 def plain(path):
@@ -162,12 +171,25 @@ def inspect(source, definitions=DEFINITIONS):
     root = source_root(source)
     raw = plain(root / EXE).read_bytes()
     patched = unlock_bytes(raw, plain(definitions).read_bytes())
+    if digest(root / INTERFACE) != INTERFACE_SHA256:
+        raise ValueError('Gold preparation requires the exact original Gold interface archive.')
     return {'format': 's7-gold-inspection-v1', 'edition': 'gold-ubisoft-1.12.1396',
             'source_exe_sha256': sha256(raw), 'unlocked_exe_sha256': sha256(patched),
             'unlock_edits': len(GUARDS), 'weplay_adapter_available': False,
             'loader_relocations_repaired': True,
+            'source_interface_sha256': INTERFACE_SHA256, 'menu_interface_sha256': MENU_SHA256,
             'crossplay_verified': False, 'graphics_verified': False,
             'profile_changes': False, 'game_launched': False}
+
+
+def menu_bytes(raw):
+    spec = importlib.util.spec_from_file_location('gold_menu', Path(__file__).with_name('menu_interface.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result = module.build(raw)
+    if sha256(result) != MENU_SHA256:
+        raise ValueError('Gold cleaned interface output fingerprint differs.')
+    return result
 
 
 def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None):
@@ -179,6 +201,7 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None):
         raise ValueError('The Gold destination already exists; select a new directory.')
     report = inspect(source, definitions)
     patched = unlock_bytes(plain(source / EXE).read_bytes(), plain(definitions).read_bytes())
+    interface = menu_bytes(plain(source / INTERFACE).read_bytes())
     if dxvk is not None and digest(dxvk) != DXVK_SHA256:
         raise ValueError('The selected DXVK DLL fingerprint does not match the pinned x86 build.')
     destination.mkdir(parents=True, exist_ok=False)
@@ -213,9 +236,17 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None):
     original_exe.write_bytes(patched)
     if digest(original_exe) != report['unlocked_exe_sha256']:
         raise ValueError('Gold unlock output verification failed.')
+    copied_interface = plain(destination / INTERFACE)
+    if digest(copied_interface) != INTERFACE_SHA256:
+        raise ValueError('Gold interface changed during preparation.')
+    shutil.copy2(copied_interface, backup.with_name('Interface.original.bba'))
+    copied_interface.write_bytes(interface)
+    if digest(copied_interface) != MENU_SHA256:
+        raise ValueError('Gold cleaned interface copy verification failed.')
     report.update(format='s7-gold-development-copy-v1', source_files=records,
                   definitions_sha256=DEFINITIONS_SHA256, dxvk_staged=dxvk is not None,
                   shared_profile_isolated=False, starter_created=False)
+    report.update(quiet_interface=True, all_campaign_maps_selectable=True)
     if dxvk is not None:
         dll = original_exe.with_name('d3d9.dll')
         config = original_exe.with_name('dxvk.conf')
@@ -230,6 +261,7 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None):
     (destination / 'README.txt').write_text(
         'WePlay Gold development copy\n\n'
         'Gold offline unlock applied; original executable retained in Backup.\n'
+        'Clean interface and full campaign selection installed; original interface retained in Backup.\n'
         'No WePlay multiplayer adapter is available for this executable.\n'
         'Crossplay and modern graphics have not been qualified.\n'
         'No starter is created: isolate/back up the actual profile and saves before testing.\n'

@@ -1,7 +1,9 @@
 # Gold Edition integration
 
-Status: development checkpoint, 2026-11-10. Gold/History crossplay is **not
-implemented**. This checkpoint is not a Gold-compatible WePlay release.
+Status: Gold development checkpoint with a separate
+[single-player installer](GOLD-INSTALLER.md), 2026-11-12. Gold/History crossplay
+is not qualified for release. The Gold installer provides offline startup,
+the cleaned interface and complete campaign selection.
 
 The opt-in [local simulation candidate](GOLD-LOCAL-SIMULATION.md) now advances
 beyond both the turn-zero wait and a subsequent turn-241 logistics wait. Actual
@@ -27,7 +29,8 @@ Gold remains excluded from normal WePlay admission and has no History bridge.
 The [Gold menu cleanup](GOLD-MENU-CLEANUP.md) independently ports the automatic
 startup-options No answer, skipped intros, black main menu and removal of old
 store/redeem/news/web promotions. Its separate DXVK test copy passes the visible
-menu and options-preservation checks; existing published packages are unchanged.
+menu and options-preservation checks. Gold Setup now applies this verified
+archive recipe automatically; existing History release assets are unchanged.
 
 ## Identified installation
 
@@ -78,6 +81,8 @@ Preparation:
   edits, repairs their loader relocations and recalculates the PE32 checksum.
   Optional debug/affinity blocks are not applied. The corrected output hash is
   `76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab`.
+- Builds the cleaned Gold interface and full campaign selection by default;
+  retains the original Interface.bba in Backup and verifies the output hash.
 - Records original source hashes and explicit false capability/qualification
   flags in `gold-development.json`. Failed copies keep an incomplete marker.
 - Does not launch the game or edit shared Options.ini, Profiles.xml, saves,
@@ -88,10 +93,9 @@ This is the upstream offline patch set, including its developer-mode changes.
 It must not be admitted into WePlay multiplayer as a History profile. Future
 Gold multiplayer needs a separately reviewed release policy for developer mode.
 
-The regular History installer now returns a dedicated, localized Gold-adapter
-message for a selected Gold layout. It does not install the History adapter or
-create a managed instance for that source. Existing published packages and the
-normal installed launcher were not changed by this source checkpoint.
+The regular History installer returns a localized Gold-adapter message for a
+selected Gold layout. Use the dedicated Gold Setup for its complete offline
+installation/startup flow; it does not install a History adapter into Gold.
 
 ## Observed differences and startup boundary
 

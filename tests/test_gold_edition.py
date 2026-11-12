@@ -46,6 +46,12 @@ class GoldTests(unittest.TestCase):
         self.hash_guard = patch.object(gold, 'GOLD_SHA256', gold.sha256(self.raw))
         self.hash_guard.start()
         self.addCleanup(self.hash_guard.stop)
+        self.original_interface = b'invented Gold archive, not History'
+        self.cleaned_interface = b'invented cleaned Gold interface with all campaigns'
+        for guard in (patch.object(gold, 'INTERFACE_SHA256', gold.sha256(self.original_interface)),
+                      patch.object(gold, 'MENU_SHA256', gold.sha256(self.cleaned_interface)),
+                      patch.object(gold, 'menu_bytes', return_value=self.cleaned_interface)):
+            guard.start(); self.addCleanup(guard.stop)
 
     def test_unlock_is_exact_and_keeps_all_other_bytes(self):
         result = gold.unlock_bytes(self.raw, self.definitions)
@@ -143,6 +149,11 @@ class GoldTests(unittest.TestCase):
         report = gold.prepare(self.source.parent, target)
         self.assertEqual((self.source / gold.EXE).read_bytes(), self.raw)
         self.assertEqual((target / 'Backup/Settlers7R.original.exe').read_bytes(), self.raw)
+        self.assertEqual((self.source / gold.INTERFACE).read_bytes(), self.original_interface)
+        self.assertEqual((target / 'Backup/Interface.original.bba').read_bytes(), self.original_interface)
+        self.assertEqual((target / gold.INTERFACE).read_bytes(), self.cleaned_interface)
+        self.assertTrue(report['quiet_interface'])
+        self.assertTrue(report['all_campaign_maps_selectable'])
         self.assertEqual(gold.digest(target / gold.EXE), report['unlocked_exe_sha256'])
         self.assertFalse((target / 'uplay_install.state').exists())
         self.assertFalse((target / 'PREPARATION-INCOMPLETE.txt').exists())
@@ -154,6 +165,20 @@ class GoldTests(unittest.TestCase):
         self.assertFalse(list(target.glob('*.cmd')))
         saved = json.loads((target / 'gold-development.json').read_text())
         self.assertEqual(saved['source_files'][gold.EXE.as_posix()], gold.sha256(self.raw))
+
+    def test_foreign_interface_is_rejected_before_output(self):
+        (self.source / gold.INTERFACE).write_bytes(b'foreign interface')
+        target = self.root / 'copy'
+        with self.assertRaisesRegex(ValueError, 'original Gold interface'):
+            gold.prepare(self.source, target)
+        self.assertFalse(target.exists())
+
+    def test_failed_menu_recipe_is_rejected_before_copy(self):
+        target = self.root / 'copy'
+        with patch.object(gold, 'menu_bytes', side_effect=ValueError('recipe fingerprint differs')):
+            with self.assertRaisesRegex(ValueError, 'recipe fingerprint'):
+                gold.prepare(self.source, target)
+        self.assertFalse(target.exists())
 
     def test_failed_copy_remains_marked_incomplete(self):
         target = self.root / 'copy'
