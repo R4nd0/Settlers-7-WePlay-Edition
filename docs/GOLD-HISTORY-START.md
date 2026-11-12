@@ -23,6 +23,11 @@ and other slots must be closed or inactive. Factory output must consume the
 entire validated input and reserialize identically before the original
 local-only send clones it. The factory-owned temporary is then destroyed.
 
+The closed-slot follow-up recognizes original closed state 2 only at unused
+positions 3 and 4, with Ready/assigned-index invariants and cleared privacy,
+station and participant fields. Open, AI or misplaced closed rows still fail.
+See the [closed-slot bridge and verification](GOLD-HISTORY-CLOSED-SLOTS.md).
+
 The receiver records its native session, owner thread, routing bindings,
 reciprocal peer, setup agreement and map. It permits one delivery attempt in a
 ten-second interval; invalid input or a native failure also consumes that
@@ -31,7 +36,8 @@ agreement changes. Successful enqueue is not evidence that a world started.
 
 ## Verification
 
-The Windows x86 `/W4 /WX` build and 264 protocol/binding exclusions pass.
+The Windows x86 `/W4 /WX` build and 328 protocol/binding/cache-policy checks pass
+(264 earlier cases plus 64 closed-slot policy cases).
 An independent constructor/writer fixture checks the actual event type; the
 older scalar payload comparison did not determine constructor semantics.
 The compiled integrity oracle passes 69 original-image/mutation/unreadability

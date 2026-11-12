@@ -3,6 +3,7 @@
 #include "crossplay_game_start_codec.h"
 #include <cstdio>
 #include <cstdlib>
+#include <array>
 
 extern "C" __declspec(dllexport) uint32_t __cdecl WePlayGameStartMethodsOracle(uint32_t value) {
     return CrossplayNativeCodec::GameStartDetail::Methods(static_cast<Crossplay::Edition>(value))?1u:0u;
@@ -57,5 +58,26 @@ int main() {
         Check(!receiver.Deliver(unbound,frame) && !receiver.Deliver(unbound,frame),"unbound receiver cannot deliver or retry a start");
     }
     for(uint32_t invalid:{0u,4u,UINT32_MAX})Check(!WePlayGameStartMethodsOracle(invalid),"invalid edition excluded before native read");
+    {
+        using Rows=std::array<unsigned char,8*0x18>;Rows rows{};
+        const CrossplaySessionConfig::Connections ids{42,0};
+        for(size_t i=0;i<8;++i){auto* p=rows.data()+i*0x18;CrossplayChat::Put(p,i<2?3u:i<4?2u:0u);p[4]=i<4?1u:0u;CrossplayChat::Put(p+8,i<4?static_cast<uint32_t>(i+1):UINT32_MAX);}
+        auto valid=[&](const Rows& value){return CrossplayNativeCodec::GameStartDetail::FreshReadySlots(value.data(),value.size(),ids);};
+        Check(valid(rows),"two ready humans and original closed neutral slots accepted");
+        for(size_t i=0;i<2;++i){auto altered=rows;CrossplayChat::Put(altered.data()+i*24,4);Check(valid(altered),"admitted alternate human state preserved");}
+        {auto altered=rows;CrossplayChat::Put(altered.data()+16,42);Check(valid(altered),"bound human routing CID accepted");}
+        for(size_t i=0;i<4;++i)for(size_t offset:{size_t(0),size_t(4),size_t(8),size_t(16)}) {
+            auto altered=rows;altered[i*24+offset]^=0x80;Check(!valid(altered),"invalid state, readiness, assignment or routing excluded");
+        }
+        for(size_t i=2;i<4;++i)for(size_t offset:{size_t(12),size_t(20)}){auto altered=rows;altered[i*24+offset]=1;Check(!valid(altered),"closed neutral retains neither privacy nor old participant");}
+        for(size_t i=2;i<8;++i)for(uint32_t state:{0u,1u,2u,3u,4u,5u}) {
+            auto altered=rows;auto* p=altered.data()+i*24;CrossplayChat::Put(p,state);p[4]=state==2?1u:0u;CrossplayChat::Put(p+8,state==2?static_cast<uint32_t>(i+1):UINT32_MAX);
+            Check(valid(altered)==(state==0 || state==5 || (state==2 && i<4)),"closed neutral restricted to slots three/four; open and AI states excluded");
+        }
+        Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(nullptr,rows.size(),ids),"missing cache excluded");
+        Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(rows.data(),rows.size()-1,ids),"short cache excluded");
+        Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(rows.data(),rows.size(),{42,42}),"aliased identities excluded");
+        Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(rows.data(),rows.size(),{UINT32_MAX,0}),"missing identity excluded");
+    }
     std::printf("PASS %u fresh-start scope, payload, revision, setup and native-binding checks; no game started.\n",checks);
 }

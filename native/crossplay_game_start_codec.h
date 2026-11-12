@@ -31,6 +31,21 @@ inline bool Source(const Detail::Profile& p,const void* event,uint32_t host) {
         && CrossplayChat::Word(data+4)==CrossplayGameStart::Type && CrossplayChat::Word(data+8)==host
         && data[12]==1 && SessionConfigDetail::NativeString(data+0x10,save) && save.empty();
 }
+// Pure policy for an already range-checked eight-slot native cache. Closed
+// neutral slots are the original start handler's state 2, not open/AI slots.
+inline bool FreshReadySlots(const unsigned char* rows,size_t size,CrossplaySessionConfig::Connections ids) {
+    if(!rows || size!=8*0x18 || !CrossplaySessionConfig::Distinct(ids))return false;
+    for(size_t i=0;i<8;++i) {
+        const auto* row=rows+i*0x18;
+        const auto state=CrossplayChat::Word(row),slot=CrossplayChat::Word(row+8),station=CrossplayChat::Word(row+16);
+        if(!CrossplaySessionConfig::SlotValid(i,row[4],row[12],slot,station,state,ids,true))return false;
+        if(i<2){if(row[4]!=1)return false;}
+        else if(state==2) {
+            if(i>=4 || row[12] || CrossplayChat::Word(row+20))return false;
+        } else if(state!=0 && state!=5)return false;
+    }
+    return true;
+}
 inline bool FreshReadyMap(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                           CrossplaySessionConfig::Connections ids,bool host,const std::string& expected_map) {
     if(!SessionConfigDetail::Roster(binding,ids,host) || !CrossplaySessionConfig::RelativeMap(expected_map))return false;
@@ -40,14 +55,7 @@ inline bool FreshReadyMap(Crossplay::Edition edition,const CrossplayNative::Part
         || !SessionConfigDetail::NativeString(cache+0x34,save) || !save.empty()
         || !SessionConfigDetail::Fields(p,cache+0x24,cache+0x34,cache+0x44,ids))return false;
     const auto* slots=*reinterpret_cast<const unsigned char* const*>(cache+(p.gold?0x48:0x44));
-    // Both admitted humans must really be Ready. Open/AI slots are excluded
-    // from this first fresh-start primitive; original start closes open slots.
-    for(unsigned i=0;i<8;++i) {
-        const auto* row=slots+i*0x18;const auto state=CrossplayChat::Word(row);
-        if(i<2) {if(row[4]!=1 || (state!=3 && state!=4))return false;}
-        else if(state!=0 && state!=5)return false;
-    }
-    return true;
+    return FreshReadySlots(slots,8*0x18,ids);
 }
 inline bool DecodeAndEnqueue(Crossplay::Edition edition,const std::vector<unsigned char>& wire,uint32_t host) {
     if(!CrossplayGameStart::Inspect(wire,host) || !Methods(edition))return false;

@@ -32,6 +32,14 @@ both History task field layouts for the NEO port. Original serializer runs
 show that a constant offset shift is incorrect. These modeled visitor checks
 do not qualify Gold NEO or mixed gameplay.
 
+The [closed-slot event bridge](GOLD-HISTORY-CLOSED-SLOTS.md) supplies the missing
+native notifications for unused positions 3 and 4. Original History subtype 25
+configuration delivery only adopts the map, so the slot transitions must use
+subtype 55. Original factory/queue delivery and native cache adoption now pass
+with both History data sources on the isolated Ubisoft History standalone
+runtime under DXVK High. This remains a lobby-state milestone, with no mixed
+world or original Steam-executable qualification.
+
 ## Implemented connection component
 
 `native/crossplay_channel.cpp` implements a nonblocking, owner-thread TCP channel

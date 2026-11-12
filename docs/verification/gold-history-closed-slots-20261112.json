@@ -1,0 +1,170 @@
+{
+  "format": "weplay-gold-history-closed-slots-v1",
+  "date": "2026-11-12",
+  "scope": "Experimental two-human Monhaim closed-slot primitive; ordinary adapters exclude it",
+  "sources": {
+    "native/crossplay_closed_slot_codec.h": "602a9dd809dbea15d1b40ddaa46ce111fb01beedd42720633533210b81bd202e",
+    "native/crossplay_closed_slot_pins.h": "8c36e5b99ead7f407613b67eddfbb643f0fc08da2a5bf231829b398f1a8b471e",
+    "native/crossplay_closed_slot_tests.cpp": "808ba078faea69336da1f1a68452264fb0e512122f554cfdd57b98d9ec6340bd",
+    "native/crossplay_game_start_codec.h": "f75f999a0596e9ab3849044d964eae6b1ebe50121c4cfa1f82295d5a639f9c6c",
+    "native/crossplay_game_start_tests.cpp": "bc48a9ca6115581bf8eba2852f76f00ffc01deea12f94a7daec824a8d36124d7",
+    "native/build_crossplay.ps1": "6abe728da0913cd268e153b149aca89bd2a3dad2125faa0ffd1eaf3d905261d9",
+    "tools/gold/verify_closed_slots.py": "ff01645933494d727deb29ae468f8f31865fe97f099d5c440d8d31b57551bf91"
+  },
+  "native_source_snapshot": {
+    "files": 163,
+    "canonical_manifest_sha256": "65b4c005d3b1296e7bd2ba28c4443b92b96a7caaeb88dced68f79a28efbf3e2a"
+  },
+  "windows_x86": {
+    "warning_policy": "/W4 /WX",
+    "closed_slot_checks": 151,
+    "fresh_start_checks": 328,
+    "new_cache_policy_checks": 64
+  },
+  "offline_closed_slot": {
+    "profiles": {
+      "gold": {
+        "compiled_guard_checks": 29,
+        "original_native_checks": 4
+      },
+      "ubisoft": {
+        "compiled_guard_checks": 50,
+        "original_native_checks": 6
+      },
+      "steam_analysis": {
+        "compiled_guard_checks": 50,
+        "original_native_checks": 6
+      }
+    },
+    "fixture_sha256": "e123a973cc7bf3bcd4878993bd99e6c1a954ebe6f05c04ae75109368cbd19e92",
+    "synthetic_objects_and_streams": true,
+    "critical_sections_modeled": true,
+    "original_dispatch_and_getter_executed": true,
+    "game_started": false,
+    "world_permission": false
+  },
+  "offline_start_guards": {
+    "checks": 69,
+    "profiles": {
+      "gold": 23,
+      "ubisoft": 23,
+      "steam_analysis": 23
+    },
+    "fixture_sha256": "ef093ddef366cdf11aeaa27cd2972f236697df6709e464dcb3fcc6e5f2dc8540",
+    "compiled_guard_executed": true,
+    "original_game_code_executed": false,
+    "game_process_started": false,
+    "mixed_gameplay_qualified": false
+  },
+  "actual_pairs": [
+    {
+      "history_data": "Steam History",
+      "history_runtime": "isolated Ubisoft History standalone runtime",
+      "dxvk_loaded_both": true,
+      "graphics_quality": "High",
+      "steam_sdk_loaded_either": false,
+      "matching_actual_native_players_map_and_ready": true,
+      "authentic_closed_slot_events_captured": 2,
+      "original_factory_clone_deliveries": 2,
+      "original_cache_consumers_observed": 2,
+      "subsequent_native_team_values_observed": 2,
+      "independent_eight_row_cache_fields_equal": true,
+      "closed_participant_references_zero": true,
+      "immutable_code_ranges_match": true,
+      "post_transition_original_writers": {
+        "native_original_writers": true,
+        "rules_bytes": 2152,
+        "players_bytes": 41,
+        "sha256": "a95193de1f31870999bd42e7182fd202ccd2548eb49dd56bcd5f359c67735d10",
+        "world_permission": false
+      },
+      "history_unused_row_label": "Freies Feld",
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "recorded_restoration_checks_passed": true,
+      "memory": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 142,
+        "peak_private_mib": 848,
+        "min_free_mib": 2457,
+        "min_largest_mib": 2045,
+        "monitor_failed": false,
+        "peak_probe_ms": 26.022,
+        "min_host_physical_free_mib": 5303,
+        "min_host_commit_free_mib": 12953
+      },
+      "adapters": {
+        "gold_adapter_sha256": "4f7e0de24ac9f30a05b5d3cdde7893e341f618d04e2858acec010e7641d128b0",
+        "history_adapter_sha256": "b4375ee0c58bf9d82095502c535071d76bb9d6fd70fb58d08996694dc5cf117f"
+      }
+    },
+    {
+      "history_data": "Ubisoft History",
+      "history_runtime": "isolated Ubisoft History standalone runtime",
+      "dxvk_loaded_both": true,
+      "graphics_quality": "High",
+      "steam_sdk_loaded_either": false,
+      "matching_actual_native_players_map_and_ready": true,
+      "authentic_closed_slot_events_captured": 2,
+      "original_factory_clone_deliveries": 2,
+      "original_cache_consumers_observed": 2,
+      "subsequent_native_team_values_observed": 2,
+      "independent_eight_row_cache_fields_equal": true,
+      "closed_participant_references_zero": true,
+      "immutable_code_ranges_match": true,
+      "post_transition_original_writers": {
+        "native_original_writers": true,
+        "rules_bytes": 2152,
+        "players_bytes": 41,
+        "sha256": "a95193de1f31870999bd42e7182fd202ccd2548eb49dd56bcd5f359c67735d10",
+        "world_permission": false
+      },
+      "history_unused_row_label": "Freies Feld",
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "recorded_restoration_checks_passed": true,
+      "memory": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 151,
+        "peak_private_mib": 843,
+        "min_free_mib": 2460,
+        "min_largest_mib": 2045,
+        "monitor_failed": false,
+        "peak_probe_ms": 28.222,
+        "min_host_physical_free_mib": 3585,
+        "min_host_commit_free_mib": 10809
+      },
+      "adapters": {
+        "gold_adapter_sha256": "4f7e0de24ac9f30a05b5d3cdde7893e341f618d04e2858acec010e7641d128b0",
+        "history_adapter_sha256": "b4375ee0c58bf9d82095502c535071d76bb9d6fd70fb58d08996694dc5cf117f"
+      }
+    }
+  ],
+  "earlier_attempts": [
+    {
+      "reason": "host_memory_pressure",
+      "closed_slot_delivery_observed": false
+    },
+    {
+      "reason": "full_function_fingerprint_included_existing_unrelated_resume_hooks",
+      "closed_slot_delivery_observed": false,
+      "corrected_to_complete_immutable_closed_slot_path_and_tables": true
+    }
+  ],
+  "closed_slot_runtime_qualified_for_recorded_data_and_runtime": true,
+  "original_steam_executable_runtime_qualified": false,
+  "mixed_world_started": false,
+  "world_permission": false,
+  "complete_actual_content_agreement": false,
+  "synchronized_turns_qualified": false,
+  "gold_neo_qualified": false,
+  "mixed_save_reload_qualified": false
+}
