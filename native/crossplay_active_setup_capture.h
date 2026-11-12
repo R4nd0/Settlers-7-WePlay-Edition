@@ -79,7 +79,10 @@ inline bool Dependencies(const unsigned char* rows,bool gold,Crossplay::Digest& 
         const unsigned char* data=nullptr;size_t length=0;
         for(size_t v=0;v<3;++v)if(!Vector(row+vectors[v],strides[v],limits[v],bytes,data,length))return false;
         const size_t lists[]={gold?0x4e8u:0x4e0u,gold?0x4f4u:0x4e8u,gold?0x56cu:0x554u};
-        for(size_t list=0;list<3;++list)if(!List(row+lists[list],list==2?25:128,bytes))return false;
+        // Ally lists can retain repeated values: an owned live lobby has 26
+        // links in special rows despite its 25 row slots. Bound storage and
+        // traversal, preserving the original order and every repeated entry.
+        for(size_t list=0;list<3;++list)if(!List(row+lists[list],128,bytes))return false;
         const auto* castle=row+(gold?0x574:0x55c);
         if(!Text(castle+(gold?0:4),bytes) || !Text(castle+(gold?0x10:0x14),bytes)
             || !Vector(castle+0x24,16,128,bytes,data,length))return false;

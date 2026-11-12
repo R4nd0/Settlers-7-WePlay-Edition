@@ -23,6 +23,7 @@ LAYOUTS = {
     'ubisoft': (0x58eb90, 0x5a8, 0xa22bfd, 0xa22d64),
     'steam_analysis': (0x58e650, 0x5a8, 0xa2217d, 0xa222e4),
 }
+PREPARATION_WRITERS = {'gold': 0x520a20, 'ubisoft': 0x58e910, 'steam_analysis': 0x58e3d0}
 S, STACK = 0x20000000, 0x30000000
 ROWS, VISITOR, TABLE, STOP, STUB = (S+x for x in (0x10000, 0x2000, 0x3000, 0x4000, 0x5000))
 STREAM, STREAM_TABLE, POSITION, WRITE = (S+x for x in (0x6000, 0x6100, 0x6200, 0x6210))
@@ -30,14 +31,18 @@ ARENA, HEAP = S+0x20000, S+0x50000
 WIDTHS = {0x2c: 16, 0x34: 4, 0x3c: 1, 0x44: 4, 0x54: 4, 0x58: 1, 0x60: 4}
 
 
-def survey(image, version, rich, binary, fixture=None):
+def survey(image, version, rich, binary, fixture=None, *, preparation=False, long_allies=False):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
-    if version not in range(1, 10) or type(rich) is not bool or type(binary) is not bool:
+    if (version not in range(1, 10) or type(rich) is not bool or type(binary) is not bool
+            or type(preparation) is not bool or type(long_allies) is not bool
+            or long_allies and (not preparation or not rich)):
         raise ValueError('Unsupported synthetic fixture')
     gold = image.label == 'gold'
     entry, stride, allocate, free = LAYOUTS[image.label]
+    if preparation:
+        entry = PREPARATION_WRITERS[image.label]
     row = ROWS+stride  # Deliberately exercise slot one, not only slot zero.
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base, (image.size+4095)&~4095)
@@ -50,8 +55,8 @@ def survey(image, version, rich, binary, fixture=None):
         base, fixture_size = fixture.OPTIONAL_HEADER.ImageBase, fixture.OPTIONAL_HEADER.SizeOfImage
         u.mem_map(base, (fixture_size+4095)&~4095)
         u.mem_write(base, fixture.get_memory_mapped_image())
-        entry = next(base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols
-                     if e.name == b'WePlayActivePlayerWriteOracle')
+        oracle = b'WePlayPreparationWriteOracle' if preparation else b'WePlayActivePlayerWriteOracle'
+        entry = next(base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols if e.name == oracle)
 
     def words(at, *values):
         u.mem_write(at, struct.pack('<'+'I'*len(values), *values))
@@ -88,7 +93,7 @@ def survey(image, version, rich, binary, fixture=None):
         pointer = owned(data)
         words(at, pointer, pointer+len(data), pointer+len(data))
 
-    def linked(offset, values):
+    def linked(offset, values, target=row):
         # Gold has the debug iterator proxy before its head/count pair.
         head = owned(bytes(12))
         nodes = [owned(struct.pack('<IIB', 0, 0, value)+bytes(3)) for value in values]
@@ -96,12 +101,23 @@ def survey(image, version, rich, binary, fixture=None):
             words(node, nodes[index+1] if index+1 < len(nodes) else head,
                   nodes[index-1] if index else head)
         words(head, nodes[0] if nodes else head, nodes[-1] if nodes else head)
-        words(row+offset+(4 if gold else 0), head, len(nodes))
+        words(target+offset+(4 if gold else 0), head, len(nodes))
         return head
 
     # Field offsets confirmed by original serializer/destructor pairs. These
     # three containers do not share one Gold-to-History offset difference.
     list_offsets = (0x4e4, 0x4f0, 0x568) if gold else (0x4e0, 0x4e8, 0x554)
+    if preparation:
+        # Original whole-preparation writers visit all 25 rows, including
+        # closed slots. Every row owns valid empty list sentinels.
+        for number in range(25):
+            if number != 1:
+                for offset in list_offsets:
+                    values = tuple(i%25 for i in range(26)) if long_allies and number in (21, 24) and offset == list_offsets[2] else ()
+                    linked(offset, values, ROWS+number*stride)
+        linked(0x907c if gold else 0x8dbc, (0, 1) if rich else (), ROWS)
+        linked(0x9088 if gold else 0x8dc4, (2, 24) if rich else (), ROWS)
+        u.mem_write(ROWS+(0x9078 if gold else 0x8db8), bytes([int(rich)]))
     for offset in list_offsets:
         linked(offset, (1, 4) if rich else ())
     symbols = owned(bytes(32))
@@ -157,6 +173,7 @@ def survey(image, version, rich, binary, fixture=None):
     original_arena = bytes(u.mem_read(ARENA, cursor-ARENA))
     fields, output, allocations = [], bytearray(), {}
     allocation_count, completed = 0, False
+    row_slots = []
     scopes = []
 
     def returned(count, value=0):
@@ -177,9 +194,20 @@ def survey(image, version, rich, binary, fixture=None):
         if at == STOP:
             completed = True
             uc.emu_stop()
+        elif preparation and at == LAYOUTS[image.label][0]:
+            sp = uc.reg_read(UC_X86_REG_ESP)
+            # Both native callees consume a byte slot. Their original caller
+            # may leave unrelated bytes in the remainder of the stack word.
+            number = word(sp+(4 if gold else 8))&0xff
+            if (number != len(row_slots) or number >= 25
+                    or uc.reg_read(UC_X86_REG_ECX) != ROWS
+                    or (uc.reg_read(UC_X86_REG_EDI) if gold else word(sp+4)) != VISITOR
+                    or word(sp+(8 if gold else 12)) != version):
+                raise RuntimeError('Original preparation row dispatch differs')
+            row_slots.append(number)
         elif at == allocate:
             length = word(uc.reg_read(UC_X86_REG_ESP)+4)
-            if length not in (256, 512) or allocation_count >= 2:
+            if length not in (256, 512) or allocation_count >= (50 if preparation else 2):
                 raise RuntimeError('Unexpected allocation')
             pointer = HEAP+allocation_count*0x400
             allocation_count += 1
@@ -220,9 +248,11 @@ def survey(image, version, rich, binary, fixture=None):
                 returned(0)
             elif index == 3:
                 count = word(sp+8)
-                if count > 3:
+                tag = name(word(sp+4))
+                if count > 3 and not (preparation and not scopes and count == 25
+                        or long_allies and tag == 'Allies' and count == 26 and row_slots[-1] in (21, 24)):
                     raise RuntimeError('Unexpected fixture container length')
-                fields.append({'kind': 'container', 'name': name(word(sp+4)), 'count': count})
+                fields.append({'kind': 'container', 'name': tag, 'count': count})
                 scopes.append('container')
                 returned(12, count)
             elif index*4 == 0x74:
@@ -230,7 +260,8 @@ def survey(image, version, rich, binary, fixture=None):
                 if allocations.get(pointer) != length:
                     raise RuntimeError('Unowned bitfield buffer')
                 bits = [i for i, byte in enumerate(u.mem_read(pointer, length)) if byte]
-                expected = ([0, 31, 32, 63, 64, 255, 511] if length == 512 else [0, 31, 32, 63, 127, 255]) if rich else []
+                populated = rich and (not preparation or row_slots == [0, 1])
+                expected = ([0, 31, 32, 63, 64, 255, 511] if length == 512 else [0, 31, 32, 63, 127, 255]) if populated else []
                 if bits != expected:
                     raise RuntimeError('Original bitfield expansion differs')
                 fields.append({'kind': 'bitfield', 'name': name(word(sp+12)), 'length': length, 'set_bits': bits})
@@ -240,10 +271,14 @@ def survey(image, version, rich, binary, fixture=None):
                 if slot == 0x60 and (word(sp+8) != symbol_table or word(sp+16) != 0x10):
                     raise RuntimeError('Unowned symbolic table/flags')
                 width = WIDTHS[slot]
-                if not (row <= pointer <= row+stride-width or STACK <= pointer <= STACK+0x10000-width
+                if not (row <= pointer <= row+stride-width
+                        or preparation and ROWS <= pointer <= ROWS+0x9094-width
+                        or STACK <= pointer <= STACK+0x10000-width
                         or ARENA <= pointer <= cursor-width):
                     raise RuntimeError('Foreign field storage')
                 offset = pointer-row if row <= pointer <= row+stride-width else None
+                if preparation:
+                    offset = (pointer-ROWS)%stride if ROWS <= pointer <= ROWS+25*stride-width else None
                 fields.append({'kind': 'field', 'name': name(word(sp+(12 if slot == 0x60 else 8))),
                                'visitor_slot': slot, 'offset': offset})
                 returned(16 if slot == 0x60 else 12)
@@ -267,17 +302,26 @@ def survey(image, version, rich, binary, fixture=None):
     u.hook_add(UC_HOOK_MEM_READ, read)
     sp = STACK+0xf000
     arguments = (STOP, 1, version) if gold else (STOP, VISITOR, 1, version)
+    if preparation:
+        arguments = (STOP, ROWS, version) if gold else (STOP, VISITOR, version)
     if fixture is not None:
         arguments = (STOP, tuple(PROFILES).index(image.label)+1, ROWS, VISITOR, 1, version)
+        if preparation:
+            arguments = (STOP, tuple(PROFILES).index(image.label)+1, ROWS, VISITOR, version)
     words(sp, *arguments)
     kept = {UC_X86_REG_EBX: 0x12345678, UC_X86_REG_ESI: 0x34567890,
-            UC_X86_REG_EDI: VISITOR if gold and fixture is None else 0x456789ab, UC_X86_REG_EBP: 0x23456789}
-    for reg, value in {**kept, UC_X86_REG_ECX: ROWS, UC_X86_REG_ESP: sp}.items():
+            UC_X86_REG_EDI: VISITOR if gold and fixture is None and not preparation else 0x456789ab, UC_X86_REG_EBP: 0x23456789}
+    registers = {**kept, UC_X86_REG_ECX: ROWS, UC_X86_REG_ESP: sp}
+    if preparation and gold:
+        registers[UC_X86_REG_EAX] = VISITOR
+    for reg, value in registers.items():
         u.reg_write(reg, value)
-    u.emu_start(entry, STOP+1, count=250000, timeout=3_000_000)
+    u.emu_start(entry, STOP+1, count=6250000 if preparation else 250000,
+                timeout=15_000_000 if preparation else 3_000_000)
     if (not completed or u.reg_read(UC_X86_REG_EIP) != STOP or scopes or allocations
-            or allocation_count != 2 or word(0) != 0
-            or u.reg_read(UC_X86_REG_ESP) != sp+(4 if fixture is not None else 12 if gold else 16)
+            or allocation_count != (50 if preparation else 2) or word(0) != 0
+            or preparation and row_slots != list(range(25))
+            or u.reg_read(UC_X86_REG_ESP) != sp+(4 if fixture is not None else 12 if gold or preparation else 16)
             or any(u.reg_read(k) != v for k, v in kept.items())
             or bytes(u.mem_read(ROWS, 0x9094)) != original_rows
             or bytes(u.mem_read(ARENA, cursor-ARENA)) != original_arena

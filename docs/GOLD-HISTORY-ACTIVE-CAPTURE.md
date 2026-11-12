@@ -36,7 +36,7 @@ rule/template-writer agreement and cannot be used as a confirmed setup checkpoin
 
 ## Verification and remaining test
 
-The corrected x86 MSVC `/W4 /WX` dependency fixture passes 78 checks: valid 25-row graphs,
+The corrected x86 MSVC `/W4 /WX` dependency fixture now passes 86 checks: valid 25-row graphs,
 stable hashes, selected-color bounds, inaccessible pointers, string lengths and
 terminators, pointed-to text/vector/list/Castle mutations, vector alignment/counts,
 list cycles/backlinks/count mismatches, unequal Castle arrays, total byte limits,
@@ -87,3 +87,8 @@ The earlier 66-check candidate used an incorrect symbol-registry fixture:
 [original-routine layout audit and correction](GOLD-HISTORY-SYMBOL-REGISTRY.md)
 replace that assumption. The linked earlier candidate receipt remains a
 historical record; its pair never reached the defective guard.
+
+The subsequent [complete preparation diagnostic](GOLD-HISTORY-PREPARATION-CAPTURE.md)
+records actual pair 78, the observed 26-link ally-list rejection and its bounded
+correction. The earlier registry-correction receipt records its historical
+78-check result; the current row-dependency suite includes eight further checks.

@@ -37,6 +37,13 @@ struct Fixture {
     void Vector(unsigned char* header,size_t bytes) {
         auto* data=Allocate(bytes);Pointer(header,data);Pointer(header+4,data+bytes);Pointer(header+8,data+bytes);
     }
+    unsigned char* Allies(size_t slot,uint32_t count) {
+        auto* head=heads[slot*3+2];auto* previous=head;
+        for(uint32_t i=0;i<count;++i) {
+            auto* node=Allocate(12);Pointer(node+4,previous);Pointer(previous,node);node[8]=static_cast<unsigned char>(i%25);previous=node;
+        }
+        Pointer(previous,head);Pointer(head+4,previous);Word(Row(slot)+(gold?0x56c:0x554)+4,count);return previous;
+    }
     bool Capture(Crossplay::Digest& digest){return CrossplayActiveSetupCapture::Detail::Dependencies(rows.data(),gold,digest);}
 };
 }
@@ -99,6 +106,13 @@ int main() {
         Fixture::Pointer(node+4,head);Fixture::Word(list.Row(1)+list_header+4,2);
         Require(!list.Capture(after),"list count mismatch rejected");
         Fixture::Word(list.Row(1)+list_header+4,129);Require(!list.Capture(after),"list count bound");
+        Fixture allies(gold);auto* last_ally=allies.Allies(21,26);
+        Require(allies.Capture(before),"26 native ally links including repeated values retained");
+        last_ally[8]=7;Require(allies.Capture(after) && before!=after,"last ally value retained beyond row count");
+        Fixture bounded_allies(gold);bounded_allies.Allies(24,128);
+        Require(bounded_allies.Capture(before),"bounded long ally list");
+        Fixture::Word(bounded_allies.Row(24)+(gold?0x56c:0x554)+4,129);after=before;
+        Require(!bounded_allies.Capture(after) && !CrossplaySetupCheckpoint::Nonzero(after),"ally link count bound clears digest");
         Fixture castle(gold);auto* design=castle.Row(1)+(gold?0x574:0x55c);
         castle.Vector(design+0x24,16);Require(!castle.Capture(after),"castle arrays must have equal counts");
         castle.Vector(design+(gold?0x34:0x30),4);castle.Vector(design+(gold?0x44:0x3c),4);
