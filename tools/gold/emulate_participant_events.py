@@ -90,6 +90,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
    def native_text(where,text,pointer):
     u.mem_write(pointer,text+b'\0');words(where,pointer,len(text)+1,len(text),0)
    native_text(C+type_offset,b'woodland',arrays+0x300)
+   native_text(C+type_offset+0x10,b'CustomCastle',arrays+0x320)
    for index,asset in enumerate((b'Keep',b'Tower',b'Gate')):
     native_text(arrays+index*16,asset,arrays+0x340+index*32)
    words(arrays+0x100,0xffffffff,0,0);words(arrays+0x200,0,3,4)
@@ -115,6 +116,7 @@ def execute(im,imports,thunk,ctor,update,castle_default,obj_size,extra_offset,lo
    castle=event+0x44
    type_at=castle+(0 if im.label=='gold' else 4)
    if bytes(u.mem_read(word(type_at),9))!=b'woodland\0' or word(type_at)==arrays+0x300:raise RuntimeError('castle type copy')
+   if bytes(u.mem_read(word(type_at+0x10),13))!=b'CustomCastle\0' or word(type_at+0x10)==arrays+0x320:raise RuntimeError('second serialized Castle Type copy')
    parts=word(castle+0x24)
    if parts==arrays or word(castle+0x28)-parts!=48:raise RuntimeError('castle vector copy')
    for index,asset in enumerate((b'Keep',b'Tower',b'Gate')):
@@ -194,7 +196,7 @@ def main():
   'original_native_calls':5*total,'compiled_thunk_calls':2*total,'emulated_heap':True,
   'native_clone_and_queue_executed':True,'emulated_lock_imports':True,
   'synthetic_empty_native_deques':True,'native_queue_consumer_executed':False,
-  'original_empty_castle_only':False,'three_part_castles':True,'original_destructors':True,'actual_game_test':False,
+  'original_empty_castle_only':False,'three_part_castles':True,'both_native_castle_strings_preserved':True,'original_destructors':True,'actual_game_test':False,
   'session_admission_implemented':False,'crossplay_qualified':False}
  with output.open('x',encoding='utf-8') as stream:json.dump(receipt,stream,indent=2)
  print(json.dumps(receipt))

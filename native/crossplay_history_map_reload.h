@@ -43,7 +43,7 @@ class HistoryMapReload {
     std::string map;
     Participant players[2];
     ParticipantEvent events[2];
-    castle_wire::Design castles[2];
+    CrossplayCastleSetup::Value castles[2];
     uint32_t extras[2]{},ready[2]{};
     ULONGLONG started=0;
     bool Exclude() {stage=Stage::Failed;return false;}
@@ -141,8 +141,8 @@ public:
         for(const auto& member:snapshot.members) {
             const unsigned i=member.player.slot-1;const auto* row=rows+(i+1)*0x5a8;
             players[i]=member.player;extras[i]=CrossplayChat::Word(row+0x30);ready[i]=row[0x71];
-            if(!binding.CaptureCastle(row+0x55c,castles[i]) || !events[i].Bind(edition)
-                || !events[i].ConstructConfirmed(players[i],castles[i],extras[i],ready[i]!=0))return Exclude();
+            if(!binding.CaptureCastleSetup(row+0x55c,castles[i]) || !events[i].Bind(edition)
+                || !events[i].ConstructConfirmedSetup(players[i],castles[i],extras[i],ready[i]!=0))return Exclude();
         }
         if(!ProjectRoomMap())return Exclude();
         started=GetTickCount64();stage=Stage::Captured;return true;
@@ -180,10 +180,10 @@ public:
         const auto* native_cache=reinterpret_cast<const unsigned char*>(cache);
         const auto* slots=*reinterpret_cast<const unsigned char* const*>(native_cache+0x44);
         for(unsigned i=0;i<2;++i) {
-            const auto* row=rows+(i+1)*0x5a8;castle_wire::Design current;
+            const auto* row=rows+(i+1)*0x5a8;CrossplayCastleSetup::Value current;
             std::vector<unsigned char> expected,actual;
-            if(row[0x71]!=ready[i] || !binding.CaptureCastle(row+0x55c,current)
-                || !castle_wire::Encode(castles[i],expected) || !castle_wire::Encode(current,actual) || actual!=expected)return Exclude();
+            if(row[0x71]!=ready[i] || !binding.CaptureCastleSetup(row+0x55c,current)
+                || !CrossplayCastleSetup::Encode(castles[i],expected) || !CrossplayCastleSetup::Encode(current,actual) || actual!=expected)return Exclude();
             if(slots[i*0x18+4]!=ready[i])return false;
         }
         stage=Stage::Observed;return true;

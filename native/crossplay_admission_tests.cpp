@@ -14,7 +14,7 @@ Crossplay::Peer Reverse(const Crossplay::Peer& peer) {
 int main() {
     Crossplay::Peer peer{};peer.local_id.fill(0x11);peer.remote_id.fill(0x22);
     const auto reverse=Reverse(peer);
-    Hello hello{0,13,0,"Crossplay",{"woodland",{{"Keep",UINT32_MAX,0},{"Tower",0,3}}}};
+    Hello hello{0,13,0,"Crossplay",{"woodland",{{"Keep",UINT32_MAX,0},{"Tower",0,3}}},"CustomCastle"};
     for(bool host:{false,true}) {
         for(auto type:{Message::Hello,Message::Assign,Message::Applied,Message::Commit,Message::Committed}) {
             auto frame=Frame(type,host,peer);Message observed{};
@@ -29,7 +29,8 @@ int main() {
         auto frame=Frame(Message::Hello,host,peer);Check(AppendHello(frame,hello),"native lobby hello encoded");
         Hello decoded;
         Check(ReadHello(frame,Crossplay::Edition::UbisoftHistory,decoded) && decoded.connection==0
-            && decoded.name==hello.name && decoded.extra==13 && decoded.principal==0 && decoded.castle.parts.size()==2,"History zero CID/principal and canonical castle decoded");
+            && decoded.name==hello.name && decoded.extra==13 && decoded.principal==0 && decoded.castle.parts.size()==2
+            && decoded.castle_type==hello.castle_type,"History zero CID/principal and both native castle strings decoded");
         Check(!ReadHello(frame,Crossplay::Edition::Gold,decoded),"zero Gold source connection excluded");
         for(size_t end=0;end<frame.size();++end) {
             const std::vector<unsigned char> truncated(frame.begin(),frame.begin()+end);
@@ -39,6 +40,8 @@ int main() {
         changed=frame;changed[FrameHeader+12]=65;Check(!ReadHello(changed,Crossplay::Edition::UbisoftHistory,decoded),"unbounded display name excluded");
         changed=frame;changed[7]=1;Message old{};
         Check(!Header(changed,!host,reverse,old),"old admission version cannot silently lose principal");
+        changed=frame;changed[7]=2;
+        Check(!Header(changed,!host,reverse,old),"version2 cannot silently drop second native Castle Type");
         for(auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {
             for(uint32_t principal:{0u,1u,2u,2028987018u,0x80000001u,UINT32_MAX-1}) {
                 auto offered=hello;offered.connection=7;offered.principal=principal;
@@ -52,6 +55,27 @@ int main() {
         auto invalid=hello;invalid.principal=UINT32_MAX;
         auto invalid_frame=Frame(Message::Hello,host,peer);
         Check(!AppendHello(invalid_frame,invalid),"sentinel principal cannot be offered");
+    }
+    for(const auto& text:{std::string(129,'x'),std::string("bad\0type",8),std::string("bad\ntype"),std::string(1,static_cast<char>(0x80))}) {
+        auto offered=hello;offered.castle_type=text;auto frame=Frame(Message::Hello,true,peer);
+        Check(!AppendHello(frame,offered),"invalid Castle Type cannot reach native construction");
+    }
+    for(size_t length:{0u,1u,128u}) {
+        CrossplayCastleSetup::Value value{hello.castle,std::string(length,'x')},decoded;
+        std::vector<unsigned char> bytes;
+        Check(CrossplayCastleSetup::Encode(value,bytes) && CrossplayCastleSetup::Decode(bytes,decoded)
+            && decoded.serialized_type==value.serialized_type,"bounded full-castle Type roundtrip");
+        for(size_t end=0;end<bytes.size();++end) {
+            auto bad=std::vector<unsigned char>(bytes.begin(),bytes.begin()+end);decoded=value;
+            Check(!CrossplayCastleSetup::Decode(bad,decoded) && decoded.design.parts.empty()
+                && decoded.serialized_type.empty(),"truncated full castle clears result");
+        }
+        auto bad=bytes;bad.push_back(0);
+        Check(!CrossplayCastleSetup::Decode(bad,decoded),"trailing full castle rejected");
+        bad=bytes;for(size_t i=8;i<12;++i)bad[i]=0xff;
+        Check(!CrossplayCastleSetup::Decode(bad,decoded),"unbounded nested cosmetic data rejected");
+        std::vector<unsigned char> legacy;
+        Check(castle_wire::Encode(value.design,legacy) && !CrossplayCastleSetup::Decode(legacy,decoded),"legacy cosmetic wire is not a complete castle setup");
     }
     for(auto edition:{Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}) {
         Check(Mixed(Crossplay::Edition::Gold,edition) && Mixed(edition,Crossplay::Edition::Gold),"both History launch profiles supported");

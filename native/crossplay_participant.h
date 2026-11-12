@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_channel.h"
 #include "castle_wire.h"
+#include "crossplay_castle_setup.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -41,6 +42,9 @@ public:
     // value. Gold uses its separate original state event. This is not admission.
     bool ConstructConfirmed(const Participant& participant, const castle_wire::Design& castle, uint32_t extra = 0, bool ready = false);
     bool CaptureCastle(const void* native_castle, castle_wire::Design& result) const;
+    bool ConstructConfirmedSetup(const Participant& participant, const CrossplayCastleSetup::Value& castle,
+                                 uint32_t extra = 0, bool ready = false);
+    bool CaptureCastleSetup(const void* native_castle, CrossplayCastleSetup::Value& result) const;
     // Borrowed original event, valid until Reset/destruction. Does not enqueue,
     // dispatch, assert readiness or change any native session flags.
     const void* Get() const;

@@ -76,9 +76,9 @@ inline bool ApplyHistoryReadySnapshot(Crossplay::Edition edition,const Crossplay
     if(!ReadyStateDetail::Preparation(edition,binding,ids,snapshot,rows))return false;
     CrossplayNative::ParticipantEvent events[2];
     for(const auto& member:snapshot.members) {
-        const auto slot=member.player.slot;auto* row=rows+slot*0x5a8;castle_wire::Design design;
-        if(!events[slot-1].Bind(edition) || !binding.CaptureCastle(row+0x55c,design)
-            || !events[slot-1].ConstructConfirmed(member.player,design,CrossplayChat::Word(row+0x30),slot==1?value.host!=0:value.guest!=0))return false;
+        const auto slot=member.player.slot;auto* row=rows+slot*0x5a8;CrossplayCastleSetup::Value design;
+        if(!events[slot-1].Bind(edition) || !binding.CaptureCastleSetup(row+0x55c,design)
+            || !events[slot-1].ConstructConfirmedSetup(member.player,design,CrossplayChat::Word(row+0x30),slot==1?value.host!=0:value.guest!=0))return false;
     }
     CrossplayNative::LobbySnapshot current;unsigned char* current_rows=nullptr;
     if(!ReadyStateDetail::Preparation(edition,binding,ids,current,current_rows) || current.instance!=snapshot.instance || current_rows!=rows)return false;

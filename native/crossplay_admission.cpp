@@ -8,10 +8,10 @@
 
 namespace CrossplayNative {
 namespace {
-constexpr unsigned char AdmissionMagic[8]={'S','7','L','O','B','B','Y',2};
-constexpr size_t FrameHeader=60,MaximumFrame=FrameHeader+4+4+4+1+64+4+castle_wire::Limit;
+constexpr unsigned char AdmissionMagic[8]={'S','7','L','O','B','B','Y',3};
+constexpr size_t FrameHeader=60,MaximumFrame=FrameHeader+4+4+4+1+64+4+CrossplayCastleSetup::Limit;
 enum class Message : unsigned char { Hello=1, Assign=2, Applied=3, Commit=4, Committed=5 };
-struct Hello { uint32_t connection=0,extra=0,principal=0;std::string name;castle_wire::Design castle; };
+struct Hello { uint32_t connection=0,extra=0,principal=0;std::string name;castle_wire::Design castle;std::string castle_type; };
 uint32_t PreparationPlayer(const Participant& player) {return player.principal?player.principal:player.slot;}
 bool DistinctPlayers(const Participant& own,const Participant& remote) {
     const uint32_t local=PreparationPlayer(own),foreign=PreparationPlayer(remote);
@@ -47,7 +47,8 @@ bool Header(const std::vector<unsigned char>& bytes,bool host,const Crossplay::P
 }
 bool AppendHello(std::vector<unsigned char>& bytes,const Hello& hello) {
     std::vector<unsigned char> castle;
-    if(hello.connection==UINT32_MAX || hello.principal==UINT32_MAX || !Name(hello.name) || !castle_wire::Encode(hello.castle,castle)) return false;
+    if(hello.connection==UINT32_MAX || hello.principal==UINT32_MAX || !Name(hello.name)
+        || !CrossplayCastleSetup::Encode({hello.castle,hello.castle_type},castle)) return false;
     Word(bytes,hello.connection);Word(bytes,hello.extra);Word(bytes,hello.principal);bytes.push_back(static_cast<unsigned char>(hello.name.size()));
     bytes.insert(bytes.end(),hello.name.begin(),hello.name.end());Word(bytes,static_cast<uint32_t>(castle.size()));
     bytes.insert(bytes.end(),castle.begin(),castle.end());return bytes.size()<=MaximumFrame;
@@ -61,9 +62,11 @@ bool ReadHello(const std::vector<unsigned char>& bytes,Crossplay::Edition editio
     if(!length || length>64 || length>bytes.size()-at) return false;
     hello.name.assign(reinterpret_cast<const char*>(bytes.data()+at),length);at+=length;
     uint32_t castle_length=0;
-    if(!Name(hello.name) || !TakeWord(bytes,at,castle_length) || castle_length>castle_wire::Limit || castle_length!=bytes.size()-at) return false;
+    if(!Name(hello.name) || !TakeWord(bytes,at,castle_length) || castle_length>CrossplayCastleSetup::Limit || castle_length!=bytes.size()-at) return false;
     const std::vector<unsigned char> castle(bytes.begin()+at,bytes.end());
-    if(!castle_wire::Decode(castle,hello.castle)) return false;
+    CrossplayCastleSetup::Value setup;
+    if(!CrossplayCastleSetup::Decode(castle,setup)) return false;
+    hello.castle=std::move(setup.design);hello.castle_type=std::move(setup.serialized_type);
     result=std::move(hello);return true;
 }
 bool SameMember(const Participant& left,const Participant& right) {
@@ -94,10 +97,10 @@ struct LobbyAdmission::Impl {
     bool Send(Message type) {return channel->Send(Frame(type,host,peer));}
     bool Apply() {
         if(!host) {
-            if(!native.ConstructConfirmed(own,hello.castle,hello.extra) || !native.EnqueueLocal() || !native.Reset()) return Fail();
+            if(!native.ConstructConfirmedSetup(own,{hello.castle,hello.castle_type},hello.extra) || !native.EnqueueLocal() || !native.Reset()) return Fail();
         }
         if(!native.Construct(Change::Added,remote) || !native.EnqueueLocal() || !native.Reset()
-            || !native.ConstructConfirmed(remote,remote_hello.castle,remote_hello.extra)
+            || !native.ConstructConfirmedSetup(remote,{remote_hello.castle,remote_hello.castle_type},remote_hello.extra)
             || !native.EnqueueLocal() || !native.Reset()) return Fail();
         state=AdmissionState::Applying;return true;
     }
@@ -147,11 +150,12 @@ bool LobbyAdmission::Begin(Crossplay::Channel& channel,Crossplay::Edition editio
     const auto* peer=channel.GetPeer();
     if(channel.GetState()!=Crossplay::State::Connected || !peer || !Mixed(edition,peer->edition)) return impl->Fail();
     impl->channel=&channel;impl->peer=*peer;impl->edition=edition;impl->host=host;
-    LobbySnapshot snapshot;
+    LobbySnapshot snapshot;CrossplayCastleSetup::Value setup;
     if(!impl->native.Bind(edition) || !impl->native.CaptureLobby(snapshot) || snapshot.members.size()!=1
         || snapshot.local_slot!=1 || !snapshot.host || snapshot.members[0].status!=2
         || !snapshot.members[0].player.local || !snapshot.members[0].player.host
-        || !Name(snapshot.members[0].player.name) || !impl->native.CaptureCastle(castle,impl->hello.castle)) return impl->Fail();
+        || !Name(snapshot.members[0].player.name) || !impl->native.CaptureCastleSetup(castle,setup)) return impl->Fail();
+    impl->hello.castle=std::move(setup.design);impl->hello.castle_type=std::move(setup.serialized_type);
     impl->own=snapshot.members[0].player;impl->instance=snapshot.instance;
     impl->hello.name=impl->own.name;impl->hello.connection=impl->own.connection;impl->hello.extra=extra;
     impl->hello.principal=impl->own.principal;

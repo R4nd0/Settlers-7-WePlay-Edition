@@ -180,6 +180,19 @@ void CastleGuards(const Profile& profile) {
     std::vector<unsigned char> expected,actual;
     Check(castle_wire::Encode(design,expected) && castle_wire::Encode(captured,actual) && expected==actual,
         "castle type, assets, parents and slots have one canonical representation");
+    const std::string native_type="CustomCastle";
+    CastleSource complete(profile,design,&native_type);CrossplayCastleSetup::Value complete_value;
+    Check(SnapshotCastleSetup(profile,complete.Get(profile),complete_value)
+        && complete_value.serialized_type==native_type,"second native Castle Type survives target-edition snapshot");
+    Check(castle_wire::Encode(complete_value.design,actual) && actual==expected,"full setup retains unchanged legacy design representation");
+    Check(SnapshotCastleSetup(profile,source.Get(profile),complete_value) && complete_value.serialized_type.empty(),"legacy source retains explicit empty second string");
+    auto& metadata=profile.edition==Crossplay::Edition::Gold?complete.gold.name:complete.history.name;
+    const auto original_metadata=metadata;metadata.length=CrossplayCastleSetup::MaximumType+1;
+    Check(!SnapshotCastleSetup(profile,complete.Get(profile),complete_value) && complete_value.serialized_type.empty(),"unbounded second native string clears full snapshot");
+    metadata=original_metadata;metadata.data=nullptr;
+    Check(!SnapshotCastleSetup(profile,complete.Get(profile),complete_value),"missing nonempty native Type storage excluded");
+    metadata=original_metadata;metadata.capacity=metadata.length;
+    Check(!SnapshotCastleSetup(profile,complete.Get(profile),complete_value),"short native Type capacity excluded");
     CastleSource empty(profile,{});
     Check(SnapshotCastle(profile,empty.Get(profile),captured) && captured.parts.empty() && captured.type.empty(),"empty castle is explicit");
     auto* vector=profile.edition==Crossplay::Edition::Gold?&source.gold.parents.value:&source.history.parents;

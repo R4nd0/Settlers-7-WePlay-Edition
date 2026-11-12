@@ -249,12 +249,13 @@ NativeString BorrowedText(const std::string& value) {
 struct CastleSource {
     GoldCastle gold{};HistoryCastle history{};
     std::vector<NativeString> parts;std::vector<uint32_t> parents,slots;
-    CastleSource(const Profile& profile,const castle_wire::Design& design) {
+    CastleSource(const Profile& profile,const castle_wire::Design& design,const std::string* serialized_type=nullptr) {
         for(const auto& part:design.parts) {
             parts.push_back(BorrowedText(part.asset));parents.push_back(part.parent);slots.push_back(part.slot);
         }
         static const std::string empty;
-        gold.type=history.type=BorrowedText(design.type);gold.name=history.name=BorrowedText(empty);
+        gold.type=history.type=BorrowedText(design.type);
+        gold.name=history.name=BorrowedText(serialized_type?*serialized_type:empty);
         history.vtable=profile.castle_vtable;
         if(!parts.empty()) {
             gold.parts.value=history.parts={parts.data(),parts.data()+parts.size(),parts.data()+parts.size()};
@@ -307,6 +308,20 @@ bool SnapshotCastle(const Profile& profile,const void* source,castle_wire::Desig
     std::vector<unsigned char> encoded;
     if(!castle_wire::Encode(design,encoded)) return false;
     result=std::move(design);return true;
+}
+bool SnapshotCastleSetup(const Profile& profile,const void* source,CrossplayCastleSetup::Value& result) {
+    result={};CrossplayCastleSetup::Value value;
+    if(!SnapshotCastle(profile,source,value.design))return false;
+    const NativeString text=profile.edition==Crossplay::Edition::Gold
+        ?static_cast<const GoldCastle*>(source)->name:static_cast<const HistoryCastle*>(source)->name;
+    if(text.length>CrossplayCastleSetup::MaximumType || (text.length && text.capacity<=text.length))return false;
+    if(!text.data){if(text.length || text.capacity)return false;}
+    else {
+        if(!Readable(text.data,text.length+1) || text.data[text.length])return false;
+        value.serialized_type.assign(text.data,text.length);
+    }
+    if(!CrossplayCastleSetup::Type(value.serialized_type))return false;
+    result=std::move(value);return true;
 }
 }
 
@@ -402,6 +417,19 @@ bool ParticipantEvent::CaptureCastle(const void* source,castle_wire::Design& res
     result={};
     return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
         && SnapshotCastle(*impl->profile,source,result);
+}
+bool ParticipantEvent::ConstructConfirmedSetup(const Participant& member,const CrossplayCastleSetup::Value& castle,uint32_t extra,bool ready) {
+    if(impl->owner && impl->owner!=GetCurrentThreadId())return false;
+    impl->failure=ParticipantFailure::State;
+    if(!impl->profile || impl->live)return false;
+    impl->failure=ParticipantFailure::Castle;std::vector<unsigned char> encoded;
+    if(!CrossplayCastleSetup::Encode(castle,encoded))return false;
+    const CastleSource source(*impl->profile,castle.design,&castle.serialized_type);
+    return Construct(Change::Confirmed,member,source.Get(*impl->profile),extra,ready);
+}
+bool ParticipantEvent::CaptureCastleSetup(const void* source,CrossplayCastleSetup::Value& result) const {
+    result={};return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
+        && SnapshotCastleSetup(*impl->profile,source,result);
 }
 const void* ParticipantEvent::Get() const {
     return impl->owner==GetCurrentThreadId() && impl->live?impl->storage.data():nullptr;
