@@ -1,0 +1,67 @@
+{
+  "format": "weplay-gold-history-live-root-transfer-v1",
+  "date": "2026-11-13",
+  "sources": {
+    "native/crossplay_setup_root_capture.h": "b65a032d62ac2661b3a56ae3992bb4aa570aa82b168323d8de12b8b7d442f8b7",
+    "native/crossplay_setup_root_stream.h": "e6a1158cc5dcbc37269c1dbc1125e1feda26346ce088fa75bb04988506a01eda",
+    "native/lab_resume_rng_patches.inc": "4cbb1343fcbe8e47473dc660fdc08f060aadf3157ffca063f6dae6279883ee1d"
+  },
+  "immutable_source_proof_sha256": "38c1522bf8a9abff312cd8d190d7651b3854ae4857c1f896ad5c04cfeda3e916",
+  "immutable_build_proof_sha256": "1c4ca8af7f1d40450ae149e4c7e80a439a16cc0bdc694b51dafd9e4b0aa3ad24",
+  "actual_pair": {
+    "history_executable_family": "Ubisoft History",
+    "history_data_family": "Ubisoft History",
+    "dxvk": true,
+    "quality": "High",
+    "resolution": "1920x1080",
+    "loopback_only": true,
+    "original_tower_to_monhaim_reload": true,
+    "native_two_human_lobby": true,
+    "actual_guest_ready": true,
+    "actual_host_start_held": true,
+    "enclosing_formats": [
+      {
+        "original_enclosing_writer": true,
+        "root_format_version": 1,
+        "nested_preparation_version": 1,
+        "root_bytes": 33211,
+        "root_sha256": "b956e56c90bb8cb17f6ddb2c8ac0424eff172ab1b42fbab4bfc20f87831dc2fd",
+        "world_permission": false,
+        "authenticated_directions_completed": 2,
+        "fresh_local_capture_equal_in_both_clients": true
+      },
+      {
+        "original_enclosing_writer": true,
+        "root_format_version": 2,
+        "nested_preparation_version": 1,
+        "root_bytes": 33215,
+        "root_sha256": "7c2f43d5cbaca7f8550542b967481c3ab59c54a16d41b35ff1ad5fa426502024",
+        "world_permission": false,
+        "authenticated_directions_completed": 2,
+        "fresh_local_capture_equal_in_both_clients": true
+      }
+    ],
+    "native_reader_applied": false,
+    "world_permission": false,
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_settings_saves_cloud_adapter_interface_shared_restoration_checks_passed": true
+  },
+  "read_only_colour_zero": {
+    "same_nonempty_symbol_in_both_engines": true,
+    "bytes": 9,
+    "sha256": "d68e19e84a887aeb4366dadb5e372f00e2e67b609be3a61083e041cef8b812bf"
+  },
+  "qualification": {
+    "live_gold_ubisoft_history_root_byte_transport": true,
+    "live_remote_setup_reader": false,
+    "actual_steam_executable_pair": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  }
+}

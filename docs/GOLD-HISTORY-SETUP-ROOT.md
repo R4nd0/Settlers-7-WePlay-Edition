@@ -72,7 +72,8 @@ checks and both diagnostic adapter builds pass.
 The first live enclosing-capture attempt was rejected by the unchanged RAM
 preflight before any game started. A later DXVK High pair captured Gold's actual
 enclosing formats 1/2, but History stopped at an integrity guard before writing.
-Cross-client enclosing equality is therefore **not yet live qualified**. The
+That attempt did not qualify cross-client enclosing equality; the corrected
+pair described below does. The
 separately observed identical version-1 preparation streams
 are documented in [player setup transport](GOLD-HISTORY-PLAYER-SETUP.md). Complete
 native setup reading, content agreement, shared world start, synchronized turns,
@@ -101,7 +102,8 @@ release builds exclude these laboratory observers.
 A separate immutable diagnostic with all legacy RNG observers excluded also
 builds and passes its ABI fixtures. Its next live attempt was rejected before
 launch by the unchanged RAM guard. Neither that build nor the public two-site
-correction establishes a successful History enclosing capture yet.
+correction alone established a successful History enclosing capture. The later
+corrected pair below supplies that runtime evidence.
 
 ## Original reader baseline under headless emulation
 
@@ -155,6 +157,56 @@ A separately frozen diagnostic adapter now sends actual successful captures in
 both directions. It binds each receive to its own original capture, requires the
 original confirmed checkpoint and compares the received bytes with another fresh
 owner-guarded native capture. Both adapters compile and retain their ABI checks.
-This diagnostic has not yet been run in a live pair. It neither invokes a native
+The live result below exercises this diagnostic. It neither invokes a native
 setup reader nor supplies content permission, a start event, turns, NEO commands
 or save acknowledgements. Ordinary adapters do not include it.
+
+## Live bidirectional enclosing transfer under DXVK
+
+The corrected isolated Gold and Ubisoft History pair completed native two-human
+admission, Tower Island to Monhaim reload, actual guest Ready and the held host
+Start under DXVK High at 1920x1080. All original enclosing integrity guards now
+pass in both clients. The two removed laboratory hash observers were the cause
+of the earlier History rejection; no original guard was shortened or bypassed.
+
+Both original engines produced identical format-1 streams of 33,211 bytes and
+format-2 streams of 33,215 bytes, including the serialized seed. Each client sent
+both actual streams through the authenticated channel. All four receives
+completed and matched a fresh owner-bound original capture byte for byte.
+The receiver descriptor came from its own independent capture, not a remote
+fragment. Both processes exited normally with code zero and every recorded
+settings/save/cloud/adapter/interface/shared restoration check passed.
+
+A separate bounded read-only inspection verified that colour registry entry 0
+is nonempty in both running engines: nine bytes with the same SHA-256. The
+synthetic empty-symbol reader exception therefore must not be treated as an
+actual engine incompatibility or suppressed to pass a fixture.
+
+This is live Gold to **Ubisoft History** setup-byte transport. It does not
+qualify a native Steam executable pair, remote native setup application, content
+closure, a shared world, synchronized turns, Gold NEO or mixed save/cold-reload.
+The diagnostic intentionally grants no world permission.
+
+See the [live transfer receipt](verification/gold-history-root-live-transfer-20261113.json).
+
+## Original reader with populated rule vectors
+
+The optional `--nonempty-rules` fixture extends the headless reader audit with
+two source victory rules and two sector rules, each containing two placements.
+Original catalogue lookup, CString hashing, native construction, copy and
+destruction execute; only the bounded CRT heap and stream edges are modeled.
+The original Type-3 victory suppression leaves one decoded victory rule. Sector
+placement quantities are checked as uint16 values: the other two History bytes
+are native temporary padding and are absent from the serialized stream.
+
+Both formats pass write/read/write equality in all three independently pinned
+images. Each has twelve malformed-input rejections across the three images.
+The unchanged empty-rule baseline also passes all eighteen cases. The populated
+streams contain 24,156/24,160 bytes for formats 1/2, respectively. Heap checks
+cover the ten replaced initial rule buffers, retained rule allocations, all 25
+migration vectors, duplicate frees and access to freed storage, including the
+modeled copy and stream boundaries. Catalogue storage remains unchanged.
+
+Player containers remain empty in these reader fixtures. These results do not
+qualify full populated-player conversion or live application of a remote setup.
+See the [populated reader receipt](verification/gold-history-root-rules-reader-20261113.json).
