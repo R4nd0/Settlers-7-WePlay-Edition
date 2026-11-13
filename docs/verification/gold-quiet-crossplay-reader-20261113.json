@@ -1,0 +1,87 @@
+{
+  "format": "weplay-gold-quiet-public-reader-pair-v1",
+  "date": "2026-11-13",
+  "source_proof_sha256": "88c10c5924d62aa7907a2635771c069faa8c220162483e147d2d93e5378ee4c9",
+  "build_proof_sha256": "53550602a4cd62256ce0c4eb42d1c5dd761a92ba0dc8f9a04974a802803bc3b6",
+  "gold_adapter_sha256": "50586b82d8074a532410d32c4403488beff10a2ecf12d74c805f10109803e9e3",
+  "actual_dxvk_pair": {
+    "history_executable_family": "original Steam History",
+    "history_kernel_isolation_before_entry": 7,
+    "quality": "High",
+    "resolution": "1920x1080",
+    "legacy_fallback": false,
+    "loopback_only": true,
+    "native_two_human_lobby": true,
+    "actual_guest_ready": true,
+    "actual_host_start_held": true,
+    "root_formats_transferred": [
+      1,
+      2
+    ],
+    "format_version_read": 2,
+    "public_VerifyReceived_called_in_gold": true,
+    "profiles": {
+      "gold": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      },
+      "history": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      }
+    },
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_restoration_checks_passed": true
+  },
+  "quiet_startup": {
+    "owned_process_verified": true,
+    "actual_startup_no_bytes_verified": true,
+    "quiet_archive_sha256": "183aae77273ae9a89929fc459ee3465dedb372e34c6e1e32e653b948557054c5",
+    "modern_graphics": true,
+    "observed_profile_then_direct_black_menu_without_intro": true,
+    "profile_confirmation_retained": true,
+    "world_permission": false
+  },
+  "qualification": {
+    "quiet_startup_and_original_steam_reader_pair": true,
+    "active_preparation_replaced": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "release_assets_replaced": false
+  }
+}

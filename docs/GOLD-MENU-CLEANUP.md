@@ -106,3 +106,27 @@ is claimed. Accessible menus do not qualify multiplayer.
 Sanitized receipt: [Gold interface verification](verification/gold-menu-20261111.json).
 Concurrent crossplay laboratories retain their own pinned builds/archives;
 this test did not deploy over or stop those clients.
+
+## Crossplay laboratory alignment, 2026-11-13
+
+The older crossplay laboratory had retained its pre-cleanup profile interface
+and a separate initializer without `StartupOptionsPatches`. Consequently its
+direct test launches still showed startup movies and the reset question even
+though the installer cleanup above was already complete.
+
+The updated isolated Gold candidate now combines the existing verified quiet
+archive and native No patch with the public independent-target setup reader.
+An actual DXVK High Gold/original Steam History pair reaches the compact black
+Gold menu directly after profile confirmation, with no intro or reset question;
+the actual five native No bytes and archive fingerprint are independently read
+back from the owned process/copy. Native admission, map reload, actual Ready and
+the held-start received-root reader/writeback checks still pass in both engines.
+Gold now invokes the public `VerifyReceived` sequence during this test.
+
+Both clients exit regularly with code zero; every recorded profile, archive,
+runtime, leased-app and shared-data restoration check passes. The laboratory
+runner stages the quiet archive transactionally on each subsequent run, so
+restoring the historical copy afterward does not select the old startup path.
+Existing release packages remain unchanged. This qualifies the combined startup
+and diagnostic reader path; shared world, Gold NEO and mixed reload remain open.
+See the [combined pair receipt](verification/gold-quiet-crossplay-reader-20261113.json).
