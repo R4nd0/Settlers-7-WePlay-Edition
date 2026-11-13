@@ -72,6 +72,7 @@ if not l.weplayPairDriver then
 ''' + driver + '''
  end)(e,l,pages,transition,kinds,{gold=''' + gold + ',host=' + gold + ',duration=' + str(duration) + '''},
   function(phase)
+   e.UI.WriteToConsole("WEPLAY_PAIR_OBSERVATION_V1 driver_phase="..phase)
    if phase:sub(1,8)=="waiting-" then
     e.UI.WriteToConsole("WEPLAY_PAIR_OBSERVATION_V1 waiting="..phase)
    else e.UI.WriteToConsole("Attempt to crossplay-native-driver:"..phase) end

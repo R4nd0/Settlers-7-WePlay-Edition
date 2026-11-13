@@ -45,19 +45,24 @@ local function tick()
         if State.currentPageModule ~= Pages.Browser then waiting("page"); return end
         if not Pages.Browser.isCreated() then waiting("browser"); return end
         if G.Network.SessionIsInSession() then change("failed-existing-session"); return end
+        -- Discovery can also enter native metadata/file jobs. Guard it before
+        -- the first call, not only the later map loader and session creator.
+        busy = true
+        change("map-discovery")
         local selected
-        for _, path in _G.ipairs(G.MapSetup.GetSkirmishMaps(G.release)) do
+        -- The original mapBrowser.collectMaps uses a literal true in all three
+        -- editions. Do not depend on a separate, potentially absent global.
+        for _, path in _G.ipairs(G.MapSetup.GetSkirmishMaps(true)) do
             local data = G.MapSetup.GetMapDataByFilename(path)
             if _G.type(data) == "table" and _G.type(data.Name) == "string"
                 and data.Name:lower():find("monhaim",1,true) and not data.Locked then
                 if selected or _G.type(data.MapPath) ~= "string" or data.MapPath == "" then
-                    change("failed-map-ambiguous"); return
+                    busy = false; change("failed-map-ambiguous"); return
                 end
                 selected = data.MapPath
             end
         end
-        if not selected then change("failed-map-missing"); return end
-        busy = true
+        if not selected then busy = false; change("failed-map-missing"); return end
         change("map-loading")
         G.map.loadSetupMapConfig(selected,nil)
         local current = G.MapSetup.GetCurrentMapData()

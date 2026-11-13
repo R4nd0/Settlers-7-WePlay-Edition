@@ -10,7 +10,7 @@ from lupa.lua51 import LuaRuntime
 BACKEND = r'''
 local C={now=0,logged=true,inSession=false,host=false,slot=2,valid=true,
     maps={'Map/Monhaim'},current='Map/Monhaim',success=true,creates=0,
-    loads=0,readies=0,starts=0,closes=0,transitions=0,private=0,coop=0,phases={}}
+    loads=0,discoveries=0,readies=0,starts=0,closes=0,transitions=0,private=0,coop=0,phases={}}
 local function page()return {isCreated=function()return true end}end
 C.Pages={Main=page(),Profile=page(),Browser=page(),Host=page(),Guest=page()}
 C.State={currentPageModule=C.Pages.Browser,actionManager={createCallbacks=function()
@@ -29,7 +29,8 @@ C.G={release=true,Game={GetRunTime=function()return C.now end},
  SetIsPrivate=function(v)assert(v==false);C.private=C.private+1 end,
  SessionCreate=function(...)C.creates=C.creates+1;C.args={n=select('#',...),...};
     if C.reenter then C.driver.tick()end;if C.yieldCreate then coroutine.yield('create')end;return C.success end},
- MapSetup={GetSkirmishMaps=function(...)assert(select('#',...)==1);return C.maps end,
+ MapSetup={GetSkirmishMaps=function(...)assert(select('#',...)==1 and select(1,...)==true);C.discoveries=C.discoveries+1;
+    if C.reenter then C.driver.tick()end;if C.yieldDiscovery then coroutine.yield('discovery')end;return C.maps end,
  GetMapDataByFilename=function(p)return {Name='Monhaim',MapPath=p,Locked=C.locked}end,
  GetCurrentMapData=function()return {FilePath=C.current}end,IsValid=function()return C.valid end,
  SetCoopMode=function(v)assert(v==0);C.coop=C.coop+1 end},
@@ -49,9 +50,12 @@ class PairDriverTests(unittest.TestCase):
         c.driver = self.driver
 
     def test_native_jobs_suspend_and_resume_without_protected_c_boundary(self):
-        self.c.yieldLoad = self.c.yieldCreate = self.c.reenter = True
+        self.c.yieldDiscovery = self.c.yieldLoad = self.c.yieldCreate = self.c.reenter = True
         resume = self.lua.eval('function(driver) local co=coroutine.create(driver.tick); '
             'return function()return coroutine.resume(co)end end')(self.driver)
+        self.assertEqual(resume(), (True, 'discovery'))
+        self.assertEqual(self.driver.state(), 'map-discovery')
+        self.driver.tick();self.assertEqual(self.c.discoveries,1)
         self.assertEqual(resume(), (True, 'load'))
         self.assertEqual(self.driver.state(), 'map-loading')
         self.driver.tick()
@@ -70,6 +74,12 @@ class PairDriverTests(unittest.TestCase):
                 self.assertEqual(self.c.args.n, arity)
                 self.assertEqual(self.c.private, 0 if gold else 1)
                 self.assertEqual(self.c.action.actionType, 108)
+
+    def test_map_discovery_uses_original_literal_without_reading_release_global(self):
+        self.lua.execute('''local C=...;C.G.release=nil
+          setmetatable(C.G,{__index=function(_,key)error('Unexpected global read: '..key)end})''',self.c)
+        self.driver.tick()
+        self.assertEqual((self.c.discoveries,self.c.creates),(1,1))
 
     def test_false_create_never_selects_host_or_coop(self):
         self.c.success = False; self.driver.tick(); self.driver.tick()

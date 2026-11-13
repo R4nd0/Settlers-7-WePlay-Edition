@@ -1,8 +1,9 @@
 # Gold/History automated pair-start candidate
 
 The opt-in laboratory driver stages automatic session creation and original
-Ready/Start controls for Gold and both History data sources. It is excluded
-from ordinary launchers and packages. Automatic browser entry and normal timed
+Ready/Start controls for Gold and both History data sources. Ordinary launchers
+do not enable it; only explicit laboratory archive staging installs its callbacks.
+Automatic browser entry and normal timed
 exit have been observed in original Steam History under DXVK. Automatic session
 creation, shared world entry and mixed gameplay remain unqualified.
 
@@ -12,6 +13,12 @@ loads it and checks the actual native map before creating a session. Gold keeps
 its original seven creation arguments; History keeps its eight. A real boolean
 success selects the original host-lobby action. A suspended job cannot create
 another session through reentrant updates.
+
+Map discovery also runs inside that reentry guard. It retains the original
+map browser's literal `GetSkirmishMaps(true)` call in all three editions,
+without reading a separate global release flag. A missing global is covered by
+the Lua test. This corrects a difference from the earlier experimental driver;
+its contribution to the observed native stall remains to be verified.
 
 Unlike the older unqualified `native_lobby_driver.lua`, this candidate does
 not wrap native jobs in `pcall` or `xpcall`. The Lua 5.1 suspension test exercises
@@ -49,7 +56,7 @@ receipt. It never deploys an archive or edits an installation. New pair runners
 must bind the actual candidate archive fingerprints in their diagnostic content
 contract; these fingerprints do not establish compatible resource contents.
 
-The candidate passes 20 Lua 5.1 tests covering creation/actions, the watchdog
+The candidate passes 21 Lua 5.1 tests covering creation/actions, the watchdog
 and frame ownership: suspended and resumed jobs, reentry, native failure,
 wrong loaded maps, role/slot guards, menu callback replacement and once-only
 normal exit. All 13 changed scripts across the three staged archives compile.
