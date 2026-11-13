@@ -27,7 +27,7 @@ class InputRejected(RuntimeError):
     pass
 
 
-def audit(image, version, input_case='complete', *, rule_vectors=False, populated_players=False,long_allies=False):
+def audit(image, version, input_case='complete', *, rule_vectors=False, populated_players=False,long_allies=False,fixture=None):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
@@ -39,6 +39,13 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
     row_entry, stride, allocate, free = LAYOUTS[image.label]
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base,(image.size+4095)&~4095);u.mem_write(image.base,image.mapped)
+    wrapper=None;fixture_base=fixture_size=0
+    if fixture is not None:
+        fixture_base=fixture.OPTIONAL_HEADER.ImageBase;fixture_size=fixture.OPTIONAL_HEADER.SizeOfImage
+        u.mem_map(fixture_base,(fixture_size+4095)&~4095)
+        u.mem_write(fixture_base,fixture.get_memory_mapped_image())
+        wrapper=next(fixture_base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols
+                     if e.name==b'WePlaySetupRootSerializeOracle')
     allocation_limit=450 if long_allies else 260 if rule_vectors or populated_players else 180
     u.mem_map(0,4096);u.mem_map(BASE,0xc8000 if long_allies else 0xa0000 if allocation_limit==260 else 0x80000);u.mem_map(STACK,0x10000)
     cursor, allocation_count, phase = ARENA, 0, 'hash'
@@ -173,7 +180,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
                     or word(sp+(8 if gold else 12))!=1):
                 raise RuntimeError('Original row dispatch')
             row_slots.append(number)
-        elif not image.base<=at<image.base+image.size:
+        elif not (image.base<=at<image.base+image.size or fixture_base<=at<fixture_base+fixture_size):
             raise RuntimeError('Foreign code')
 
     def writes(uc,access,at,size,value,data):
@@ -196,7 +203,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
     kept={UC_X86_REG_EBX:0x12345678,UC_X86_REG_EBP:0x23456789,
           UC_X86_REG_ESI:VISITOR if gold else 0x34567890,UC_X86_REG_EDI:0x456789ab}
 
-    def run(entry,args,this,*,hash_call=False):
+    def run(entry,args,this,*,hash_call=False,cdecl=False):
         nonlocal completed
         completed=False;words(sp,STOP,*args)
         registers={**kept,UC_X86_REG_ECX:this,UC_X86_REG_ESP:sp}
@@ -204,7 +211,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
         for reg,value in registers.items():u.reg_write(reg,value)
         u.emu_start(entry,STOP+1,count=6250000,timeout=15000000)
         if (not completed or u.reg_read(UC_X86_REG_EIP)!=STOP or word(0)
-                or u.reg_read(UC_X86_REG_ESP)!=sp+4+4*len(args)
+                or u.reg_read(UC_X86_REG_ESP)!=sp+4+(0 if cdecl else 4*len(args))
                 or any(u.reg_read(k)!=v for k,v in kept.items())):
             raise RuntimeError('Original call ABI/SEH/instruction bound')
         return u.reg_read(UC_X86_REG_EAX)
@@ -230,9 +237,14 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
     original_arena=bytes(u.mem_read(ARENA,cursor-ARENA));canary=b'RdrGuard'
     args=(version,) if gold else (VISITOR,version)
     entry=SETUP_ROOT_WRITERS[image.label]
+    def serialize():
+        if wrapper is None:return run(entry,args,ROOT)
+        exception=STACK+0x100;words(exception,0)
+        value=run(wrapper,(tuple(PROFILES).index(image.label)+1,ROOT,VISITOR,version,exception),0,cdecl=True)
+        if value!=1 or word(exception):raise RuntimeError('Compiled serializer bridge failed')
     phase='write';words(VISITOR,image.tables[WRITER][0],0,STREAM,0)
     u.mem_write(VISITOR-8,canary);u.mem_write(VISITOR+528,canary)
-    run(entry,args,ROOT)
+    serialize()
     if (allocations or allocation_count!=(61 if rule_vectors else 50) or row_slots!=list(range(25)) or preparation_versions!=[1]
             or word(VISITOR+12) or bytes(u.mem_read(ROWS,0x9094))!=original_rows
             or bytes(u.mem_read(ROOT,0xa0))!=original_root or bytes(u.mem_read(ARENA,cursor-ARENA))!=original_arena
@@ -246,7 +258,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
     words(ROOT,19);words(ROWS+stride+0x60,3)
     if version==2:words(ROOT+(0x64 if gold else 0x58),0xdeadbeef)
     try:
-        run(entry,args,ROOT)
+        serialize()
         if position!=len(input_wire):raise InputRejected('Trailing bytes')
     except InputRejected:
         if input_case=='complete':raise
@@ -300,7 +312,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
     migrated_vectors={p:bytes(u.mem_read(p,n)) for p,n in retained.items()}
     phase='rewrite';output.clear();row_slots.clear();preparation_versions.clear()
     words(VISITOR,image.tables[WRITER][0],0,STREAM,0)
-    run(entry,args,ROOT)
+    serialize()
     if (bytes(output)!=expected_wire or allocations!=retained or word(VISITOR+12)
             or row_slots!=list(range(25)) or preparation_versions!=[1]
             or bytes(u.mem_read(VISITOR-8,8))!=canary or bytes(u.mem_read(VISITOR+528,8))!=canary
@@ -318,6 +330,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
         'freed_initial_player_blocks':(13 if populated_players else 0)+(104 if long_allies else 0),
         'populated_player_containers_verified':populated_players,
         'long_allies_lists_verified':4 if long_allies else 0,'entries_per_long_allies_list':26 if long_allies else 0,
+        'compiled_serializer_bridge_tested':fixture is not None,
         'live_reader_qualified':False,'world_permission':False}
 
 
@@ -327,12 +340,19 @@ def main():
     parser.add_argument('--nonempty-rules',action='store_true')
     parser.add_argument('--populated-players',action='store_true')
     parser.add_argument('--long-allies',action='store_true')
+    parser.add_argument('--thunk-executable',type=Path)
     parser.add_argument('output',type=Path);args=parser.parse_args()
     if args.long_allies and not args.populated_players:parser.error('--long-allies requires --populated-players')
     root=Path(__file__).resolve().parents[2];out=args.output.resolve()
     if not out.is_relative_to((root/'work').resolve()) or out.exists() or not out.parent.is_dir():
         parser.error('Use a fresh output under repository work')
-    profiles={}
+    profiles={};fixture=None
+    if args.thunk_executable:
+        import pefile
+        fixture=pefile.PE(data=args.thunk_executable.read_bytes())
+        if (fixture.FILE_HEADER.Machine!=0x14c or fixture.OPTIONAL_HEADER.ImageBase!=0x24000000
+                or fixture.OPTIONAL_HEADER.SizeOfImage>4*1024*1024):
+            raise ValueError('Expected the bounded compiled x86 setup reader fixture')
     for label in PROFILES:
         image=Image(label,getattr(args,label),types=());cases={}
         # Parse imports once per profile, retaining no second image buffer.
@@ -350,7 +370,7 @@ def main():
         del raw,pe
         for version in (1,2):
             cases[str(version)]={kind:audit(image,version,kind,rule_vectors=args.nonempty_rules,
-                populated_players=args.populated_players,long_allies=args.long_allies) for kind in ('complete','truncated','trailing')}
+                populated_players=args.populated_players,long_allies=args.long_allies,fixture=fixture) for kind in ('complete','truncated','trailing')}
         profiles[label]=cases;print(json.dumps({'profile':label,'cases':6,'passed':True}),flush=True)
         del image;gc.collect()
     for version in ('1','2'):
@@ -361,6 +381,7 @@ def main():
         'fingerprints':{k:v[0] for k,v in PROFILES.items()},'positive_cases':6,'rejected_inputs':12,
         'crt_heap_and_stream_modeled':True,'populated_rule_vectors_tested':args.nonempty_rules,
         'populated_player_containers_tested':args.populated_players,'long_allies_lists_tested':args.long_allies,
+        'compiled_serializer_bridge_tested':fixture is not None,
         'live_reader_qualified':False,
         'game_process_started':False,'world_permission':False,'gold_neo_qualified':False,
         'mixed_save_coldreload_qualified':False}

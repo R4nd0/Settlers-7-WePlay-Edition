@@ -259,10 +259,8 @@ clients exited regularly with code zero; all recorded restoration checks passed.
 This establishes the diagnostic target's native construction/destruction path
 in those two running engines. It does not prove leak freedom or qualify reading
 remote setup bytes, replacing active preparation, a native Steam executable pair,
-shared world, synchronized turns, Gold NEO or mixed save/cold-reload. A separately
-frozen reader candidate now compiles for both engines and retains the observer
-ABI fixtures; it has not yet run. Its intended target is this independently
-constructed diagnostic object, with original writeback comparison and destruction.
+shared world, synchronized turns, Gold NEO or mixed save/cold-reload. The subsequent
+reader run below extends this evidence to the independently constructed target.
 
 See the [owned lifetime receipt](verification/gold-history-root-owned-lifetime-20261113.json).
 
@@ -286,3 +284,38 @@ game memory threshold is relaxed by this offline fixture.
 These results still do not qualify every actual container shape, live setup
 application, world start, Gold NEO or mixed save/cold-reload. See the
 [long-list reader receipt](verification/gold-history-root-long-allies-reader-20261113.json).
+
+## Live original reader into an independently owned target
+
+A further actual Gold/Ubisoft History pair under DXVK High, 1920×1080,
+received authenticated enclosing-root format 2 bytes in both directions. Each
+engine compared them against a fresh owner-bound local capture before calling
+its original reader on a newly original-constructed independent target. The
+reader consumed the entire input, preserved its bytes and owned configuration
+pointers, and passed bounded dependency inspection. The original writer then
+reproduced the exact received bytes, and the original destructor returned.
+All storage canaries remained intact, no exception occurred, and a fresh capture
+confirmed the active root unchanged. Both clients exited regularly with code
+zero; all recorded restoration checks passed.
+
+`crossplay_setup_root_reader.h` now provides this diagnostic sequence as
+`VerifyReceived`. The caller must authenticate the message and confirm the
+current native checkpoint on the owner thread. The public entry point rejects
+input differing from a fresh local capture before invoking the native reader.
+It destroys the independent target and returns no replacement active object.
+Ordinary adapters do not enable this diagnostic automatically.
+
+The compiled serializer bridge also passes with the original Gold, Ubisoft and
+Steam analysis images, both formats, populated rules and players, and the four
+26-entry allied lists: six positive round-trips and twelve malformed-input
+rejections. Sixty compiled lifecycle guard checks cover original code, changed
+first/last bytes and unreadable regions, including each profile's six original
+lifetime functions. CRT and stream boundaries are modeled in these CPU tests;
+they do not execute the native constructors or emulate native exception unwinding.
+
+This qualifies actual native reading of matching received setup bytes into an
+independent diagnostic target in Gold and Ubisoft History. Active-session
+adoption, a pair using the original Steam executable, complete mounted-content
+agreement, shared world, synchronized turns, Gold NEO and mixed save/cold-reload
+remain unqualified. See the [actual native reader receipt](verification/gold-history-root-owned-reader-20261113.json)
+and [compiled bridge receipt](verification/gold-history-root-compiled-reader-20261113.json).

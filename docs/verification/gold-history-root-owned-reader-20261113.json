@@ -1,0 +1,75 @@
+{
+  "format": "weplay-gold-history-original-owned-root-reader-v1",
+  "date": "2026-11-13",
+  "source_proof_sha256": "89bc6b046402ff056248c2ac574c01a42ecd0242df0714cd08db0c312d80864c",
+  "build_proof_sha256": "430daeffc88bdb24fed08817da4db81c0da0273bc8bb90dbd45ed55af8392764",
+  "actual_dxvk_pair": {
+    "history_executable_family": "Ubisoft History",
+    "history_data_family": "Ubisoft History",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "legacy_fallback": false,
+    "loopback_only": true,
+    "native_two_human_lobby": true,
+    "actual_host_start_held": true,
+    "format_version_read": 2,
+    "profiles": {
+      "gold": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      },
+      "history": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      }
+    },
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_settings_saves_cloud_adapter_interface_shared_restoration_checks_passed": true
+  },
+  "qualification": {
+    "actual_received_root_read_in_both_engines": true,
+    "independent_original_owned_target": true,
+    "original_writeback_equal": true,
+    "active_preparation_replaced": false,
+    "actual_steam_executable_pair": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "leak_freedom_proved": false
+  }
+}

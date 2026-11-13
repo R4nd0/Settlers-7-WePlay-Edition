@@ -1,0 +1,273 @@
+{
+  "profiles": {
+    "gold": {
+      "guard_cases": 20,
+      "cases": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 267,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 267,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      }
+    },
+    "ubisoft": {
+      "guard_cases": 20,
+      "cases": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 242,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 242,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      }
+    },
+    "steam_analysis": {
+      "guard_cases": 20,
+      "cases": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 242,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 242,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "source_victory_rules": 2,
+            "decoded_victory_rules": 1,
+            "sector_rules": 2,
+            "sector_placements": 4,
+            "freed_initial_rule_blocks": 10,
+            "freed_initial_player_blocks": 117,
+            "populated_player_containers_verified": true,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "compiled_serializer_bridge_tested": true,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      }
+    }
+  },
+  "compiled_fixture_sha256": "3512137e97f2352d4b250bb2f9ed10779b17634ba1516261a4ca5f5fe0df3e01",
+  "positive_cases": 6,
+  "malformed_rejections": 12,
+  "lifetime_guard_cases": 60,
+  "format": "weplay-original-owned-root-compiled-reader-v1",
+  "date": "2026-11-13",
+  "sources": {
+    "native/crossplay_setup_root_lifetime.h": "d35080d38c3cec5e67d798655f159830e45e4a2aa631f110b98424edc9926c4d",
+    "native/crossplay_setup_root_reader.h": "b48aad6f61143737477d946a135b8b1c8713af3cba36e78fe1fa27347295a6a8",
+    "native/crossplay_setup_root_reader_tests.cpp": "21c5ae400d5b4f55169212cf10f04b2f1f545c568a8ffbd8541f6c07ebad6125",
+    "tools/gold/emulate_setup_root_reader.py": "eaeb14177eb9ad5fff2a90b18434d6dfb3ff23e5641448eac6b2ac1d441c1d75"
+  },
+  "qualification": {
+    "compiled_original_serializer_bridge": true,
+    "full_lifetime_region_guards": true,
+    "crt_and_stream_boundaries_modeled": true,
+    "native_steam_runtime": false,
+    "active_preparation_replaced": false,
+    "world_permission": false
+  }
+}
