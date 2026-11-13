@@ -1,0 +1,67 @@
+{
+  "format": "gold-history-load-progress-verification-v1",
+  "date": "2026-11-13",
+  "scope": "diagnostic original loading progress; no synchronized gameplay",
+  "source_sha256": {
+    "native/crossplay_load_progress.h": "d57c93c34dd4e98a90f13f48614bd34c92ef7f8e5c20604ff319bcec9931bfd1",
+    "native/crossplay_load_progress_codec.h": "83980b0b07655a057ce44afe4d7fd5e277dc2670f4be6478f75454a6603962c6",
+    "native/crossplay_load_progress_tests.cpp": "7b6f41c3789746c0c645b85a98ef66e555f13d386443ef4615787226530a9b8d",
+    "native/crossplay_load_progress_codec_tests.cpp": "14b79800fcae0ed4ba730db2cfdb83c20f0a14f513001db821b91f2338ba2d00",
+    "native/crossplay_participant.h": "97e7db09432731d9eda9637683dd720a79fcc28f98d2949a222cb8ad5a5600a5",
+    "native/crossplay_participant.cpp": "c61b68390ef4006c8ebd4da98af8a7cafd09cf4d8c4dde28d976746ea8e57117",
+    "tools/gold/verify_load_progress.py": "c587cbef6d3454a54c7b21f5b6331439926467de22110ac707fb9b183eb5312a",
+    "tools/gold/emulate_event_payloads.py": "6e7260eec34b439849eff5dba3109b079ca089ab54ff49fcd5db733c4e0a904d"
+  },
+  "offline": {
+    "format": "native-load-progress-fixture-v1",
+    "original_writer_cases": 30,
+    "cross_profile_reader_cases": 90,
+    "truncated_or_trailing_rejections": 180,
+    "compiled_guard_checks": {
+      "gold": 29,
+      "ubisoft": 29,
+      "steam_analysis": 29
+    },
+    "guard_fixture_sha256": "a25f02e4e9e46ce5976def41f4f22a4994eebac5d7d97556c439771b5d636ff3",
+    "scalar_payload_bytes": 13,
+    "native_factory_class_prefix_bytes": 4,
+    "original_serialization_bodies_executed": true,
+    "native_factory_or_sender_executed": false,
+    "game_process_started": false,
+    "load_completion_qualified": false,
+    "mixed_gameplay_qualified": false
+  },
+  "windows_fixtures": {
+    "protocol_numeric_replay_and_source_projection_passed": true,
+    "unsupported_and_unowned_native_calls_rejected": true,
+    "fp_state_preserved": true,
+    "compiler": "MSVC x86 C++17 /W4 /WX"
+  },
+  "runtime": {
+    "gold_and_original_steam_history": true,
+    "standalone_without_steam_client": true,
+    "DXVK": true,
+    "original_start_local_send_returned_both": true,
+    "gold_original_progress_sent_and_received_by_history": 11,
+    "history_original_progress_sent_and_received_by_gold": 22,
+    "both_original_terminal_progress_values_equal_one": true,
+    "bidirectional_progress_bit_sequences_exact": true,
+    "progress_or_ready_synthesized": false,
+    "history_world_visible_with_peer_blocking_at_100_percent": true,
+    "gold_loading_overlay_remained_over_visible_world": true,
+    "native_phase_type_and_post_reload_session_guards_retained": true,
+    "both_regular_exit_zero": true,
+    "test_files_and_profiles_restored": true,
+    "authenticated_records_relayed": 69,
+    "broker_rejections_total_including_teardown": 1
+  },
+  "qualification": {
+    "original_progress_bidirectional_delivery": true,
+    "native_loading_barrier_exited_both": false,
+    "synchronized_mixed_turns": false,
+    "ubisoft_history_runtime_this_milestone": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "release_adapters_changed": false
+  }
+}

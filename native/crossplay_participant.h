@@ -51,6 +51,10 @@ public:
     // Snapshot the current native lobby on its owner thread. Backend handles
     // and process-local string pointers are never exported in the roster.
     bool CaptureLobby(LobbySnapshot& result) const;
+    // Separate read-only view of native session phase 2, observed after the
+    // original start handler. This does not prove world loading or turn sync.
+    // The phase-1 lobby guard remains unchanged.
+    bool CaptureStartedSession(LobbySnapshot& result) const;
     // Original local-only send clones the event into the current transport's
     // native queue. No NetZ/Storm send or immediate dispatcher call occurs.
     // Once per constructed event; Reset retains responsibility for our copy.

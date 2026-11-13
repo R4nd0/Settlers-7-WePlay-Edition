@@ -47,12 +47,22 @@
   },
   "qualification": {
     "protocol_fixture": true,
-    "original_native_start_event_delivered_in_game": false,
+    "original_native_start_event_delivered_in_game": true,
     "mounted_content_compatibility": false,
     "shared_world_started": false,
     "synchronized_mixed_turns": false,
     "gold_neo": false,
     "mixed_save_coldreload": false,
     "release_adapters_changed": false
+  },
+  "later_runtime": {
+    "gold_and_original_steam_history": true,
+    "DXVK": true,
+    "both_original_local_start_sends_returned": true,
+    "both_visible_3d_world_areas_constructed": true,
+    "both_original_progress_values_delivered_to_one": true,
+    "native_loading_barrier_exited_both": false,
+    "both_regular_exit_zero": true,
+    "isolated_files_and_profiles_restored": true
   }
 }

@@ -31,5 +31,21 @@ The private Gold and original Steam diagnostic adapters also compile with their
 original initialization and forwarding guards. The original Steam image passes
 all eleven image tests, and its adapter still rejects an ordinary host before
 native initialization. The first live attempt was stopped by the existing RAM
-preflight before any game launch or deployment. Shared world start, mixed turns,
-Gold NEO and mixed save/reload therefore remain unqualified.
+preflight before any game launch or deployment.
+
+Later DXVK runs delivered the original fresh-start event to both Gold and the
+original Steam History executable. Both constructed visible Monhaim 3D areas;
+History displayed the waiting-for-players dialog, and Gold retained its loading
+overlay above the world. Original local-send return receipts establish delivery
+attempts, not completed loading or synchronized simulation. Both clients emitted
+their original load-progress and end-of-turn-batch messages. Turn batches are not
+relayed by this prototype.
+
+The load-progress investigation found three independent integration mistakes:
+the lobby-only snapshot rejected the native started phase, the observed event
+type is subtype 7/category 10 rather than subtype 10/category 10, and History's
+native map reload replaces the initial admission session. The diagnostic path
+now uses a separate strict phase-2 snapshot and binds the current session after
+fresh setup/map validation and before either original start send. These changes
+do not establish completed loading. Shared playable world start, mixed turns,
+Gold NEO and mixed save/reload remain unqualified.

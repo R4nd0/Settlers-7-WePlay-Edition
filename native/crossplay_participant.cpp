@@ -203,7 +203,8 @@ void* CurrentTransport(const Profile& profile) {
     if(!Readable(lock,sizeof(CRITICAL_SECTION))) return nullptr;
     return transport;
 }
-bool SnapshotLobby(const Profile& profile,LobbySnapshot& result) {
+enum class SessionPhase : uint32_t {Lobby=1,Started=2};
+bool SnapshotSession(const Profile& profile,LobbySnapshot& result,SessionPhase phase) {
     result={};
     if(!CurrentTransport(profile)) return false;
     const auto* main=*reinterpret_cast<const unsigned char* const*>(profile.main_pointer);
@@ -211,7 +212,7 @@ bool SnapshotLobby(const Profile& profile,LobbySnapshot& result) {
     const auto* session=*reinterpret_cast<const unsigned char* const*>(main+0x14);
     if(!Readable(session,profile.roster_offset+8)
         || *reinterpret_cast<const uint32_t*>(session)!=profile.session_vtable
-        || *reinterpret_cast<const uint32_t*>(session+0x10)!=1 || session[0x14]>1) return false;
+        || *reinterpret_cast<const uint32_t*>(session+0x10)!=static_cast<uint32_t>(phase) || session[0x14]>1) return false;
     LobbySnapshot snapshot; snapshot.instance=reinterpret_cast<uintptr_t>(session);
     snapshot.local_slot=*reinterpret_cast<const uint32_t*>(session+0xc);snapshot.host=session[0x14]!=0;
     if(snapshot.local_slot<1 || snapshot.local_slot>24) return false;
@@ -242,6 +243,12 @@ bool SnapshotLobby(const Profile& profile,LobbySnapshot& result) {
     }
     if(node!=head || *reinterpret_cast<const unsigned char* const*>(head+4)!=previous || local_count!=1) return false;
     result=std::move(snapshot);return true;
+}
+bool SnapshotLobby(const Profile& profile,LobbySnapshot& result) {
+    return SnapshotSession(profile,result,SessionPhase::Lobby);
+}
+bool SnapshotStartedSession(const Profile& profile,LobbySnapshot& result) {
+    return SnapshotSession(profile,result,SessionPhase::Started);
 }
 NativeString BorrowedText(const std::string& value) {
     return {value.c_str(),static_cast<uint32_t>(value.size()+1),static_cast<uint32_t>(value.size()),0};
@@ -438,6 +445,11 @@ bool ParticipantEvent::CaptureLobby(LobbySnapshot& result) const {
     result={};
     return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
         && SnapshotLobby(*impl->profile,result);
+}
+bool ParticipantEvent::CaptureStartedSession(LobbySnapshot& result) const {
+    result={};
+    return impl->owner==GetCurrentThreadId() && impl->profile && Methods(*impl->profile)
+        && SnapshotStartedSession(*impl->profile,result);
 }
 bool ParticipantEvent::EnqueueLocal() {
     if(impl->owner && impl->owner!=GetCurrentThreadId()) return false;

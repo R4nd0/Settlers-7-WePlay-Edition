@@ -91,9 +91,9 @@ class InputBoundError(RuntimeError):
 
 def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None):
     reading = read_wire is not None
-    if reading and (name != EVENTS[0] or nonempty or type(read_wire) is not bytes
+    if reading and (name not in (EVENTS[0], 'CLoadProgressEvent') or nonempty or type(read_wire) is not bytes
                     or len(read_wire) > 65536):
-        raise ValueError('Only bounded scalar end-of-turn input is mapped')
+        raise ValueError('Only bounded scalar end-of-turn/load-progress input is mapped')
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_EBP,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_ECX, UC_X86_REG_ESP, UC_X86_REG_EIP)
