@@ -5,7 +5,9 @@ Ready/Start controls for Gold and both History data sources. Ordinary launchers
 do not enable it; only explicit laboratory archive staging installs its callbacks.
 Automatic browser entry, native session creation and normal timed exit have
 been observed in original Steam History under DXVK without human input.
-Automatic Gold creation, shared world entry and mixed gameplay remain unqualified.
+The corrected driver also created both native lobbies, admitted the History
+guest, activated its original Ready control and Gold's original Start control
+without input. Shared world entry and mixed gameplay remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -13,6 +15,13 @@ loads it and checks the actual native map before creating a session. Gold keeps
 its original seven creation arguments; History keeps its eight. A real boolean
 success selects the original host-lobby action. A suspended job cannot create
 another session through reentrant updates.
+
+Login alone does not authorize automatic creation. The staged browser exposes
+its existing `lastDiscoveryFinished` and idle-result state. The driver waits
+until the original native `notifyDiscoveryEnded` callback has fired and the
+original browser has consumed the discovery result. Empty completed lists are
+valid; a newly created or still-waiting browser cannot trigger creation. This
+retains the native create-readiness guard and does not retry rejected requests.
 
 Map discovery also runs inside that reentry guard. It retains the original
 map browser's literal `GetSkirmishMaps(true)` call in all three editions,
@@ -50,7 +59,7 @@ owner was exercised by the successful native Steam History creation run below.
 
 `tools/gold/pair_interface.py` only stages new archives from three exact input
 fingerprints: the quiet Gold interface and the separately prepared Steam and
-Ubisoft native guest/map-reload interfaces. It changes the three lobby scripts
+Ubisoft native guest/map-reload interfaces. It changes the browser, three lobby scripts
 and local frame entry point; Gold also receives the existing cumulative-turn
 camera correction from `graphics_assets.focalizer_script`. It verifies every
 other archive payload and writes the candidate/source/script hashes to a private
@@ -58,10 +67,10 @@ receipt. It never deploys an archive or edits an installation. New pair runners
 must bind the actual candidate archive fingerprints in their diagnostic content
 contract; these fingerprints do not establish compatible resource contents.
 
-The candidate passes 21 Lua 5.1 tests covering creation/actions, the watchdog
+The candidate passes 23 Lua 5.1 tests covering creation/actions, the watchdog
 and frame ownership: suspended and resumed jobs, reentry, native failure,
 wrong loaded maps, role/slot guards, menu callback replacement and once-only
-normal exit. All 13 changed scripts across the three staged archives compile.
+normal exit. All 16 changed scripts across the three staged archives compile.
 The three complete original core scripts also execute with a mock engine:
 changing the menu callback retains the driver, and normal exit runs once.
 Gold's cumulative-turn rotation expression is absent. These are headless code
@@ -89,6 +98,26 @@ so this timing identifies an exceeded budget without proving the lost exception.
 The next private runner allows 600 seconds for ownership and records durable
 controller/launcher phases, including preflight. The in-game 180-second normal
 exit watchdog and native acceptance guards remain unchanged.
+
+The fifth original Steam History run reached the native create call, which
+returned false; Gold was therefore not launched. The native status log records
+`local-session-create-not-ready` before the later search-ready transition,
+whereas the successful fourth run records `local-session-create-ready`.
+This demonstrates that the driver could request creation before native discovery
+readiness. The browser-completion guard above addresses that observed ordering;
+the sixth run exercised it successfully. The fifth game exited normally
+with code zero; all restore checks passed and no game process remained.
+
+The sixth run created both original Steam History and Gold sessions under DXVK.
+History first reported `waiting-discovery`, then completed native creation.
+Both adapters observed the two-member roster, with Gold hosting in slot 1 and
+History joining in slot 2. The original History Ready callback ran, Gold consumed
+the real ready event, and its original fresh-start callback reached the guarded
+start hold. The authenticated broker relayed 17 records with zero rejections.
+The run then stopped at History's `native-closed-slot-original-factory-excluded`
+guard after the closed configuration and slot events arrived. Neither world
+entry nor simulation turns were observed. Both games exited normally with code
+zero and all restoration checks passed. No human input was needed.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading

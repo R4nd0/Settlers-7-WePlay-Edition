@@ -9,10 +9,12 @@ from lupa.lua51 import LuaRuntime
 
 BACKEND = r'''
 local C={now=0,logged=true,inSession=false,host=false,slot=2,valid=true,
+    browserReady=true,
     maps={'Map/Monhaim'},current='Map/Monhaim',success=true,creates=0,
     loads=0,discoveries=0,readies=0,starts=0,closes=0,transitions=0,private=0,coop=0,phases={}}
 local function page()return {isCreated=function()return true end}end
 C.Pages={Main=page(),Profile=page(),Browser=page(),Host=page(),Guest=page()}
+C.Pages.Browser.weplayCanAutoCreate=function()return C.browserReady end
 C.State={currentPageModule=C.Pages.Browser,actionManager={createCallbacks=function()
     return {shutdown=function()C.closes=C.closes+1 end}end}}
 C.Pages.Host.weplayCanAutoStart=function()return C.canStart==true end
@@ -85,6 +87,33 @@ class PairDriverTests(unittest.TestCase):
         self.c.success = False; self.driver.tick(); self.driver.tick()
         self.assertEqual(self.driver.state(), 'failed-native-create')
         self.assertEqual((self.c.creates, self.c.transitions, self.c.coop), (1, 0, 0))
+
+    def test_login_before_discovery_completion_does_not_attempt_native_create(self):
+        self.c.browserReady = False
+        self.driver.tick(); self.driver.tick()
+        self.assertEqual((self.c.discoveries, self.c.loads, self.c.creates), (0, 0, 0))
+        self.assertEqual(self.c.phases[1], 'waiting-discovery')
+        self.assertEqual(len(self.c.phases), 1)
+        self.c.browserReady = True
+        self.driver.tick(); self.driver.tick()
+        self.assertEqual((self.c.discoveries, self.c.loads, self.c.creates), (1, 1, 1))
+        self.assertEqual(self.driver.state(), 'created')
+
+    def test_browser_guard_requires_native_end_event_and_consumed_result(self):
+        sys.path.insert(0, str(ROOT / 'tools/gold'))
+        from pair_interface import BROWSER_GUARD
+        panel, state, kinds = self.lua.table(), self.lua.table(frame=True), self.lua.table(idle=7)
+        check = self.lua.execute('local a,l,r=...\n' + BROWSER_GUARD + '\nreturn a.weplayCanAutoCreate',
+            panel, state, kinds)
+        self.assertFalse(check())
+        state.sessionListState = kinds.idle
+        self.assertFalse(check())  # Initial idle is insufficient without the native event.
+        state.lastDiscoveryFinished = True; state.sessionListState = 8
+        self.assertFalse(check())  # Event alone is insufficient while the result is pending.
+        state.sessionListState = kinds.idle
+        self.assertTrue(check())   # Empty completed lists are valid too.
+        state.frame = None
+        self.assertFalse(check())
 
     def test_invalid_or_wrong_loaded_map_never_creates(self):
         for invalid in (True, False):

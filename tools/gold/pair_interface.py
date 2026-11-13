@@ -1,7 +1,7 @@
 """Stage opt-in, fingerprinted pair automation; never deploy to a game.
 
 Keep the quiet Gold menu and the native History guest/map-reload integration.
-Only the three lobby members, frame watchdog and Gold's existing camera fix
+Only the browser/lobby members, frame watchdog and Gold's existing camera fix
 change. Every other archive payload is checked.
 """
 import argparse
@@ -30,10 +30,16 @@ PINS = {
 MAIN = 'Script/local/menu/panel/menu/control/mainState.lua'
 HOST = 'Script/local/menu/panel/menu/play/multiplayer/hostLobby.lua'
 GUEST = 'Script/local/menu/panel/menu/play/multiplayer/joinLobby.lua'
+BROWSER = 'Script/local/menu/panel/menu/play/multiplayer/sessionList.lua'
 CORE = 'Script/local/core.lua'
 DRIVER = HERE / 'native_pair_driver.lua'
 WATCHDOG = HERE / 'pair_watchdog.lua'
 FRAME_LOOP = HERE / 'pair_frame_loop.lua'
+BROWSER_GUARD = '''
+function a.weplayCanAutoCreate()
+ return l.frame~=nil and l.lastDiscoveryFinished==true and l.sessionListState==r.idle
+end
+'''
 
 
 def insert(raw, decode, anchor, fragment, after=False):
@@ -53,6 +59,11 @@ def build(raw, edition, duration=180000):
     decode = gold_decode if edition == 'gold' else history.decoded_view
     archive = Archive(raw)
     gold = 'true' if edition == 'gold' else 'false'
+    browser_guard = BROWSER_GUARD
+    browser_anchor = 'function a.notifyDiscoveryEnded()'
+    if edition == 'gold':
+        browser_guard = browser_guard.replace('function a.', 'function f.').replace('==r.idle', '==h.idle')
+        browser_anchor = 'function f.notifyDiscoveryEnded()'
     driver = DRIVER.read_text(encoding='utf-8')
     main = '''
 if not l.weplayPairDriver then
@@ -125,6 +136,8 @@ function update() weplayPairFrame.update() end
         MAIN: insert(archive.read(MAIN), decode, 'l["moduleManager"]["update"]()', main, after=True),
         HOST: insert(archive.read(HOST), decode, 'return d\n', host),
         GUEST: insert(archive.read(GUEST), decode, 'return c\n', guest),
+        BROWSER: insert(archive.read(BROWSER), decode,
+            browser_anchor, browser_guard),
         CORE: core,
     }
     if edition == 'gold':

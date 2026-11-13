@@ -45,6 +45,10 @@ local function tick()
         if State.currentPageModule ~= Pages.Browser then waiting("page"); return end
         if not Pages.Browser.isCreated() then waiting("browser"); return end
         if G.Network.SessionIsInSession() then change("failed-existing-session"); return end
+        -- Login can precede the original discovery job's completion. In that
+        -- window the native create guard correctly rejects the request. Wait
+        -- for the browser's actual completion event and consumed result.
+        if not Pages.Browser.weplayCanAutoCreate() then waiting("discovery"); return end
         -- Discovery can also enter native metadata/file jobs. Guard it before
         -- the first call, not only the later map loader and session creator.
         busy = true
