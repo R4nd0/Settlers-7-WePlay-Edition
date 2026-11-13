@@ -1,0 +1,65 @@
+{
+  "format": "weplay-rc327-main-package-verification-v1",
+  "verified_utc": "2026-11-13T23:07:57.220242+00:00",
+  "version": "2.0.0-rc3.27",
+  "sequence": 27,
+  "artifact": {
+    "source_commit": "de5851ddd2bb88bc665c0d4f24eb67bd1db597b5",
+    "source_tree_dirty": false,
+    "production_native_adapter_sha256": {
+      "history": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "gold": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2"
+    },
+    "native_memory_scanner_sha256": "cc1dd73539404a7d28557f5ae9f2fecd8dca0f35eee62fe32982c3785c18844c",
+    "laboratory_pair_drivers_absent": true,
+    "all_shipped_python_sources_match_commit": true,
+    "shipped_python_files": 76,
+    "all_shipped_python_sources_match_working_source": true,
+    "main_payload_files": 419,
+    "gold_payload_files": 60,
+    "final_gui_matches_tested_publish27": true,
+    "dotnet_runtime": "10.0.15",
+    "private_game_profile_data_absent": true,
+    "signed_manifests_verified": [
+      "weplay-update.json",
+      "weplay-update-isolated.json"
+    ],
+    "setup_sha256": "aa90b21537b5ca0917c9e769013f8c1700bc6112f1edb9b8ddd55cbcf608baca",
+    "setup_bytes": 118502726
+  },
+  "production_update_helper_validation": {
+    "production_embedded_key_matches_signed_final_package": true,
+    "protected_app_refuses_legacy_contractless_manifest": true,
+    "actual_installer_executed": false,
+    "results": [
+      {
+        "manifest": "weplay-update-isolated.json",
+        "exit_code": 0,
+        "validation_only": true
+      },
+      {
+        "manifest": "weplay-update.json",
+        "exit_code": 2,
+        "validation_only": true
+      }
+    ]
+  },
+  "final_gui_selftest": {
+    "exit_code": 0,
+    "passed": true,
+    "checks": 37,
+    "bilingual": true,
+    "final_publish_matches_tested_gui": true
+  },
+  "sha256": {
+    "Setup.exe": "aa90b21537b5ca0917c9e769013f8c1700bc6112f1edb9b8ddd55cbcf608baca",
+    "Setup.release.json": "5ff9a1bb22c2340692d2f395ddbbcd87e84a98bf7bf538dbb59a43bd8ba84e73",
+    "weplay-update.json": "1eebcf81d29253356404bf8f681782796b7e9fd367f866b4e5c5859816bbe323",
+    "weplay-update-isolated.json": "08a505dbb4b748ad9ed96262c3b2e11c9427a9d6adfa90044af3768e105f083d",
+    "Verification.json": "dd95c07bb5eeaf80dd468d6eca7d67677b657af4010e2c8b3d24a8c4ca2f5016",
+    "RELEASE-NOTES.txt": "8f72e9d3a6f58591af66f1109cef3cf9f83b014d69690856621d8a4955aadd76",
+    "EasyTier-corresponding-source.zip": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+  },
+  "actual_game_acceptance_receipt": "rc327-memory-gold-20261113.json",
+  "delivery": "Locally built main installer; source committed and pushed. No public release upload."
+}
