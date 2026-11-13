@@ -119,6 +119,19 @@ guard after the closed configuration and slot events arrived. Neither world
 entry nor simulation turns were observed. Both games exited normally with code
 zero and all restoration checks passed. No human input was needed.
 
+A seventh run repeated that automatic sequence using a private adapter which
+waits up to ten seconds for the unchanged closed-slot context predicate.
+Its byte/method, owner, roster and configuration-field checks passed, while both
+human entries in History's session cache still had their native Ready field
+cleared. Before the slot-context deadline, the adapter rejected
+`native-history-ready-original-projection-excluded`. That existing condition
+combines guest-presentation readiness and Ready snapshot application, so this
+run does not identify which of those checks failed. A further private diagnostic
+separates them and records the Ready helper's original failure stage without
+changing its checks or native call order. Both diagnostic builds pass compiler
+and ABI checks; their next native test remains pending. The seventh run again
+ended normally on both clients with complete restoration and no shared turns.
+
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
 barrier and execute actual advancing simulation turns. Matching delivered EOT
