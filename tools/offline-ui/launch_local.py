@@ -250,7 +250,9 @@ def write_configuration(data, configuration, udp_port, connect_probe=False, *, a
 
 
 def service_ready(process, log, address="127.0.0.1"):
-    deadline = time.monotonic() + 15
+    # A newly copied .NET runtime can need about 30 s for its first cold start.
+    # Keep startup bounded and require the same validated loopback response.
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError("Der lokale Dienst konnte nicht starten.")

@@ -119,6 +119,17 @@ class PlatformStandaloneTests(unittest.TestCase):
         self.assertEqual(isolated_process.child_environment(before),{'PATH':'authored path','WEPLAY_SETTING':'local'})
         self.assertEqual(before['SteamAppId'],'invented')
 
+    def test_gold_dxvk_config_survives_working_directory_changes_and_relocation(self):
+        inherited={'DXVK_CONFIG':'d3d9.floatEmulation = False','DxVk_CoNfIg_FiLe':'foreign.conf',
+                   'DXVK_LOG_PATH':'private logs','PATH':'authored path'}
+        for name in ('OriginalCopy','Relocated Gold Copy'):
+            exe=self.fixture.root/name/'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
+            result=platform.launch_environment({'edition':'gold'},exe,inherited)
+            self.assertEqual(result,{'DXVK_CONFIG_FILE':str(exe.with_name('dxvk.conf').resolve()),
+                                     'DXVK_LOG_PATH':'private logs','PATH':'authored path'})
+        self.assertEqual(inherited['DXVK_CONFIG'],'d3d9.floatEmulation = False')
+        self.assertEqual(platform.launch_environment({'edition':'history'},exe,inherited),inherited)
+
     def test_lease_configuration_rejects_public_addresses_noncanonical_values_and_unknown_fields(self):
         good={'group':False,'local':'192.168.1.2','coordinator':'192.168.1.3','peer':'192.168.1.4'}
         self.assertEqual(network_peer_policy.configuration(good),good)

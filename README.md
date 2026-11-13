@@ -2,11 +2,15 @@
 
 **The community fixes what Ubisoft left behind.**
 
-**RC3.26 main-package standard:** one Windows installer and launcher for Gold
+**RC3.27 main-package fixes:** reliable native memory measurements, Gold water
+configuration and a stable Gold camera. History also allows more time for the
+first local-service start. [Changes and verification](docs/RC3.27-MEMORY-GOLD.md).
+
+One Windows installer and launcher supports Gold
 1.12.1396, Ubisoft History and regular Steam History, with mandatory platform
 isolation and private profiles. Updates and repairs preserve that isolation.
 Gold is single player. [Main-package guide](docs/RC3.26-STANDALONE-STANDARD.md).
-The published RC3.25 downloads below precede this new package contract.
+The published RC3.25 downloads below precede these local package updates.
 
 ## [Download Windows Installer — RC3.25 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/Setup.exe)
 

@@ -6,6 +6,7 @@ Only aggregates are stored: no game memory, paths, identities or packet data.
 import ctypes as C
 from ctypes import wintypes as W
 from functools import lru_cache
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,18 +19,64 @@ LIMIT = 1 << 32
 POLL_SECONDS = 2.0
 ADDRESS_SCAN_SECONDS = 10.0
 SAVE_SECONDS = 30.0
+SCANNER_SHA256 = 'cc1dd73539404a7d28557f5ae9f2fecd8dca0f35eee62fe32982c3785c18844c'
+
+
+class ScanResult(C.Structure):
+    _fields_ = [(name, W.DWORD) for name in ('size','version','status','error','regions','elapsed_us')] + [
+        ('free_bytes', C.c_uint64), ('largest_bytes', C.c_uint64)]
+
+
+def verify_scanner(path):
+    path = Path(path)
+    if path.is_symlink() or path.stat().st_size > 1024*1024 or hashlib.sha256(path.read_bytes()).hexdigest() != SCANNER_SHA256:
+        raise ValueError('Ungepruefte Speichermessbibliothek.')
+    return path
+
+
+@lru_cache(maxsize=1)
+def scanner_api():
+    path = scanner_path()
+    kernel = C.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [W.LPCWSTR,W.DWORD,W.DWORD,C.c_void_p,W.DWORD,W.DWORD,W.HANDLE]
+    kernel.CreateFileW.restype = W.HANDLE
+    kernel.CloseHandle.argtypes = [W.HANDLE]
+    kernel.CloseHandle.restype = W.BOOL
+    # Keep the exact verified file locked against writes/replacement for the
+    # lifetime of the loaded library. It imports only Windows system libraries.
+    handle = kernel.CreateFileW(str(path),0x80000000,1,None,3,0x00200000,None)
+    if handle == C.c_void_p(-1).value:
+        raise C.WinError(C.get_last_error())
+    try:
+        verify_scanner(path)
+        library = C.WinDLL(str(path), use_last_error=True, winmode=0x800)
+        api = library.S7ScanAddressSpace
+        api.argtypes = [W.HANDLE,C.POINTER(ScanResult),W.DWORD]
+        api.restype = W.DWORD
+        api._retained = (library, kernel, handle)
+        return api
+    except BaseException:
+        kernel.CloseHandle(handle)
+        raise
+
+
+def scanner_path():
+    script = Path(__file__).resolve()
+    adjacent = script.with_name('memory_scan.dll')
+    if adjacent.exists():return adjacent
+    repo = script.parents[2]
+    # Source debugger/graphics tools also use this monitor. Only an actual
+    # checkout can resolve the exact qualified build in its private cache.
+    # Installed/portable packages must contain their own adjacent DLL.
+    if script == repo/'tools/d3d11/memory_guard.py' and (repo/'.git').exists():
+        return repo/'work/memory-scan'/SCANNER_SHA256/'memory_scan.dll'
+    return adjacent
 
 
 class Counters(C.Structure):
     _fields_ = [('cb',W.DWORD),('faults',W.DWORD)] + [
         (name,C.c_size_t) for name in ('peak_working','working','peak_paged','paged',
             'peak_nonpaged','nonpaged','pagefile','peak_pagefile','private')]
-
-
-class Region(C.Structure):
-    _fields_ = [('base',C.c_void_p),('allocation',C.c_void_p),('allocation_protect',W.DWORD),
-                ('partition',W.WORD),('size',C.c_size_t),('state',W.DWORD),
-                ('protect',W.DWORD),('kind',W.DWORD)]
 
 
 class HostCounters(C.Structure):
@@ -167,8 +214,6 @@ class Probe:
         self.kernel.QueryFullProcessImageNameW.restype = W.BOOL
         self.kernel.IsWow64Process.argtypes = [W.HANDLE,C.POINTER(W.BOOL)]
         self.kernel.IsWow64Process.restype = W.BOOL
-        self.kernel.VirtualQueryEx.argtypes = [W.HANDLE,C.c_void_p,C.c_void_p,C.c_size_t]
-        self.kernel.VirtualQueryEx.restype = C.c_size_t
         self.psapi.GetProcessMemoryInfo.argtypes = [W.HANDLE,C.c_void_p,W.DWORD]
         self.psapi.GetProcessMemoryInfo.restype = W.BOOL
         name = C.create_unicode_buffer(32768)
@@ -196,27 +241,23 @@ class Probe:
         return {'private':counters.private,**self.address_sample,**host_memory()}
 
     def address_space(self):
-        deadline = time.monotonic()+0.05
-        address = free = largest = 0
-        for _ in range(20000):
-            if address >= LIMIT:
-                break
-            if time.monotonic() > deadline:
-                raise AddressScanTimeout('Adressraumpruefung hat ihr Zeitbudget ueberschritten.')
-            region = Region()
-            if self.kernel.VirtualQueryEx(self.handle,C.c_void_p(address),C.byref(region),C.sizeof(region)) != C.sizeof(region):
-                raise OSError('Adressraumpruefung unvollstaendig.')
-            end = min(LIMIT, (region.base or 0) + region.size)
-            if end <= address:
-                raise OSError('Ungueltiger Adressbereich.')
-            if region.state == 0x10000:  # MEM_FREE, includes neither reserved nor committed pages.
-                free += end-address; largest = max(largest,end-address)
-            address = end
-        else:
-            raise OSError('Adressraumpruefung nicht abgeschlossen.')
-        if time.monotonic() > deadline:
+        # The entire bounded scan runs inside one native call. Thousands of
+        # individual ctypes calls previously yielded the GIL to other launcher
+        # threads between queries and exhausted both 50 ms attempts under load.
+        result = ScanResult()
+        if scanner_api()(self.handle,C.byref(result),C.sizeof(result)):
+            raise OSError('Adressraumpruefung: Aufruf fehlgeschlagen.')
+        if result.size != C.sizeof(result) or result.version != 1 or result.status > 5:
+            raise OSError('Adressraumpruefung: unbekannte Messschnittstelle.')
+        if result.status == 4:
             raise AddressScanTimeout('Adressraumpruefung hat ihr Zeitbudget ueberschritten.')
-        return {'free':free,'largest':largest}
+        if result.status:
+            raise OSError(result.error,'Adressraumpruefung unvollstaendig (Status '+str(result.status)+').')
+        if not 1 <= result.regions <= 20000 or result.elapsed_us > 50000 or not 0 <= result.largest_bytes <= result.free_bytes <= LIMIT:
+            raise OSError('Adressraumpruefung: ungueltige Summenwerte.')
+        self.last_scan_ms = result.elapsed_us/1000
+        self.last_scan_regions = result.regions
+        return {'free':result.free_bytes,'largest':result.largest_bytes}
 
 
 def notify(level):
@@ -253,6 +294,11 @@ class Sentinel:
         sample = self.probe.sample()
         elapsed = round((time.perf_counter()-started)*1000,3)
         self.summary['peak_probe_ms'] = max(self.summary['peak_probe_ms'],elapsed)
+        scan_ms = getattr(self.probe,'last_scan_ms',None)
+        if type(scan_ms) in (int,float):
+            self.summary['scanner'] = 'native-v1'
+            self.summary['peak_scan_ms'] = max(self.summary.get('peak_scan_ms',0),scan_ms)
+            self.summary['peak_scan_regions'] = max(self.summary.get('peak_scan_regions',0),self.probe.last_scan_regions)
         self.observe(sample)
 
     def observe(self, sample):
@@ -275,17 +321,27 @@ class Sentinel:
             threading.Thread(target=self.warn,args=(level,),daemon=True).start()
 
     def run(self):
+        stage = 'poll'
         try:
             while not self.stop.wait(POLL_SECONDS) and self.child.poll() is None:
                 try:
+                    stage = 'measure'
                     self.measure()
                 except OSError:
                     if self.child.poll() is None:
                         raise
                 if time.monotonic()-self.last_save >= SAVE_SECONDS:
+                    stage = 'persist'
                     self.persist()
-        except Exception:
+                stage = 'poll'
+        except Exception as error:
             self.summary['monitor_failed'] = self.summary['recovery_required'] = True
+            # Bounded diagnostics only; never persist exception messages/paths.
+            self.summary['failure_stage'] = stage
+            self.summary['failure_kind'] = ('scan_timeout' if isinstance(error,AddressScanTimeout)
+                                            else 'os_error' if isinstance(error,OSError) else 'internal_error')
+            code = getattr(error,'winerror',None) or getattr(error,'errno',None)
+            if type(code) is int:self.summary['failure_code'] = code
             try:
                 self.persist()
             finally:

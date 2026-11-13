@@ -37,7 +37,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, memory_scanner=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -76,6 +76,12 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         graphics_probe=content.plain(graphics_probe)
         if dxvk_dll is None or not graphics_probe.is_file():raise ValueError('Desktop graphics payload missing')
         check_output_location(repo,output,(graphics_probe.parent,))
+        if memory_scanner is None:raise ValueError('Pinned native memory scanner is required for desktop packages')
+        sys.path.insert(0,str(repo/'tools/d3d11'))
+        import memory_guard
+        memory_scanner=content.plain(memory_scanner)
+        memory_guard.verify_scanner(memory_scanner)
+        check_output_location(repo,output,(memory_scanner.parent,))
     if dxvk_dll is not None:
         import graphics_profile
         from graphics_distribution import LICENSE_SHA256
@@ -164,6 +170,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / 'tools' / name, target)
+    if graphics_probe is not None:
+        shutil.copyfile(memory_scanner,output/'Tools/d3d11/memory_scan.dll')
     shutil.copyfile(repo / 'LICENSE', output / 'Tools/LICENSE.txt')
     if neo_logistics:
         licenses=output/'Tools/Licenses';licenses.mkdir(exist_ok=True)
@@ -263,6 +271,7 @@ if __name__ == '__main__':
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--dxvk-dll'); parser.add_argument('--dxvk-license')
     parser.add_argument('--graphics-probe')
+    parser.add_argument('--memory-scanner')
     parser.add_argument('--easytier-runtime')
     parser.add_argument('--windows-helpers',required=True)
     parser.add_argument('--game-directory',action='store_true')
@@ -272,5 +281,5 @@ if __name__ == '__main__':
     parser.add_argument('--platform-runtime',help='Pinned platform-independent SDK, entry gates and Windows filtering helper')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
-                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,
+                dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,memory_scanner=args.memory_scanner,
                 easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,platform_runtime=args.platform_runtime))

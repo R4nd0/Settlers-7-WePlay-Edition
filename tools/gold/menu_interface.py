@@ -35,6 +35,9 @@ FACEBOOK = 'Script/local/control/facebookHelper.lua'
 TEMPLATE_VOTE = 'Script/local/menu/panel/templateVote.lua'
 CAMPAIGN = 'Script/local/menu/panel/menu/play/campaign.lua'
 MAP_LIST_HELPER = 'Script/local/menu/panel/menu/tools/mapListHelper.lua'
+FOCALIZER = 'Script/local/stage/focalizer.lua'
+TURN_ROTATION = ('n["focalizer"]["rotateCamera"]=n["focalizer"]["rotateCamera"]+'
+                 'n["focalizer"]["getDampenerVal"]()')
 OBSOLETE = {
     'Script/local/menu/panel/menu/community/contacts.lua': 'b11a4531f8a8d0152e4014d108239c1484157102e81ec245cf53c2fda43aa88b',
     'Script/local/menu/panel/menu/community/leaderBoards.lua': '2d99565412803eab79b21dc56c03d708913f312c882b7f2fb85a05a4fca47d3e',
@@ -548,6 +551,9 @@ def build(raw):
     replacements[TEMPLATE_VOTE] = replace_body(original.read(TEMPLATE_VOTE), QUIET_VOTE)
     replacements[CAMPAIGN] = campaign_script(original.read(CAMPAIGN))
     replacements[MAP_LIST_HELPER] = campaign_list_script(original.read(MAP_LIST_HELPER))
+    # Local turns now advance; the original helper adds the cumulative turn
+    # counter to the camera angle on every frame. Retain actual input/damping.
+    replacements[FOCALIZER] = change(original.read(FOCALIZER), TURN_ROTATION, '')
     for name, entry in original.entries.items():
         if entry.values[4] != 256 and name.endswith('.lua'):
             before = replacements.get(name, archive.read(name))

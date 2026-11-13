@@ -1,0 +1,145 @@
+{
+  "format": "weplay-rc327-memory-gold-acceptance-v1",
+  "verified_utc": "2026-11-13T22:53:11.689286+00:00",
+  "scanner_sha256": "cc1dd73539404a7d28557f5ae9f2fecd8dca0f35eee62fe32982c3785c18844c",
+  "gold_interface_sha256": "98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92",
+  "unchanged_guards": {
+    "scan_deadline_ms": 50,
+    "maximum_regions": 20000,
+    "timeout_retries": 1,
+    "original_child_handle": true,
+    "pressure_thresholds": true,
+    "experimental_host_headroom_mib": 4096
+  },
+  "automated_python_tests": {
+    "memory_guard": 21,
+    "memory_allocation_policy": 3,
+    "gold_menu": 14,
+    "gold_edition": 19,
+    "gold_installer": 10,
+    "gold_repair": 5,
+    "platform_standalone": 10,
+    "desktop_backend": 51,
+    "release_documents": 3,
+    "release_policy": 6,
+    "standalone": 21,
+    "installer": 35,
+    "local_service_readiness": 4
+  },
+  "automated_python_total": 202,
+  "native_guard_checks": 14,
+  "all_gold_lua_scripts_compiled": 284,
+  "gui_bilingual_selftest": true,
+  "actual_private_installer_install": true,
+  "actual_private_installer_upgrades": [
+    {
+      "edition": "Gold",
+      "exit_code": 0,
+      "installation_record_preserved": true,
+      "profiles_preserved": true,
+      "current_scanner_source_installed": true
+    },
+    {
+      "edition": "Ubisoft",
+      "exit_code": 0,
+      "installation_record_preserved": true,
+      "profiles_preserved": true,
+      "current_scanner_source_installed": true
+    }
+  ],
+  "actual_game_qualification": [
+    {
+      "edition": "gold",
+      "saved_world_reloaded": true,
+      "exit_code": 0,
+      "kernel_isolation": 7,
+      "source_executable_and_adapter_unchanged": true,
+      "shared_documents_profiles_unchanged": true,
+      "network_module_observations": 977,
+      "unexpected_network_or_platform_observations": 0,
+      "memory_summary": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 499,
+        "peak_private_mib": 1938,
+        "min_free_mib": 1141,
+        "min_largest_mib": 1093,
+        "monitor_failed": false,
+        "peak_probe_ms": 50.988,
+        "min_host_physical_free_mib": 2468,
+        "min_host_commit_free_mib": 27321,
+        "scanner": "native-v1",
+        "peak_scan_ms": 29.559,
+        "peak_scan_regions": 6879
+      },
+      "thread_contention": {
+        "old_scanner_failed_samples": 4,
+        "old_scanner_samples": 4,
+        "new_scanner_valid_samples": 20,
+        "new_scanner_samples": 20,
+        "new_scanner_peak_scan_ms": 19.926
+      },
+      "water_correct": true,
+      "camera_stable": true,
+      "local_service_readiness": null
+    },
+    {
+      "edition": "history-ubisoft",
+      "saved_world_reloaded": true,
+      "exit_code": 0,
+      "kernel_isolation": 7,
+      "source_executable_and_adapter_unchanged": true,
+      "shared_documents_profiles_unchanged": true,
+      "network_module_observations": 127,
+      "unexpected_network_or_platform_observations": 0,
+      "memory_summary": {
+        "format": "s7-memory-summary-v1",
+        "recovery_required": false,
+        "max_pressure": 0,
+        "samples": 65,
+        "peak_private_mib": 1981,
+        "min_free_mib": 1438,
+        "min_largest_mib": 1391,
+        "monitor_failed": false,
+        "peak_probe_ms": 25.315,
+        "min_host_physical_free_mib": 14081,
+        "min_host_commit_free_mib": 50987,
+        "scanner": "native-v1",
+        "peak_scan_ms": 24.953,
+        "peak_scan_regions": 6533
+      },
+      "thread_contention": {
+        "old_scanner_failed_samples": 4,
+        "old_scanner_samples": 4,
+        "new_scanner_valid_samples": 20,
+        "new_scanner_samples": 20,
+        "new_scanner_peak_scan_ms": 18.038
+      },
+      "water_correct": null,
+      "camera_stable": null,
+      "local_service_readiness": {
+        "elapsed_seconds": 18.77754619999905,
+        "loopback_configuration_validated": true
+      }
+    }
+  ],
+  "local_service_startup": {
+    "previous_readiness_seconds": 15,
+    "current_readiness_seconds": 60,
+    "original_game_not_started_on_timeout": true,
+    "independent_service_only_retry": {
+      "exit_code": 0,
+      "ready": true,
+      "elapsed_seconds": 33.204,
+      "stderr_bytes": 0,
+      "events": [
+        "configuration-server-ready",
+        "configuration-server-stopped"
+      ]
+    }
+  },
+  "steam_scope": "Production native adapter unchanged from RC3.26; shared platform regression tests, source and package verification. No additional Steam world run for this fix.",
+  "platform_scope": "Per-copy WFP nonloopback isolation and game process/module/socket observations; unrelated user platform clients left untouched.",
+  "publication_scope": "Local rebuilt main installer and signed manifests; no public release upload."
+}

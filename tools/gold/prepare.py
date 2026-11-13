@@ -19,7 +19,7 @@ DEFINITIONS_SHA256 = '98f30124c274c1de15f46e1701a819358394dfeebaa0d9924b1f56596b
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 INTERFACE = Path('Data/Base/BBA/Interface.bba')
 INTERFACE_SHA256 = '5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215'
-MENU_SHA256 = '16fda9a2a1cbf766eb74a4b72b93f110309e8d06059c2e0458c4d7955ecc6e72'
+MENU_SHA256 = '98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92'
 EXE = Path('Data/Base/_Dbg/Bin/Release/Settlers7R.exe')
 DEFINITIONS = Path(__file__).resolve().parents[2] / 'Definitions/Definitions.bin'
 DXVK_CONFIG = (b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'

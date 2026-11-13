@@ -91,11 +91,26 @@ class MemoryTests(unittest.TestCase):
             probe.sample()
             self.assertEqual(probe.address_space.call_count,2)
 
-    def test_address_scan_exits_when_its_time_budget_is_exceeded(self):
+    def test_native_scan_accepts_only_a_complete_bounded_current_abi(self):
         probe = guard.Probe.__new__(guard.Probe)
-        with patch.object(guard.time,'monotonic',side_effect=[0,0.06]):
-            with self.assertRaises(OSError):
-                probe.address_space()
+        probe.handle = 123
+        good=dict(size=guard.C.sizeof(guard.ScanResult),version=1,status=0,error=0,regions=23,
+                  elapsed_us=49999,free_bytes=2000*guard.MIB,largest_bytes=500*guard.MIB)
+        def invoke(values, call_result=0):
+            def scan(handle,pointer,size):
+                self.assertEqual(handle,123);self.assertEqual(size,40)
+                for key,value in values.items():setattr(pointer._obj,key,value)
+                return call_result
+            return scan
+        with patch.object(guard,'scanner_api',return_value=invoke(good)):
+            self.assertEqual(probe.address_space(),dict(free=2000*guard.MIB,largest=500*guard.MIB))
+        for changed in (dict(size=0),dict(version=2),dict(status=1,error=5),dict(status=2),dict(status=3),
+                        dict(status=5),dict(status=6),dict(regions=0),dict(regions=20001),
+                        dict(elapsed_us=50001),dict(largest_bytes=guard.LIMIT+1),dict(free_bytes=guard.LIMIT+1)):
+            with self.subTest(changed=changed),patch.object(guard,'scanner_api',return_value=invoke(dict(good,**changed))):
+                with self.assertRaises(OSError):probe.address_space()
+        with patch.object(guard,'scanner_api',return_value=invoke(good,87)):
+            with self.assertRaises(OSError):probe.address_space()
 
     def test_one_timed_out_scan_restarts_without_publishing_partial_or_stale_data(self):
         probe = guard.Probe.__new__(guard.Probe)
@@ -130,18 +145,33 @@ class MemoryTests(unittest.TestCase):
                 self.assertEqual(probe.address_sample, previous)
                 self.assertEqual(probe.last_scan, float('-inf'))
 
-    def test_slow_final_region_is_not_published_after_deadline(self):
+    def test_native_timeout_never_publishes_even_plausible_aggregates(self):
         probe = guard.Probe.__new__(guard.Probe)
-        probe.handle = Mock(); probe.kernel = Mock()
-        def region(handle,address,pointer,size):
-            pointer._obj.base = 0
-            pointer._obj.size = guard.LIMIT
-            pointer._obj.state = 0x10000
-            return size
-        probe.kernel.VirtualQueryEx.side_effect = region
-        with patch.object(guard.time, 'monotonic', side_effect=[0, 0, 0.06]):
+        probe.handle = 123
+        def timeout(handle,pointer,size):
+            pointer._obj.size=size;pointer._obj.version=1;pointer._obj.status=4
+            pointer._obj.free_bytes=guard.LIMIT
+            return 0
+        with patch.object(guard,'scanner_api',return_value=timeout):
             with self.assertRaises(guard.AddressScanTimeout):
                 probe.address_space()
+
+    def test_unqualified_scanner_is_rejected_before_loading(self):
+        dll=self.path.with_suffix('.dll');dll.write_bytes(b'foreign library')
+        with self.assertRaises(ValueError):guard.verify_scanner(dll)
+
+    def test_source_debugger_cache_is_pinned_and_never_used_by_installed_packages(self):
+        repo=self.path.parent/'repository';(repo/'.git').mkdir(parents=True)
+        script=repo/'tools/d3d11/memory_guard.py';script.parent.mkdir(parents=True);script.write_bytes(b'# source')
+        with patch.object(guard,'__file__',str(script)):
+            self.assertEqual(guard.scanner_path(),repo/'work/memory-scan'/guard.SCANNER_SHA256/'memory_scan.dll')
+            adjacent=script.with_name('memory_scan.dll');adjacent.write_bytes(b'foreign')
+            self.assertEqual(guard.scanner_path(),adjacent)
+            with self.assertRaises(ValueError):guard.verify_scanner(guard.scanner_path())
+        installed=repo/'App/Package/Tools/d3d11/memory_guard.py'
+        installed.parent.mkdir(parents=True);installed.write_bytes(b'# installed')
+        with patch.object(guard,'__file__',str(installed)):
+            self.assertEqual(guard.scanner_path(),installed.with_name('memory_scan.dll'))
 
     def test_monitor_failure_latches_recovery_without_stopping_existing_game(self):
         child, probe = Mock(), Mock()
@@ -156,8 +186,31 @@ class MemoryTests(unittest.TestCase):
         summary = json.loads(self.path.read_text())
         self.assertTrue(summary['monitor_failed'])
         self.assertTrue(summary['recovery_required'])
+        self.assertEqual(summary['failure_stage'],'measure')
+        self.assertEqual(summary['failure_kind'],'os_error')
         child.terminate.assert_not_called()
         child.kill.assert_not_called()
+
+    def test_process_exit_during_measurement_is_not_a_monitor_failure(self):
+        child,probe=Mock(),Mock()
+        child.poll.side_effect=[None,0,0]
+        probe.sample.side_effect=OSError('terminated child')
+        sentinel=guard.Sentinel(child,self.path,probe,warn=Mock())
+        sentinel.stop=Mock();sentinel.stop.wait.return_value=False
+        sentinel.run();sentinel.close()
+        self.assertFalse(sentinel.summary['monitor_failed'])
+        self.assertFalse(sentinel.summary['recovery_required'])
+        sentinel.warn.assert_not_called()
+
+    def test_timeout_failure_records_category_without_private_exception_text(self):
+        child,probe=Mock(),Mock();child.poll.return_value=None
+        probe.sample.side_effect=guard.AddressScanTimeout('private profile path must never be stored')
+        sentinel=guard.Sentinel(child,self.path,probe,warn=lambda level:None)
+        sentinel.stop=Mock();sentinel.stop.wait.return_value=False
+        sentinel.run()
+        value=self.path.read_text()
+        self.assertEqual(json.loads(value)['failure_kind'],'scan_timeout')
+        self.assertNotIn('private profile',value)
 
     def test_host_pressure_is_detected_while_game_address_space_is_healthy(self):
         sample = dict(self.sample(),host_physical_free=1500*guard.MIB,host_commit_free=6000*guard.MIB)

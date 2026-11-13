@@ -152,6 +152,7 @@ def options_path(root):
 def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
+    environment = launch_environment(value, executable, os.environ if environment is None else environment)
     helper=root/'Launcher/weplay_network_policy.exe'
     result=subprocess.run([str(helper),'check',str(executable)],capture_output=True,timeout=15)
     if result.returncode and lan is None:
@@ -166,12 +167,24 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None)
         game=isolated_process.launch(executable, adapter,
             dll_sha256=value['files'][adapter.relative_to(root).as_posix()],
             policy=root/'Launcher/weplay_network_policy.exe', policy_sha256=POLICY,
-            environment=os.environ if environment is None else environment, arguments=arguments,on_initialized=on_initialized)
+            environment=environment, arguments=arguments,on_initialized=on_initialized)
         game.network_policy=scope
         return game
     except BaseException:
         if scope:scope.close()
         raise
+
+
+def launch_environment(value, executable, inherited):
+    environment = dict(inherited)
+    if value['edition'] == 'gold':
+        # Gold changes its working directory before D3D9 initializes. DXVK's
+        # relative default then misses the verified configuration beside the
+        # executable, including the strict float emulation needed by water.
+        environment = {key: setting for key, setting in environment.items()
+                       if key.upper() not in ('DXVK_CONFIG', 'DXVK_CONFIG_FILE')}
+        environment['DXVK_CONFIG_FILE'] = str(content.plain(executable.with_name('dxvk.conf')))
+    return environment
 
 
 def configure(root, action='install'):

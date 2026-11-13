@@ -36,7 +36,7 @@ def public_document(source,*,revision=None):
 
 
 def copy_documents(app,*,platform_independent=False):
-    guide=REPO/'docs/RC3.26-STANDALONE-STANDARD.md' if platform_independent else RELEASE_GUIDE
+    guide=REPO/'docs/RC3.27-MEMORY-GOLD.md' if platform_independent else RELEASE_GUIDE
     revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip() if platform_independent else None
     for original, destination in ((guide,'LIESMICH.txt'),
             (guide,'RELEASE-NOTES.md'),(guide,'README.md'),
@@ -45,7 +45,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=26,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None,gold_package=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=27,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None,gold_package=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -80,6 +80,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
+        memory_scanner=memory_scanner or old/'Tools/d3d11/memory_scan.dll',
         easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,platform_runtime=platform_runtime)
     gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
@@ -98,8 +99,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.26 Standalone Standard','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc3.26','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC3.27 Memory and Gold fixes','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc3.27','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
@@ -141,6 +142,11 @@ def refresh_stage(app,desktop_publish):
     license_sources={'tools/licenses/neo-logistics-puff.txt':REPO/'native/third_party/puff/puff.h',
                      'tools/licenses/neo-logistics-s7packer.txt':REPO/'tools/lan/LICENSE.S7Packer.txt'}
     for name in manifest['files']:
+        if name=='tools/d3d11/memory_scan.dll':
+            sys.path.insert(0,str(REPO/'tools/d3d11'))
+            import memory_guard
+            memory_guard.verify_scanner(package/name)
+            continue
         if name.startswith('tools/') and name!='tools/license.txt':
             source=content.plain(license_sources.get(name,REPO/name))
             shutil.copyfile(source,package/name)
@@ -157,11 +163,11 @@ def refresh_stage(app,desktop_publish):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('stage','output','desktop-publish','dotnet','probe','compiler'):parser.add_argument('--'+name,required=True)
-    for name in ('base-package','service','adapter','python-zip','dxvk-dll','dxvk-license'):parser.add_argument('--'+name)
+    for name in ('base-package','service','adapter','python-zip','dxvk-dll','dxvk-license','memory-scanner'):parser.add_argument('--'+name)
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=26)
+    parser.add_argument('--update-sequence',type=int,default=27)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')
@@ -170,5 +176,5 @@ if __name__=='__main__':
     parser.add_argument('--gold-package')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
-        base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
+        base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,memory_scanner=values.memory_scanner,
         easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,platform_runtime=values.platform_runtime,gold_package=values.gold_package)

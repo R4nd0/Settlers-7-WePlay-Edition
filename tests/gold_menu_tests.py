@@ -11,6 +11,18 @@ from lupa.lua51 import LuaRuntime
 
 
 class GoldMenuTests(unittest.TestCase):
+    def test_turn_counter_cannot_rotate_camera_but_actual_input_and_damping_remain(self):
+        body=('local n={focalizer={rotateCamera=1,getDampenerVal=function()return 400 end}};'
+              'local function frame(input) '+menu.TURN_ROTATION+' '
+              'n.focalizer.rotateCamera=n.focalizer.rotateCamera+input*0.5;'
+              'return n.focalizer.rotateCamera end; return frame')
+        with patch.object(menu.profile,'decoded_view',return_value=(body,body,list(range(len(body)+1)))):
+            corrected=menu.change(body.encode(),menu.TURN_ROTATION,'').decode()
+        frame=LuaRuntime().execute(corrected)
+        for _ in range(500):self.assertEqual(frame(0),1)
+        self.assertEqual(frame(2),2)
+        self.assertEqual(frame(-2),1)
+
     def test_unknown_archive_is_rejected_before_archive_parser(self):
         with patch.object(menu.profile, 'Archive') as archive:
             with self.assertRaisesRegex(ValueError, 'exact original Gold'):
