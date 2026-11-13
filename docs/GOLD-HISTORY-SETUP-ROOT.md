@@ -239,3 +239,29 @@ destruction, or live remote setup application. Shared world, turns, Gold NEO and
 mixed save/cold-reload remain unqualified.
 
 See the [player reader matrix receipt](verification/gold-history-root-player-reader-20261113.json).
+
+## Live original construction and destruction of an independent target
+
+The next isolated DXVK High pair independently exercised the original root
+constructors and destructors in Gold and Ubisoft History. Gold uses a stack
+target argument with `ret 4`; History uses `thiscall` with no stack arguments.
+Six original lifetime regions per profile retain complete bounded code hashes,
+including preparation and row construction/destruction. The native preparation
+constructor loads its colour configuration through the engine resource system.
+
+After the repeated successful authenticated root transfer and fresh-capture
+comparison, each engine constructed a new root with separate preparation rows
+and independently owned configuration pointers. Its original destructor returned
+normally. Guard bytes stayed intact, no exception occurred, and the active
+session's fresh original serialization remained byte-identical afterward. Both
+clients exited regularly with code zero; all recorded restoration checks passed.
+
+This establishes the diagnostic target's native construction/destruction path
+in those two running engines. It does not prove leak freedom or qualify reading
+remote setup bytes, replacing active preparation, a native Steam executable pair,
+shared world, synchronized turns, Gold NEO or mixed save/cold-reload. A separately
+frozen reader candidate now compiles for both engines and retains the observer
+ABI fixtures; it has not yet run. Its intended target is this independently
+constructed diagnostic object, with original writeback comparison and destruction.
+
+See the [owned lifetime receipt](verification/gold-history-root-owned-lifetime-20261113.json).

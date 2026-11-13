@@ -1,0 +1,71 @@
+{
+  "format": "weplay-gold-history-original-owned-root-lifetime-v1",
+  "date": "2026-11-13",
+  "source_proof_sha256": "cb1abb689d9fd7f0b9b510242600aa2769d6499578d9ff2878f7e50e183bf5c9",
+  "build_proof_sha256": "95031fdfe929c31167e4982ef5f44f40644fd52f4c90c722a6c3bf12edda0cc4",
+  "actual_dxvk_pair": {
+    "history_executable_family": "Ubisoft History",
+    "history_data_family": "Ubisoft History",
+    "quality": "High",
+    "resolution": "1920x1080",
+    "loopback_only": true,
+    "native_two_human_lobby": true,
+    "actual_host_start_held": true,
+    "profiles": {
+      "gold": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_applied": false,
+        "world_permission": false
+      },
+      "history": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_applied": false,
+        "world_permission": false
+      }
+    },
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_settings_saves_cloud_adapter_interface_shared_restoration_checks_passed": true
+  },
+  "original_methods": {
+    "gold": {
+      "constructor": "0x9cdfe0",
+      "destructor": "0x9ce110",
+      "abi": "stdcall target, ret4"
+    },
+    "ubisoft_history": {
+      "constructor": "0x5f4f20",
+      "destructor": "0x5f5040",
+      "abi": "thiscall target, ret0"
+    },
+    "guarded_lifetime_regions_per_profile": 6
+  },
+  "qualification": {
+    "original_independent_root_construction_and_destruction_in_both_engines": true,
+    "leak_freedom_proved": false,
+    "live_remote_setup_reader": false,
+    "active_preparation_replaced": false,
+    "actual_steam_executable_pair": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  }
+}
