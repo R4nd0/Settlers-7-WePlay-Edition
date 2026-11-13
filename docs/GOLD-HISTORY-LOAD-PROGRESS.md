@@ -1,7 +1,7 @@
 # Original Gold / History loading progress
 
 `crossplay_load_progress.h` frames only the original `CLoadProgressEvent`.
-The observed native type is `0x000a0007`: subtype 7 and category 10. Its factory
+The observed native type is `0x000a0007`: low word 7 and high-word subtype 10. Its factory
 class identifier is independent. The 17-byte original stream contains the class,
 type, source CID, asynchronous flag and single-precision progress bits. Projection
 changes only the admitted peer CID. Progress and completion values are never

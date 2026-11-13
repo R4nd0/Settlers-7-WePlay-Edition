@@ -5,7 +5,7 @@
 // The authenticated channel and an independently owned started-world interval
 // are prerequisites. A forwarded scalar does not establish simulation sync.
 namespace CrossplayLoadProgress {
-// Native outgoing observation: low subtype 7, class/category 10 in the high
+// Native outgoing observation: low word 7, subtype 10 in the high
 // word. The runtime type is independent of the factory class identifier.
 constexpr uint32_t Class=0xe1d414c9,Type=7u|(10u<<16);
 constexpr size_t WireSize=17,Header=48,FrameSize=Header+WireSize;

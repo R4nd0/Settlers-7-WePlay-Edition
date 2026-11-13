@@ -89,11 +89,17 @@ class InputBoundError(RuntimeError):
     """The synthetic input stream refused an overread or trailing payload."""
 
 
-def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None):
+def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None, read_batch=False):
     reading = read_wire is not None
-    if reading and (name not in (EVENTS[0], 'CLoadProgressEvent') or nonempty or type(read_wire) is not bytes
+    batch = reading and read_batch and name == 'CEndOfTurnBatchEvent'
+    if read_batch and not batch:
+        raise ValueError('Batch input requires the explicit batch event and read stream')
+    if reading and (not batch and name not in (EVENTS[0], 'CLoadProgressEvent') or nonempty or type(read_wire) is not bytes
                     or len(read_wire) > 65536):
-        raise ValueError('Only bounded scalar end-of-turn/load-progress input is mapped')
+        raise ValueError('Only scalar events or explicitly bounded turn batches are mapped')
+    batch_count = struct.unpack_from('<I', read_wire, 13)[0] if batch and len(read_wire) >= 17 else 0
+    if batch and (len(read_wire) < 17 or batch_count > 64):
+        raise InputBoundError('Turn-batch count/header bound')
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_EBP,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_ECX, UC_X86_REG_ESP, UC_X86_REG_EIP)
@@ -136,6 +142,11 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
             words(OBJECT+offset, NESTED, NESTED+2*0x24, NESTED+2*0x24)
         else:
             raise ValueError('Only container events accept nested fixtures')
+    if batch:
+        # Preallocate synthetic storage; no native heap or allocation import is
+        # executed. Original vector resize/constructors and readers still run.
+        vector = 0x18 if image.label == 'gold' else 0x14
+        words(OBJECT+vector, NESTED, NESTED, NESTED+64*0x24)
     words(VISITOR, image.tables[READER if reading else WRITER][0], int(reading), STREAM, 0)
     words(STREAM, STREAM_VTABLE)
     words(STREAM_VTABLE+0x14, POSITION)
@@ -173,7 +184,8 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
                 if (uc.reg_read(UC_X86_REG_ECX) != STREAM or word(esp+12) != 0
                         or length > 4096 or not (
                             OBJECT+4 <= pointer <= pointer+length <= OBJECT+0x24
-                            or STACK <= pointer <= pointer+length <= STACK+0x10000)):
+                            or STACK <= pointer <= pointer+length <= STACK+0x10000
+                            or batch and NESTED <= pointer <= pointer+length <= NESTED+batch_count*0x24)):
                     raise RuntimeError('Unexpected native read destination/ownership')
                 if read_position+length > len(read_wire):
                     raise InputBoundError('Synthetic input stream overread')
@@ -193,7 +205,8 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
         if not (STACK <= address <= address+size <= STACK+0x10000
                 or address == 0 and size == 4
                 or VISITOR+0xc <= address <= address+size <= VISITOR+0x214
-                or reading and OBJECT+4 <= address <= address+size <= OBJECT+0x24):
+                or reading and OBJECT+4 <= address <= address+size <= OBJECT+0x24
+                or batch and NESTED <= address <= address+size <= NESTED+batch_count*0x24):
             raise RuntimeError('Native serializer wrote outside its stack/writer')
 
     u.hook_add(UC_HOOK_CODE, code)
@@ -210,7 +223,7 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
     if (not completed or u.reg_read(UC_X86_REG_ESP) != esp+12
             or any(u.reg_read(k) != v for k, v in preserved.items())
             or (not reading and bytes(u.mem_read(OBJECT, 0x100)) != before)
-            or bytes(u.mem_read(NESTED, 2*0x24)) != nested_before
+            or not batch and bytes(u.mem_read(NESTED, 2*0x24)) != nested_before
             or word(VISITOR+0xc) != 0):
         raise RuntimeError('Native serializer changed its bounded ABI/input state')
     if reading:
@@ -218,6 +231,18 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
             raise RuntimeError('Native reader changed fields outside the mapped event')
         if read_position != len(read_wire):
             raise InputBoundError('Trailing native input payload')
+        if batch:
+            if (word(OBJECT+vector) != NESTED
+                    or word(OBJECT+vector+4) != NESTED+batch_count*0x24
+                    or word(OBJECT+vector+8) != NESTED+64*0x24):
+                raise RuntimeError('Original vector changed its synthetic storage ownership')
+            nested = []
+            for index in range(batch_count):
+                at = NESTED+index*0x24
+                if word(at) != image.tables['CEndOfTurnEvent'][0]:
+                    raise RuntimeError('Original nested constructor vtable differs')
+                nested.append(tuple(word(at+offset) for offset in range(4, 0x24, 4)))
+            return {'base': tuple(word(OBJECT+offset) for offset in (4, 8, 12, 16)), 'nested': nested}
         return tuple(word(OBJECT+offset) for offset in range(4, 0x24, 4))
     return bytes(output)
 

@@ -94,6 +94,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Original load-progress codec guard fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_load_progress_codec_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_load_progress_codec_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable load-progress codec fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_turn_batch_tests.cpp') /Fe:crossplay_turn_batch_tests.exe /link /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Bounded original turn-batch framing test build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_turn_batch_codec_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_turn_batch_codec_tests.exe /link ws2_32.lib bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Original turn-batch codec guard fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_turn_batch_codec_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_turn_batch_codec_runtime_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Relocatable turn-batch codec fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_preparation_capture_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_preparation_capture_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Whole-preparation dependency fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_active_setup_capture_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_active_setup_capture_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"

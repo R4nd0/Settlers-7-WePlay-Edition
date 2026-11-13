@@ -1,0 +1,73 @@
+{
+  "format": "gold-history-turn-batch-verification-v1",
+  "date": "2026-11-13",
+  "scope": "headless native serialization and bounded original batch relay primitive",
+  "source_sha256": {
+    "native/crossplay_turn_batch.h": "b458ed09eaa99d54e18b07d295c98224058e1ceb9bc21b491563ef4a8d98f566",
+    "native/crossplay_turn_batch_codec.h": "2462942cb866163359c67689d4f2f427caf6df20391079b284c1f6c173bddaa2",
+    "native/crossplay_turn_batch_tests.cpp": "c4f0b8cc34809c068eab374bb36bad8c23e576bc009b4a01f413a022cfacff8e",
+    "native/crossplay_turn_batch_codec_tests.cpp": "3c98fb5db8d4093e3d51163744299c2beff66d2aa506bb62f144bf09f988acf7",
+    "tools/gold/verify_turn_batch_readers.py": "e427c78dc284c68c43444ee234acb038b9f5d3b46948fb0021d00dd332a9e645",
+    "tools/gold/emulate_event_payloads.py": "64759a151155fedfc62a98d7844283b48d2e7323682eea3af7f7c8573df0b33a"
+  },
+  "headless": {
+    "format": "native-turn-batch-reader-verification-v1",
+    "original_writer_cases": 24,
+    "cross_profile_reader_cases": 72,
+    "malformed_input_rejections": 144,
+    "vector_boundary_checks": 15,
+    "maximum_nested_events": 64,
+    "compiled_method_guard_checks": {
+      "gold": 56,
+      "ubisoft": 56,
+      "steam_analysis": 56
+    },
+    "guard_fixture_sha256": "c79b0f55229f7dfca20ffc1653795b2322c2a1f5cdcf0c2c80e3e7cffb4931eb",
+    "original_vector_resize_constructors_and_readers_executed": true,
+    "native_heap_or_factory_or_sender_executed": false,
+    "game_process_started": false,
+    "synchronized_turns_qualified": false
+  },
+  "regression": {
+    "existing_original_event_writer_cases": 36,
+    "existing_original_event_writers_unchanged": true,
+    "load_progress_cross_readers_passed": 90,
+    "load_progress_malformed_rejections": 180
+  },
+  "windows": {
+    "compiler": "MSVC x86 C++17 /W4 /WX",
+    "framing_fixed_and_relocatable_builds_passed": true,
+    "framing_runtime_passed": true,
+    "codec_fixed_and_relocatable_builds_passed": true,
+    "unowned_native_calls_rejected": true
+  },
+  "private_adapters": {
+    "gold_and_original_steam_compile_passed": true,
+    "original_forwarding_abi_passed": true,
+    "steam_image_checks_passed": 11,
+    "ordinary_host_load_rejected": true,
+    "original_entry_and_isolation_guards_retained": true
+  },
+  "runtime_attempt": {
+    "history_test_client_started": true,
+    "stopped_regularly_before_native_lobby_preparation": true,
+    "desktop_focus_and_input_pause_unresolved": true,
+    "gold_test_client_started": false,
+    "game_world_start_attempted": false,
+    "history_exit_code": 0,
+    "all_test_files_and_profiles_restored": true
+  },
+  "qualification": {
+    "original_batch_serialization_layout": true,
+    "bounded_headless_reader": true,
+    "native_factory_or_sender_in_game_this_milestone": false,
+    "original_batch_delivered_between_running_games": false,
+    "both_loading_barriers_exited": false,
+    "synchronized_mixed_turns": false,
+    "gameplay_command_transport": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "renderer_free_game_start": false,
+    "release_adapters_changed": false
+  }
+}

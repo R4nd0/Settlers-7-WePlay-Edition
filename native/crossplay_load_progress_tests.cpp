@@ -28,7 +28,7 @@ int main() {
     Check(!Encode(host,0,value,42,frame) && !Encode(host,257,value,42,frame),"bounded nonzero sequence");
     Check(!Encode(host,1,Wire(0,2),42,frame),"invalid native async flag excluded");
     auto wrong_type=value;CrossplayChat::Put(wrong_type.data()+4,10u|(10u<<16));
-    Check(!Encode(host,1,wrong_type,42,frame),"factory category must not replace observed low subtype 7");
+    Check(!Encode(host,1,wrong_type,42,frame),"observed low word 7 is independent of high-word subtype 10");
     Check(Encode(host,256,value,42,frame) && Decode(guest,255,frame,42,0,decoded),"last bounded sequence accepted");
     Check(!Decode(guest,256,frame,42,0,decoded),"sequence cannot wrap");
     Check(!Decode(guest,255,frame,41,0,decoded) && !Decode(guest,255,frame,42,UINT32_MAX,decoded),"source mapping must remain admitted");

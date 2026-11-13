@@ -43,7 +43,7 @@ relayed by this prototype.
 
 The load-progress investigation found three independent integration mistakes:
 the lobby-only snapshot rejected the native started phase, the observed event
-type is subtype 7/category 10 rather than subtype 10/category 10, and History's
+type has low word 7 and high-word subtype 10, and History's
 native map reload replaces the initial admission session. The diagnostic path
 now uses a separate strict phase-2 snapshot and binds the current session after
 fresh setup/map validation and before either original start send. These changes
