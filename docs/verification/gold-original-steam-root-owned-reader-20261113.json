@@ -1,0 +1,87 @@
+{
+  "format": "weplay-gold-original-steam-owned-root-reader-v1",
+  "date": "2026-11-13",
+  "source_proof_sha256": "ca1748b52ab3b57cf3b0f449c115a1da1f7f793db4b91954c636a28a19aa84a9",
+  "build_proof_sha256": "f26dfe830e79c55086fe8e3349b68c2bf2b50a6dcbc2012518be3080cb3a3a75",
+  "actual_dxvk_pair": {
+    "history_executable_family": "original Steam History",
+    "history_data_family": "Steam History",
+    "history_executable_sha256": "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
+    "history_adapter_sha256": "d0df2517be086df4e16a3ccb5036a81091bee9d2f91f2fab58393275aa10c5fc",
+    "local_pair_lab": false,
+    "kernel_isolation_before_original_entry": 7,
+    "quality": "High",
+    "resolution": "1920x1080",
+    "legacy_fallback": false,
+    "loopback_only": true,
+    "native_two_human_lobby": true,
+    "original_tower_island_to_monhaim_reload": true,
+    "actual_guest_ready": true,
+    "actual_host_start_held": true,
+    "root_formats_transferred": [
+      1,
+      2
+    ],
+    "format_version_read": 2,
+    "profiles": {
+      "gold": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      },
+      "history": {
+        "original_constructor_returned": true,
+        "separate_preparation_rows": true,
+        "owned_configuration_pointers": true,
+        "original_destructor_returned": true,
+        "storage_canaries_unchanged": true,
+        "active_root_unchanged": true,
+        "exception": 0,
+        "after_capture_stage": 0,
+        "native_reader_returned": true,
+        "complete_input_consumed": true,
+        "input_unchanged": true,
+        "post_read_configuration_owned": true,
+        "target_dependencies_bounded": true,
+        "original_writeback_equal": true,
+        "native_reader_target": "independent-original-owned-diagnostic-object",
+        "active_preparation_replaced": false,
+        "world_permission": false
+      }
+    },
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_restoration_checks_passed": true,
+    "leased_app_unchanged": true,
+    "shared_profiles_unchanged": true
+  },
+  "qualification": {
+    "actual_original_steam_executable_pair_for_setup_reader": true,
+    "actual_received_root_read_in_both_engines": true,
+    "independent_original_owned_target": true,
+    "original_writeback_equal": true,
+    "active_preparation_replaced": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "leak_freedom_proved": false
+  }
+}

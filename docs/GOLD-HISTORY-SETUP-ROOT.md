@@ -319,3 +319,33 @@ adoption, a pair using the original Steam executable, complete mounted-content
 agreement, shared world, synchronized turns, Gold NEO and mixed save/cold-reload
 remain unqualified. See the [actual native reader receipt](verification/gold-history-root-owned-reader-20261113.json)
 and [compiled bridge receipt](verification/gold-history-root-compiled-reader-20261113.json).
+
+## Original Steam executable pair under the standalone entry gate
+
+The same actual diagnostic reader sequence now also passes in a Gold/original
+Steam History pair. This uses the original packed Steam executable, not a
+Ubisoft executable with Steam data. The standalone candidate retains the original
+executable fingerprint, decoded-image guards, native ownership/ABI checks and
+persistent path-specific network isolation. The actual in-process kernel probe
+reports all three checks (`7`) before the restored original entry is released;
+`LocalPairLab` is disabled. DXVK High, 1920×1080 is used throughout.
+
+The two engines admit their actual native human participants, reload Steam's
+original Tower Island preparation to Gold's Monhaim selection, and deliver the
+guest's real Ready intent. The held host start then completes authenticated
+root-format 1/2 transfer and fresh native capture equality in both directions.
+Each original format-2 reader consumes the matching input on its separately
+constructed original-owned target and writes back identical bytes before
+destruction; active roots remain unchanged, with intact canaries and no exception.
+
+Both games exit regularly with code zero. All recorded Bin, Launcher, LocalData,
+interface, leased starter-app and shared-profile restoration checks pass. Two
+earlier runs caught test-starter configuration mistakes (Gold's menu-map option
+and its expected History edition); neither changed native admission or
+authentication guards. The successful run uses the corrected configuration.
+
+This extends the independent-target setup-reader evidence to both original
+History executable families. It still does not adopt the target into the active
+session or qualify mounted-content agreement, shared world, synchronized turns,
+Gold NEO or mixed save/cold-reload. See the
+[original Steam reader receipt](verification/gold-original-steam-root-owned-reader-20261113.json).
