@@ -1,0 +1,53 @@
+{
+  "format": "gold-history-enclosing-rules-verification-v1",
+  "date": "2026-11-13",
+  "original_code_audits": {
+    "profiles": ["gold", "ubisoft", "steam_analysis"],
+    "root_formats": [1, 2],
+    "nested_preparation_version": 1,
+    "nonempty_rule_root_calls": 24,
+    "nonempty_rule_row_calls": 600,
+    "nonempty_rule_integrity_checks": 105,
+    "empty_rule_regression_root_calls": 24,
+    "empty_rule_regression_row_calls": 600,
+    "empty_rule_regression_integrity_checks": 105,
+    "native_lookup_hash_and_rule_writers_executed": true,
+    "victory_type3_suppression_executed": true,
+    "synthetic_victory_rules": 2,
+    "synthetic_sector_rules": 2,
+    "placements_per_sector": 2,
+    "crt_allocations_per_nonempty_call": 61,
+    "crt_heap_copy_catalogue_and_stream_modeled": true,
+    "native_inputs_stack_and_registers_preserved": true,
+    "fixture_sha256": "c0483f3c5e45a55221f7fff49c4e3acf386869d1ce087792b93555f62e7af9ac",
+    "passed": true
+  },
+  "enclosing_dependency_checks": {
+    "windows_checks": 41,
+    "separate_gold_history_sector_offsets": true,
+    "sparse_unused_entries_preserved": true,
+    "used_null_entries_rejected": true,
+    "full_hash_tables_rejected": true,
+    "bounded_containers_and_read_only_fingerprint": true,
+    "passed": true
+  },
+  "live_capture_candidate": {
+    "original_enclosing_writer_implemented": true,
+    "original_nested_preparation_version": 1,
+    "root_formats": [1, 2],
+    "before_after_owner_player_dependency_rule_and_code_guards": true,
+    "both_diagnostic_adapters_built": true,
+    "source_files_pinned": 253,
+    "launch_rejected_before_game_start": true,
+    "launch_blocker": "unchanged 4-GiB free-RAM preflight",
+    "live_enclosing_setup_qualified": false
+  },
+  "remote_setup_reader_qualified": false,
+  "gameplay_content_agreement_qualified": false,
+  "native_steam_executable_pair_qualified": false,
+  "shared_world_started": false,
+  "synchronized_turns_qualified": false,
+  "gold_neo_qualified": false,
+  "mixed_save_coldreload_qualified": false,
+  "crossplay_qualified": false
+}

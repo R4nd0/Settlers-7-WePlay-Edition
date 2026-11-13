@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_preparation_writer.h"
 #include "crossplay_setup_signature_codec.h"
+#include "crossplay_setup_rule_methods.h"
 
 // Original enclosing rules + active-player writer. Diagnostic ABI only. The
 // caller still needs live ownership/dependency/content validation. This does
@@ -18,6 +19,7 @@ inline bool Layout(Crossplay::Edition edition,Pin& p) {
 inline bool Methods(Crossplay::Edition edition,const Pin& p) {
     Pin expected{};CrossplayPreparationWriter::Pin players{};CrossplaySetupSignatureNative::Pin rules{};
     if(!Layout(edition,expected) || p.entry!=expected.entry || p.size!=expected.size || p.hash!=expected.hash
+        || !RuleMethods(edition)
         || !CrossplayPreparationWriter::Layout(edition,players) || !CrossplayPreparationWriter::Methods(edition,players)
         || !CrossplaySetupSignatureNative::Layout(edition,rules))return false;
     for(const auto& region:{std::pair<uintptr_t,std::pair<size_t,uint64_t>>{p.entry,{p.size,p.hash}},

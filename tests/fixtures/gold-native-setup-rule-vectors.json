@@ -1,0 +1,34 @@
+{
+  "v1-empty-players": {
+    "binary": {
+      "length": 23781,
+      "sha256": "4b06d62ad83ab8c61cebf77b1d73f3791b07d434582d092bfcd36f02ee5c0cb4"
+    },
+    "field_events": 1606,
+    "schema_sha256": "7ece5191eb12d236938244423e2a6f6b9b1f324a33f8c220d8a3aad1c08f0934"
+  },
+  "v1-populated-players": {
+    "binary": {
+      "length": 23965,
+      "sha256": "27e7abf4ed0c6bf0f553856ba6f39f42a0736648be3dac391c62362dc9225cd6"
+    },
+    "field_events": 1638,
+    "schema_sha256": "ca9084ef9256378d507032b925fe9e0e25a1e643eb58514902012882d427efff"
+  },
+  "v2-empty-players": {
+    "binary": {
+      "length": 23785,
+      "sha256": "5c54eb2cd69bc34adaf346a577d292f35e3e23bbd0bd2c0d31b41508ca12346f"
+    },
+    "field_events": 1607,
+    "schema_sha256": "2398bc3f5a3993a5d1daf25929a24bd85cef30b8bafcd19565e03a28f96b97ee"
+  },
+  "v2-populated-players": {
+    "binary": {
+      "length": 23969,
+      "sha256": "b6f59aeee9a0b3937c5dec473a6506a7053aa3418c23cbaa8c8b5e66c9303cd5"
+    },
+    "field_events": 1639,
+    "schema_sha256": "9780c4fd2610752f8aee6e49c51f7835eee81239c239536770653886fb3e3dbb"
+  }
+}

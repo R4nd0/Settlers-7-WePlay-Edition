@@ -35,12 +35,13 @@ ROOT, CONFIG = S+0x8000, S+0x9000
 
 
 def survey(image, version, rich, binary, fixture=None, *, preparation=False, long_allies=False,
-           writer_storage_size=BINARY_WRITER_SIZE, setup_root=False):
+           writer_storage_size=BINARY_WRITER_SIZE, setup_root=False, rule_vectors=False):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
     if (version not in range(1, 10) or type(rich) is not bool or type(binary) is not bool
             or type(preparation) is not bool or type(long_allies) is not bool or type(setup_root) is not bool
+            or type(rule_vectors) is not bool or rule_vectors and not setup_root
             or setup_root and (not preparation or version not in (1, 2))
             or long_allies and (not preparation or not rich)
             or type(writer_storage_size) is not int or writer_storage_size not in (16, BINARY_WRITER_SIZE)):
@@ -181,6 +182,9 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
             string(ROOT+offset, value)
         words(ROOT+(0x70 if gold else 0x64), CONFIG)
         words(CONFIG, ROWS, ROWS)
+    if rule_vectors:
+        from setup_rule_vectors import populate
+        populate(u, image, ROOT, STACK, STOP, owned, string, vector, words, word, allocate, free, STUB+0x400)
     original_root = bytes(u.mem_read(ROOT, 0xa0))
     words(VISITOR, image.tables[WRITER][0] if binary else TABLE, 0, STREAM, 0)
     canary = bytes.fromhex('df9b5713e0ac6824')
@@ -238,9 +242,18 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
                     or word(sp+(8 if gold else 12)) != player_version):
                 raise RuntimeError('Original preparation row dispatch differs')
             row_slots.append(number)
+        elif rule_vectors and at == STUB+0x400:
+            sp = uc.reg_read(UC_X86_REG_ESP)
+            destination, source, length = word(sp+4), word(sp+8), word(sp+12)
+            if (length > 128 or not span(source, length)
+                    or not any(p <= destination <= destination+length <= p+n for p, n in allocations.items())):
+                raise RuntimeError('Unowned modeled CRT copy')
+            uc.mem_write(destination, bytes(uc.mem_read(source, length)))
+            returned(0, destination)
         elif at == allocate:
             length = word(uc.reg_read(UC_X86_REG_ESP)+4)
-            if length not in (256, 512) or allocation_count >= (50 if preparation else 2):
+            allowed = (8,16,24,32,64,128,256,512) if rule_vectors else (256,512)
+            if length not in allowed or allocation_count >= (61 if rule_vectors else 50 if preparation else 2):
                 raise RuntimeError('Unexpected allocation')
             pointer = HEAP+allocation_count*0x400
             allocation_count += 1
@@ -367,7 +380,7 @@ def survey(image, version, rich, binary, fixture=None, *, preparation=False, lon
     u.emu_start(entry, STOP+1, count=6250000 if preparation else 250000,
                 timeout=15_000_000 if preparation else 3_000_000)
     if (not completed or u.reg_read(UC_X86_REG_EIP) != STOP or scopes or allocations
-            or allocation_count != (50 if preparation else 2) or word(0) != 0
+            or allocation_count != (61 if rule_vectors else 50 if preparation else 2) or word(0) != 0
             or preparation and row_slots != list(range(25))
             or setup_root and preparation_versions != [1]
             or u.reg_read(UC_X86_REG_ESP) != sp+(4 if fixture is not None else 8 if setup_root and gold else 12 if gold or preparation else 16)

@@ -13,6 +13,7 @@ import pefile
 from emulate_active_players import (Image, PROFILES, LAYOUTS, PREPARATION_WRITERS,
     SETUP_ROOT_WRITERS, survey)
 from verify_codec_guards import check_image
+from setup_rule_vectors import METHODS
 
 RULES = {'gold': 0x9cf3f0, 'ubisoft': 0x5f6490, 'steam_analysis': 0x5f5ff0}
 CASES = {f'v{version}-{kind}-players' for version in (1, 2) for kind in ('empty', 'populated')}
@@ -63,7 +64,7 @@ def main():
         castle = {'gold': 0x5273a0, 'ubisoft': 0x586b90, 'steam_analysis': 0x586650}[label]
         regions = ((SETUP_ROOT_WRITERS[label], 0x90), (RULES[label], 4096),
                    (PREPARATION_WRITERS[label], 0x330 if label == 'gold' else 0x280),
-                   (LAYOUTS[label][0], 0x3000), (castle, 0x2000))
+                   (LAYOUTS[label][0], 0x3000), (castle, 0x2000)) + METHODS[label]
         guards[label] = check_image(image, fixture, edition, oracle=b'WePlaySetupRootMethodsOracle',
                                     methods=regions, instruction_limit=2000000)
         cases = {}

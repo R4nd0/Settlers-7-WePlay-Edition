@@ -46,6 +46,8 @@ class Image:
             raise ValueError('Requires the pinned x86 image')
         self.size = pe.OPTIONAL_HEADER.SizeOfImage
         self.mapped = pe.get_memory_mapped_image()
+        self.crt_imports = {i.name: i.address for library in pe.DIRECTORY_ENTRY_IMPORT for i in library.imports
+                            if i.name in (b'malloc', b'free', b'memcpy', b'memmove')}
         executable = [(self.base+s.VirtualAddress,
                        self.base+s.VirtualAddress+s.Misc_VirtualSize)
                       for s in pe.sections if s.Characteristics & 0x20000000]
