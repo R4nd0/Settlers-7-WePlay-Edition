@@ -1,0 +1,273 @@
+{
+  "format": "weplay-gold-history-root-reader-verification-v1",
+  "date": "2026-11-13",
+  "sources": {
+    "native/lab_resume_rng_patches.inc": "4cbb1343fcbe8e47473dc660fdc08f060aadf3157ffca063f6dae6279883ee1d",
+    "native/bootstrap_patch_tests.cpp": "ecf0cead56738771df4547e496a21877b24f80c59f1cc8ddd5f595a26d7385bb",
+    "tools/gold/emulate_setup_root_reader.py": "e0eceb5cbbc2f25d23ae5de5e5327cc05578d6974344e86ad61cab2e655d2fc7",
+    "tools/gold/emulate_active_players.py": "d0eabba82006d2689897a56cc5a79cf877d2534acb77141c259484ec00d430c9",
+    "tools/gold/emulate_event_payloads.py": "0f0c217580865670b4e95a7faff2c9465932cf11be3a52c81a5538a3fdd5a191",
+    "tools/gold/setup_rule_vectors.py": "61530a8f1f5057aa46fc9b8a736430bc467d26eea91707be4eaa4caaac394c45"
+  },
+  "actual_dxvk_pair": {
+    "history_executable_family": "Ubisoft History",
+    "history_data_family": "Ubisoft History",
+    "dxvk": true,
+    "quality": "High",
+    "resolution": "1920x1080",
+    "gold_original_enclosing_captures": [
+      {
+        "original_enclosing_writer": true,
+        "root_format_version": 1,
+        "nested_preparation_version": 1,
+        "root_bytes": 33211,
+        "root_sha256": "44de3ae0c1c1faeaef4ea74b438c3bbb4d832fb7d711878585b3e8dc90845b99",
+        "world_permission": false
+      },
+      {
+        "original_enclosing_writer": true,
+        "root_format_version": 2,
+        "nested_preparation_version": 1,
+        "root_bytes": 33215,
+        "root_sha256": "0d0634d145ae630326ad4e7835e1a04a0b59e3c20ff312b7bbc7693d90942876",
+        "world_permission": false
+      }
+    ],
+    "history_enclosing_capture_completed": false,
+    "history_exclusion_stage": 410,
+    "cause": "Known laboratory observer replaced arithmetic inside original CString hash at 0x4f22ab; original integrity guard rejected it.",
+    "exits": [
+      0,
+      0
+    ],
+    "all_recorded_settings_saves_cloud_adapter_interface_shared_restoration_checks_passed": true,
+    "cross_client_root_equality_qualified": false
+  },
+  "correction": {
+    "excluded_hash_callsites": [
+      "0x4f2206",
+      "0x4f22ab"
+    ],
+    "remaining_lab_trace_sites": 54,
+    "original_method_integrity_guards_unchanged": true,
+    "bootstrap_checks_passed": 4150,
+    "production_release_observers_enabled": false
+  },
+  "headless_original_reader": {
+    "format": "native-setup-root-reader-baseline-v1",
+    "profiles": {
+      "gold": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 125,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 125,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      },
+      "ubisoft": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 100,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 100,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      },
+      "steam_analysis": {
+        "1": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 100,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        },
+        "2": {
+          "complete": {
+            "input_case": "complete",
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "original_write_read_write_equal": true,
+            "all25rows_read": true,
+            "nested_preparation_version": 1,
+            "reader_allocations": 100,
+            "owned_migration_vectors": 25,
+            "migration_vector_size": 25,
+            "migration_vectors_zero": true,
+            "altered_target_scalars_restored": true,
+            "reader_storage_bytes": 16,
+            "writer_storage_bytes": 528,
+            "live_reader_qualified": false,
+            "world_permission": false
+          },
+          "truncated": {
+            "input_case": "truncated",
+            "rejected": true,
+            "world_permission": false
+          },
+          "trailing": {
+            "input_case": "trailing",
+            "rejected": true,
+            "world_permission": false
+          }
+        }
+      }
+    },
+    "fingerprints": {
+      "gold": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+      "ubisoft": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "steam_analysis": "b45794aef1ddef76fea13501fa7630023f0c11653c2f644a06c0ae86cb0812b4"
+    },
+    "positive_cases": 6,
+    "rejected_inputs": 12,
+    "crt_heap_and_stream_modeled": true,
+    "populated_rule_vectors_tested": false,
+    "populated_player_containers_tested": false,
+    "live_reader_qualified": false,
+    "game_process_started": false,
+    "world_permission": false,
+    "gold_neo_qualified": false,
+    "mixed_save_coldreload_qualified": false
+  },
+  "qualification": {
+    "complete_populated_setup_reader": false,
+    "live_remote_setup_reader": false,
+    "actual_steam_executable_pair": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  },
+  "next_immutable_diagnostic": {
+    "source_proof_sha256": "95a90b179a4cafc8e91df1a666274f5e66eeaebcc43d39e4accf17b22db6d299",
+    "build_proof_sha256": "126492c2171848d09cd79146489262cb0eead0bac8496c19ec6559b95a90735c",
+    "diagnostic_difference": "All legacy lab RNG observers excluded; public correction excludes only the two hash sites.",
+    "builds_and_observer_abi_passed": true,
+    "live_attempt_blocked_before_launch_by_ram_guard": true,
+    "free_physical_mib_at_rejection": 1552.7
+  }
+}

@@ -1,7 +1,7 @@
 unsigned char LabResumeRngBytes[56][6]{};
+// Keep trace-slot numbering stable, but leave both CString hash routines
+// untouched. Their matching multiplier is not a simulation RNG state update.
 const Patch LabResumeRngPatches[] = {
-    {0x4F2206, {0x69,0xc0,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[0], false, 6},
-    {0x4F22AB, {0x69,0xc0,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[1], false, 6},
     {0x530536, {0x69,0x02,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[2], false, 6},
     {0x55B0C2, {0x69,0x08,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[3], false, 6},
     {0x5733C0, {0x69,0x07,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[4], false, 6},
@@ -58,8 +58,6 @@ const Patch LabResumeRngPatches[] = {
     {0xCEACFD, {0x69,0xc1,0x65,0x89,0x07,0x6c}, LabResumeRngBytes[55], false, 6},
 };
 void InitializeLabResumeRngPatches() {
-    { const uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&LabResumeRngC0) - (NativeVA(0x4F2206) + 5)); LabResumeRngBytes[0][0] = 0xe8; memcpy(LabResumeRngBytes[0] + 1, &relative, 4); LabResumeRngBytes[0][5] = 0x90; }
-    { const uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&LabResumeRngC0) - (NativeVA(0x4F22AB) + 5)); LabResumeRngBytes[1][0] = 0xe8; memcpy(LabResumeRngBytes[1] + 1, &relative, 4); LabResumeRngBytes[1][5] = 0x90; }
     { const uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&LabResumeRng02) - (NativeVA(0x530536) + 5)); LabResumeRngBytes[2][0] = 0xe8; memcpy(LabResumeRngBytes[2] + 1, &relative, 4); LabResumeRngBytes[2][5] = 0x90; }
     { const uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&LabResumeRng08) - (NativeVA(0x55B0C2) + 5)); LabResumeRngBytes[3][0] = 0xe8; memcpy(LabResumeRngBytes[3] + 1, &relative, 4); LabResumeRngBytes[3][5] = 0x90; }
     { const uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&LabResumeRng07) - (NativeVA(0x5733C0) + 5)); LabResumeRngBytes[4][0] = 0xe8; memcpy(LabResumeRngBytes[4] + 1, &relative, 4); LabResumeRngBytes[4][5] = 0x90; }

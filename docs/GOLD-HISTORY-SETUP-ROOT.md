@@ -70,10 +70,60 @@ the original unchanged seed writeback. Forty-one focused dependency/failure-path
 checks and both diagnostic adapter builds pass.
 
 The first live enclosing-capture attempt was rejected by the unchanged RAM
-preflight before any game started. Thus the enclosing capture is **not yet live
-qualified**. The separately observed identical version-1 preparation streams
+preflight before any game started. A later DXVK High pair captured Gold's actual
+enclosing formats 1/2, but History stopped at an integrity guard before writing.
+Cross-client enclosing equality is therefore **not yet live qualified**. The
+separately observed identical version-1 preparation streams
 are documented in [player setup transport](GOLD-HISTORY-PLAYER-SETUP.md). Complete
 native setup reading, content agreement, shared world start, synchronized turns,
 Gold NEO and mixed save/cold-reload still remain unqualified.
 
 See the [extended sanitized receipt](verification/gold-history-enclosing-rules-20261113.json).
+
+## Actual enclosing capture and laboratory observer correction
+
+The subsequent isolated Ubisoft-data DXVK pair completed native admission,
+the original Tower Island to Monhaim reload, actual Ready and the held host Start.
+Gold's original enclosing writer produced 33,211 bytes in format 1 and 33,215 in
+format 2. History rejected stage 410: the legacy laboratory RNG observer had
+patched arithmetic inside the original CString hash at 0x4f22ab. A read-only
+comparison found only those six patched bytes different in the guarded helper.
+Both clients exited normally and every recorded profile/save/options/adapter
+restoration check passed.
+
+Independent original disassembly also identified 0x4f2206 inside the other
+CString hash routine. Both callsites are removed from `LabResumeRngPatches`;
+the remaining 54 trace sites keep their previous slot numbers. Original hash
+integrity guards are unchanged. The focused LocalPairLab bootstrap fixture
+passes 4,150 checks, including exclusion of both hash function regions. Ordinary
+release builds exclude these laboratory observers.
+
+A separate immutable diagnostic with all legacy RNG observers excluded also
+builds and passes its ABI fixtures. Its next live attempt was rejected before
+launch by the unchanged RAM guard. Neither that build nor the public two-site
+correction establishes a successful History enclosing capture yet.
+
+## Original reader baseline under headless emulation
+
+`tools/gold/emulate_setup_root_reader.py` executes original enclosing, nested
+preparation, all 25 row methods and binary visitors for Gold, Ubisoft History and
+the pinned Steam analysis image. Both enclosing formats use preparation version
+1. Six positive cases produce the same bytes before and after reading, including
+restoration of deliberately different destination game type/player state and,
+for format 2, RNG seed. The original reader creates 25 separate owned vectors of
+25 zero bytes at Gold row+0x558 or History row+0x544. These legacy-format defaults
+are checked independently of stream equality. Other object storage is preserved.
+
+The reader uses its own 16-byte storage guard; writing uses the independently
+verified 528-byte visitor storage. Original stack/nonvolatile-register/SEH checks,
+bounded heap ownership and before/after writer input checks remain active.
+Twelve negative cases reject truncated or trailing input at the stream boundary.
+
+These fixtures use existing nonempty colour symbols, empty player containers,
+empty victory/sector vectors and modeled CRT memory/streams. Their synthetic
+objects are not constructed by a running game. They establish a bounded original
+reader baseline, not complete populated setup conversion, a live remote reader,
+actual Steam executable gameplay, content agreement, shared world start, NEO or
+mixed save/cold-reload.
+
+See the [reader and observer verification receipt](verification/gold-history-root-reader-20261113.json).

@@ -1132,6 +1132,11 @@ int main() {
 #endif
 #ifdef S7_LOCAL_PAIR_LAB
     InitializeLabResumeRngPatches();
+    check(sizeof(LabResumeRngPatches)/sizeof(LabResumeRngPatches[0])==54);
+    for(const auto& patch:LabResumeRngPatches) {
+        check(patch.va<0x4f21b0 || patch.va>=0x4f2230);
+        check(patch.va<0x4f2230 || patch.va>=0x4f22d0);
+    }
 #if !defined(S7_GAME_DIRECTORY) && !defined(S7_NEO_LOGISTICS)
     selected.push_back(&LabLuaConsolePatch);
 #endif
