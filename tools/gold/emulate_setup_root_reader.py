@@ -1,9 +1,9 @@
 """Bounded original setup write/read/write audit on synthetic baseline objects.
 
 No game is launched. Original root, row and binary visitor methods execute;
-CRT memory and stream boundaries are modeled. Player containers are empty;
-existing nonempty colour symbols are deliberate. Nonempty rule catalogues are
-optional and use the same independently located native lookup/hash routines.
+CRT memory and stream boundaries are modeled. Existing nonempty colour symbols
+are deliberate. Populated player containers and rule catalogues are optional;
+catalogues use independently located native lookup/hash routines.
 This is not a live setup receiver, content permission or save-load test.
 """
 import argparse
@@ -27,17 +27,19 @@ class InputRejected(RuntimeError):
     pass
 
 
-def audit(image, version, input_case='complete', *, rule_vectors=False):
+def audit(image, version, input_case='complete', *, rule_vectors=False, populated_players=False):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
-    if version not in (1,2) or input_case not in ('complete','truncated','trailing') or type(rule_vectors) is not bool:
+    if (version not in (1,2) or input_case not in ('complete','truncated','trailing')
+            or type(rule_vectors) is not bool or type(populated_players) is not bool):
         raise ValueError('Unsupported reader fixture')
     gold = image.label == 'gold'
     row_entry, stride, allocate, free = LAYOUTS[image.label]
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base,(image.size+4095)&~4095);u.mem_write(image.base,image.mapped)
-    u.mem_map(0,4096);u.mem_map(BASE,0xa0000 if rule_vectors else 0x80000);u.mem_map(STACK,0x10000)
+    allocation_limit=260 if rule_vectors or populated_players else 180
+    u.mem_map(0,4096);u.mem_map(BASE,0xa0000 if allocation_limit==260 else 0x80000);u.mem_map(STACK,0x10000)
     cursor, allocation_count, phase = ARENA, 0, 'hash'
     allocations = {};initial_allocations={};initial_freed=set();mutable_initial=set();freed_allocations={}
     output = bytearray();input_wire = b'';position = 0
@@ -113,7 +115,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False):
             completed=True;uc.emu_stop()
         elif at==allocate:
             length=word(uc.reg_read(UC_X86_REG_ESP)+4)
-            if not 1<=length<=512 or allocation_count>=(260 if rule_vectors else 180):
+            if not 1<=length<=512 or allocation_count>=allocation_limit:
                 raise RuntimeError('Bounded CRT allocation contract')
             pointer=HEAP+allocation_count*0x400;allocation_count+=1
             if pointer in allocations:raise RuntimeError('Live allocation overlap')
@@ -215,6 +217,13 @@ def audit(image, version, input_case='complete', *, rule_vectors=False):
         rule_fixture=prepare(u,image,ROOT,STACK,STOP,owned,string,words,word,allocate,free,COPY,
             lambda pointer:run(METHODS[image.label][4][0],(),pointer,hash_call=True))
         mutable_initial=rule_fixture['mutable_initial_blocks']
+    if populated_players:
+        from setup_root_reader_players import prepare as prepare_players
+        def read_owned(at,size):
+            if not span(at,size):raise RuntimeError('Player fixture read outside live owned storage')
+            return bytes(u.mem_read(at,size))
+        player_fixture=prepare_players(u,gold,ROWS,stride,owned,string,words,word,read_owned)
+        mutable_initial.update(player_fixture['mutable_initial_blocks'])
     protected_initial={p:bytes(u.mem_read(p,n)) for p,n in initial_allocations.items() if p not in mutable_initial}
     original_rows=bytes(u.mem_read(ROWS,0x9094));original_root=bytes(u.mem_read(ROOT,0xa0))
     original_arena=bytes(u.mem_read(ARENA,cursor-ARENA));canary=b'RdrGuard'
@@ -257,7 +266,6 @@ def audit(image, version, input_case='complete', *, rule_vectors=False):
         expected_root=bytearray(original_root);struct.pack_into('<I',expected_root,0x3c if gold else 0x38,victory_end)
         if bytes(u.mem_read(ROOT,0xa0))!=bytes(expected_root):raise RuntimeError('Unexpected root rule-header mutation')
         original_root=bytes(expected_root)
-        if len(initial_freed)!=10:raise RuntimeError('Original rule replacement ownership')
         if victories in allocations:rule_allocations.add(victories)
         for field in range(4):
             pointer=word(victories+field*16)
@@ -273,6 +281,12 @@ def audit(image, version, input_case='complete', *, rule_vectors=False):
                 raise RuntimeError('Decoded sector placement names/quantities')
             if start in allocations:rule_allocations.add(start)
             if gold and word(item+8) in allocations:rule_allocations.add(word(item+8))
+    if populated_players:
+        rule_allocations.update(p for p in player_fixture['verify']() if p in allocations)
+        for offset,length in player_fixture['normalized_ranges']:
+            normalized[offset:offset+length]=original_rows[offset:offset+length]
+    if len(initial_freed)!=(10 if rule_vectors else 0)+(13 if populated_players else 0):
+        raise RuntimeError('Original replacement buffer ownership')
     if (bytes(normalized)!=original_rows or len(set(vectors))!=25 or set(vectors)|rule_allocations!=set(allocations)
             or bytes(u.mem_read(ROOT,0xa0))!=original_root
             or any(bytes(u.mem_read(p,len(value)))!=value for p,value in protected_initial.items())
@@ -299,7 +313,9 @@ def audit(image, version, input_case='complete', *, rule_vectors=False):
         'migration_vectors_zero':True,'altered_target_scalars_restored':True,'reader_storage_bytes':16,
         'writer_storage_bytes':528,'source_victory_rules':2 if rule_vectors else 0,
         'decoded_victory_rules':1 if rule_vectors else 0,'sector_rules':2 if rule_vectors else 0,
-        'sector_placements':4 if rule_vectors else 0,'freed_initial_rule_blocks':len(initial_freed),
+        'sector_placements':4 if rule_vectors else 0,'freed_initial_rule_blocks':10 if rule_vectors else 0,
+        'freed_initial_player_blocks':13 if populated_players else 0,
+        'populated_player_containers_verified':populated_players,
         'live_reader_qualified':False,'world_permission':False}
 
 
@@ -307,6 +323,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for label in PROFILES:parser.add_argument('--'+label.replace('_','-'),type=Path,required=True)
     parser.add_argument('--nonempty-rules',action='store_true')
+    parser.add_argument('--populated-players',action='store_true')
     parser.add_argument('output',type=Path);args=parser.parse_args()
     root=Path(__file__).resolve().parents[2];out=args.output.resolve()
     if not out.is_relative_to((root/'work').resolve()) or out.exists() or not out.parent.is_dir():
@@ -328,7 +345,8 @@ def main():
             raise RuntimeError('Original reader CRT contract differs')
         del raw,pe
         for version in (1,2):
-            cases[str(version)]={kind:audit(image,version,kind,rule_vectors=args.nonempty_rules) for kind in ('complete','truncated','trailing')}
+            cases[str(version)]={kind:audit(image,version,kind,rule_vectors=args.nonempty_rules,
+                populated_players=args.populated_players) for kind in ('complete','truncated','trailing')}
         profiles[label]=cases;print(json.dumps({'profile':label,'cases':6,'passed':True}),flush=True)
         del image;gc.collect()
     for version in ('1','2'):
@@ -338,7 +356,7 @@ def main():
     result={'format':'native-setup-root-reader-baseline-v1','profiles':profiles,
         'fingerprints':{k:v[0] for k,v in PROFILES.items()},'positive_cases':6,'rejected_inputs':12,
         'crt_heap_and_stream_modeled':True,'populated_rule_vectors_tested':args.nonempty_rules,
-        'populated_player_containers_tested':False,'live_reader_qualified':False,
+        'populated_player_containers_tested':args.populated_players,'live_reader_qualified':False,
         'game_process_started':False,'world_permission':False,'gold_neo_qualified':False,
         'mixed_save_coldreload_qualified':False}
     with out.open('x',encoding='utf-8') as file:json.dump(result,file,indent=2)

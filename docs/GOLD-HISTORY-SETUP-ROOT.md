@@ -210,3 +210,32 @@ modeled copy and stream boundaries. Catalogue storage remains unchanged.
 Player containers remain empty in these reader fixtures. These results do not
 qualify full populated-player conversion or live application of a remote setup.
 See the [populated reader receipt](verification/gold-history-root-rules-reader-20261113.json).
+
+## Original reader with populated player containers
+
+The additional `--populated-players` fixture exercises a populated player row
+while all 25 rows still pass through the original methods. It includes the
+player name, three vectors, three linked lists, both Castle strings, two Castle
+parts and their type/value vectors, plus both preparation position lists.
+Independent post-read checks validate string contents, list values and links,
+vector elements, part counts and ownership. Pointer headers are normalized only
+after these semantic checks; scalar storage and catalogue input remain checked.
+The original version-1 migration deliberately replaces the three-byte source
+vector with its 25-byte zero default, as in the earlier baseline.
+
+Original list-read finalization also rebuilds an item-state cache from the first
+two lists. Native writes were observed independently in all three images; the
+synthetic source now starts with a consistent cache rather than treating the
+original reconstruction as corruption. The enclosing data round-trips exactly.
+Thirteen initial player buffers are released and every retained allocation must
+be reachable. This runs independently and together with the populated rules.
+
+All four combinations (empty, populated rules, populated players, both) pass
+for both formats and all three original images: 24 positive cases and 48
+truncated/trailing rejections. The combined streams contain 24,325/24,329 bytes.
+This is bounded headless evidence with modeled CRT/stream edges. It does not
+cover every actual lobby container shape, native target-object construction or
+destruction, or live remote setup application. Shared world, turns, Gold NEO and
+mixed save/cold-reload remain unqualified.
+
+See the [player reader matrix receipt](verification/gold-history-root-player-reader-20261113.json).
