@@ -84,10 +84,14 @@ def verify_package(app):
 
 def verify_game(app):
     app = gold.plain(app)
-    value = read_json(app / 'Game/gold-install.json')
+    return verify_root(app/'Game')
+
+
+def verify_root(root):
+    root = gold.plain(root)
+    value = read_json(root / 'gold-install.json')
     if value.get('format') != INSTALLED or value.get('multiplayer') is not False:
         raise ValueError('Gold-Installation unvollständig.')
-    root = app / 'Game'
     if (root / 'PREPARATION-INCOMPLETE.txt').exists():
         raise ValueError('Gold-Vorbereitung unvollständig.')
     verified_files(root, value.get('files'), ('Data', 'Launcher', 'Backup'))
@@ -103,6 +107,67 @@ def verify_game(app):
         if value['files'].get(name) != expected:
             raise ValueError('Gold-Installation hat einen ungeprüften Spielstand.')
     return value
+
+
+def repair_inputs(root):
+    root=gold.plain(root)
+    report=read_json(root/'gold-development.json')
+    files=report.get('source_files')
+    if report.get('format')!='s7-gold-development-copy-v1' or not isinstance(files,dict) or not 1<=len(files)<=20000:
+        raise ValueError('Gold repair inventory missing.')
+    for name,hashed in files.items():
+        parts=PurePosixPath(name).parts
+        if (not parts or parts[0]!='Data' or '..' in parts or '\\' in name or ':' in name
+                or not isinstance(hashed,str) or len(hashed)!=64 or any(c not in '0123456789abcdef' for c in hashed)):
+            raise ValueError('Invalid Gold repair inventory.')
+        gold.plain(root/name)
+    import platform_standalone
+    miles=gold.EXE.with_name('mss32.dll').as_posix()
+    retained_miles=gold.plain(root/gold.EXE.with_name('weplay_miles_original.dll'))
+    # Older Gold installers kept the original DLL at its original name.
+    # An existing retained backup always wins and must pass its own hash guard.
+    if not retained_miles.exists():retained_miles=gold.plain(root/miles)
+    originals={gold.EXE.as_posix():gold.plain(root/'Backup/Settlers7R.original.exe').read_bytes(),
+               gold.INTERFACE.as_posix():gold.plain(root/'Backup/Interface.original.bba').read_bytes(),
+               miles:retained_miles.read_bytes()}
+    for name,expected in ((gold.EXE.as_posix(),gold.GOLD_SHA256),(gold.INTERFACE.as_posix(),gold.INTERFACE_SHA256),(miles,platform_standalone.MILES_ORIGINAL)):
+        if gold.sha256(originals[name])!=expected or files.get(name)!=expected:
+            raise ValueError('Gold retained original changed.')
+    return originals,files
+
+
+def prepare_copy(app, source, target, *, managed=False, on_created=None, tracker=None, progress=None):
+    """Prepare a new main-launcher instance, retaining originals for future repair."""
+    app,source,target=map(gold.plain,(app,source,target))
+    package=verify_package(app)
+    if package.get('platform_independent') is not True: raise ValueError('platform_isolation_required')
+    from bootstrap import ensure_closed
+    ensure_closed(app)
+    import platform_standalone
+    platform_standalone.validate_location(target,gold=True)
+    options={}
+    if managed:
+        originals,files=repair_inputs(source)
+        options=dict(originals=originals,source_files=files)
+    report=gold.prepare(source,target,definitions=app/'Definitions/Definitions.bin',dxvk=app/'Payload/d3d9.dll',
+                        on_created=on_created,tracker=tracker,progress=progress,**options)
+    (target/'Launcher').mkdir()
+    shutil.copyfile(app/'Payload/weplay_gold_startup.dll',target/'Launcher/weplay_gold_startup.dll')
+    platform_standalone.prepare(target,app/'Payload/Platform',gold=True,tracker=tracker)
+    report.update(starter_created=True,shared_profile_isolated=True,offline_startup_adapter=True)
+    (target/'gold-development.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+    (target/'README.txt').write_text('WePlay Gold – Einzelspieler\nStart über den gemeinsamen WePlay-Starter.\n'
+        'Spielstände und Einstellungen: LocalData/ProfileRoot/Profiles.\n'
+        'Steam und Ubisoft Connect werden nicht benötigt.\n',encoding='utf-8')
+    value={'format':INSTALLED,'files':inventory(target,('Data','Launcher','Backup')),'multiplayer':False,
+           'platform_independent':True,'quiet_interface':True,'all_campaign_maps_selectable':True,
+           'profile_isolation':'portable','source_files_verified':len(report['source_files'])}
+    (target/'gold-install.json').write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
+    if tracker:
+        for name,hashed in {**value['files'],**{n:gold.digest(target/n) for n in ('gold-install.json','gold-development.json','README.txt')}}.items():
+            tracker(target/name,hashed)
+    ensure_closed(app)
+    return verify_root(target)
 
 
 def install(app, source, *, emit=print):

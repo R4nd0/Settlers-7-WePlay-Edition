@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Version>2.0.0-rc3.5</Version>
+    <RuntimeFrameworkVersion>10.0.15</RuntimeFrameworkVersion>
     <ApplicationManifest>$(MSBuildThisFileDirectory)helper.manifest</ApplicationManifest>
   </PropertyGroup>
 </Project>

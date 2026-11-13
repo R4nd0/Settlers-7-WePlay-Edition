@@ -91,7 +91,24 @@ class Desktop:
         finally:self._verification=previous
 
     def package_manifest(self):
-        return self._verification.load() if self._verification is not None else install.package_manifest(self.package)
+        value=self._verification.load() if self._verification is not None else install.package_manifest(self.package)
+        import release_policy
+        release_policy.check_package(self.app,value)
+        return value
+
+    def is_gold(self,root=None):
+        import gold_support
+        return gold_support.is_gold(self.game() if root is None else root)
+
+    def verify_instance(self,root):
+        if self.is_gold(root):
+            import gold_support
+            value=gold_support.verify(self.package,root)
+        else:value=content.verify(root)
+        if self.package_manifest().get('platform_independent',False):
+            import platform_standalone
+            platform_standalone.load(root)
+        return value
 
     def operation_state(self,phase):self.emit('operation_state',phase=phase)
 
@@ -179,6 +196,14 @@ class Desktop:
         if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
         if value.get('multiplayer_resume',False):flags['multiplayer_resume']=True
+        for key in ('platform_independent','main_package','gold_standalone'):
+            if value.get(key,False):flags[key]=True
+        if value.get('platform_independent',False):
+            import platform_standalone
+            records.update({name:hashed for name,hashed in value['files'].items() if
+                name.startswith(('payload/platform/','payload/gold/')) or name in
+                {'tools/installer/'+n for n in (*platform_standalone.TOOLS,'gold_support.py','release_policy.py')}})
+            flags['platform_isolation']=value.get('platform_isolation')
         if value.get('windows_helpers',False):
             flags['windows_helpers']=True
             records.update({name:digest for name,digest in value['files'].items() if name=='tools/installer/windows_system.py'})
@@ -291,6 +316,13 @@ class Desktop:
         if value:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
+            if self.is_gold(root):
+                result.update(edition='gold',single_player_only=True,renderer='dxvk',
+                    internet_available=False,discord_available=False,directory_available=False,public_directory_available=False,
+                    visual_detail_supported=False,midsummer_tone_supported=False)
+                try:self.verify_instance(root)
+                except (OSError,ValueError,RuntimeError):result['needs_repair']=True
+                return result
             try:
                 result['visual_detail_supported']=choice.visual_supported(root)
                 result['midsummer_tone_supported']=(root/'Launcher/reshade_runtime.py').is_file() and (root/'Launcher/WePlay-Midsummer.fx').is_file()
@@ -376,7 +408,7 @@ class Desktop:
         if current not in (before,after) or portable not in (db,da):raise ValueError('installation_invalid')
         if current==after and portable==da:
             # Only a fully verified target can complete an interrupted commit.
-            content.verify(self.instance(after['container'],after['current']))
+            self.verify_instance(self.instance(after['container'],after['current']))
             if after['package_id']!=self.package_id(full=True):raise ValueError('installation_invalid')
         else:
             if current!=before:
@@ -386,6 +418,9 @@ class Desktop:
         graphics._plain(path).unlink()
 
     def publish_installation(self,record):
+        if self.package_manifest().get('platform_independent',False):
+            import release_policy
+            self.write(self.state/release_policy.FLOOR,release_policy.CONTRACT)
         before=self.read(self.state/'installation.json');descriptor=self.app.parent/'standalone.json'
         if before is not None:self.validate_installation(before)
         db=self.read(descriptor,limit=4096) if descriptor.is_file() else None
@@ -493,8 +528,16 @@ class Desktop:
         source=graphics._plain(source)
         previous=self.installed()
         managed=bool(previous and source==self.game())
-        supported=self.package_manifest().get('steam_history',False)
-        if managed:install.repair_source(source,steam_supported=supported,tools=self.package/'Tools')
+        manifest=self.package_manifest()
+        import release_policy
+        release_policy.preserve_game(source,manifest)
+        gold=self.is_gold(source) and manifest.get('gold_standalone',False)
+        repairable=managed or (source/('gold-install.json' if gold else 'local-bundle.json')).is_file()
+        supported=manifest.get('steam_history',False)
+        if gold:
+            import gold_support
+            gold_support.inspect(self.package,source,managed=repairable)
+        elif repairable:install.repair_source(source,steam_supported=supported,tools=self.package/'Tools')
         else:install.source_base(source,steam_supported=supported)
         # Never discard an older owned location to make room in the bounded
         # history. Retry its cleanup before allocating another full game copy.
@@ -519,6 +562,7 @@ class Desktop:
         root=base/instance
         self.progress('source')
         old=self.game() if previous else None
+        if old is None and repairable:old=source
         if old is None:
             retained=self.read(self.state/'retained-profile.json')
             if retained:
@@ -540,25 +584,29 @@ class Desktop:
             if relative.startswith('localdata/'):raise ValueError('ownership_invalid')
             tracked[relative]=digest
             self.write(root/'desktop-files.json',{'format':FORMAT,'owner':self.owner,'files':tracked})
-        options={'managed':True} if managed else {}
+        options={'managed':True} if repairable else {}
         try:
-            install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,
-                publish_starters=False,additional_bytes=self.preference_bytes(old),on_created=created,tracker=track,**options)
+            if gold:
+                gold_support.prepare(self.package,source,root,managed=repairable,on_created=created,tracker=track,progress=self.progress)
+            else:
+                install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,
+                    publish_starters=False,additional_bytes=self.preference_bytes(old),on_created=created,tracker=track,**options)
         except BaseException:
             self.finalizing=True
             try:self.cleanup_preparations()
             except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
             raise
         if old:self.transfer_preferences(old,root)
-        probe=self.probe()
         policy=previous['renderer_policy'] if previous else 'auto'
-        mode=self.renderer(root,policy,probe)
-        with graphics.session_lock(root):
-            selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old else None)
-            choice.save_choice(root,selected)
-            self.write(root/quality.FILE,quality.load(root))
+        if not gold:
+            probe=self.probe()
+            mode=self.renderer(root,policy,probe)
+            with graphics.session_lock(root):
+                selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and not self.is_gold(old) else None)
+                choice.save_choice(root,selected)
+                self.write(root/quality.FILE,quality.load(root))
         self.progress('verify')
-        verified=content.verify(root)
+        verified=self.verify_instance(root)
         self.record_ownership(root,verified)
         record={'format':INSTALL_FORMAT,'source':'' if managed else str(source),'container':str(base),'current':instance,
                 'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
@@ -581,7 +629,7 @@ class Desktop:
         files=dict(manifest['files'])
         # Runtime files were byte-verified by prepare; reuse those package hashes.
         package=self.package_manifest()
-        files.update({name:digest for name,digest in package['files'].items() if name.startswith('runtime/')})
+        if not self.is_gold(root):files.update({name:digest for name,digest in package['files'].items() if name.startswith('runtime/')})
         # Only generated metadata is owned. Never adopt an unknown root or
         # repair/staging file merely because it appeared during preparation.
         generated=('desktop-owner.json','compatibility.json','local-bundle.json','ArchiveStage/manifest.json',
@@ -594,6 +642,7 @@ class Desktop:
 
     @verified_operation
     def save_settings(self,request):
+        if self.is_gold():raise ValueError('gold_game_settings')
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
         self.package_manifest()
@@ -692,6 +741,7 @@ class Desktop:
         return {'native':content.network_id(current),'dxvk':content.network_id(json.loads(graphics._expected(before)))}
 
     def lan_list(self):
+        if self.is_gold():raise ValueError('gold_single_player_only')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
         expected=self.network_id(root);alternatives=self.alternatives(root)
         probe=self.probe()
@@ -775,6 +825,7 @@ class Desktop:
 
     @verified_operation
     def internet_play(self,request,*,host):
+        if self.is_gold():raise ValueError('gold_single_player_only')
         if not self.package_manifest().get('internet_easytier',False):
             raise ValueError('package_invalid')
         required={'player_name','channel','mode','direct_endpoint','internet_consent'} if host else {'player_name','channel','internet_consent'}
@@ -821,6 +872,7 @@ class Desktop:
         return {'connected':True,'game_id':game}
 
     def directory_list(self):
+        if self.installed() and self.is_gold():raise ValueError('gold_single_player_only')
         if not install.package_metadata(self.package).get('game_directory',False):raise ValueError('directory_unavailable')
         from game_directory import configured,listing
         url=configured(self.state)
@@ -835,6 +887,7 @@ class Desktop:
 
     @verified_operation
     def directory_join(self,data):
+        if self.is_gold():raise ValueError('gold_single_player_only')
         if not self.package_manifest().get('game_directory',False):raise ValueError('directory_unavailable')
         if not isinstance(data,dict) or set(data)!={'game_id','player_name','internet_consent'}:raise ValueError('request_invalid')
         if type(data['internet_consent']) is not int or data['internet_consent']!=1:raise ValueError('internet_consent_required')
@@ -875,11 +928,37 @@ class Desktop:
         elif sample['host_physical_free']<=1536*memory_guard.MIB:
             self.emit('warning',code='memory_physical_warning')
 
+    def play_gold(self,request=None,*,internet=None):
+        if request is not None or internet is not None:raise ValueError('gold_single_player_only')
+        self.package_manifest()
+        if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
+        root=self.game();self.progress('verify');self.verify_instance(root)
+        graphics.ensure_closed();self.check_start_memory();self.progress('starting')
+        import gold_support,platform_standalone,memory_guard
+        environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
+        environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
+        game=observer=None
+        try:
+            game=platform_standalone.launch(root,environment=environment,arguments=('-vSynch',))
+            observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
+                memory_guard.Probe(game,root/gold_support.EXE),
+                warn=lambda level:self.emit('warning',code='memory_warning',level=level))
+            observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
+            code=game.wait(close=False)
+        finally:
+            if observer:observer.close()
+            if game:game.close()
+            self.operation_state('cancellable')
+        self.emit('game_finished',exit_code=code)
+        if code:raise RuntimeError('game_failed')
+        return {'exit_code':code}
+
     @verified_operation
     def play(self,request=None,*,internet=None,invitation_ready=None):
+        if request is not None:self.validate_lan(request)
+        if self.is_gold():return self.play_gold(request,internet=internet)
         directory_bridge=[None]
         invitation_bridge=[None]
-        if request is not None:self.validate_lan(request)
         root=self.game();self.progress('verify')
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -990,9 +1069,13 @@ class Desktop:
         return {'exit_code':code}
 
     def verify(self):
-        self.progress('verify');content.verify(self.game());return {'verified':True}
+        self.progress('verify');self.verify_instance(self.game());return {'verified':True}
 
     def configure_firewall(self):
+        if self.is_gold():
+            import platform_standalone
+            self.verify_instance(self.game());platform_standalone.configure(self.game())
+            return {'configured':True}
         import windows_system
         self.package_manifest()
         root=self.game();content.verify(root)
@@ -1052,7 +1135,7 @@ class Desktop:
             # A GUI-only update can reuse its active game. Verify that copy
             # before reclaiming old versions; do not allocate another copy.
             if value['package_id']!=self.package_id():return {'cleaned':0}
-            content.verify(self.game())
+            self.verify_instance(self.game())
             self.finalizing=True
             return self.clean_old(automatic=True)
         except (OSError,ValueError,subprocess.TimeoutExpired):
@@ -1089,8 +1172,9 @@ class Desktop:
         return {'personal_data_kept':True}
 
     def diagnostics(self):
-        root=self.game();mode=choice._renderer(root,{})[0]
-        probe=self.validate_probe(self.read(self.state/'graphics-probe.json'))
+        root=self.game();gold=self.is_gold(root)
+        mode='dxvk' if gold else choice._renderer(root,{})[0]
+        probe={'devices':[],'failure':'not_run'} if gold else self.validate_probe(self.read(self.state/'graphics-probe.json'))
         raw=self.read(root/'LocalData/desktop-memory-summary.json',{})
         fields=('samples','max_pressure','peak_private_mib','min_free_mib','min_largest_mib','monitor_failed',
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
@@ -1196,12 +1280,16 @@ def _dispatch(desktop,request):
         sources=[]
         if previous:
             try:
-                install.repair_source(desktop.game(),steam_supported=supported,tools=desktop.package/'Tools')
+                if desktop.is_gold():
+                    import gold_support
+                    gold_support.inspect(desktop.package,desktop.game(),managed=True)
+                else:install.repair_source(desktop.game(),steam_supported=supported,tools=desktop.package/'Tools')
                 sources.append({'path':str(desktop.game()),'name':'WePlay'})
             except (OSError,ValueError,KeyError):pass
         if sources:return {'sources':sources}
         locations=([Path(previous['source'])] if previous and previous['source'] else [])+game_detection.candidates()
-        return {'sources':sources+game_detection.detect(locations,steam_supported=supported)}
+        return {'sources':sources+game_detection.detect(locations,steam_supported=supported,
+            gold_package=desktop.package if desktop.package_manifest().get('gold_standalone',False) else None)}
     with desktop.lock():
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
@@ -1247,7 +1335,7 @@ def error_code(error):
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
-        'settings_saved_refresh_failed'}
+        'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text

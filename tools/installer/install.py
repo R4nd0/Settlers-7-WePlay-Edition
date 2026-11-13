@@ -34,7 +34,8 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
-DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/desktop_settings.py','installer/game_detection.py','d3d11/memory_guard.py')
+DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/desktop_settings.py','installer/game_detection.py',
+                         'installer/gold_support.py','installer/release_policy.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
 DISCORD_PACKAGE_TOOLS = ('installer/discord_credentials.py','installer/discord_directory.py')
 PUBLIC_DIRECTORY_PACKAGE_TOOLS = ('installer/public_directory.py',)
@@ -218,12 +219,18 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('main_package',False):
+        import release_policy
+        release_policy.check_package(root.parent,manifest)
+    if manifest.get('gold_standalone',False):
+        import gold_support
+        gold_support.verify_package(root/gold_support.FOLDER)
     if manifest.get('midsummer_profile',False) and (not manifest.get('neo_logistics',False)
             or not manifest.get('graphics_choice',False)
             or any(('tools/'+name).lower() not in expected for name in MIDSUMMER_PACKAGE_TOOLS)):
@@ -486,6 +493,8 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         raise ValueError('Bitte einen neuen Testordner in einem vorhandenen Ordner angeben.')
     if progress: progress('package',0,0)
     manifest = package_manifest(package)
+    import release_policy
+    release_policy.preserve_game(source,manifest)
     if manifest.get('platform_independent',False):
         from platform_standalone import validate_location
         validate_location(destination)

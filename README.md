@@ -2,6 +2,12 @@
 
 **The community fixes what Ubisoft left behind.**
 
+**RC3.26 main-package standard:** one Windows installer and launcher for Gold
+1.12.1396, Ubisoft History and regular Steam History, with mandatory platform
+isolation and private profiles. Updates and repairs preserve that isolation.
+Gold is single player. [Main-package guide](docs/RC3.26-STANDALONE-STANDARD.md).
+The published RC3.25 downloads below precede this new package contract.
+
 ## [Download Windows Installer — RC3.25 · Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/Setup.exe)
 
 Windows 10/11 x64 · English / Deutsch · Install or update an existing WePlay copy.
@@ -116,19 +122,21 @@ manual multiplayer saves and five-minute host autosave remain included.
 2. For an ordinary update, choose the existing WePlay application folder.
    For a complete private standalone export, use **Select existing standalone
    copy** and select its outer folder or its **App** folder.
-3. For a first installation, select your supported Ubisoft Connect/Uplay or
-   Steam History Edition installation. The launcher prepares a separate copy.
+3. With RC3.26, select your supported Gold 1.12.1396, Ubisoft History or regular
+   Steam History installation. The launcher prepares a separate isolated copy.
    An existing prepared copy can be repaired and updated from its retained
    files after the original folder has been removed.
-4. Use **RC3.23 on each participant's PC** for the latest fixes. Multiplayer
+4. Use the same current main package on each History participant's PC. Multiplayer
    requires matching NEO5 game content on all peers, including Windows peers
    and when NEO is off.
 
 Requirements: Windows 10 build 19045 or later / Windows 11, x64, your own
-supported History Edition and enough disk space for the separate game copy.
+supported Gold or History Edition and enough disk space for the separate game copy.
 A game-content update temporarily needs room for another copy. Modern graphics
 uses DXVK and requires Vulkan support; Native graphics remains available.
-The supported Steam edition still requires its running Steam client.
+RC3.26 requires neither Steam nor Ubisoft Connect. The older published RC3.25
+downloads above still require the Steam client for Steam History; Gold support
+and the mandatory isolation contract begin with RC3.26. Gold is single player.
 
 Automatic updates verify signed metadata and the complete installer. The
 launcher offers a visible update action; checking alone does not install it.
@@ -136,6 +144,8 @@ If that handoff fails, run Setup directly. The preview's Windows executables
 are not Authenticode-signed; WePlay does not disable Windows security policies.
 
 ## Choose how to play
+
+History provides the cards below. Gold provides **Solo**, Help and Updates.
 
 | Launcher card | How it works |
 | --- | --- |
@@ -296,8 +306,9 @@ Unreleased development: [smoother edges, Ultra shadows, natural lighting and geo
 | RC3.7–3.10 | Multiplayer castles, lobby-alliance correction and logistics crash fix. |
 
 Use matching builds on all peers and restart both games before switching hosts.
-WePlay supports the fingerprinted Ubisoft Connect/Uplay and Steam History builds;
-other executables are rejected. Existing Steam/Ubisoft tests do not qualify every
+The RC3.26 Windows main package supports fingerprinted Gold 1.12.1396,
+Ubisoft History and Steam History builds; other executables are rejected.
+Existing Steam/Ubisoft tests do not qualify every
 new NEO feature. Same-PC tests do not establish physical-PC LAN, Internet or
 extended/endgame stability. Native aggregate checksums cover selected simulation
 state, not every byte. [RC3.16 notes](docs/RC3.16-MAP-VARIANTS.md) ·

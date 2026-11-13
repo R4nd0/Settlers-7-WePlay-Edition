@@ -167,11 +167,12 @@ def unlock_bytes(original, definitions):
     return bytes(result)
 
 
-def inspect(source, definitions=DEFINITIONS):
-    root = source_root(source)
-    raw = plain(root / EXE).read_bytes()
+def inspect(source, definitions=DEFINITIONS, *, originals=None):
+    root = plain(source) if originals is not None else source_root(source)
+    raw = originals[EXE.as_posix()] if originals is not None else plain(root / EXE).read_bytes()
     patched = unlock_bytes(raw, plain(definitions).read_bytes())
-    if digest(root / INTERFACE) != INTERFACE_SHA256:
+    interface_hash = sha256(originals[INTERFACE.as_posix()]) if originals is not None else digest(root / INTERFACE)
+    if interface_hash != INTERFACE_SHA256:
         raise ValueError('Gold preparation requires the exact original Gold interface archive.')
     return {'format': 's7-gold-inspection-v1', 'edition': 'gold-ubisoft-1.12.1396',
             'source_exe_sha256': sha256(raw), 'unlocked_exe_sha256': sha256(patched),
@@ -192,41 +193,50 @@ def menu_bytes(raw):
     return result
 
 
-def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None):
-    source, destination = source_root(source), plain(destination)
+def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
+            originals=None, source_files=None, on_created=None, tracker=None, progress=None):
+    source, destination = (plain(source) if originals is not None else source_root(source)), plain(destination)
     # Both directions matter: a target ancestor could otherwise consume source data.
     if destination.is_relative_to(source) or source.is_relative_to(destination):
         raise ValueError('The Gold copy must be separate from the original installation.')
     if destination.exists():
         raise ValueError('The Gold destination already exists; select a new directory.')
-    report = inspect(source, definitions)
-    patched = unlock_bytes(plain(source / EXE).read_bytes(), plain(definitions).read_bytes())
-    interface = menu_bytes(plain(source / INTERFACE).read_bytes())
+    report = inspect(source, definitions) if originals is None else inspect(source, definitions, originals=originals)
+    patched = unlock_bytes(originals[EXE.as_posix()] if originals is not None else plain(source / EXE).read_bytes(), plain(definitions).read_bytes())
+    interface = menu_bytes(originals[INTERFACE.as_posix()] if originals is not None else plain(source / INTERFACE).read_bytes())
     if dxvk is not None and digest(dxvk) != DXVK_SHA256:
         raise ValueError('The selected DXVK DLL fingerprint does not match the pinned x86 build.')
     destination.mkdir(parents=True, exist_ok=False)
+    if on_created: on_created(destination)
     incomplete = destination / 'PREPARATION-INCOMPLETE.txt'
     incomplete.write_text('Gold development copy is incomplete. Do not launch.\n', encoding='utf-8')
     records = {}
     # Copy only game data, excluding launcher download/state and account directories.
-    stack = [plain(source / 'Data')]
-    while stack:
-        folder = stack.pop()
-        for item in sorted(folder.iterdir()):
-            item = plain(item)
-            relative = item.relative_to(source)
-            if item.is_dir():
-                stack.append(item)
-            elif item.is_file():
-                output = plain(destination / relative)
-                output.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, output)
-                original_hash = digest(item)
-                if digest(output) != original_hash:
-                    raise ValueError('Gold copy verification failed: ' + relative.as_posix())
-                records[relative.as_posix()] = original_hash
-            else:
-                raise ValueError('Unsupported Gold source file type.')
+    if originals is not None:
+        if not isinstance(source_files,dict) or not source_files: raise ValueError('Gold repair inventory missing.')
+        entries = [(plain(source/name), Path(name)) for name in sorted(source_files)]
+    else:
+        entries = []
+        stack = [plain(source/'Data')]
+        while stack:
+            for item in sorted(stack.pop().iterdir()):
+                item=plain(item)
+                if item.is_dir(): stack.append(item)
+                elif item.is_file(): entries.append((item,item.relative_to(source)))
+                else: raise ValueError('Unsupported Gold source file type.')
+    for index,(item,relative) in enumerate(entries):
+        name=relative.as_posix()
+        output=plain(destination/relative);output.parent.mkdir(parents=True,exist_ok=True)
+        if originals is not None and name in originals:
+            output.write_bytes(originals[name]);original_hash=sha256(originals[name])
+        else:
+            original_hash=digest(item);shutil.copy2(item,output)
+            if digest(item)!=original_hash: raise ValueError('Gold source changed during copy.')
+        if digest(output)!=original_hash or (source_files is not None and source_files.get(name)!=original_hash):
+            raise ValueError('Gold copy verification failed: '+name)
+        records[name]=original_hash
+        if tracker: tracker(output,original_hash)
+        if progress: progress('copy',index+1,len(entries))
     original_exe = plain(destination / EXE)
     if digest(original_exe) != GOLD_SHA256:
         raise ValueError('Gold executable changed during preparation.')

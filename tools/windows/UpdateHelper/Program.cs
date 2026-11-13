@@ -49,7 +49,9 @@ internal static class Program
                 if(!rsa.VerifyData(payload,signature,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1))Fail("update_signature_invalid");
             }
             using var manifest=JsonDocument.Parse(payload);var m=manifest.RootElement;
-            Keys(m,"format","repository","channel","sequence","version","tag","notes","setup");
+            if(m.TryGetProperty("platform_isolation",out var isolation))
+                Keys(m,"format","repository","channel","sequence","version","tag","notes","setup","platform_isolation");
+            else Keys(m,"format","repository","channel","sequence","version","tag","notes","setup");
             string tag=Text(m,"tag"),notes=Text(m,"notes");
             if(Text(m,"format")!="weplay-update-v1"||Text(m,"repository")!=Repository||Text(m,"channel")!="preview"||
                m.GetProperty("sequence").GetInt32()!=sequence||sequence<1||Text(m,"version")!=version||
@@ -60,6 +62,18 @@ internal static class Program
             if(Text(setup,"name")!="Setup.exe"||Text(setup,"url")!=$"https://github.com/{Repository}/releases/download/{tag}/Setup.exe"||
                size<1||size>805306368||!Match(digest,"[0-9a-f]{64}"))Fail("update_invalid");
             using var local=Read(SafePaths.FileAt(app,"desktop-release.json"),65536);
+            string packagePath=SafePaths.Plain(Path.Combine(app,"Package/package.json"));
+            using var package=File.Exists(packagePath)?Read(packagePath,4*1024*1024):JsonDocument.Parse("{}");
+            if(isolation.ValueKind!=JsonValueKind.Undefined||Isolated(local.RootElement)||Isolated(package.RootElement)||File.Exists(SafePaths.Plain(Path.Combine(app,"State/platform-isolation.json"))))
+            {
+                if(isolation.ValueKind!=JsonValueKind.Object)Fail("update_isolation_required");
+                Keys(isolation,"revision","editions");
+                if(isolation.GetProperty("revision").ValueKind!=JsonValueKind.Number||
+                   !isolation.GetProperty("revision").TryGetInt32(out int revision)||revision!=1||
+                   isolation.GetProperty("editions").ValueKind!=JsonValueKind.Array||
+                   !isolation.GetProperty("editions").EnumerateArray().Select(x=>x.GetString()).SequenceEqual(new[]{"gold","history-steam","history-ubisoft"}))
+                    Fail("update_isolation_required");
+            }
             using var highest=Read(SafePaths.FileAt(updates,"highest.json"),4096);
             Keys(highest.RootElement,"sequence","payload_sha256");
             if(sequence<=local.RootElement.GetProperty("update_sequence").GetInt32()||Text(local.RootElement,"update_channel")!="preview"||
@@ -127,6 +141,7 @@ internal static class Program
             }
         }
     }
+    private static bool Isolated(JsonElement value)=>value.TryGetProperty("platform_independent",out var flag)&&flag.ValueKind==JsonValueKind.True;
     private static Process OpenOwned(JsonElement value,string expected)
     {
         Keys(value,"pid","path","started_ticks");

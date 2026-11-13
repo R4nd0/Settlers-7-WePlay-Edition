@@ -5,7 +5,7 @@ from pathlib import Path
 import compatibility as content
 import install
 
-NAMES = ('The Settlers 7 - History Edition', 'The Settlers 7 History Edition', 'thesettlers7')
+NAMES = ('The Settlers 7 - History Edition', 'The Settlers 7 History Edition', 'thesettlers7','S7Gold','Settlers 7')
 
 
 def registry_locations():
@@ -55,7 +55,7 @@ def candidates():
     return found[:256]
 
 
-def detect(locations=None, *, steam_supported=False):
+def detect(locations=None, *, steam_supported=False,gold_package=None):
     good, seen = [], set()
     for location in (candidates() if locations is None else locations):
         try:
@@ -64,6 +64,12 @@ def detect(locations=None, *, steam_supported=False):
             if key in seen:
                 continue
             seen.add(key)
+            if gold_package is not None:
+                import gold_support
+                if gold_support.is_gold(root):
+                    gold_support.inspect(gold_package,root)
+                    good.append({'path':str(root),'name':'The Settlers 7 - Gold Edition'})
+                    continue
             # Quick existence check before hashing a candidate.
             if not any((root/name/'Bin/Settlers7R.exe').is_file() for name in ('Base','Data/Base')):
                 continue

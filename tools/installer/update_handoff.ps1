@@ -77,6 +77,15 @@ try {
         $manifest.setup.sha256 -cnotmatch '^[0-9a-f]{64}$' -or $manifest.setup.size -lt 1 -or $manifest.setup.size -gt 805306368 -or
         $manifest.sequence -ne $record.sequence -or $manifest.version -cne $record.version) { throw 'update_invalid' }
     $local=ReadJson (Join-Path $app 'desktop-release.json') 65536
+    $isolationFloor=Join-Path $app 'State\platform-isolation.json'
+    $localPackage=$null
+    if(Test-Path -LiteralPath (Join-Path $app 'Package\package.json')) { $localPackage=ReadJson (Join-Path $app 'Package\package.json') 4194304 }
+    if($null -ne $manifest.platform_isolation -or $local.platform_independent -eq $true -or $localPackage.platform_independent -eq $true -or (Test-Path -LiteralPath $isolationFloor)) {
+        $isolation=$manifest.platform_isolation
+        if($null -eq $isolation -or $isolation.revision -isnot [int] -or $isolation.revision -ne 1 -or
+            ($isolation.editions -join ',') -cne 'gold,history-steam,history-ubisoft' -or
+            @($isolation.PSObject.Properties).Count -ne 2) { throw 'update_isolation_required' }
+    }
     $highest=ReadJson (Join-Path $updates 'highest.json') 4096
     if($manifest.sequence -le $local.update_sequence -or $manifest.sequence -ne $highest.sequence) { throw 'update_downgrade' }
     $installer=PlainPath (Join-Path $jobDir 'Setup.exe')

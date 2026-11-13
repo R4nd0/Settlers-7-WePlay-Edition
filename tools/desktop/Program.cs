@@ -231,6 +231,8 @@ internal sealed partial class MainForm : Form
     private readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Visible = false };
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
+    private bool singlePlayerOnly;
+    private Button openGraphics = null!;
 
     public MainForm(bool initialSetup = false, bool test = false)
     {
@@ -377,7 +379,8 @@ internal sealed partial class MainForm : Form
         Add(home,BuildPlayModes());Add(home,Label("modeConsentInfo"));
         homeScroll.ClientSizeChanged+=(_,_)=>ResizePlayModes(homeScroll);
         ResizePlayModes(homeScroll);
-        Add(home,Buttons(Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;})));
+        openGraphics=Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;});
+        Add(home,Buttons(openGraphics));
         Add(home,homeUpdateNotice);
         homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
         Add(home,Buttons(Button("updates",()=>{tabs.SelectedTab=updatesPage;return Task.CompletedTask;}),homeUpdateInstall));
@@ -485,6 +488,7 @@ internal sealed partial class MainForm : Form
         if(!busy) status.Text=Lang.T("ready");
         UpdateInternetControls();
         RefreshUpdateControls();
+        ApplyEditionCapabilities();
     }
     private async Task Initialise()
     {
@@ -517,6 +521,7 @@ internal sealed partial class MainForm : Form
     {
         if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
+        singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
@@ -573,8 +578,32 @@ internal sealed partial class MainForm : Form
         loading=false;
         UpdateGraphicsPresets();
         if(replaceFields||acceptGraphics)AcceptGraphicsDraft();else UpdateGraphicsDraft();
+        ApplyEditionCapabilities();
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
+    private void ApplyEditionCapabilities()
+    {
+        if(modeGrid==null)return;
+        var pages=new[]{homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage};
+        foreach(var page in new[]{lanPage,internetPage,directoryPage,graphicsPage})
+            if(singlePlayerOnly)tabs.TabPages.Remove(page);
+        if(!singlePlayerOnly)
+            for(int i=0;i<pages.Length;i++)if(!tabs.TabPages.Contains(pages[i]))tabs.TabPages.Insert(i,pages[i]);
+        foreach(var entry in playModes)
+        {
+            entry.Card.Visible=!singlePlayerOnly||entry.Card.Mode==PlayMode.Solo;
+            modeGrid.SetColumnSpan(entry.Card,singlePlayerOnly&&entry.Card.Mode==PlayMode.Solo?2:1);
+            if(entry.Card.Mode==PlayMode.Solo)
+            {
+                entry.Card.Summary=Lang.T(singlePlayerOnly?"goldSoloSummary":entry.Summary);
+                entry.Card.FeatureOne=Lang.T(singlePlayerOnly?"goldSoloFeatures":entry.One);
+                entry.Card.RefreshDescription();
+            }
+        }
+        foreach(var item in labels.Where(x=>x.Value=="modeConsentInfo"))item.Key.Visible=!singlePlayerOnly;
+        openGraphics.Visible=!singlePlayerOnly;
+        if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");
+    }
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
         if(!await ResolveGraphicsDraft())return;
@@ -965,6 +994,7 @@ internal sealed partial class MainForm : Form
         UpdateDirectoryControls();
         UpdateGraphicsDraft();
         UpdateRecoveryControls();
+        ApplyEditionCapabilities();
     }
     private static IEnumerable<Control> Descendants(Control parent)
     { foreach(Control control in parent.Controls){yield return control;foreach(var child in Descendants(control))yield return child;} }
@@ -1043,6 +1073,7 @@ internal sealed partial class MainForm : Form
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
                 if(form.releaseVersion.Text!=Program.ReleaseVersion||!form.releaseVersion.Text.StartsWith("2."))throw new Exception("Release version label differs from assembly metadata");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
+                form.TestStandaloneEdition(json.RootElement,folder,language);
                 form.TestLauncherResilience(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();

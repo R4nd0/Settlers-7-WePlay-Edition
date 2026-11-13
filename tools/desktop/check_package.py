@@ -99,6 +99,8 @@ def stage(package,expected,app,target):
         raise ValueError('Invalid staging slot')
     verify(package,expected)
     value=manifest(expected)
+    import release_policy
+    release_policy.check_package(app,value)
     names=['package.json',*value['files']]
     # Manifests use lowercase keys, but runtime notice inventories preserve
     # the on-disk spelling (GPL-3.0.txt, etc.) even on Windows.

@@ -25,6 +25,21 @@ import test_installer as fixture
 
 
 class DesktopTests(unittest.TestCase):
+    def test_isolation_capability_and_each_copied_runtime_part_require_game_update(self):
+        record=self.desktop.read(self.desktop.package/'package.json')
+        before=self.desktop.package_id()
+        record['platform_independent']=True
+        self.desktop.write(self.desktop.package/'package.json',record)
+        self.assertNotEqual(before,self.desktop.package_id())
+        for name in ('payload/platform/mss32.dll','payload/platform/steam_api.dll',
+                     'payload/platform/weplay_network_policy.exe','tools/installer/isolated_process.py',
+                     'tools/installer/network_peer_policy.py','tools/installer/standalone_entry.py',
+                     'payload/gold/tools/gold/prepare.py','payload/gold/payload/weplay_gold_startup.dll'):
+            record['files'][name]='a'*64;self.desktop.write(self.desktop.package/'package.json',record)
+            before=self.desktop.package_id()
+            record['files'][name]='b'*64;self.desktop.write(self.desktop.package/'package.json',record)
+            self.assertNotEqual(before,self.desktop.package_id(),name)
+
     def setUp(self):
         self.fixture=fixture.InstallerTests();self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
         self.app=self.fixture.root/'app';self.app.mkdir()

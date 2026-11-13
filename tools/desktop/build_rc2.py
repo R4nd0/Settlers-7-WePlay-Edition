@@ -1,4 +1,4 @@
-"""Build the RC3.25 standalone update hotfix release from pinned inputs."""
+"""Build the default isolated Gold/Ubisoft/Steam desktop package from pinned inputs."""
 import argparse
 import hashlib
 import json
@@ -36,7 +36,7 @@ def public_document(source,*,revision=None):
 
 
 def copy_documents(app,*,platform_independent=False):
-    guide=REPO/'docs/PLATFORM-STANDALONE.md' if platform_independent else RELEASE_GUIDE
+    guide=REPO/'docs/RC3.26-STANDALONE-STANDARD.md' if platform_independent else RELEASE_GUIDE
     revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip() if platform_independent else None
     for original, destination in ((guide,'LIESMICH.txt'),
             (guide,'RELEASE-NOTES.md'),(guide,'README.md'),
@@ -45,7 +45,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=25,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=26,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None,gold_package=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -54,27 +54,39 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     if type(update_sequence) is not int or not 1<=update_sequence<=2147483647:raise ValueError('Invalid update sequence')
     if not compiler.is_file() or not probe.is_file():raise ValueError('Build tools missing')
     if not (desktop_publish/'S7Launcher.exe').is_file():raise ValueError('Desktop app publish is missing')
+    old=content.plain(base_package or REPO/'work/release-inputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
+    import platform_standalone,gold_support,release_policy
+    # A missing input is a build error, never permission to ship a platform-linked
+    # main package. Subsequent builds inherit both runtimes from the last package.
+    platform_runtime=platform_standalone.payload(platform_runtime or old/'Payload/Platform')
+    gold_package=content.plain(gold_package or old/'Payload/Gold')
+    gold_support.verify_package(gold_package)
     stage.mkdir();output.mkdir(parents=True,exist_ok=True)
     app=stage/'App';app.mkdir()
     for path in desktop_publish.iterdir():
         content.plain(path)
         if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
-    version='10.0.13'
+    version='10.0.15'
     runtime=app/'DesktopRuntime';runtime.mkdir()
     for name in ('dotnet.exe','LICENSE.txt','ThirdPartyNotices.txt'):shutil.copyfile(dotnet/name,runtime/name)
     for relative in ('host/fxr/'+version,'shared/Microsoft.NETCore.App/'+version,'shared/Microsoft.WindowsDesktop.App/'+version):
         shutil.copytree(dotnet/relative,runtime/relative)
-    old=content.plain(base_package or REPO/'work/release-inputs/S7-AutoLAN-Testpaket-2026-10-28-r3')
     # The base supplies previously verified runtime/server inputs, not the new
     # feature contract. Its historical adapter may have a different valid pin.
     previous=json.loads((old/'package.json').read_text(encoding='utf-8'))
     if previous.get('format')!=install.FORMAT or content.inventory(old,('Payload','Runtime','Tools'))!=previous.get('files'):
         raise ValueError('Base package inventory does not match its manifest')
-    build_package.build(adapter or old/'Payload/uplay_r1_loader.dll',service or old/'Payload/Server',old/'Runtime/dotnet',
+    build_package.build(adapter or old/'Payload/uplay_r1_loader.dll',service or old/'Payload/Server',dotnet,
         python_zip or REPO/'work/installer-runtime/python-3.14.10-embed-amd64.zip',app/'Package',
         dxvk_dll=dxvk_dll or REPO/'work/dxvk-3.1.1-x32/d3d9.dll',
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
         easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,platform_runtime=platform_runtime)
+    gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO)
+    package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
+    package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
+    package_record['files']=content.inventory(app/'Package',('Payload','Runtime','Tools'))
+    (app/'Package/package.json').write_text(json.dumps(package_record,indent=2)+'\n',encoding='utf-8')
+    install.package_manifest(app/'Package')
     # CMDs are private development entrypoints, never part of the new user flow.
     # They are not removed from old packages or installed game copies.
     for path in (app/'Package').glob('*.cmd'):path.unlink()
@@ -86,8 +98,9 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC3.25 Standalone Update Hotfix','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc3.25','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC3.26 Standalone Standard','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc3.26','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+             'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
@@ -99,11 +112,15 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
              'probe_sha256':content.digest(probe),'compiler':'Inno Setup 7.1.1 x64','authenticode_signed':False}
     (app/'desktop-release.json').write_text(json.dumps(release,indent=2)+'\n',encoding='utf-8')
     compile_setup(app,output,compiler)
+    proof={'format':'weplay-main-package-release-v1','platform_isolation':release_policy.CONTRACT,
+           'setup_sha256':content.digest(output/'Setup.exe'),'setup_bytes':(output/'Setup.exe').stat().st_size,
+           'source_commit':release['source_commit'],'package_id':release['package_id']}
+    (output/'Setup.release.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
     return app
 
 
 def compile_setup(app,output,compiler):
-    if any((app/name).exists() for name in ('State','Instances','LocalData')):
+    if any((app/name).exists() for name in ('State','Instances','LocalData','Game','Backup')):
         raise ValueError('Private machine/game data must never be included in Setup')
     result=subprocess.run([str(compiler),'/Qp','/DStage='+str(app),'/DOutput='+str(output),str(REPO/'tools/desktop/Setup.iss')],
                           cwd=REPO,capture_output=True,text=True)
@@ -144,13 +161,14 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=25)
+    parser.add_argument('--update-sequence',type=int,default=26)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')
     parser.add_argument('--atmosphere-addon')
     parser.add_argument('--platform-runtime')
+    parser.add_argument('--gold-package')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,platform_runtime=values.platform_runtime)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,platform_runtime=values.platform_runtime,gold_package=values.gold_package)

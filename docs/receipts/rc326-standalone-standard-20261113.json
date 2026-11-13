@@ -1,0 +1,255 @@
+{
+  "format": "weplay-main-standalone-verification-v1",
+  "verified_utc": "2026-11-13T10:26:09.114840+00:00",
+  "release": "RC3.26",
+  "scope": "Windows main package; Gold solo and both known History builds",
+  "editions": [
+    {
+      "edition": "history-steam",
+      "real_main_backend_installation": true,
+      "real_main_backend_repair": true,
+      "damaged_original_backup_refused_before_active_selection_change": true,
+      "damaged_runtime_rebuilt_in_new_instance": true,
+      "private_profile_files_preserved": 7,
+      "options_ini_excluded_from_hash_comparison": true,
+      "actual_saved_games_preserved": 1,
+      "installed_executable_sha256": "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
+      "adapter_sha256": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "real_main_backend_game_launch": true,
+      "kernel_isolation_flags": 7,
+      "prior_saved_world_reloaded": true,
+      "normal_exit_code": 0,
+      "shared_windows_documents_profiles_unchanged": true,
+      "executable_and_adapter_unchanged_after_exit": true,
+      "one_second_process_module_socket_samples": 149,
+      "unexpected_network_or_platform_observations": 0,
+      "memory_monitor": {
+        "max_pressure": 0,
+        "monitor_failed": false,
+        "recovery_required": false,
+        "samples": 76,
+        "min_host_physical_free_mib": 7787
+      }
+    },
+    {
+      "edition": "history-ubisoft",
+      "real_main_backend_installation": true,
+      "real_main_backend_repair": true,
+      "damaged_original_backup_refused_before_active_selection_change": true,
+      "damaged_runtime_rebuilt_in_new_instance": true,
+      "private_profile_files_preserved": 6,
+      "options_ini_excluded_from_hash_comparison": true,
+      "actual_saved_games_preserved": 1,
+      "installed_executable_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "adapter_sha256": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "real_main_backend_game_launch": true,
+      "kernel_isolation_flags": 7,
+      "prior_saved_world_reloaded": true,
+      "normal_exit_code": 0,
+      "shared_windows_documents_profiles_unchanged": true,
+      "executable_and_adapter_unchanged_after_exit": true,
+      "one_second_process_module_socket_samples": 280,
+      "unexpected_network_or_platform_observations": 0,
+      "memory_monitor": {
+        "max_pressure": 0,
+        "monitor_failed": true,
+        "recovery_required": true,
+        "samples": 60,
+        "min_host_physical_free_mib": 7814
+      }
+    },
+    {
+      "edition": "gold",
+      "real_main_backend_installation": true,
+      "real_main_backend_repair": true,
+      "damaged_original_backup_refused_before_active_selection_change": true,
+      "damaged_runtime_rebuilt_in_new_instance": true,
+      "private_profile_files_preserved": 6,
+      "options_ini_excluded_from_hash_comparison": true,
+      "actual_saved_games_preserved": 1,
+      "installed_executable_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "adapter_sha256": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2",
+      "real_main_backend_game_launch": true,
+      "kernel_isolation_flags": 7,
+      "prior_saved_world_reloaded": true,
+      "normal_exit_code": 0,
+      "shared_windows_documents_profiles_unchanged": true,
+      "executable_and_adapter_unchanged_after_exit": true,
+      "one_second_process_module_socket_samples": 748,
+      "unexpected_network_or_platform_observations": 0,
+      "memory_monitor": {
+        "max_pressure": 0,
+        "monitor_failed": true,
+        "recovery_required": true,
+        "samples": 214,
+        "min_host_physical_free_mib": 7751
+      }
+    }
+  ],
+  "automated_tests": {
+    "total": 293,
+    "suites": [
+      {
+        "suite": "test_installer",
+        "tests": 35,
+        "seconds": 11.305,
+        "passed": true
+      },
+      {
+        "suite": "test_gold_installer",
+        "tests": 10,
+        "seconds": 19.057,
+        "passed": true
+      },
+      {
+        "suite": "test_gold_edition",
+        "tests": 19,
+        "seconds": 6.844,
+        "passed": true
+      },
+      {
+        "suite": "gold_menu_tests",
+        "tests": 13,
+        "seconds": 0.003,
+        "passed": true
+      },
+      {
+        "suite": "test_release_policy",
+        "tests": 6,
+        "seconds": 0.234,
+        "passed": true
+      },
+      {
+        "suite": "test_gold_repair",
+        "tests": 5,
+        "seconds": 0.218,
+        "passed": true
+      },
+      {
+        "suite": "test_update_client",
+        "tests": 21,
+        "seconds": 25.662,
+        "passed": true
+      },
+      {
+        "suite": "test_update_backend",
+        "tests": 12,
+        "seconds": 0.369,
+        "passed": true
+      },
+      {
+        "suite": "test_release_documents",
+        "tests": 3,
+        "seconds": 0.493,
+        "passed": true
+      },
+      {
+        "suite": "test_update_handoff_windows",
+        "tests": 8,
+        "seconds": 69.93,
+        "passed": true
+      },
+      {
+        "suite": "test_compiled_update_handoff",
+        "tests": 14,
+        "seconds": 53.958,
+        "passed": true
+      },
+      {
+        "suite": "test_desktop_backend",
+        "tests": 51,
+        "seconds": 497.497,
+        "passed": true
+      },
+      {
+        "suite": "test_desktop_resilience",
+        "tests": 26,
+        "seconds": 256.702,
+        "passed": true
+      },
+      {
+        "suite": "test_standalone",
+        "tests": 21,
+        "seconds": 75.637,
+        "passed": true
+      },
+      {
+        "suite": "test_standalone_preflight",
+        "tests": 4,
+        "seconds": 0.005,
+        "passed": true
+      },
+      {
+        "suite": "test_update_resilience",
+        "tests": 29,
+        "seconds": 160.456,
+        "passed": true
+      },
+      {
+        "suite": "test_update_recovery",
+        "tests": 16,
+        "seconds": 371.629,
+        "passed": true
+      }
+    ]
+  },
+  "real_private_windows_setup_transactions": [
+    {
+      "case": "tamper-stage",
+      "exit_code": 7,
+      "isolation_floor_preserved": true,
+      "saved_data_preserved": true,
+      "previous_package_restored": true
+    },
+    {
+      "case": "after-new-moved",
+      "exit_code": 3,
+      "isolation_floor_preserved": true,
+      "saved_data_preserved": true,
+      "previous_package_restored": true
+    },
+    {
+      "case": "success",
+      "exit_code": 0,
+      "isolation_floor_preserved": true,
+      "saved_data_preserved": true,
+      "previous_package_restored": false
+    }
+  ],
+  "setup_test_data": "Real compiled Inno Setup; synthetic prior package and saved-data sentinel. Actual game save preservation is recorded separately per edition.",
+  "real_complete_payload_without_isolation_contract": {
+    "exit_code": 2,
+    "real_complete_payload_verified": true,
+    "downgrade_refused_before_stage_allocation": true,
+    "isolation_floor_preserved": true
+  },
+  "actual_gold_legacy_repair_inputs": {
+    "actual_original_game_input_hashes_verified": true,
+    "legacy_audio_name_accepted": true,
+    "changed_legacy_audio_refused": true,
+    "changed_retained_audio_cannot_fall_back": true,
+    "source_audio_unchanged": true,
+    "scope": "Repair-input validation only; full current Gold copy repair is qualified separately."
+  },
+  "start_without_windows_elevation_approval": {
+    "windows_error": 1223,
+    "no_game_started_event": true,
+    "shared_profiles_unchanged": true,
+    "executable_and_adapter_unchanged": true
+  },
+  "gui": {
+    "real_winforms_selftest": true,
+    "languages": [
+      "de",
+      "en"
+    ],
+    "gold_single_player_controls": true,
+    "history_controls_restored": true
+  },
+  "observations_limit": "Periodic process/module/socket observations are not packet capture. Kernel self-probe confirms enforced isolation. No multiplayer synchronization claim.",
+  "native_runtime_qualification": "platform-standalone-20261112.json",
+  "known_limitations": {
+    "memory_monitor": "Ubisoft and Gold marked a measurement failure and conservative recovery requirement while all successful samples showed pressure0. Guard thresholds are unchanged; the cause of the measurement failure is not established.",
+    "gold_graphics": "Existing DXVK configuration rendered some water surfaces black. Graphics and long-term stability are not qualified by this platform-isolation test."
+  }
+}

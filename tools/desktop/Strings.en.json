@@ -457,5 +457,12 @@
   "phase_reshade_download": "Downloading the verified graphics component…",
   "settingsRecoveryField_unreadable": "unreadable or changed settings files",
   "settingsRecoveryField_detach_pending": "interrupted setup reset",
-  "settingsRecoveryManual": "These files cannot be safely assigned or read. Manual recovery is required. Export diagnostics and preserve the existing files for support; no automatic changes are available."
+  "settingsRecoveryManual": "These files cannot be safely assigned or read. Manual recovery is required. Export diagnostics and preserve the existing files for support; no automatic changes are available.",
+  "goldIntro": "Gold Edition: campaign and skirmish without Steam or Ubisoft Connect. Configure graphics and your profile in the game.",
+  "gold_game_settings": "Change Gold Edition settings in the game.",
+  "gold_single_player_only": "This Gold edition currently supports single player.",
+  "platform_isolation_required": "Platform isolation is missing or would be removed. The existing copy is retained. Use the complete current main package.",
+  "update_isolation_required": "This update does not guarantee platform isolation and was refused. Your current installation is retained.",
+  "goldSoloSummary": "Your Gold game on this PC: campaign or skirmish.",
+  "goldSoloFeatures": "Campaign · Skirmish"
 }

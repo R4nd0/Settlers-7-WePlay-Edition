@@ -1,5 +1,6 @@
 """Build Windows API helpers into a new ignored directory; no system-policy changes."""
 import argparse
+import os
 from pathlib import Path
 import subprocess
 
@@ -9,11 +10,13 @@ def build(dotnet,output):
     output=Path(output).absolute()
     if output.exists() or not output.is_relative_to(ROOT/'work'):raise ValueError('Use a new helper output below work/')
     output.mkdir(parents=True)
+    environment=dict(os.environ,DOTNET_ROOT=str(Path(dotnet).absolute().parent),DOTNET_MULTILEVEL_LOOKUP='0',
+                     DOTNET_CLI_TELEMETRY_OPTOUT='1',DOTNET_GENERATE_ASPNET_CERTIFICATE='false',DOTNET_NOLOGO='1')
     for folder,project,target in [('SystemHelper','WePlay.WindowsHelper','System'),('UpdateHelper','WePlay.UpdateHelper','Update')]:
         subprocess.run([str(Path(dotnet).absolute()),'publish',str(ROOT/'tools/windows'/folder/(project+'.csproj')),
             '-c','Release','-r','win-x64','-o',str(output/target),'--nologo',
             '--source','https://api.nuget.org/v3/index.json','-p:OS=Windows_NT',
-            '-p:RestorePackagesPath='+str(ROOT/'work/nuget-packages')],check=True)
+            '-p:RestorePackagesPath='+str(ROOT/'work/nuget-packages')],check=True,env=environment)
     return output
 
 if __name__=='__main__':

@@ -65,6 +65,7 @@ class WindowsHandoffTests(unittest.TestCase):
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.root = Path(cls.temporary.name)
         cls.environment = dict(os.environ, DOTNET_ROOT=str(Path(SDK).resolve().parent),
+                               DOTNET_GENERATE_ASPNET_CERTIFICATE='false',
                                DOTNET_CLI_HOME=str(cls.root / 'dotnet-home'),
                                DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1', DOTNET_CLI_TELEMETRY_OPTOUT='1')
         project = cls.root / 'compiler'
@@ -134,6 +135,43 @@ class WindowsHandoffTests(unittest.TestCase):
         for path in self.binary.iterdir():
             if path.is_file():
                 shutil.copyfile(path, directory / (name if path.name == 'Fixture.exe' else path.name))
+
+    def isolation_manifest(self,contract):
+        envelope=json.loads((self.job/'weplay-update.json').read_bytes())
+        value=json.loads(client.b64(envelope['payload']));value['platform_isolation']=contract
+        payload=client.canonical(value);(self.job/'payload.json').write_bytes(payload)
+        signed=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-File',str(ROOT/'tools/updates/sign_manifest.ps1'),
+            '-Action','Sign','-KeyPath',str(self.private),'-PayloadPath',str(self.job/'payload.json')],capture_output=True,text=True,timeout=30)
+        self.assertEqual(signed.returncode,0)
+        envelope.update(payload=base64.urlsafe_b64encode(payload).decode().rstrip('='),signature=signed.stdout.strip())
+        self.write(self.job/'weplay-update.json',envelope)
+        self.write(self.job.parent/'highest.json',dict(sequence=2,payload_sha256=hashlib.sha256(payload).hexdigest()))
+
+    def test_isolation_missing_from_signed_update_stops_before_wait_or_installer(self):
+        import release_policy
+        self.write(self.app/'State'/release_policy.FLOOR,release_policy.CONTRACT)
+        helper=self.helper();self.finished(helper,2)
+        self.assertEqual(self.status()['code'],'update_isolation_required')
+        self.assertFalse((self.job/'ready.json').exists());self.assertFalse((self.app/'setup.marker').exists())
+        self.assertTrue(all(p.poll() is None for p,_ in self.parents));self.preserved()
+
+    def test_incomplete_signed_edition_contract_is_refused_independently(self):
+        import release_policy
+        self.write(self.app/'State'/release_policy.FLOOR,release_policy.CONTRACT)
+        self.isolation_manifest(dict(revision=1,editions=['history-steam']))
+        helper=self.helper();self.finished(helper,2)
+        self.assertEqual(self.status()['code'],'update_isolation_required')
+        self.assertFalse((self.app/'setup.marker').exists());self.preserved()
+
+    def test_complete_isolation_contract_passes_real_handoff_and_keeps_floor(self):
+        import release_policy
+        self.write(self.app/'State'/release_policy.FLOOR,release_policy.CONTRACT)
+        self.isolation_manifest(release_policy.CONTRACT)
+        helper=self.helper();self.ready(helper);self.exit_parent(0);self.exit_parent(1);self.finished(helper,0)
+        self.until(lambda:(self.app/'restarted.marker').exists())
+        self.assertEqual(self.status()['phase'],'installed')
+        self.assertEqual(json.loads((self.app/'State'/release_policy.FLOOR).read_text()),release_policy.CONTRACT)
+        self.preserved()
 
     def spawn(self, args, diagnostics=False):
         process = subprocess.Popen(args, env=self.environment, stdout=subprocess.PIPE if diagnostics else subprocess.DEVNULL,

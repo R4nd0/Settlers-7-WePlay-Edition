@@ -94,7 +94,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     from windows_system import SYSTEM_FILES
     for relative in [*('System/'+name for name in SYSTEM_FILES),'Update/WePlay.UpdateHelper.exe']:
         if not content.plain(windows_helpers/relative).is_file():raise ValueError('Compiled Windows helper missing')
-    version = '10.0.13'
+    version = '10.0.15'
     for path in (dotnet / 'dotnet.exe', dotnet / 'host/fxr' / version / 'hostfxr.dll',
                  dotnet / 'shared/Microsoft.NETCore.App' / version / 'System.Private.CoreLib.dll'):
         if not path.is_file(): raise ValueError('Expected tested .NET runtime is absent')
@@ -231,7 +231,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         'https://www.python.org/downloads/release/python-31410/\n'
         'https://www.python.org/ftp/python/3.14.10/python-3.14.10-embed-amd64.zip\nSHA256 ' + PYTHON_SHA256 + '\n'
         'License: Runtime/python/LICENSE.txt\n\n'
-        '.NET 10.0.13 Windows x64 runtime from the development SDK runtime.\n'
+        '.NET 10.0.15 Windows x64 runtime from the development SDK runtime.\n'
         'Licenses: Runtime/dotnet/LICENSE.txt and ThirdPartyNotices.txt\n', encoding='utf-8')
     if neo_logistics:
         with (output/'LIESMICH.txt').open('a',encoding='utf-8') as stream:

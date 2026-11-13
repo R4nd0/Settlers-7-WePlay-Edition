@@ -86,11 +86,53 @@ class UpdateTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('weplay_release_fixture',ROOT/'tools/updates/build_release.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         setup=self.root/'Setup.exe';setup.write_bytes(self.setup);output=self.root/'weplay-update.json'
+        import release_policy
+        with self.assertRaisesRegex(ValueError,'matching build receipt'):
+            module.build(setup,output,version=self.value()['version'],sequence=2,tag=self.value()['tag'],key_path=self.private)
+        setup.with_suffix('.release.json').write_text(json.dumps({'format':'weplay-main-package-release-v1',
+            'platform_isolation':release_policy.CONTRACT,'setup_sha256':hashlib.sha256(self.setup).hexdigest(),'setup_bytes':len(self.setup)}))
         result=module.build(setup,output,version=self.value()['version'],sequence=2,tag=self.value()['tag'],notes='Fixture notes',key_path=self.private)
         self.assertEqual(client.verify(output.read_bytes())['setup']['sha256'],hashlib.sha256(self.setup).hexdigest())
+        legacy=client.verify(output.read_bytes())
+        isolated=client.verify(Path(result['isolated_manifest']).read_bytes())
+        self.assertEqual(set(legacy),{'format','repository','channel','sequence','version','tag','notes','setup'})
+        self.assertEqual(isolated['platform_isolation'],release_policy.CONTRACT)
+        self.assertEqual(legacy['setup'],isolated['setup'])
         self.assertEqual(result['publish_command'][:3],['gh','release','create'])
         self.assertIn(client.REPOSITORY,result['publish_command'])
         self.assertEqual((self.app/'State/keep.json').read_bytes(),b'private preferences fixture')
+
+    def test_isolation_loss_is_refused_before_offer_cache_or_download(self):
+        import release_policy
+        (self.app/'State'/release_policy.FLOOR).write_text(json.dumps(release_policy.CONTRACT))
+        with self.assertRaisesRegex(client.UpdateError,'update_isolation_required'):
+            client.check(self.app,fetch=self.fetcher(self.signed()))
+        self.assertFalse((self.app/'State/Updates/verified-envelope.json').exists())
+        value=self.value();value['platform_isolation']=release_policy.CONTRACT
+        envelope=self.signed(value)
+        self.assertTrue(client.check(self.app,fetch=self.fetcher(envelope))['available'])
+        # Removing the signed capability cannot be hidden by a locally modified
+        # cache/high-water record: prepare re-verifies the contract itself.
+        (self.app/'State/Updates/verified-envelope.json').write_bytes(self.signed())
+        fetch=Mock(side_effect=AssertionError('Setup must not be downloaded'))
+        with self.assertRaisesRegex(client.UpdateError,'update_isolation_required'):
+            client.prepare(self.app,os.getppid(),111,fetch=fetch,process_reader=self.processes)
+        fetch.assert_not_called()
+
+    def test_new_client_prefers_isolated_asset_and_never_reads_weaker_offer(self):
+        import release_policy
+        (self.app/'State'/release_policy.FLOOR).write_text(json.dumps(release_policy.CONTRACT))
+        value=self.value();value['platform_isolation']=release_policy.CONTRACT
+        strong=self.signed(value)
+        base='https://github.com/'+client.REPOSITORY+'/releases/download/'+value['tag']+'/'
+        def fetch(url,limit,**kwargs):
+            if url==client.RELEASES:
+                return json.dumps([dict(draft=False,tag_name=value['tag'],assets=[
+                    dict(name=name,browser_download_url=base+name) for name in (client.MANIFEST,client.ISOLATED_MANIFEST)])]).encode()
+            self.assertEqual(url,base+client.ISOLATED_MANIFEST)
+            return strong
+        self.assertTrue(client.check(self.app,fetch=fetch)['available'])
+        self.assertEqual(client.verify((self.app/'State/Updates/verified-envelope.json').read_bytes())['platform_isolation'],release_policy.CONTRACT)
 
     def test_signed_payload_is_canonical_and_duplicate_fields_are_refused(self):
         with self.assertRaisesRegex(client.UpdateError,'invalid'):

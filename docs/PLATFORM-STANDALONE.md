@@ -6,6 +6,11 @@ Steam noch Ubisoft Connect benötigt. Die Originalinstallation bleibt erhalten.
 Der Installer erstellt eine eigene Kopie aus den vorhandenen Spieldateien.
 Ein WePlay-Installationspaket enthält keine Spieldateien oder Plattformkonten.
 
+Ab dem [gemeinsamen Hauptpaket RC3.26](RC3.26-STANDALONE-STANDARD.md) ist diese
+Laufzeit Standard für alle drei Ausgaben. Paketwechsel, Reparatur und signierte
+Updates dürfen die Isolation nicht entfernen. Gold wird über denselben Starter
+installiert, repariert und aktualisiert; seine Spielfreigabe bleibt Einzelspieler.
+
 Start über den WePlay-Starter. Bei der Steam-Ausgabe bleibt die reguläre,
 gepackte EXE auf Platte unverändert. Ihr exakt geprüfter Spielcode wird vor
 dem ursprünglichen Programmeinstieg im eigenen Prozess bereitgestellt.

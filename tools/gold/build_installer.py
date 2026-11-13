@@ -17,6 +17,7 @@ TOOLS = ('prepare.py', 'menu_interface.py', 'profile_interface.py', 'installer.p
 
 
 def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler,platform_runtime=None):
+    if platform_runtime is None:raise ValueError('Public Gold packages require the verified standalone runtime.')
     stage, output, adapter, python_zip, dxvk, dxvk_license, compiler = map(
         gold.plain, (stage, output, adapter, python_zip, dxvk, dxvk_license, compiler))
     if (stage.exists() or not stage.parent.is_dir() or not stage.is_relative_to(REPO / 'work')
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('stage', 'output', 'adapter', 'python-zip', 'dxvk', 'dxvk-license', 'compiler'):
         parser.add_argument('--' + name, type=Path, required=True)
-    parser.add_argument('--platform-runtime',type=Path)
+    parser.add_argument('--platform-runtime',type=Path,required=True)
     args = parser.parse_args()
     build(args.stage, args.output, adapter=args.adapter, python_zip=args.python_zip,
           dxvk=args.dxvk, dxvk_license=args.dxvk_license, compiler=args.compiler,platform_runtime=args.platform_runtime)

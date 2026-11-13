@@ -22,6 +22,7 @@ import compatibility
 REPOSITORY='R4nd0/Settlers-7-WePlay-Edition'
 RELEASES='https://api.github.com/repos/'+REPOSITORY+'/releases?per_page=20'
 MANIFEST='weplay-update.json'
+ISOLATED_MANIFEST='weplay-update-isolated.json'
 MAX_SETUP=768*1024*1024
 MAX_MANIFEST=49152
 JOB_FORMAT='weplay-update-job-v1'
@@ -89,7 +90,8 @@ def verify(raw,*,key=None):
     return value
 
 def validate(value):
-    if (not isinstance(value,dict) or set(value)!={'format','repository','channel','sequence','version','tag','notes','setup'}
+    keys={'format','repository','channel','sequence','version','tag','notes','setup'}
+    if (not isinstance(value,dict) or set(value) not in (keys,keys|{'platform_isolation'})
             or value['format']!='weplay-update-v1' or value['repository']!=REPOSITORY or value['channel']!='preview'
             or type(value['sequence']) is not int or not 1<=value['sequence']<=2147483647
             or not isinstance(value['version'],str) or not VERSION.fullmatch(value['version'])
@@ -101,7 +103,16 @@ def validate(value):
     if (not isinstance(setup,dict) or set(setup)!={'name','url','size','sha256'} or setup['name']!='Setup.exe'
             or setup['url']!=expected or type(setup['size']) is not int or not 1<=setup['size']<=MAX_SETUP
             or not isinstance(setup['sha256'],str) or not HEX.fullmatch(setup['sha256'])):raise UpdateError('update_invalid')
+    if 'platform_isolation' in value:
+        import release_policy
+        if not release_policy.valid(value['platform_isolation']):raise UpdateError('update_isolation_required')
     return value
+
+
+def preserve_isolation(app,value):
+    import release_policy
+    try:release_policy.check_update(app,value)
+    except (OSError,ValueError):raise UpdateError('update_isolation_required') from None
 
 def allowed_url(url):
     try:value=urlsplit(url);port=value.port
@@ -430,9 +441,10 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
         if not isinstance(release,dict) or release.get('draft') is not False:continue
         tag=release.get('tag_name');assets=release.get('assets')
         if not isinstance(tag,str) or not TAG.fullmatch(tag) or not isinstance(assets,list) or len(assets)>50:continue
-        selected=[a for a in assets if isinstance(a,dict) and a.get('name')==MANIFEST]
+        name=ISOLATED_MANIFEST if any(isinstance(a,dict) and a.get('name')==ISOLATED_MANIFEST for a in assets) else MANIFEST
+        selected=[a for a in assets if isinstance(a,dict) and a.get('name')==name]
         if len(selected)!=1:continue
-        expected='https://github.com/'+REPOSITORY+'/releases/download/'+tag+'/'+MANIFEST
+        expected='https://github.com/'+REPOSITORY+'/releases/download/'+tag+'/'+name
         if selected[0].get('browser_download_url')!=expected:raise UpdateError('update_invalid')
         candidates.append((tag,expected))
     # A repository can retain months of signed releases; inspect the newest
@@ -458,6 +470,7 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
     if newest is None:
         if transport_failures:raise UpdateError('update_download_failed')
         return base
+    if newest['sequence']>local['update_sequence']:preserve_isolation(app,newest)
     with cache_lock(updates):
         seen=highwater(updates);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
         if newest['sequence']<seen['sequence'] or (newest['sequence']==seen['sequence'] and fingerprint!=seen['payload_sha256']):raise UpdateError('update_downgrade')
@@ -512,6 +525,7 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
     if backend['path'].casefold()!=str(app/'Package/Runtime/python/python.exe').casefold():raise UpdateError('update_parent_invalid')
     with cache_lock(updates):
         envelope=compatibility.plain(updates/'verified-envelope.json').read_bytes();value=verify(envelope)
+        preserve_isolation(app,value)
         if expected_sequence is not None and value['sequence']!=expected_sequence:raise UpdateError('update_changed')
         seen=highwater(updates)
         if value['sequence']<=local['update_sequence'] or value['sequence']!=seen['sequence'] or hashlib.sha256(canonical(value)).hexdigest()!=seen['payload_sha256']:raise UpdateError('update_downgrade')

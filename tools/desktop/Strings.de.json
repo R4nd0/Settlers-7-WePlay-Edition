@@ -457,5 +457,12 @@
   "phase_reshade_download": "Geprüfte Grafikkomponente wird heruntergeladen…",
   "settingsRecoveryField_unreadable": "unlesbare oder veränderte Einstellungsdateien",
   "settingsRecoveryField_detach_pending": "unterbrochene Neueinrichtung",
-  "settingsRecoveryManual": "Diese Dateien lassen sich nicht sicher zuordnen oder lesen. Eine manuelle Wiederherstellung ist erforderlich. Exportiere eine Diagnose und bewahre die vorhandenen Dateien für die Unterstützung auf; automatische Änderungen sind nicht verfügbar."
+  "settingsRecoveryManual": "Diese Dateien lassen sich nicht sicher zuordnen oder lesen. Eine manuelle Wiederherstellung ist erforderlich. Exportiere eine Diagnose und bewahre die vorhandenen Dateien für die Unterstützung auf; automatische Änderungen sind nicht verfügbar.",
+  "goldIntro": "Gold Edition: Kampagne und Scharmützel ohne Steam oder Ubisoft Connect. Grafik und Profil stellst du im Spiel ein.",
+  "gold_game_settings": "Die Einstellungen der Gold Edition werden im Spiel geändert.",
+  "gold_single_player_only": "Diese Gold-Ausgabe unterstützt derzeit Einzelspieler.",
+  "platform_isolation_required": "Die Plattformisolation fehlt oder würde entfernt. Die bisherige Kopie bleibt erhalten. Bitte das vollständige aktuelle Hauptpaket verwenden.",
+  "update_isolation_required": "Dieses Update sichert die Plattformisolation nicht zu und wurde abgewiesen. Deine aktuelle Installation bleibt erhalten.",
+  "goldSoloSummary": "Deine Gold-Partie auf diesem PC: Kampagne oder Scharmützel.",
+  "goldSoloFeatures": "Kampagne · Scharmützel"
 }
