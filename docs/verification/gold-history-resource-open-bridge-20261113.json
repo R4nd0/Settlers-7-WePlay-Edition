@@ -1,0 +1,85 @@
+{
+  "format": "weplay-gold-history-resource-open-bridge-v1",
+  "profiles": {
+    "gold": {
+      "normal": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "fallback": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "missing": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "directory": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      }
+    },
+    "ubisoft": {
+      "normal": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "fallback": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "missing": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "directory": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      }
+    },
+    "steam_analysis": {
+      "normal": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "fallback": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "missing": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      },
+      "directory": {
+        "direct_original_baseline": true,
+        "observed_and_unobserved_wrappers_equal": true
+      }
+    }
+  },
+  "cases": 36,
+  "compiled_fixture_sha256": "8c21226f9bfcd86520f1e59ebf045edf98b2d9234c11d6db4667c0c61d1c61a7",
+  "child_filesystems_and_error_apis_modeled": true,
+  "observer_installed_in_game": false,
+  "resources_read": false,
+  "world_permission": false,
+  "date": "2026-11-13",
+  "sources": {
+    "native/crossplay_resource_open_bridge.h": "982c31f46da542d86e1e79fc9fbd4390dcdd78bec697b6d67a05bf45f6a7bd71",
+    "native/crossplay_resource_open_bridge_tests.cpp": "b5c9f338fb7365a522e4862439ac60095ca99cd9069a7681ae4ec359895761b4",
+    "tools/gold/verify_resource_open_bridge.py": "27236648e03139aa13a94c337db26f224eaeeaafaed8aad4bdb61e9fb612316c"
+  },
+  "windows_fixture": {
+    "observation_off": true,
+    "observation_on_with_fp_and_error_clobber": true,
+    "actual_structured_observer_exception": true,
+    "original_forwarding_and_return_preserved": true
+  },
+  "qualification": {
+    "compiled_forwarding_abi": true,
+    "actual_runtime_observer": false,
+    "mounted_content_agreement": false,
+    "shared_world_started": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  }
+}
