@@ -127,3 +127,34 @@ actual Steam executable gameplay, content agreement, shared world start, NEO or
 mixed save/cold-reload.
 
 See the [reader and observer verification receipt](verification/gold-history-root-reader-20261113.json).
+
+## Bounded transfer of the original serialized bytes
+
+The guarded capture now retains an owned copy of the original enclosing stream,
+as well as its length and SHA-256. Every existing owner, raw-row, dynamic-rule,
+position and code check still runs before that copy becomes available. Failed
+captures clear the output, including previously retained bytes.
+
+`crossplay_setup_root_stream.h` adds an opt-in byte-transfer primitive for the
+existing authenticated channel. It divides at most 131,072 bytes into canonical
+16,384-byte chunks, each below the channel's 65,536-byte payload limit. Directional
+peer IDs, checkpoint revision, enclosing format, total length, exact next offset
+and expected SHA-256 bind every fragment. A receiver is bound to an independently
+supplied checkpoint descriptor; incoming fragment headers cannot establish that
+descriptor. Existing channel authentication and sequence checks remain required.
+
+The receiver exposes no partial bytes. It rejects gaps, duplicate/reordered
+fragments, altered headers, size mismatches and final hash mismatches, then
+permits one consumption of a complete stream. A failed or consumed receiver
+cannot be reused for another ownership interval. The focused fixture passes
+579 framing/hash checks, including both formats and the one-byte, chunk-boundary,
+actual-size-shaped, 65,536-byte and maximum-size cases. The amended capture and
+dependency fixture passes its 41 checks.
+
+A separately frozen diagnostic adapter now sends actual successful captures in
+both directions. It binds each receive to its own original capture, requires the
+original confirmed checkpoint and compares the received bytes with another fresh
+owner-guarded native capture. Both adapters compile and retain their ABI checks.
+This diagnostic has not yet been run in a live pair. It neither invokes a native
+setup reader nor supplies content permission, a start event, turns, NEO commands
+or save acknowledgements. Ordinary adapters do not include it.

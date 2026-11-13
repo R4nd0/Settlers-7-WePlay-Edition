@@ -11,6 +11,7 @@ struct Snapshot {
     CrossplayPreparationCapture::Snapshot preparation{};
     Crossplay::Digest dependencies{};
     CrossplayActiveSetupCapture::Row complete{};
+    std::vector<unsigned char> serialized;
 };
 inline uintptr_t ProfilePointer(Crossplay::Edition edition) {
     if(edition==Crossplay::Edition::Gold)return 0x10f835c;
@@ -54,7 +55,8 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>131072 || s.position!=s.length
         || s.capacity<s.length || visitor.flags || !Readable(s.bytes,s.length))return false;
     const auto* data=static_cast<const unsigned char*>(s.bytes);
-    if(!CrossplaySetupSignatureNative::Hash(std::vector<unsigned char>(data,data+s.length),captured.complete.digest))return false;
+    captured.serialized.assign(data,data+s.length);
+    if(!CrossplaySetupSignatureNative::Hash(captured.serialized,captured.complete.digest))return false;
     captured.complete.bytes=s.length;
     stage(414);Crossplay::Digest dependencies{},positions{},players{};CrossplaySetupCheckpoint::Snapshot owner{};
     if(*reinterpret_cast<const unsigned char* const*>(rules.manager)!=manager || manager[4]!=mode
@@ -67,6 +69,6 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
         || !CrossplayActiveSetupCapture::Detail::Dependencies(rows,profile.gold,players) || players!=captured.preparation.players.dependencies
         || !CrossplayPreparationCapture::Detail::Positions(rows,profile.gold,positions) || positions!=captured.preparation.positions
         || !CrossplaySetupRootWriter::Methods(edition,writer))return false;
-    captured.format_version=version;result=captured;stage(0);return true;
+    captured.format_version=version;result=std::move(captured);stage(0);return true;
 }
 }

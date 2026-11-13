@@ -80,9 +80,9 @@ int main() {
     Require(!bounded.Append(reinterpret_cast<const void*>(1),1),"dependency budget checked before memory access");
     CrossplayNative::ParticipantEvent binding;CrossplaySetupRootCapture::Snapshot result{};
     for(uint32_t version:{0u,3u,8u,UINT32_MAX}) {
-        result.format_version=1;result.complete.bytes=7;
+        result.format_version=1;result.complete.bytes=7;result.serialized={1,2,3};
         Require(!CrossplaySetupRootCapture::Capture(Crossplay::Edition::Gold,binding,{},true,result,version)
-            && !result.format_version && !result.complete.bytes,"unsupported enclosing format clears output before native calls");
+            && !result.format_version && !result.complete.bytes && result.serialized.empty(),"unsupported enclosing format clears output before native calls");
     }
     printf("PASS %u enclosing-rule dependency checks; no original writer, game or world start executed.\n",checks);
 }

@@ -1,0 +1,78 @@
+{
+  "format": "weplay-native-setup-root-stream-verification-v1",
+  "date": "2026-11-13",
+  "sources": {
+    "native/crossplay_setup_root_capture.h": "b65a032d62ac2661b3a56ae3992bb4aa570aa82b168323d8de12b8b7d442f8b7",
+    "native/crossplay_setup_root_dependencies_tests.cpp": "221c73e70ee919590ac3f3e98321439d0ec991cacc6633cb94d075f687583a38",
+    "native/crossplay_setup_root_stream.h": "e6a1158cc5dcbc37269c1dbc1125e1feda26346ce088fa75bb04988506a01eda",
+    "native/crossplay_setup_root_stream_tests.cpp": "f6cb18a64c34d9c7d3b72b9c6c6be0d9cdb09d0fcf2a28a6925fc3efe7a87a60",
+    "native/build_crossplay.ps1": "d766ce8b290bc400eee948dc9d29d26e565938ad05a6950139347a42adc75189"
+  },
+  "source_capture": {
+    "original_serialized_bytes_retained_in_owned_vector": true,
+    "existing_owner_method_row_position_and_rule_guards_preserved": true,
+    "failed_capture_clears_bytes": true,
+    "live_byte_output_qualified": false
+  },
+  "framing": {
+    "maximum_root_bytes": 131072,
+    "chunk_bytes": 16384,
+    "header_bytes": 92,
+    "channel_payload_limit": 65536,
+    "requires_existing_authenticated_sequenced_channel": true,
+    "descriptor_bound_independently_of_fragment_headers": true,
+    "formats": [
+      1,
+      2
+    ],
+    "directional_peer_ids": true,
+    "checkpoint_revision_bound": true,
+    "exact_order_and_lengths_required": true,
+    "complete_sha256_required": true,
+    "partial_output_exposed": false,
+    "single_consumption": true,
+    "native_reader_invoked": false
+  },
+  "synthetic_tests": {
+    "framing_and_sha256_checks_passed": 579,
+    "capture_dependency_checks_passed": 41,
+    "sizes": [
+      1,
+      16383,
+      16384,
+      16385,
+      33211,
+      65536,
+      131072
+    ],
+    "all_header_byte_mutations_rejected": true,
+    "payload_hash_mutation_rejected": true,
+    "duplicate_gap_wrong_direction_wrong_revision_short_and_trailing_frames_rejected": true,
+    "failed_and_consumed_intervals_cannot_rebind": true
+  },
+  "isolated_diagnostic": {
+    "source_proof_sha256": "38c1522bf8a9abff312cd8d190d7651b3854ae4857c1f896ad5c04cfeda3e916",
+    "build_proof_sha256": "1c4ca8af7f1d40450ae149e4c7e80a439a16cc0bdc694b51dafd9e4b0aa3ad24",
+    "pinned_source_files": 256,
+    "adapter_sha256": {
+      "gold": "a79a998345b97be80c31ab53a269aaf1d9a05b32c05636a0fa17126ddf13ed36",
+      "history": "45abe7e2fa3473f4ba840d370a2072e3e2f85d15218d3ee8f71f5b236d823d9a"
+    },
+    "both_builds_and_observer_abi_passed": true,
+    "send_actual_captures_both_directions_implemented": true,
+    "receive_binds_own_original_checkpoint_descriptor": true,
+    "complete_received_bytes_compared_with_fresh_native_capture": true,
+    "original_checkpoint_owner_and_lifetime_guards_retained": true,
+    "raw_payload_written_to_disk": false,
+    "live_pair_run": false
+  },
+  "qualification": {
+    "live_root_transfer": false,
+    "live_native_reader": false,
+    "complete_content_agreement": false,
+    "shared_world_start": false,
+    "synchronized_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  }
+}
