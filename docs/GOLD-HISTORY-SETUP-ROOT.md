@@ -265,3 +265,24 @@ ABI fixtures; it has not yet run. Its intended target is this independently
 constructed diagnostic object, with original writeback comparison and destruction.
 
 See the [owned lifetime receipt](verification/gold-history-root-owned-lifetime-20261113.json).
+
+## Reader coverage for the observed long allied lists
+
+`--populated-players --long-allies` adds four allied lists at slots 21 through
+24. Each contains 26 entries, including repeated zero after IDs 0 through 24.
+The original readers preserve every entry and linked-list relationship; the
+fixture never truncates or deduplicates them. This covers the longer container
+shape previously observed during actual enclosing capture, while using entirely
+synthetic values. Populated rules can be combined with these lists.
+
+Both new combinations and the four earlier regressions pass in all three
+original images for both formats: 36 positive cases and 72 truncated/trailing
+rejections. The combined long-list streams contain 24,429/24,433 bytes. Heap
+ownership checks account for 117 replaced initial player buffers, plus ten rule
+buffers when rules are enabled. The larger fixture has an explicit 450-allocation
+bound; ordinary fixture bounds remain unchanged. No native runtime guard or
+game memory threshold is relaxed by this offline fixture.
+
+These results still do not qualify every actual container shape, live setup
+application, world start, Gold NEO or mixed save/cold-reload. See the
+[long-list reader receipt](verification/gold-history-root-long-allies-reader-20261113.json).

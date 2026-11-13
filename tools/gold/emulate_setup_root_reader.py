@@ -27,19 +27,20 @@ class InputRejected(RuntimeError):
     pass
 
 
-def audit(image, version, input_case='complete', *, rule_vectors=False, populated_players=False):
+def audit(image, version, input_case='complete', *, rule_vectors=False, populated_players=False,long_allies=False):
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
     from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
         UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP, UC_X86_REG_EIP)
     if (version not in (1,2) or input_case not in ('complete','truncated','trailing')
-            or type(rule_vectors) is not bool or type(populated_players) is not bool):
+            or type(rule_vectors) is not bool or type(populated_players) is not bool
+            or type(long_allies) is not bool or long_allies and not populated_players):
         raise ValueError('Unsupported reader fixture')
     gold = image.label == 'gold'
     row_entry, stride, allocate, free = LAYOUTS[image.label]
     u = Uc(UC_ARCH_X86, UC_MODE_32)
     u.mem_map(image.base,(image.size+4095)&~4095);u.mem_write(image.base,image.mapped)
-    allocation_limit=260 if rule_vectors or populated_players else 180
-    u.mem_map(0,4096);u.mem_map(BASE,0xa0000 if allocation_limit==260 else 0x80000);u.mem_map(STACK,0x10000)
+    allocation_limit=450 if long_allies else 260 if rule_vectors or populated_players else 180
+    u.mem_map(0,4096);u.mem_map(BASE,0xc8000 if long_allies else 0xa0000 if allocation_limit==260 else 0x80000);u.mem_map(STACK,0x10000)
     cursor, allocation_count, phase = ARENA, 0, 'hash'
     allocations = {};initial_allocations={};initial_freed=set();mutable_initial=set();freed_allocations={}
     output = bytearray();input_wire = b'';position = 0
@@ -222,7 +223,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
         def read_owned(at,size):
             if not span(at,size):raise RuntimeError('Player fixture read outside live owned storage')
             return bytes(u.mem_read(at,size))
-        player_fixture=prepare_players(u,gold,ROWS,stride,owned,string,words,word,read_owned)
+        player_fixture=prepare_players(u,gold,ROWS,stride,owned,string,words,word,read_owned,long_allies=long_allies)
         mutable_initial.update(player_fixture['mutable_initial_blocks'])
     protected_initial={p:bytes(u.mem_read(p,n)) for p,n in initial_allocations.items() if p not in mutable_initial}
     original_rows=bytes(u.mem_read(ROWS,0x9094));original_root=bytes(u.mem_read(ROOT,0xa0))
@@ -285,7 +286,7 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
         rule_allocations.update(p for p in player_fixture['verify']() if p in allocations)
         for offset,length in player_fixture['normalized_ranges']:
             normalized[offset:offset+length]=original_rows[offset:offset+length]
-    if len(initial_freed)!=(10 if rule_vectors else 0)+(13 if populated_players else 0):
+    if len(initial_freed)!=(10 if rule_vectors else 0)+(13 if populated_players else 0)+(104 if long_allies else 0):
         raise RuntimeError('Original replacement buffer ownership')
     if (bytes(normalized)!=original_rows or len(set(vectors))!=25 or set(vectors)|rule_allocations!=set(allocations)
             or bytes(u.mem_read(ROOT,0xa0))!=original_root
@@ -314,8 +315,9 @@ def audit(image, version, input_case='complete', *, rule_vectors=False, populate
         'writer_storage_bytes':528,'source_victory_rules':2 if rule_vectors else 0,
         'decoded_victory_rules':1 if rule_vectors else 0,'sector_rules':2 if rule_vectors else 0,
         'sector_placements':4 if rule_vectors else 0,'freed_initial_rule_blocks':10 if rule_vectors else 0,
-        'freed_initial_player_blocks':13 if populated_players else 0,
+        'freed_initial_player_blocks':(13 if populated_players else 0)+(104 if long_allies else 0),
         'populated_player_containers_verified':populated_players,
+        'long_allies_lists_verified':4 if long_allies else 0,'entries_per_long_allies_list':26 if long_allies else 0,
         'live_reader_qualified':False,'world_permission':False}
 
 
@@ -324,7 +326,9 @@ def main():
     for label in PROFILES:parser.add_argument('--'+label.replace('_','-'),type=Path,required=True)
     parser.add_argument('--nonempty-rules',action='store_true')
     parser.add_argument('--populated-players',action='store_true')
+    parser.add_argument('--long-allies',action='store_true')
     parser.add_argument('output',type=Path);args=parser.parse_args()
+    if args.long_allies and not args.populated_players:parser.error('--long-allies requires --populated-players')
     root=Path(__file__).resolve().parents[2];out=args.output.resolve()
     if not out.is_relative_to((root/'work').resolve()) or out.exists() or not out.parent.is_dir():
         parser.error('Use a fresh output under repository work')
@@ -346,7 +350,7 @@ def main():
         del raw,pe
         for version in (1,2):
             cases[str(version)]={kind:audit(image,version,kind,rule_vectors=args.nonempty_rules,
-                populated_players=args.populated_players) for kind in ('complete','truncated','trailing')}
+                populated_players=args.populated_players,long_allies=args.long_allies) for kind in ('complete','truncated','trailing')}
         profiles[label]=cases;print(json.dumps({'profile':label,'cases':6,'passed':True}),flush=True)
         del image;gc.collect()
     for version in ('1','2'):
@@ -356,7 +360,8 @@ def main():
     result={'format':'native-setup-root-reader-baseline-v1','profiles':profiles,
         'fingerprints':{k:v[0] for k,v in PROFILES.items()},'positive_cases':6,'rejected_inputs':12,
         'crt_heap_and_stream_modeled':True,'populated_rule_vectors_tested':args.nonempty_rules,
-        'populated_player_containers_tested':args.populated_players,'live_reader_qualified':False,
+        'populated_player_containers_tested':args.populated_players,'long_allies_lists_tested':args.long_allies,
+        'live_reader_qualified':False,
         'game_process_started':False,'world_permission':False,'gold_neo_qualified':False,
         'mixed_save_coldreload_qualified':False}
     with out.open('x',encoding='utf-8') as file:json.dump(result,file,indent=2)

@@ -1,0 +1,435 @@
+{
+  "format": "weplay-gold-history-long-allies-reader-v1",
+  "date": "2026-11-13",
+  "sources": {
+    "tools/gold/emulate_setup_root_reader.py": "6f4436cfac4153465947b312265c89806b80630b74bacab677641f5ad94acf44",
+    "tools/gold/setup_root_reader_players.py": "eba7a561d9bfc31cb4991f953761c0c3fd96a10bef3fb4842cdb98d6d7035cb8",
+    "tools/gold/setup_root_reader_rules.py": "f90f71c860faa0ea67c8cb6a14292b798435360b754f305d47908d5ab97116b1",
+    "tools/gold/setup_rule_vectors.py": "61530a8f1f5057aa46fc9b8a736430bc467d26eea91707be4eaa4caaac394c45",
+    "tools/gold/emulate_active_players.py": "d0eabba82006d2689897a56cc5a79cf877d2534acb77141c259484ec00d430c9",
+    "tools/gold/emulate_event_payloads.py": "0f0c217580865670b4e95a7faff2c9465932cf11be3a52c81a5538a3fdd5a191"
+  },
+  "matrix": {
+    "baseline": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "reader_allocations": 125,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "reader_allocations": 125,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "reader_allocations": 100,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "reader_allocations": 100,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 23844,
+            "sha256": "bf79f4191d9b991b603bdaa95cc6848d10479130789f14f5db94baee42ee5273",
+            "reader_allocations": 100,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 23848,
+            "sha256": "f06cc24bc1fe6767a5783d395c648a4e2a876cddf5f050923d89d7884e6d2f11",
+            "reader_allocations": 100,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    },
+    "rules": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 24156,
+            "sha256": "ced501cb54a6ad3026318e1d74ac62f0d68e419987ecf4dd070d05ba2a0a5b5b",
+            "reader_allocations": 149,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24160,
+            "sha256": "98378ba79618c3cede99f79fb9526e5bd1f51c1e303ced43cd6cf3c9b6e883a6",
+            "reader_allocations": 149,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 24156,
+            "sha256": "ced501cb54a6ad3026318e1d74ac62f0d68e419987ecf4dd070d05ba2a0a5b5b",
+            "reader_allocations": 124,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24160,
+            "sha256": "98378ba79618c3cede99f79fb9526e5bd1f51c1e303ced43cd6cf3c9b6e883a6",
+            "reader_allocations": 124,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 24156,
+            "sha256": "ced501cb54a6ad3026318e1d74ac62f0d68e419987ecf4dd070d05ba2a0a5b5b",
+            "reader_allocations": 124,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24160,
+            "sha256": "98378ba79618c3cede99f79fb9526e5bd1f51c1e303ced43cd6cf3c9b6e883a6",
+            "reader_allocations": 124,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 0,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    },
+    "players": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 24013,
+            "sha256": "aa488ab177120dd4ef45843dea90d3097601b27f90f68c79ee215a6b06a8cbdc",
+            "reader_allocations": 139,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24017,
+            "sha256": "1005e0c48e68603c7226045233ae26e39b94bad2729da0e3d087b779feac4c7c",
+            "reader_allocations": 139,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 24013,
+            "sha256": "aa488ab177120dd4ef45843dea90d3097601b27f90f68c79ee215a6b06a8cbdc",
+            "reader_allocations": 114,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24017,
+            "sha256": "1005e0c48e68603c7226045233ae26e39b94bad2729da0e3d087b779feac4c7c",
+            "reader_allocations": 114,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 24013,
+            "sha256": "aa488ab177120dd4ef45843dea90d3097601b27f90f68c79ee215a6b06a8cbdc",
+            "reader_allocations": 114,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24017,
+            "sha256": "1005e0c48e68603c7226045233ae26e39b94bad2729da0e3d087b779feac4c7c",
+            "reader_allocations": 114,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    },
+    "combined": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 24325,
+            "sha256": "99c088a26f9b8e0d3e6551b413bfa37651c66649904dd3bfa9556a5088c1a86a",
+            "reader_allocations": 163,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24329,
+            "sha256": "6877c5180f773e329b596b81b9cc538b9eb4373bf822475f0d11102bac3ebb06",
+            "reader_allocations": 163,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 24325,
+            "sha256": "99c088a26f9b8e0d3e6551b413bfa37651c66649904dd3bfa9556a5088c1a86a",
+            "reader_allocations": 138,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24329,
+            "sha256": "6877c5180f773e329b596b81b9cc538b9eb4373bf822475f0d11102bac3ebb06",
+            "reader_allocations": 138,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 24325,
+            "sha256": "99c088a26f9b8e0d3e6551b413bfa37651c66649904dd3bfa9556a5088c1a86a",
+            "reader_allocations": 138,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24329,
+            "sha256": "6877c5180f773e329b596b81b9cc538b9eb4373bf822475f0d11102bac3ebb06",
+            "reader_allocations": 138,
+            "long_allies_lists_verified": 0,
+            "entries_per_long_allies_list": 0,
+            "freed_initial_player_blocks": 13,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    },
+    "players_long": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 24117,
+            "sha256": "2ac8fa3fdab533b401c2e0cd120013521be3dfb3700d30e14f56bee383b4872e",
+            "reader_allocations": 243,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24121,
+            "sha256": "309653e81dcf881699d48a6930b8df160e4531473a762288cdae63577501750e",
+            "reader_allocations": 243,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 24117,
+            "sha256": "2ac8fa3fdab533b401c2e0cd120013521be3dfb3700d30e14f56bee383b4872e",
+            "reader_allocations": 218,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24121,
+            "sha256": "309653e81dcf881699d48a6930b8df160e4531473a762288cdae63577501750e",
+            "reader_allocations": 218,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 24117,
+            "sha256": "2ac8fa3fdab533b401c2e0cd120013521be3dfb3700d30e14f56bee383b4872e",
+            "reader_allocations": 218,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24121,
+            "sha256": "309653e81dcf881699d48a6930b8df160e4531473a762288cdae63577501750e",
+            "reader_allocations": 218,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    },
+    "combined_long": {
+      "positive_cases": 6,
+      "truncated_or_trailing_rejections": 12,
+      "profiles": {
+        "gold": {
+          "1": {
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "reader_allocations": 267,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "reader_allocations": 267,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        },
+        "ubisoft": {
+          "1": {
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "reader_allocations": 242,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "reader_allocations": 242,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        },
+        "steam_analysis": {
+          "1": {
+            "bytes": 24429,
+            "sha256": "c69f8ca82f0876bdcb59ecb3534b709c22ae5cb77768a2bc3bd0293d4abc34ef",
+            "reader_allocations": 242,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          },
+          "2": {
+            "bytes": 24433,
+            "sha256": "37beb96b9a57d7434de755b00a6eeaaf195c7c98552f198e2051044ac2b06d03",
+            "reader_allocations": 242,
+            "long_allies_lists_verified": 4,
+            "entries_per_long_allies_list": 26,
+            "freed_initial_player_blocks": 117,
+            "original_write_read_write_equal": true
+          }
+        }
+      }
+    }
+  },
+  "positive_cases": 36,
+  "malformed_input_rejections": 72,
+  "long_allies_shape": {
+    "slots": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "lists": 4,
+    "entries_each": 26,
+    "values": "0 through24 followed by repeated0",
+    "deduplicated": false,
+    "list_links_and_values_independently_checked": true
+  },
+  "qualification": {
+    "original_read_write_roundtrip_on_synthetic_long_allies": true,
+    "all_actual_lobby_container_shapes": false,
+    "live_remote_setup_reader": false,
+    "actual_steam_executable_pair": false,
+    "complete_content_agreement": false,
+    "shared_world_started": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false
+  }
+}

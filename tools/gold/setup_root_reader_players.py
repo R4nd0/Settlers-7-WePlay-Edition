@@ -2,7 +2,7 @@
 import struct
 
 
-def prepare(u,gold,rows,stride,owned,string,words,word,read_owned):
+def prepare(u,gold,rows,stride,owned,string,words,word,read_owned,*,long_allies=False):
     mutable=set();masks=[];row=rows+stride
 
     def text(at,value):
@@ -40,6 +40,11 @@ def prepare(u,gold,rows,stride,owned,string,words,word,read_owned):
     vector(castle+(0x44 if gold else 0x3c),struct.pack('<2i',2,5))
     position_offsets=(0x9080,0x908c) if gold else (0x8dbc,0x8dc4)
     for off,values in zip(position_offsets,((0,1),(2,24))):linked(rows+off,values)
+    long_headers=[]
+    if long_allies:
+        for slot in (21,22,23,24):
+            header=rows+slot*stride+(0x56c if gold else 0x554)
+            linked(header,tuple(i%25 for i in range(26)));long_headers.append(header)
 
     def verify():
         reachable=set()
@@ -80,6 +85,7 @@ def prepare(u,gold,rows,stride,owned,string,words,word,read_owned):
         vec(castle+(0x34 if gold else 0x30),struct.pack('<2i',-1,0))
         vec(castle+(0x44 if gold else 0x3c),struct.pack('<2i',2,5))
         for off,values in zip(position_offsets,((0,1),(2,24))):lst(rows+off,values)
+        for header in long_headers:lst(header,tuple(i%25 for i in range(26)))
         return reachable
 
     return {'mutable_initial_blocks':mutable,'normalized_ranges':masks,'verify':verify}
