@@ -86,6 +86,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Passive resource-open bridge ABI fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_resource_open_bridge_tests.cpp') /Fe:crossplay_resource_open_bridge_runtime_tests.exe /link /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Relocatable resource-open bridge fixture build failed.' }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_fresh_start_barrier_tests.cpp') /Fe:crossplay_fresh_start_barrier_tests.exe /link /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'One-shot native fresh-start rendezvous test build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_preparation_capture_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_preparation_capture_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Whole-preparation dependency fixture build failed.' }
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $nativeSource 'crossplay_active_setup_capture_tests.cpp') (Join-Path $nativeSource 'crossplay_participant.cpp') /Fe:crossplay_active_setup_capture_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"

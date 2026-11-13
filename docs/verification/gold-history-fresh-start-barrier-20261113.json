@@ -1,0 +1,58 @@
+{
+  "format": "weplay-native-fresh-start-barrier-v1",
+  "date": "2026-11-13",
+  "scope": "opt-in diagnostic native-start rendezvous, not content compatibility or a running mixed world",
+  "protocol": {
+    "original_fresh_event_bytes": 21,
+    "authenticated_start_frame_bytes": 97,
+    "ready_receipt_bytes": 112,
+    "queue_receipt_bytes": 112,
+    "lifetime_ms": 10000,
+    "setup_digest_and_actual_content_contract_bound": true,
+    "host_waits_for_guest_original_local_send_return": true,
+    "no_native_retry_after_attempt": true,
+    "only_admitted_host_cid_projected": true,
+    "native_async_and_empty_fresh_save_preserved": true,
+    "queue_receipt_is_not_ready_or_world_acknowledgement": true
+  },
+  "compiled_fixture": {
+    "compiler": "MSVC x86 C++17 /W4 /WX",
+    "fixed_and_relocatable_builds_passed": true,
+    "windows_runtime_fixture_passed": true,
+    "all_single_byte_ready_receipt_mutations_rejected": 112,
+    "all_single_byte_queue_receipt_mutations_rejected": 112,
+    "all_single_byte_start_frame_mutations_rejected": 97,
+    "replay_failure_wrong_phase_missing_contract_backward_and_expired_time_excluded": true,
+    "fixture_sha256": "2a03b6f68f9ca73bdf93d4298bb4161060e15b3ab86592df0999f3bf4a7a1a4c",
+    "source_sha256": {
+      "native/crossplay_fresh_start_barrier.h": "909d37edaef1223ebd9386e48176a16b0ba7da0845721b708f10c3fc0742ee7a",
+      "native/crossplay_fresh_start_barrier_tests.cpp": "c7ae3ef76baa7130a699a2a9f8c2bad3f1b9f6f6c6773816f2b3dadee791af02"
+    }
+  },
+  "private_diagnostic_builds": {
+    "gold_adapter_sha256": "0b29bbac41eac7b2d10e68821b4762af99853af6fc8ff5d7bb7ac827479aebc6",
+    "original_steam_adapter_sha256": "99b2b2f157935818dffd05e0f66f82c80db9873935d677da4508c809470e208b",
+    "both_compile_and_original_forwarding_abi_passed": true,
+    "original_steam_image_checks_passed": 11,
+    "original_steam_ordinary_host_load_rejected": true,
+    "original_executable_and_kernel_isolation_guards_retained": true,
+    "known_content_differences_retained": true,
+    "synthetic_lobby_content_constant_excluded_from_start_probe": true
+  },
+  "live_attempt": {
+    "preflight_rejected_low_physical_memory": true,
+    "game_started": false,
+    "adapter_deployed": false,
+    "test_copy_or_profile_changed": false
+  },
+  "qualification": {
+    "protocol_fixture": true,
+    "original_native_start_event_delivered_in_game": false,
+    "mounted_content_compatibility": false,
+    "shared_world_started": false,
+    "synchronized_mixed_turns": false,
+    "gold_neo": false,
+    "mixed_save_coldreload": false,
+    "release_adapters_changed": false
+  }
+}

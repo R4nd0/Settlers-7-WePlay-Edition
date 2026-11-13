@@ -34,4 +34,9 @@ replace a mounted-content fingerprint. In particular, Gold's additional explicit
 load of the otherwise identical `global/start.lua` remains an unresolved startup
 difference. These results do not qualify shared world, Gold NEO or mixed reload.
 
+A separate opt-in [fresh-start rendezvous](GOLD-HISTORY-FRESH-START.md) now provides
+the one-shot diagnostic start protocol. Its actual input-variant contract retains
+known differences; it does not substitute for mounted-content agreement or prove
+that either world loaded. Native checksum and error handling remain required.
+
 See the [forwarding ABI receipt](verification/gold-history-resource-open-bridge-20261113.json).
