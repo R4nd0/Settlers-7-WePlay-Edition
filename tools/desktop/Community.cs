@@ -7,6 +7,13 @@ internal static class Community
 {
     public const string DiscordCode = "j2eQgVzssc";
     public const string DiscordUrl = "https://discord.gg/" + DiscordCode;
+    public const string CoffeeUrl = "https://buymeacoffee.com/kingfredo";
+    public static void OpenCoffee()
+    {
+        try { Process.Start(new ProcessStartInfo(CoffeeUrl) { UseShellExecute=true }); }
+        catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        { throw new BackendError("coffeeOpenFailed", ""); }
+    }
     public static void OpenDiscord()
     {
         try { Process.Start(new ProcessStartInfo(DiscordUrl) { UseShellExecute=true }); }

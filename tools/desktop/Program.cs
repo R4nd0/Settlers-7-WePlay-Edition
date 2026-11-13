@@ -253,23 +253,33 @@ internal sealed partial class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(22,2,22,2),ColumnCount=3,RowCount=2 };
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 50, Padding = new Padding(22,2,22,2),ColumnCount=4,RowCount=2 };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
             Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
         Bind(discordLink,"discordOpen");discordLink.LinkClicked+=(_,_)=>
         {try{Community.OpenDiscord();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
+        var coffeeLink=new LinkLabel { Text="Buy me a coffee",AutoSize=true,Dock=DockStyle.Fill,
+            TextAlign=ContentAlignment.MiddleLeft,Image=coffeeSymbol,ImageAlign=ContentAlignment.MiddleLeft,
+            Padding=new Padding(30,4,10,4),Margin=new Padding(16,3,0,3),BackColor=Color.FromArgb(255,221,0),
+            LinkColor=Color.FromArgb(13,12,34),ActiveLinkColor=Color.FromArgb(13,12,34),
+            VisitedLinkColor=Color.FromArgb(13,12,34),AccessibleDescription=Community.CoffeeUrl };
+        coffeeLink.LinkClicked+=(_,_)=>
+        {try{Community.OpenCoffee();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
         globalUpdateLink=new LinkLabel { AutoSize=true,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,Padding=new Padding(12,0,0,0),Visible=false };
         globalUpdateLink.LinkClicked+=async (_,_)=>await Guard(InstallUpdate);
-        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,3);
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,4);
         footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordLink,2,1);
+        footer.Controls.Add(coffeeLink,3,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton=Button("install",InstallGame,true);
         cancelButton=new Button {AutoSize=true,MinimumSize=new Size(150,38)};Bind(cancelButton,"cancel");cancelButton.Visible=false;
         cancelButton.Click+=(_,_)=>RequestCancellation();
         BuildSetup(); BuildTabs(); BuildSettingsRecovery();
+        ConfigureDiscordSymbols(this,discordSymbol);
         tabs.SelectedIndexChanged += (_,_) => { if(IsHandleCreated) BeginInvoke((Action)FitMenuHeight); };
         ResizeBegin += (_,_) => automaticMenuHeight=false;
         tabs.Visible=false;
@@ -289,7 +299,7 @@ internal sealed partial class MainForm : Form
                 if(accepted&&!IsDisposed){closeDraftApproved=true;Close();}
             }
         };
-        FormClosed += (_,_) => { tray.Dispose(); };
+        FormClosed += (_,_) => { tray.Dispose();discordSymbol.Dispose();coffeeSymbol.Dispose(); };
         Shown += async (_,_) => { if (!testing) await Initialise(); };
         Load += (_,_) =>
         {
@@ -874,6 +884,7 @@ internal sealed partial class MainForm : Form
         var accept=new Button {Text=Lang.T("discordConnect"),Left=410,Top=226,Width=220,Height=38,DialogResult=DialogResult.OK};
         var cancel=new Button {Text=Lang.T("cancel"),Left=250,Top=226,Width=150,Height=38,DialogResult=DialogResult.Cancel};
         dialog.Controls.AddRange([explanation,code,accept,cancel]);dialog.AcceptButton=accept;dialog.CancelButton=cancel;
+        ConfigureDiscordSymbols(dialog,discordSymbol);
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         string secret=code.Text;code.Clear();using var channel=new InternetChannel();
         Task pump=channel.Run(secret,_=>{});secret="";

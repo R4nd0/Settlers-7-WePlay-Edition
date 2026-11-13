@@ -21,5 +21,6 @@
     <EmbeddedResource Include="../../assets/branding/weplay.ico" LogicalName="WePlay.Icon.ico" />
     <EmbeddedResource Include="../../assets/integrations/easytier.png" LogicalName="WePlay.EasyTier.png" />
     <EmbeddedResource Include="../../assets/integrations/discord.png" LogicalName="WePlay.Discord.png" />
+    <EmbeddedResource Include="../../assets/integrations/buy-me-a-coffee.png" LogicalName="WePlay.Coffee.png" />
   </ItemGroup>
 </Project>

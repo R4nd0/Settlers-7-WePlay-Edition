@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-13",
+  "scope": "Windows launcher community and support branding",
+  "changes": {
+    "support_url": "https://buymeacoffee.com/kingfredo",
+    "support_placement": "Persistent bottom-right footer link with embedded Buy Me a Coffee cup symbol",
+    "discord": "Embedded Discord symbol alongside translated labels, links, buttons, checkboxes and changing status text that mention Discord; includes connection and Internet consent dialogs",
+    "assets": "Brand symbols retain their proportions; no runtime image download"
+  },
+  "validation": {
+    "release_build": "PASS: net10.0-windows, zero warnings and errors",
+    "launcher_self_test": "PASS: 37 existing checks, English and German, 74 rendered screenshots",
+    "runtime": "Local bundled .NET and Windows Desktop 10.0.13. Only the ignored test output runtimeconfig was adjusted; the project retains its release runtime pin of 10.0.15.",
+    "visual_review": [
+      "English and German footer links fit the minimum 880x620 window",
+      "Multiline Discord labels have a reserved icon gutter without text overlap",
+      "Public lobby publishing controls retain readable labels and checkbox alignment",
+      "Help and community actions display the Discord symbol beside their text"
+    ],
+    "diff_check": "PASS"
+  },
+  "limits": [
+    "Offline UI fixtures; no game or multiplayer qualification",
+    "External browser and payment flows were not exercised"
+  ]
+}

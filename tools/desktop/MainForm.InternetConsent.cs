@@ -31,6 +31,8 @@ internal sealed partial class MainForm
         choice.CheckedChanged+=(_,_)=>connect.Enabled=choice.Checked;
         layout.Controls.Add(body,0,0);layout.Controls.Add(choice,0,1);layout.Controls.Add(buttons,0,2);
         dialog.Controls.Add(layout);dialog.CancelButton=cancel;dialog.AcceptButton=connect;
+        var symbol=CommunitySymbol("WePlay.Discord.png");
+        ConfigureDiscordSymbols(dialog,symbol);dialog.Disposed+=(_,_)=>symbol.Dispose();
         dialog.Shown+=(_,_)=>cancel.Focus();
         return (dialog,choice,connect);
     }
