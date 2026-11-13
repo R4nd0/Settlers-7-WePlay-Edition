@@ -132,6 +132,31 @@ changing its checks or native call order. Both diagnostic builds pass compiler
 and ABI checks; their next native test remains pending. The seventh run again
 ended normally on both clients with complete restoration and no shared turns.
 
+Two subsequent runs isolated that rejection to the guest-presentation gate,
+before Ready application. Source inspection identified a circular dependency:
+receiving the final closed configuration cleared `config_received` until all
+slot and Ready fields matched, while Ready application required that same flag
+to be set. The private correction admits Ready application during that one
+authenticated pending closed-configuration transaction, using the original
+owner/session/cache/map/deadline checks and original guest-preparation predicate.
+It never marks the final configuration complete. Original Ready constructors,
+consumers, closed-slot checks and full final configuration agreement remain in
+place. Sixteen extracted-method lifecycle checks pass.
+
+The next original Steam History/Gold run verified this correction: both native
+Ready/cache consumers, both closed-slot consumers and the final configuration
+postcondition completed. Both original local world-start calls returned. Gold's
+20 load-progress events and History's 27 were received with matching sequences
+and scalar bits, ending at the native 1.0 value. One original Gold EOT batch and
+two original History EOT batches were delivered in both directions with matching
+opaque-scalar fingerprints. These fingerprints do not establish equal native
+simulation checksums. History's original counter stayed at turn 1 / 200 ms;
+a PID/path/hash-guarded read of Gold's native clock found turn 0, unpaused.
+Thus advancing common turns remain unqualified. The broker finished with 86
+relays and one rejection whose cause has not yet been isolated. Both games exited
+normally with code zero and all restoration checks passed. Ubisoft History still
+needs the corresponding native pair test; NEO and mixed save/reload remain unqualified.
+
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
 barrier and execute actual advancing simulation turns. Matching delivered EOT
