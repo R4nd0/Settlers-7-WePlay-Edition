@@ -3,9 +3,9 @@
 The opt-in laboratory driver stages automatic session creation and original
 Ready/Start controls for Gold and both History data sources. Ordinary launchers
 do not enable it; only explicit laboratory archive staging installs its callbacks.
-Automatic browser entry and normal timed
-exit have been observed in original Steam History under DXVK. Automatic session
-creation, shared world entry and mixed gameplay remain unqualified.
+Automatic browser entry, native session creation and normal timed exit have
+been observed in original Steam History under DXVK without human input.
+Automatic Gold creation, shared world entry and mixed gameplay remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -18,7 +18,9 @@ Map discovery also runs inside that reentry guard. It retains the original
 map browser's literal `GetSkirmishMaps(true)` call in all three editions,
 without reading a separate global release flag. A missing global is covered by
 the Lua test. This corrects a difference from the earlier experimental driver;
-its contribution to the observed native stall remains to be verified.
+The corrected candidate subsequently completed native Steam History creation;
+the individual contributions of the frame owner and discovery corrections have
+not been isolated in separate native experiments.
 
 Unlike the older unqualified `native_lobby_driver.lua`, this candidate does
 not wrap native jobs in `pcall` or `xpcall`. The Lua 5.1 suspension test exercises
@@ -44,7 +46,7 @@ individual menu updates. The archive declares its registration function before
 script protection and preserves the original frame callback. Original menu
 updates run first; the registered driver runs afterward without a protected
 Lua call boundary. A normal exit request prevents new native work. The frame
-owner's native-game follow-up is still pending.
+owner was exercised by the successful native Steam History creation run below.
 
 `tools/gold/pair_interface.py` only stages new archives from three exact input
 fingerprints: the quiet Gold interface and the separately prepared Steam and
@@ -73,7 +75,20 @@ local profile/runtime files and interface; App and shared saves/profiles were
 unchanged. Gold was never launched. Native metadata confirmed the global frame
 watchdog was running, but the older menu-owned driver's last phase remained
 `browser-requested`. The independent frame owner above addresses that update
-dependency as a new candidate; its actual continuation still needs testing.
+dependency.
+
+A fourth original Steam History run with the independent frame owner and
+corrected discovery call completed `map-discovery`, `map-loading`,
+`session-creating` and `created`, and wrote the native preparation receipt.
+Its original creation call returned success; the driver did not supply that
+result. The game exited normally with code zero and all restoration checks
+passed. Gold was not launched. The History ownership receipt appeared about
+207 seconds after the pair controller's startup checkpoint, beyond its old
+180-second prelaunch budget. The controller's original exception was not retained,
+so this timing identifies an exceeded budget without proving the lost exception.
+The next private runner allows 600 seconds for ownership and records durable
+controller/launcher phases, including preflight. The in-game 180-second normal
+exit watchdog and native acceptance guards remain unchanged.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
