@@ -59,7 +59,7 @@ local function tick()
         for _, path in _G.ipairs(G.MapSetup.GetSkirmishMaps(true)) do
             local data = G.MapSetup.GetMapDataByFilename(path)
             if _G.type(data) == "table" and _G.type(data.Name) == "string"
-                and data.Name:lower():find("monhaim",1,true) and not data.Locked then
+                and data.Name:lower():find(options.map_token or "monhaim",1,true) and not data.Locked then
                 if selected or _G.type(data.MapPath) ~= "string" or data.MapPath == "" then
                     busy = false; change("failed-map-ambiguous"); return
                 end
@@ -97,7 +97,18 @@ local function tick()
     if not G.Network.SessionIsInSession() then return end
     if options.host then
         if startRequested or State.currentPageModule ~= Pages.Host or not Pages.Host.isCreated()
-            or not G.Network.IsHost() or not Pages.Host.weplayCanAutoStart() then return end
+            or not G.Network.IsHost() then return end
+        if options.configure_ai then
+            -- Fresh maps can initially assign an AI to the future guest slot.
+            -- Wait for the original lobby to observe the other human first.
+            if not Pages.Host.weplayCanConfigureAI() then waiting("human-before-ai");return end
+            if not options.configure_ai() then
+                if options.ai_state()=="failed" then change("failed-ai-roster")
+                else waiting("ai-roster") end
+                return
+            end
+        end
+        if not Pages.Host.weplayCanAutoStart() then return end
         -- Latch before invoking the original button callback, which can yield.
         startRequested, busy = true, true
         change("start-requested")

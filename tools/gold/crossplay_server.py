@@ -179,6 +179,13 @@ class CrossplayBroker:
                 sock, address = self.listener.accept()
                 if len(self.connections) >= 16 or self.retired or address[0] not in ('127.0.0.2', '127.0.0.3'):
                     sock.close(); self.rejections += 1; continue
+                try:
+                    sock.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
+                    if sock.getsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY)!=1:
+                        raise OSError('TCP low-latency option not applied')
+                except OSError:
+                    sock.close()
+                    raise
                 sock.setblocking(False)
                 connection = Connection(sock, address[0], time.monotonic())
                 self.connections[sock] = connection

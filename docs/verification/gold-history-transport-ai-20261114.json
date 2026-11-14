@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-14",
+  "scope": "opt-in transport and AI preparation; not full crossplay qualification",
+  "native_channel_synthetic_loopback_scenarios": 20,
+  "gateway_tests_real_loopback_and_mocked_tunnel": 15,
+  "easytier_configuration_tests": 18,
+  "lua51_ai_helper_tests": 11,
+  "lua51_pair_driver_tests": 18,
+  "windows_unconnected_socket_interface_readback_passed": true,
+  "actual_dxvk_gold_steam_nodelay_pair": {
+    "matching_original_crc_count": 1366,
+    "first_finished_turn": 0,
+    "last_finished_turn": 1365,
+    "crc_mismatches": 0,
+    "original_build_commands_sent_and_delivered": 2,
+    "original_road_commands_sent_and_delivered": 2,
+    "both_original_scheduler_duration_ms": 5,
+    "both_normal_exit0": true,
+    "all_profiles_archives_adapters_restored": true,
+    "preexisting_save_replaced": false,
+    "effective_x20_qualified": false
+  },
+  "actual_monhaim_metadata": {
+    "slots": 4,
+    "open_enum": 1,
+    "closed_enum": 2,
+    "cpu_enum": 4,
+    "ai_profile_value_type": "number",
+    "ai_profile_count": 9
+  },
+  "four_player_world_qualified": false,
+  "actual_easytier_game_qualified": false,
+  "neo_qualified": false,
+  "mixed_save_reload_qualified": false,
+  "ordinary_launcher_or_release_package_changed": false
+}

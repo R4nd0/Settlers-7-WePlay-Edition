@@ -22,6 +22,33 @@ def row(ip, cost='p2p', name='Guest'):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_crossplay_tcp_is_opt_in_and_only_targets_coordinator(self):
+        for address in (ROOM.coordinator,'10.203.77.2'):
+            ordinary=tomllib.loads(runtime.configuration(ROOM,address,'id','WePlay-id'))
+            candidate=tomllib.loads(runtime.configuration(ROOM,address,'id','WePlay-id',crossplay=True))
+            self.assertNotIn('9113',json.dumps(ordinary))
+            self.assertEqual(candidate['flags'],ordinary['flags'])
+            self.assertTrue(candidate['flags']['enable_encryption'])
+            self.assertEqual(candidate['flags']['encryption_algorithm'],'aes-gcm')
+            chains=candidate['acl']['acl_v1']['chains']
+            inbound=next(c for c in chains if c['chain_type']==1)
+            rules=[r for r in inbound['rules'] if r['protocol']==1]
+            self.assertEqual(bool(rules),address==ROOM.coordinator)
+            for rule in rules:
+                self.assertEqual(set(rule['ports']),{'9110','9113'})
+                self.assertEqual(rule['destination_ips'],[ROOM.coordinator+'/32'])
+            outbound=next(c for c in chains if c['chain_type']==2)
+            requests=[r for r in outbound['rules'] if r['protocol']==1 and 'ports' in r]
+            self.assertEqual(len(requests),1)
+            self.assertEqual(requests[0]['destination_ips'],[ROOM.coordinator+'/32'])
+            self.assertEqual(set(requests[0]['ports']),{'9110','9113'})
+            self.assertNotIn('rules',next(c for c in chains if c['chain_type']==3))
+
+    def test_crossplay_flag_cannot_be_accidentally_enabled_by_truthy_string(self):
+        for value in ('false',1,None):
+            with self.assertRaises(InternetError):runtime.configuration(ROOM,ROOM.coordinator,'id','name',crossplay=value)
+            with self.assertRaises(InternetError):runtime.EasyTier(Path('.'),ROOM,host=True,crossplay=value)
+
     def test_connector_requires_exact_bootstrap_and_established_handshake(self):
         def connector(status=0, url=PUBLIC_BOOTSTRAP):
             return dict(url=dict(url=url), status=status)

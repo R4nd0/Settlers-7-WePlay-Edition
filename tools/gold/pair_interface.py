@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -39,6 +40,7 @@ WATCHDOG = HERE / 'pair_watchdog.lua'
 FRAME_LOOP = HERE / 'pair_frame_loop.lua'
 CONSTRUCTION_PROBE = HERE / 'pair_construction_probe.lua'
 PACING = HERE / 'pair_pacing.lua'
+AI_ROSTER = HERE / 'pair_ai_roster.lua'
 BROWSER_GUARD = '''
 function a.weplayCanAutoCreate()
  return l.frame~=nil and l.lastDiscoveryFinished==true and l.sessionListState==r.idle
@@ -55,7 +57,8 @@ def insert(raw, decode, anchor, fragment, after=False):
     return (source[:offset] + fragment + source[offset:]).encode('utf-8')
 
 
-def build(raw, edition, duration=180000, construction_probe=False, speed=1):
+def build(raw, edition, duration=180000, construction_probe=False, speed=1,
+          map_token='monhaim', ai_players=0, ai_difficulty=2):
     if edition not in PINS or hashlib.sha256(raw).hexdigest() != PINS[edition]:
         raise ValueError('Unrecognized automation input archive')
     if not isinstance(duration, int) or not 15000 <= duration <= 600000:
@@ -64,6 +67,12 @@ def build(raw, edition, duration=180000, construction_probe=False, speed=1):
         raise ValueError('Construction probe must be explicitly enabled or disabled')
     if type(speed) is not int or speed not in (1,20):
         raise ValueError('Laboratory speed must be 1 or 20')
+    if not isinstance(map_token,str) or not re.fullmatch(r'[a-z0-9_ -]{1,48}',map_token) or not map_token.strip():
+        raise ValueError('Expected a bounded lowercase laboratory map token')
+    if type(ai_players) is not int or ai_players not in (0,2):
+        raise ValueError('Laboratory AI roster must be disabled or contain two AIs')
+    if type(ai_difficulty) is not int or ai_difficulty not in (0,1,2):
+        raise ValueError('Expected original easy/normal/hard AI difficulty')
     decode = gold_decode if edition == 'gold' else history.decoded_view
     archive = Archive(raw)
     gold = 'true' if edition == 'gold' else 'false'
@@ -73,6 +82,18 @@ def build(raw, edition, duration=180000, construction_probe=False, speed=1):
         browser_guard = browser_guard.replace('function a.', 'function f.').replace('==r.idle', '==h.idle')
         browser_anchor = 'function f.notifyDiscoveryEnded()'
     driver = DRIVER.read_text(encoding='utf-8')
+    options = ('local weplayPairOptions={gold='+gold+',host='+gold+',duration='+str(duration)
+               +',map_token='+json.dumps(map_token)+',ai_players='+str(ai_players)+'}\n')
+    if ai_players == 2 and edition == 'gold':
+        options += '''
+local weplayPairAI=(function(...)
+''' + AI_ROSTER.read_text(encoding='utf-8') + '''
+end)(e,{difficulty='''+str(ai_difficulty)+'''},function(phase)
+ e.UI.WriteToConsole("WEPLAY_PAIR_OBSERVATION_V1 ai_roster="..phase)
+end)
+weplayPairOptions.configure_ai=weplayPairAI.tick
+weplayPairOptions.ai_state=weplayPairAI.state
+'''
     main = '''
 if not l.weplayPairDriver then
  local function page(name) return e.require("local.menu.panel.menu."..name) end
@@ -87,9 +108,10 @@ if not l.weplayPairDriver then
   elseif action.actionType==kinds.toHostLobby then callbacks.toHostLobby(action.data)
   else _G.error("Unknown pair automation action") end
  end
+''' + options + '''
  l.weplayPairDriver=(function(...)
 ''' + driver + '''
- end)(e,l,pages,transition,kinds,{gold=''' + gold + ',host=' + gold + ',duration=' + str(duration) + '''},
+ end)(e,l,pages,transition,kinds,weplayPairOptions,
   function(phase)
    e.UI.WriteToConsole("WEPLAY_PAIR_OBSERVATION_V1 driver_phase="..phase)
    if phase:sub(1,8)=="waiting-" then
@@ -100,6 +122,10 @@ if not l.weplayPairDriver then
 end
 '''
     host = '''
+function d.weplayCanConfigureAI()
+ return e.frame~=nil and n.Network.SessionIsInSession()
+  and n.Network.IsHost() and e.otherHumanInSession==true
+end
 function d.weplayCanAutoStart()
  return e.frame~=nil and e.startButton~=nil and n.Network.SessionIsInSession()
   and n.Network.IsHost() and e.otherHumanInSession==true
@@ -206,6 +232,9 @@ end
         'duration_ms': duration, 'changed_members': list(changes),
         'requested_speed': speed,
         'pacing_sha256': (hashlib.sha256(PACING.read_bytes()).hexdigest() if speed==20 else None),
+        'map_token': map_token, 'ai_players': ai_players, 'ai_difficulty': ai_difficulty,
+        'ai_roster_sha256': (hashlib.sha256(AI_ROSTER.read_bytes()).hexdigest()
+            if ai_players==2 and edition=='gold' else None),
         'construction_probe': construction_probe,
         'construction_probe_sha256': (hashlib.sha256(CONSTRUCTION_PROBE.read_bytes()).hexdigest()
             if construction_probe else None),
@@ -224,11 +253,16 @@ def main():
         help='Lab only: submit normal storehouse/street commands for both players')
     parser.add_argument('--speed', type=int, choices=(1,20), default=1,
         help='Lab only: request original x20 native turn pacing')
+    parser.add_argument('--map-token', default='monhaim',
+        help='Lab only: require one uniquely matching installed unlocked map')
+    parser.add_argument('--ai-players', type=int, choices=(0,2), default=0,
+        help='Lab only: prepare slots3/4 through original host AI-chooser APIs')
+    parser.add_argument('--ai-difficulty', type=int, choices=(0,1,2), default=2)
     args = parser.parse_args()
     if args.output.exists():
         parser.error('Output directory must not exist')
     data, receipt = build(args.source.read_bytes(), args.edition, args.duration_ms,
-        args.construction_probe, args.speed)
+        args.construction_probe, args.speed,args.map_token,args.ai_players,args.ai_difficulty)
     args.output.mkdir(parents=True)
     (args.output / 'Interface.bba').write_bytes(data)
     (args.output / 'receipt.private.json').write_text(json.dumps(receipt, indent=2)+'\n', encoding='utf-8')

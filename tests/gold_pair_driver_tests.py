@@ -18,6 +18,7 @@ C.Pages.Browser.weplayCanAutoCreate=function()return C.browserReady end
 C.State={currentPageModule=C.Pages.Browser,actionManager={createCallbacks=function()
     return {shutdown=function()C.closes=C.closes+1 end}end}}
 C.Pages.Host.weplayCanAutoStart=function()return C.canStart==true end
+C.Pages.Host.weplayCanConfigureAI=function()return C.otherHuman~=false end
 C.Pages.Host.weplayAutoStart=function()C.starts=C.starts+1;if C.yieldStart then coroutine.yield('start')end end
 C.Pages.Guest.weplayCanAutoReady=function()return C.canReady==true end
 C.Pages.Guest.weplayAutoReady=function()C.readies=C.readies+1;if C.yieldReady then coroutine.yield('ready')end end
@@ -175,6 +176,42 @@ class PairDriverTests(unittest.TestCase):
     def test_deadline_requests_original_shutdown_only_once_even_after_failure(self):
         self.c.success=False; self.driver.tick(); self.c.now=90000
         self.driver.tick(); self.driver.tick(); self.assertEqual(self.c.closes, 1)
+
+    def test_requested_map_uses_original_unique_unlocked_discovery_and_loaded_path(self):
+        self.c.options.map_token='grassland'
+        self.c.maps=self.lua.table_from(['Map/GrasslandMesa'])
+        self.c.current='Map/GrasslandMesa'
+        self.c.G.MapSetup.GetMapDataByFilename=self.lua.eval(
+            'function(p)return {Name="Grassland Mesa",MapPath=p,Locked=false}end')
+        self.driver.tick()
+        self.assertEqual((self.c.loads,self.c.creates),(1,1))
+        self.assertEqual(self.c.args[1],'Map/GrasslandMesa')
+
+    def test_host_waits_for_observed_ai_configuration_before_original_start_guard(self):
+        self.prepare_lobby(True);self.c.canStart=True
+        self.lua.execute('''local C=...;C.aiCalls=0;C.aiDone=false
+ C.options.configure_ai=function()C.aiCalls=C.aiCalls+1;return C.aiDone end
+ C.options.ai_state=function()return 'requested' end''',self.c)
+        self.driver.tick();self.assertEqual(self.c.starts,0)
+        self.c.aiDone=True;self.driver.tick();self.driver.tick()
+        self.assertEqual(self.c.starts,1);self.assertEqual(self.c.aiCalls,2)
+
+    def test_failed_ai_preparation_never_starts_even_if_original_control_is_enabled(self):
+        self.prepare_lobby(True);self.c.canStart=True
+        self.lua.execute('''local C=...;C.options.configure_ai=function()return false end
+ C.options.ai_state=function()return 'failed' end''',self.c)
+        self.driver.tick();self.driver.tick()
+        self.assertEqual(self.driver.state(),'failed-ai-roster');self.assertEqual(self.c.starts,0)
+
+    def test_ai_preparation_waits_for_original_lobby_human_observation(self):
+        self.prepare_lobby(True);self.c.canStart=True;self.c.otherHuman=False
+        self.lua.execute('''local C=...;C.aiCalls=0
+ C.options.configure_ai=function()C.aiCalls=C.aiCalls+1;return true end
+ C.options.ai_state=function()return 'configured' end''',self.c)
+        for _ in range(5):self.driver.tick()
+        self.assertEqual((self.c.aiCalls,self.c.starts),(0,0))
+        self.c.otherHuman=True;self.driver.tick()
+        self.assertEqual((self.c.aiCalls,self.c.starts),(1,1))
 
 
 if __name__ == '__main__': unittest.main()

@@ -58,6 +58,13 @@ class BrokerTests(unittest.TestCase):
         self.assertFalse(self.broker.members)
         self.assertFalse(self.broker.retired)
 
+    def test_accepted_stream_disables_tcp_batching_without_authenticating_peer(self):
+        self.client(1)
+        self.assertEqual(len(self.broker.connections),1)
+        connection=next(iter(self.broker.connections.values()))
+        self.assertEqual(connection.sock.getsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY),1)
+        self.assertFalse(connection.authenticated);self.assertFalse(self.broker.members)
+
     def test_authenticated_profile_cannot_be_changed(self):
         body = self.hello(1)
         self.rejected(self.client(1), self.frame(1, body=body[:-16]+bytes((43,))+bytes(15)))

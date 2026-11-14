@@ -177,6 +177,12 @@ bool Channel::Start(const Config& config) {
     if(BCryptOpenAlgorithmProvider(&impl->algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,BCRYPT_ALG_HANDLE_HMAC_FLAG)<0){Close();return false;}
     impl->socket=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
     if(impl->socket==INVALID_SOCKET){Close();return false;}
+    // Small lockstep frames must not wait for TCP's batching timer. Keep the
+    // byte stream, authenticators, sequencing and all payload bounds unchanged.
+    const int low_latency=1;int actual=0,actual_length=sizeof(actual);
+    if(setsockopt(impl->socket,IPPROTO_TCP,TCP_NODELAY,reinterpret_cast<const char*>(&low_latency),sizeof(low_latency))
+        || getsockopt(impl->socket,IPPROTO_TCP,TCP_NODELAY,reinterpret_cast<char*>(&actual),&actual_length)
+        || (actual_length!=1 && actual_length!=static_cast<int>(sizeof(actual))) || actual!=1){Close();return false;}
     sockaddr_in local{};local.sin_family=AF_INET;
     local.sin_addr.s_addr=htonl(0x7f000001u+config.slot);
     sockaddr_in remote{};remote.sin_family=AF_INET;remote.sin_port=htons(config.port);remote.sin_addr.s_addr=htonl(0x7f000001u);

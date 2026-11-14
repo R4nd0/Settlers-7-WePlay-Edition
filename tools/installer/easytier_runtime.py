@@ -25,14 +25,17 @@ REQUIRED_NOTICES = frozenset(('GPL-3.0.txt', 'LGPL-3.0.txt',
 # Native peer sockets and the bounded WePlay coordinator/discovery services.
 GAME_UDP_PORTS = (3074, 6200, 9103)
 ROOM_UDP_PORTS = (*GAME_UDP_PORTS, 9111, 9112)
+CROSSPLAY_TCP_PORT = 9113
 
 
-def room_acl(room, address):
+def room_acl(room, address, *, crossplay=False):
     """Receiver-enforced policy, independent of the other player's launcher.
 
     Keep forwarding and IPv6 closed. Responses to explicitly permitted outgoing
     connections use EasyTier's reverse-flow tracking, not an ephemeral-port range.
     """
+    if type(crossplay) is not bool:
+        raise InternetError('internet_runtime_invalid')
     local = ipaddress.IPv4Address(address)
     if local not in room.network or local in (room.network.network_address, room.network.broadcast_address):
         raise InternetError('internet_adapter_invalid')
@@ -47,7 +50,8 @@ def room_acl(room, address):
         target = address + '/32' if kind == 1 else room.subnet
         rules = [(2, ROOM_UDP_PORTS, source, target)]
         if kind == 2 or address == room.coordinator:
-            rules.append((1, (9110,), source, target if kind == 1 else room.coordinator + '/32'))
+            tcp_ports = (9110, CROSSPLAY_TCP_PORT) if crossplay else (9110,)
+            rules.append((1, tcp_ports, source, target if kind == 1 else room.coordinator + '/32'))
         for protocol, ports, src, dst in rules:
             lines += ['[[acl.acl_v1.chains.rules]]', f'name = "weplay-{name}-{protocol}"',
                       'priority = 1000', 'enabled = true', 'action = 1', f'protocol = {protocol}',
@@ -58,7 +62,8 @@ def room_acl(room, address):
             # Replies originate from these fixed service sockets and target
             # the caller's ephemeral port. Do not open an inbound port range.
             replies=[(2,ROOM_UDP_PORTS)]
-            if address == room.coordinator:replies.append((1,(9110,)))
+            if address == room.coordinator:
+                replies.append((1,(9110,CROSSPLAY_TCP_PORT) if crossplay else (9110,)))
             for protocol,ports in replies:
                 lines += ['[[acl.acl_v1.chains.rules]]',f'name = "weplay-reply-{protocol}"',
                           'priority = 900','enabled = true','action = 1',f'protocol = {protocol}',
@@ -111,7 +116,7 @@ def clean_environment():
     return environment
 
 
-def configuration(room, address, instance_id, device_name):
+def configuration(room, address, instance_id, device_name, *, crossplay=False):
     # JSON strings are valid TOML basic strings for these strictly validated
     # values. No invitation text is interpreted as TOML or a shell command.
     quote = json.dumps
@@ -135,7 +140,7 @@ def configuration(room, address, instance_id, device_name):
                  enable_ipv6=False, disable_kcp_input=True, disable_quic_input=True,
                  disable_relay_kcp=True, disable_relay_quic=True)
     lines += ['[flags]'] + [f'{k} = {str(v).lower() if isinstance(v, bool) else quote(v)}' for k, v in flags.items()]
-    return '\n'.join(lines) + '\n' + room_acl(room, address)
+    return '\n'.join(lines) + '\n' + room_acl(room, address,crossplay=crossplay)
 
 
 def peer_snapshot(raw, room, device_name):
@@ -206,11 +211,15 @@ def bootstrap_connected(raw, room):
 
 class EasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None,
-                 job_factory=ServiceJob, interfaces=enumerate_interfaces, private_parent=None):
+                 job_factory=ServiceJob, interfaces=enumerate_interfaces, private_parent=None,
+                 crossplay=False):
+        if type(crossplay) is not bool:
+            raise InternetError('internet_runtime_invalid')
         self.root, self.room, self.host = Path(root), room, host
         self.cancel_check, self.progress = cancel_check, progress
         self.job_factory, self.interfaces = job_factory, interfaces
         self.private_parent = None if private_parent is None else Path(private_parent)
+        self.crossplay = crossplay
         self.instance_id = str(uuid.uuid4())
         self.device_name = 'WePlay-' + self.instance_id[:8]
         self.address = str(room.network.network_address + (1 if host else secrets.randbelow(253) + 2))
@@ -237,7 +246,8 @@ class EasyTier:
             self.private = Path(tempfile.mkdtemp(prefix='easytier-', dir=data))
             config = self.private / 'network.toml'
             with config.open('x', encoding='utf-8') as stream:
-                stream.write(configuration(self.room, self.address, self.instance_id, self.device_name))
+                stream.write(configuration(self.room, self.address, self.instance_id, self.device_name,
+                                           crossplay=self.crossplay))
             with socket.socket() as probe:
                 probe.bind(('127.0.0.1', 0))
                 self.portal = f'127.0.0.1:{probe.getsockname()[1]}'
