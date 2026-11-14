@@ -18,6 +18,14 @@ probe, Gold/Ubisoft matched 1,561 consecutive original CRCs and Gold/Steam match
 gameplay, longer construction stability, NEO and mixed save/reload remain
 unqualified. See the [bounded verification receipt](verification/gold-history-movement-time-20261114.json).
 
+A second animal path-point correction subsequently removed the reproduced
+finished-turn-2792 divergence: Gold/Ubisoft matched 4,539 consecutive original
+CRCs and Gold/Steam matched 4,949, with normal commands and completed storehouses.
+Gold's loading overlay remained visible in the Steam run despite the advancing
+world; these results do not establish complete Gold UI entry. See
+[path-point arithmetic and limits](GOLD-HISTORY-PATH-POINTS.md) and its
+[bounded receipt](verification/gold-history-path-points-20261114.json).
+
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
 loads it and checks the actual native map before creating a session. Gold keeps

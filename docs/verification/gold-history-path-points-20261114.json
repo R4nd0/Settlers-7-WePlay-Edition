@@ -1,0 +1,14 @@
+{
+  "format": "weplay-gold-history-path-points-verification-v1",
+  "date": "2026-11-14",
+  "scope": "opt-in loopback laboratory; bounded original simulation CRC comparison",
+  "reproduced_first_mismatch_finished_turn": 2792,
+  "compiled_abi": {"accepted": 42, "excluded": 8, "call_contexts": 2, "full_original_regions": 25, "mutation_unreadability_checks": 77, "passed": true},
+  "modeled_original_arithmetic": {"cases_per_history_edition": 2053, "points_per_history_edition": 18458, "matches_both_history_editions": true, "uncorrected_gold_differing_cases": 1817, "vector_append_and_temporary_constructor_modeled": true, "native_imports_executed": false},
+  "native_pairs": [
+    {"history": "Ubisoft History", "consecutive_equal_original_crcs": 4539, "first_finished_turn": 0, "last_finished_turn": 4538, "build_commands_sent_and_enqueued": 2, "street_commands_sent_and_enqueued": 2, "new_storehouses_completed_on_both_clients": true, "native_desync_sent": false, "both_normal_exit0_and_full_restoration": true},
+    {"history": "Steam History data; standalone without Steam SDK", "consecutive_equal_original_crcs": 4949, "first_finished_turn": 0, "last_finished_turn": 4948, "build_commands_sent_and_enqueued": 2, "street_commands_sent_and_enqueued": 2, "new_storehouses_completed_on_both_clients": true, "native_desync_sent": false, "both_normal_exit0_and_full_restoration": true, "gold_loading_overlay_remained_visible": true}
+  ],
+  "runtime": {"dxvk_required": true, "quality": "High", "resolution": "1920x1080", "automatic_original_ready_and_start": true, "normal_exit_deadline_elapsed_ms": 600000, "elapsed_deadline_is_not_simulated_time": true, "loopback_only": true, "original_rng_and_crcs_retained": true, "preexisting_save_replaced": false},
+  "qualified": {"complete_gold_ui_entry": false, "neo": false, "adapted_multiplayer_maps": false, "mixed_save_reload": false, "lan": false, "ordinary_release_enablement": false}
+}
