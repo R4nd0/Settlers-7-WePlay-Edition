@@ -32,6 +32,7 @@ class TurnLog:
         self.pending = b''
         self.turns = {}
         self.source = None
+        self.native_exclusions = 0
 
     def poll(self):
         try:
@@ -65,6 +66,16 @@ class TurnLog:
             self._row(row)
 
     def _row(self, row):
+        if isinstance(row, dict) and row.get('excluded') is True:
+            if ('direction' in row or any(not _uint(row.get(k), 1)
+                    for k in ('world_guard', 'methods_guard', 'source_guard'))
+                    or any(not _uint(row.get(k))
+                           for k in ('type', 'source', 'own', 'other', 'async'))):
+                raise EvidenceError('invalid-native-exclusion-record')
+            if self.native_exclusions >= MAX_TURNS:
+                raise EvidenceError('observation-exclusion-limit')
+            self.native_exclusions += 1
+            return
         if not isinstance(row, dict) or row.get('direction') not in ('sent', 'received'):
             raise EvidenceError('invalid-observation-direction')
         if row['direction'] != 'sent':
@@ -124,6 +135,7 @@ class PairEvidence:
         consecutive = bool(common) and all(b == a + 1 for a, b in zip(common, common[1:]))
         backlog = any(log.identity is not None and log.path.stat().st_size > log.offset for log in self.logs)
         partial = any(log.pending for log in self.logs)
+        exclusions = sum(log.native_exclusions for log in self.logs)
         if common and not backlog and not partial and self.baseline is None:
             self.baseline = now, common[-1]
         elapsed = now - self.baseline[0] if self.baseline else 0.0
@@ -137,13 +149,14 @@ class PairEvidence:
             'consecutive_shared_turns': consecutive,
             'first_crc_mismatch_finished_turn': mismatches[0] if mismatches else None,
             'mismatch_count': len(mismatches),
-            'matching_from_world_start': consecutive and common[0] == 0 and not mismatches,
+            'matching_from_world_start': consecutive and common[0] == 0 and not mismatches and not exclusions,
+            'native_eot_exclusion_count': exclusions,
             'measured_seconds': elapsed, 'measured_turns_advanced': advanced,
             'measured_shared_turns_per_second': tps,
             'target_turns_per_second': self.target,
             'measurement_kind': 'original-common-turn-log-arrival-wall-clock',
             'speed_target_observed': elapsed >= 30 and advanced > 0 and tps >= self.target
-                and consecutive and common[0] == 0 and not mismatches and not backlog and not partial,
+                and consecutive and common[0] == 0 and not mismatches and not exclusions and not backlog and not partial,
             'effective_x20_qualified': False,
             'gameplay_qualified': False,
             'partial_lines_pending': partial,

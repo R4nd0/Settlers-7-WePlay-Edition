@@ -95,6 +95,30 @@ class WorldEvidenceTests(unittest.TestCase):
         self.append([row(0, direction='received')])
         self.assertEqual(self.observer.poll()['shared_native_crc_count'], 0)
 
+    def test_native_exclusion_keeps_crc_prefix_but_prevents_stability_claim(self):
+        self.append([row(0), row(1)])
+        excluded = dict(excluded=True, world_guard=1, methods_guard=1,
+                        source_guard=1, type=589831, source=0, own=0, other=1, async_=1)
+        excluded['async'] = excluded.pop('async_')
+        self.append([], [excluded])
+        result = self.observer.poll()
+        self.assertEqual(result['shared_native_crc_count'], 2)
+        self.assertEqual(result['native_eot_exclusion_count'], 1)
+        self.assertTrue(result['consecutive_shared_turns'])
+        self.assertFalse(result['matching_from_world_start'])
+        self.assertFalse(result['speed_target_observed'])
+
+    def test_malformed_or_ambiguous_native_exclusion_is_rejected(self):
+        valid = dict(excluded=True, world_guard=1, methods_guard=1, source_guard=1,
+                     type=0, source=0, own=0, other=1)
+        valid['async'] = 1
+        for changes in ({'world_guard':True}, {'async':-1}, {'direction':'sent'}, {'source_guard':None}):
+            self.gold.write_text(json.dumps(dict(valid, **changes))+'\n')
+            with self.assertRaises(evidence.EvidenceError): evidence.TurnLog(self.gold).poll()
+        self.gold.write_text(json.dumps(valid)+'\n'+json.dumps(valid)+'\n')
+        with patch.object(evidence, 'MAX_TURNS', 1):
+            with self.assertRaisesRegex(evidence.EvidenceError, 'exclusion-limit'): evidence.TurnLog(self.gold).poll()
+
     def test_same_native_source_on_both_clients_rejected(self):
         self.append([row(0)], [row(0)])
         with self.assertRaisesRegex(evidence.EvidenceError, 'distinct'): self.observer.poll()

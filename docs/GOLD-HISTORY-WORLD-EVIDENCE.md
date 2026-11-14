@@ -20,6 +20,11 @@ replacement/truncation and malformed input fail closed. Reads, line lengths
 and retained turns are bounded. Received observations do not count as a second
 client's independently sent checksum.
 
+Known native `TurnExcluded` diagnostics are counted separately. They preserve
+the already validated CRC prefix and prevent a stability or speed-target claim.
+They never become finished turns. Unknown or malformed diagnostics still fail
+closed; this distinction matters when a memory stop closes the native session.
+
 The measured rate uses a monotonic wall clock and progress after the first
 complete, drained common observation. Reading an existing historical log
 provides a CRC comparison but no speed measurement. A live sample needs at
@@ -50,7 +55,7 @@ transport, NEO and save/reload need their own runtime evidence.
   archives, adapters and shared state were restored; no preexisting save was
   replaced. The broker recorded one rejection during shutdown.
 
-Fifteen automated observer tests cover original-record validation, partial
+Seventeen automated observer tests cover original-record validation, partial
 writes, initial sentinels, mismatches, gaps, duplicates, source ownership,
 file replacement/truncation, bounded input and measured-rate timing. Those
 tests use synthetic logs; the results above come from separate actual runs.
