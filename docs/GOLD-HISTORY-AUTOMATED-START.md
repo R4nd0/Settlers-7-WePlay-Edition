@@ -7,7 +7,9 @@ Automatic browser entry, native session creation and normal timed exit have
 been observed in original Steam History under DXVK without human input.
 The corrected driver also created both native lobbies, admitted the History
 guest, activated its original Ready control and Gold's original Start control
-without input. Shared world entry and mixed gameplay remain unqualified.
+without input. Both local world-start calls and initial EOT delivery have now
+been observed with each History source. Advancing shared turns and mixed
+gameplay remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -128,8 +130,8 @@ cleared. Before the slot-context deadline, the adapter rejected
 combines guest-presentation readiness and Ready snapshot application, so this
 run does not identify which of those checks failed. A further private diagnostic
 separates them and records the Ready helper's original failure stage without
-changing its checks or native call order. Both diagnostic builds pass compiler
-and ABI checks; their next native test remains pending. The seventh run again
+changing its checks or native call order. Both diagnostic builds passed compiler
+and ABI checks before the following tests. The seventh run again
 ended normally on both clients with complete restoration and no shared turns.
 
 Two subsequent runs isolated that rejection to the guest-presentation gate,
@@ -154,8 +156,69 @@ simulation checksums. History's original counter stayed at turn 1 / 200 ms;
 a PID/path/hash-guarded read of Gold's native clock found turn 0, unpaused.
 Thus advancing common turns remain unqualified. The broker finished with 86
 relays and one rejection whose cause has not yet been isolated. Both games exited
-normally with code zero and all restoration checks passed. Ubisoft History still
-needs the corresponding native pair test; NEO and mixed save/reload remain unqualified.
+normally with code zero and all restoration checks passed.
+
+The first corresponding Ubisoft History run exposed an ordering race: an
+authenticated native EOT reached Gold before History's original local-start
+queue receipt. Gold rejected it before calling its own local start. The public
+fresh-start barrier now exposes `CanBufferWorldEvents` for that original,
+bounded start interval. It only authorizes buffering: it neither advances the
+barrier nor manufactures the queue receipt. Unbound, pre-start, expired and
+backward-time calls are rejected. Native tests cover those conditions and both
+original queue phases. The private receiver retains its payload limits,
+authentication, sequence checks and original native dispatch predicates.
+
+With that candidate, the next Ubisoft History run returned both original local
+world-start calls. Both directions delivered native load progress ending at 1.0
+and the same initial EOT scalar fingerprints seen with Steam History. The race
+did not recur in this ordinary run, so it alone does not validate early buffering.
+Gold remained at turn 0 and History at turn 1 / 200 ms. Gold's sampled original
+graphics/logic state had its explicit desync flag clear; this is a single state
+observation, not checksum compatibility evidence. The broker finished with 85
+relays and one rejection whose cause remains unisolated. Both clients exited
+normally with code zero and all restoration checks passed.
+
+A controlled Steam History run then held one real queue receipt for 307 ms and
+forwarded the real EOT first. The broker preserved both original bodies and
+released the receipt once; it generated no game event or acknowledgement.
+Gold reported that the early EOT had been buffered, then returned from its
+original local-start call. Subsequent native delivery failed the combined
+owner/receiver/enqueue guard. This verifies the buffering path under actual
+reordered delivery, but not successful delayed dispatch. Both clients again
+exited normally with code zero, all restoration checks passed and the privileged
+process check found no remaining game. The scheduling harness also passes
+separate headless body-preservation, once-only and bounded-release checks.
+
+The next private adapter waits up to ten seconds for the unchanged original
+started-session predicate before removing buffered progress or EOT frames.
+Owner mismatches, lost contexts and timeouts remain fatal. All three adapter
+builds and their native observer ABI checks pass; fifteen extracted-method
+checks and six queue-before-pop assertions pass with modeled session predicates.
+After sufficient RAM became available, the controlled Steam pair repeated the
+early EOT ordering with a 308 ms queue-receipt delay. Gold initially reported
+that its started-session capture was unavailable, then observed the unchanged
+valid native context. Both directions subsequently enqueued the original EOT
+batches, preserving their sequences and scalar fields. Gold's 15 progress events
+and History's 11 matched their received counterparts and reached native 1.0.
+This verifies deferred dispatch in that actual ordering case. Gold still stayed
+at turn 0 and History at turn 1 / 200 ms. Both exited normally with code zero,
+all restoration checks passed and no game process remained. The broker finished
+with 65 relays and one rejection whose cause remains unisolated.
+
+A guarded read of Gold's original logic facade found its original launcher
+Ready method and a null launcher queue. The crossplay laboratory build excludes
+the separate local-simulation bridge used by the standalone Gold path. This is
+the next investigated dependency, rather than evidence of a missing EOT scalar
+translation. A new private candidate connects the existing native local-core,
+advance and transport-search wrappers only after the exact authenticated
+two-player started-session predicate succeeds. Outside that context it forwards
+the original launcher Ready method. Native readiness results, turns and checksum
+computations remain original. Its build and observer ABI checks pass, as do
+fourteen extracted context-gate checks. A test of the actual compiled wrapper
+also verifies original forwarding of arguments, output, return, stack, preserved
+registers and LastError when no world context exists. Its live pair test remains
+pending after RAM preflight rejected the launch before either game started.
+NEO and mixed save/reload remain unqualified.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading

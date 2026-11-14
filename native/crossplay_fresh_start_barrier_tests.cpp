@@ -33,6 +33,21 @@ struct Pair {
 int main() {
     using namespace CrossplayFreshStart;
     {
+        Barrier empty;Check(!empty.CanBufferWorldEvents(100) && empty.GetPhase()==Phase::New,"unbound events cannot open a start interval");
+        Pair p;Check(!p.host.CanBufferWorldEvents(100),"setup binding alone cannot admit gameplay events");
+        p.Ready();Check(!p.host.CanBufferWorldEvents(103) && !p.guest.CanBufferWorldEvents(103),"mutual setup agreement alone cannot admit gameplay events");
+        p.Start();Check(p.host.CanBufferWorldEvents(106) && p.host.GetPhase()==Phase::AwaitQueued,"early guest events may be buffered while host awaits the real queue receipt");
+        Check(!p.guest.CanBufferWorldEvents(106),"guest cannot buffer before accepting the original start");
+        std::vector<unsigned char> wire;
+        Check(p.guest.GuestAttempt(107,p.start,42,0,wire) && p.guest.CanBufferWorldEvents(108),"guest native attempt owns a bounded buffer interval");
+        Check(p.guest.GuestQueued(109,true,p.queued) && p.guest.Sent(110) && p.guest.CanBufferWorldEvents(111),"completed guest queue keeps its bounded interval");
+        Check(p.host.GetPhase()==Phase::AwaitQueued,"buffer admission never fabricates a native queue receipt");
+        Check(p.host.HostAttempt(112,p.queued) && p.host.CanBufferWorldEvents(113),"host attempt may buffer without advancing its phase");
+        Check(p.host.HostQueued(114,true) && p.host.CanBufferWorldEvents(115),"completed original host queue remains eligible within its lifetime");
+        Pair expired;expired.Ready();expired.Start();Check(!expired.host.CanBufferWorldEvents(10101) && expired.host.GetPhase()==Phase::Failed,"early gameplay buffering expires with the original rendezvous");
+        Pair backward;backward.Ready();backward.Start();Check(!backward.host.CanBufferWorldEvents(104),"backward buffer timestamps invalidate the interval");
+    }
+    {
         Pair p;p.Ready();p.Start();std::vector<unsigned char> wire;
         Check(p.guest.GuestAttempt(106,p.start,42,0,wire),"guest accepts captured original event");
         Check(CrossplayGameStart::Inspect(wire,0),"only local CID projected");

@@ -46,6 +46,14 @@ public:
     Barrier(const Barrier&)=delete;
     Barrier& operator=(const Barrier&)=delete;
     Phase GetPhase() const{return phase;}
+    // Authenticated gameplay events can arrive while the original local start
+    // is still pending. This permits bounded buffering only; the caller must
+    // retain its native owner guards and wait for local enqueue before dispatch.
+    bool CanBufferWorldEvents(uint64_t now) {
+        if(phase!=Phase::AwaitQueued && phase!=Phase::GuestAttempt
+            && phase!=Phase::HostAttempt && phase!=Phase::Complete)return false;
+        return Fresh(now);
+    }
     void Invalidate(){Fail();}
     bool Bind(const Crossplay::Peer& other,bool is_host,const CrossplayGameStart::Agreement& setup,
               const Crossplay::Digest& actual_content_contract,uint64_t now) {
