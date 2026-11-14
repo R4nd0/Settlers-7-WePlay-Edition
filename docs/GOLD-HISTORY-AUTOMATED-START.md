@@ -10,9 +10,10 @@ guest, activated its original Ready control and Gold's original Start control
 without input. Both local world-start calls and initial EOT delivery have now
 been observed with each History source. Both pairs now advance over 1,000 consecutive
 simulation turns with matching original type-1 CRCs. Normal storehouse commands
-from both players and a History-originated normal street command have also been
-delivered in each pair. Other gameplay, construction completion, longer stability,
-NEO and mixed save/reload remain unqualified.
+from both players and normal street commands in both directions have also been
+delivered. Both new storehouses completed in a Steam History pair, which then
+desynchronized at finished turn 510. Other gameplay, sustained construction
+stability, NEO and mixed save/reload remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -462,9 +463,47 @@ the two storehouse commands. Later corrected History observations find two
 storehouses per player, one unfinished and marked in progress, but still report
 zero construction progress and an aggregate native count of one per player.
 Material arrival and completed construction are therefore not established. The
-Gold road-helper attempt has not yet produced an outgoing road event, and its
-diagnostic return path remains under investigation. No NEO or mixed reload claim
-follows from this command milestone.
+Gold road-helper attempt had not yet produced an outgoing road event at that
+stage. The camera and coordinate correction below resolves that missing command.
+No NEO or mixed reload claim follows from this command milestone.
+
+The subsequent Gold console observation identified an offscreen road target.
+The original camera's `setLookAt` followed by `immediateUpdate`, without a manual
+zoom-level override, allowed Gold's original street helper to submit its command.
+An actual Gold/Ubisoft History pair delivered both normal storehouse and both
+normal street commands, matched 1,222 consecutive finished-turn CRCs and completed
+Gold's new storehouse. History's new site still waited for construction.
+
+The remaining test-action error was using the building placement's old screen
+coordinates as the road's start after the camera could move. The corrected action
+frames both endpoints on both players, waits 250 ms and reprojects both original
+world positions immediately before the normal street preview. In the following
+Gold/Steam History pair, both new storehouses completed and both clients reported
+two finished storehouses per player. Native original CRCs matched turns 0–509,
+then first differed at turn 510; both engines sent original desync events. Both
+clients exited normally with code zero, all profiles, archives and adapters were
+restored, and no game process remained. This proves normal construction can run
+through the bridge, while exposing a later synchronization defect. It does not
+qualify stable logistics or separately measure each material delivery.
+
+`tools/gold/pair_construction_probe.lua` preserves that normal action as an
+explicit laboratory option in `pair_interface.py --construction-probe`. It sets
+normal payable build mode, searches at most 128 positions with four candidates
+per frame, submits one storehouse per player and attempts one connecting road.
+Both original preview validity checks remain authoritative. No stock, worker,
+building progress or completion result is written. Missing preview coordinates,
+wrong local players and failed endpoint projections prevent submission. The
+normal watchdog stops further construction callbacks after requesting exit.
+Ordinary staging and launchers leave this action disabled.
+
+Seven Lua 5.1 modeled tests cover both players, camera movement with changed
+screen coordinates, the 250 ms wait, native reentry, search limits, missing world
+positions and invalid road previews. Six private archive stages cover the
+default and construction-enabled variants of all three editions; every changed
+script parses and all other payload checks pass. The exact staged wrappers also
+stop new construction after normal exit. These source/staging checks are distinct
+from the native runs above; the curated public action still needs qualification
+in a new frozen adapter/archive pair.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading

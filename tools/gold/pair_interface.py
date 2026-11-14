@@ -35,6 +35,7 @@ CORE = 'Script/local/core.lua'
 DRIVER = HERE / 'native_pair_driver.lua'
 WATCHDOG = HERE / 'pair_watchdog.lua'
 FRAME_LOOP = HERE / 'pair_frame_loop.lua'
+CONSTRUCTION_PROBE = HERE / 'pair_construction_probe.lua'
 BROWSER_GUARD = '''
 function a.weplayCanAutoCreate()
  return l.frame~=nil and l.lastDiscoveryFinished==true and l.sessionListState==r.idle
@@ -51,11 +52,13 @@ def insert(raw, decode, anchor, fragment, after=False):
     return (source[:offset] + fragment + source[offset:]).encode('utf-8')
 
 
-def build(raw, edition, duration=180000):
+def build(raw, edition, duration=180000, construction_probe=False):
     if edition not in PINS or hashlib.sha256(raw).hexdigest() != PINS[edition]:
         raise ValueError('Unrecognized automation input archive')
     if not isinstance(duration, int) or not 15000 <= duration <= 600000:
         raise ValueError('Automation deadline outside 15–600 seconds')
+    if not isinstance(construction_probe, bool):
+        raise ValueError('Construction probe must be explicitly enabled or disabled')
     decode = gold_decode if edition == 'gold' else history.decoded_view
     archive = Archive(raw)
     gold = 'true' if edition == 'gold' else 'false'
@@ -131,6 +134,17 @@ end)(update,weplayPairWatchdog)
 function WePlayRegisterPairDriver(tick) weplayPairFrame.register(tick) end
 function update() weplayPairFrame.update() end
 '''
+    if construction_probe:
+        frame += '''
+local weplayPairConstruction=(function(...)
+''' + CONSTRUCTION_PROBE.read_text(encoding='utf-8') + '''
+end)(e)
+local weplayPairUpdate=update
+function update()
+ weplayPairUpdate()
+ if not weplayPairWatchdog.closing() then weplayPairConstruction() end
+end
+'''
     core = insert(archive.read(CORE), decode, 'function updateTurn()', frame)
     changes = {
         MAIN: insert(archive.read(MAIN), decode, 'l["moduleManager"]["update"]()', main, after=True),
@@ -159,6 +173,9 @@ function update() weplayPairFrame.update() end
         'watchdog_sha256': hashlib.sha256(WATCHDOG.read_bytes()).hexdigest(),
         'frame_loop_sha256': hashlib.sha256(FRAME_LOOP.read_bytes()).hexdigest(),
         'duration_ms': duration, 'changed_members': list(changes),
+        'construction_probe': construction_probe,
+        'construction_probe_sha256': (hashlib.sha256(CONSTRUCTION_PROBE.read_bytes()).hexdigest()
+            if construction_probe else None),
         'all_other_members_unchanged': True,
         'qualification': 'staged-only-not-native-runtime-proof',
     }
@@ -170,10 +187,13 @@ def main():
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--duration-ms', type=int, default=180000)
+    parser.add_argument('--construction-probe', action='store_true',
+        help='Lab only: submit normal storehouse/street commands for both players')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('Output directory must not exist')
-    data, receipt = build(args.source.read_bytes(), args.edition, args.duration_ms)
+    data, receipt = build(args.source.read_bytes(), args.edition, args.duration_ms,
+        args.construction_probe)
     args.output.mkdir(parents=True)
     (args.output / 'Interface.bba').write_bytes(data)
     (args.output / 'receipt.private.json').write_text(json.dumps(receipt, indent=2)+'\n', encoding='utf-8')
