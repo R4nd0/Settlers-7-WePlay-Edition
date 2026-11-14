@@ -95,3 +95,7 @@ files were restored. No UI input or forced process termination was needed.
 See the [sanitized verification record](verification/gold-history-ai-preparation-20261114.json),
 [original AI event bridge](GOLD-HISTORY-AI-EVENTS.md), and
 [EasyTier and AI scope](GOLD-HISTORY-EASYTIER-AI.md).
+
+The [original-turn observer and measured progress](GOLD-HISTORY-WORLD-EVIDENCE.md)
+separate live throughput from the requested 5-ms pacing and record the later
+bounded diagnostic results. The sustained AI desync remains unresolved.
