@@ -9,8 +9,10 @@ The corrected driver also created both native lobbies, admitted the History
 guest, activated its original Ready control and Gold's original Start control
 without input. Both local world-start calls and initial EOT delivery have now
 been observed with each History source. Both pairs now advance over 1,000 consecutive
-simulation turns with matching original type-1 CRCs. Gameplay commands, longer
-stability, NEO and mixed save/reload remain unqualified.
+simulation turns with matching original type-1 CRCs. Normal storehouse commands
+from both players and a History-originated normal street command have also been
+delivered in each pair. Other gameplay, construction completion, longer stability,
+NEO and mixed save/reload remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -425,9 +427,44 @@ input/output queues; that is distinct from a native desync during simulation.
 
 The Ubisoft native statistics samples still reported one storehouse per player.
 The new site's completion and material delivery are therefore unqualified, as
-are the connecting road command, History-originated gameplay commands, other
-command schemas, NEO, mixed save/reload and longer stability. Equal type-1 CRCs
+were the connecting road command and History-originated gameplay commands at that
+stage. The correction below covers those specific commands; other schemas, NEO,
+mixed save/reload and longer stability remain unqualified. Equal type-1 CRCs
 and a delivered command do not establish those remaining acceptance criteria.
+
+A subsequent automatic action placed a normal storehouse for the History player
+as well. Its original command was delivered to Gold with the same normalized
+fingerprint. A single original History street-helper placement then returned 2
+and emitted `CPlaceStreetEvent`; the previous storehouse-only codec rejected that
+unknown schema explicitly. Both games exited normally and restored all state.
+This separated successful reverse-direction construction delivery from the
+missing road transport without supplying a native acknowledgement or completion.
+
+`native/crossplay_road_command.h` and `crossplay_road_command_codec.h` now accept
+only the observed normal-street schema. Its original 47-byte event preserves
+street type, four endpoint coordinates, player, SourceSlot and IsSync; only the
+outer connection namespace changes. The native codec retains the original
+serializer, factory/reader, re-encoding comparison, destructor and local enqueue.
+Roads share the bounded FIFO with storehouse and EOT events. Unknown commands
+remain excluded. The compiled original-image guards pass 89 checks per edition;
+`verify_build_command.py --kind road` matches 12 original writer cases, while
+the existing storehouse and 36 baseline event cases still match.
+
+The resulting actual Gold/Steam pair delivered one storehouse command in each
+direction and the History road to Gold, then matched 496 consecutive finished
+turns. Gold/Ubisoft delivered the same three original commands and matched 1,129
+consecutive turns. Neither emitted a native desync event. Both pairs exited
+normally with complete restoration and an empty host game-process list. These
+laboratory adapters use the curated public engine-mode and command codec modules.
+
+Native Gold initialization counts also increased from 52 to 54 buildings after
+the two storehouse commands. Later corrected History observations find two
+storehouses per player, one unfinished and marked in progress, but still report
+zero construction progress and an aggregate native count of one per player.
+Material arrival and completed construction are therefore not established. The
+Gold road-helper attempt has not yet produced an outgoing road event, and its
+diagnostic return path remains under investigation. No NEO or mixed reload claim
+follows from this command milestone.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading

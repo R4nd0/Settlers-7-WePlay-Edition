@@ -93,9 +93,10 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
             nested_event='CEndOfTurnEvent', nested_player=1):
     reading = read_wire is not None
     placement = nested_event == 'CPosOrientationTypeAndCategoryEvent@ELBase'
+    road = nested_event == 'CPlaceStreetEvent@ELBase'
     if nested_event != 'CEndOfTurnEvent' and not (
-            placement and name == 'CLogicStateEvent' and nonempty and not reading and nested_player in (1, 2)):
-        raise ValueError('Only explicit bounded storehouse-writer fixtures accept a position event')
+            (placement or road) and name == 'CLogicStateEvent' and nonempty and not reading and nested_player in (1, 2)):
+        raise ValueError('Only explicit bounded placement-writer fixtures accept a gameplay event')
     batch = reading and read_batch and name == 'CEndOfTurnBatchEvent'
     if read_batch and not batch:
         raise ValueError('Batch input requires the explicit batch event and read stream')
@@ -147,12 +148,16 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
             words(OBJECT+offset, NESTED, NESTED+2*0x24, NESTED+2*0x24)
         else:
             raise ValueError('Only container events accept nested fixtures')
-    if placement:
-        # Synthetic normal storehouse placement, never a live command or heap.
+    if placement or road:
+        # Synthetic normal placement, never a live command or heap.
         words(OBJECT+4, 7 | (11 << 16), 42, asynchronous)
         words(OBJECT+0x14, nested_player, 1)  # Original SourceSlot / IsSync.
-        words(NESTED, nested_table, 2 | (4 << 16), nested_player,
-              0x472fc000, 0x47435000, 0x80000000, 260, 14)
+        if placement:
+            words(NESTED, nested_table, 2 | (4 << 16), nested_player,
+                  0x472fc000, 0x47435000, 0x80000000, 260, 14)
+        else:
+            words(NESTED, nested_table, 2 | (11 << 16), nested_player,
+                  1, 0x472fc000, 0x47435000, 0x47300000, 0x47440000)
     if batch:
         # Preallocate synthetic storage; no native heap or allocation import is
         # executed. Original vector resize/constructors and readers still run.
@@ -165,7 +170,7 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
     u.mem_write(NAME, b'class SyntheticEvent\0')
     if image.label == 'gold':
         words(0xebf574, REFLECTION)
-    elif placement:
+    elif placement or road:
         # Original ELBase visitors use this CRT type-name import. Model only
         # that reflection result; no CRT import executes on the host.
         words(image.crt_imports[b'__std_type_info_name'], REFLECTION)
