@@ -4,6 +4,9 @@ This is opt-in laboratory infrastructure. It does not establish four-player
 Gold/History gameplay, Internet gameplay, NEO compatibility or mixed save/reload.
 The ordinary launcher and published packages are unchanged.
 
+Later the same day, original AI-profile factory delivery passed with both
+History editions. See [the event-delivery result and remaining setup barrier](GOLD-HISTORY-AI-EVENTS.md).
+
 ## Encrypted transport boundary
 
 `EasyTier(..., crossplay=True)` explicitly adds coordinator TCP port 9113 to

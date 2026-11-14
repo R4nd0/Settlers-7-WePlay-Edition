@@ -125,6 +125,7 @@ end
 function d.weplayCanConfigureAI()
  return e.frame~=nil and n.Network.SessionIsInSession()
   and n.Network.IsHost() and e.otherHumanInSession==true
+  and e.allHumansAreReady==true
 end
 function d.weplayCanAutoStart()
  return e.frame~=nil and e.startButton~=nil and n.Network.SessionIsInSession()

@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-14",
+  "scope": "original AI-profile event delivery; not full AI setup or world qualification",
+  "actual_dxvk_pairings": [
+    {
+      "editions": ["gold", "steam"],
+      "original_gold_events_captured": 2,
+      "authenticated_ordered_events_received": 2,
+      "original_history_factory_clones_enqueued": 2,
+      "cpu_cache_slots_observed_after_clone": [3, 4],
+      "profile_scalars_preserved_in_event": [29, 24],
+      "fresh_original_ready_cpu_config_transferred": true,
+      "actual_human_ready_cache_observed_before_factory": true,
+      "normal_exit0_and_full_restoration": true
+    },
+    {
+      "editions": ["gold", "ubisoft"],
+      "original_gold_events_captured": 2,
+      "authenticated_ordered_events_received": 2,
+      "original_history_factory_clones_enqueued": 2,
+      "cpu_cache_slots_observed_after_clone": [3, 4],
+      "profile_scalars_preserved_in_event": [29, 24],
+      "fresh_original_ready_cpu_config_transferred": true,
+      "actual_human_ready_cache_observed_before_factory": true,
+      "normal_exit0_and_full_restoration": true
+    }
+  ],
+  "synthetic_framing_and_config_checks": 227,
+  "compiled_method_byte_mutations_rejected": 72,
+  "compiled_unreadable_method_regions_rejected": 24,
+  "native_owned_mutex_abi_checks": 9,
+  "ready_or_checksum_synthesized": false,
+  "ordinary_adapter_or_release_package_changed": false,
+  "complete_ai_preparation_agreement_qualified": false,
+  "four_player_world_qualified": false,
+  "neo_qualified": false,
+  "mixed_save_reload_qualified": false,
+  "actual_easytier_game_qualified": false,
+  "effective_x20_qualified": false
+}
