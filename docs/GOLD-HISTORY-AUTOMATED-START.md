@@ -380,7 +380,54 @@ they do not yet qualify player gameplay commands, full-state determinism, longer
 stability, NEO or mixed save/reload. The earlier remaining 65 saved-state bytes
 near animal records have not been fully mapped. Further laboratory runs must
 increase the private cumulative test budget while retaining frame-size, queue,
-authentication, sequence and memory limits.
+authentication, sequence and memory limits. The subsequent bounded 65,536-batch
+candidate passed its complete synthetic sequence/replay/overflow stream test.
+Its actual Gold/Steam run matched 1,184 consecutive finished turns and the
+Gold/Ubisoft run matched 1,210 before their normal timed exits. Neither reached
+the former cumulative limit or emitted a native desync event.
+
+A one-shot laboratory action now uses the original local building placement
+helper in normal, payable build mode. It searches at most 128 candidate positions,
+submits at most one host storehouse placement, and clears its helper afterward.
+No stock, completion or immediate-build result is injected. Before command
+transport was implemented, this produced an original `CLogicStateEvent` and the
+first native CRC mismatch at finished turn 39. A guarded metadata observation
+then identified its nested position/orientation/type/category event, sending
+player, original SourceSlot and IsSync fields. These are separate from EOT turns.
+
+`native/crossplay_build_command.h` and `crossplay_build_command_codec.h` implement
+only that normal storehouse-placement schema. The 47-byte original command keeps
+its sending player, source slot, position/orientation bits, entity type/category
+and flags. Only the outer connection identifier changes between native namespaces.
+The codec checks full original table/accessor/serializer regions, the original
+parent serializers, owner/session/source/player binding and bounded geometry.
+It uses the original writer, reader/factory, byte-identical re-encoding and local
+native enqueue. The laboratory runtime shares one bounded receive FIFO with EOT
+batches to retain their original command/turn arrival order. Other gameplay
+schemas remain excluded; ordinary launchers do not enable this component.
+
+Compiled framing and modeled object tests reject foreign players, mutated types,
+malformed geometry, replay, overflow and every truncation. The actual compiled
+guard fixture passes 62 checks per original edition. The offline
+`tools/gold/verify_build_command.py` oracle matches all 12 original writer cases
+(two players and both async flags in all three editions). Its optional
+`--guard-fixture` also checks the compiled guards against those images. The
+existing 36 native event-writer fixtures remain unchanged.
+
+In actual DXVK pairs the original Gold host command was sent once and enqueued
+once by each History edition with the same normalized command fingerprint.
+Gold/Steam then matched 1,184 consecutive finished-turn CRCs; Gold/Ubisoft matched
+1,067. Neither emitted a native desync event. The sampled Gold counter in the
+Steam run was 947 with its desync flag clear. Both pairs exited normally with
+code zero and passed complete restoration with no game process remaining.
+Their broker each recorded one connection reset during shutdown, with empty
+input/output queues; that is distinct from a native desync during simulation.
+
+The Ubisoft native statistics samples still reported one storehouse per player.
+The new site's completion and material delivery are therefore unqualified, as
+are the connecting road command, History-originated gameplay commands, other
+command schemas, NEO, mixed save/reload and longer stability. Equal type-1 CRCs
+and a delivered command do not establish those remaining acceptance criteria.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading

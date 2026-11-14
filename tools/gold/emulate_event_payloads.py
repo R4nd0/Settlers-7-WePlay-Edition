@@ -47,7 +47,7 @@ class Image:
         self.size = pe.OPTIONAL_HEADER.SizeOfImage
         self.mapped = pe.get_memory_mapped_image()
         self.crt_imports = {i.name: i.address for library in pe.DIRECTORY_ENTRY_IMPORT for i in library.imports
-                            if i.name in (b'malloc', b'free', b'memcpy', b'memmove')}
+                            if i.name in (b'malloc', b'free', b'memcpy', b'memmove', b'__std_type_info_name')}
         executable = [(self.base+s.VirtualAddress,
                        self.base+s.VirtualAddress+s.Misc_VirtualSize)
                       for s in pe.sections if s.Characteristics & 0x20000000]
@@ -89,8 +89,13 @@ class InputBoundError(RuntimeError):
     """The synthetic input stream refused an overread or trailing payload."""
 
 
-def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None, read_batch=False):
+def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, read_wire=None, read_batch=False,
+            nested_event='CEndOfTurnEvent', nested_player=1):
     reading = read_wire is not None
+    placement = nested_event == 'CPosOrientationTypeAndCategoryEvent@ELBase'
+    if nested_event != 'CEndOfTurnEvent' and not (
+            placement and name == 'CLogicStateEvent' and nonempty and not reading and nested_player in (1, 2)):
+        raise ValueError('Only explicit bounded storehouse-writer fixtures accept a position event')
     batch = reading and read_batch and name == 'CEndOfTurnBatchEvent'
     if read_batch and not batch:
         raise ValueError('Batch input requires the explicit batch event and read stream')
@@ -130,7 +135,7 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
         for offset in range(0x10 if name == 'CLogicStateEvent' else 0x14, 0x80, 4):
             words(OBJECT+offset, 0)
     if nonempty:
-        nested_table = image.tables['CEndOfTurnEvent'][0]
+        nested_table = image.tables[nested_event][0]
         for index in range(2):
             words(NESTED+index*0x24, nested_table, 0x1000+index, 0x2000+index,
                   index, 0x3000+index, 0x4000+index, 0x5000+index,
@@ -142,6 +147,12 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
             words(OBJECT+offset, NESTED, NESTED+2*0x24, NESTED+2*0x24)
         else:
             raise ValueError('Only container events accept nested fixtures')
+    if placement:
+        # Synthetic normal storehouse placement, never a live command or heap.
+        words(OBJECT+4, 7 | (11 << 16), 42, asynchronous)
+        words(OBJECT+0x14, nested_player, 1)  # Original SourceSlot / IsSync.
+        words(NESTED, nested_table, 2 | (4 << 16), nested_player,
+              0x472fc000, 0x47435000, 0x80000000, 260, 14)
     if batch:
         # Preallocate synthetic storage; no native heap or allocation import is
         # executed. Original vector resize/constructors and readers still run.
@@ -154,6 +165,10 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
     u.mem_write(NAME, b'class SyntheticEvent\0')
     if image.label == 'gold':
         words(0xebf574, REFLECTION)
+    elif placement:
+        # Original ELBase visitors use this CRT type-name import. Model only
+        # that reflection result; no CRT import executes on the host.
+        words(image.crt_imports[b'__std_type_info_name'], REFLECTION)
     output = bytearray()
     read_position = 0
     completed = False
