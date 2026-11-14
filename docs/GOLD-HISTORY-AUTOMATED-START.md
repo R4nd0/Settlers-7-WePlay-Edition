@@ -274,9 +274,52 @@ game process. No preexisting save was replaced.
 The paired native desync saves contain equal-length world payloads of 23,964,766
 bytes, differing at 1,518 byte positions. Their saved cache and info members are
 byte-identical. Initial differing values include adjacent floating-point
-representations; the reason for those differences remains under investigation.
-This comparison does not establish compatible save/reload semantics. Advancing
+representations. The building-point correction below resolves one group of
+these differences. This comparison does not establish compatible save/reload semantics. Advancing
 common turns, equal world checksums, NEO and mixed save/reload remain unqualified.
+
+Passive observations subsequently captured the same sampled owner-thread x87
+53-bit and SSE control modes on both editions. Original archive-filter method
+inspection and a guarded, read-only scalar-writer probe then mapped eleven
+selected differences to building approach/waiting points and activity entry or
+constructor points. Gold computes their intermediate products with x87; History
+uses separately rounded SSE multiplication and addition, including its degree
+conversion. Gold also uses CRT trigonometric helpers where History uses hardware
+`fcos`/`fsin`. Changing the process-wide FPU precision would affect unrelated code.
+
+`native/crossplay_building_point_math.h` reproduces that History arithmetic with
+explicit SSE operations and hardware trigonometry. Its compiled x86 oracle is
+bit-identical to 36,864 outputs from 2,048 bounded original Steam History
+initializer cases, including cardinal angles, signed zero and point fallbacks.
+`tools/gold/verify_building_point_math.py` fingerprints the private analysis image,
+allows only the original initializer and four geometry helpers in emulation,
+and compares against `native/crossplay_building_point_math_oracle.cpp` compiled
+with MSVC x86. All generated inputs and receipts remain under `work/`; no game,
+import, allocation, account or network is executed by this oracle.
+
+The opt-in `native/crossplay_gold_building_math.h` candidate retains Gold's
+original initializer and container allocation, then recomputes bounded point
+fields in the original objects. Seven original class-table slots, full initializer
+and helper bodies, method prefixes and RTTI are guarded. The caller must retain
+the executable and authenticated fresh-world binding. Owner-thread, object,
+property-chain, finite-input, matching vector-length and writable-memory checks
+run before any point writes. Invalid active inputs are exposed to the laboratory
+runtime. Neither ordinary adapters nor release packages enable this header.
+The compiled bridge tests preserve original arguments, return registers, flags,
+stack, x87/XMM results, FPU controls and LastError, and qualify disabled,
+foreign-owner and malformed-input paths. The original-image guard fixture passes
+464 positive, mutation and unreadable-region checks.
+
+The resulting Gold/Steam History DXVK pair recomputed 52 native building objects.
+All eleven selected values became bit-identical to History in the actual native
+save. Full saved-state differences decreased from 1,518 to 1,442 bytes; the first
+remaining difference moved to offset 400,286. Later differing records include
+fishing grounds and trees. The finished-turn-0 checksums remained 3041482119 for
+Gold and 2998908545 for History, so the original desync still occurred. Both games
+and runners exited normally with code zero, 72 broker relays and no rejection.
+Complete profile/archive restoration and an empty host game-process list were
+verified. This is a measured geometry correction, not synchronized crossplay;
+the remaining checksum cause, Ubisoft repeat, NEO and mixed reload are outstanding.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
