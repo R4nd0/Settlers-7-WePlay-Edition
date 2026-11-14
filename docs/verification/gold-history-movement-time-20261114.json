@@ -1,0 +1,121 @@
+{
+  "format": "gold-history-animal-movement-time-v1",
+  "date": "2026-11-14",
+  "scope": "Bounded automated loopback fresh-world construction; original type1 CRCs retained",
+  "source_sha256": {
+    "native/crossplay_movement_time_math.h": "fe08acf41729ba4c26511185c6f80cc6a336f332fea1e22097abfadb683b9e9c",
+    "native/crossplay_gold_animal_movement_time.h": "96109c00e92776523c6c6a40c5cef926b93b32911ecc6c6e5862a2f89fd21a7e"
+  },
+  "conditions": {
+    "standalone": true,
+    "steam_client_or_sdk_required": false,
+    "DXVK": true,
+    "quality": "High",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "graphics_fallback_used": false,
+    "original_installations_modified": false,
+    "normal_payable_build_mode": true,
+    "stock_progress_or_completion_injected": false
+  },
+  "synthetic_verification": {
+    "cases_per_original_edition": 8197,
+    "original_editions": [
+      "gold",
+      "ubisoft",
+      "steam"
+    ],
+    "compiled_kernel_matches_both_history_costs": true,
+    "gold_differing_cases": 1810,
+    "critical_gold_ms": 44,
+    "critical_history_ms": 45,
+    "compiled_bridge_abi_passed": true,
+    "original_guard_regions": 17,
+    "compiled_guard_mutation_unreadability_checks": 53,
+    "native_game_started_by_oracles": false
+  },
+  "native_runs": [
+    {
+      "history_edition": "ubisoft",
+      "first_common_finished_turn": 0,
+      "last_common_finished_turn": 1560,
+      "matching_consecutive_original_type1_crcs": 1561,
+      "native_desync_sent": false,
+      "normal_storehouse_and_road_commands_each_direction": 1,
+      "construction_observations": {
+        "gold": {
+          "first_both_players_finished_observed_turn": 479,
+          "last_observed_turn": 1564,
+          "finished_storehouses_per_player": 2,
+          "no_later_unfinished_site_observed": true
+        },
+        "history": {
+          "first_both_players_finished_observed_turn": 475,
+          "last_observed_turn": 1553,
+          "finished_storehouses_per_player": 2,
+          "no_later_unfinished_site_observed": true
+        }
+      },
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "full_profile_archive_adapter_restoration": true,
+      "preexisting_save_replaced": false,
+      "host_games_empty_after_run": true,
+      "gold_adapter_sha256": "c1761c11854b1513dce6395cd3b06dc37625a729867a7a99ebbb99d6cdbe4b5a",
+      "history_adapter_sha256": "be98c0edda3362f4095df4b488170b2c60cc8a2af3e8db6c7747a78d726d59cf",
+      "gold_executable_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "history_executable_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+      "gold_native_source_manifest_sha256": "71d10fe2739b4adeba366f8b0b1d6de28550e7bbc5b4b0f932428717fc3f8924",
+      "history_native_source_manifest_sha256": "05a7d1cd68177167259d853061380eabf689ddb7343a79f2b0bf332d48eb31bf"
+    },
+    {
+      "history_edition": "steam",
+      "first_common_finished_turn": 0,
+      "last_common_finished_turn": 1549,
+      "matching_consecutive_original_type1_crcs": 1550,
+      "native_desync_sent": false,
+      "normal_storehouse_and_road_commands_each_direction": 1,
+      "construction_observations": {
+        "gold": {
+          "first_both_players_finished_observed_turn": 476,
+          "last_observed_turn": 1553,
+          "finished_storehouses_per_player": 2,
+          "no_later_unfinished_site_observed": true
+        },
+        "history": {
+          "first_both_players_finished_observed_turn": 477,
+          "last_observed_turn": 1542,
+          "finished_storehouses_per_player": 2,
+          "no_later_unfinished_site_observed": true
+        }
+      },
+      "normal_exit_codes": [
+        0,
+        0
+      ],
+      "full_profile_archive_adapter_restoration": true,
+      "preexisting_save_replaced": false,
+      "host_games_empty_after_run": true,
+      "gold_adapter_sha256": "c1761c11854b1513dce6395cd3b06dc37625a729867a7a99ebbb99d6cdbe4b5a",
+      "history_adapter_sha256": "a5a2193165cf5764228569a702d6d2a5eb5dc6d3c37aabf70a2f93de263e6945",
+      "gold_executable_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+      "history_executable_sha256": "8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410",
+      "gold_native_source_manifest_sha256": "71d10fe2739b4adeba366f8b0b1d6de28550e7bbc5b4b0f932428717fc3f8924",
+      "history_native_source_manifest_sha256": "0198c4b4df2139a1d6f41dd0d842d02453c798fc25d70ac2c5027979095e22ba"
+    }
+  ],
+  "limits": {
+    "full_state_determinism_qualified": false,
+    "long_term_stability_qualified": false,
+    "individual_material_delivery_measured": false,
+    "neo_enabled_or_qualified": false,
+    "adapted_multiplayer_map_qualified": false,
+    "mixed_save_reload_qualified": false,
+    "separate_pc_or_lan_qualified": false,
+    "ordinary_release_enabled": false
+  }
+}

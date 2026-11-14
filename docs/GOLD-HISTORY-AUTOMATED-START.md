@@ -11,9 +11,12 @@ without input. Both local world-start calls and initial EOT delivery have now
 been observed with each History source. Both pairs now advance over 1,000 consecutive
 simulation turns with matching original type-1 CRCs. Normal storehouse commands
 from both players and normal street commands in both directions have also been
-delivered. Both new storehouses completed in a Steam History pair, which then
-desynchronized at finished turn 510. Other gameplay, sustained construction
-stability, NEO and mixed save/reload remain unqualified.
+delivered. The animal movement-time correction below removes the reproduced
+finished-turn-510 desync. With the curated native module and public construction
+probe, Gold/Ubisoft matched 1,561 consecutive original CRCs and Gold/Steam matched
+1,550; both new storehouses completed in both clients of each pair. Other
+gameplay, longer construction stability, NEO and mixed save/reload remain
+unqualified. See the [bounded verification receipt](verification/gold-history-movement-time-20261114.json).
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -502,8 +505,73 @@ positions and invalid road previews. Six private archive stages cover the
 default and construction-enabled variants of all three editions; every changed
 script parses and all other payload checks pass. The exact staged wrappers also
 stop new construction after normal exit. These source/staging checks are distinct
-from the native runs above; the curated public action still needs qualification
-in a new frozen adapter/archive pair.
+from the native runs above. The later movement-time runs below qualify this
+curated action in new frozen adapter/archive pairs.
+
+## Animal movement-time correction, 2026-11-14
+
+The finished-turn-510 mismatch was reproduced with both History editions after
+both normal constructions completed. A read-only original-CRC input ring found
+the first difference in the simulation RNG seed and count. An instruction-site
+observer then identified a Gold-only animation selection for a particular animal.
+Typed native registry snapshots showed that Gold finished its movement one turn
+before History; changing or advancing the RNG would conceal that earlier cause.
+
+The earlier divergence occurs while crossing a waypoint. For the same distance
+of 9 and effective speed stored as float `0.2`, Gold divides in x87 precision and
+truncates the result to 44 milliseconds. History rounds the division to a float
+before truncating, giving 45 milliseconds. Gold therefore carries one additional
+millisecond into the next segment, eventually triggering its next animation
+selection early. Both clients have identical positions immediately before this
+step; the differing time conversion is independently reproduced from their
+original instructions.
+
+`native/crossplay_movement_time_math.h` implements History's single-precision
+division. The opt-in `native/crossplay_gold_animal_movement_time.h` replaces only
+the quotient passed to Gold's original integer-conversion helper. It retains the
+original movement control flow, collision checks, waypoint updates, RNG and CRC.
+It requires the enclosing executable identity and authenticated fresh-world
+predicate, the owner thread, exact original return/stack layout, typed movement
+and animal objects, and the matching generational entry in the native animal
+manager. Other movement objects and rejected contexts forward unchanged. Its
+17 immutable regions cover original movement/conversion methods, class tables,
+getters and the constructors that establish the native manager path. Optional
+caller-owned diagnostics are limited to 32 differing-cost scalar records.
+Ordinary adapters do not include this module.
+
+The compiled bridge tests preserve original forwarding, register and stack
+contracts, the remaining x87 stack, XMM result, floating-point controls and
+LastError, including original conversion status effects. They cover disabled and
+foreign-owner calls, wrong classes and registry identities, invalid arithmetic
+inputs and bounded diagnostics. The compiled guard fixture rejects mutations
+and unreadable regions in 53 checks. `tools/gold/verify_movement_time.py` executes
+8,197 bounded original-instruction cases per Gold, Ubisoft History and Steam
+History image. The compiled kernel matches both History editions in every case;
+the original Gold result differs in 1,810. Each History arithmetic block is
+resolved from its own typed native movement table. These checks start no game.
+
+The first corrected native pairs passed the former failure point and matched
+1,566 original CRCs with Ubisoft History and 1,565 with Steam History. The
+subsequent frozen pairs using the curated module and public construction probe
+matched turns 0–1560 with Ubisoft and 0–1549 with Steam. Each delivered exactly one
+original storehouse and one original street command in each direction, with
+matching sent/enqueued fingerprints. Both clients observed two finished
+storehouses per player through their final samples. No stock, building progress
+or completion was supplied by the adapter, and neither pair sent a native desync
+event. Both used DXVK at High quality, 1920×1080, standalone without a Steam
+client/SDK dependency. Both games exited normally with code zero in each pair;
+profiles, shared saves, archives and adapters were restored, and no host game
+process remained.
+
+This establishes bounded shared gameplay and completed construction for these
+two loopback fresh-world pairs. Original type-1 CRC agreement is not full-state
+determinism, and individual material deliveries were not separately measured.
+Longer runs, other gameplay commands, the Gold NEO port, adapted multiplayer
+maps, mixed save/reload and separate-PC transport still require implementation
+or qualification. The existing 65-byte saved-state differences have not been
+fully mapped. The [verification receipt](verification/gold-history-movement-time-20261114.json)
+binds the source and laboratory adapters without publishing game data or local
+identities.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
