@@ -40,5 +40,24 @@ class WatchdogTests(unittest.TestCase):
         self.assertEqual(self.c.exits,1)
         self.c.now=20000;self.watch.tick();self.assertEqual(self.c.exits,1)
 
+    def test_observes_actual_loading_visibility_without_closing_it(self):
+        self.lua.execute('''local C=...;C.visible=true;C.reads=0
+        C.G.loadingScreen={isCreated=function()C.reads=C.reads+1;return C.visible end}''',self.c)
+        self.watch.tick()
+        self.assertTrue(self.c.rows[1].loading_screen_visible)
+        self.assertTrue(self.c.visible)
+        self.c.visible=False;self.c.now=2000;self.watch.tick()
+        self.assertIs(self.c.rows[2].loading_screen_visible,False)
+        self.assertEqual(self.c.reads,2)
+        self.assertEqual(self.c.exits,0)
+
+    def test_missing_or_unknown_visibility_is_not_reported_as_closed(self):
+        self.lua.execute('''local C=...;setmetatable(C.G,{__index=function()error('Unknown global read')end})''',self.c)
+        self.watch.tick()
+        self.assertIsNone(self.c.rows[1].loading_screen_visible)
+        self.lua.execute('local C=...;C.G.loadingScreen={isCreated=function()return 1 end}',self.c)
+        self.c.now=2000;self.watch.tick()
+        self.assertIsNone(self.c.rows[2].loading_screen_visible)
+
 
 if __name__=='__main__':unittest.main()

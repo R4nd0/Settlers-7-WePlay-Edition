@@ -1,8 +1,8 @@
 """Stage opt-in, fingerprinted pair automation; never deploy to a game.
 
 Keep the quiet Gold menu and the native History guest/map-reload integration.
-Only the browser/lobby members, frame watchdog and Gold's existing camera fix
-change. Every other archive payload is checked.
+Only the browser/lobby members, frame watchdog, Gold's existing camera fix and
+optional loading-progress display change. Every other archive payload is checked.
 """
 import argparse
 import hashlib
@@ -16,6 +16,8 @@ sys.path[:0] = [str(HERE), str(HERE.parent / 'lan')]
 from bba import Archive
 from profile_interface import decoded_view as gold_decode
 import graphics_assets
+import loading_screen
+import menu_interface
 
 spec = importlib.util.spec_from_file_location('pair_history_interface',
     HERE.parent / 'multiplayer-resume/interface_patch.py')
@@ -36,6 +38,7 @@ DRIVER = HERE / 'native_pair_driver.lua'
 WATCHDOG = HERE / 'pair_watchdog.lua'
 FRAME_LOOP = HERE / 'pair_frame_loop.lua'
 CONSTRUCTION_PROBE = HERE / 'pair_construction_probe.lua'
+PACING = HERE / 'pair_pacing.lua'
 BROWSER_GUARD = '''
 function a.weplayCanAutoCreate()
  return l.frame~=nil and l.lastDiscoveryFinished==true and l.sessionListState==r.idle
@@ -52,13 +55,15 @@ def insert(raw, decode, anchor, fragment, after=False):
     return (source[:offset] + fragment + source[offset:]).encode('utf-8')
 
 
-def build(raw, edition, duration=180000, construction_probe=False):
+def build(raw, edition, duration=180000, construction_probe=False, speed=1):
     if edition not in PINS or hashlib.sha256(raw).hexdigest() != PINS[edition]:
         raise ValueError('Unrecognized automation input archive')
     if not isinstance(duration, int) or not 15000 <= duration <= 600000:
         raise ValueError('Automation deadline outside 15–600 seconds')
     if not isinstance(construction_probe, bool):
         raise ValueError('Construction probe must be explicitly enabled or disabled')
+    if type(speed) is not int or speed not in (1,20):
+        raise ValueError('Laboratory speed must be 1 or 20')
     decode = gold_decode if edition == 'gold' else history.decoded_view
     archive = Archive(raw)
     gold = 'true' if edition == 'gold' else 'false'
@@ -125,6 +130,7 @@ end)(e,{duration=''' + str(duration) + '''},function(row)
    local line="WEPLAY_PAIR_OBSERVATION_V1 edition=''' + edition + ''' sample=".._G.tostring(row.sample)
     .." elapsed_ms=".._G.tostring(row.elapsed_ms).." in_map=".._G.tostring(row.in_map)
     .." turn=".._G.tostring(row.turn).." game_time_ms=".._G.tostring(row.game_time_ms)
+    .." loading_screen_visible=".._G.tostring(row.loading_screen_visible)
    e.UI.WriteToLog(line.."\\n")
    e.UI.WriteToConsole(line)
 end)
@@ -133,6 +139,21 @@ local weplayPairFrame=(function(...)
 end)(update,weplayPairWatchdog)
 function WePlayRegisterPairDriver(tick) weplayPairFrame.register(tick) end
 function update() weplayPairFrame.update() end
+'''
+    if speed == 20:
+        frame += '''
+local weplayPairPacing=(function(...)
+''' + PACING.read_text(encoding='utf-8') + '''
+end)(e,function(row)
+ e.UI.WriteToConsole("WEPLAY_PAIR_OBSERVATION_V1 pacing_requested=".._G.tostring(row.requested_speed)
+  .." pacing_before_ms=".._G.tostring(row.before_ms).." pacing_actual_ms=".._G.tostring(row.actual_ms)
+  .." pacing_accepted=".._G.tostring(row.accepted).." turn=".._G.tostring(row.turn))
+end)
+local weplayPairPacedUpdate=update
+function update()
+ weplayPairPacedUpdate()
+ if not weplayPairWatchdog.closing() then weplayPairPacing() end
+end
 '''
     if construction_probe:
         frame += '''
@@ -159,6 +180,16 @@ end
         # opt-in laboratory archive as well as the normal Gold build path.
         changes[graphics_assets.FOCALIZER] = graphics_assets.focalizer_script(
             archive.read(graphics_assets.FOCALIZER))
+        # The pinned lab input predates the quiet-chat lifecycle correction.
+        # Gold calls hide immediately after create during startGame; retaining
+        # the generic removed-page adapter aborts UI callback registration.
+        quiet_chat = archive.read(menu_interface.GLOBAL_CHAT)
+        if gold_decode(quiet_chat)[1] != menu_interface.QUIET_PAGE:
+            raise ValueError('Unexpected legacy Gold quiet-chat adapter')
+        changes[menu_interface.GLOBAL_CHAT] = menu_interface.replace_body(
+            quiet_chat, menu_interface.QUIET_GLOBAL_CHAT)
+        changes[loading_screen.MEMBER] = loading_screen.patch(
+            archive.read(loading_screen.MEMBER))
     patched = archive.replace(changes)
     verified = Archive(patched)
     if set(archive.entries) != set(verified.entries):
@@ -173,6 +204,8 @@ end
         'watchdog_sha256': hashlib.sha256(WATCHDOG.read_bytes()).hexdigest(),
         'frame_loop_sha256': hashlib.sha256(FRAME_LOOP.read_bytes()).hexdigest(),
         'duration_ms': duration, 'changed_members': list(changes),
+        'requested_speed': speed,
+        'pacing_sha256': (hashlib.sha256(PACING.read_bytes()).hexdigest() if speed==20 else None),
         'construction_probe': construction_probe,
         'construction_probe_sha256': (hashlib.sha256(CONSTRUCTION_PROBE.read_bytes()).hexdigest()
             if construction_probe else None),
@@ -189,11 +222,13 @@ def main():
     parser.add_argument('--duration-ms', type=int, default=180000)
     parser.add_argument('--construction-probe', action='store_true',
         help='Lab only: submit normal storehouse/street commands for both players')
+    parser.add_argument('--speed', type=int, choices=(1,20), default=1,
+        help='Lab only: request original x20 native turn pacing')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('Output directory must not exist')
     data, receipt = build(args.source.read_bytes(), args.edition, args.duration_ms,
-        args.construction_probe)
+        args.construction_probe, args.speed)
     args.output.mkdir(parents=True)
     (args.output / 'Interface.bba').write_bytes(data)
     (args.output / 'receipt.private.json').write_text(json.dumps(receipt, indent=2)+'\n', encoding='utf-8')

@@ -26,6 +26,12 @@ world; these results do not establish complete Gold UI entry. See
 [path-point arithmetic and limits](GOLD-HISTORY-PATH-POINTS.md) and its
 [bounded receipt](verification/gold-history-path-points-20261114.json).
 
+The later [Gold UI correction](GOLD-HISTORY-LOADING-UI.md) fixes the old quiet-chat
+adapter that interrupted UI callback registration. Clean follow-up pairs close
+the original loading overlay and retain normal payable construction: 1,571 equal
+CRCs with Steam data and 1,488 with Ubisoft History. This does not qualify NEO,
+four-player AI maps, mixed save/reload or the mixed bridge over EasyTier.
+
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
 loads it and checks the actual native map before creating a session. Gold keeps

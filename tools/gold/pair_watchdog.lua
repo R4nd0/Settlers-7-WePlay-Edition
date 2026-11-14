@@ -10,9 +10,17 @@ local function tick()
     if not sampledAt or now - sampledAt >= 1000 then
         sampledAt, samples = now, samples + 1
         local inMap = G.Game.InMapMode()
+        local loadingVisible = nil
+        local loading = _G.rawget(G, "loadingScreen")
+        local isCreated = _G.type(loading)=="table" and _G.rawget(loading,"isCreated")
+        if _G.type(isCreated)=="function" then
+            local value = isCreated()
+            if _G.type(value)=="boolean" then loadingVisible = value end
+        end
         report({sample=samples,elapsed_ms=now-began,in_map=inMap,
             turn=inMap and G.Game.GetCurrentTurn() or nil,
-            game_time_ms=inMap and G.Game.GetGameTime() or nil})
+            game_time_ms=inMap and G.Game.GetGameTime() or nil,
+            loading_screen_visible=loadingVisible})
     end
     if now - began >= options.duration then
         -- Original normal application exit API; no process termination or OS

@@ -1,0 +1,18 @@
+{
+  "format": "weplay-gold-history-loading-ui-verification-v1",
+  "date": "2026-11-14",
+  "scope": "bounded standalone loopback DXVK pairs; clean original Gold game UI script",
+  "correction": "Pinned old laboratory global-chat adapter upgraded to current inactive lifecycle contract; optional candle lifecycle guarded",
+  "original_loading_close_and_update_used": true,
+  "loading_widget_forcibly_hidden": false,
+  "native_ready_or_start_result_injected": false,
+  "phase_instrumentation_in_clean_runs": false,
+  "pairs": [
+    {"history": "Steam History data; no Steam SDK", "equal_original_crcs": 1571, "first_finished_turn": 0, "last_finished_turn": 1570, "gold_closed_loader_samples": 156, "build_commands_sent_and_enqueued": 2, "street_commands_sent_and_enqueued": 2, "both_new_storehouses_completed_on_both_clients": true, "both_normal_exit0_full_restoration": true},
+    {"history": "Ubisoft History", "equal_original_crcs": 1488, "first_finished_turn": 0, "last_finished_turn": 1487, "gold_closed_loader_samples": 163, "build_commands_sent_and_enqueued": 2, "street_commands_sent_and_enqueued": 2, "both_new_storehouses_completed_on_both_clients": true, "both_normal_exit0_full_restoration": true}
+  ],
+  "diagnostic_ui_checks": {"explicit_foreground_gold_world_and_hud_both_pairings": true, "gold_castle_click_opened_panel_ubisoft": true},
+  "staging_checks": {"current_builder_archives": 12, "changed_scripts_lua51_compile": true, "original_gold_game_script_unchanged": true, "modeled_loading_lifecycle_checks": 15},
+  "runtime": {"dxvk": true, "quality": "High", "resolution": "1920x1080", "normal_exit_deadline_elapsed_ms": 180000, "original_rng_and_crcs_retained": true, "preexisting_save_replaced": false},
+  "qualified": {"x20_throughput": false, "neo": false, "four_player_ai_maps": false, "mixed_save_reload": false, "mixed_bridge_easytier": false, "separate_pc": false, "ordinary_release_enablement": false}
+}
