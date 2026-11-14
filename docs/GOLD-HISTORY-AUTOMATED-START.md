@@ -321,6 +321,33 @@ Complete profile/archive restoration and an empty host game-process list were
 verified. This is a measured geometry correction, not synchronized crossplay;
 the remaining checksum cause, Ubisoft repeat, NEO and mixed reload are outstanding.
 
+A second passive probe mapped 32 later differences to resource approach points.
+Gold's resource initializer uses a separate object/property layout and six class
+tables, covering trees, piles, mines, fields and spawns. The opt-in
+`native/crossplay_gold_resource_math.h` retains that original initialization and
+allocation, then applies the same History arithmetic to bounded native points.
+The compiled kernel matches another 10,240 original History resource outputs
+across 2,048 cases (`verify_building_point_math.py --kind resource`). Its actual
+compiled bridge ABI tests pass, alongside 299 original method/table/RTTI guard
+checks. Ordinary adapters and release packages still exclude the candidate.
+
+The paired DXVK run recomputed 35,195 resource objects and 52 buildings. All 32
+selected resource values matched History. The full equal-length saved world
+then differed at only 65 bytes, with the first remaining differences near animal
+records; this is a snapshot comparison, not a determinism guarantee. The original
+finished-turn-0 checksums remained unequal. Both games/runners exited normally
+with code zero, full restoration and no remaining host game process; the broker
+recorded 72 relays and one rejection.
+
+A subsequent read-only probe captured all 42 direct inputs and incoming
+accumulator states from each edition's original type-1 CRC calculation. In both
+first passes, the inputs differ only at index 39: Gold hashes a native boolean
+as 1 and History as 0. The accumulator states match through the input preceding
+that difference. The original diagnostic names this state `evm`; it is distinct
+from the map setup's cooperative-mode enum, which already matches at zero.
+The probe leaves the original calculation, input values and EOT bytes unchanged.
+The engine initialization difference remains to be corrected and runtime-tested.
+
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
 barrier and execute actual advancing simulation turns. Matching delivered EOT
