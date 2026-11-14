@@ -94,7 +94,7 @@ def payload(image, name, nonempty=False, scalar=0x10000000, asynchronous=0, *, r
     batch = reading and read_batch and name == 'CEndOfTurnBatchEvent'
     if read_batch and not batch:
         raise ValueError('Batch input requires the explicit batch event and read stream')
-    if reading and (not batch and name not in (EVENTS[0], 'CLoadProgressEvent') or nonempty or type(read_wire) is not bytes
+    if reading and (not batch and name not in (EVENTS[0], 'CLoadProgressEvent', 'CDesyncDetectionTurnEvent') or nonempty or type(read_wire) is not bytes
                     or len(read_wire) > 65536):
         raise ValueError('Only scalar events or explicitly bounded turn batches are mapped')
     batch_count = struct.unpack_from('<I', read_wire, 13)[0] if batch and len(read_wire) >= 17 else 0

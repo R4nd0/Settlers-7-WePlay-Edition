@@ -216,9 +216,67 @@ the original launcher Ready method. Native readiness results, turns and checksum
 computations remain original. Its build and observer ABI checks pass, as do
 fourteen extracted context-gate checks. A test of the actual compiled wrapper
 also verifies original forwarding of arguments, output, return, stack, preserved
-registers and LastError when no world context exists. Its live pair test remains
-pending after RAM preflight rejected the launch before either game started.
-NEO and mixed save/reload remain unqualified.
+registers and LastError when no world context exists.
+
+The candidate subsequently entered the guarded local core in an actual Steam
+History pair. Gold advanced from turn 0 to turn 1 and emitted a second original
+EOT batch, which History received. Both clients then stayed at turn 1. A further
+Ubisoft History pair reproduced that result. Each pair exited normally on both
+clients with code zero, complete restoration and no remaining game process.
+The broker totals were respectively 72 and 67 relays, each with one rejection
+whose cause remains unisolated.
+
+Direct field-tag inspection of all three original EOT serializers corrected an
+earlier diagnostic labeling error: native object offsets 0x10, 0x14 and 0x18
+are `CRCTypes`, `CRCValues` and `TurnFinished`, respectively. Wire bytes and their
+fingerprints were always preserved; only the new diagnostic names had been
+assigned in the wrong order. Schema 2 fixes those labels. It reveals different
+native type-1 checksums for finished turn 0: Gold produced 3041482119 and each
+History source produced 2998908545. A clear sampled desync flag therefore must
+not be read as checksum equality. Both clients also emitted the original
+`CDesyncDetectionTurnEvent`, which the earlier bridge did not relay.
+
+`native/crossplay_desync_turn.h` and its native codec add that specific unsigned
+detection-turn event. They preserve its native sentinel and asynchronous flag,
+project only the admitted header connection, and retain original factory,
+reader/writer, object, owner, started-session and local-clone checks. They neither
+generate checksum acknowledgements nor replace a computed checksum. The private
+receiver uses the same bounded early buffer and original World dispatch gate.
+Ordinary launchers do not enable this laboratory runtime.
+
+The new protocol tests cover identity/header mutations, replay, sequence limits,
+source/type guards, size bounds and scalar/sentinel preservation. Unsupported
+and unowned native calls are rejected. Offline tests execute 18 original writer
+cases and 54 cross-profile reader cases, reject 108 malformed streams, and pass
+29 compiled method-guard checks per edition, including the complete serializer
+return/stack-cleanup bytes. They execute no native heap, factory, sender or game.
+Both original DXVK pairs subsequently delivered the original detection-turn
+event in both directions with sequence 1, native turn 1 and asynchronous flag 1.
+Gold reached turn 2 and its original graphics/logic state's desync flag became
+set; each History client left world mode. The channel therefore exposes the
+native mismatch instead of leaving the check undelivered. It does not correct
+the unequal world checksums. The broker totals were 73 relays for Steam and 72
+for Ubisoft, each with one rejection whose cause remains unisolated.
+
+Both games exited normally with code zero in each test. The first History
+runner's shared-profile check correctly failed because the native Gold desync
+handler created a new `DESYNCSAVE.s7s` in the owned diagnostic profile. That
+specific new file was preserved with its hash and timestamp under `work/`, then
+quarantined from the profile after confirming both games had exited. The complete
+shared snapshot subsequently matched its original state. The failed original
+receipt remains retained alongside the separate reconciliation proof. A pinned
+private cleanup helper now excludes preexisting diagnostic saves before launch,
+waits for the verified owned Gold process to exit, retains only that new owned
+diagnostic file and leaves the full shared-profile comparison in place. The
+Ubisoft repeat passed all restoration checks with this cleanup and no remaining
+game process. No preexisting save was replaced.
+
+The paired native desync saves contain equal-length world payloads of 23,964,766
+bytes, differing at 1,518 byte positions. Their saved cache and info members are
+byte-identical. Initial differing values include adjacent floating-point
+representations; the reason for those differences remains under investigation.
+This comparison does not establish compatible save/reload semantics. Advancing
+common turns, equal world checksums, NEO and mixed save/reload remain unqualified.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
