@@ -1,5 +1,9 @@
 # Experimental S7 Lua debugger adapter
 
+Gold also has an opt-in, exact-marker capture for the original `UI.WriteToLog`
+and `UI.WriteToConsole`, including a separate log-only mode and a guarded
+real-loader self-test. [Usage, native guards and live verification](../../docs/GOLD-LUA-MARKER-CAPTURE.md).
+
 This opt-in Frida adapter uses the **real LuaJIT inside S7**. It supports source
 line breakpoints, continue, step-in, step-over, step-out, bounded call stacks and
 local values. Separate guarded API profiles cover Gold 1.12.1396, Ubisoft History

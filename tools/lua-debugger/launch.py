@@ -1,8 +1,10 @@
 """Launch an existing isolated lab copy with the opt-in local Lua debugger.
 
 No installed original is accepted. The separate game bundle must already have
-the project's lab-compatible platform adapter and DXVK. No binaries/archives
-are deployed here. --self-test runs a small private chunk inside the real VM.
+the project's lab-compatible platform adapter and DXVK. Ordinary observation
+deploys no binaries/archives. The Gold marker self-test temporarily stages one
+guarded core-script fixture and restores its archive after game closure.
+--self-test runs a small private chunk inside the real VM.
 Ordinary mode accepts JSON-lines commands from --commands; it injects no chunk.
 """
 import argparse
@@ -93,11 +95,25 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--trace-errors-only',action='store_true')
+    parser.add_argument('--gold-marker',action='append',default=[],metavar='EXACT_MARKER')
+    parser.add_argument('--self-test-gold-markers',action='store_true')
+    parser.add_argument('--gold-channel',choices=('both','log','console'),default='both')
     parser.add_argument('--commands', type=Path)
     parser.add_argument('--breakpoint', action='append', default=[], metavar='SOURCE:LINE')
     parser.add_argument('--pause-ms', type=int, default=10000)
     parser.add_argument('--affinity-mask', type=lambda text: int(text, 0))
     args = parser.parse_args()
+    capture=bool(args.gold_marker or args.self_test_gold_markers)
+    if args.gold_channel!='both' and not capture:parser.error('Gold channel selection requires marker capture')
+    if capture:
+        if args.self_test or args.trace_errors_only or args.breakpoint or args.commands is not None:
+            parser.error('Gold marker capture cannot be combined with debugger execution modes')
+        if args.self_test_gold_markers and args.gold_marker:
+            parser.error('The Gold marker self-test uses its fixed explicit markers')
+        if args.self_test_gold_markers and args.gold_channel!='both':parser.error('The self-test requires both Gold channels')
+        import gold_capture
+        try:gold_capture.markers(gold_capture.TEST_MARKERS if args.self_test_gold_markers else args.gold_marker)
+        except ValueError as error:parser.error(str(error))
     if args.trace_errors_only and (args.self_test or args.breakpoint or args.commands is not None):
         parser.error('Error-only tracing cannot be combined with fixtures, breakpoints or commands')
     root, output = args.bundle.resolve(), args.output.resolve()
@@ -105,7 +121,7 @@ def main():
         parser.error('Bundle and fresh output must be beneath repository work/')
     if output.exists() or not output.parent.is_dir():
         parser.error('Use a fresh output directory with an existing parent')
-    if not args.self_test and not args.trace_errors_only and args.commands is None:
+    if not args.self_test and not args.trace_errors_only and not capture and args.commands is None:
         parser.error('Ordinary mode requires a local JSON-lines --commands file')
     if args.commands and not args.commands.resolve().is_relative_to((ROOT/'work').resolve()):
         parser.error('Keep commands under repository work/')
@@ -114,6 +130,7 @@ def main():
         import standalone_launch
         return standalone_launch.run(args,dict(snapshot=snapshot,backup=backup,digest=digest))
     if args.trace_errors_only:parser.error('Error-only tracing requires a prepared portable copy')
+    if capture:parser.error('Gold marker capture requires a prepared portable copy')
     gold_exe = root/'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
     if gold_exe.is_file():
         if args.gold_adapter is None:

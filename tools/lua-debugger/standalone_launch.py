@@ -16,6 +16,10 @@ def run(args, helpers):
     root, output = args.bundle.resolve(), args.output.resolve()
     snapshot, backup, digest = (helpers[n] for n in ('snapshot','backup','digest'))
     value, exe, adapter_file = platform.load(root)
+    marker_test=getattr(args,'self_test_gold_markers',False)
+    marker_values=getattr(args,'gold_marker',[])
+    capture=bool(marker_test or marker_values)
+    if capture and value['edition']!='gold':raise ValueError('Gold marker capture requires Gold')
     if args.gold_adapter is not None and args.gold_adapter.resolve()!=adapter_file:
         raise ValueError('Portable copies require their packaged native adapter')
     if value['edition'] == 'history':launch_local.verify_bundle(root)
@@ -39,13 +43,19 @@ def run(args, helpers):
     backup(private,output/'before/Portable',snapshot(private))
     immutable = {str(p.relative_to(root)):digest(p) for p in (exe,adapter_file)}
     source = Path(__file__).parent
+    sources=['debugger.py','agent.js','stepping.js','lua_errors.js','fixture.lua','profiles.py','standalone_launch.py','launch.py']
+    if capture:sources+=['gold_capture.py','gold_capture_agent.js','gold_capture_policy.js','gold_marker_fixture.lua','gold_marker_test.py']
     (output/'source-checkpoint.private.json').write_text(json.dumps({p.name:digest(p) for p in
-        (source/n for n in ('debugger.py','agent.js','stepping.js','lua_errors.js','fixture.lua','profiles.py','standalone_launch.py'))},indent=2))
+        (source/n for n in sources)},indent=2))
     runtime = root/'LocalData/s7-local-runtime.ini'
     previous = runtime.read_bytes() if runtime.exists() else None
-    service = game = sentinel = adapter = None
+    service = game = sentinel = adapter = archive_fixture = None
     failure = None
     try:
+        if marker_test:
+            from gold_marker_test import ArchiveFixture
+            archive_fixture=ArchiveFixture(root,output)
+            archive_fixture.install()
         if value['edition'] == 'history':
             dotnet = args.dotnet or root/'Runtime/dotnet/dotnet.exe'
             server = args.service or root/'Server/S7Patcher.dll'
@@ -59,15 +69,21 @@ def run(args, helpers):
         points = [dict(source=p.rsplit(':',1)[0],line=int(p.rsplit(':',1)[1])) for p in args.breakpoint]
         def attach(owned):
             nonlocal adapter
-            adapter = debugger.Adapter(exe,owned.pid,output/'debugger.private.jsonl',selftest=args.self_test,
-                                       pause_ms=args.pause_ms,breakpoints=points,trace_errors_only=args.trace_errors_only)
+            if capture:
+                import gold_capture
+                adapter=gold_capture.GoldCaptureAdapter(exe,owned.pid,output/'debugger.private.jsonl',
+                    allowed=gold_capture.TEST_MARKERS if marker_test else marker_values,selftest=marker_test,
+                    selected=('log','console') if getattr(args,'gold_channel','both')=='both' else (args.gold_channel,))
+            else:
+                adapter = debugger.Adapter(exe,owned.pid,output/'debugger.private.jsonl',selftest=args.self_test,
+                                           pause_ms=args.pause_ms,breakpoints=points,trace_errors_only=args.trace_errors_only)
         arguments=('-vSynch',) if value['edition']=='gold' else ('-vSynch','-noMapInMainMenu')
         game = platform.launch(root,environment=env,arguments=arguments,on_initialized=attach)
         (output/'owned.private.json').write_text(json.dumps(dict(pid=game.pid,parent=os.getpid(),path=str(exe),
             sha256=digest(exe),kernel_isolation=game.kernel_isolation),indent=2))
         sentinel = memory_guard.Sentinel(game,output/'memory.private.json',memory_guard.Probe(game,exe));sentinel.start()
         print(json.dumps(dict(event='debugger-launched',pid=game.pid,portable=True)),flush=True)
-        if args.self_test:
+        if args.self_test or marker_test:
             result = adapter.selftest()
             (output/'test-result.private.json').write_text(json.dumps(result,indent=2))
             print(json.dumps(dict(event='live-self-test-passed',result=result)),flush=True)
@@ -95,12 +111,14 @@ def run(args, helpers):
         if sentinel:sentinel.close()
         if adapter and not adapter.closed:adapter.close_after_restored(timeout=5)
         if game:game.close()
+        archive_restored=archive_fixture.restore() if archive_fixture else None
         if service and service.poll() is None:service.terminate();service.wait(timeout=15)
         if previous is None:runtime.unlink(missing_ok=True)
         else:runtime.write_bytes(previous)
         unchanged = before == {str(p):snapshot(p) for p in shared}
         finish = dict(exit_code=game.returncode if game else None,shared_profiles_unchanged=unchanged,
-                      game_files_unchanged=all(digest(root/n)==h for n,h in immutable.items()))
+                      game_files_unchanged=all(digest(root/n)==h for n,h in immutable.items()),
+                      diagnostic_archive_restored=archive_restored)
         (output/'restoration.private.json').write_text(json.dumps(finish,indent=2))
         print(json.dumps(finish),flush=True)
         if not unchanged:raise RuntimeError('Shared profiles changed; newer saves retained without replacement')

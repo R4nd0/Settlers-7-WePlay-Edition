@@ -1,0 +1,176 @@
+{
+  "format": "weplay-gold-lua-marker-capture-v1",
+  "verified_utc": "2026-11-14T13:23:23.653770+00:00",
+  "callbacks": {
+    "log": {
+      "preferred_va": "0x984210",
+      "abi": "int __cdecl(lua_State*)",
+      "original_return": 0
+    },
+    "console": {
+      "preferred_va": "0x9842a0",
+      "abi": "int __cdecl(lua_State*)",
+      "original_return": 0
+    }
+  },
+  "callback_and_binding_regions": [
+    {
+      "preferred_va": "0x984210",
+      "bytes": 65,
+      "sha256": "7170db98679dc6a4cda53f2073bddc1a0fed2ffe959cdc07f05a61ea46604bb0"
+    },
+    {
+      "preferred_va": "0x9842a0",
+      "bytes": 65,
+      "sha256": "0707b1780ae9481c57ab475b551f47343ab985fedafa8e28286c7e922234fdf0"
+    },
+    {
+      "preferred_va": "0x10abdd8",
+      "bytes": 16,
+      "sha256": "085a4f722723b9b4f3295388220f5ac95fac96ea4109178317e20ffaae1ddc1c"
+    },
+    {
+      "preferred_va": "0x10abde8",
+      "bytes": 16,
+      "sha256": "dcc87a8f5ee5166efcff3ae11b01fcaf5763edbf0baf74bc815028da8fc7f0e7"
+    },
+    {
+      "preferred_va": "0xf4d2e0",
+      "bytes": 11,
+      "sha256": "71c69675ca3475d31ea13f756fbd49a6da7c75fb307065e297ca7b82f3f17547"
+    },
+    {
+      "preferred_va": "0xf4d2ec",
+      "bytes": 15,
+      "sha256": "a1466bb7a12c2514436251d62a89305fbc39b88e9141d60ddd1e6b2522ffdd6d"
+    },
+    {
+      "preferred_va": "0xbe4c90",
+      "bytes": 96,
+      "sha256": "93c449c1f2aa7377f2745b28d30e350d4e2148066c8227e2df35d7a72e2232f2"
+    }
+  ],
+  "offline_original_guard_audit": {
+    "image_sha256": "ec27c7fab2c83a1444f043eb4730f0065393ca2e91607f71e5fd78ee5a5c7c94",
+    "original_regions": 7,
+    "mutations_rejected": 14,
+    "relocation_entries": 7,
+    "selective_channel_scopes_verified": true,
+    "game_started": false,
+    "process_attached": false
+  },
+  "offline_prepared_guard_audit": {
+    "image_sha256": "76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab",
+    "original_regions": 7,
+    "mutations_rejected": 14,
+    "relocation_entries": 7,
+    "selective_channel_scopes_verified": true,
+    "game_started": false,
+    "process_attached": false
+  },
+  "automated_checks": {
+    "python_capture_and_startup": 21,
+    "node_capture": 26,
+    "node_stepping": 16,
+    "node_error_redaction": 15,
+    "original_and_patched_core_compile": true,
+    "complete_fixture_lua51_model_calls": 7
+  },
+  "actual_game_qualifications": [
+    {
+      "mode": "both",
+      "real_game_lua": true,
+      "marker_records": [
+        {
+          "event": "gold-lua-marker",
+          "channel": "console",
+          "marker": 0,
+          "original_return": 0,
+          "lua_stack_unchanged": true,
+          "nonvolatile_registers_preserved": true,
+          "capture_writes_lua_state": false
+        },
+        {
+          "event": "gold-lua-marker",
+          "channel": "log",
+          "marker": 1,
+          "original_return": 0,
+          "lua_stack_unchanged": true,
+          "nonvolatile_registers_preserved": true,
+          "capture_writes_lua_state": false
+        },
+        {
+          "event": "gold-lua-marker",
+          "channel": "console",
+          "marker": 2,
+          "original_return": 0,
+          "lua_stack_unchanged": true,
+          "nonvolatile_registers_preserved": true,
+          "capture_writes_lua_state": false
+        }
+      ],
+      "exit_code": 0,
+      "kernel_isolation": 7,
+      "shared_profiles_unchanged": true,
+      "private_profile_files_unchanged": 4,
+      "original_exe_and_production_adapter_unchanged": true,
+      "diagnostic_archive_restored": true,
+      "console_hook_installed": true,
+      "explicit_detach_verified": true,
+      "lua_line_hooks_installed": false,
+      "memory_monitor_failed": false
+    },
+    {
+      "mode": "log-only",
+      "real_game_lua": true,
+      "marker_records": [
+        {
+          "event": "gold-lua-marker",
+          "channel": "log",
+          "marker": 0,
+          "original_return": 0,
+          "lua_stack_unchanged": true,
+          "nonvolatile_registers_preserved": true,
+          "capture_writes_lua_state": false
+        }
+      ],
+      "exit_code": 0,
+      "kernel_isolation": 7,
+      "shared_profiles_unchanged": true,
+      "private_profile_files_unchanged": 4,
+      "original_exe_and_production_adapter_unchanged": true,
+      "diagnostic_archive_restored": true,
+      "console_hook_installed": false,
+      "explicit_detach_verified": false,
+      "lua_line_hooks_installed": false,
+      "memory_monitor_failed": false
+    }
+  ],
+  "live_source_sha256": {
+    "debugger.py": "0716ed1af30005a547231faa608a462fe7c4af1533f051cbcc0d5962384b2799",
+    "agent.js": "8cdf9b87dc570f797c20120372870ba80cf89015a0bd7119c0b6edb10398d0b3",
+    "stepping.js": "df76873ff3c6836874ca9ba6515c7b89057bebfd4c41c1b71e84fdaee2578af2",
+    "lua_errors.js": "ce2851904865056d32de85380b60ea9575f857b67903de55a0dc211a71839336",
+    "fixture.lua": "08d8661b447cf344ee749248c300396cea38c5d26fa6b4fabb9a86ad47035d78",
+    "profiles.py": "0a154e1a9115d641296955afa821bd75f31c8e65e522c291c44f98c2dc74635f",
+    "standalone_launch.py": "5e50ebd8fe46ac86a2904da97d104f791512d5f36ef175ea487941d59979a7bf",
+    "launch.py": "67f231fb2541879ef2d53b0c3a4a55493cddf41966a647afd67d9d88833ba644",
+    "gold_capture.py": "506be4e3651aec21e82f57eec0e2346cbba3f54645046c2e1027373c629c2456",
+    "gold_capture_agent.js": "e02588034c44725e375cba6c7057e8abebd04a3a528fc89b7e83558b5a4a2ef4",
+    "gold_capture_policy.js": "a4e05a0e5c83b368c32facf8e77482de8702601aa8a1b3c9092b8c79cf0c84b3",
+    "gold_marker_fixture.lua": "7313438f16a176a19f22aa0a5be9271d8032622761de603463f4156aaea0ffca",
+    "gold_marker_test.py": "404225b0715395f85ea9f09eaca5ea48eff2324eb7a81d4308584ee49907784e"
+  },
+  "restored_archive_sha256": "98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92",
+  "privacy": {
+    "explicit_marker_maximum": 16,
+    "marker_bytes_maximum": 128,
+    "records_maximum": 128,
+    "strings_logged": false,
+    "coercion_performed_by_capture": false,
+    "unrelated_payload_copy": false
+  },
+  "prior_probe_runs": "Three earlier direct protected-call fixture attempts captured no markers and were not counted as passes; all games exited normally.",
+  "scope": "Startup/UI markers in isolated Gold. No world, multiplayer pause, performance or combined native Console64 plus Frida log-only deployment qualification.",
+  "production_package_changed": false
+}
