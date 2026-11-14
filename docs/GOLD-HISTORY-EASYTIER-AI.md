@@ -6,6 +6,9 @@ The ordinary launcher and published packages are unchanged.
 
 Later the same day, original AI-profile factory delivery passed with both
 History editions. See [the event-delivery result and remaining setup barrier](GOLD-HISTORY-AI-EVENTS.md).
+The subsequent [native preparation and world-start milestone](GOLD-HISTORY-AI-PREPARATION.md)
+records actual four-player loopback worlds with both editions; the EasyTier
+Internet-game boundary described here remains open.
 
 ## Encrypted transport boundary
 

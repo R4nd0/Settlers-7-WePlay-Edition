@@ -6,6 +6,9 @@ capture, authenticated transport, original factory cloning and subsequent CPU
 slot-cache observation. It does **not** establish complete AI preparation
 agreement or a four-player world.
 
+The subsequent [native preparation and world-start milestone](GOLD-HISTORY-AI-PREPARATION.md)
+adds those steps and records bounded four-player runs with both History editions.
+
 The ordinary adapters and release packages do not include this laboratory path.
 The earlier [transport and AI-preparation status](GOLD-HISTORY-EASYTIER-AI.md)
 records the frontend and EasyTier infrastructure separately.

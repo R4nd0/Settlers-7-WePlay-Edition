@@ -1,0 +1,129 @@
+{
+  "format": "gold-history-four-slot-ai-world-verification-v1",
+  "date": "2026-11-14",
+  "maintainer": "WePlay Community",
+  "scope": "bounded actual loopback game runs; experimental native headers excluded from ordinary adapters",
+  "pairs": [
+    {
+      "pair": [
+        "gold",
+        "steam_history"
+      ],
+      "map": "Monhaim Valley",
+      "capacity": 4,
+      "human_clients": 2,
+      "ai_players": 2,
+      "graphics": "DXVK High 1920x1080",
+      "standalone_without_steam_client": true,
+      "actual_original_ai_event_factory_clones": 2,
+      "actual_preparation_setter_applications": 2,
+      "all_25_original_player_rows_equal": true,
+      "complete_original_setup_bytes": 33250,
+      "complete_original_setup_equal": true,
+      "independent_original_reader_writeback_equal": true,
+      "mutual_original_world_start": true,
+      "original_loader_closed_without_forced_hiding": true,
+      "matching_original_crcs": 576,
+      "first_matching_finished_turn": 0,
+      "last_matching_finished_turn": 575,
+      "crc_mismatches": 0,
+      "original_commands_sent_and_native_enqueued": {
+        "gold_build": 1,
+        "gold_road": 1,
+        "history_build": 1,
+        "history_road": 1
+      },
+      "native_desync_sent": false,
+      "requested_original_turn_duration_ms": 5,
+      "original_turn_duration_readback_ms": 5,
+      "effective_x20_qualified": false,
+      "normal_exit_and_full_restoration": true,
+      "preexisting_save_replaced": false,
+      "broker_shutdown_connection_resets": 1,
+      "building_completion_qualified": false,
+      "sustained_ai_behavior_qualified": false,
+      "neo_qualified": false,
+      "mixed_reload_qualified": false,
+      "actual_easytier_game_qualified": false
+    },
+    {
+      "pair": [
+        "gold",
+        "ubisoft_history"
+      ],
+      "map": "Monhaim Valley",
+      "capacity": 4,
+      "human_clients": 2,
+      "ai_players": 2,
+      "graphics": "DXVK High 1920x1080",
+      "standalone_without_steam_client": true,
+      "actual_original_ai_event_factory_clones": 2,
+      "actual_preparation_setter_applications": 2,
+      "all_25_original_player_rows_equal": true,
+      "complete_original_setup_bytes": 33252,
+      "complete_original_setup_equal": true,
+      "independent_original_reader_writeback_equal": true,
+      "mutual_original_world_start": true,
+      "original_loader_closed_without_forced_hiding": true,
+      "matching_original_crcs": 443,
+      "first_matching_finished_turn": 0,
+      "last_matching_finished_turn": 442,
+      "crc_mismatches": 0,
+      "original_commands_sent_and_native_enqueued": {
+        "gold_build": 1,
+        "gold_road": 1,
+        "history_build": 1,
+        "history_road": 1
+      },
+      "native_desync_sent": false,
+      "requested_original_turn_duration_ms": 5,
+      "original_turn_duration_readback_ms": 5,
+      "effective_x20_qualified": false,
+      "normal_exit_and_full_restoration": true,
+      "preexisting_save_replaced": false,
+      "broker_shutdown_connection_resets": 1,
+      "building_completion_qualified": false,
+      "sustained_ai_behavior_qualified": false,
+      "neo_qualified": false,
+      "mixed_reload_qualified": false,
+      "actual_easytier_game_qualified": false
+    }
+  ],
+  "synthetic_checks": {
+    "public_cpp_framing_scope_and_preservation": 1606,
+    "original_scalar_setter_abi_executions": 84,
+    "original_scalar_setter_editions": 2,
+    "original_scalar_setter_fixture": "bounded offline CPU with synthetic rows",
+    "all_three_extracted_candidates_build_and_observer_abi_passed": true
+  },
+  "remaining": [
+    "resolve extended Gold/Steam native CRC mismatch at finished turn1278",
+    "sustained AI activity",
+    "additional four-player maps",
+    "effective x20 throughput",
+    "Gold NEO port and adapted-map logistics",
+    "mixed save/reload",
+    "actual EasyTier game and launcher integration"
+  ],
+  "extended_run_failure": {
+    "pair": [
+      "gold",
+      "steam_history"
+    ],
+    "requested_watchdog_seconds": 180,
+    "actual_world_start": true,
+    "original_crcs_compared": 1286,
+    "equal_consecutive_original_crcs_before_first_mismatch": 1278,
+    "first_mismatching_finished_turn": 1278,
+    "last_common_finished_turn": 1285,
+    "crc_mismatches": 2,
+    "original_desync_sent_by_both_clients": true,
+    "source": "extracted public AI preparation headers; additional readonly Lua world-statistics observer",
+    "world_statistics_observer_qualified": false,
+    "normal_exit_and_full_restoration": true,
+    "preexisting_save_replaced": false,
+    "neo_enabled": false,
+    "sustained_ai_crossplay_qualified": false,
+    "cause_resolved": false
+  }
+}
