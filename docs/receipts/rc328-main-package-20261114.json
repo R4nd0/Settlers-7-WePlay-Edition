@@ -1,0 +1,67 @@
+{
+  "format": "weplay-rc328-main-package-verification-v1",
+  "verified_utc": "2026-11-14T17:14:11.015356+00:00",
+  "version": "2.0.0-rc3.28",
+  "sequence": 28,
+  "artifact": {
+    "source_commit": "6fc9b0f171ca29087d8a9190d180c1ca7cf69c21",
+    "source_tree_dirty": false,
+    "production_native_adapter_sha256": {
+      "history": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+      "gold": "fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2"
+    },
+    "native_memory_scanner_sha256": "cc1dd73539404a7d28557f5ae9f2fecd8dca0f35eee62fe32982c3785c18844c",
+    "laboratory_pair_drivers_absent": true,
+    "all_shipped_python_sources_match_commit": true,
+    "shipped_python_files": 81,
+    "all_shipped_python_sources_match_working_source": true,
+    "main_payload_files": 426,
+    "gold_payload_files": 66,
+    "final_gui_matches_tested_publish28": true,
+    "dotnet_runtime": "10.0.15",
+    "private_game_profile_data_absent": true,
+    "signed_manifests_verified": [
+      "weplay-update.json",
+      "weplay-update-isolated.json"
+    ],
+    "setup_sha256": "4b8ec5792e1da26c0b88ea65647490ae17484507fb355411c6588a92f8e20f42",
+    "setup_bytes": 118513948
+  },
+  "production_update_helper_validation": {
+    "production_embedded_key_matches_signed_final_package": true,
+    "protected_app_refuses_legacy_contractless_manifest": true,
+    "actual_installer_executed": false,
+    "results": [
+      {
+        "manifest": "weplay-update-isolated.json",
+        "exit_code": 0,
+        "validation_only": true
+      },
+      {
+        "manifest": "weplay-update.json",
+        "exit_code": 2,
+        "validation_only": true
+      }
+    ]
+  },
+  "final_gui_selftest": {
+    "passed": true,
+    "bilingual": true,
+    "checks": 37,
+    "final_publish_matches_tested_gui": true
+  },
+  "rejected_gold_maximum_runtime_and_addon_absent": true,
+  "additional_gold_authored_lua_matches_source": true,
+  "sha256": {
+    "Setup.exe": "4b8ec5792e1da26c0b88ea65647490ae17484507fb355411c6588a92f8e20f42",
+    "Setup.release.json": "5547bba3d4a7fce29d46688c77ad09dfd0445beebf5c7764f5472bd8d6aaf6df",
+    "Setup.exe.sha256": "45bb989885bb73ed38388f9746a725381bdac7d3071fcc45c7903a5b4e6bd5d5",
+    "weplay-update.json": "7457e0427a2436ce585d30c8a0a44612458049b937886c1a86c50387a1e95f7c",
+    "weplay-update-isolated.json": "ae6649d2cdf6e1c09c241162fa97ba78e18bef512488372ddd62681ed0ce937f",
+    "Verification.json": "81e0266a3007683f3246bfe0f9b59a0ecf6a8cf8d5d0551581bda83225d6390d",
+    "RELEASE-NOTES.txt": "a57e3c80c29549256093b2043fb1f685b2c72cf64f5dcda86de245d9a8976708",
+    "EasyTier-corresponding-source.zip": "78f0160bdfcce20b6335538c4d93bbaf27650092dfce388dc6adc37a34fb8d82"
+  },
+  "actual_game_acceptance_receipt": "rc328-graphics-parity-20261114.json",
+  "delivery": "Locally built installer and signed update manifests; source milestone pushed to main. No public release upload."
+}
