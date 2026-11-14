@@ -17,17 +17,20 @@ class GoldRepairTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(dir=ROOT/'work');self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name)/'Old';self.root.mkdir()
         self.originals={gold.EXE.as_posix():b'invented original exe',gold.INTERFACE.as_posix():b'invented original interface',
+                        gold.SHARED.as_posix():b'invented original shared archive',
                         gold.EXE.with_name('mss32.dll').as_posix():b'invented original audio'}
         self.files={name:sha(data) for name,data in self.originals.items()}
         self.asset='Data/Base/BBA/game.fixture';self.files[self.asset]=sha(b'invented unchanged game asset')
         self.write('Backup/Settlers7R.original.exe',self.originals[gold.EXE.as_posix()])
         self.write('Backup/Interface.original.bba',self.originals[gold.INTERFACE.as_posix()])
+        self.write('Backup/Shr.original.bba',self.originals[gold.SHARED.as_posix()])
         self.write(gold.EXE.with_name('weplay_miles_original.dll'),self.originals[gold.EXE.with_name('mss32.dll').as_posix()])
         self.write(self.asset,b'invented unchanged game asset')
         self.write('LocalData/ProfileRoot/Profiles/Savegames/keep.s7s',b'invented user save')
         self.report()
         for obj,name,value in ((gold,'GOLD_SHA256',self.files[gold.EXE.as_posix()]),
                                (gold,'INTERFACE_SHA256',self.files[gold.INTERFACE.as_posix()]),
+                               (gold,'SHARED_SOURCE_SHA256',self.files[gold.SHARED.as_posix()]),
                                (platform,'MILES_ORIGINAL',self.files[gold.EXE.with_name('mss32.dll').as_posix()])):
             mock=patch.object(obj,name,value);mock.start();self.addCleanup(mock.stop)
 
@@ -48,6 +51,15 @@ class GoldRepairTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'retained original'):installer.repair_inputs(self.root)
         self.files['Data/../../outside']='a'*64;self.report()
         with self.assertRaisesRegex(ValueError,'repair inventory'):installer.repair_inputs(self.root)
+
+    def test_shared_backup_is_required_once_graphics_archive_is_modified(self):
+        original=self.originals[gold.SHARED.as_posix()]
+        self.write(gold.SHARED,b'modified generated environment')
+        self.assertEqual(installer.repair_inputs(self.root)[0][gold.SHARED.as_posix()],original)
+        (self.root/'Backup/Shr.original.bba').unlink()
+        with self.assertRaisesRegex(ValueError,'retained shared'):installer.repair_inputs(self.root)
+        self.write(gold.SHARED,original)
+        self.assertEqual(installer.repair_inputs(self.root)[0][gold.SHARED.as_posix()],original)
 
     def test_legacy_original_audio_is_accepted_only_with_exact_original_hash(self):
         (self.root/gold.EXE.with_name('weplay_miles_original.dll')).unlink()
@@ -70,6 +82,7 @@ class GoldRepairTests(unittest.TestCase):
         patches=(patch.object(gold,'inspect',return_value=dict(unlocked_exe_sha256=sha(b'prepared exe'))),
                  patch.object(gold,'unlock_bytes',return_value=b'prepared exe'),
                  patch.object(gold,'menu_bytes',return_value=b'clean interface'),
+                 patch.object(gold,'shared_bytes',return_value=self.originals[gold.SHARED.as_posix()]),
                  patch.object(gold,'MENU_SHA256',sha(b'clean interface')))
         from contextlib import ExitStack
         with ExitStack() as stack:

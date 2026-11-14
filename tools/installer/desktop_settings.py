@@ -119,8 +119,11 @@ def validate_record(desktop,root,record):
             or record['renderer'] not in ('native','dxvk') or not isinstance(record['files'],dict)
             or set(record['files'])!=set(paths(desktop,root))):raise ValueError('preferences_invalid')
     compatibility=decode(record['compatibility'])
-    if compatibility is None:raise ValueError('preferences_invalid')
-    graphics.content.validate(graphics._json(compatibility))
+    if desktop.is_gold(root):
+        if compatibility is not None or record['renderer']!='dxvk':raise ValueError('preferences_invalid')
+    else:
+        if compatibility is None:raise ValueError('preferences_invalid')
+        graphics.content.validate(graphics._json(compatibility))
     for key,values in record['files'].items():
         if not isinstance(values,dict) or set(values)!={'before','after'}:raise ValueError('preferences_invalid')
         for raw in values.values():validate(desktop,root,key,decode(raw))

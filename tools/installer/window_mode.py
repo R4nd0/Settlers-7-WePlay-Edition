@@ -150,9 +150,13 @@ class Controller:
 
 
 def start(root, game, screen):
-    executable = graphics._plain(Path(root) / 'Base/Bin/Settlers7R.exe').resolve(strict=True)
-    if graphics.content.digest(executable) != graphics.EXE_SHA256:
-        raise ValueError('Unsupported game executable for borderless placement.')
+    import platform_standalone
+    if display.uses_portable_profile(root):
+        _,executable,_=platform_standalone.load(root)
+    else:
+        executable = graphics._plain(Path(root) / 'Base/Bin/Settlers7R.exe').resolve(strict=True)
+        if graphics.content.digest(executable) not in (graphics.EXE_SHA256,graphics.STEAM_EXE_SHA256):
+            raise ValueError('Unsupported game executable for borderless placement.')
     bounds(screen)
     controller = Controller(Windows(game, executable), screen)
     controller.thread.start()

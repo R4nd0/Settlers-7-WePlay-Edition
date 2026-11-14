@@ -149,10 +149,10 @@ def options_path(root):
     return content.plain(Path(root)/'LocalData/ProfileRoot'/suffix/'Options.ini')
 
 
-def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None):
+def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
-    environment = launch_environment(value, executable, os.environ if environment is None else environment)
+    environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
     helper=root/'Launcher/weplay_network_policy.exe'
     result=subprocess.run([str(helper),'check',str(executable)],capture_output=True,timeout=15)
     if result.returncode and lan is None:
@@ -175,7 +175,7 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None)
         raise
 
 
-def launch_environment(value, executable, inherited):
+def launch_environment(value, executable, inherited, *, graphics_options=None):
     environment = dict(inherited)
     if value['edition'] == 'gold':
         # Gold changes its working directory before D3D9 initializes. DXVK's
@@ -184,6 +184,20 @@ def launch_environment(value, executable, inherited):
         environment = {key: setting for key, setting in environment.items()
                        if key.upper() not in ('DXVK_CONFIG', 'DXVK_CONFIG_FILE')}
         environment['DXVK_CONFIG_FILE'] = str(content.plain(executable.with_name('dxvk.conf')))
+        if graphics_options is not None:
+            import unicodedata
+            if (not isinstance(graphics_options,dict) or set(graphics_options)!={'device_name','anisotropic_filtering'}
+                    or type(graphics_options['anisotropic_filtering']) is not bool):
+                raise ValueError('gold_graphics_invalid')
+            device=graphics_options['device_name']
+            if device is not None and (not isinstance(device,str) or not device.strip() or device!=device.strip()
+                    or len(device.encode('utf-8'))>256 or any(unicodedata.category(c).startswith('C') for c in device)):
+                raise ValueError('gold_graphics_invalid')
+            environment={k:v for k,v in environment.items() if k.upper()!='DXVK_FILTER_DEVICE_NAME'}
+            if device is not None:environment['DXVK_FILTER_DEVICE_NAME']=device
+            environment['DXVK_CONFIG']=('d3d9.floatEmulation = Strict; d3d9.samplerAnisotropy = '
+                + ('16' if graphics_options['anisotropic_filtering'] else '-1'))
+    elif graphics_options is not None:raise ValueError('gold_graphics_invalid')
     return environment
 
 

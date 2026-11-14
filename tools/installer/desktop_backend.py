@@ -319,8 +319,12 @@ class Desktop:
             if self.is_gold(root):
                 result.update(edition='gold',single_player_only=True,renderer='dxvk',
                     internet_available=False,discord_available=False,directory_available=False,public_directory_available=False,
-                    visual_detail_supported=False,midsummer_tone_supported=False)
-                try:self.verify_instance(root)
+                    visual_detail_supported=False,midsummer_tone_supported=False,
+                    maximum_fx_supported=False)
+                try:
+                    self.verify_instance(root)
+                    result.update(choice=choice._load_choice(root),quality=quality.load(root),
+                        visual_detail_supported=True,midsummer_tone_supported=metadata.get('midsummer_profile',False))
                 except (OSError,ValueError,RuntimeError):result['needs_repair']=True
                 return result
             try:
@@ -333,6 +337,12 @@ class Desktop:
 
     def renderer(self,root,policy,probe):
         if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
+        if self.is_gold(root):
+            if policy=='native':raise ValueError('gold_dxvk_required')
+            if not probe['devices']:raise ValueError('renderer_unsupported')
+            import gold_graphics
+            gold_graphics.checked_root(root)
+            return 'dxvk'
         supported=bool(probe['devices'])
         if policy=='dxvk' and not supported:raise ValueError('renderer_unsupported')
         use_dxvk=policy=='dxvk' or (policy=='auto' and supported)
@@ -347,6 +357,11 @@ class Desktop:
         return 'dxvk' if use_dxvk else 'native'
 
     def restore_settings_renderer(self,root,mode,expected):
+        if self.is_gold(root):
+            if mode!='dxvk' or expected is not None:raise ValueError('preferences_invalid')
+            import gold_graphics
+            gold_graphics.checked_root(root)
+            return
         if (root/graphics.STATE).exists():
             _,versions,_=graphics._load_state(root)
             if versions[mode=='dxvk'][graphics.COMPAT]!=expected:raise ValueError('preferences_invalid')
@@ -598,13 +613,13 @@ class Desktop:
             raise
         if old:self.transfer_preferences(old,root)
         policy=previous['renderer_policy'] if previous else 'auto'
-        if not gold:
-            probe=self.probe()
-            mode=self.renderer(root,policy,probe)
-            with graphics.session_lock(root):
-                selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and not self.is_gold(old) else None)
-                choice.save_choice(root,selected)
-                self.write(root/quality.FILE,quality.load(root))
+        if gold and policy=='native':policy='auto'
+        probe=self.probe()
+        mode=self.renderer(root,policy,probe)
+        with graphics.session_lock(root):
+            selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
+            choice.save_choice(root,selected)
+            self.write(root/quality.FILE,quality.load(root))
         self.progress('verify')
         verified=self.verify_instance(root)
         self.record_ownership(root,verified)
@@ -625,7 +640,7 @@ class Desktop:
         self.write(root/'desktop-files.json',self.ownership_record(root,manifest))
 
     def ownership_record(self,root,manifest=None):
-        manifest=manifest or content.load(root/'compatibility.json')
+        manifest=manifest or (self.verify_instance(root) if self.is_gold(root) else content.load(root/'compatibility.json'))
         files=dict(manifest['files'])
         # Runtime files were byte-verified by prepare; reuse those package hashes.
         package=self.package_manifest()
@@ -642,12 +657,16 @@ class Desktop:
 
     @verified_operation
     def save_settings(self,request):
-        if self.is_gold():raise ValueError('gold_game_settings')
+        gold=self.is_gold()
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         selected=choice.validate_choice(request['choice']);quality_value=quality.validate(request['quality'])
+        if gold:
+            import gold_graphics
+            gold_graphics.validate(root,selected)
+            if request['renderer_policy']=='native':raise ValueError('gold_dxvk_required')
         choice._require_visual_support(root,selected)
         player_settings.player_name(request['player_name'])
         probe=self.probe()
@@ -673,8 +692,10 @@ class Desktop:
             # Validate all old user records before staging their before-images.
             choice._load_choice(root);quality.load(root);player_settings.load(root)
             if any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
-                import reshade_runtime
-                reshade_runtime.prepare(root,options=selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
+                if gold:gold_graphics.prepare_effects(root,selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
+                else:
+                    import reshade_runtime
+                    reshade_runtime.prepare(root,options=selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
             if self.cancel.exists():raise Cancelled('cancelled')
             value=self.installed();value['renderer_policy']=policy
             planned={'choice':graphics.encoded(selected),'quality':graphics.encoded(quality_value),
@@ -937,15 +958,22 @@ class Desktop:
         import gold_support,platform_standalone,memory_guard
         environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
         environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
-        game=observer=None
+        import gold_graphics
+        game=observer=window=None
         try:
-            game=platform_standalone.launch(root,environment=environment,arguments=('-vSynch',))
-            observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
-                memory_guard.Probe(game,root/gold_support.EXE),
-                warn=lambda level:self.emit('warning',code='memory_warning',level=level))
-            observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
-            code=game.wait(close=False)
+            with graphics.session_lock(root):
+                environment=choice.saved_launch_environment(root,environment)
+                arguments=choice.game_arguments(root)
+                game=platform_standalone.launch(root,environment=environment,arguments=arguments,
+                    graphics_options=gold_graphics.launch_options(root))
+                window=choice.start_window_mode(root,game)
+                observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
+                    memory_guard.Probe(game,root/gold_support.EXE),
+                    warn=lambda level:self.emit('warning',code='memory_warning',level=level))
+                observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
+                code=game.wait(close=False)
         finally:
+            if window:window.close()
             if observer:observer.close()
             if game:game.close()
             self.operation_state('cancellable')
@@ -1173,8 +1201,8 @@ class Desktop:
 
     def diagnostics(self):
         root=self.game();gold=self.is_gold(root)
-        mode='dxvk' if gold else choice._renderer(root,{})[0]
-        probe={'devices':[],'failure':'not_run'} if gold else self.validate_probe(self.read(self.state/'graphics-probe.json'))
+        mode=choice._renderer(root,{})[0]
+        probe=self.validate_probe(self.read(self.state/'graphics-probe.json'))
         raw=self.read(root/'LocalData/desktop-memory-summary.json',{})
         fields=('samples','max_pressure','peak_private_mib','min_free_mib','min_largest_mib','monitor_failed',
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
@@ -1335,7 +1363,8 @@ def error_code(error):
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
-        'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings'}
+                'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings',
+                'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text

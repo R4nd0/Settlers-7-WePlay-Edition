@@ -102,6 +102,7 @@ def verify_root(root):
         adapter=platform_standalone.GOLD
     for name, expected in ((gold.EXE.as_posix(), EXE_SHA256),
                            (gold.INTERFACE.as_posix(), gold.MENU_SHA256),
+                           (gold.SHARED.as_posix(), gold.SHARED_SHA256),
                            ('Launcher/weplay_gold_startup.dll', adapter),
                            (gold.EXE.with_name('d3d9.dll').as_posix(), gold.DXVK_SHA256)):
         if value['files'].get(name) != expected:
@@ -130,6 +131,11 @@ def repair_inputs(root):
     originals={gold.EXE.as_posix():gold.plain(root/'Backup/Settlers7R.original.exe').read_bytes(),
                gold.INTERFACE.as_posix():gold.plain(root/'Backup/Interface.original.bba').read_bytes(),
                miles:retained_miles.read_bytes()}
+    shared_backup=gold.plain(root/'Backup/Shr.original.bba')
+    if shared_backup.exists():originals[gold.SHARED.as_posix()]=shared_backup.read_bytes()
+    else:originals[gold.SHARED.as_posix()]=gold.plain(root/gold.SHARED).read_bytes()
+    if gold.sha256(originals[gold.SHARED.as_posix()])!=gold.SHARED_SOURCE_SHA256:
+        raise ValueError('Gold retained shared archive changed.')
     for name,expected in ((gold.EXE.as_posix(),gold.GOLD_SHA256),(gold.INTERFACE.as_posix(),gold.INTERFACE_SHA256),(miles,platform_standalone.MILES_ORIGINAL)):
         if gold.sha256(originals[name])!=expected or files.get(name)!=expected:
             raise ValueError('Gold retained original changed.')

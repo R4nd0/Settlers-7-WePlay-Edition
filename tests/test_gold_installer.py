@@ -29,9 +29,11 @@ class GoldInstallerTests(unittest.TestCase):
         for name, value in self.payloads.items():
             path = self.app / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(value)
         self.exe, self.interface = b'authored prepared executable', b'authored cleaned interface'
+        self.shared=b'authored shared environment'
         for obj, key, value in (
             (installer, 'ADAPTER_SHA256', self.payloads['Payload/weplay_gold_startup.dll']),
             (installer, 'EXE_SHA256', self.exe), (installer.gold, 'MENU_SHA256', self.interface),
+            (installer.gold, 'SHARED_SHA256', self.shared),
             (installer.gold, 'DXVK_SHA256', self.payloads['Payload/d3d9.dll']),
             (installer.gold, 'DEFINITIONS_SHA256', self.payloads['Definitions/Definitions.bin'])):
             guard = patch.object(obj, key, hashlib.sha256(value).hexdigest())
@@ -51,6 +53,7 @@ class GoldInstallerTests(unittest.TestCase):
 
     def prepared(self, source, target, **kwargs):
         for name, value in ((installer.gold.EXE, self.exe), (installer.gold.INTERFACE, self.interface),
+                            (installer.gold.SHARED,self.shared),
                             (installer.gold.EXE.with_name('d3d9.dll'), self.payloads['Payload/d3d9.dll']),
                             (Path('Backup/Interface.original.bba'), b'original interface')):
             path = target / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(value)

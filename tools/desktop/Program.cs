@@ -232,6 +232,7 @@ internal sealed partial class MainForm : Form
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
+    private bool MaximumGraphicsAvailable=>midsummerToneAvailable&&!singlePlayerOnly;
     private Button openGraphics = null!;
 
     public MainForm(bool initialSetup = false, bool test = false)
@@ -483,7 +484,7 @@ internal sealed partial class MainForm : Form
     {
         foreach (var item in labels) item.Key.Text = Lang.T(item.Value);
         ApplyPlayModeLanguage();UpdateMaintenanceNotice();
-        UpdateGraphicsPresets();if(recoveryVisible)ShowSettingsRecovery(recoveryStatus);
+        UpdateGraphicsPresets();ApplyEditionCapabilities();if(recoveryVisible)ShowSettingsRecovery(recoveryStatus);
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
         Text=Lang.T("app"); tray.Text=Lang.T("app");
         loading=true;
@@ -532,6 +533,8 @@ internal sealed partial class MainForm : Form
         if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
         singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
+        if(singlePlayerOnly&&renderer.Items.Count==3)renderer.Items.RemoveAt(2);
+        if(!singlePlayerOnly&&renderer.Items.Count==2)renderer.Items.Add(Lang.T("native"));
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
@@ -551,7 +554,7 @@ internal sealed partial class MainForm : Form
             enhancedAa.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean();
             contactShadows.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("contact_shadows",out var contactsValue)&&contactsValue.GetBoolean();
             ultraShadows.Checked=visualDetailAvailable&&value.GetProperty("choice").TryGetProperty("ultra_shadows",out var ultraValue)&&ultraValue.GetBoolean();
-            maximumFx.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("maximum_fx",out var maximumValue)&&maximumValue.GetBoolean();
+            maximumFx.Checked=MaximumGraphicsAvailable&&value.GetProperty("choice").TryGetProperty("maximum_fx",out var maximumValue)&&maximumValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
@@ -594,10 +597,14 @@ internal sealed partial class MainForm : Form
     {
         if(modeGrid==null)return;
         var pages=new[]{homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage};
-        foreach(var page in new[]{lanPage,internetPage,directoryPage,graphicsPage})
+        foreach(var page in new[]{lanPage,internetPage,directoryPage})
             if(singlePlayerOnly)tabs.TabPages.Remove(page);
-        if(!singlePlayerOnly)
-            for(int i=0;i<pages.Length;i++)if(!tabs.TabPages.Contains(pages[i]))tabs.TabPages.Insert(i,pages[i]);
+        var visiblePages=singlePlayerOnly?new[]{homePage,graphicsPage,helpPage,updatesPage}:pages;
+        for(int i=0;i<visiblePages.Length;i++)
+            if(!tabs.TabPages.Contains(visiblePages[i]))tabs.TabPages.Insert(Math.Min(i,tabs.TabPages.Count),visiblePages[i]);
+        if(singlePlayerOnly&&renderer.Items.Count==3)renderer.Items.RemoveAt(2);
+        if(!singlePlayerOnly&&renderer.Items.Count==2)renderer.Items.Add(Lang.T("native"));
+        foreach(var item in labels.Where(x=>x.Value=="fallback"))item.Key.Visible=!singlePlayerOnly;
         foreach(var entry in playModes)
         {
             entry.Card.Visible=!singlePlayerOnly||entry.Card.Mode==PlayMode.Solo;
@@ -610,7 +617,7 @@ internal sealed partial class MainForm : Form
             }
         }
         foreach(var item in labels.Where(x=>x.Value=="modeConsentInfo"))item.Key.Visible=!singlePlayerOnly;
-        openGraphics.Visible=!singlePlayerOnly;
+        openGraphics.Visible=true;
         if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");
     }
     private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
@@ -738,6 +745,11 @@ internal sealed partial class MainForm : Form
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
         ultraShadows.Enabled=!busy&&visualDetailAvailable;
         midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
+        bool maximumVisible=!singlePlayerOnly||MaximumGraphicsAvailable;
+        maximumFx.Visible=maximumVisible;
+        foreach(var item in labels.Where(x=>x.Value=="maximumFxInfo"))item.Key.Visible=maximumVisible;
+        if(singlePlayerOnly&&!MaximumGraphicsAvailable&&!loading)maximumFx.Checked=false;
+        maximumFx.Enabled&=MaximumGraphicsAvailable;
         if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=maximumFx.Checked=false;
     }
     private void ApplyQualityPreset(bool maximumObjects)

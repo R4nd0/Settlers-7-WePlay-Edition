@@ -49,6 +49,11 @@ def bundle(source,target,*,source_root=None):
             elif name=='Tools/lan/bba.py':local=repo/'tools/lan/bba.py'
             else:continue
             shutil.copyfile(content.plain(local),content.plain(target/name))
+        for name in ('release_interface.py','graphics_assets.py'):
+            shutil.copyfile(content.plain(repo/'tools/gold'/name),content.plain(target/'Tools/gold'/name))
+        shared=target/'Tools/midsummer';shared.mkdir(exist_ok=True)
+        for name in ('profile.py','archive_append.py','camera_preferences.lua','runtime.lua'):
+            shutil.copyfile(content.plain(repo/'tools/midsummer'/name),content.plain(shared/name))
         runtime=module(target)
         value['menu_sha256']=runtime.gold.MENU_SHA256
         value['files']=runtime.inventory(target,('Tools','Runtime','Payload','Definitions','Licenses'))

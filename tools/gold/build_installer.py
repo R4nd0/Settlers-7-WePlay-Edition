@@ -13,7 +13,7 @@ gold = installer.gold
 
 REPO = Path(__file__).resolve().parents[2]
 TOOLS = ('prepare.py', 'menu_interface.py', 'profile_interface.py', 'installer.py',
-         'start.py', 'bootstrap.py', 'entry_bridge.py')
+         'start.py', 'bootstrap.py', 'entry_bridge.py', 'release_interface.py', 'graphics_assets.py')
 
 
 def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler,platform_runtime=None):
@@ -49,6 +49,9 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler,pl
     for name in TOOLS:
         target = app / 'Tools/gold' / name; target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / 'tools/gold' / name, target)
+    midsummer=app/'Tools/midsummer';midsummer.mkdir()
+    for name in ('profile.py','archive_append.py','camera_preferences.lua','runtime.lua'):
+        shutil.copy2(REPO/'tools/midsummer'/name,midsummer/name)
     if platform_runtime is not None:
         for name in (*platform_standalone.TOOLS,'compatibility.py'):
             shutil.copy2(REPO/'tools/installer'/name,app/'Tools/gold'/name)

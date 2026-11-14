@@ -15,7 +15,8 @@ internal sealed partial class MainForm
     {
         if(graphicsRecommended==null)return;
         graphicsRecommended.Enabled=!busy&&modernGraphicsAvailable;
-        graphicsMaximum.Enabled=!busy&&modernGraphicsAvailable&&midsummerToneAvailable;
+        graphicsMaximum.Enabled=!busy&&modernGraphicsAvailable&&MaximumGraphicsAvailable;
+        graphicsMaximum.Visible=!singlePlayerOnly||MaximumGraphicsAvailable;
         graphicsPresetNotice.Visible=!modernGraphicsAvailable||!midsummerToneAvailable;
         graphicsPresetNotice.Text=Lang.T(!modernGraphicsAvailable?"graphicsModernUnavailable":"graphicsMaximumUnavailable");
     }
@@ -60,7 +61,7 @@ internal sealed partial class MainForm
 
         var quality=GraphicsSection(root,"graphicsQualityGroup");
         graphicsRecommended=Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;});
-        graphicsMaximum=Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=midsummerToneAvailable;return Task.CompletedTask;});
+        graphicsMaximum=Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=MaximumGraphicsAvailable;return Task.CompletedTask;});
         Add(quality,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
             Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;}),
             graphicsRecommended,graphicsMaximum));
@@ -96,5 +97,6 @@ internal sealed partial class MainForm
         monitor.SelectedIndexChanged+=(_,_)=>{if(!loading)UpdateResolutions();};
         window.SelectedIndexChanged+=(_,_)=>{if(!loading)UpdateResolutions();};
         keepDisplay.CheckedChanged+=(_,_)=>DisplayEnabled();renderer.SelectedIndexChanged+=(_,_)=>DisplayEnabled();
+        resolution.SelectedIndexChanged+=(_,_)=>DisplayEnabled();
     }
 }

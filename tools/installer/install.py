@@ -30,7 +30,7 @@ NEO_ADAPTER_SHA256 = '5015ea8747324d5fb703bf85cb9d9b2a60a059d3ab7dca71770b16dd65
 NEO_DIRECTORY_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
-    ('graphics_profile.py', 'graphics_choice.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
+    ('graphics_profile.py', 'graphics_choice.py', 'gold_graphics.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)

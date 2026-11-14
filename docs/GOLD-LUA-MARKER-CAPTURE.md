@@ -59,7 +59,7 @@ rtk proxy python tools/lua-debugger/launch.py --bundle work/portable-gold --outp
 ```
 
 This explicit test temporarily appends a fixed diagnostic fragment to the
-fingerprinted original `Script/local/core.lua` in the prepared RC3.27 Gold
+fingerprinted original `Script/local/core.lua` in the prepared RC3.27 or RC3.28 Gold
 interface archive. All other archive payloads are checked unchanged. The normal
 game loader executes it using the original core's UI environment. It calls both
 APIs, exercises unapproved/oversized/nonstring inputs, then emits a completion

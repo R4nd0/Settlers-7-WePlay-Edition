@@ -34,6 +34,41 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def before(self):return {key:settings.read(path) for key,path in settings.paths(self.desktop,self.root).items()}
 
+    def test_gold_settings_rollback_uses_no_history_compatibility_or_renderer_files(self):
+        import gold_graphics
+        (self.root/graphics.COMPAT).unlink()
+        selected=dict(format=choice.FORMAT,choice=None,simple_menu=True)
+        before=self.before()
+        verified={'files':{}}
+        with patch.object(self.desktop,'is_gold',return_value=True),patch.object(gold_graphics,'is_gold',return_value=True), \
+                patch.object(gold_graphics,'checked_root',return_value=self.root), \
+                patch.object(choice,'visual_supported',return_value=True),patch.object(self.desktop,'verify_instance',return_value=verified), \
+                patch.object(choice,'_renderer',return_value=('dxvk',{})), \
+                patch.object(self.desktop,'probe',return_value=dict(self.base.probe,devices=['Fixture GPU'],failure=None)), \
+                patch.object(self.desktop,'renderer',return_value='dxvk'), \
+                patch.object(backend.player_settings,'save',side_effect=OSError('synthetic Gold player failure')):
+            with self.assertRaisesRegex(OSError,'Gold player failure'):
+                self.desktop.save_settings(dict(renderer_policy='dxvk',choice=selected,
+                    quality=dict(quality.DEFAULTS),player_name='Changed'))
+        self.assertEqual(self.before(),before)
+        self.assertFalse((self.root/graphics.COMPAT).exists())
+        self.assertFalse((self.root/graphics.STATE).exists())
+
+    def test_gold_save_commits_owned_files_without_a_history_manifest(self):
+        import gold_graphics
+        (self.root/graphics.COMPAT).unlink()
+        with patch.object(self.desktop,'is_gold',return_value=True),patch.object(gold_graphics,'is_gold',return_value=True), \
+                patch.object(gold_graphics,'checked_root',return_value=self.root),patch.object(choice,'visual_supported',return_value=True), \
+                patch.object(self.desktop,'verify_instance',return_value={'files':{'Launcher/gold.fixture':'a'*64}}), \
+                patch.object(choice,'_renderer',return_value=('dxvk',{})),patch.object(self.desktop,'renderer',return_value='dxvk'), \
+                patch.object(self.desktop,'probe',return_value=dict(self.base.probe,devices=['Fixture GPU'],failure=None)):
+            result=self.desktop.save_settings(dict(renderer_policy='dxvk',choice=dict(format=choice.FORMAT,choice=None,simple_menu=True),
+                quality=dict(quality.DEFAULTS,WaterQuality=2),player_name='Changed'))
+        self.assertTrue(result['settings_committed'])
+        self.assertEqual(quality.load(self.root)['WaterQuality'],2)
+        self.assertIn('Launcher/gold.fixture',self.desktop.read(self.root/'desktop-files.json')['files'])
+        self.assertFalse((self.root/graphics.COMPAT).exists())
+
     def test_failure_at_each_persistent_write_restores_entire_previous_generation(self):
         targets=settings.paths(self.desktop,self.root)
         for key in ('quality','installation','ownership'):

@@ -19,7 +19,10 @@ DEFINITIONS_SHA256 = '98f30124c274c1de15f46e1701a819358394dfeebaa0d9924b1f56596b
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 INTERFACE = Path('Data/Base/BBA/Interface.bba')
 INTERFACE_SHA256 = '5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215'
-MENU_SHA256 = '98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92'
+MENU_SHA256 = 'de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db657635'
+SHARED = Path('Data/Base/BBA/Shr.bba')
+SHARED_SOURCE_SHA256 = '736077c195660aa90edc601049672b64ac335dcc10870c78c2ddf93901a26655'
+SHARED_SHA256 = '01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f'
 EXE = Path('Data/Base/_Dbg/Bin/Release/Settlers7R.exe')
 DEFINITIONS = Path(__file__).resolve().parents[2] / 'Definitions/Definitions.bin'
 DXVK_CONFIG = (b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
@@ -174,6 +177,8 @@ def inspect(source, definitions=DEFINITIONS, *, originals=None):
     interface_hash = sha256(originals[INTERFACE.as_posix()]) if originals is not None else digest(root / INTERFACE)
     if interface_hash != INTERFACE_SHA256:
         raise ValueError('Gold preparation requires the exact original Gold interface archive.')
+    shared_hash=sha256(originals[SHARED.as_posix()]) if originals is not None else digest(root/SHARED)
+    if shared_hash!=SHARED_SOURCE_SHA256:raise ValueError('Gold preparation requires the exact original Gold shared archive.')
     return {'format': 's7-gold-inspection-v1', 'edition': 'gold-ubisoft-1.12.1396',
             'source_exe_sha256': sha256(raw), 'unlocked_exe_sha256': sha256(patched),
             'unlock_edits': len(GUARDS), 'weplay_adapter_available': False,
@@ -184,12 +189,20 @@ def inspect(source, definitions=DEFINITIONS, *, originals=None):
 
 
 def menu_bytes(raw):
-    spec = importlib.util.spec_from_file_location('gold_menu', Path(__file__).with_name('menu_interface.py'))
+    spec = importlib.util.spec_from_file_location('gold_release_menu', Path(__file__).with_name('release_interface.py'))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     result = module.build(raw)
     if sha256(result) != MENU_SHA256:
         raise ValueError('Gold cleaned interface output fingerprint differs.')
+    return result
+
+
+def shared_bytes(raw):
+    spec=importlib.util.spec_from_file_location('gold_release_assets',Path(__file__).with_name('graphics_assets.py'))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    result=module.shared(raw)
+    if sha256(result)!=SHARED_SHA256:raise ValueError('Gold shared graphics output fingerprint differs.')
     return result
 
 
@@ -253,6 +266,11 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
     copied_interface.write_bytes(interface)
     if digest(copied_interface) != MENU_SHA256:
         raise ValueError('Gold cleaned interface copy verification failed.')
+    shared=plain(destination/SHARED)
+    shared_raw=shared.read_bytes()
+    shared_result=shared_bytes(shared_raw)
+    shutil.copy2(shared,backup.with_name('Shr.original.bba'))
+    shared.write_bytes(shared_result)
     report.update(format='s7-gold-development-copy-v1', source_files=records,
                   definitions_sha256=DEFINITIONS_SHA256, dxvk_staged=dxvk is not None,
                   shared_profile_isolated=False, starter_created=False)

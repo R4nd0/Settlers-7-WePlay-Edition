@@ -1,5 +1,11 @@
 # Gold graphics port candidate
 
+The normal RC3.28 package now uses the common History-led graphics controls and
+the working Gold options. Its actual integrated Maximum trial reproduced UI
+double contours, so that mode remains excluded from the normal Gold interface
+and package. The separate experimental evidence below does not override that
+release decision. See [RC3.28 graphics and options](RC3.28-GRAPHICS-PARITY.md).
+
 Development checkpoint, 2026-11-10. This is not a Gold-compatible WePlay
 release. The native renderer and Mittsommer have actual Gold world observations;
 save reload and the camera correction passed a local check. The separate

@@ -24,6 +24,10 @@ VISUAL_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16
 
 
 def visual_supported(root):
+    import gold_graphics
+    if gold_graphics.is_gold(root):
+        value,_,_=gold_graphics.platform.load(root)
+        return value['edition']=='gold'
     return content.digest(graphics._plain(root / graphics.LOADER)) in (VISUAL_ADAPTER_SHA256,
         'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112')
 
@@ -93,6 +97,8 @@ def game_arguments(root):
     """
     selected = _load_choice(graphics._plain(root))
     arguments = ('-vSynch', '-noMapInMainMenu') if selected.get('simple_menu', False) else ()
+    import gold_graphics
+    if gold_graphics.is_gold(root) and not selected.get('simple_menu',False):arguments=('-vSynch','-mapInMainMenu')
     if selected.get('display') is not None:
         mode, _ = _renderer(graphics._plain(root), {})
         displays = display.enumerate_displays()
@@ -123,6 +129,10 @@ def _renderer(root, inherited):
     its explicit choice-to-environment adapter below. The saved model record
     is backend-independent. Native screen numbers are not GPU selectors.
     """
+    import gold_graphics
+    if gold_graphics.is_gold(root):
+        gold_graphics.checked_root(root)
+        return 'dxvk',dict(os.environ if inherited is None else inherited)
     folder = graphics._plain(root / graphics.STATE)
     if folder.exists():
         folder, versions, active = graphics._load_state(root, full_inventory=False)
@@ -148,6 +158,8 @@ def _renderer(root, inherited):
 
 def saved_launch_environment(root, inherited=None):
     """Prepare saved choices without displaying UI; the caller holds the lock."""
+    import gold_graphics
+    if gold_graphics.is_gold(root):return gold_graphics.launch_environment(root,inherited)
     root = graphics._preflight(root)
     selected = _load_choice(root)
     mode, environment = _renderer(root, inherited)
@@ -192,6 +204,8 @@ def visual_environment(selected, inherited):
 
 def save_choice(root, value):
     """The desktop frontend uses the same validator and profile checks as the GUI."""
+    import gold_graphics
+    if gold_graphics.is_gold(root):return gold_graphics.save_choice(root,value)
     root = graphics._preflight(root)
     selected = validate_choice(value)
     _require_visual_support(root, selected)

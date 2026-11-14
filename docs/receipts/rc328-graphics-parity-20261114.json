@@ -1,0 +1,111 @@
+{
+  "format": "weplay-rc328-graphics-acceptance-v1",
+  "date": "2026-11-14",
+  "reference": "Ubisoft and Steam History prepared graphics/options sources",
+  "gold_release_interface_sha256": "de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db657635",
+  "gold_shared_sha256": "01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f",
+  "laboratory_menu_builder_unchanged": true,
+  "archive_validation": {
+    "gold_lua_scripts_compiled": 284,
+    "original_interface_members_changed": 44,
+    "all_original_shared_payloads_unchanged": true,
+    "only_added_shared_member": "Config/Environment/WePlayMidsummer.xml",
+    "embedded_python_generates_identical_interface_and_shared_archives": true,
+    "marker_fixture_exact_archive_and_original_core_guards_pass": true
+  },
+  "actual_gold_world_runs": [
+    {
+      "purpose": "Integrated non-Maximum graphics and native values",
+      "retained_forest_realm_save_loaded": true,
+      "water_and_shorelines_rendered_correctly": true,
+      "displaced_ui_duplicates_observed": false,
+      "chat_sound_checkbox_absent": true,
+      "midsummer_option_selected_and_applied": true,
+      "normal_exit_code": 0,
+      "kernel_isolation": 7,
+      "bounded_network_observations": 551,
+      "unexpected_remote_or_platform_child_observations": 0,
+      "native_memory_samples": 278,
+      "memory_monitor_failed": false
+    },
+    {
+      "purpose": "Final archive, retained settings and stripped in-game menu",
+      "release_interface_matches_final_pin": true,
+      "retained_forest_realm_autosave_loaded": true,
+      "water_and_hud_rendered_correctly": true,
+      "working_options_route_opened": true,
+      "midsummer_preference_survived_restart": true,
+      "chat_sound_checkbox_absent": true,
+      "in_game_menu_buttons": ["Save game", "Load game", "Options", "Exit to menu", "Exit to desktop"],
+      "main_chat_contacts_inbox_buttons_absent": true,
+      "normal_exit_code": 0,
+      "kernel_isolation": 7,
+      "bounded_network_observations": 146,
+      "unexpected_remote_or_platform_child_observations": 0,
+      "native_memory_samples": 74,
+      "memory_monitor_failed": false
+    }
+  ],
+  "actual_configuration": {
+    "output": "1920x1080 windowed",
+    "dxvk": "3.1.1 x86",
+    "float_emulation": "Strict",
+    "sampler_anisotropy": 16,
+    "frame_rate_cap": 60,
+    "reshade": "official 6.8.0 addon runtime",
+    "tone_smaa_contact_shading": true,
+    "maximum": false,
+    "compiled_effect_files_without_errors": ["WePlay-Midsummer.fx", "SMAA.fx"],
+    "read_only_native_verification": {
+      "lod_operands": [0.005, 0.005],
+      "shadow_allocation_and_estimate": [4096, 4096],
+      "actual_shadow_map_size": 4096,
+      "actual_inverse_vector": [0.000244140625, 0.000244140625, 0.000244140625, 0.000244140625],
+      "shadow_range_span_ratio_end_far_culling": [19100, 192, 19200, 76800, 76800],
+      "executable_and_native_adapter_unchanged": true
+    }
+  },
+  "rejected_candidate": {
+    "configuration": "Experimental Gold pre-UI runtime/addon with Maximum",
+    "actual_observation": "Displaced duplicate UI contours in profile, main and load screens",
+    "world_loaded": false,
+    "normal_exit_code": 0,
+    "decision": "Remove Gold Maximum from UI and reject it in backend at every output size; exclude experimental runtime/addon from package",
+    "history_maximum_changed": false
+  },
+  "restoration": {
+    "shared_documents_profiles_and_saves_unchanged": true,
+    "staged_game_archives_and_metadata_restored": true,
+    "original_executable_and_native_adapter_unchanged": true,
+    "private_diagnostic_options_restored": true,
+    "newer_private_profile_and_autosave_progress_preserved": true,
+    "generated_private_logs_and_replays_retained": true,
+    "older_saves_never_overwrite_newer_saves": true,
+    "owned_games_closed_normally": true
+  },
+  "automated_checks": {
+    "gold_discovery": {"tests": 65, "optional_skips": 4},
+    "gold_graphics_with_lua51": 9,
+    "gold_common_choices": 8,
+    "gold_menu_lifecycle": 14,
+    "gold_release_options_lifecycle": 3,
+    "desktop_backend": 51,
+    "desktop_resilience": 28,
+    "graphics_choice": 39,
+    "graphics_profile": 28,
+    "graphics_launcher": 10,
+    "graphics_distribution": 3,
+    "platform_standalone": 10,
+    "release_policy": 6,
+    "release_documents": 3,
+    "reshade_recovery": 9,
+    "bilingual_winforms_gui_checks": 37,
+    "result": "PASS; suite counts overlap and are not a unique test total"
+  },
+  "qualification_limits": [
+    "Bounded observations on the tested Windows host and Gold world; no FPS or per-effect performance claim",
+    "No new Ubisoft or Steam History world run for this Gold graphics change; their renderer, authored effects and native adapters are retained",
+    "Other output sizes, GPUs, separate-PC multiplayer and Gold Maximum are not qualified by these runs",
+    "Early rejected private-stage attempts did not launch a game and are not counted as successful game tests"
+  ]
+}

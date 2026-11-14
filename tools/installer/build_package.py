@@ -143,7 +143,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names = ['installer/install.py', 'installer/start.py', 'installer/launch_lan.py', 'installer/compatibility.py',
              'offline-ui/launch_local.py', 'offline-ui/patch-spec.json', 'lan/bba.py', 'lan/prepare.py',
              'installer/update_join_menu.py', 'offline-ui/join-menu-update.json']
-    names += ['installer/graphics_profile.py', 'installer/graphics_choice.py',
+    names += ['installer/graphics_profile.py', 'installer/graphics_choice.py', 'installer/gold_graphics.py',
               'installer/Choose-Graphics.ps1']
     names += [original for original, _ in DISPLAY_TOOLS]
     names += [original for original, _ in LAN_LOBBY_TOOLS]

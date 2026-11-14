@@ -1,5 +1,11 @@
 # Gold startup and quiet interface
 
+RC3.28 adds a separately pinned normal single-player composition with shared
+graphics options, Mittsommer/camera preferences, no retired global-chat sound,
+no unadmitted multiplayer menu entry and Castle Forge only with its menu map.
+The historical baseline builder and the verification below remain distinct.
+See [RC3.28 graphics and options](RC3.28-GRAPHICS-PARITY.md).
+
 Verified in a separate Gold laboratory copy on 2026-11-11/12. This ports History's
 startup/menu cleanup to the independently fingerprinted Gold build and removes
 additional vendor UI found in an archive-wide audit. The dedicated

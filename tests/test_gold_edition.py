@@ -42,6 +42,8 @@ class GoldTests(unittest.TestCase):
         archive = self.source / 'Data/Base/BBA/Interface.bba'
         archive.parent.mkdir()
         archive.write_bytes(b'invented Gold archive, not History')
+        self.original_shared=b'invented original Gold shared archive'
+        (self.source/gold.SHARED).write_bytes(self.original_shared)
         (self.source / 'uplay_install.state').write_bytes(b'must not be copied')
         self.hash_guard = patch.object(gold, 'GOLD_SHA256', gold.sha256(self.raw))
         self.hash_guard.start()
@@ -49,7 +51,9 @@ class GoldTests(unittest.TestCase):
         self.original_interface = b'invented Gold archive, not History'
         self.cleaned_interface = b'invented cleaned Gold interface with all campaigns'
         for guard in (patch.object(gold, 'INTERFACE_SHA256', gold.sha256(self.original_interface)),
+                      patch.object(gold, 'SHARED_SOURCE_SHA256', gold.sha256(self.original_shared)),
                       patch.object(gold, 'MENU_SHA256', gold.sha256(self.cleaned_interface)),
+                      patch.object(gold, 'shared_bytes', return_value=self.original_shared),
                       patch.object(gold, 'menu_bytes', return_value=self.cleaned_interface)):
             guard.start(); self.addCleanup(guard.stop)
 

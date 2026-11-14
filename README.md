@@ -2,6 +2,10 @@
 
 **The community fixes what Ubisoft left behind.**
 
+**RC3.28 graphics:** Gold uses History's common graphics controls and working
+effects. Defective Gold Maximum and dead menu entries are removed.
+[Changes and verification](docs/RC3.28-GRAPHICS-PARITY.md).
+
 **RC3.27 main-package fixes:** reliable native memory measurements, Gold water
 configuration and a stable Gold camera. History also allows more time for the
 first local-service start. [Changes and verification](docs/RC3.27-MEMORY-GOLD.md).
