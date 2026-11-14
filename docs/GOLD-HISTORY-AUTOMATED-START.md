@@ -8,8 +8,9 @@ been observed in original Steam History under DXVK without human input.
 The corrected driver also created both native lobbies, admitted the History
 guest, activated its original Ready control and Gold's original Start control
 without input. Both local world-start calls and initial EOT delivery have now
-been observed with each History source. Advancing shared turns and mixed
-gameplay remain unqualified.
+been observed with each History source. Both pairs now advance over 1,000 consecutive
+simulation turns with matching original type-1 CRCs. Gameplay commands, longer
+stability, NEO and mixed save/reload remain unqualified.
 
 `tools/gold/native_pair_driver.lua` waits for the real login and original
 session browser, resolves a unique unlocked Monhaim map through engine metadata,
@@ -276,7 +277,9 @@ bytes, differing at 1,518 byte positions. Their saved cache and info members are
 byte-identical. Initial differing values include adjacent floating-point
 representations. The building-point correction below resolves one group of
 these differences. This comparison does not establish compatible save/reload semantics. Advancing
-common turns, equal world checksums, NEO and mixed save/reload remain unqualified.
+common turns and equal world checksums were still unqualified at that stage;
+the later mode correction below establishes bounded advancing runs. NEO and
+mixed save/reload remain unqualified.
 
 Passive observations subsequently captured the same sampled owner-thread x87
 53-bit and SSE control modes on both editions. Original archive-filter method
@@ -346,7 +349,38 @@ as 1 and History as 0. The accumulator states match through the input preceding
 that difference. The original diagnostic names this state `evm`; it is distinct
 from the map setup's cooperative-mode enum, which already matches at zero.
 The probe leaves the original calculation, input values and EOT bytes unchanged.
-The engine initialization difference remains to be corrected and runtime-tested.
+The opt-in `native/crossplay_shared_engine_mode.h` corrects this initialization
+difference before the original fresh-world start. The caller must first validate
+the executable, owner thread and authenticated, ready two-human session. Full
+original getter/setter bodies and the writable flag are guarded. Gold invokes
+its original zero setter once when needed; History must already report zero and
+is never modified. The fresh session is revalidated afterward, and later unexpected
+mode changes are rejected. Original source validation is retained, as are the
+original CRC calculation and transmitted values. Ordinary adapters do not enable
+this helper.
+
+Compiled x86 helper tests reject wrong owners, unknown flag values and mutated
+methods, and preserve LastError and floating-point controls. The offline
+`tools/gold/verify_shared_engine_mode.py` verifier passes 24 original accessor
+guard checks and six bounded original getter/setter cases across all three
+fingerprinted images. It starts no game and executes original code only in
+emulation.
+
+With that correction, the actual Gold/Steam History DXVK pair matched original
+finished-turn CRCs for turns 0–1020; Gold/Ubisoft History matched turns 0–1022.
+All 168 captured original CRC input/accumulator records matched in each pair.
+The sampled native Gold desync flag remained clear, and each History client
+remained in world mode through its final sample. The separate private laboratory
+limit of 1,024 sent batches then stopped the bridge. Both games and controllers
+exited normally with code zero in each run. Complete profile, archive and adapter
+restoration and an empty host game-process list were verified.
+
+These are actual advancing simulation runs with equal original type-1 checksums;
+they do not yet qualify player gameplay commands, full-state determinism, longer
+stability, NEO or mixed save/reload. The earlier remaining 65 saved-state bytes
+near animal records have not been fully mapped. Further laboratory runs must
+increase the private cumulative test budget while retaining frame-size, queue,
+authentication, sequence and memory limits.
 
 Real acceptance requires both DXVK pairs to create their own native lobbies,
 perform original Ready/Start without human input, leave the shared loading
