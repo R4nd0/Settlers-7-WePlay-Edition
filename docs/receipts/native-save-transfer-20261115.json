@@ -1,0 +1,23 @@
+{
+  "stage": "experimental-original-native-file-transfer-only",
+  "date": "2026-11-15",
+  "qualified_direction": "Gold host to original Ubisoft History or original Steam History",
+  "standalone": true,
+  "DXVK": true,
+  "native_stream_member": "SaveGame.s7",
+  "native_stream_bytes": 24722247,
+  "native_stream_sha256": "1c98822824c12ff185d11d3abc62c3a12916d5115f67a712549248e42f4994ec",
+  "actual_pairs": [
+    {"receiver": "original Ubisoft History", "native_blocks": 3018, "original_receive_stream_digest_matches": true, "original_local_saved_token_observed": true, "both_exit_zero": true, "profiles_and_shared_state_restored": true},
+    {"receiver": "original Steam History", "native_blocks": 3018, "original_receive_stream_digest_matches": true, "original_local_saved_token_observed": true, "both_exit_zero": true, "profiles_and_shared_state_restored": true}
+  ],
+  "source_fixtures": {"protocol_and_hash_checks": 13646, "original_clone_destructor_cases_with_modeled_allocation": 6, "compiled_history_ownership_guard_checks": 22},
+  "prior_failed_candidate": {"history_exit": "0xc0000374", "cause": "shallow clone payload double free", "corrected_before_successful_pairs": true, "profiles_and_shared_state_restored": true},
+  "ordinary_adapter_activation": false,
+  "joint_saved_world_start_qualified": false,
+  "NEO_restore_before_first_comparison_qualified": false,
+  "continued_common_turns_after_reload_qualified": false,
+  "coordinated_save_qualified": false,
+  "full_NEO5_qualified": false,
+  "EasyTier_pair_qualified": false
+}
