@@ -14,8 +14,7 @@ shading. Native quality, model detail and draw-distance settings are unchanged.
 The earlier diagnostic selection is retained in a private backup.
 
 Ten Gold graphics checks pass, including rejection before filesystem preparation
-or launch and preservation of the non-Maximum SMAA selection. These source checks
-establish the guard, not a visual cure.
+or launch and preservation of the non-Maximum SMAA selection.
 
 The first actual DXVK comparison disabled SMAA while retaining Maximum; the
 reported duplicate labels were not clearly reproduced in the observed static
@@ -25,7 +24,14 @@ returned another foreground application, so those images are excluded from Gold
 visual evidence. Both pairs exited normally and restored their profiles and
 shared state.
 
-The exact shader or interaction responsible for the reported artifact remains
-unconfirmed. Do not describe SMAA as the established cause, or this profile
-restriction as a fully verified rendering fix. A visible comparison is still
-needed before making that claim.
+A subsequent actual DXVK comparison displayed Gold in the foreground with SMAA,
+tone and contacts active and Maximum disabled. Send and Start appeared clean in
+the observed lobby; the user also confirmed that this view looked correct.
+This establishes the selected profile as the verified local mitigation for the
+reported UI artifact. It preserves the Modern renderer and SMAA.
+Both comparison clients exited normally; their profiles, adapters, archives and
+shared state were restored and verified afterward.
+
+The exact shader or interaction responsible remains unconfirmed. Do not describe
+SMAA alone as the established cause, or extend this menu observation to every
+world scene, resolution or GPU.
