@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "date": "2026-11-15",
+  "maintainer": "WePlay Community",
+  "scope": "Gold read-only transport binding and detached policy; no NEO gameplay activation",
+  "runtime": {
+    "history_edition": "original Steam History standalone",
+    "graphics": "DXVK High 1920x1080",
+    "map": "Monhaim Valley",
+    "human_clients": 2,
+    "ai_players": 2,
+    "world_probe_window_ms": 45000,
+    "native_crc_comparisons": 570,
+    "finished_turns": [
+      0,
+      569
+    ],
+    "crc_mismatches": 0,
+    "last_recorded_probe_counts": {
+      "captured": 12356,
+      "valid_keys": 12356,
+      "excluded": 0,
+      "counterfactual_would_change": 1045
+    },
+    "all_original_decisions_retained": true,
+    "neo_enabled": false,
+    "both_normal_exit0": true,
+    "full_restoration_verified": true,
+    "owned_game_processes_remaining": false
+  },
+  "source_sha256": {
+    "native/crossplay_gold_logistics_binding.h": "6aa21d58d3113fd437072c1531ba6ad43897c682bd3a9628e29373235eb80f1c",
+    "native/crossplay_gold_logistics_policy.h": "a8c9e6e775e8255240584f348772ced93fff48e811ddef5d05cfe51b06fc7012",
+    "native/gold_logistics_binding_tests.cpp": "d366cb189080b6518a4d96d20daf66de4e26ed55bd609ae810859f7f38eb3a54"
+  },
+  "synthetic_checks": {
+    "public_binding_policy_cases": 70,
+    "private_combined_region_mutation_checks": 50,
+    "public_region_mutation_checks": 32,
+    "last_error_preservation_and_negative_control": true,
+    "legacy_precision_guard_regression_checks": 128,
+    "native_comparator_bridge_callbacks_abi_passed": true
+  },
+  "qualification_limits": {
+    "public_core_extracted_from_private_live_prototype": true,
+    "public_standalone_fixture_passed": true,
+    "neo_gameplay_deliveries": false,
+    "gold_distance_handoff_integration": false,
+    "gold_targeted_workshop_pickup_integration": false,
+    "mixed_save_reload": false,
+    "second_inline_sort_path_runtime_coverage": false,
+    "separate_pc_easytier": false,
+    "effective_x20": false,
+    "ordinary_release_activation": false
+  },
+  "privacy": "No game binaries, original archives, raw traces, local identities, credentials, packets or personal paths included."
+}

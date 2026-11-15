@@ -9,6 +9,12 @@ divergence at finished turn 1278 did not recur within either test:
 | Ubisoft | 3334 | 0–3333 | 0 |
 | Steam, standalone native adapter | 3137 | 0–3136 | 0 |
 
+A subsequent run consumed the exact extracted public component in the
+experimental session adapter and doubled the UI watchdog to 600 seconds.
+Gold/Steam produced **4862 consecutive common original checksums, finished turns
+0–4861, with zero mismatches**. Both clients again exited normally and passed
+strict restoration. See the [sanitized verification receipt](receipts/gold-history-movement-precision-20261115.json).
+
 Both runs used isolated prepared copies, two human clients and two AI players on
 Monhaim Valley, DXVK at High/1920×1080, automatic original payable construction
 actions and a 300-second UI watchdog. Both clients exited normally with status

@@ -49,6 +49,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Gold movement precision fixture build failed.' }
     & (Join-Path $nativeOutput 'gold_movement_precision_tests.exe')
     if ($LASTEXITCODE -ne 0) { throw "Gold movement precision fixtures failed ($LASTEXITCODE)." }
+    & cl.exe @common (Join-Path $nativeSource 'gold_logistics_binding_tests.cpp') /Fe:gold_logistics_binding_tests.exe /link /DYNAMICBASE /NXCOMPAT "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if ($LASTEXITCODE -ne 0) { throw 'Gold logistics binding fixture build failed.' }
+    & (Join-Path $nativeOutput 'gold_logistics_binding_tests.exe')
+    if ($LASTEXITCODE -ne 0) { throw "Gold logistics binding fixtures failed ($LASTEXITCODE)." }
     & cl.exe @common /LD /DS7_GUARD_TESTING (Join-Path $nativeSource 'network_guard.cpp') (Join-Path $nativeSource 'network_guard_test_exports.cpp') /Fe:network_guard_test.dll /link ws2_32.lib winhttp.lib shell32.lib
     if ($LASTEXITCODE -ne 0) { throw 'Gold network fixture DLL build failed.' }
     foreach ($testName in @('network_guard_tests','gold_network_tests')) {

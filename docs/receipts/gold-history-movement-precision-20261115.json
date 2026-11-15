@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "date": "2026-11-15",
+  "maintainer": "WePlay Community",
+  "scope": "bounded local fresh-world arithmetic-port qualification; experimental integration only",
+  "graphics": {
+    "renderer": "DXVK",
+    "quality": "High",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "legacy_fallback": false
+  },
+  "component_sha256": {
+    "native/crossplay_gold_movement_precision.h": "4c2cced885ea01a174419fc7a5b5eb85e2de2669ec5aa7dd22b2f01aba29b65a",
+    "native/crossplay_gold_movement_precision_pins.h": "7ac4f7a4aef5f0759edcdc9c2c4f2ae272067a7152a2429d00ffd99936d8f152"
+  },
+  "runs": [
+    {
+      "history_edition": "Ubisoft History",
+      "component_stage": "private core before extraction",
+      "map": "Monhaim Valley",
+      "human_clients": 2,
+      "ai_players": 2,
+      "native_crc_comparisons": 3334,
+      "first_finished_turn": 0,
+      "last_finished_turn": 3333,
+      "crc_mismatches": 0,
+      "original_checksums_retained": true,
+      "both_normal_exit0": true,
+      "full_restoration_verified": true,
+      "preexisting_save_replaced": false,
+      "owned_game_processes_remaining": false,
+      "ui_watchdog_ms": 300000,
+      "transport_rejection_count": 1
+    },
+    {
+      "history_edition": "Steam History standalone",
+      "component_stage": "private core before extraction",
+      "map": "Monhaim Valley",
+      "human_clients": 2,
+      "ai_players": 2,
+      "native_crc_comparisons": 3137,
+      "first_finished_turn": 0,
+      "last_finished_turn": 3136,
+      "crc_mismatches": 0,
+      "original_checksums_retained": true,
+      "both_normal_exit0": true,
+      "full_restoration_verified": true,
+      "preexisting_save_replaced": false,
+      "owned_game_processes_remaining": false,
+      "ui_watchdog_ms": 300000,
+      "transport_rejection_count": 1
+    },
+    {
+      "history_edition": "Steam History standalone",
+      "component_stage": "public component in experimental session adapter",
+      "map": "Monhaim Valley",
+      "human_clients": 2,
+      "ai_players": 2,
+      "native_crc_comparisons": 4862,
+      "first_finished_turn": 0,
+      "last_finished_turn": 4861,
+      "crc_mismatches": 0,
+      "original_checksums_retained": true,
+      "both_normal_exit0": true,
+      "full_restoration_verified": true,
+      "preexisting_save_replaced": false,
+      "owned_game_processes_remaining": false,
+      "ui_watchdog_ms": 600000,
+      "transport_rejection_count": 1
+    }
+  ],
+  "synthetic_original_search_corpora": [
+    {
+      "queries": 96,
+      "grids": 32,
+      "dimensions": [
+        16,
+        24
+      ],
+      "stock_gold_path_mismatches": 21,
+      "scoped_gold_path_mismatches": 0
+    },
+    {
+      "queries": 192,
+      "grids": 48,
+      "dimensions": [
+        32,
+        48,
+        64
+      ],
+      "stock_gold_path_mismatches": 70,
+      "scoped_gold_path_mismatches": 0
+    }
+  ],
+  "native_guard_probe": {
+    "original_regions": 42,
+    "mutation_unreadability_checks": 128,
+    "passed": true
+  },
+  "native_abi_fixture_passed": true,
+  "qualified": {
+    "bounded_fresh_loopback_worlds": true,
+    "neo_gameplay": false,
+    "mixed_saves_reload": false,
+    "separate_pc_easytier": false,
+    "effective_x20": false,
+    "all_maps_or_long_matches": false,
+    "ordinary_release_activation": false
+  },
+  "data_policy": "No game binaries, archives, raw traces, local identities, credentials, packet payloads or personal paths included."
+}

@@ -1,7 +1,9 @@
 """Run the compiled x86 codec integrity guard against pinned analysis images.
 
 Original game code is read but never executed. Only the compiled guard executes;
-VirtualQuery is modeled for the bounded native image. This does not qualify a
+VirtualQuery is modeled for the bounded native image. Imported GetLastError and
+SetLastError use one emulated thread's error state. The x86 exception-list head
+permits only registration in the owned stack and restoration. This does not qualify a
 native factory, an event delivery, a lobby or a mixed-edition match.
 """
 import argparse
@@ -19,10 +21,12 @@ import emulate_event_payloads as native
 
 SCRATCH, STACK = 0x20000000, 0x30000000
 STOP, QUERY = SCRATCH, SCRATCH+16
+GET_ERROR, SET_ERROR = SCRATCH+32, SCRATCH+48
 STREAMS = {'gold': 0xf26560, 'ubisoft': 0x112f5bc, 'steam_analysis': 0x112db4c}
 
 
-def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', methods=(), instruction_limit=500000):
+def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', methods=(), instruction_limit=500000,
+                preserve_last_error=False):
     if type(instruction_limit) is not int or not 1 <= instruction_limit <= 2000000:
         raise ValueError('Guard instruction budget outside bound')
     u = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -33,6 +37,10 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
     u.mem_write(base, fixture.get_memory_mapped_image())
     u.mem_map(SCRATCH, 4096)
     u.mem_map(STACK, 65536)
+    # The fixture's x86 FS base is zero. Only its exception-list head is writable;
+    # no original game pointer becomes readable through modeled VirtualQuery.
+    u.mem_map(0, 4096)
+    u.mem_write(0, struct.pack('<I', 0xffffffff))
     entry = next(base+e.address for e in fixture.DIRECTORY_ENTRY_EXPORT.symbols
                  if e.name == oracle)
     queries = [imp.address for library in fixture.DIRECTORY_ENTRY_IMPORT
@@ -40,12 +48,21 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
     if len(queries) != 1:
         raise ValueError('Expected the compiled VirtualQuery import')
     u.mem_write(queries[0], struct.pack('<I', QUERY))
+    for name, target in ((b'GetLastError', GET_ERROR), (b'SetLastError', SET_ERROR)):
+        imports = [imp.address for library in fixture.DIRECTORY_ENTRY_IMPORT
+                   for imp in library.imports if imp.name == name]
+        if len(imports) > 1:
+            raise ValueError('Duplicate compiled LastError import')
+        for address in imports:
+            u.mem_write(address, struct.pack('<I', target))
     blocked = None
+    last_error = 0
 
     def word(address):
         return struct.unpack('<I', u.mem_read(address, 4))[0]
 
     def code(uc, address, length, data):
+        nonlocal last_error
         if address == STOP:
             uc.emu_stop()
         elif address == QUERY:
@@ -59,13 +76,26 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
                 result = 28
             else:
                 result = 0
+                last_error = 87  # ERROR_INVALID_PARAMETER on the modeled failure.
             uc.reg_write(UC_X86_REG_EAX, result)
             uc.reg_write(UC_X86_REG_EIP, word(sp))
             uc.reg_write(UC_X86_REG_ESP, sp+16)
+        elif address == GET_ERROR:
+            sp = uc.reg_read(UC_X86_REG_ESP)
+            uc.reg_write(UC_X86_REG_EAX, last_error)
+            uc.reg_write(UC_X86_REG_EIP, word(sp))
+            uc.reg_write(UC_X86_REG_ESP, sp+4)
+        elif address == SET_ERROR:
+            sp = uc.reg_read(UC_X86_REG_ESP)
+            last_error = word(sp+4)
+            uc.reg_write(UC_X86_REG_EIP, word(sp))
+            uc.reg_write(UC_X86_REG_ESP, sp+8)
         elif not base <= address < base+size:
             raise RuntimeError('Attempted to execute original game or foreign code')
 
     def write(uc, access, address, length, value, data):
+        if address == 0 and length == 4 and (value == 0xffffffff or STACK <= value < STACK+65536):
+            return
         if not STACK <= address <= address+length <= STACK+65536:
             raise RuntimeError('Guard wrote outside its owned stack')
 
@@ -75,6 +105,9 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
                  UC_X86_REG_ESI: 0x34567890, UC_X86_REG_EDI: 0x456789ab}
 
     def call(expected):
+        nonlocal last_error
+        last_error = 0x76543210
+        u.mem_write(0, struct.pack('<I', 0xffffffff))
         sp = STACK+0xf000
         u.mem_write(sp, struct.pack('<2I', STOP, edition))
         for register, value in {**preserved, UC_X86_REG_ESP: sp}.items():
@@ -82,7 +115,9 @@ def check_image(image, fixture, edition, *, oracle=b'WePlayCodecTablesOracle', m
         u.emu_start(entry, STOP+1, count=instruction_limit, timeout=5000000)
         if (u.reg_read(UC_X86_REG_EIP) != STOP or u.reg_read(UC_X86_REG_ESP) != sp+4
                 or bool(u.reg_read(UC_X86_REG_EAX)) != expected
-                or any(u.reg_read(k) != v for k, v in preserved.items())):
+                or any(u.reg_read(k) != v for k, v in preserved.items())
+                or word(0) != 0xffffffff
+                or (preserve_last_error and last_error != 0x76543210)):
             raise RuntimeError('Compiled native table guard result/ABI mismatch')
 
     tables = () if methods else ((STREAMS[image.label], 11), (image.tables[native.WRITER][0], 39),

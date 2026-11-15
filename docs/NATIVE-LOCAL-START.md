@@ -6,6 +6,11 @@ editions, with 3334 and 3137 common original checksums and no mismatches. Ordina
 adapters do not activate this component. NEO, mixed save/reload and separate-PC
 qualification remain open; see [cause, guards and measured limits](GOLD-HISTORY-MOVEMENT-PRECISION.md).
 
+Gold logistics binding update (2026-11-15): the detached native model now accepts
+real Gold request and production-backed transfers in a bounded mixed world.
+Original sorting remains active; this does not enable NEO gameplay. See
+[corrected fields, native evidence and integration requirements](GOLD-HISTORY-NEO-BINDING.md).
+
 RC3.18 adds the [NEO pickup correction](NEO-WORKSHOP-PICKUP.md) and
 [eligible warehouse distance selection](NEO-LOGISTICS-DISTANCE.md), with NEO5
 peer compatibility. Its release profile enables bounded `ResumeCatchup` and uses
