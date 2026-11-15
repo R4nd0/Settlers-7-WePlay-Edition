@@ -30,10 +30,18 @@ def verify_package(app):
     return value
 
 
-def bundle(source,target,*,source_root=None):
+def bundle(source,target,*,source_root=None,quiet_reshade=None):
     source,target=map(content.plain,(source,target))
     value=verify_package(source)
     if target.exists():raise ValueError('Gold payload destination exists')
+    payload=None
+    if quiet_reshade is not None:
+        import reshade_runtime
+        payload=content.plain(quiet_reshade)
+        if content.digest(payload)!=reshade_runtime.SETUP_SHA256:raise ValueError('Quiet ReShade bundle fingerprint mismatch')
+        existing=content.plain(source/reshade_runtime.RUNTIME_BUNDLE)
+        if existing.exists() and content.digest(existing)!=reshade_runtime.SETUP_SHA256:
+            raise ValueError('Existing Gold runtime bundle fingerprint mismatch')
     target.mkdir(parents=True)
     for name in ('package.json',*value['files']):
         path=content.plain(target/name);path.parent.mkdir(parents=True,exist_ok=True)
@@ -58,6 +66,15 @@ def bundle(source,target,*,source_root=None):
         value['menu_sha256']=runtime.gold.MENU_SHA256
         value['files']=runtime.inventory(target,('Tools','Runtime','Payload','Definitions','Licenses'))
         (target/'package.json').write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
+    if payload is not None:
+        destination=content.plain(target/reshade_runtime.RUNTIME_BUNDLE)
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        if not destination.exists():shutil.copyfile(payload,destination)
+        if source_root is not None:
+            shutil.copyfile(content.plain(Path(source_root)/'tools/gold/RESHade-LICENSE.txt'),destination.with_name('ReShade-LICENSE.txt'))
+        runtime=module(target)
+        value['files']=runtime.inventory(target,('Tools','Runtime','Payload','Definitions','Licenses'))
+        (target/'package.json').write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
     verify_package(target)
 
 
@@ -80,7 +97,22 @@ def prepare(package,source,target,**options):
     previous=sys.path[:]
     try:
         sys.path.insert(0,str(app/'Tools/gold'))
-        return module(app).prepare_copy(app,source,target,**options)
+        # Gold has its own preparation path, so History's Runtime copy does not
+        # run here. Carry the same qualified effect runtime into the new copy.
+        import reshade_runtime
+        payload=content.plain(app/reshade_runtime.RUNTIME_BUNDLE)
+        if payload.exists() and content.digest(payload)!=reshade_runtime.SETUP_SHA256:
+            raise ValueError('Quiet ReShade bundle fingerprint mismatch')
+        result=module(app).prepare_copy(app,source,target,**options)
+        if payload.exists():
+            destination=content.plain(Path(target)/reshade_runtime.RUNTIME_BUNDLE)
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            with payload.open('rb') as incoming,destination.open('xb') as outgoing:
+                shutil.copyfileobj(incoming,outgoing)
+            if content.digest(destination)!=reshade_runtime.SETUP_SHA256:
+                raise ValueError('Quiet ReShade copy fingerprint mismatch')
+            if options.get('tracker'):options['tracker'](destination,reshade_runtime.SETUP_SHA256)
+        return result
     finally:sys.path[:]=previous
 
 

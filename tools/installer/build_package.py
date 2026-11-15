@@ -37,7 +37,7 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, memory_scanner=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,platform_runtime=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, memory_scanner=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
@@ -52,8 +52,14 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         atmosphere_addon=content.plain(atmosphere_addon)
         if content.digest(atmosphere_addon)!=reshade_runtime.CLOCK_SHA256:raise ValueError('Atmosphere clock fingerprint mismatch')
         check_output_location(repo,output,(atmosphere_addon.parent,))
+        if quiet_reshade is None:raise ValueError('Mittsommer requires the pinned ReShade runtime without overlay')
+        quiet_reshade=content.plain(quiet_reshade)
+        if content.digest(quiet_reshade)!=reshade_runtime.SETUP_SHA256:raise ValueError('Quiet ReShade bundle fingerprint mismatch')
+        check_output_location(repo,output,(quiet_reshade.parent,))
     elif atmosphere_addon is not None:
         raise ValueError('Atmosphere clock requires the Mittsommer graphics package')
+    elif quiet_reshade is not None:
+        raise ValueError('Quiet ReShade requires the Mittsommer graphics package')
     if game_directory:
         if graphics_probe is None or easytier_runtime is None or windows_helpers is None:raise ValueError('Directory requires desktop, EasyTier and current Windows helpers')
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
@@ -117,6 +123,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         clock=output/'Runtime/Graphics';clock.mkdir()
         shutil.copyfile(atmosphere_addon,clock/'WePlayAtmosphere.addon32')
         shutil.copyfile(repo/'tools/midsummer/effects/Atmosphere-LICENSE.txt',clock/'LICENSE.txt')
+        shutil.copyfile(quiet_reshade,output/reshade_runtime.RUNTIME_BUNDLE)
+        shutil.copyfile(repo/'tools/gold/RESHade-LICENSE.txt',clock/'ReShade-LICENSE.txt')
     for name in ('dotnet.exe', 'LICENSE.txt', 'ThirdPartyNotices.txt'):
         shutil.copyfile(dotnet / name, net / name)
     for relative in ('host/fxr/' + version, 'shared/Microsoft.NETCore.App/' + version):
@@ -278,8 +286,9 @@ if __name__ == '__main__':
     parser.add_argument('--neo-logistics',action='store_true',help='Include the experimental NEO-Logistics map mode (matching adapter required)')
     parser.add_argument('--midsummer-profile',action='store_true',help='Include optional bright twilight/day lighting and ReShade tone support')
     parser.add_argument('--atmosphere-addon',help='Tested x86 read-only sun-clock bridge (required for Mittsommer)')
+    parser.add_argument('--quiet-reshade',help='Pinned ReShade ZIP without GUI (required for Mittsommer)')
     parser.add_argument('--platform-runtime',help='Pinned platform-independent SDK, entry gates and Windows filtering helper')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,memory_scanner=args.memory_scanner,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,platform_runtime=args.platform_runtime))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,quiet_reshade=args.quiet_reshade,platform_runtime=args.platform_runtime))

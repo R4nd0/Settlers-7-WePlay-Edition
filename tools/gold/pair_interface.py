@@ -43,7 +43,9 @@ PACING = HERE / 'pair_pacing.lua'
 AI_ROSTER = HERE / 'pair_ai_roster.lua'
 BROWSER_GUARD = '''
 function a.weplayCanAutoCreate()
- return l.frame~=nil and l.lastDiscoveryFinished==true and l.sessionListState==r.idle
+ if l.frame==nil or l.lastDiscoveryFinished~=true or l.sessionListState~=r.idle then return false end
+ local discovery=e.Network.SessionGetDiscovery(false)
+ return _G.type(discovery)=="table" and discovery.State==2
 end
 '''
 
@@ -150,6 +152,8 @@ function c.weplayAutoReady()
  if c.weplayCanAutoReady() then l.button.activate(o.slots[2].readyButtonID) end
 end
 '''
+    if edition == 'gold':
+        host += '\n;(function(...)\n' + (HERE / 'neo_lobby.lua').read_text(encoding='utf-8') + '\nend)(n,d,function() return e end)\n'
     frame = '''
 local weplayPairWatchdog=(function(...)
 ''' + WATCHDOG.read_text(encoding='utf-8') + '''

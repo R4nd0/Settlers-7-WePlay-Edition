@@ -15,7 +15,10 @@
       "case": 238,
       "history": "original Steam History, standalone",
       "common_original_checksums": 300,
-      "finished_turns": [0, 299],
+      "finished_turns": [
+        0,
+        299
+      ],
       "mismatches": 0,
       "both_native_files_logic_turn": 300,
       "serialized_neo_metadata_equal": true,
@@ -27,7 +30,10 @@
       "case": 239,
       "history": "original Ubisoft History, standalone",
       "common_original_checksums": 2111,
-      "finished_turns": [0, 2110],
+      "finished_turns": [
+        0,
+        2110
+      ],
       "mismatches": 0,
       "both_native_files_logic_turn": 300,
       "serialized_neo_metadata_equal": true,
@@ -36,6 +42,42 @@
       "history_symmetric_observation": false,
       "both_normal_exit_zero": true,
       "strict_restoration": true
+    },
+    {
+      "case": 243,
+      "history": "history-steam",
+      "common_original_checksums": 1971,
+      "finished_turns": [
+        0,
+        1970
+      ],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "gold_checkbox_native_selected_on": true,
+      "world_continued_after_save": true,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true,
+      "effects_compiled_on_both": true
+    },
+    {
+      "case": 244,
+      "history": "history-ubisoft",
+      "common_original_checksums": 1695,
+      "finished_turns": [
+        0,
+        1694
+      ],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "gold_checkbox_native_selected_on": true,
+      "world_continued_after_save": true,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true,
+      "effects_compiled_on_both": true
     }
   ],
   "renderer": "DXVK",
@@ -46,5 +88,14 @@
   "preexisting_save_replaced": false,
   "mixed_session_reload_proven": false,
   "effective_x20_proven": false,
-  "easytier_or_separate_pc_proven": false
+  "easytier_or_separate_pc_proven": false,
+  "gold_host_checkbox": {
+    "scope": "experimental native candidate only",
+    "default_enabled": false,
+    "host_only": true,
+    "original_start_freezes_choice": true,
+    "mutual_native_agreement_required": true,
+    "lua51_fixture_cases": 5,
+    "manual_off_world_qualified": false
+  }
 }

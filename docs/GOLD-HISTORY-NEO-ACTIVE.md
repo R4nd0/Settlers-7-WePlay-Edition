@@ -39,6 +39,8 @@ compared without changing clocks, RNG, stock or checksum values.
 | --- | ---: | ---: | --- |
 | Gold / Steam History, case 238 | 300, finished turns 0–299 | 0 | Both at LogicTurn 300 |
 | Gold / Ubisoft History, case 239 | 2,111, finished turns 0–2110 | 0 | Both at LogicTurn 300 |
+| Gold / Steam History, case 243 | 1,971, finished turns 0–1970 | 0 | Both at LogicTurn 300 |
+| Gold / Ubisoft History, case 244 | 1,695, finished turns 0–1694 | 0 | Both at LogicTurn 300 |
 
 Each pair wrote through the original `game.save` and pickle lifecycle into an
 unused diagnostic slot. Both native files contain byte-identical serialized
@@ -48,11 +50,13 @@ claimed. Saving was slow enough to require a longer bounded test window.
 
 In the Ubisoft pair, a read-only Gold observer saw a human construction site's
 required goods arrive and its original construction progress reach 100%. The
-first History observer did not report the corresponding sites. That observer
-has been corrected to exclude nonbuilding task rows before constructing an
-entity key, but symmetric observation and completion still require a new run.
+first History observer did not report the corresponding sites. Case 244's
+additional sample found the guest's real construction task through the original
+normalized logistics UI API, while the raw task observer still reported no
+History sites. Symmetric delivery/completion observation remains open; progress
+100% alone is not treated as proof that the building completed.
 
-Both games exited normally in the two tabled cases. Strict checks confirmed
+Both games exited normally in all tabled cases. Strict checks confirmed
 restoration of profiles, archives, adapters and shared state, no replacement of
 preexisting saves and no remaining test game processes.
 
@@ -64,6 +68,21 @@ delivery/completion observation, full NEO5 and EasyTier/separate-PC tests remain
 open. The requested x20 duration was accepted by the original API, but measured
 progress did not establish effective x20 simulation speed.
 
-A Gold host-checkbox candidate and a ReShade runtime without GUI are being
-verified separately. Their source or successful compilation is not a gameplay
-or graphics acceptance result.
+## Gold host choice
+
+The experimental Gold lobby now includes a host-only NEO checkbox, initially
+off. It uses the guarded native setup callback; guests cannot change the choice.
+The original held start freezes it, and both peers must still complete the
+matching authenticated agreement. Unsupported, malformed or locked states
+disable the widget. The five Lua 5.1 fixture cases cover authority, rejection,
+malformed state, reentrant refresh and panel lifecycle.
+
+Cases 243 and 244 exercised the checkbox's host action and native selected-on
+acknowledgement before the real mixed world started. Automation calls that same
+action; it does not replace native admission. A manually operated off-choice
+world and the checkbox's final visual placement remain unqualified. The ordinary
+Gold release still does not enable the experimental native multiplayer adapter.
+
+Those two runs also used the qualified ReShade runtime without GUI. See
+[ReShade without overlay](RESHADE-NO-OVERLAY.md) for the independent graphics
+evidence and package boundaries.

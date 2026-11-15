@@ -1,0 +1,78 @@
+{
+  "format": "weplay-reshade-no-overlay-v1",
+  "date": "2026-11-15",
+  "maintainer": "WePlay Community",
+  "editions": [
+    "gold",
+    "history-steam",
+    "history-ubisoft"
+  ],
+  "upstream_version": "6.8.0",
+  "upstream_commit": "18deaa52de0c425a78b329e9cb3c497281cd00ec",
+  "gui_compiled": false,
+  "existing_guarded_vulkan_hook_patch_retained": true,
+  "fresh_private_runtime_source_objects": 122,
+  "dll_sha256": "899aad77b9a6a333bc11775fb22e4671c9ba13eb7d26409c5754935095034101",
+  "bundle_sha256": "fc284ed426367a109a50085ec49bd51f48f62bd5ff7eac1d6495c64a70fe398b",
+  "vulkan_manifest_sha256": "dbfdbadb8c64b398b2f8bf30469841ab8c35e10c9da40ba69b966559d5fa15f6",
+  "generated_overlay_shortcuts_disabled": true,
+  "generated_overlay_messages_disabled": true,
+  "effects_preserved": true,
+  "gui_runtime_fallback_allowed": false,
+  "automatic_runtime_download_allowed": false,
+  "renderer": "DXVK",
+  "graphics": "High 1920x1080",
+  "map": "Monhaim Valley",
+  "roster": "two humans and two native AI players",
+  "pairs": [
+    {
+      "case": 243,
+      "history": "history-steam",
+      "common_original_checksums": 1971,
+      "finished_turns": [
+        0,
+        1970
+      ],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "gold_checkbox_native_selected_on": true,
+      "world_continued_after_save": true,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true,
+      "effects_compiled_on_both": true
+    },
+    {
+      "case": 244,
+      "history": "history-ubisoft",
+      "common_original_checksums": 1695,
+      "finished_turns": [
+        0,
+        1694
+      ],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "gold_checkbox_native_selected_on": true,
+      "world_continued_after_save": true,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true,
+      "effects_compiled_on_both": true
+    }
+  ],
+  "live_screenshots_without_reshade_ui": [
+    "gold",
+    "history-ubisoft"
+  ],
+  "home_key_check_qualified": false,
+  "main_and_nested_gold_package_inventory_verified": true,
+  "existing_qualified_gold_bundle_can_be_rebundled": true,
+  "gold_separate_preparation_copy_fixture_verified": true,
+  "public_installer_published": false,
+  "mixed_session_reload_proven": false,
+  "complete_neo5": false,
+  "effective_x20_proven": false,
+  "easytier_or_separate_pc_proven": false
+}

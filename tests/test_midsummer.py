@@ -220,6 +220,26 @@ class ReShadePreparationTests(unittest.TestCase):
             if any(options[name] for name in ('midsummer_tone', 'contact_shadows', 'maximum_fx')):
                 self.assertIn(b'EdgeStrength=0.000000', preset)
 
+    def test_bundled_runtime_is_used_without_download_and_missing_bundle_fails_closed(self):
+        with self.prepared({'enhanced_aa':True}) as (root,folder,closed):
+            fresh=root/'Fresh'
+            bundle=fresh/reshade_runtime.RUNTIME_BUNDLE
+            bundle.parent.mkdir(parents=True,exist_ok=True)
+            bundle.write_bytes((root/'setup.exe').read_bytes())
+            # A fresh game root has no cached profile and must use the bundle.
+            other=reshade_runtime.prepare(fresh,options={'contact_shadows':True})
+            self.assertEqual((other/'ReShade32.dll').read_bytes(),b'guarded runtime fixture')
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:
+            root=Path(path)
+            old=root/'LocalData/ReShade-Midsummer';old.mkdir(parents=True)
+            (old/'ReShade32.dll').write_bytes(b'old GUI runtime')
+            (old/'ReShade32.json').write_bytes(archive_fixture_manifest())
+            with patch('graphics_profile.ensure_closed'), \
+                    patch('urllib.request.urlopen',side_effect=AssertionError('unexpected download')):
+                with self.assertRaisesRegex(ValueError,'ohne Overlay fehlt'):
+                    reshade_runtime.prepare(root,options={'enhanced_aa':True})
+            self.assertEqual((old/'ReShade32.dll').read_bytes(),b'old GUI runtime')
+
     def test_runtime_preset_rewrites_can_be_saved_and_launched_repeatedly(self):
         for maximum in (False,True):
             options=dict(midsummer_tone=True,enhanced_aa=True,contact_shadows=True,maximum_fx=maximum)
@@ -330,7 +350,7 @@ class ReShadePreparationTests(unittest.TestCase):
                 (folder/'ReShade32.json').write_text('{"layer":{"name":"VK_LAYER_reshade","library_path":".\\\\ReShade32.dll","changed":true}}')
                 with self.assertRaises(ValueError):reshade_runtime.verify(root)
 
-    def test_contacts_choose_the_official_addon_runtime_only_when_explicit(self):
+    def test_effect_combinations_share_quiet_runtime_and_restrict_external_addons(self):
         import install
         self.assertEqual(install.MAXIMUM_ASSETS,reshade_runtime.MAXIMUM_ASSETS)
         self.assertEqual(reshade_runtime._runtime({'enhanced_aa':True})[0],reshade_runtime.URL)
@@ -343,8 +363,8 @@ class ReShadePreparationTests(unittest.TestCase):
         self.assertLess(techniques.index(b'WePlay_Midsummer@'),techniques.index(b'DH_UBER_RT@'))
         self.assertLess(techniques.index(b'WePlay_Maximum@'),techniques.index(b'SMAA@'))
         self.assertTrue(techniques.endswith(b'SMAA@SMAA.fx'))
-        self.assertNotEqual(reshade_runtime._runtime({'enhanced_aa':True})[2],
-                            reshade_runtime._runtime({'contact_shadows':True})[2])
+        self.assertEqual(reshade_runtime._runtime({'enhanced_aa':True})[2],
+                         reshade_runtime._runtime({'contact_shadows':True})[2])
         self.assertIn(b'PerformanceMode=0',reshade_runtime.CONFIG)
         self.assertIn(b'AddonPath=.\\NoAddons',reshade_runtime.CONFIG)
         self.assertIn(b'AddonPath=.\\NoAddons',reshade_runtime._config({'contact_shadows':True}))

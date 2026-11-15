@@ -11,6 +11,11 @@ real Gold request and production-backed transfers in a bounded mixed world.
 Original sorting remains active; this does not enable NEO gameplay. See
 [corrected fields, native evidence and integration requirements](GOLD-HISTORY-NEO-BINDING.md).
 
+A separate active FIFO/individual-priority candidate has now produced genuine
+Gold/Steam and Gold/Ubisoft save files with identical nonempty NEO metadata at
+LogicTurn 300. Mixed session reload and complete NEO5 remain unproven; see
+[active native tests and their limits](GOLD-HISTORY-NEO-ACTIVE.md).
+
 RC3.18 adds the [NEO pickup correction](NEO-WORKSHOP-PICKUP.md) and
 [eligible warehouse distance selection](NEO-LOGISTICS-DISTANCE.md), with NEO5
 peer compatibility. Its release profile enables bounded `ResumeCatchup` and uses

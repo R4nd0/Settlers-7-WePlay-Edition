@@ -1,7 +1,7 @@
 """Opt-in, per-copy ReShade tone runtime for the Modern (DXVK) renderer.
 
-Download the official signed setup only on explicit enablement. Extract the
-pinned x86 Vulkan layer into LocalData; never run setup, touch the registry,
+Extract the bundled, pinned x86 Vulkan layer without GUI into LocalData;
+never run setup, download a replacement, touch the registry,
 replace d3d9.dll or activate a system-wide layer. Maximum additionally uses one
 hash-pinned WePlay read-only sun-clock bridge. External add-ons remain disabled.
 """
@@ -19,13 +19,14 @@ import uuid
 import urllib.request
 import zipfile
 
-URL = 'https://reshade.me/downloads/ReShade_Setup_6.8.0.exe'
-SETUP_SHA256 = '207aea16205fbf952bc8fe1879966672454cf04002e7ad34237c7990a5b3c0b4'
-DLL_SHA256 = '538998f66c0197adcdeadfe8e5ea19dd6ca3253e40399476d291f385ce518b88'
+RUNTIME_BUNDLE = 'Runtime/Graphics/ReShade-Quiet-6.8.0.zip'
+URL = 'bundled:' + RUNTIME_BUNDLE
+SETUP_SHA256 = 'fc284ed426367a109a50085ec49bd51f48f62bd5ff7eac1d6495c64a70fe398b'
+DLL_SHA256 = '899aad77b9a6a333bc11775fb22e4671c9ba13eb7d26409c5754935095034101'
 MANIFEST_SHA256 = 'dbfdbadb8c64b398b2f8bf30469841ab8c35e10c9da40ba69b966559d5fa15f6'
-ADDON_URL = 'https://reshade.me/downloads/ReShade_Setup_6.8.0_Addon.exe'
-ADDON_SETUP_SHA256 = 'afe4c8f13048306307983b8b3d41d5bf00a86820440b0e57dea10950e1176445'
-ADDON_DLL_SHA256 = 'da430e0a9c6eecefa0d1b27d05e16c426fb5d04e808b194d914eaac4b31bc0f8'
+ADDON_URL = URL
+ADDON_SETUP_SHA256 = SETUP_SHA256
+ADDON_DLL_SHA256 = DLL_SHA256
 CLOCK_SHA256 = 'bc397467e09ffdad3c00c3f4654aa54766bf97a8cc7c5d26a22e30fee3aaa2e4'
 CLOCK_FILE = 'Runtime/Graphics/WePlayAtmosphere.addon32'
 # Versioned profiles preserve the earlier installed runtime and never rewrite
@@ -60,9 +61,20 @@ PerformanceMode=0
 NoDebugInfo=1
 EffectCachePath=.\\Cache
 
+[INPUT]
+KeyOverlay=0,0,0,0
+KeyFPS=0,0,0,0
+KeyFrameTime=0,0,0,0
+
 [OVERLAY]
 TutorialProgress=4
+ShowClock=0
+ShowForceLoadEffectsButton=0
+ShowFPS=0
+ShowFrameTime=0
 ShowPresetName=0
+ShowScreenshotMessage=0
+ShowPresetTransitionMessage=0
 
 [DEPTH]
 DepthCopyBeforeClears=1
@@ -362,8 +374,8 @@ def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
             graphics_profile.atomic_write(preset, expected, folder)
         return verify(root, options)
     graphics_profile.ensure_closed()
-    # Reuse only the pinned official runtime; never migrate an old shader or
-    # preset. This avoids a second download when upgrading the original tone.
+    # Reuse only the pinned runtime without GUI; never migrate an old shader
+    # or preset and never fall back to a runtime which can display an overlay.
     legacy = _plain(root / 'LocalData/ReShade-Midsummer')
     dll = manifest = None
     if setup is None:
@@ -382,12 +394,15 @@ def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
                 dll, manifest = candidate, candidate_manifest
                 break
     if dll is None and setup is None:
-        raw=_download(url,cancelled=cancelled,progress=progress)
+        bundle = _plain(root / RUNTIME_BUNDLE)
+        if not bundle.is_file():
+            raise ValueError('Die ReShade-Laufzeit ohne Overlay fehlt. WePlay-Paket aktualisieren.')
+        raw = _read(bundle, 8 * 1024 * 1024)
     elif dll is None:
         raw = _read(Path(setup),8*1024*1024)
     if dll is None:
         if len(raw) > 8 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != setup_sha256:
-            raise ValueError('Der offizielle ReShade-Download stimmt nicht mit der geprueften Version ueberein.')
+            raise ValueError('Die mitgelieferte ReShade-Laufzeit stimmt nicht mit der geprueften Version ueberein.')
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             dll, manifest = archive.read('ReShade32.dll'), archive.read('ReShade32.json')
     if (hashlib.sha256(dll).hexdigest() != dll_sha256

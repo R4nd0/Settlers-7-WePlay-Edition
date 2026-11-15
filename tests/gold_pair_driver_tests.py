@@ -103,15 +103,20 @@ class PairDriverTests(unittest.TestCase):
     def test_browser_guard_requires_native_end_event_and_consumed_result(self):
         sys.path.insert(0, str(ROOT / 'tools/gold'))
         from pair_interface import BROWSER_GUARD
-        panel, state, kinds = self.lua.table(), self.lua.table(frame=True), self.lua.table(idle=7)
-        check = self.lua.execute('local a,l,r=...\n' + BROWSER_GUARD + '\nreturn a.weplayCanAutoCreate',
-            panel, state, kinds)
+        panel, state, kinds = self.lua.table(), self.lua.table(frame=True, discovery=2), self.lua.table(idle=7)
+        game = self.lua.eval('function(s)return {Network={SessionGetDiscovery=function(lan)assert(lan==false);return {State=s.discovery} end}} end')(state)
+        check = self.lua.execute('local a,l,r,e=...\n' + BROWSER_GUARD + '\nreturn a.weplayCanAutoCreate',
+            panel, state, kinds, game)
         self.assertFalse(check())
         state.sessionListState = kinds.idle
         self.assertFalse(check())  # Initial idle is insufficient without the native event.
         state.lastDiscoveryFinished = True; state.sessionListState = 8
         self.assertFalse(check())  # Event alone is insufficient while the result is pending.
         state.sessionListState = kinds.idle
+        for native_state in (0, 1, 3):
+            state.discovery = native_state
+            self.assertFalse(check())  # Completion also fires after a failed discovery.
+        state.discovery = 2
         self.assertTrue(check())   # Empty completed lists are valid too.
         state.frame = None
         self.assertFalse(check())
