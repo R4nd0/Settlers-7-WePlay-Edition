@@ -1,0 +1,38 @@
+{
+  "format": "native-saved-task-wait-diagnosis-v1",
+  "date": "2026-11-15",
+  "experimental_only": true,
+  "actual_receiver": "original Steam History",
+  "standalone_DXVK": true,
+  "original_archive_wait_read_matches_on_both": 15,
+  "registered_construction_tasks_at_first_original_update": 15,
+  "other_equal_initial_fields": [
+    "state", "priority", "flags", "birth", "last_turn", "parent",
+    "site", "worker", "ready", "timer", "children", "player"
+  ],
+  "Gold_initial_zero_waits": 15,
+  "History_initial_positive_waits": 13,
+  "affected_AI_examples": [
+    {"player": 3, "archive_wait_on_both": 29, "Gold_initial_wait": 0, "History_initial_wait": 28, "children_on_both": 13},
+    {"player": 4, "archive_wait_on_both": 29, "Gold_initial_wait": 0, "History_initial_wait": 29, "children_on_both": 13}
+  ],
+  "exact_subsequent_zeroing_callsite_established": false,
+  "first_native_CRC_mismatch_finished_turn": 0,
+  "observation_run_normal_exits_and_strict_restoration_passed": true,
+  "private_import_candidate": {
+    "synthetic_transaction_checks": 171,
+    "compiled_scheduler_entry_and_serializer_epilogue_ABI_checks_passed": true,
+    "complete_original_serializer_and_scheduler_guard_checks": 8,
+    "actual_saved_task_records_captured": 126,
+    "actual_import_rejected_without_simulation_writes": true,
+    "Gold_guard_failure_exit": "0xe05370a1",
+    "Gold_normal_exit": false,
+    "History_normal_exit0": true,
+    "full_restoration_passed": true,
+    "gameplay_fix_qualified": false
+  },
+  "same_wait_diagnosis_Ubisoft_qualified": false,
+  "Ready_clock_RNG_CRC_forged": false,
+  "stable_shared_reloaded_logistics_qualified": false,
+  "coordinated_save_reload_qualified": false
+}

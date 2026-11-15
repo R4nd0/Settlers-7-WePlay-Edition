@@ -110,3 +110,24 @@ retains Gold's actual empty native start field in a separate checkpoint-bound
 namespace; it does not relax the fresh-start cache guards or grant start rights.
 
 Machine-readable evidence: [transfer receipt](receipts/native-save-transfer-20261115.json).
+
+## Loaded task wait counters: further diagnosis
+
+A subsequent original Steam History DXVK pair read identical saved wait counters
+for all 15 construction tasks in both native archive readers. At the first
+original construction update, all 15 Gold counters were zero, while 13 History
+counters remained positive. Twelve other observed construction fields matched,
+including state, birth, last update, worker, building and child count. Each of
+the two affected AI parents still had 13 children at that observation. Gold's
+later removal of those children therefore follows a difference already present
+in the loaded scheduling state. The exact subsequent zeroing callsite remains
+unresolved. This observation run exited normally and passed strict restoration.
+
+A private candidate captured 126 original saved task records and attempted to
+preserve their waits before the first native scheduler call. Its full-set
+comparison rejected the actual import before any simulation writes; Gold took
+the adapter's guard-failure exit, and History exited normally. Full profile,
+archive, adapter and shared-state restoration passed. The 171 synthetic import
+checks and compiled ABI/integrity checks do not establish a working game fix.
+No production adapter was changed. See the
+[separate wait-counter receipt](receipts/native-saved-task-waits-20261115.json).
