@@ -1,5 +1,11 @@
 # Experimental native local start, 2026-10-26
 
+Gold crossplay update (2026-11-15): an experimental scoped pathfinding/movement
+precision port passed bounded local DXVK worlds against both original History
+editions, with 3334 and 3137 common original checksums and no mismatches. Ordinary
+adapters do not activate this component. NEO, mixed save/reload and separate-PC
+qualification remain open; see [cause, guards and measured limits](GOLD-HISTORY-MOVEMENT-PRECISION.md).
+
 RC3.18 adds the [NEO pickup correction](NEO-WORKSHOP-PICKUP.md) and
 [eligible warehouse distance selection](NEO-LOGISTICS-DISTANCE.md), with NEO5
 peer compatibility. Its release profile enables bounded `ResumeCatchup` and uses

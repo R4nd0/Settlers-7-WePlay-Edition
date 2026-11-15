@@ -1,0 +1,52 @@
+#pragma once
+namespace GoldMovementPrecision {
+inline bool Guard() {
+struct Region {uintptr_t at;unsigned bytes;uint64_t hash;};
+static constexpr Region regions[]={
+{0x6ecb90,12,0x90f40d09dd01b1b9ull},
+{0x7071d0,11536,0x4cafc545b6a9a996ull},
+{0x70c4d0,4,0x89acac2861e61beull},
+{0x70c4e0,4,0xdbe9cd814404092aull},
+{0xf317e0,8,0x3dee5dbb30aed89ull},
+{0xf3b4b0,24,0x75fd001b474c3230ull},
+{0xf3b64c,24,0x16a56d302b0c08f2ull},
+{0xf3dbd0,24,0xce348792f52b0440ull},
+{0xf3ed90,24,0xba9e57ec5f48942ull},
+{0xf3f084,24,0x123fbb8434a83dull},
+{0xf62278,4,0x4d25b67f9dce80b5ull},
+{0xf62290,8,0xaae7e93229e886a8ull},
+{0xf62328,8,0xaa95e93229a27c80ull},
+{0xf62330,4,0x4c4bb67f9d14dcf5ull},
+{0xf62458,8,0xa983223228b97454ull},
+{0xf7842c,28,0xf9d929ffc0cfd162ull},
+{0xf78464,28,0xfe2dd666f0b929bull},
+{0xf79034,20,0x3c0140844afe66c4ull},
+{0xf79048,16,0x34a2859020ba6a33ull},
+{0xf79058,4,0x17a6758c8ae3643aull},
+{0xf79060,28,0xf5646b06bc5b57e8ull},
+{0xf7929c,20,0xbfdd3b1123764a15ull},
+{0xf792b0,16,0xdde241e9ab1a7f3ull},
+{0xf792c0,24,0xa0ad48ff06be3e1eull},
+{0xf792dc,28,0xee70e720fdb9346bull},
+{0xf7932c,28,0x25ee233415e30b39ull},
+{0xf7936c,28,0x1943ee54d307fc37ull},
+{0xf79388,28,0x8dced654e9c91858ull},
+{0xf7bfc8,20,0xf1d89bfb384d8cb8ull},
+{0xf7bfdc,16,0x914c731ea2059062ull},
+{0xf7bfec,4,0xe46ba91bdde5d25bull},
+{0xf7bff4,28,0xcf7703b5277f710cull},
+{0xf7d024,20,0xc7de709e76e840a6ull},
+{0xf7d038,16,0x778b56253cc699b0ull},
+{0xf7d048,8,0xd39df7610b723eadull},
+{0xf7d054,28,0xa83c5db30671503bull},
+{0xf7d09c,28,0x20b2c3b994f815eaull},
+{0xf7dc38,20,0x118f33d05f7b2c1aull},
+{0xf7dc4c,16,0xbfd431cc9780b1ddull},
+{0xf7dc5c,24,0x1a3064e699e3bda5ull},
+{0xf7dc78,28,0xf8b9be22f26d300aull},
+{0xf7dc94,28,0xabda9f4c18467123ull},
+};
+for(const auto& row:regions)if(Hash(row.at,row.bytes)!=row.hash)return false;
+return true;
+}
+}
