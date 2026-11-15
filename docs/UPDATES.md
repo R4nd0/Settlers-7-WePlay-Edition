@@ -1,5 +1,13 @@
 # WePlay signed update patcher
 
+The pending RC4.00 uses technical version `2.0.0-rc4.0`, tag `v2.0.0-rc4.00` and update
+sequence **29**. Launcher versions and update notices display **rc4.00** without
+the technical prefix. The common installer covers Gold, Steam History and Ubisoft
+History with the existing mandatory platform-isolation contract. Publication is
+gated on proven mixed-session reload against both History editions and its
+production integration. Protected copies require the isolated signed manifest.
+[RC4.00 installation and compatibility](RC4.00-RELEASE-NOTES.md).
+
 The RC3.4 bootstrap and later launchers can check for signed preview releases at
 startup and on demand. Checking does not hold the game operation lock or require
 sign-in. It reads up to twenty releases from the fixed public repository

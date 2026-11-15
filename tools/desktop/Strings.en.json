@@ -9,7 +9,7 @@
   "setupTitle": "Set up WePlay Edition",
   "motto": "Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.",
   "setupIntro": "WePlay maintains its own game copy. The original installation is needed only for the first preparation.",
-  "source": "Game files: WePlay copy or installed History Edition",
+  "source": "Game files: WePlay copy, Gold or History Edition",
   "browseSource": "Find game folder…",
   "destination": "Location for the separate copy",
   "change": "Change…",

@@ -113,7 +113,7 @@ internal sealed partial class MainForm
         {
             rows.Add(row.Clone());
             string state=!row.GetProperty("compatible").GetBoolean()?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted":row.GetProperty("free_slots").GetInt32()==0?"directoryFull":"directoryOpen";
-            var item=new ListViewItem([row.GetProperty("title").GetString()!,Lang.T(state),row.GetProperty("players")+" / "+row.GetProperty("capacity"),row.GetProperty("version").GetString()!]);
+            var item=new ListViewItem([row.GetProperty("title").GetString()!,Lang.T(state),row.GetProperty("players")+" / "+row.GetProperty("capacity"),Program.DisplayVersion(row.GetProperty("version").GetString()!)]);
             items.Add(item);
             if(row.GetProperty("id").GetString()==select)item.Selected=true;
         }

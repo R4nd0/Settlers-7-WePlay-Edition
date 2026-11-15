@@ -1,0 +1,53 @@
+{
+  "format": "weplay-rc400-preparation-v1",
+  "verified_utc": "2026-11-15T12:41:40.910035+00:00",
+  "status": "Unpublished preparation milestone; mixed-session reload and production integration still required",
+  "display_version": "rc4.00",
+  "technical_version": "2.0.0-rc4.0",
+  "reserved_update_sequence": 29,
+  "assembly_and_file_version": "2.0.0.29",
+  "publication_allowed": false,
+  "mixed_session_reload_proven": false,
+  "final_release_assets_ready": false,
+  "signed_update_manifests_created": false,
+  "regressions": {
+    "modules": 20,
+    "tests": 314,
+    "skipped": 3,
+    "passed": true,
+    "boundaries": "Synthetic fixtures; CNG/DPAPI tests use isolated temporary keys; no native game launched"
+  },
+  "built_launcher": {
+    "bilingual_gui_checks": 37,
+    "passed": true,
+    "visible_version_exact": true,
+    "update_notice_and_footer_prefix_hidden": true,
+    "source_label_includes_gold_and_history": true,
+    "dll_sha256": "b7eece9fc9d82ea65543e9158dd18c238eb99b0bd01a335ef09bdc0f2e1d5094",
+    "gameplay_qualification": false
+  },
+  "installer_candidate": {
+    "fresh_install": true,
+    "reinstall_upgrade": true,
+    "invented_local_state_and_newer_save_preserved": true,
+    "production_installer_logic_with_isolated_test_identity": true,
+    "main_payload_files": 430,
+    "gold_payload_files": 68,
+    "shipped_python_matches_working_source": 81,
+    "private_game_data_absent": true,
+    "main_and_gold_quiet_bundle_verified": true,
+    "quiet_zip_sha256": "fc284ed426367a109a50085ec49bd51f48f62bd5ff7eac1d6495c64a70fe398b",
+    "quiet_dll_sha256": "899aad77b9a6a333bc11775fb22e4671c9ba13eb7d26409c5754935095034101",
+    "candidate_setup_sha256": "0f5bee010bd788f219ced8a32b9663ea52677c5f254ace42c26e171fb6039c38",
+    "limitations": "Candidate1 uses previous Gold single-player production adapter and predates only the final source-label correction; not a distributable RC4.00"
+  },
+  "required_before_publication": [
+    "Actual new mixed session reload Gold/Steam History",
+    "Actual new mixed session reload Gold/Ubisoft History",
+    "Preserved nonempty NEO state and continued original native checksum comparison",
+    "Production integration with retained executable/ABI/ownership guards",
+    "Final all-edition package and installer/upgrade checks",
+    "Final matching notes and visually verified release assets",
+    "Clean source provenance, signed manifests, checksums and verified public downloads"
+  ]
+}

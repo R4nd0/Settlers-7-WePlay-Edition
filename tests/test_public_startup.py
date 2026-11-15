@@ -56,9 +56,9 @@ class PublicStartupTests(unittest.TestCase):
                 value=real_reporter(*args,**kwargs,connection_factory=directory_connection or Mock(return_value=connection),
                     transport=lambda *a,**kw:dict(format='s7-lobby-games-v1',content_id=CONTENT,games=list(native_rows)))
                 reporters.append(value);return value
-            real_popen=lan.subprocess.Popen
-            def native_start(*args,**kwargs):
-                if args[0][0]!='fixture-native-game':return real_popen(*args,**kwargs)
+            def native_start(game_root,arguments,environment,*,lan=None):
+                self.assertEqual(game_root,root)
+                self.assertEqual(lan,{'local':ROOM.coordinator,'coordinator':ROOM.coordinator,'group':True})
                 self.assertEqual(len(reporters),1)
                 self.assertIsNotNone(reporters[0].broker,'public game starts without any directory host broker')
                 self.assertEqual(reporters[0].broker.room,ROOM)
@@ -84,8 +84,7 @@ class PublicStartupTests(unittest.TestCase):
             patcher(lan,'Membership',return_value=membership)
             patcher(lan.launch_lan,'remote_configuration',**({'side_effect':OSError('coordinator unreachable')} if configuration_error else {'return_value':{'content_id':CONTENT}}))
             patcher(lan.launch_local,'write_configuration',return_value=None)
-            patcher(lan.host_runtime,'game_command',return_value=(['fixture-native-game'],{}))
-            popen=patcher(lan.subprocess,'Popen',side_effect=native_start)
+            spawn=patcher(lan.launch_local,'spawn_game',side_effect=native_start)
             patcher(lan.launch_local,'wait_for_graphics_game',return_value=0)
             stack.enter_context(patch.object(discord_directory.Reporter,'start',lambda self:self))
             if kind=='windows':
@@ -113,7 +112,7 @@ class PublicStartupTests(unittest.TestCase):
                 run=lambda:linux_network.run(root,'public-host',player_name='Fixture',consent=True,invitation_ready=invite)
             if configuration_error or preflight_error or publish_error:
                 with self.assertRaises((OSError,ValueError)):run()
-                popen.assert_not_called();self.assertNotIn('invitation_ready',events)
+                spawn.assert_not_called();self.assertNotIn('invitation_ready',events)
             else:
                 self.assertEqual(run(),{'exit_code':0} if kind=='windows' else 0)
                 self.assertIn('native_start',events)
