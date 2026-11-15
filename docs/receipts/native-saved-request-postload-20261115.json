@@ -1,0 +1,50 @@
+{
+  "format": "native-saved-request-postload-v1",
+  "date": "2026-11-15",
+  "experimental_only": true,
+  "actual_receiver": "original Steam History",
+  "standalone_DXVK": true,
+  "diagnosis": {
+    "Gold_original_request_reset_calls": 107,
+    "Gold_distinct_requests_reset": 93,
+    "History_original_request_reset_calls": 0,
+    "verified_original_postload_caller_chain": true,
+    "History_excludes_exact_request_class_in_both_original_passes": true,
+    "base_only_import_common_matching_native_CRC_blocks": 2,
+    "base_only_import_first_mismatch_finished_turn": 2,
+    "base_only_import_first_differing_inputs": ["RNG_count", "RNG_seed"],
+    "additional_Gold_construction_worker_animation_draws_observed": true
+  },
+  "private_candidate": {
+    "scope": "authenticated saved request identities at two original Gold postload predicate callers",
+    "original_code_class_owner_registry_and_phase_guards_retained": true,
+    "saved_request_state_counts": {"0": 4, "1": 24, "6": 69},
+    "synthetic_policy_checks": 99,
+    "compiled_native_ABI_both_routes_DF_flags_LastError_x87_SSE_passed": true,
+    "original_full_method_and_vtable_guard_checks": 14,
+    "actual_requests_preserved_first_pass": 97,
+    "actual_requests_preserved_second_pass": 97,
+    "actual_captured_base_records_matched_before_first_scheduler": 126,
+    "actual_base_import_state_writes": 0,
+    "actual_base_import_wait_writes": 0
+  },
+  "actual_bounded_continuation": {
+    "retained_world_original_logic_turn": 300,
+    "active_NEO_and_all_saved_intent_marks_rebound": true,
+    "common_original_native_CRC_blocks": 1279,
+    "first_common_finished_turn": 0,
+    "last_common_finished_turn": 1278,
+    "mismatch_count": 0,
+    "Gold_loading_overlay_remained_visible": true,
+    "both_normal_exit0": true,
+    "strict_restoration_passed": true,
+    "preexisting_save_replaced": false,
+    "broker_shutdown_connection_reset_observed": true
+  },
+  "Ready_clock_RNG_CRC_forged": false,
+  "original_Ubisoft_History_candidate_continuation_qualified": false,
+  "usable_Gold_resumed_UI_qualified": false,
+  "sustained_resumed_delivery_qualified": false,
+  "new_coordinated_checkpoint_and_next_mixed_reload_qualified": false,
+  "production_adapter_or_release_package_changed": false
+}

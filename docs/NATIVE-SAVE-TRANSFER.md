@@ -131,3 +131,43 @@ archive, adapter and shared-state restoration passed. The 171 synthetic import
 checks and compiled ABI/integrity checks do not establish a working game fix.
 No production adapter was changed. See the
 [separate wait-counter receipt](receipts/native-saved-task-waits-20261115.json).
+
+## Original request postload policy: bounded Steam continuation
+
+Further native observations explain the earlier task loss. Gold reset 93 saved
+`CRequestTask` objects while loading; original Steam History reset none. The
+verified original caller chain leads to the two passes of the logistics
+manager's postload routine. History explicitly excludes the exact request class
+in both passes and its request predicate returns false. Gold instead uses a
+type-dependent predicate, admitting those requests to registration and reset.
+The reset can cancel reservations and notify parent tasks and workers; restoring
+only the base state and wait fields cannot undo those effects.
+
+A private diagnostic import of the original base fields initially produced two
+matching native CRC blocks, followed by a mismatch at block 2. Only the RNG
+inputs differed there; additional Gold construction-worker animation draws were
+observed. That result remained a failed continuation.
+
+A subsequent private candidate applies History's request exclusion only at the
+two verified Gold postload predicate callers. It requires the authenticated
+saved-world interval, simulation owner, exact native class, complete saved
+identity and matching registered object. The independently observed saved
+request states are 0, 1 and 6. Other callers and later simulation ticks retain
+the original Gold predicate. The 99 synthetic policy checks, both native ABI
+routes and 14 original method/vtable integrity checks passed before launching.
+
+The actual Gold/original-Steam History standalone DXVK pair then retained all
+97 requests in both postload passes. All 126 captured base records matched at
+the first scheduler call: the earlier import wrote **zero states and zero wait
+fields**. The games produced **1,279 common original native CRCs, blocks
+0–1278, with no mismatch**, starting from the retained world with active NEO
+and all saved intent marks rebound. Both clients exited normally and strict
+profile, archive, adapter and shared-state restoration passed.
+
+Gold's loading overlay nevertheless remained visible during this run. Successful
+simulation continuation therefore does not yet qualify a usable resumed UI or
+the complete requested workflow. The original Ubisoft History comparison with
+this candidate, sustained resumed delivery checks, a new coordinated checkpoint
+and its next mixed reload, and production integration remain open. No production
+adapter or release package was changed. See the
+[bounded postload-policy receipt](receipts/native-saved-request-postload-20261115.json).
