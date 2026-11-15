@@ -47,8 +47,8 @@ receiver is deliberately excluded from this qualified direction.
 ## Reproduction and limits
 
 `native/build_crossplay_resume.ps1 -OutputDirectory <fresh directory under work>`
-builds and runs six protocol/hash fixtures and builds the fixed-address x86
-ownership guard fixture. They pass 13,646 checks. These are synthetic transport
+builds and runs seven protocol/hash fixtures and builds the fixed-address x86
+ownership guard fixture. They pass 15,057 checks. These are synthetic transport
 and hashing checks, separate from the actual game evidence above.
 
 With locally owned pinned analysis images, pefile and Unicorn,
@@ -56,6 +56,33 @@ With locally owned pinned analysis images, pefile and Unicorn,
 It runs six original clone/destructor ownership cases with allocation/free calls
 modeled, plus 22 compiled integrity-guard checks for the two History receivers.
 Keep images and generated output under ignored `work/`.
+
+## Saved NEO metadata and admission receipts
+
+The separate `crossplay_resume_neo.h` primitive transfers bounded fragments of
+the serialized NEO save field. It verifies the exact serialized SHA-256 before
+parsing the existing restricted pickle grammar as data. It never executes Lua.
+The decoded NEO2 logic turn, next replay turn, enabled choice and all intent
+marks must match the admitted checkpoint. No partial payload is exposed.
+
+`crossplay_resume_admission.h` supplies distinct adapter Prepared and Queued
+receipts. They bind the checkpoint and both peer identities; neither becomes a
+native event, Ready flag or native file acknowledgement. Its saved cache policy
+allows Gold's observed loaded AI state and preserves the opaque local human
+field which is absent from the original configuration wire. The original
+enabled host Start action remains a separate required authorization. Fresh
+lobby Ready validation is unchanged.
+
+A further isolated Gold/Ubisoft DXVK test verified native file consumption and
+armed NEO metadata, then queued the original held start on both clients. Both
+original game observations reached the retained world's LogicTurn 300. Gold's
+loading screen remained visible, and a saved-session priority command was
+rejected by a guard still requiring a fresh-session agreement. No continued
+shared turns or restored active NEO are qualified by that observation. The
+separate original Steam saved-world start still requires its own actual test.
+Both clients exited normally, and strict restoration of profiles, archives,
+adapters and shared state passed. See the
+[separate metadata/admission receipt](receipts/native-saved-neo-admission-20261115.json).
 
 This stage does **not** qualify a joint saved-world start, restored active NEO
 before the first logistics comparison, continued matching native turn CRCs,

@@ -1,0 +1,38 @@
+{
+  "format": "native-saved-NEO-admission-stage-v1",
+  "date": "2026-11-15",
+  "experimental_only": true,
+  "ordinary_startup_adapters_activate_components": false,
+  "synthetic_checks": {
+    "saved_NEO_and_adapter_admission": 1411,
+    "all_seven_resume_protocol_and_hash_fixtures": 15057,
+    "not_gameplay_proof": true
+  },
+  "actual_standalone_DXVK_Gold_Ubisoft_History": {
+    "whole_original_receive_stream_SHA256_verified": true,
+    "serialized_NEO_digest_schema_turns_all_intents_parsed": true,
+    "NEO_payload_armed_before_original_start": true,
+    "original_native_start_queued_on_both": true,
+    "original_Gold_observation": {
+      "in_map": true,
+      "logic_turn": 300,
+      "loading_screen_visible": true
+    },
+    "original_History_observation": {
+      "in_map": true,
+      "logic_turn": 300,
+      "loading_screen_visible": false
+    },
+    "blocking_failure": "saved priority command required a fresh session agreement",
+    "continued_shared_native_turn_CRCS_qualified": false,
+    "active_NEO_restore_qualified": false,
+    "both_normal_exit0": true,
+    "strict_profile_adapter_archive_shared_state_restoration_passed": true
+  },
+  "actual_Steam_History_saved_NEO_and_world_start_qualified": false,
+  "native_Ready_clock_RNG_CRC_writes": false,
+  "fresh_lobby_Ready_guards_relaxed": false,
+  "coordinated_save_and_shared_reload_qualified": false,
+  "full_NEO5_qualified": false,
+  "EasyTier_separate_PC_qualified": false
+}
