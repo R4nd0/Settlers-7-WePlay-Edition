@@ -41,6 +41,8 @@ if ($IsolatedLabExecutable) {
 }
 Push-Location $nativeOutput
 try {
+    & cl.exe @common (Join-Path $nativeSource 'ai_catalog_unlock_tests.cpp') /Fe:ai_catalog_unlock_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /INCREMENTAL:NO
+    if ($LASTEXITCODE -ne 0) { throw 'AI catalog offline guard fixture build failed.' }
     & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Gold native fixture build failed.' }
     & (Join-Path $nativeOutput 'gold_startup_tests.exe')

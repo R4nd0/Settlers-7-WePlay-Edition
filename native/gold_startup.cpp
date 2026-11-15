@@ -10,6 +10,7 @@
 #include "gold_startup.h"
 #include "gold_profile.h"
 #include "gold_graphics.h"
+#include "ai_catalog_unlock.h"
 #include <shlobj.h>
 #include <string>
 
@@ -538,6 +539,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386
         || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
         || nt->OptionalHeader.SizeOfImage != 0xdc4000 || nt->FileHeader.TimeDateStamp != 0x4d8744d4) return 0;
+    if (image != 0x400000 || !WePlayAICatalog::Methods(1)) return 0;
     std::vector<Patch> patches;
     const unsigned char append_guard[] = {0x55,0x8b,0xec,0x53,0x8b,0x5d,0x08,0x56,0x57,0x8b,0xf0,0x85,0xdb,0x74,0x42};
     const unsigned char wide_guard[] = {0x55,0x8b,0xec,0x6a,0xff,0x68};
@@ -570,5 +572,6 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
 #ifdef S7_GOLD_LOCAL_LOGIN
     if (!LocalLoginInstall()) return 0;
 #endif
+    if (!WePlayAICatalog::Install(1)) return 0;
     return 1;
 }

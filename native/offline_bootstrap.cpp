@@ -23,6 +23,7 @@
 #endif
 #include <intrin.h>
 #include "offline_bootstrap.h"
+#include "ai_catalog_unlock.h"
 #include "runtime_config.h"
 #include "local_connect_policy.h"
 #include "cpu_affinity.h"
@@ -1517,6 +1518,9 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
     if (!valid) { SetError(InvalidConfiguration); return false; }
     if (!ValidateKey(config.public_key_base64)) { SetError(InvalidPublicKey); return false; }
     if (!ValidateImage()) { SetError(WrongExecutable); return false; }
+    if (image_base != 0x400000 || !WePlayAICatalog::Methods(steam_history ? 3u : 2u)) {
+        SetError(ChangedCallsite); return false;
+    }
     if (config.application_id != (steam_history ? 5321u : 11788u)) { SetError(WrongExecutable); return false; }
     memcpy(public_key, config.public_key_base64, key_length + 1);
     memcpy(local_ticket, config.local_ticket, ticket_length + 1);
@@ -1530,6 +1534,7 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
         SecureZeroMemory(local_ticket, sizeof(local_ticket));
         return false;
     }
+    if (!WePlayAICatalog::Install(steam_history ? 3u : 2u)) Stop(PatchFailure);
 #ifdef S7_PLATFORM_INDEPENDENT
     if (steam_history && !SteamLocalFacade::Install(image_base,bootstrap_thread.load())) Stop(PatchFailure);
 #endif

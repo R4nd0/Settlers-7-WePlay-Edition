@@ -1,0 +1,123 @@
+{
+  "date": "2026-11-15",
+  "scope": "All14 regular Visible AI profiles in Gold and both original History editions",
+  "regular_AI_names": [
+    "Bishop Mattheusz",
+    "Countess Emilia",
+    "Country Bumpkin Rupert",
+    "Dracorian",
+    "Druid Mystizia",
+    "Field Marshal Ludowig",
+    "King Balderus",
+    "King Konradin",
+    "Lord Wolvering",
+    "Maid Marielle",
+    "Princess Loretta",
+    "Princess Zoe",
+    "Ramirez",
+    "Raspun"
+  ],
+  "original_profile_definitions_identical_all3": true,
+  "declared_profiles": 47,
+  "original_hidden_campaign_variants_and_placeholders_retained": 33,
+  "compiled_integrity_guard_checks": 15,
+  "original_cpu_branch_cases": 24,
+  "content_service_result_modeled_in_CPU_cases": true,
+  "actual_pairs": [
+    {
+      "history_edition": "steam-history",
+      "private_case": 252,
+      "DXVK": true,
+      "regular_native_catalogs": {
+        "gold": {
+          "native_catalog_count": 14,
+          "regular_names_match": true,
+          "maid_marielle_present": true
+        },
+        "steam-history": {
+          "native_catalog_count": 14,
+          "regular_names_match": true,
+          "maid_marielle_present": true
+        }
+      },
+      "shared_original_crc_count": 2477,
+      "first_shared_turn": 0,
+      "last_shared_turn": 2476,
+      "original_crc_mismatches": 0,
+      "actual_AI_profiles": [
+        "Maid Marielle",
+        "Field Marshal Ludowig"
+      ],
+      "normal_exit_and_strict_restoration": true
+    },
+    {
+      "history_edition": "ubisoft-history",
+      "private_case": 253,
+      "DXVK": true,
+      "regular_native_catalogs": {
+        "gold": {
+          "native_catalog_count": 14,
+          "regular_names_match": true,
+          "maid_marielle_present": true
+        },
+        "ubisoft-history": {
+          "native_catalog_count": 14,
+          "regular_names_match": true,
+          "maid_marielle_present": true
+        }
+      },
+      "shared_original_crc_count": 2017,
+      "first_shared_turn": 0,
+      "last_shared_turn": 2016,
+      "original_crc_mismatches": 0,
+      "actual_AI_profiles": [
+        "Maid Marielle",
+        "Field Marshal Ludowig"
+      ],
+      "normal_exit_and_strict_restoration": true
+    }
+  ],
+  "native_save_observations": [
+    {
+      "private_case": 252,
+      "original_file_logic_turns": [
+        300,
+        301
+      ],
+      "same_turn_and_NEO_metadata": false,
+      "shared_checkpoint_protocol_qualified": false,
+      "actual_shared_reload_qualified": false
+    },
+    {
+      "private_case": 253,
+      "original_file_logic_turns": [
+        300,
+        300
+      ],
+      "same_turn_and_NEO_metadata": true,
+      "shared_checkpoint_protocol_qualified": false,
+      "actual_shared_reload_qualified": false
+    }
+  ],
+  "additional_catalog_audit": {
+    "skirmish_maps": {
+      "total": 28,
+      "locked": 0
+    },
+    "scenario_maps": {
+      "total": 2,
+      "locked": 0
+    },
+    "campaign_maps": {
+      "total": 12,
+      "locked": 11,
+      "complete_unlock_qualified": false
+    },
+    "cosmetics_exhaustively_qualified": false
+  },
+  "ordinary_startup_sources_integrated": true,
+  "production_Gold_and_History_build_checks_passed": true,
+  "published_installer_updated_by_this_milestone": false,
+  "full_NEO5_qualified": false,
+  "shared_session_reload_qualified": false
+}
