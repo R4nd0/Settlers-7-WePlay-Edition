@@ -18,8 +18,10 @@ foreach($line in $lines){
 New-Item -ItemType Directory -Path $out | Out-Null
 Push-Location $out
 try{
-    foreach($name in @('crossplay_resume_transfer','crossplay_resume_start','crossplay_saved_session_config','crossplay_resume_request','crossplay_resume_info','crossplay_resume_digest','crossplay_resume_neo')){
-        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($name+'_tests.cpp')) bcrypt.lib ('/Fe:'+$name+'.exe')
+    & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $PSScriptRoot 'third_party/puff/puff.c') /Fo:resume_puff.obj
+    if($LASTEXITCODE){throw 'Archive inflater did not compile'}
+    foreach($name in @('crossplay_resume_transfer','crossplay_resume_start','crossplay_saved_session_config','crossplay_resume_request','crossplay_resume_info','crossplay_resume_digest','crossplay_resume_neo','crossplay_resume_source')){
+        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($name+'_tests.cpp')) resume_puff.obj bcrypt.lib ('/Fe:'+$name+'.exe')
         if($LASTEXITCODE){throw "Fixture did not compile: $name"}
         & (Join-Path $out ($name+'.exe'))
         if($LASTEXITCODE){throw "Fixture failed: $name"}

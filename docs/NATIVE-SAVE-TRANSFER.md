@@ -47,9 +47,10 @@ receiver is deliberately excluded from this qualified direction.
 ## Reproduction and limits
 
 `native/build_crossplay_resume.ps1 -OutputDirectory <fresh directory under work>`
-builds and runs seven protocol/hash fixtures and builds the fixed-address x86
-ownership guard fixture. They pass 15,057 checks. These are synthetic transport
-and hashing checks, separate from the actual game evidence above.
+builds and runs eight protocol, hash and selected-archive fixtures and builds
+the fixed-address x86 ownership guard fixture. They pass 15,099 checks. These
+are synthetic checks, separate from the actual game evidence below. The
+fixed-address guard executable is built here; it is not run natively.
 
 With locally owned pinned analysis images, pefile and Unicorn,
 `tools/gold/verify_resume_ownership.py --help` describes the original-code oracle.
@@ -202,3 +203,55 @@ The same resumed run against original Ubisoft History, sustained delivery
 verification, a new coordinated checkpoint and its next mixed reload, and
 production native-adapter/package integration remain open. See the
 [loading-UI receipt](receipts/native-saved-loading-ui-20261115.json).
+
+## New host checkpoint and second mixed reload: both History editions
+
+The subsequent bounded sequence now covers actual resumed logistics, a new
+host save, and a second mixed reload under standalone DXVK. All tests used
+Monhaim Valley with two human clients and two AI players; transport remained
+loopback-only.
+
+In the Gold/original-Steam pair, both retained human construction sites received
+their goods and completed at LogicTurns 420 and 480. At LogicTurn 700, the host
+called the original save action into a previously absent test slot. It returned,
+and both clients continued with matching original native CRCs. The new original
+archive was retained unchanged. It contains a 24,718,764-byte `SaveGame.s7` and
+the exact serialized NEO2 field for LogicTurn 700 / next turn 701, with four
+intent marks. The completed run produced 1,353 common native CRC blocks without
+a mismatch.
+
+An initial attempt to reload that new file correctly failed before world start:
+the private adapter still embedded the earlier checkpoint's NEO field. The
+new `crossplay_resume_source.h` primitive replaces that fixture source with a
+read of the selected archive. The caller supplies the resolved owned save path
+and its exact archive size/SHA-256. The reader excludes concurrent writers,
+checks the whole archive, parses the original cache and save information as
+data, and validates the NEO digest, restricted schema and saved clock. It never
+executes save-supplied Lua or grants native Ready/start permission. The original
+native stream still undergoes its separate transfer and consumption checks.
+Forty-two selected-source fixtures and read-only parsing of both retained
+original archives passed before the actual game tests.
+
+The new checkpoint then passed a second native reload against each receiver:
+
+| Receiver | Common original native CRC blocks | Mismatches | Saved NEO marks restored | Gold loading screen |
+|---|---:|---:|---|---|
+| Original Steam History | 1,824 | 0 | All four | Closed normally |
+| Original Ubisoft History | 2,220 | 0 | All four | Closed normally |
+
+Both games' worlds and HUDs were visibly loaded in each pair. Active FIFO
+comparators made decisions differing from original transport priorities on
+both clients, without excluded comparisons. In the Ubisoft pair, read-only
+observations also followed both AI players' retained sites through delivery
+of 13/13 goods and completion, followed by further construction and deliveries.
+Both successful pairs exited normally and passed strict restoration of test
+profiles, archives, adapters and shared user state.
+
+These results supersede the earlier failed continuation for this bounded
+checkpoint sequence. They do not qualify all maps, arbitrary saves, long-term
+stability, full NEO5 or EasyTier gameplay. The setup binding retains the
+original session's configuration provenance; this is not a claim of a new
+original setup-writer capture at turn 700. The complete native bridge still
+requires production adapter, launcher and package integration, followed by
+tests of those shipped builds. RC4 publication remains gated on that work.
+See the [second mixed-reload receipt](receipts/native-saved-second-reload-20261115.json).
