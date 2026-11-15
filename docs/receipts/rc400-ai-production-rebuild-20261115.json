@@ -1,0 +1,314 @@
+{
+  "format": "weplay-rc400-ai-production-rebuild-v1",
+  "verified_utc": "2026-11-15T14:24:07.669225+00:00",
+  "maintainer": "WePlay Community",
+  "source_commit": "56ea811745e42e42a86229178da5ce199dc0cc0b",
+  "scope": "Independent ordinary-adapter builds and synthetic fixtures; no game runtime qualification or publication",
+  "frozen_committed_source": true,
+  "uncommitted_resume_headers_excluded": true,
+  "gold": {
+    "sha256": "99a25506a2877ac764265a1214a6e988dfee38b78bf69fbf730d53d1efb92799",
+    "flags": [
+      "LocalSimulation",
+      "PlatformIndependent"
+    ],
+    "one_independent_rebuild_identical_to_existing_production_build": true,
+    "build_and_cpu_fixtures_passed": true,
+    "network_fixtures_passed": true
+  },
+  "history": {
+    "HistoryDirectory": {
+      "sha256": "422baaf6eb2338a8941cabab8cadacf02e773ac4935b71243c4034787b388453",
+      "flags": [
+        "-GameDirectory",
+        "-PlatformIndependent",
+        "-MaximumPhysicalCores",
+        "2"
+      ],
+      "build_exit": 0,
+      "fixture_executables_passed": 21,
+      "one_independent_rebuild_identical_to_existing_directory_only_build": false
+    },
+    "HistoryRC4": {
+      "sha256": "3283c3f8c6b96c157ae42d07e53cbfdf762e0562def3d88130ede8b7c60b9654",
+      "flags": [
+        "-GameDirectory",
+        "-PlatformIndependent",
+        "-MaximumPhysicalCores",
+        "2",
+        "-NeoLogistics",
+        "-ResumeCatchup"
+      ],
+      "build_exit": 0,
+      "fixture_executables_passed": 25
+    }
+  },
+  "previous_production_pe_contracts": {
+    "gold": {
+      "x86": true,
+      "exports_match_previous_production": true,
+      "export_count": 4,
+      "imported_system_modules_match_previous_production": true,
+      "aslr_and_nx_retained": true,
+      "sha256": "99a25506a2877ac764265a1214a6e988dfee38b78bf69fbf730d53d1efb92799"
+    },
+    "history_rc4_profile": {
+      "x86": true,
+      "exports_match_previous_production": true,
+      "export_count": 86,
+      "imported_system_modules_match_previous_production": true,
+      "aslr_and_nx_retained": true,
+      "sha256": "3283c3f8c6b96c157ae42d07e53cbfdf762e0562def3d88130ede8b7c60b9654"
+    }
+  },
+  "fixture_results": {
+    "HistoryDirectory": [
+      {
+        "name": "neo_fifo_policy_tests",
+        "exit": 0,
+        "summary": "PASS 1135917 FIFO policy checks (0 failures)"
+      },
+      {
+        "name": "neo_logistics_state_tests",
+        "exit": 0,
+        "summary": "PASS 65562 NEO saved-state checks (0 failures)"
+      },
+      {
+        "name": "castle_profile_tests",
+        "exit": 0,
+        "summary": "PASS 48 castle profile checks"
+      },
+      {
+        "name": "castle_wire_tests",
+        "exit": 0,
+        "summary": "160 castle wire checks passed."
+      },
+      {
+        "name": "local_platform_tests",
+        "exit": 0,
+        "summary": "PASS 94 local platform checks"
+      },
+      {
+        "name": "network_guard_tests",
+        "exit": 0,
+        "summary": "Preflight result=0 local=1\nPASS 79 network guard checks"
+      },
+      {
+        "name": "lan_membership_tests",
+        "exit": 0,
+        "summary": "PASS 517 LAN membership checks"
+      },
+      {
+        "name": "local_connect_tests",
+        "exit": 0,
+        "summary": "PASS 18 local connect state checks"
+      },
+      {
+        "name": "resume_pacing_tests",
+        "exit": 0,
+        "summary": "Synthetic 21-MiB transfer, 1-ms menu updates: old=53740 ms, new=53740 ms\nSynthetic 21-MiB transfer, 16-ms menu updates: old=85984 ms, new=53744 ms\nSynthetic 21-MiB transfer, 20-ms menu updates: old=53740 ms, new=53740 ms\nSynthetic 21-MiB transfer, 33-ms menu updates: old=88671 ms, new=53757 ms\nSynthetic 21-MiB transfer, 50-ms menu updates: old=134350 ms, new=53750 ms\nSynthetic 21-MiB transfer, 63-ms menu updates: old=169281 ms, new=53802 ms\nSynthetic 21-MiB transfer, 80-ms menu updates: old=214960 ms, new=53760 ms\nSynthetic 21-MiB transfer, 125-ms menu updates: old=335875 ms, new=84000 ms\nSynthetic 21-MiB transfer, 1000-ms menu updates: old=2687000 ms, new=672000 ms\nPASS: 143326 resume pacing checks; no game or network used."
+      },
+      {
+        "name": "terrain_angle_tests",
+        "exit": 0,
+        "summary": "PASS 34444 terrain angle checks"
+      },
+      {
+        "name": "workshop_angles_tests",
+        "exit": 0,
+        "summary": "PASS 331 workshop rotation checks (0 failures)"
+      },
+      {
+        "name": "map_template_tests",
+        "exit": 0,
+        "summary": "238 map-template lifetime/ABI/guard checks, 0 failures"
+      },
+      {
+        "name": "public_key_tests",
+        "exit": 0,
+        "summary": "24 public-key CNG/canonical-format checks, 0 failures"
+      },
+      {
+        "name": "cpu_affinity_tests",
+        "exit": 0,
+        "summary": "CPU affinity: 35 checks, 0 failures; 2 selected logical CPUs, mask 0x5"
+      },
+      {
+        "name": "bootstrap_patch_tests",
+        "exit": 0,
+        "summary": "PASS 2390 bootstrap patch checks"
+      },
+      {
+        "name": "visual_detail_tests",
+        "exit": 0,
+        "summary": "149 visual-detail checks, 0 failures"
+      },
+      {
+        "name": "shadow_filter_tests",
+        "exit": 0,
+        "summary": "3744 shadow-step guards/ABI checks, 0 failures"
+      },
+      {
+        "name": "steam_profile_tests",
+        "exit": 0,
+        "summary": "PASS 1866 Steam profile checks"
+      },
+      {
+        "name": "game_directory_bridge_tests",
+        "exit": 0,
+        "summary": "PASS 52 game directory bridge checks"
+      },
+      {
+        "name": "lobby_team_tests",
+        "exit": 0,
+        "summary": "PASS 68 lobby team ownership/ABI checks"
+      },
+      {
+        "name": "logistics_priority_tests",
+        "exit": 0,
+        "summary": "PASS 112 logistics priority branch checks"
+      }
+    ],
+    "HistoryRC4": [
+      {
+        "name": "neo_fifo_policy_tests",
+        "exit": 0,
+        "summary": "PASS 1135917 FIFO policy checks (0 failures)"
+      },
+      {
+        "name": "neo_logistics_state_tests",
+        "exit": 0,
+        "summary": "PASS 65562 NEO saved-state checks (0 failures)"
+      },
+      {
+        "name": "castle_profile_tests",
+        "exit": 0,
+        "summary": "PASS 48 castle profile checks"
+      },
+      {
+        "name": "castle_wire_tests",
+        "exit": 0,
+        "summary": "160 castle wire checks passed."
+      },
+      {
+        "name": "local_platform_tests",
+        "exit": 0,
+        "summary": "PASS 94 local platform checks"
+      },
+      {
+        "name": "network_guard_tests",
+        "exit": 0,
+        "summary": "Preflight result=0 local=1\nPASS 79 network guard checks"
+      },
+      {
+        "name": "lan_membership_tests",
+        "exit": 0,
+        "summary": "PASS 517 LAN membership checks"
+      },
+      {
+        "name": "local_connect_tests",
+        "exit": 0,
+        "summary": "PASS 18 local connect state checks"
+      },
+      {
+        "name": "resume_pacing_tests",
+        "exit": 0,
+        "summary": "Synthetic 21-MiB transfer, 1-ms menu updates: old=53740 ms, new=53740 ms\nSynthetic 21-MiB transfer, 16-ms menu updates: old=85984 ms, new=53744 ms\nSynthetic 21-MiB transfer, 20-ms menu updates: old=53740 ms, new=53740 ms\nSynthetic 21-MiB transfer, 33-ms menu updates: old=88671 ms, new=53757 ms\nSynthetic 21-MiB transfer, 50-ms menu updates: old=134350 ms, new=53750 ms\nSynthetic 21-MiB transfer, 63-ms menu updates: old=169281 ms, new=53802 ms\nSynthetic 21-MiB transfer, 80-ms menu updates: old=214960 ms, new=53760 ms\nSynthetic 21-MiB transfer, 125-ms menu updates: old=335875 ms, new=84000 ms\nSynthetic 21-MiB transfer, 1000-ms menu updates: old=2687000 ms, new=672000 ms\nPASS: 143326 resume pacing checks; no game or network used."
+      },
+      {
+        "name": "terrain_angle_tests",
+        "exit": 0,
+        "summary": "PASS 34444 terrain angle checks"
+      },
+      {
+        "name": "workshop_angles_tests",
+        "exit": 0,
+        "summary": "PASS 331 workshop rotation checks (0 failures)"
+      },
+      {
+        "name": "map_template_tests",
+        "exit": 0,
+        "summary": "238 map-template lifetime/ABI/guard checks, 0 failures"
+      },
+      {
+        "name": "public_key_tests",
+        "exit": 0,
+        "summary": "24 public-key CNG/canonical-format checks, 0 failures"
+      },
+      {
+        "name": "cpu_affinity_tests",
+        "exit": 0,
+        "summary": "CPU affinity: 35 checks, 0 failures; 2 selected logical CPUs, mask 0x5"
+      },
+      {
+        "name": "bootstrap_patch_tests",
+        "exit": 0,
+        "summary": "PASS 2466 bootstrap patch checks"
+      },
+      {
+        "name": "visual_detail_tests",
+        "exit": 0,
+        "summary": "149 visual-detail checks, 0 failures"
+      },
+      {
+        "name": "shadow_filter_tests",
+        "exit": 0,
+        "summary": "3744 shadow-step guards/ABI checks, 0 failures"
+      },
+      {
+        "name": "steam_profile_tests",
+        "exit": 0,
+        "summary": "PASS 2003 Steam profile checks"
+      },
+      {
+        "name": "game_directory_bridge_tests",
+        "exit": 0,
+        "summary": "PASS 52 game directory bridge checks"
+      },
+      {
+        "name": "lobby_team_tests",
+        "exit": 0,
+        "summary": "PASS 68 lobby team ownership/ABI checks"
+      },
+      {
+        "name": "logistics_priority_tests",
+        "exit": 0,
+        "summary": "PASS 112 logistics priority branch checks"
+      },
+      {
+        "name": "neo_logistics_tests",
+        "exit": 0,
+        "summary": "PASS 420 NEO map-option checks (0 failures)"
+      },
+      {
+        "name": "neo_distance_policy_tests",
+        "exit": 0,
+        "summary": "PASS 3471 distance policy checks (0 failures)"
+      },
+      {
+        "name": "neo_distance_tests",
+        "exit": 0,
+        "summary": "PASS 1074 native distance checks (0 failures)"
+      },
+      {
+        "name": "neo_workshop_tests",
+        "exit": 0,
+        "summary": "PASS 234 workshop pickup checks (0 failures, 210 native selections)"
+      }
+    ]
+  },
+  "archive_reader_fixture_compiled_but_not_executed_without_input": true,
+  "actual_game_started": false,
+  "production_fingerprint_pins_changed": false,
+  "final_installer_updated": false,
+  "mixed_session_reload_proven": false,
+  "release_published": false,
+  "qualification_limits": [
+    "Only the ordinary adapter sources from the recorded commit are included",
+    "The existing History reference build has GameDirectory without NEO/ResumeCatchup; the full RC4 feature profile is recorded separately",
+    "One additional Gold rebuild at another source path differed and was excluded from release admission; no fingerprint guard was changed",
+    "All-three-edition final production runtime tests, compatible legacy-copy migration and matching final package remain required",
+    "Fourteen regular AI catalog entries are evidenced separately; campaign/cosmetic unlocks are not exhaustively qualified",
+    "Mixed-session reload against both original History editions and final production integration remain mandatory before publication"
+  ]
+}

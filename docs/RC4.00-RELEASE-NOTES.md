@@ -69,6 +69,17 @@ Spielinhalte; vor einem Hostwechsel beide Spiele neu starten.
 
 ## Gameplay und NEO
 
+**Alle 14 regulären KI-Gegner einschließlich Maid Marielle:** Quellstand
+`56ea811` integriert den geprüften nativen Katalogfilter für Gold, Steam History
+und Ubisoft History. Die 33 versteckten Kampagnenvarianten/Platzhalter bleiben
+versteckt. Für den finalen Installer müssen die normalen Produktionsadapter neu
+gebaut, integriert und geprüft werden; ältere Installer erhalten den Fix nicht
+automatisch. Das ist **keine** pauschale Freigabe sämtlicher Kampagnen- oder
+Kosmetik-Freischaltungen. [KI-Katalog und Nachweise](AI-CATALOG-UNLOCK.md).
+Die [separate Produktions-Buildprüfung](receipts/rc400-ai-production-rebuild-20261115.json)
+trennt das einfache History-Directory-Profil vom vollständigen Release-Profil
+mit NEO und ResumeCatchup. Sie ersetzt keine Prüfung des final installierten Spiels.
+
 **Fixes for several issues causing undelivered goods or stalled production**:
 History enthält die bisherigen Logistik-, Werkstatt-Abhol- und Wiederaufnahme-
 Korrekturen. Die NEO-Abholkorrektur verhindert den nachgewiesenen Stillstand durch
