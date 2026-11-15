@@ -35,13 +35,24 @@ def checked_root(root):
     return root
 
 
-def prepare(root, **kwargs):
+def _checked_options(options, allow_unqualified_maximum):
+    # Match the ordinary Gold launcher: this experimental frame-history path
+    # has reported UI ghosting and must not slip into routine pair tests.
+    if runtime._options(options)[3] and allow_unqualified_maximum is not True:
+        raise ValueError('Gold Maximum is unqualified because of UI ghosting; use the Modern SMAA profile.')
+    return options
+
+
+def prepare(root, *, allow_unqualified_maximum=False, **kwargs):
+    _checked_options(kwargs.get('options'), allow_unqualified_maximum)
     return runtime.prepare(checked_root(root), **kwargs)
 
 
-def verify(root, options=None):
+def verify(root, options=None, *, allow_unqualified_maximum=False):
+    _checked_options(options, allow_unqualified_maximum)
     return runtime.verify(checked_root(root), options)
 
 
-def launch_environment(root, inherited, options=None):
+def launch_environment(root, inherited, options=None, *, allow_unqualified_maximum=False):
+    _checked_options(options, allow_unqualified_maximum)
     return runtime.launch_environment(checked_root(root), inherited, options)

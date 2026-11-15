@@ -15,6 +15,27 @@ runtime_spec.loader.exec_module(visual)
 
 
 class GoldGraphicsTests(unittest.TestCase):
+    def test_routine_gold_profiles_cannot_reintroduce_unqualified_maximum(self):
+        options = dict(midsummer_tone=True, enhanced_aa=True,
+                       contact_shadows=True, maximum_fx=True)
+        with mock.patch.object(visual, 'checked_root') as root:
+            for call in (lambda: visual.prepare(ROOT/'work', options=options),
+                         lambda: visual.verify(ROOT/'work', options),
+                         lambda: visual.launch_environment(ROOT/'work', {}, options)):
+                with self.assertRaisesRegex(ValueError, 'UI ghosting'):
+                    call()
+            root.assert_not_called()
+        safe = dict(options, maximum_fx=False)
+        with mock.patch.object(visual, 'checked_root', return_value=ROOT/'work'), \
+                mock.patch.object(visual.runtime, 'launch_environment', return_value={'checked': '1'}) as launch:
+            self.assertEqual(visual.launch_environment(ROOT/'work', {}, safe), {'checked': '1'})
+            self.assertEqual(launch.call_args.args[2], safe)
+        # An explicit laboratory experiment can still reproduce the defect.
+        with mock.patch.object(visual, 'checked_root', return_value=ROOT/'work'), \
+                mock.patch.object(visual.runtime, 'prepare', return_value=ROOT/'work') as prepare:
+            visual.prepare(ROOT/'work', options=options, allow_unqualified_maximum=True)
+            self.assertNotIn('allow_unqualified_maximum', prepare.call_args.kwargs)
+
     def test_gold_runtime_does_not_change_history_pins_or_profile_paths(self):
         import reshade_runtime as history
         self.assertIsNot(visual.runtime, history)
