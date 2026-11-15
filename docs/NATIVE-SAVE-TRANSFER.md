@@ -84,9 +84,28 @@ Both clients exited normally, and strict restoration of profiles, archives,
 adapters and shared state passed. See the
 [separate metadata/admission receipt](receipts/native-saved-neo-admission-20261115.json).
 
-This stage does **not** qualify a joint saved-world start, restored active NEO
-before the first logistics comparison, continued matching native turn CRCs,
-coordinated saving, full NEO5, or EasyTier connectivity. The saved-start envelope
+Later standalone DXVK tests reached the retained world and rebound all saved
+NEO intent marks to live tasks on **both original History editions**. The
+original games reached LogicTurn 301, but the first native replay CRC differed.
+Disabling new diagnostic build, priority and save actions during loading did
+not remove the difference. All three follow-up pairs exited normally and passed
+strict restoration.
+
+The first CRC input difference is the total number of registered logistics
+tasks: Gold has 100, History 126. A read-only Steam History comparison found
+100 shared task handles with equal class, priority, group, bucket, parent,
+birth and player fields. History additionally contains 26 `CRequestTask`
+objects, 13 per AI, under two saved `CConstructionTask` parents. These are
+group-9 requests; subclass state has not been exhaustively compared. Their
+creation or lifecycle difference during loading still needs diagnosis.
+
+This is evidence of native saved-world entry and live metadata binding. It
+does not establish synchronized continuation, stable resumed logistics or a
+coordinated new checkpoint and reload.
+
+This stage does **not** qualify synchronized saved-world continuation, sustained
+resumed NEO deliveries, continued matching native turn CRCs, coordinated saving,
+full NEO5, or EasyTier connectivity. The saved-start envelope
 retains Gold's actual empty native start field in a separate checkpoint-bound
 namespace; it does not relax the fresh-start cache guards or grant start rights.
 

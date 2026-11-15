@@ -34,5 +34,51 @@
   "fresh_lobby_Ready_guards_relaxed": false,
   "coordinated_save_and_shared_reload_qualified": false,
   "full_NEO5_qualified": false,
-  "EasyTier_separate_PC_qualified": false
+  "EasyTier_separate_PC_qualified": false,
+  "followup_native_live_intent_binding": [
+    {
+      "receiver": "Ubisoft History",
+      "additional_fresh_test_build_priority_save_actions_disabled": false,
+      "original_retained_world_and_live_NEO_intent_bindings_observed_on_both": true,
+      "first_native_CRC_mismatch_finished_turn": 0,
+      "stable_shared_continuation_qualified": false,
+      "normal_exit_and_strict_restoration_passed": true
+    },
+    {
+      "receiver": "Ubisoft History",
+      "additional_fresh_test_build_priority_save_actions_disabled": true,
+      "original_retained_world_and_live_NEO_intent_bindings_observed_on_both": true,
+      "first_native_CRC_mismatch_finished_turn": 0,
+      "stable_shared_continuation_qualified": false,
+      "normal_exit_and_strict_restoration_passed": true
+    },
+    {
+      "receiver": "Steam History",
+      "additional_fresh_test_build_priority_save_actions_disabled": true,
+      "original_retained_world_and_live_NEO_intent_bindings_observed_on_both": true,
+      "first_native_CRC_mismatch_finished_turn": 0,
+      "stable_shared_continuation_qualified": false,
+      "normal_exit_and_strict_restoration_passed": true
+    }
+  ],
+  "typed_Steam_History_task_registry_comparison": {
+    "common_tasks_compared": 100,
+    "common_fields_equal": [
+      "id",
+      "native_class",
+      "priority",
+      "group",
+      "bucket",
+      "parent",
+      "birth",
+      "player"
+    ],
+    "additional_History_CRequestTask_objects": 26,
+    "additional_per_AI_player": 13,
+    "extra_request_group": 9,
+    "extra_request_bucket": 0,
+    "extra_parent_class": "CConstructionTask",
+    "extra_creation_or_lifecycle_root_cause_established": false,
+    "subclass_fields_exhaustively_compared": false
+  }
 }
