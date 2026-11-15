@@ -1,0 +1,56 @@
+{
+  "format": "weplay-rc400-gold-ui-package-v1",
+  "verified_utc": "2026-11-15T22:52:55.288725+00:00",
+  "maintainer": "WePlay Community",
+  "source_interface_sha256": "5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215",
+  "generated_profiles": {
+    "profile": {
+      "sha256": "ce9ad19df88cf047569cf3a09550232e38b5dc38c4fabd33d8e56b45d7093aef",
+      "lua_compiled": 284
+    },
+    "menu": {
+      "sha256": "49b13d36daa73e07b17ce912c31e53a24be2428f860b42750ee4c1d2a978df2a",
+      "lua_compiled": 284
+    },
+    "graphics": {
+      "sha256": "14f2a8e52d08ee984b393a58c2c8b75968a2cb4bfa55730474fde3f5fba1f8e5",
+      "lua_compiled": 284
+    },
+    "release": {
+      "sha256": "9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928",
+      "lua_compiled": 284
+    }
+  },
+  "production_changed_members": [
+    "Script/local/menu/tutorial.lua"
+  ],
+  "only_optional_metadata_guard_added": true,
+  "prepare_and_graphics_pins_migrated": true,
+  "embedded_python_release_output_identical": true,
+  "embedded_release_interface_bytes": 1598711,
+  "gold_payload_files": 68,
+  "source_template_inventory_unchanged": true,
+  "quiet_reshade_runtime_unchanged": true,
+  "current_debug_marker_accepts_exact_new_pin": true,
+  "prior_debug_marker_pins_retained": true,
+  "marked_original_core_compiles_lua51": true,
+  "targeted_tests": {
+    "gold_discovery": 68,
+    "gold_discovery_skipped": 5,
+    "gold_graphics_with_lua51": 10,
+    "gold_menu_with_lua51": 14,
+    "gold_release_options_with_lua51": 3,
+    "gold_capture": 9,
+    "release_documents": 3,
+    "passed": true
+  },
+  "original_installation_modified": false,
+  "private_test_archives_modified": false,
+  "game_started": false,
+  "production_native_adapter_changed": false,
+  "crossplay_production_integration_complete": false,
+  "final_installer_built_from_this_change": false,
+  "release_published": false,
+  "runtime_evidence": "native-saved-loading-ui-20261115.json",
+  "mixed_second_reload_evidence": "native-saved-second-reload-20261115.json"
+}

@@ -6,6 +6,14 @@
 > Die nachfolgende Matrix beschreibt den bisherigen Produktionsstand und wird
 > nach diesem Nachweis überarbeitet. Downloadziele sind für den Release reserviert.
 
+> **Aktualisierter Entwicklungsnachweis:** Ein neuer Host-Checkpoint und sein
+> zweiter gemischter Reload sind inzwischen im privaten, bewachten Native162-
+> Kandidaten gegen beide Original-History-Ausgaben nachgewiesen: Steam 1.824,
+> Ubisoft 2.220 gemeinsame originale CRC-Blöcke ohne Abweichung, alle vier
+> gespeicherten NEO-Marken wiederhergestellt und regulär geschlossene Gold-
+> Ladeanzeige. Die Produktionsintegration und Prüfungen des ausgelieferten
+> Pakets fehlen weiterhin. [Nachweise und Grenzen](NATIVE-SAVE-TRANSFER.md).
+
 Ein gemeinsamer Windows-Installer für **Gold Edition 1.12.1396, Steam History
 Edition und Ubisoft History Edition**. Alle drei Ausgaben verwenden denselben
 zweisprachigen Launcher, eine getrennte Spielkopie, private Profile und die
@@ -13,9 +21,10 @@ geprüfte Plattformisolation. Steam oder Ubisoft Connect müssen für die vorber
 Kopie nicht laufen. Jeder Spieler benötigt eigene unterstützte Originaldateien;
 der Download enthält keine Spieldaten.
 
-**Wichtig: Gold ist in RC4.00 Singleplayer.** Multiplayer, NEO5 und
-Multiplayer-Laden im veröffentlichten Paket gelten für History. Der separate
-Gold/History-Crossplay-Versuch ist nicht Bestandteil dieses Installers.
+**Der bisher gebaute Produktionskandidat bietet Gold nur als Singleplayer.**
+RC4.00 wird erst nach Integration und Prüfung des nachgewiesenen gemischten
+Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
+älteren Paketkandidaten; die privaten Versuchs-DLLs werden nicht übernommen.
 
 [Release und Downloads](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/v2.0.0-rc4.00)
 · [Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc4.00/Setup.exe)
@@ -55,11 +64,13 @@ Gold/History-Crossplay-Versuch ist nicht Bestandteil dieses Installers.
 - **Save and load multiplayer games** — History behält manuelle Host-Saves,
   den Host-Autosave und die native Übertragung beim Wiederaufnehmen. Details und
   Kompatibilitätsgrenzen stehen weiter unten.
-- **Cross-play between Gold Edition and History Edition** — Entwicklungsstand,
-  keine RC4.00-Freigabe: Original-Gold und beide originalen History-Ausgaben liefen
-  in getrennten lokalen Versuchen gemeinsam und schrieben echte Saves. Der
-  experimentelle FIFO-/Einzelprioritäten-Port ist weder vollständiges NEO5 noch
-  ein implementierter gemischter Sitzungsreload. Er wird nicht mitgeliefert.
+- **Cross-play between Gold Edition and History Edition** — nachgewiesener
+  Entwicklungsstand, noch keine Produktionsfreigabe: Original-Gold und beide
+  originalen History-Ausgaben liefen gemeinsam, setzten echte gespeicherte Welten
+  fort und luden einen daraus neu geschriebenen Host-Checkpoint ein zweites Mal.
+  Der experimentelle FIFO-/Einzelprioritäten-Port ist kein vollständiges NEO5.
+  Native162 wird nicht als private DLL in den Installer kopiert; die normale
+  Adapter-, Launcher- und Paketintegration steht noch aus.
 
 Die History-Pfade sind enthaltene Preview-Funktionen mit bisherigen lokalen und
 teilweisen Zwei-PC-Nachweisen. RC4.00 begründet keine neue Freigabe langer
@@ -113,6 +124,11 @@ Lieferbeschleunigung oder neue x20-Qualifikation.
   Versionspräfix im Launcher.
 - Verbesserungen für Join/Cancel, Grafik-Save/Discard, sichere Paketübernahme und
   Reparatur vorhandener Standalone-Kopien sind enthalten.
+- Der Gold-Tutorial-Guard für fehlende Save-Metadaten ist jetzt auch mit den
+  exakten Produktions-Interface-Pins verbunden. Alle vier UI-Kompositionen und
+  der gebündelte Python-Interpreter erzeugen den geprüften Stand; das ersetzt
+  noch keine Freigabe der nativen Crossplay-Produktionsintegration.
+  [Paketprüfung](receipts/rc400-gold-ui-package-20261115.json).
 
 ## Graphics
 
@@ -219,19 +235,27 @@ Vor jedem Versuch mit älteren Saves ein Backup behalten. Lokale History-
 Wiederaufnahmen sind belegt; das ersetzt keine neue Steam-/separate-PC-/Internet-
 NEO5-Dauerfreigabe. Bei langem Lobbytransfer nicht mehrfach starten.
 
-**Gold/History gemischt:** Die privaten Tests schrieben in beiden Paaren echte
-Saves und liefen danach weiter: Gold/Steam 1.971 gemeinsame originale CRCs ohne
-Abweichung, Gold/Ubisoft 1.695. Ein neuer gemeinsamer Sitzungsstart aus diesen
-Saves ist nicht implementiert/nachgewiesen. Zwei separat geladene Solo-Welten
-wären kein solcher Nachweis. Native128 und seine Versuchsmenüs sind nicht im
-RC4.00-Paket. [Crossplay-Nachweise und Grenzen](GOLD-HISTORY-NEO-ACTIVE.md).
+**Gold/History gemischt:** Die jüngste private Testfolge setzte eine gespeicherte
+Welt tatsächlich gemeinsam fort. Beide menschlichen Baustellen erhielten ihre
+Waren und wurden fertiggestellt; der Host schrieb bei LogicTurn 700 einen neuen
+originalen Checkpoint und die Simulation lief weiter. Genau dieser unveränderte
+Checkpoint wurde danach mit Original-Steam beziehungsweise Original-Ubisoft
+erneut gemeinsam geladen: 1.824 beziehungsweise 2.220 gemeinsame originale
+CRC-Blöcke ohne Abweichung. Alle vier gespeicherten NEO-Marken wurden auf beiden
+Clients wiederhergestellt; beide Welten und HUDs waren sichtbar. Der Ubisoft-
+Lauf belegte außerdem Warenlieferung und Bauabschluss für beide KI-Spieler.
+Das waren bewachte Loopback-Versuche auf Monhaim Valley mit zwei Menschen und
+zwei KIs, keine Freigabe beliebiger Saves/Karten, vollständigen NEO5 oder
+EasyTier-Dauerbetriebs. Die normalen Produktionsadapter und der Launcher müssen
+diesen Ablauf erst noch integrieren. [Aktueller Reload-Nachweis](NATIVE-SAVE-TRANSFER.md).
 
 ## English release summary
 
 RC4.00 combines supported Gold 1.12.1396, Steam History and Ubisoft History in
 one Windows installer. Each uses its own verified copy and isolated profile,
 without requiring Steam or Ubisoft Connect at runtime. Supply your own supported
-game files. Gold is **single-player only** in this release.
+game files. The current production candidate still exposes Gold as single-player;
+RC4.00 publication waits for integration of the qualified mixed-reload path.
 
 History includes **Local multiplayer over LAN**, **Private multiplayer via
 integrated EasyTier VPN**, and a **Public lobby server for finding games, with
@@ -254,10 +278,14 @@ draw distance**. ReShade 6.8.0 now has no compiled GUI/overlay while preserving
 effects. Gold Maximum remains disabled because of verified UI defects; Gold
 requires its qualified DXVK path. History retains native rendering and Maximum.
 
-**Cross-play between Gold Edition and History Edition** remains experimental
-research, excluded from RC4.00. Real local mixed worlds and saves were observed
-against both History editions. Full Gold NEO5, mixed-session reload, effective
-x20 speed and separate-PC EasyTier qualification remain open.
+**Cross-play between Gold Edition and History Edition** has now passed a bounded
+private save/second-reload sequence with both original History editions. The
+second reload produced 1,824 common original CRC blocks with Steam and 2,220 with
+Ubisoft, without a mismatch, with all four saved NEO marks restored. These are
+loopback tests on Monhaim Valley with two humans and two AI players. Production
+adapter, launcher and package integration remain required before RC4.00 ships.
+Full Gold NEO5, arbitrary-save/map support, effective x20 and separate-PC EasyTier
+qualification remain open. The private Native162 DLLs are not release payloads.
 
 **Install:** Run Setup, select your supported edition and a new WePlay copy
 location, then wait for verification. Python/.NET are included. Windows 10 build

@@ -13,6 +13,7 @@ import tempfile
 CORE='Script/local/core.lua'
 ARCHIVE_SHA='98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92'
 RC328_ARCHIVE_SHA='de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db657635'
+RC400_ARCHIVE_SHA='9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928'
 CORE_SHA='e77edf7025c266df86b3c7dba934f1b01e1cb3a7c6b76522a194cfb242d4eec7'
 digest=lambda value:hashlib.sha256(value).hexdigest()
 
@@ -20,7 +21,7 @@ digest=lambda value:hashlib.sha256(value).hexdigest()
 def build(raw):
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'lan'))
     from bba import Archive
-    if len(raw)>8*1024*1024 or digest(raw) not in (ARCHIVE_SHA,RC328_ARCHIVE_SHA):raise ValueError('Gold marker fixture requires the reviewed prepared archive')
+    if len(raw)>8*1024*1024 or digest(raw) not in (ARCHIVE_SHA,RC328_ARCHIVE_SHA,RC400_ARCHIVE_SHA):raise ValueError('Gold marker fixture requires the reviewed prepared archive')
     original=Archive(raw);core=original.read(CORE)
     if digest(core)!=CORE_SHA:raise ValueError('Gold original core script mismatch')
     fixture=Path(__file__).with_name('gold_marker_fixture.lua').read_bytes()
