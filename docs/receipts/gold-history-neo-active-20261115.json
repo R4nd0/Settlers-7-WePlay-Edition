@@ -1,0 +1,50 @@
+{
+  "format": "weplay-gold-history-neo-active-v1",
+  "maintainer": "WePlay Community",
+  "scope": "isolated loopback native experiment, not ordinary release activation",
+  "feature_mask": 19,
+  "fifo_active": true,
+  "original_individual_priorities": true,
+  "original_priority_command_transport": true,
+  "complete_neo5": false,
+  "agreement_fixture_checks": 805,
+  "priority_transport_fixture_checks": 157,
+  "native_priority_guard_mutation_checks": 69,
+  "pairs": [
+    {
+      "case": 238,
+      "history": "original Steam History, standalone",
+      "common_original_checksums": 300,
+      "finished_turns": [0, 299],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true
+    },
+    {
+      "case": 239,
+      "history": "original Ubisoft History, standalone",
+      "common_original_checksums": 2111,
+      "finished_turns": [0, 2110],
+      "mismatches": 0,
+      "both_native_files_logic_turn": 300,
+      "serialized_neo_metadata_equal": true,
+      "live_individual_marks_in_each_file": 2,
+      "gold_observed_required_goods_and_construction_progress_100": true,
+      "history_symmetric_observation": false,
+      "both_normal_exit_zero": true,
+      "strict_restoration": true
+    }
+  ],
+  "renderer": "DXVK",
+  "graphics": "High 1920x1080",
+  "roster": "two humans and two native AI players",
+  "map": "Monhaim Valley",
+  "game_clocks_rng_stock_and_checksums_synthesized": false,
+  "preexisting_save_replaced": false,
+  "mixed_session_reload_proven": false,
+  "effective_x20_proven": false,
+  "easytier_or_separate_pc_proven": false
+}
