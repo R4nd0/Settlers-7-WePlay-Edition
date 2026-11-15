@@ -171,3 +171,34 @@ this candidate, sustained resumed delivery checks, a new coordinated checkpoint
 and its next mixed reload, and production integration remain open. No production
 adapter or release package was changed. See the
 [bounded postload-policy receipt](receipts/native-saved-request-postload-20261115.json).
+
+## Gold loading overlay: missing save metadata
+
+The subsequent UI diagnosis found that Gold's eager weather initializer reads
+`MapPath` from an absent `GetMapDataBySavegame` result. This aborts the tutorial
+module before it defines the `head` dialogue UI. Later, `hud.update` calls
+`head.videoIsRunning`; the exception prevents the normal loading-screen update
+from consuming its existing close signal, even while the world simulates.
+
+The shared Gold profile builder now guards that optional metadata result and
+retains the original fallback to `MapSetup.GetMapPath()` from the active setup.
+Existing saved metadata keeps its original path. The fix neither hides the
+loading frame directly nor changes native Ready, map-mode or simulation state.
+The menu, graphics and installer-release compositions all inherit this guard;
+all 284 Lua members compile in each of the four generated archive profiles.
+
+In the actual Gold/original-Steam History standalone DXVK test, the missing
+metadata branch was observed, the full dialogue module became available, and
+the original HUD and loading-screen updates completed. Gold's loading frame
+closed normally, the world and HUD were visible, and Escape opened and closed
+the original in-game menu. The retained active-NEO world produced **1,566 common
+original native CRCs, blocks 0 through 1565, with no mismatch**. Both clients
+exited normally and strict restoration passed. The runtime candidate differs
+from the public guard only by a branch-observation message; other temporary
+inline UI probes were also present in this diagnostic run.
+
+This fixes the diagnosed Gold UI failure and extends the bounded Steam result.
+The same resumed run against original Ubisoft History, sustained delivery
+verification, a new coordinated checkpoint and its next mixed reload, and
+production native-adapter/package integration remain open. See the
+[loading-UI receipt](receipts/native-saved-loading-ui-20261115.json).

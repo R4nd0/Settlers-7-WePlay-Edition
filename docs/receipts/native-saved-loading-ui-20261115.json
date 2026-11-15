@@ -1,0 +1,47 @@
+{
+  "schema": "weplay.native-saved-loading-ui.v1",
+  "date": "2026-11-15",
+  "scope": "Gold missing saved-map metadata UI correction and bounded original Steam History saved-world continuation",
+  "actual_game": {
+    "editions": ["Gold", "original Steam History"],
+    "standalone": true,
+    "dxvk": true,
+    "active_neo": true,
+    "four_player_world_with_two_ai": true,
+    "gold_missing_metadata_branch_observed": true,
+    "gold_head_table_and_video_getter_available": true,
+    "original_loading_screen_update_completed": true,
+    "gold_loading_screen_closed_normally": true,
+    "gold_world_and_hud_visible": true,
+    "gold_ingame_menu_open_and_close_observed": true,
+    "common_original_native_crc_count": 1566,
+    "first_finished_turn": 0,
+    "last_finished_turn": 1565,
+    "crc_mismatch_count": 0,
+    "both_normal_exit_zero": true,
+    "strict_restoration_passed": true,
+    "preexisting_save_replaced": false
+  },
+  "source_verification": {
+    "targeted_tests_passed": 62,
+    "lua51_members_compiled_per_archive": 284,
+    "archive_compositions": ["profile", "menu", "graphics", "release"],
+    "public_guard_matches_runtime_except_branch_observation": true,
+    "existing_metadata_path_preserved": true,
+    "missing_metadata_uses_original_active_map_fallback": true,
+    "missing_or_duplicate_source_anchor_rejected": true,
+    "protected_global_environment_fixture_passed": true,
+    "direct_loading_frame_hiding": false,
+    "native_ready_or_map_flags_written": false,
+    "native_adapter_changed": false
+  },
+  "limits": {
+    "temporary_inline_ui_probes_present_in_actual_test": true,
+    "original_ubisoft_history_retest_pending": true,
+    "sustained_resumed_deliveries_qualified": false,
+    "new_coordinated_checkpoint_and_next_mixed_reload_qualified": false,
+    "production_native_adapter_integration_complete": false,
+    "release_package_updated": false,
+    "full_crossplay_workflow_qualified": false
+  }
+}

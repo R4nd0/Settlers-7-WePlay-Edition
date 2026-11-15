@@ -28,6 +28,19 @@ end
 ACCOUNT_LABEL = '"{left}{color:#FFFFFFFF}Ubi.com Account:"'
 LOCAL_LABEL = '"{left}{color:#FFFFFFFF}WePlay profile:"'
 GAME_MEMBER = 'Script/local/menu/game.lua'
+TUTORIAL_MEMBER = 'Script/local/menu/tutorial.lua'
+WEATHER_MAP_DATA_ANCHOR = ('e["mapData"]=e["MapSetup"]["GetMapDataBySavegame"](i)'
+                           'l=e["mapData"]["MapPath"]')
+# Save metadata can be absent during mixed-session admission. Let the original
+# following nil-path branch use MapSetup.GetMapPath() from the active setup.
+# Otherwise this eager weather initializer aborts before defining the head UI,
+# and HUD.update prevents loadingScreen.update from processing its close signal.
+WEATHER_MAP_DATA = '''local weplayWeatherMapData=e["MapSetup"]["GetMapDataBySavegame"](i)
+e["mapData"]=weplayWeatherMapData
+if weplayWeatherMapData~=nil then
+ l=weplayWeatherMapData["MapPath"]
+end
+'''
 DISCONNECT_ANCHOR = 'if not l and not e["game"]["isDisconnected"]then'
 # A local world needs no obsolete Orbit connection. Preserve the original
 # connection value and every multiplayer disconnect/desync path.
@@ -101,12 +114,22 @@ def game_script(raw):
             source[offsets[at + len(DISCONNECT_ANCHOR)]:]).encode('utf-8')
 
 
+def tutorial_script(raw):
+    source, body, offsets = decoded_view(raw)
+    if body.count(WEATHER_MAP_DATA_ANCHOR) != 1:
+        raise ValueError('Gold saved weather metadata anchor does not match exactly once.')
+    at = body.index(WEATHER_MAP_DATA_ANCHOR)
+    return (source[:offsets[at]] + WEATHER_MAP_DATA +
+            source[offsets[at + len(WEATHER_MAP_DATA_ANCHOR)]:]).encode('utf-8')
+
+
 def build(raw):
     if hashlib.sha256(raw).hexdigest() != SOURCE:
         raise ValueError('Gold profile UI requires the exact original Gold archive.')
     original = Archive(raw)
     replacements = {MEMBER: profile_script(original.read(MEMBER)),
-                    GAME_MEMBER: game_script(original.read(GAME_MEMBER))}
+                    GAME_MEMBER: game_script(original.read(GAME_MEMBER)),
+                    TUTORIAL_MEMBER: tutorial_script(original.read(TUTORIAL_MEMBER))}
     result = original.replace(replacements)
     verified = Archive(result)
     if original.entries.keys() != verified.entries.keys():

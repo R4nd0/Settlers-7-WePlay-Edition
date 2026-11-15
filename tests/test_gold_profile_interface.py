@@ -85,6 +85,39 @@ class GoldProfileTests(unittest.TestCase):
                         self.assertEqual(run(connected, disconnected, multiplayer, network),
                                          not connected and not disconnected and (multiplayer or network))
 
+    def test_weather_metadata_anchor_fails_closed(self):
+        for body in ('return false', gold.WEATHER_MAP_DATA_ANCHOR * 2):
+            with self.assertRaisesRegex(ValueError, 'weather metadata anchor'):
+                gold.tutorial_script(script(body))
+        _, body, _ = gold.decoded_view(gold.tutorial_script(
+            script(gold.WEATHER_MAP_DATA_ANCHOR + '\nreturn n(1)')))
+        self.assertIn(gold.WEATHER_MAP_DATA, body)
+        self.assertIn('return "caption"', body)
+
+    def test_weather_preserves_saved_path_and_uses_active_path_when_metadata_is_missing(self):
+        try:
+            from lupa.lua51 import LuaRuntime
+        except ImportError:
+            self.skipTest('Optional Lua 5.1 runtime unavailable')
+        lua = LuaRuntime(unpack_returned_tuples=True)
+        # Reject undefined global reads, as Gold's protected environment does.
+        run = lua.eval('''function(metadata,slot)
+          local savedCalls,activeCalls=0,0
+          local e={MapSetup={
+            GetMapDataBySavegame=function(i) assert(i==slot);savedCalls=savedCalls+1;return metadata end,
+            GetMapPath=function() activeCalls=activeCalls+1;return "active-map" end}}
+          setmetatable(e,{__index=function(_,key) error("undefined global: "..key) end})
+          local i=slot;local l=nil
+          if i~=nil then
+        ''' + gold.WEATHER_MAP_DATA + '''end
+          if l==nil then l=e.MapSetup.GetMapPath() end
+          return l,savedCalls,activeCalls
+        end''')
+        self.assertEqual(run(None, 1009), ('active-map', 1, 1))
+        self.assertEqual(run(None, None), ('active-map', 0, 1))
+        self.assertEqual(run(lua.table_from({'MapPath': 'saved-map'}), 1009), ('saved-map', 1, 0))
+        self.assertEqual(run(lua.table(), 1009), ('active-map', 1, 1))
+
     def test_authored_fallback_preserves_existing_titles_and_uses_no_earned_rank(self):
         try:
             from lupa.lua51 import LuaRuntime
