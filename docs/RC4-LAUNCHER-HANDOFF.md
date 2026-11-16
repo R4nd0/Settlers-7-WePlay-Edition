@@ -147,3 +147,39 @@ its embedded Python passed trusted-worker verification and the read-only compile
 broker rule plan. That fixture is deliberately not a playable game. No VPN or
 game was started, and no firewall rule was applied by this package check. Actual
 EasyTier transport and final installed mixed-world qualification remain pending.
+
+## Pair transport ownership and managed Gold UI repair
+
+`crossplay_network.NetworkSession` joins the approved host/guest bindings to the
+owned Windows transport. Content and explicit connection consent are checked
+before tunnel startup. Host mode opens its scoped listener before returning an
+invitation, so the guest's virtual address need not be known in advance. Accepted
+bytes remain unread until the owned tunnel reports that exact single guest.
+Unknown participants, changed interfaces, loss of the owned worker and bounded
+unconfirmed connections close the channel. End-to-end native authentication
+remains in the broker.
+
+Service shutdown joins the pump before removing its tunnel. Partial startup and
+cancelled launches release their own resources; healthy game processes are never
+terminated by this owner. Gold adapter cleanup now passes the same explicit
+mixed scope to the compiled helper instead of validating a Gold root as a
+History root. Ordinary cleanup keeps its existing scope.
+
+Validation: 154 targeted service/package tests, 11 read-only compiled Windows
+helper checks and the desktop package-identity regression passed. A fresh
+462-file private runtime package copied 313 runtime/helper files and imported
+the new owner in embedded Python. Its trusted inventory and compiled broker
+rule plan passed. No game, VPN or firewall-policy change occurred in these tests.
+
+The actual managed Gold repair path also created and verified a separate current
+copy with the corrected interface and shared archive, preserving portable profile
+files exactly. The older owned diagnostic copy was explicitly migrated with both
+original archives backed up, installation/ownership inventories updated and all
+284 interface scripts compiled in Lua 5.1. Its native adapter and portable
+descriptor stayed unchanged. The Crossplay chat independently verified the new
+copy's 445-file inventory and the migrated diagnostic guards. This corrects the
+stale diagnostic assets; it provides no new gameplay or mixed-reload result.
+
+The launcher UI remains gated. Both native-adapter and content-catalog approval
+sets are empty. RC4.00 must not be signed or published until mixed reload with
+Gold and each original History edition passes in the final installed package.

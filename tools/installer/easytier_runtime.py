@@ -330,7 +330,9 @@ class EasyTier:
                     self.child = None
             if had_child and os.name == 'nt':
                 from windows_system import remove_adapter
-                try:remove_adapter(self.root,self.device_name,self.address)
+                try:
+                    if self.crossplay:remove_adapter(self.root,self.device_name,self.address,crossplay=True)
+                    else:remove_adapter(self.root,self.device_name,self.address)
                 except (OSError,ValueError,subprocess.TimeoutExpired):cleanup_error=InternetError('internet_cleanup_failed')
             if self.private is not None:
                 # Only our new, random, non-reparse directory may be removed.

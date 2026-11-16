@@ -88,5 +88,7 @@ def internet_firewall(root,key,interface=None,*,crossplay=False):
     if crossplay: args += ('crossplay',)
     return command('internet-firewall',*args,root=root)
 
-def remove_adapter(root,name,address):
-    return command('adapter-cleanup',root,name,address,root=root)
+def remove_adapter(root,name,address,*,crossplay=False):
+    if type(crossplay) is not bool:raise ValueError('helper_invalid')
+    args=(root,name,address,'crossplay') if crossplay else (root,name,address)
+    return command('adapter-cleanup',*args,root=root)

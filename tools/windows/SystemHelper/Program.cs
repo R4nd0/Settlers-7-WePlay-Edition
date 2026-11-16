@@ -29,10 +29,11 @@ internal static class Program
             if(args is ["interfaces"]){Print(Interfaces());return 0;}
             if(args is ["processes"]){Print(Processes());return 0;}
             if(args is ["inspect-firewall",string prefix]){Print(Inspect(prefix));return 0;}
-            if(args is ["adapter-cleanup",string bundle,string adapter,string address])
+            if(args.Length>0&&args[0]=="adapter-cleanup")
             {
-                Bundle(bundle);if(!IsAdmin())throw new UnauthorizedAccessException("helper_admin_required");
-                AdapterCleanup.Remove(adapter,address);Print(new {ok=true});return 0;
+                if(args.Length is not (4 or 5)||args.Length==5&&args[4]!="crossplay")throw new InvalidDataException("helper_invalid");
+                Bundle(args[1],args.Length==5);if(!IsAdmin())throw new UnauthorizedAccessException("helper_admin_required");
+                AdapterCleanup.Remove(args[2],args[3]);Print(new {ok=true});return 0;
             }
             bool plan=args.Length>0&&args[0].StartsWith("plan-",StringComparison.Ordinal);
             if(args.Length>0&&args[0] is "lan-firewall" or "plan-lan")

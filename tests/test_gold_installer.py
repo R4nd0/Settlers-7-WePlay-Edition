@@ -103,6 +103,15 @@ class GoldInstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'verändert'):
             installer.verify_game(self.app)
 
+    def test_current_verifier_rejects_self_consistent_previous_ui_even_when_native_is_unchanged(self):
+        with patch.object(installer.gold,'prepare',side_effect=self.prepared):
+            installer.install(self.app,self.source,emit=lambda text:None)
+        old=(self.app/'Game'/installer.gold.INTERFACE).read_bytes()
+        with patch.object(installer.gold,'MENU_SHA256',hashlib.sha256(b'current guarded UI').hexdigest()):
+            with self.assertRaisesRegex(ValueError,'ungeprüften Spielstand'):
+                installer.verify_game(self.app)
+        self.assertEqual((self.app/'Game'/installer.gold.INTERFACE).read_bytes(),old)
+
 
 class GoldBootstrapFixtures(unittest.TestCase):
     def test_preparation_only_blocks_games_in_its_own_app_but_start_blocks_all(self):

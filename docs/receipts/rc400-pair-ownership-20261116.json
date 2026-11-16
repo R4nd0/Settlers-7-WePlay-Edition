@@ -1,0 +1,41 @@
+{
+  "format": "weplay-rc400-pair-ownership-v1",
+  "date": "2026-11-16",
+  "scope": "Owned pair transport, scoped adapter cleanup and real managed Gold archive repair",
+  "release_published": false,
+  "final_package_mixed_reload_proven": false,
+  "mixed_adapters_admitted": false,
+  "approved_content_catalogs": 0,
+  "targeted_service_and_package_tests_passed": 154,
+  "compiled_windows_helper_readonly_tests_passed": 11,
+  "desktop_package_identity_regression_passed": true,
+  "runtime_package_fixture": {
+    "passed": true,
+    "package_files": 462,
+    "copied_runtime_and_helper_files": 313,
+    "fresh_embedded_python_owner_imported": true,
+    "trusted_worker_inventory_verified": true,
+    "compiled_broker_rule_plan_verified": true,
+    "native_remote_rule_enabled": false,
+    "playable_game_fixture": false,
+    "game_started": false,
+    "vpn_started": false,
+    "firewall_rules_applied": false
+  },
+  "actual_gold_managed_repair": {
+    "new_copy_verified_files": 445,
+    "portable_profile_files_preserved_exactly": true,
+    "independent_crossplay_chat_verification": true,
+    "old_owned_diagnostic_archives_explicitly_migrated": true,
+    "both_original_archives_backed_up": true,
+    "installation_and_ownership_manifests_updated": true,
+    "lua51_interface_scripts_compiled": 284,
+    "native_adapter_and_portable_descriptor_unchanged": true,
+    "game_started": false
+  },
+  "limitations": [
+    "Transport ownership tests use mocked tunnel state and authored local protocol clients.",
+    "No actual EasyTier tunnel or native mixed game was qualified by this milestone.",
+    "Final installed Gold/Steam History and Gold/Ubisoft History reload qualification remains mandatory."
+  ]
+}

@@ -246,6 +246,35 @@ class TunnelTests(unittest.TestCase):
             for seconds in (True,0,14,1801,'15'):
                 with self.assertRaises(ValueError):gateway.EasyTierGateway(o,peer=peer,seconds=seconds)
 
+    def test_host_listener_precedes_invitation_but_no_bytes_relay_before_observed_guest(self):
+        o,peer=overlay(True)
+        o.snapshot.return_value=(LanInterface(o.address,24,o.device_name),{})
+        listener,accepted,target=Mock(),Mock(),Mock()
+        listener.accept.return_value=(accepted,(peer,12345))
+        with patch.object(gateway.socket,'socket',side_effect=[listener,target]) as factory, \
+                patch.object(gateway,'pin_interface'),patch.object(gateway,'StreamBridge') as bridge:
+            g=gateway.HostGateway(o,broker_port=49155)
+            listener.bind.assert_called_once_with((o.address,9113))
+            g.pump();self.assertEqual(factory.call_count,1)
+            accepted.recv.assert_not_called();target.connect.assert_not_called()
+            o.snapshot.return_value=(g.interface,{peer:'p2p'})
+            g.pump();target.bind.assert_called_once_with(('127.0.0.3',0))
+            target.connect.assert_called_once_with(('127.0.0.1',49155))
+            bridge.assert_called_once_with(accepted,target)
+            g.close();o.child.terminate.assert_not_called()
+
+    def test_pending_host_source_timeout_or_extra_guest_releases_unread_socket(self):
+        for ambiguous in (False,True):
+            o,peer=overlay(True);o.snapshot.return_value=(LanInterface(o.address,24,o.device_name),{})
+            listener,accepted=Mock(),Mock();listener.accept.return_value=(accepted,(peer,12345))
+            with patch.object(gateway.socket,'socket',return_value=listener),patch.object(gateway,'pin_interface'):
+                g=gateway.HostGateway(o,broker_port=49155)
+                g.pump()
+                if ambiguous:o.snapshot.return_value=(g.interface,{peer:'p2p','10.203.77.3':'p2p'})
+                else:g.pending_since-=31
+                with self.assertRaises(gateway.GatewayError):g.pump()
+                self.assertTrue(g.closed);accepted.close.assert_called_once();accepted.recv.assert_not_called()
+
     def test_unsupported_interface_pinning_has_no_unpinned_fallback(self):
         with patch.object(gateway.sys,'platform','unsupported'):
             sock=Mock()

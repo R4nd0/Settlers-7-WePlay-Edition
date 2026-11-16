@@ -152,6 +152,14 @@ class ElevationTests(unittest.TestCase):
             self.assertEqual(command.call_args.args,('internet-firewall',root,key,'remove','crossplay'))
             with self.assertRaises(ValueError):windows_system.internet_firewall(root,key,crossplay=1)
 
+    def test_crossplay_adapter_cleanup_keeps_its_explicit_gold_scope(self):
+        import windows_system
+        root=ROOT/'work/fictional-internet-copy'
+        with patch.object(windows_system,'command',return_value=b'{}') as command:
+            windows_system.remove_adapter(root,'WePlay-12345678','10.203.77.1',crossplay=True)
+            self.assertEqual(command.call_args.args,('adapter-cleanup',root,'WePlay-12345678','10.203.77.1','crossplay'))
+            with self.assertRaises(ValueError):windows_system.remove_adapter(root,'WePlay-12345678','10.203.77.1',crossplay='true')
+
     def test_crossplay_worker_forwards_scope_after_approved_native_profile_and_cleans_up(self):
         import compatibility,crossplay_session
         with tempfile.TemporaryDirectory() as folder:
