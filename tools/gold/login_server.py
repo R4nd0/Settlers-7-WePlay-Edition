@@ -199,9 +199,11 @@ class Connection:
 class GoldLoginAdapter:
     """One disposable local principal; optional owned registration laboratory."""
     def __init__(self, username: str, password: str, backend_port: int, *, account_mode: bool = False,
-                 session_mode: bool = False, gatherings=None, loopback_slot: int = 1):
+                 session_mode: bool = False, gatherings=None, loopback_slot: int = 1, principal=None):
         if type(loopback_slot) is not int or not 1 <= loopback_slot <= 9:
             raise ValueError("Expected bounded loopback slot")
+        if principal is not None and (type(principal) is not int or not 1 <= principal <= 0x7fffffff):
+            raise ValueError("Expected an independent local numeric principal")
         self.client_address = f"127.0.0.{loopback_slot}"
         self.username = username.encode("ascii")
         self.password = password.encode("ascii")
@@ -210,7 +212,7 @@ class GoldLoginAdapter:
                 or not 1024 <= backend_port <= 65535):
             raise ValueError("Expected local name, fresh 256-bit launch secret and loopback port")
         self.backend_port = backend_port
-        self.principal = secrets.randbelow(0x7ffffffe) + 1
+        self.principal = secrets.randbelow(0x7ffffffe) + 1 if principal is None else principal
         self.connection_id = secrets.randbelow(0x7ffffffe) + 1
         self.session_key = secrets.token_bytes(16)
         self.opaque_ticket = secrets.token_bytes(32)

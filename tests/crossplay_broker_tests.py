@@ -58,6 +58,11 @@ class BrokerTests(unittest.TestCase):
         self.assertFalse(self.broker.members)
         self.assertFalse(self.broker.retired)
 
+    def test_launch_description_omits_authentication_material(self):
+        launch = self.launches[0]
+        self.assertNotIn(repr(launch.key), repr(launch))
+        self.assertNotIn(repr(launch.native_identity), repr(launch))
+
     def test_accepted_stream_disables_tcp_batching_without_authenticating_peer(self):
         self.client(1)
         self.assertEqual(len(self.broker.connections),1)

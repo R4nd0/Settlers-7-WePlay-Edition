@@ -54,3 +54,38 @@ verifies the local installed files and requires the binding's content digest to
 match. This prevents an arbitrary nonzero content value from reaching the game.
 Ten catalog tests plus the nine handoff, seven migration and ten portable-runtime
 tests pass. These are authored checks, separate from the required game tests.
+
+## Owned local services
+
+The reusable broker now lives in `tools/installer/crossplay_broker.py`; the
+existing `tools/gold/crossplay_server.py` development command retains its entry
+point and exports. Framing, authentication, projections, queue limits and EOF
+behavior remain the existing implementation. Launch representations omit keys
+and local identities.
+
+`tools/gold/gold_session.py` owns exactly one Gold identity and three local
+endpoints: authentication UDP, backend UDP and configuration HTTP. It reuses the
+existing Gold protocol implementations, binds only `127.0.0.1`, accepts Gold's
+`127.0.0.2` source and uses the contract's domain-separated HMAC password. The
+explicit validated Gold principal matches the launch identity; the connection
+identifier remains independently assigned. No second Gold launch is created.
+The two Gold-only handoff ports are mandatory in `1024..65535`; History bindings
+reject them.
+
+`crossplay_runtime.SessionPump` pumps owned services and can attach to the owned
+game handle. Game exit, cancellation or service failure releases its endpoints
+and queues. There is no arbitrary healthy-game duration limit. Failure closes
+the channel and reports a bounded error, leaving native disconnect handling to
+the game. It does not terminate a healthy game.
+
+The dependency list is explicit in package construction and installed launcher
+sources. Nested Gold refresh adds all current service modules even when the
+older source package does not list them. A fresh embedded-Python run imported
+the complete 79-file refreshed Gold package, opened/pumped/closed its one-owner
+service and verified the HMAC vector, with the old source inventory unchanged.
+This used an ordinary AI adapter fixture and changed no production native pin.
+
+On 2026-11-16, 239 targeted tests passed across local service sockets, broker,
+handoff, content, lifetime, legacy Gold protocols, installation, migration and
+desktop recovery. Authored protocol inputs and mocked process lifetimes remain
+separate from actual native game qualification. RC4.00 remains unpublished.

@@ -115,6 +115,9 @@ class GoldPayloadMigrationTests(unittest.TestCase):
         for name in (*platform.TOOLS,'compatibility.py'):
             path=repo/'tools/installer'/name;path.parent.mkdir(parents=True,exist_ok=True)
             path.write_bytes(b'current fixture helper')
+        for name in platform.GOLD_SERVICE_TOOLS:
+            path=repo/'tools/gold'/name;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(b'current fixture Gold service')
         for folder,names in [('gold',('release_interface.py','graphics_assets.py')),
                              ('midsummer',('profile.py','archive_append.py','camera_preferences.lua','runtime.lua'))]:
             for name in names:

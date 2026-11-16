@@ -79,6 +79,8 @@ def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None):
         # Output always receives the complete current standalone tool set.
         for name in (*platform_standalone.TOOLS,'compatibility.py'):
             shutil.copyfile(content.plain(repo/'tools/installer'/name),content.plain(target/'Tools/gold'/name))
+        for name in platform_standalone.GOLD_SERVICE_TOOLS:
+            shutil.copyfile(content.plain(repo/'tools/gold'/name),content.plain(target/'Tools/gold'/name))
         for name in ('release_interface.py','graphics_assets.py'):
             shutil.copyfile(content.plain(repo/'tools/gold'/name),content.plain(target/'Tools/gold'/name))
         shared=target/'Tools/midsummer';shared.mkdir(exist_ok=True)

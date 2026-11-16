@@ -94,8 +94,8 @@ def launcher_sources(manifest):
     files=[('offline-ui/launch_local.py','launch_local.py'),('installer/compatibility.py','compatibility.py'),
            ('installer/launch_lan.py','launch_lan.py'),('installer/start.py','start.py')]
     if manifest.get('platform_independent',False):
-        from platform_standalone import TOOLS
-        files.extend(('installer/'+name,name) for name in TOOLS)
+        from platform_standalone import tool_sources
+        files.extend(tool_sources())
     if 'tools/installer/portable_lock.py' in manifest['files']:
         files.append(('installer/portable_lock.py','portable_lock.py'))
     if 'tools/installer/host_runtime.py' in manifest['files']:
@@ -253,8 +253,8 @@ def package_manifest(root):
     independent=manifest.get('platform_independent',False)
     required_adapter=adapter_fingerprint(manifest.get('game_directory',False),manifest.get('neo_logistics',False),independent)
     if independent:
-        from platform_standalone import PAYLOAD,TOOLS
-        if manifest.get('linux_native',False) or any(expected.get('payload/platform/'+name)!=digest for name,digest in PAYLOAD.items()) or any(('tools/installer/'+name) not in expected for name in TOOLS):
+        from platform_standalone import PAYLOAD,tool_sources
+        if manifest.get('linux_native',False) or any(expected.get('payload/platform/'+name)!=digest for name,digest in PAYLOAD.items()) or any(('tools/'+original).lower() not in expected for original,_ in tool_sources()):
             raise ValueError('Die Plattformisolation im Paket ist unvollständig oder ungeprüft.')
     if manifest.get('neo_logistics',False) and (not manifest.get('multiplayer_resume',False)
             or expected.get('payload/uplay_r1_loader.dll')!=required_adapter

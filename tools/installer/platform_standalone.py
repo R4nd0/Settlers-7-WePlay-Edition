@@ -10,7 +10,9 @@ import compatibility as content
 FORMAT = 'weplay-platform-independent-v1'
 RECORD = 'Launcher/platform-standalone.json'
 TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py','network_elevation.py','network_peer_policy.py',
-         'crossplay_session.py', 'crossplay_content.py')
+         'crossplay_session.py', 'crossplay_content.py', 'crossplay_broker.py', 'crossplay_runtime.py')
+GOLD_SERVICE_TOOLS = ('gold_session.py', 'login_server.py', 'account_config.py', 'account_profile.py',
+                      'local_gatherings.py', 'gathering_codec.py', 'nat_traversal.py')
 HISTORY = '3e400b5d108ec99ca05105fb7d9149e2a4978435691ba2d9143fc68078f55aac'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
@@ -27,6 +29,10 @@ MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5
 STEAM_ORIGINAL = 'd99d425793f588fbc15f91c7765977cdd642b477be01dac41c0388ab6a5d492d'
 POLICY = '3317aec4210f8214cb6fbe586502a4e26c23fb68182d8b00a1b0353848e49b41'
 PAYLOAD = {'steam_api.dll': STEAM_API, 'mss32.dll': MILES_GATE, 'weplay_network_policy.exe': POLICY}
+
+
+def tool_sources():
+    return tuple(('installer/'+name,name) for name in TOOLS) + tuple(('gold/'+name,name) for name in GOLD_SERVICE_TOOLS)
 
 
 def adapter_pins(*, gold=False):

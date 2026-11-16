@@ -55,6 +55,8 @@ def build(stage, output, *, adapter, python_zip, dxvk, dxvk_license, compiler,pl
     if platform_runtime is not None:
         for name in (*platform_standalone.TOOLS,'compatibility.py'):
             shutil.copy2(REPO/'tools/installer'/name,app/'Tools/gold'/name)
+        for name in platform_standalone.GOLD_SERVICE_TOOLS:
+            shutil.copy2(REPO/'tools/gold'/name,app/'Tools/gold'/name)
     lan = app / 'Tools/lan'; lan.mkdir()
     shutil.copy2(REPO / 'tools/lan/bba.py', lan / 'bba.py')
     definitions = app / 'Definitions'; definitions.mkdir()

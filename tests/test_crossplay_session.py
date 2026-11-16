@@ -19,7 +19,7 @@ import platform_standalone as platform
 def binding(edition=1, peer=3, role='host'):
     return session.Binding(edition, peer, role, 12345, b's' * 16, b'k' * 32,
         (42).to_bytes(4, 'little') + bytes(12) if edition == 1 else b'i' * 16,
-        b'c' * 32, 'WePlay Player')
+        b'c' * 32, 'WePlay Player', 12346 if edition == 1 else None, 12347 if edition == 1 else None)
 
 
 class CrossplaySessionTests(unittest.TestCase):
@@ -51,6 +51,8 @@ class CrossplaySessionTests(unittest.TestCase):
     def test_rejects_malformed_authentication_names_and_ports(self):
         good = binding()
         changes = [{'port': value} for value in (0, 65536, True, '12345', 1.0)]
+        changes += [{field: value} for field in ('gold_auth_port', 'gold_config_port')
+                    for value in (None, 0, 1023, 65536, True, '12345', 1.0)]
         changes += [{'name': value} for value in ('', 'x' * 65, 'line\nname', 'Nul\0', 'Ü', None)]
         for field, size in (('session', 16), ('key', 32), ('identity', 16), ('content', 32)):
             changes += [{field: value} for value in (bytes(size), b'x' * (size - 1), b'x' * (size + 1),
@@ -59,6 +61,8 @@ class CrossplaySessionTests(unittest.TestCase):
         for change in changes:
             with self.subTest(field=next(iter(change))), self.assertRaises(ValueError):
                 replace(good, **change)
+        for field in ('gold_auth_port', 'gold_config_port'):
+            with self.assertRaises(ValueError): replace(binding(3, 1, 'guest'), **{field: 12346})
 
     def test_identity_generation_keeps_independent_native_namespaces(self):
         for edition in (1, 2, 3):
@@ -81,6 +85,8 @@ class CrossplaySessionTests(unittest.TestCase):
         self.assertEqual(result['WEPLAY_CROSSPLAY_V1_IDENTITY'], ((42).to_bytes(4, 'little') + bytes(12)).hex())
         self.assertEqual(result['WEPLAY_CROSSPLAY_V1_CONTENT'], (b'c' * 32).hex())
         self.assertEqual(result['WEPLAY_CROSSPLAY_V1_PORT'], '12345')
+        self.assertEqual(result['WEPLAY_CROSSPLAY_V1_GOLD_AUTH_PORT'], '12346')
+        self.assertEqual(result['WEPLAY_CROSSPLAY_V1_GOLD_CONFIG_PORT'], '12347')
         self.assertNotIn('weplay_crossplay_v1', result)
         self.assertEqual(result['WEPLAY_SETTING'], 'keep')
         self.assertEqual(before['WEPLAY_CROSSPLAY_V1_KEY'], 'stale secret')

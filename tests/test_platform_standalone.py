@@ -33,6 +33,7 @@ class PlatformStandaloneTests(unittest.TestCase):
                        'weplay_network_policy.exe':b'authored Windows policy helper'}
         for name,value in self.payloads.items():f.write(f.package,'Payload/Platform/'+name,value)
         for name in platform.TOOLS:f.write(f.package,'Tools/installer/'+name,(fixtures.TOOLS/name).read_bytes())
+        for name in platform.GOLD_SERVICE_TOOLS:f.write(f.package,'Tools/gold/'+name,(fixtures.TOOLS.parent/'gold'/name).read_bytes())
         f.write(f.source,'Base/Bin/mss32.dll',self.original_miles)
         f.write(f.source,'Base/Bin/steam_api.dll',self.original_steam)
         f.write(f.source,'Base/Bin/Settlers7R.exe',self.steam_executable)
@@ -111,6 +112,13 @@ class PlatformStandaloneTests(unittest.TestCase):
         self.assertFalse(f.destination.exists())
         helper.unlink();self.manifest()
         with self.assertRaises(ValueError):self.prepare()
+        self.assertFalse(f.destination.exists())
+
+    def test_package_requires_complete_local_gold_service_dependencies(self):
+        f=self.fixture
+        (f.package/'Tools/gold/account_config.py').unlink();self.manifest()
+        with self.assertRaisesRegex(ValueError,'Plattformisolation'):
+            self.prepare()
         self.assertFalse(f.destination.exists())
 
     def test_child_environment_strips_platform_variables_without_touching_callers_settings(self):

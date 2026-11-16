@@ -70,6 +70,8 @@ class Binding:
     identity: bytes = field(repr=False)
     content: bytes = field(repr=False)
     name: str
+    gold_auth_port: int | None = None
+    gold_config_port: int | None = None
 
     def __post_init__(self):
         if (type(self.edition) is not int or type(self.peer) is not int
@@ -83,6 +85,12 @@ class Binding:
             raise ValueError('crossplay_configuration_invalid')
         if self.edition == 1 and (not 0 < int.from_bytes(self.identity[:4], 'little') <= 0x7fffffff
                                   or any(self.identity[4:])):
+            raise ValueError('crossplay_configuration_invalid')
+        if self.edition == 1:
+            if not all(type(value) is int and 1024 <= value <= 65535 for value in
+                       (self.gold_auth_port, self.gold_config_port)):
+                raise ValueError('crossplay_configuration_invalid')
+        elif self.gold_auth_port is not None or self.gold_config_port is not None:
             raise ValueError('crossplay_configuration_invalid')
 
     def environment(self, root, executable, inherited):
@@ -99,5 +107,7 @@ class Binding:
                   'SESSION': self.session.hex(), 'KEY': self.key.hex(),
                   'IDENTITY': self.identity.hex(), 'CONTENT': self.content.hex(),
                   'NAME': self.name, 'PROFILE': str(profile)}
+        if self.edition == 1:
+            fields.update(GOLD_AUTH_PORT=str(self.gold_auth_port), GOLD_CONFIG_PORT=str(self.gold_config_port))
         result.update(('WEPLAY_CROSSPLAY_V1_' + key, value) for key, value in fields.items())
         return result

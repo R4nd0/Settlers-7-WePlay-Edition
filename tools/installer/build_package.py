@@ -173,7 +173,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)+list(PUBLIC_DIRECTORY_PACKAGE_TOOLS)
     names += [original for original,_ in WINDOWS_API_TOOLS]
     names += ['installer/portable_lock.py', 'installer/host_runtime.py']
-    if platform_runtime is not None:names+=['installer/'+name for name in platform_standalone.TOOLS]
+    if platform_runtime is not None:names += [original for original,_ in platform_standalone.tool_sources()]
     names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
         target = output / 'Tools' / name; target.parent.mkdir(parents=True, exist_ok=True)

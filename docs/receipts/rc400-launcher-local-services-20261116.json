@@ -1,0 +1,51 @@
+{
+  "format": "weplay-rc400-launcher-integration-v1",
+  "date": "2026-11-16",
+  "scope": "Launcher handoff, approved content catalog, reusable broker and one-owner local Gold services",
+  "release_published": false,
+  "production_mixed_adapters_admitted": false,
+  "approved_content_catalogs": 0,
+  "final_package_mixed_reload_proven": false,
+  "targeted_python_tests_passed": 239,
+  "test_suites": {
+    "crossplay_session": 9,
+    "crossplay_content": 10,
+    "gold_session": 8,
+    "crossplay_runtime": 5,
+    "crossplay_broker": 14,
+    "gold_login": 11,
+    "gold_account": 12,
+    "gold_registration": 11,
+    "gold_peer": 17,
+    "platform_standalone": 11,
+    "adapter_migration": 7,
+    "gold_installer": 10,
+    "installer": 35,
+    "desktop_backend": 51,
+    "desktop_resilience": 28
+  },
+  "socket_checks": {
+    "loopback_only": true,
+    "game_started": false,
+    "vpn_started": false,
+    "auth_ticket_backend_registration": "passed with authored native-protocol inputs and exactly one Gold owner",
+    "configuration_http": "passed with the owned source; another loopback source rejected",
+    "native_hmac_vector": "matched",
+    "partial_construction_and_close": "owned sockets and in-memory state released"
+  },
+  "embedded_package_refresh": {
+    "passed": true,
+    "files": 79,
+    "isolated_embedded_python": true,
+    "all_service_dependencies_imported": true,
+    "single_service_open_pump_close": true,
+    "old_template_inventory_unchanged": true,
+    "fixture_adapter": "ordinary rebuilt AI adapter, not a mixed production adapter",
+    "checkout_native_pin_changed": false
+  },
+  "limitations": [
+    "No native mixed game was launched by these launcher tests.",
+    "The ordinary native mixed runtime is still under integration in the coordinated Crossplay chat.",
+    "Both original History editions still require actual mixed save/reload in the final installed package before publication."
+  ]
+}
