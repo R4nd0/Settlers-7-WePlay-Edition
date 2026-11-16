@@ -18,6 +18,19 @@ checks provide no mixed-world or reload qualification.
 
 ## Process-local handoff
 
+The offline Gold start verifiers now cover the committed local observer's 12
+ABI, six owned-release, nine actual-original-byte composition and five method
+guard cases, plus the start hold's 17 ABI, six release and five guard cases.
+All 60 checks pass against the frozen compiled fixtures. A shared bounded x86
+runner models Windows calls and permits only fixture executable sections and
+exact modeled continuation jumps back into that fixture. Six additional boundary
+tests reject original-game or foreign-code execution, unknown imports, invalid
+images/exports and unreplaced continuations. No Windows import is forwarded to
+the host. C++ exceptions remain excluded from this offline run, including start
+variant 17. These are component checks, not original game execution, world start,
+NEO or reload qualification. Windows low-address fixture exclusions remain
+exclusions; the Python results do not relabel them as Windows passes.
+
 The process-local handoff in `tools/installer/crossplay_session.py` implements
 the launcher side of the [version 1 production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md).
 It does not enable mixed play in the launcher UI. Its production-adapter allowlist
