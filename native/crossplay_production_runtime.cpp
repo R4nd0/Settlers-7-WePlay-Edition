@@ -7,17 +7,21 @@
 #include "crossplay_production_runtime.h"
 #include "crossplay_production_observer.h"
 #include "crossplay_admission.h"
+#include "crossplay_connection.h"
 #include "crossplay_history_role.h"
 #include "crossplay_history_claim.h"
 #include "crossplay_load_progress_codec.h"
 #include "crossplay_bootstrap.h"
 #include "crossplay_session_config_codec.h"
 #include "crossplay_gold_host_choices.h"
+#include "crossplay_configuration_observer.h"
+#include "crossplay_configuration_native.h"
 namespace CrossplayProduction {
 namespace {
 struct Runtime;
 Runtime* current=nullptr;
 void CaptureLocal(void* session,const unsigned char* event);
+void CaptureConfiguration(void* cache,const unsigned char* event);
 void CALLBACK Tick(HWND,UINT,UINT_PTR,DWORD);
 struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}};
 bool RoundTrip(Crossplay::Edition edition,const void* event){
@@ -50,6 +54,10 @@ struct Runtime {
     bool backend_projected=false,native_bound=false,gate_installed=false,lobby_captured=false;
     bool bootstrap_sent=false,bootstrap_received=false;
     CrossplayBootstrap::Context bootstrap;
+    bool configuration_observer_installed=false,configuration_sent=false,configuration_enqueued=false,configuration_applied=false;
+    ULONGLONG configuration_started=0;
+    CrossplayConfigurationReceipt::Interval configuration_interval;
+    CrossplayConfigurationReceipt::Receipt configuration_receipt;
     UINT_PTR timer=0;
     explicit Runtime(const Launch& input):launch(input){}
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
@@ -128,6 +136,55 @@ struct Runtime {
         }
         return true;
     }
+    CrossplaySessionConfig::Connections LocalConnections()const{
+        return launch.host?CrossplaySessionConfig::Connections{admission.OwnConnection(),admission.PeerLocalConnection()}
+            :CrossplaySessionConfig::Connections{admission.PeerLocalConnection(),admission.OwnConnection()};
+    }
+    void ConfigurationConsumed(void* cache,const unsigned char* event){
+        if(!Owned() || launch.host || phase!=Phase::RosterBound || !configuration_enqueued || configuration_applied)return;
+        using namespace CrossplayNativeCodec;
+        CrossplayNative::LobbySnapshot lobby;std::vector<unsigned char> wire;
+        const auto ids=LocalConnections();const auto pin=SessionConfigDetail::Pin(launch.channel.edition);
+        if(reinterpret_cast<uintptr_t>(cache)!=configuration_interval.cache
+            || !original.CaptureLobby(lobby) || lobby.instance!=session
+            || !SessionConfigDetail::Roster(original,ids,false)
+            || !SessionConfigDetail::Source(pin,event,ids) || !Detail::Encode(pin,event,wire)
+            || !configuration_receipt.Consumed({owner,lobby.instance,reinterpret_cast<uintptr_t>(cache)},wire,GetTickCount64()))Fail();
+    }
+    bool Configure(){
+        if(configuration_applied || (launch.host && configuration_sent))return true;
+        const auto now=GetTickCount64();if(!configuration_started)configuration_started=now;
+        if(now-configuration_started>10000 || bootstrap.saved)return false; // Saved configuration has a separate source-bound protocol.
+        const auto* peer=channel.GetPeer();if(!peer)return false;
+        const auto ids=LocalConnections();std::vector<unsigned char> wire;
+        if(launch.host){
+            if(!CrossplayNativeCodec::CaptureGoldSessionConfig(original,ids,wire))return true;
+            CrossplaySessionConfig::Layout layout;std::vector<unsigned char> frame;
+            if(!CrossplaySessionConfig::Inspect(wire,ids,layout) || layout.map!=bootstrap.map
+                || !CrossplaySessionConfig::Encode(*peer,wire,ids,frame) || !channel.Send(frame))return false;
+            configuration_sent=true;return true;
+        }
+        if(!guest_claim.Applied(original,admission))return true;
+        if(!configuration_enqueued){
+            std::vector<unsigned char> frame;if(!channel.Receive(frame))return true;
+            uint32_t own_at_peer=UINT32_MAX;
+            if(!CrossplayNative::ProjectConnection(peer->edition,admission.PeerSourceConnection(),peer->local_in_peer_namespace,own_at_peer))return false;
+            const CrossplaySessionConfig::Connections source{admission.PeerSourceConnection(),own_at_peer};
+            auto* cache=CrossplayNativeCodec::ReadyStateDetail::HistoryConfiguration(launch.channel.edition);
+            if(!cache || !CrossplaySessionConfig::Decode(*peer,frame,source,ids,wire))return false;
+            configuration_interval={owner,session,reinterpret_cast<uintptr_t>(cache)};
+            if(!configuration_receipt.Arm(configuration_interval,ids,bootstrap.map,wire,now))return false;
+            // Arm before the original clone operation, including a synchronous consumer.
+            configuration_enqueued=true;
+            if(!CrossplayNativeCodec::EnqueueSessionConfig(launch.channel.edition,original,ids,wire))return false;
+        }
+        if(!configuration_receipt.HasConsumed())return true;
+        if(!CrossplayConfigurationNative::Snapshot(launch.channel.edition,original,ids,configuration_interval,wire))return false;
+        const auto observed=configuration_receipt.Observe(configuration_interval,wire,GetTickCount64());
+        if(observed==CrossplayConfigurationReceipt::Observation::Invalid)return false;
+        configuration_applied=observed==CrossplayConfigurationReceipt::Observation::Applied;
+        return true;
+    }
     void Pump(){
         if(!Owned() || phase==Phase::Dormant || phase==Phase::Closed || phase==Phase::Failed)return;
         if(!channel.Poll()){Fail();return;}
@@ -150,6 +207,7 @@ struct Runtime {
                     backend_projected=true;
                 }
                 phase=Phase::RosterBound;
+                if(!Configure()){Fail();return;}
             }
         }
     }
@@ -164,6 +222,9 @@ struct Runtime {
 void CaptureLocal(void* session,const unsigned char* event){
     if(current)try{current->Capture(session,event);}catch(...){current->Fail();}
 }
+void CaptureConfiguration(void* cache,const unsigned char* event){
+    if(current)try{current->ConfigurationConsumed(cache,event);}catch(...){current->Fail();}
+}
 void CALLBACK Tick(HWND,UINT,UINT_PTR id,DWORD){if(current && current->timer==id)PumpRuntime();}
 }
 bool PrepareRuntime(){
@@ -174,8 +235,17 @@ bool PrepareRuntime(){
     next->native_bound=true;
     if(!next->channel.Start(launch->channel))return false;
     if(!SessionObserver::Install(launch->channel.edition,GetCurrentThreadId(),&CaptureLocal))return false;
+    if(!launch->host){
+        if(!ConfigurationObserver::Install(launch->channel.edition,GetCurrentThreadId(),&CaptureConfiguration)){
+            SessionObserver::Release();return false;
+        }
+        next->configuration_observer_installed=true;
+    }
     next->timer=SetTimer(nullptr,0,20,&Tick);
-    if(!next->timer){SessionObserver::Release();return false;}
+    if(!next->timer){
+        if(next->configuration_observer_installed)ConfigurationObserver::Release();
+        SessionObserver::Release();return false;
+    }
     next->phase=Phase::Connecting;current=next.release();return true;
 }
 void PumpRuntime(){ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
@@ -183,7 +253,12 @@ void PumpRuntime(){ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::Fp
 }
 bool CloseRuntime(){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
-    if(!current || !current->Close() || !SessionObserver::Release())return false;
+    if(!current || !current->Close())return false;
+    if(current->configuration_observer_installed){
+        if(!ConfigurationObserver::Release())return false;
+        current->configuration_observer_installed=false;
+    }
+    if(!SessionObserver::Release())return false;
     delete current;current=nullptr;return true;
 }
 Phase RuntimePhase(){return current && current->Owned()?current->phase:Phase::Dormant;}

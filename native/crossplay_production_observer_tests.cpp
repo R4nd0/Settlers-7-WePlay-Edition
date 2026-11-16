@@ -1,11 +1,19 @@
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+#include "crossplay_configuration_observer.h"
+#else
 #define S7_PRODUCTION_OBSERVER_TESTING
 #include "crossplay_production_observer.h"
+#endif
 #include <cstdio>
 #include <cstdlib>
 namespace {
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+namespace O=CrossplayProduction::ConfigurationObserver;
+#else
 namespace O=CrossplayProduction::SessionObserver;
+#endif
 unsigned checks=0,calls=0;bool abi=false;unsigned desired_df=0;
-uint32_t self[16]{},event[40]{},seen_self=0,seen_event=0;
+uint32_t self[24]{},event[40]{},seen_self=0,seen_event=0;
 uint32_t native_self=0,native_event=0,native_flags=0,returned_flags=0,result[6]{},before_sp=0,after_sp=0;
 uintptr_t target=0;
 alignas(16) unsigned char original_fp[512]{},native_fp[512]{},returned_fp[512]{};
@@ -21,8 +29,13 @@ void Capture(void* object,const unsigned char* message){
 }
 void Setup(){
     memset(self,0,sizeof(self));memset(event,0,sizeof(event));calls=0;abi=false;
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    O::profile={0x11111111,0,0x22222222,0};self[0]=0x11111111;event[0]=0x22222222;
+    event[1]=CrossplaySessionConfig::Type;reinterpret_cast<unsigned char*>(event)[12]=1;
+#else
     O::profile={0x11111111,0,0x22222222,0x9c,0x98,true};self[0]=0x11111111;event[0]=0x22222222;
     reinterpret_cast<unsigned short*>(event)[3]=3;reinterpret_cast<unsigned char*>(event)[0x98]=1;
+#endif
     O::owner=GetCurrentThreadId();O::installed=true;O::capture=&Capture;O::test_authorized=true;
 }
 __declspec(naked) void Original(){__asm{
@@ -85,15 +98,24 @@ __declspec(naked) void Invoke(){__asm{
     ret
 }}
 }
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+extern "C" __declspec(dllexport) uint32_t __cdecl ProductionConfigurationObserverGuardOracle(uint32_t edition){return O::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;}
+#else
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionObserverGuardOracle(uint32_t edition){return O::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;}
+#endif
 int main(){
     Setup();O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
     for(unsigned which=0;which<8;++which){
         Setup();
         if(which==0)O::installed=false;if(which==1)++O::owner;if(which==2)O::test_authorized=false;
         if(which==3)O::capture=nullptr;if(which==4)self[0]^=1;if(which==5)event[0]^=1;
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+        if(which==6)event[1]^=1;
+        if(which==7)reinterpret_cast<unsigned char*>(event)[12]=0;
+#else
         if(which==6)reinterpret_cast<unsigned short*>(event)[3]=2;
         if(which==7)reinterpret_cast<unsigned char*>(event)[0x98]=0;
+#endif
         SetLastError(1909);O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(!calls&&GetLastError()==1909);
     }
     Setup();O::Capture(nullptr,reinterpret_cast<const unsigned char*>(event));O::Capture(self,nullptr);Check(!calls);
@@ -111,5 +133,9 @@ int main(){
     table[1]^=1;Check(!O::Release()&&O::installed);table[1]^=1;
     Check(O::Release()&&table[1]==reinterpret_cast<uintptr_t>(&Original)&&!O::installed&&!O::capture);
     Check(!O::Release());
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    printf("PASS %u production configuration consumer observer checks: owned native config events only; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
+#else
     printf("PASS %u production session observer checks: owned local Confirmed only; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
+#endif
 }

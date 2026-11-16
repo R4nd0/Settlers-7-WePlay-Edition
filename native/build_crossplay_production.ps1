@@ -39,6 +39,17 @@ try{
     if($LASTEXITCODE){throw 'Production session observer fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_observer_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') /Fe:crossplay_production_observer_guard_tests.exe /link bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'Production session observer emulator guard fixture did not compile'}
+    $configurationObserverSources=@('crossplay_production_observer_tests.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /DS7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING ('/I'+$PSScriptRoot) @configurationObserverSources /Fe:crossplay_configuration_observer_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production configuration consumer observer fixture did not compile'}
+    & (Join-Path $out 'crossplay_configuration_observer_tests.exe')
+    if($LASTEXITCODE){throw 'Production configuration consumer observer fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /DS7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING ('/I'+$PSScriptRoot) @configurationObserverSources /Fe:crossplay_configuration_observer_guard_tests.exe /link bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production configuration consumer emulator guard fixture did not compile'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_configuration_receipt_tests.cpp') /Fe:crossplay_configuration_receipt_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production configuration receipt fixture did not compile'}
+    & (Join-Path $out 'crossplay_configuration_receipt_tests.exe')
+    if($LASTEXITCODE){throw 'Production configuration receipt fixture failed'}
     $uiSources=@('crossplay_production_ui_tests.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) @uiSources @runtimeSources /Fe:crossplay_production_ui_tests.exe /link bcrypt.lib ws2_32.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Production UI ABI fixture did not compile'}

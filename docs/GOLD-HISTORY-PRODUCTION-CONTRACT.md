@@ -171,6 +171,20 @@ the actual consumed castle. Queueing is not consumption, Ready or world-start
 permission. The production entry remains closed; this component has not yet
 been exercised in a normal mixed-game run.
 
+The production source now sends the host's original `SessionConfig` snapshot
+after roster binding and projects only its three routing fields for History.
+The guest arms an exact configuration receipt before invoking the original
+clone/queue operation. A separately guarded observer runs after the original
+History configuration consumer, requires the same native cache/session/owner
+and serialized event bytes, then compares the original map and the serialized
+fields of all eight cache slots with that received configuration. A pre-existing matching map, successful
+enqueue or local Confirmed event cannot substitute for consumption. Failure,
+changed ownership or a ten-second deadline invalidates the transaction. This
+fresh-configuration path rejects saved-kind; saved configuration uses the
+separate source-bound resume protocol. The [component receipt](receipts/native-production-configuration-consumer-20261116.json)
+does not establish actual mixed-game delivery, applied template/flags, complete
+setup/root agreement or a `setup-bound` UI result. Those remain separate gates.
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.
