@@ -89,3 +89,23 @@ On 2026-11-16, 239 targeted tests passed across local service sockets, broker,
 handoff, content, lifetime, legacy Gold protocols, installation, migration and
 desktop recovery. Authored protocol inputs and mocked process lifetimes remain
 separate from actual native game qualification. RC4.00 remains unpublished.
+
+## Host construction and private guest invitation
+
+`crossplay_host.Host` verifies the approved local Gold content before opening
+services. It constructs a fresh epoch, separate client keys and native identities,
+then binds the Gold principal and local service ports to the host handoff. Its
+private invitation includes only the guest's channel key and the existing private
+EasyTier room token. The Gold host key is not exported. The guest rechecks its own
+installed edition against the same approved catalog before creating its binding.
+
+The invitation has an exact, bounded canonical format and fits the existing
+private launcher channel. Unknown fields, malformed encodings, wrong roles and
+content disagreement fail. Closed or retired sessions cannot issue new invites.
+No map, save checkpoint or native Ready value is carried by this code.
+
+Six additional integration tests pass, including actual authenticated loopback
+relay for both History edition numbers with authored protocol clients. The refreshed
+83-file Gold package separately imports the new host/invitation dependencies in
+fresh embedded Python, round-trips the invitation and opens/closes the one-owner
+Gold service. Actual game and EasyTier tunnel qualification remain pending.
