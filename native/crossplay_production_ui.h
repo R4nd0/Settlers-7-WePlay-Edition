@@ -76,13 +76,19 @@ inline int __cdecl Handle(void* state){
     if(l>UINT32_MAX-0x18 || !Word(l+0x10,base) || !Word(l+0x14,top) || base>UINT32_MAX-8 || top!=base+8
         || !Word(base+4,tag) || tag!=0xfffffffb || !Word(base,string) || string>UINT32_MAX-16
         || !Word(static_cast<uintptr_t>(string)+12,length))return 0;
-    constexpr char prefix[]="weplay-crossplay-v1:";constexpr size_t prefix_size=sizeof(prefix)-1;
-    if(length<prefix_size || length>80 || string>UINT32_MAX-16-length
+    constexpr char prefix[]="weplay-crossplay-v1:",neo_prefix[]="weplay-crossplay-neo-v1:";
+    if(length<sizeof(prefix)-1 || length>80 || string>UINT32_MAX-16-length
         || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(string+16),length+1))return 0;
     const auto* text=reinterpret_cast<const char*>(string+16);
-    if(text[length] || memcmp(text,prefix,prefix_size))return 0;
+    if(text[length])return 0;
+    const bool neo=length>=sizeof(neo_prefix)-1 && !memcmp(text,neo_prefix,sizeof(neo_prefix)-1);
+    if(!neo && memcmp(text,prefix,sizeof(prefix)-1))return 0;
+    const size_t prefix_size=neo?sizeof(neo_prefix)-1:sizeof(prefix)-1;
     bool okay=false;std::string output;
-    if(!memchr(text,0,length))try{okay=UiCommand(std::string(text+prefix_size,length-prefix_size),output);}catch(...){okay=false;}
+    if(!memchr(text,0,length))try{
+        const std::string command(text+prefix_size,length-prefix_size);
+        okay=neo?NeoCommand(command,output):UiCommand(command,output);
+    }catch(...){okay=false;}
     if(okay)PushString(state,output);else PushBoolean(state,false);
     return 1;
 }

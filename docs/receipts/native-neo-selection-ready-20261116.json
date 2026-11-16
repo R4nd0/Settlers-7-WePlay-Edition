@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Actual fresh NEO host selection and original Ready delivery with both original History editions; no world requested",
+  "source": {
+    "separate_mutable_namespace": "weplay-crossplay-neo-v1:",
+    "readonly_namespace_retained": "weplay-crossplay-v1:",
+    "legacy_history_neo_namespace_forwarded_unchanged": true,
+    "capability_requires_actual_owned_comparator_and_intent_hooks": true,
+    "feature_mask": 19,
+    "host_selection_bound_to_current_native_configuration_flags_and_template": true,
+    "native_configuration_canonicalization_is_detached_only": true,
+    "routing_ids_and_two_human_ready_fields_only_normalized_for_hash": true,
+    "ai_closed_privacy_map_flags_template_retained": true,
+    "strict_peer_revision_feature_and_context_checks": true,
+    "guest_configuration_must_be_actually_applied": true,
+    "host_selection_changes_rejected_after_guest_ready": true,
+    "no_world_or_saved_source_authority_from_selection": true
+  },
+  "synthetic_verification": {
+    "selection_context_namespace_revision_feature_and_bounds_checks": 1554,
+    "production_ui_namespace_and_cpu_abi_checks": 134,
+    "full_production_component_build_passed": true
+  },
+  "actual_pairs": [
+    {
+      "host": "gold",
+      "guest": "original-steam-history",
+      "renderer": "DXVK",
+      "instrumented_normal_adapters_and_private_frame_driver": true,
+      "actual_native_neo_modules_installed": true,
+      "actual_host_selection_enabled_and_received_in_matching_native_context": true,
+      "original_guest_ready_widget_activated_once": true,
+      "original_gold_ready_event_consumed": true,
+      "observed_native_host_ready": 1,
+      "observed_native_guest_ready": 1,
+      "observed_revision": 1,
+      "history_original_ready_projection_consumed": true,
+      "metadata_retained_through_seconds": 119,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration_and_services_closed": true,
+      "world_start_requested": false
+    },
+    {
+      "host": "gold",
+      "guest": "original-ubisoft-history",
+      "renderer": "DXVK",
+      "instrumented_normal_adapters_and_private_frame_driver": true,
+      "actual_native_neo_modules_installed": true,
+      "actual_host_selection_enabled_and_received_in_matching_native_context": true,
+      "original_guest_ready_widget_activated_once": true,
+      "original_gold_ready_event_consumed": true,
+      "observed_native_host_ready": 1,
+      "observed_native_guest_ready": 1,
+      "observed_revision": 1,
+      "history_original_ready_projection_consumed": true,
+      "metadata_retained_through_seconds": 119,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration_and_services_closed": true,
+      "world_start_requested": false
+    }
+  ],
+  "limits": {
+    "production_gold_checkbox_qualified": false,
+    "public_normal_flow_auto_ready_added": false,
+    "world_start_begin_ready_save_restore_end_lifecycle_connected": false,
+    "active_world_fifo_logistics_qualified": false,
+    "shared_save_reload_qualified": false,
+    "reverse_steam_host_gold_guest_qualified": false,
+    "ordinary_mixed_launch_gate_opened": false,
+    "production_pins_promoted": false,
+    "final_installer_qualified": false
+  }
+}

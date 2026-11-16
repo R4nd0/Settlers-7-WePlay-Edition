@@ -16,4 +16,8 @@ bool AppliedGuestChoices(uint32_t& flags,std::string& map_template);
 // Original guest-page presentation only. Full root/content/Ready/start
 // agreements remain separate and cannot be constructed from this predicate.
 bool GuestPresentationBound();
+// Explicit mixed NEO control namespace. Success returns a string; mutable
+// stage commands return "1" only after the owned host selection is accepted.
+// Fresh lobby selection never grants full root/start or saved-source authority.
+bool NeoCommand(const std::string& command,std::string& output);
 }

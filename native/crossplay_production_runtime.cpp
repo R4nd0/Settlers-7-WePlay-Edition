@@ -20,6 +20,9 @@
 #include "crossplay_history_choices.h"
 #include "crossplay_outgoing_observer.h"
 #include "crossplay_ready_codec.h"
+#include "crossplay_logistics_intent.h"
+#include "crossplay_neo_selection.h"
+#include <bcrypt.h>
 #include <deque>
 namespace CrossplayProduction {
 namespace {
@@ -28,6 +31,7 @@ Runtime* current=nullptr;
 void CaptureLocal(void* session,const unsigned char* event);
 void CaptureConfiguration(void* cache,const unsigned char* event);
 void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t target);
+bool NeoWorldReady();
 void CALLBACK Tick(HWND,UINT,UINT_PTR,DWORD);
 struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}};
 bool RoundTrip(Crossplay::Edition edition,const void* event){
@@ -73,6 +77,16 @@ struct Runtime {
     CrossplayNativeCodec::PendingHistoryReadyState ready_projection;
     uint32_t ready_sent=0,ready_received=0;
     ULONGLONG ready_started=0,projection_started=0;
+    bool neo_installed=false,neo_staged=false,neo_choice=false,neo_dirty=false;
+    CrossplayNeoSelection::Value neo_selection;
+    std::deque<std::vector<unsigned char>> neo_selections;
+    ULONGLONG neo_selection_started=0;
+    // Full world agreement and original queue ownership are separate from the
+    // fresh selection frame. Only the later native world controller may bind
+    // this agreement and record its original start delivery.
+    CrossplayNeo::Agreement neo_world_agreement;
+    bool neo_world_queued=false;
+    uintptr_t neo_world_session=0;
     UINT_PTR timer=0;
     explicit Runtime(const Launch& input):launch(input){}
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
@@ -155,34 +169,152 @@ struct Runtime {
         return launch.host?CrossplaySessionConfig::Connections{admission.OwnConnection(),admission.PeerLocalConnection()}
             :CrossplaySessionConfig::Connections{admission.PeerLocalConnection(),admission.OwnConnection()};
     }
+    static bool Jump(uintptr_t at,unsigned size,uintptr_t target){
+        using CrossplayNativeCodec::Detail::Readable;
+        if(size<5 || !Readable(reinterpret_cast<void*>(at),size))return false;
+        const auto* code=reinterpret_cast<const unsigned char*>(at);int32_t delta=0;memcpy(&delta,code+1,4);
+        if(code[0]!=0xe9 || at+5+delta!=target)return false;
+        for(unsigned i=5;i<size;++i)if(code[i]!=0x90)return false;
+        return true;
+    }
+    bool NeoModules()const{
+        if(!neo_installed || !CrossplayLogisticsActive::installed || !CrossplayLogisticsIntent::installed
+            || CrossplayLogisticsActive::owner!=owner || CrossplayLogisticsIntent::owner!=owner
+            || CrossplayLogisticsActive::edition!=launch.channel.edition || CrossplayLogisticsIntent::edition!=launch.channel.edition
+            || CrossplayLogisticsActive::ready!=&NeoWorldReady)return false;
+        const auto intent=CrossplayLogisticsIntent::Pin(launch.channel.edition);
+        const bool gold=launch.channel.edition==Crossplay::Edition::Gold;
+        if(CrossplayLogisticsIntent::resume!=intent.entry+intent.prefix)return false;
+        const auto expected=CrossplayLogisticsBinding::Pin(launch.channel.edition);
+        const auto actual=CrossplayLogisticsBinding::pin;
+        if(actual.global!=expected.global || actual.logic!=expected.logic || actual.main!=expected.main
+            || actual.priority!=expected.priority || actual.request!=expected.request || actual.production!=expected.production
+            || actual.task_registry!=expected.task_registry || actual.record_registry!=expected.record_registry
+            || actual.inverse!=expected.inverse || actual.wrapper!=expected.wrapper || actual.wrapper_value!=expected.wrapper_value
+            || actual.compare!=expected.compare)return false;
+        if(gold){
+            if(GoldLogisticsSort::entry!=0x91ad00 || GoldLogisticsSort::resume!=0x91ad05 || GoldLogisticsSort::caller!=0x93b5f3
+                || GoldLogisticsSort::owner!=owner || GoldLogisticsInline::owner!=owner
+                || GoldLogisticsSort::ready!=&NeoWorldReady || GoldLogisticsInline::ready!=&NeoWorldReady
+                || GoldLogisticsSort::policy!=&CrossplayLogisticsActive::Gold || GoldLogisticsInline::policy!=&CrossplayLogisticsActive::Gold
+                || GoldLogisticsSort::original!=reinterpret_cast<uintptr_t>(&GoldLogisticsSort::Replay)
+                || GoldLogisticsInline::resume!=GoldLogisticsInline::Resume)return false;
+        }else if(CrossplayLogisticsActive::history_entry!=expected.compare || CrossplayLogisticsActive::history_resume!=expected.compare+5
+            || CrossplayLogisticsActive::history_global!=expected.global
+            || CrossplayLogisticsActive::history_original!=reinterpret_cast<uintptr_t>(&CrossplayLogisticsActive::HistoryReplay))return false;
+        if(!Jump(intent.entry,intent.prefix,reinterpret_cast<uintptr_t>(gold?&CrossplayLogisticsIntent::GoldBridge:&CrossplayLogisticsIntent::HistoryBridge)))return false;
+        return gold?(Jump(GoldLogisticsSort::entry,5,reinterpret_cast<uintptr_t>(&GoldLogisticsSort::Bridge))
+            && Jump(GoldLogisticsInline::Site,9,reinterpret_cast<uintptr_t>(&GoldLogisticsInline::Bridge)))
+            :Jump(CrossplayLogisticsBinding::Pin(launch.channel.edition).compare,5,reinterpret_cast<uintptr_t>(&CrossplayLogisticsActive::HistoryBridge));
+    }
+    bool InstallNeo(){
+        if(!CrossplayLogisticsActive::installed && !CrossplayLogisticsActive::Install(launch.channel.edition,owner,&NeoWorldReady))return false;
+        if(CrossplayLogisticsActive::edition!=launch.channel.edition || CrossplayLogisticsActive::owner!=owner
+            || CrossplayLogisticsActive::ready!=&NeoWorldReady)return false;
+        if(!CrossplayLogisticsIntent::installed && !CrossplayLogisticsIntent::Install(launch.channel.edition,owner))return false;
+        neo_installed=true;return NeoModules();
+    }
+    CrossplayGoldChoices::Observation NeoContext(Crossplay::Digest& digest,bool& guest_ready){
+        using Observation=CrossplayGoldChoices::Observation;using namespace CrossplayNativeCodec;
+        digest={};guest_ready=false;
+        if(!Owned() || phase!=Phase::RosterBound || !NeoModules() || bootstrap.saved
+            || !CrossplayBootstrap::Valid(bootstrap) || !admission.Poll())return Observation::Invalid;
+        if(launch.host?!configuration_sent:!configuration_applied)return Observation::Pending;
+        CrossplayBootstrap::Context first,second;std::vector<unsigned char> wire,canonical;
+        const auto ids=LocalConnections();
+        if(launch.host){
+            auto observed=CrossplayGoldChoices::CaptureConfigured(original,owner,session,ids,first);
+            if(observed!=Observation::Captured)return observed;
+            if(!CaptureGoldSessionConfig(original,ids,wire))return Observation::Pending;
+            observed=CrossplayGoldChoices::CaptureConfigured(original,owner,session,ids,second);
+            if(observed!=Observation::Captured)return observed;
+        }else{
+            first=bootstrap;second=bootstrap;
+            if(!AppliedGuestChoices(first.flags,first.map_template))return Observation::Invalid;
+            if(!CrossplayConfigurationNative::Snapshot(launch.channel.edition,original,ids,configuration_interval,wire))return Observation::Pending;
+            if(!AppliedGuestChoices(second.flags,second.map_template))return Observation::Invalid;
+        }
+        if(first.map!=bootstrap.map || first.flags!=bootstrap.flags || first.map_template!=bootstrap.map_template
+            || first.saved || second.map!=first.map || second.flags!=first.flags || second.map_template!=first.map_template
+            || second.saved || !CrossplayNeoSelection::Canonical(wire,ids,first,canonical))return Observation::Invalid;
+        CrossplaySessionConfig::Layout layout;
+        if(!CrossplaySessionConfig::Inspect(wire,ids,layout))return Observation::Invalid;
+        guest_ready=wire[layout.slots_at+CrossplaySessionConfig::SlotBytes]!=0;
+        BCRYPT_ALG_HANDLE algorithm=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;
+        bool okay=BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)>=0
+            && BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0)>=0;
+        if(okay)okay=BCryptHashData(hash,canonical.data(),static_cast<ULONG>(canonical.size()),0)>=0
+            && BCryptFinishHash(hash,digest.data(),static_cast<ULONG>(digest.size()),0)>=0;
+        if(hash)BCryptDestroyHash(hash);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);
+        return okay && CrossplayNeoSelection::Nonzero(digest)?Observation::Captured:Observation::Invalid;
+    }
+    bool NeoSelectionCurrent(std::string& output){
+        if(!neo_staged || neo_dirty || !CrossplayNeoSelection::Valid(neo_selection))return false;
+        Crossplay::Digest context{};bool guest_ready=false;
+        if(NeoContext(context,guest_ready)!=CrossplayGoldChoices::Observation::Captured
+            || context!=neo_selection.configuration || neo_selection.content!=launch.channel.content)return false;
+        output=neo_selection.enabled?"1":"0";return true;
+    }
+    bool PumpNeoSelection(){
+        if((launch.host && !neo_dirty) || (!launch.host && neo_selections.empty()))return true;
+        Crossplay::Digest context{};bool guest_ready=false;const auto observed=NeoContext(context,guest_ready);
+        if(observed==CrossplayGoldChoices::Observation::Invalid)return false;
+        if(observed==CrossplayGoldChoices::Observation::Pending){
+            const auto now=GetTickCount64();if(!neo_selection_started)neo_selection_started=now;
+            return now-neo_selection_started<=10000;
+        }
+        neo_selection_started=0;
+        const auto* peer=channel.GetPeer();if(!peer)return false;
+        if(launch.host){
+            if(!neo_staged || guest_ready || neo_selection.revision==UINT32_MAX)return false;
+            CrossplayNeoSelection::Value value{neo_selection.revision+1,neo_choice,launch.channel.content,context};
+            std::vector<unsigned char> frame;
+            if(!CrossplayNeoSelection::Encode(*peer,value,frame) || !channel.Send(frame))return false;
+            neo_selection=value;neo_dirty=false;return true;
+        }
+        while(!neo_selections.empty()){
+            CrossplayNeoSelection::Value value;
+            if(!CrossplayNeoSelection::Decode(*peer,neo_selections.front(),neo_selection.revision,launch.channel.content,context,value))return false;
+            neo_selection=value;neo_staged=true;neo_choice=value.enabled;neo_selections.pop_front();
+        }
+        return true;
+    }
     void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
         if(!Owned() || launch.host || phase!=Phase::RosterBound || !configuration_applied
             || (mode!=2 && (mode!=1 || target!=admission.PeerLocalConnection())))return;
         const auto pin=ReadyDetail::Pin(launch.channel.edition);
         if(!Detail::Readable(event,4) || *static_cast<const uintptr_t*>(event)!=pin.event_vt)return;
-        uintptr_t send=0;CrossplayNative::LobbySnapshot lobby;uint32_t flags=0;std::string map_template;
-        const auto* peer=channel.GetPeer();std::vector<unsigned char> wire,frame;
+        uintptr_t send=0;CrossplayNative::LobbySnapshot lobby;uint32_t flags=0;std::string map_template,choice;
+        std::vector<unsigned char> wire,frame;
         if(manager!=Detail::Transport(launch.channel.edition,send) || !original.CaptureLobby(lobby)
-            || lobby.instance!=session || !AppliedGuestChoices(flags,map_template) || !peer
-            || !EncodeReadyRequest(launch.channel.edition,original,LocalConnections(),event,wire)
+            || lobby.instance!=session || !AppliedGuestChoices(flags,map_template) || !NeoSelectionCurrent(choice)){Fail();return;}
+        const auto* peer=channel.GetPeer();
+        if(!peer || !EncodeReadyRequest(launch.channel.edition,original,LocalConnections(),event,wire)
             || !CrossplayReady::Encode(*peer,wire,admission.OwnConnection(),frame) || !channel.Send(frame))Fail();
     }
     bool Readiness(){
         using namespace CrossplayNativeCodec;
         if(launch.host?!configuration_sent:!configuration_applied)return true;
-        const auto* peer=channel.GetPeer();if(!peer)return false;
+        const auto* peer_pointer=channel.GetPeer();if(!peer_pointer)return false;
+        const auto peer=*peer_pointer;
         const auto ids=LocalConnections();std::vector<unsigned char> frame,wire;
         for(unsigned i=0;i<8 && channel.Receive(frame);++i){
+            if(frame.size()>=8 && !memcmp(frame.data(),CrossplayNeoSelection::Magic,8)){
+                if(launch.host || !neo_installed || neo_selections.size()>=4 || frame.size()!=CrossplayNeoSelection::FrameSize)return false;
+                neo_selections.push_back(std::move(frame));continue;
+            }
             if(launch.host){
-                if(ready_requests.size()>=4 || !CrossplayReady::Decode(*peer,frame,admission.PeerSourceConnection(),ids.guest,wire))return false;
+                std::string choice;if(!NeoSelectionCurrent(choice))return false;
+                if(ready_requests.size()>=4 || !CrossplayReady::Decode(peer,frame,admission.PeerSourceConnection(),ids.guest,wire))return false;
                 ready_requests.push_back(std::move(wire));
             }else{
                 CrossplayReadyState::Snapshot value;
-                if(ready_states.size()>=4 || !CrossplayReadyState::Decode(*peer,frame,ready_received,value))return false;
+                if(ready_states.size()>=4 || !CrossplayReadyState::Decode(peer,frame,ready_received,value))return false;
                 ready_received=value.revision;ready_states.push_back(value);
             }
         }
+        if(!PumpNeoSelection())return false;
         const auto now=GetTickCount64();
         if(launch.host){
             if(ready_pending.configuration){
@@ -191,7 +323,7 @@ struct Runtime {
                 if(observed==ReadyObservation::Pending)return now-ready_started<=10000;
                 CrossplayReadyState::Snapshot value;
                 if(ready_sent==UINT32_MAX || !CaptureGoldReadySnapshot(original,ready_pending,ready_sent+1,value)
-                    || !CrossplayReadyState::Encode(*peer,value,frame) || !channel.Send(frame))return false;
+                    || !CrossplayReadyState::Encode(peer,value,frame) || !channel.Send(frame))return false;
                 ++ready_sent;ready_pending={};
             }
             if(!ready_requests.empty()){
@@ -298,6 +430,7 @@ struct Runtime {
                     if(!OutgoingObserver::Install(launch.channel.edition,owner,&CaptureOutgoing)){Fail();return;}
                     outgoing_installed=true;
                 }
+                if(!neo_installed && !InstallNeo()){Fail();return;}
                 if(!Configure()){Fail();return;}
                 if(!Readiness()){Fail();return;}
             }
@@ -319,6 +452,12 @@ void CaptureConfiguration(void* cache,const unsigned char* event){
 }
 void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
     if(current)try{current->Outgoing(manager,event,mode,target);}catch(...){current->Fail();}
+}
+bool NeoWorldReady(){
+    return current && current->Owned() && current->phase==Phase::RosterBound && current->neo_world_queued
+        && current->neo_world_agreement.Ready() && current->NeoModules()
+        && CrossplayNativeCodec::LoadProgressDetail::World(current->original,current->owner,current->neo_world_session,
+            current->admission.OwnConnection(),current->admission.PeerLocalConnection());
 }
 void CALLBACK Tick(HWND,UINT,UINT_PTR id,DWORD){if(current && current->timer==id)PumpRuntime();}
 }
@@ -387,5 +526,27 @@ bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
 bool GuestPresentationBound(){
     uint32_t flags=0;std::string map_template;
     return AppliedGuestChoices(flags,map_template);
+}
+bool NeoCommand(const std::string& command,std::string& output){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output.clear();
+    if(!current || !current->Owned() || current->phase==Phase::Failed || current->phase==Phase::Closed)return false;
+    if(command=="capabilities"){
+        if(!current->NeoModules())return false;output="NEO-FIFO-INTENT-1";return true;
+    }
+    if(command=="stage:0" || command=="stage:1"){
+        if(!current->launch.host || current->neo_world_queued || current->bootstrap.saved)return false;
+        const bool choice=command.back()=='1';
+        if(current->phase==Phase::RosterBound){
+            Crossplay::Digest context{};bool guest_ready=false;
+            if(current->ready_pending.configuration || !current->ready_requests.empty()
+                || current->NeoContext(context,guest_ready)!=CrossplayGoldChoices::Observation::Captured || guest_ready)return false;
+        }
+        if(!current->neo_staged || current->neo_choice!=choice){current->neo_dirty=true;current->neo_selection_started=0;}
+        current->neo_staged=true;current->neo_choice=choice;output="1";return true;
+    }
+    if(command=="network-state" || command=="selection")return current->NeoSelectionCurrent(output);
+    // World/start and selected-save commands remain unavailable until their
+    // original native delivery/source-bound lifecycle has been connected.
+    return false;
 }
 }

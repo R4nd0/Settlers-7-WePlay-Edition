@@ -349,9 +349,10 @@ callbacks. Its source passes 377 synthetic checks and original-image guard
 emulation for all three editions. Actual Gold-host DXVK pairs with both original
 History editions install the observers and retain the original configuration and
 guest page through 119 seconds, then exit normally with strict restoration.
-These pairs request no Ready action: the existing NEO UI gate remains intact.
-Actual Ready delivery, the production NEO lifecycle, complete setup/start and
-shared reload therefore remain unqualified. See the [Ready transport receipt](receipts/native-production-ready-transport-20261116.json).
+Those initial observer probes request no Ready action. At that milestone actual
+Ready delivery remained unqualified. See the [Ready transport receipt](receipts/native-production-ready-transport-20261116.json)
+and the later selection/Ready evidence below; full setup/start and shared reload
+remain separate.
 
 The shared logistics source components have also been migrated from the bounded
 world prototype: typed world/task bindings for all three editions, the FIFO and
@@ -363,11 +364,45 @@ method/layout guards remain. Synthetic verification covers 210 layout/ledger
 checks, 94 intent/active-resume checks and the comparator/priority-entry ABIs.
 Another 211 compiled guard checks use offline original-image emulation and never
 execute original game methods. Run `native/build_crossplay_logistics.ps1` with a
-fresh output directory under `work/`. These components are not yet called by the
-production session controller, provide no independent world/Ready authority and
-must not be stacked with History's NEO5 hooks. Session selection, shared start,
-live logistics and source-bound reload still require runtime integration and
-actual package tests. See the [shared logistics component receipt](receipts/native-shared-logistics-components-20261116.json).
+fresh output directory under `work/`. The initial extraction alone provided no
+session integration or independent world/Ready authority; its [component receipt](receipts/native-shared-logistics-components-20261116.json)
+retains that scope. The controller now installs the guarded components in its
+owned admitted lobby interval for the following selection path. Their actual
+world predicate remains gated by a separate full NEO agreement and original
+native start/world ownership. They must not be stacked with History's NEO5 hooks.
+
+Fresh mixed NEO selection uses the explicit `weplay-crossplay-neo-v1:` console
+namespace. The original read-only namespace stays read-only, and
+`weplay-neo-v1:` is forwarded unchanged for History's existing NEO path.
+
+| Command | Current result |
+|---|---|
+| `capabilities` | `NEO-FIFO-INTENT-1` only with actual owned comparator/intent hooks |
+| `stage:0`, `stage:1` | String `1` only when an owned host's pending choice is accepted |
+| `network-state`, `selection` | Actual context-bound choice string `0` or `1`; otherwise Lua `false` |
+| World/start/save/restore commands | Unavailable until their original native lifecycle is connected |
+
+The host's selection frame is authenticated, revisioned and bound to the launch
+context plus its actual native configuration, flags and template. The receiver
+must have consumed its original configuration and match those actual values.
+Only a detached hash input normalizes role routing CIDs and the two human Ready
+fields/states; native bytes are never rewritten by this step. AI/closed slots,
+privacy, map, flags and template remain part of the context. This is lobby
+selection, not complete world/content/root agreement. Saved configurations are
+excluded, and an already-ready guest prevents host selection changes.
+
+Actual Gold-host DXVK pairs with each original History edition now stage NEO on,
+receive the matching selection and activate the guest's original Ready widget
+once. The original Gold state consumer is observed with host `1`, guest `1`,
+revision `1`; History then observes its original Confirmed/setter projection.
+Both retain matching metadata through 119 seconds, exit normally and strictly
+restore their files/profiles and close services. The private frame driver routes
+only the guest's NEO state query to this real backend; its original `networkReady`
+function, widget enablement and registered button callback remain in place.
+The public normal flow receives no automatic Ready action. These tests exercise
+an owned host control call, not the final Gold checkbox. No world is requested,
+so active FIFO goods delivery, shared save/reload, reverse host roles and the
+final installed package remain unqualified. See the [selection and Ready receipt](receipts/native-neo-selection-ready-20261116.json).
 
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`

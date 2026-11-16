@@ -67,6 +67,10 @@ try{
     if($LASTEXITCODE){throw 'Host bootstrap fixture did not compile'}
     & (Join-Path $out 'crossplay_bootstrap_tests.exe')
     if($LASTEXITCODE){throw 'Host bootstrap fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_neo_selection_tests.cpp') /Fe:crossplay_neo_selection_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Fresh NEO selection fixture did not compile'}
+    & (Join-Path $out 'crossplay_neo_selection_tests.exe')
+    if($LASTEXITCODE){throw 'Fresh NEO selection fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_tests.exe /link /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'History preparation claim fixture did not compile'}
     & (Join-Path $out 'crossplay_history_claim_tests.exe')

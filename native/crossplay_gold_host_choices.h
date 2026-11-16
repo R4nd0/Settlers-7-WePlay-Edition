@@ -103,4 +103,26 @@ inline Observation Capture(const CrossplayNative::ParticipantEvent& binding,DWOR
     if(!CrossplayBootstrap::Valid(captured))return Observation::Invalid;
     result=std::move(captured);return Observation::Captured;
 }
+// Live two-human host interval, separate from the one-human bootstrap capture.
+// Native readiness remains untouched; callers must also check their admission.
+inline Observation CaptureConfigured(const CrossplayNative::ParticipantEvent& binding,DWORD owner,uintptr_t session,
+                                     CrossplaySessionConfig::Connections ids,CrossplayBootstrap::Context& result){
+    const DWORD error=GetLastError();struct Restore {DWORD value;~Restore(){SetLastError(value);}} restore{error};
+    CrossplayNativeCodec::LoadProgressDetail::FpScope fp;result={};
+    CrossplayNative::LobbySnapshot before,after;
+    if(!owner || owner!=GetCurrentThreadId() || !session || !Methods()
+        || !CrossplayNativeCodec::SessionConfigDetail::Methods(Crossplay::Edition::Gold)
+        || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,ids,true)
+        || !binding.CaptureLobby(before) || before.instance!=session)return Observation::Invalid;
+    Cache first,second;auto observed=Snapshot(first);if(observed!=Observation::Captured)return observed;
+    std::string first_template,second_template;
+    if(!ReadTemplate(first_template) || !ReadTemplate(second_template))return Observation::Invalid;
+    observed=Snapshot(second);if(observed!=Observation::Captured)return observed;
+    if(!binding.CaptureLobby(after) || after.instance!=session
+        || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,ids,true))return Observation::Invalid;
+    if(!Same(first,second) || first_template!=second_template)return Observation::Pending;
+    CrossplayBootstrap::Context captured{first.map,!first.save.empty(),first.flags,std::move(first_template),true};
+    if(!CrossplayBootstrap::Valid(captured))return Observation::Invalid;
+    result=std::move(captured);return Observation::Captured;
+}
 }
