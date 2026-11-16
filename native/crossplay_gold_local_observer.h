@@ -3,7 +3,7 @@
 #include "crossplay_outgoing_observer.h"
 #include "crossplay_admission.h"
 #include "crossplay_session_config_codec.h"
-// Opt-in observation only; ordinary game adapters do not include this header.
+// Mixed-runtime observation only; production activation is gated separately.
 // This neither suppresses a native event nor authorizes a cross-edition start.
 namespace CrossplayNativeObserver {
 inline void __stdcall GoldLocalRecordThunk(void* manager,const void* event,uint32_t mode);

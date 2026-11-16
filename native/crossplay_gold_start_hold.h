@@ -7,7 +7,7 @@ inline void GoldStartBridge();
 // It replaces only the original fresh-start send call, not the general sender.
 // The callback must copy/validate its borrowed event before returning. There is
 // no replay operation here. Release restores only the owned callsite; it never
-// queues the held event. Ordinary adapters do not yet include this file.
+// queues the held event. Production mixed activation is gated separately.
 struct GoldStartHold {
     using Callback=bool (__stdcall*)(void*,const void*);
     struct State {

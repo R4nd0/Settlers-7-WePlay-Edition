@@ -2,7 +2,7 @@
 #include "crossplay_ready_state_codec.h"
 #include "crossplay_game_start.h"
 
-// Opt-in primitive only: ordinary adapters never include this header. Callers
+// Native mixed-start primitive; production activation is gated separately. Callers
 // must finish native setup/content agreement before invoking local delivery.
 namespace CrossplayNativeCodec {
 namespace GameStartDetail {

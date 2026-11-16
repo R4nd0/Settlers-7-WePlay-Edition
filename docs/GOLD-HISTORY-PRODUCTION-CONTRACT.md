@@ -404,6 +404,30 @@ an owned host control call, not the final Gold checkbox. No world is requested,
 so active FIFO goods delivery, shared save/reload, reverse host roles and the
 final installed package remain unqualified. See the [selection and Ready receipt](receipts/native-neo-selection-ready-20261116.json).
 
+The subsequent forward-role start-setup port captures the original enabled Gold
+Start widget action, including its original slot-closing callback. Its admitted
+two-human local observer and capture-only start hold compose with the outgoing
+observer under complete original-byte guards. The actual fresh start remains
+held. The adapter sends the original closed configuration, two closed-slot
+events and two neutral Team events on the authenticated channel. History must
+observe the exact original configuration consumer, original closed-slot cache
+changes, guarded original preparation setters and consumed Team values before
+the complete configuration receipt can become applied. Pending Ready projection
+is completed before receiving this next configuration; frames cannot bypass it.
+
+Actual DXVK runs with original Steam History and original Ubisoft History both
+reached that applied start-setup state following the original Gold Start action.
+This is a two-human/four-position fresh Monhaim transition with unused positions
+3/4 closed. It does not qualify AI setup, a loaded world, active NEO transport,
+save/reload or the reverse role. The public entry remains gated. The owned test
+UI supplies automatic widget activation; ordinary product UI does not receive
+an automatic Start action. The test channel content identifier binds the frozen
+adapter/UI diagnostic contract; it is not a complete cross-edition game-asset
+manifest and cannot alone authorize a world.
+Both pairs remained observed through 119 seconds, exited normally with code 0,
+restored guarded files and profiles, and closed their owned services. See the
+[original start-setup receipt](receipts/native-start-setup-20261116.json).
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.

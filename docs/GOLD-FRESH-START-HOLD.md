@@ -5,7 +5,8 @@ event at its original send call. It invokes a borrowed-event callback and
 returns through the original caller cleanup without enqueuing that event.
 `Release` restores only its exact owned hook; it never replays or delivers the
 captured event. There is no History delivery or world-start permission in this
-primitive. Ordinary adapters do not yet include it.
+primitive. The mixed runtime installs it after native admission, while production
+activation remains gated.
 
 This supplies the missing capture point for a later coordinated start. The
 [local-event observer](GOLD-LOCAL-EVENT-OBSERVER.md) always forwards events and
@@ -48,6 +49,13 @@ that exclusion is not a successful ABI run.
 This is component qualification, not a new paired world-start result. The
 historical live capture below does not qualify the updated admitted-host entry
 or common Gold/History loading.
+
+Subsequent actual DXVK pairs with both original History executables qualify the
+updated admitted-host installation and original enabled Gold Start action. Gold
+captured and held that native fresh event; each History guest consumed the
+original closed configuration, closed slots and neutral Teams. Both pairs closed
+normally and restored all guarded files/profiles. Neither delivered a world
+event. See the [start-setup receipt](receipts/native-start-setup-20261116.json).
 
 ## Actual game result, 2026-11-12
 

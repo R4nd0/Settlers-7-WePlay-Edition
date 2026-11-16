@@ -1,0 +1,84 @@
+{
+  "date": "2026-11-16",
+  "scope": "actual forward-role original fresh-start capture and closed setup; no world event delivered",
+  "pairs": [
+    {
+      "host": "Gold",
+      "guest": "original Steam History",
+      "renderer": "DXVK",
+      "original_enabled_gold_start_widget_activated_once": true,
+      "admitted_gold_hooks_installed": true,
+      "original_fresh_start_event_captured_and_held": true,
+      "original_gold_closed_slots_captured": [
+        3,
+        4
+      ],
+      "history_original_configuration_consumer_and_full_closed_cache_observed": true,
+      "history_original_closed_preparation_setters_observed": [
+        3,
+        4
+      ],
+      "history_original_neutral_team_consumption_observed": [
+        3,
+        4
+      ],
+      "actual_native_ready": [
+        1,
+        1
+      ],
+      "neo_selection": "ON; no active world",
+      "metadata_observed_through_seconds": 119,
+      "authenticated_frames_relayed": 17,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    },
+    {
+      "host": "Gold",
+      "guest": "original Ubisoft History",
+      "renderer": "DXVK",
+      "original_enabled_gold_start_widget_activated_once": true,
+      "admitted_gold_hooks_installed": true,
+      "original_fresh_start_event_captured_and_held": true,
+      "original_gold_closed_slots_captured": [
+        3,
+        4
+      ],
+      "history_original_configuration_consumer_and_full_closed_cache_observed": true,
+      "history_original_closed_preparation_setters_observed": [
+        3,
+        4
+      ],
+      "history_original_neutral_team_consumption_observed": [
+        3,
+        4
+      ],
+      "actual_native_ready": [
+        1,
+        1
+      ],
+      "neo_selection": "ON; no active world",
+      "metadata_observed_through_seconds": 119,
+      "authenticated_frames_relayed": 17,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    }
+  ],
+  "neutral_policy_synthetic_checks": 1890,
+  "neutral_original_method_guard_checks_per_edition": 20,
+  "test_channel_content": "frozen diagnostic adapter/UI contract; not a complete game-asset manifest",
+  "ai_setup_proven": false,
+  "shared_world_start_proven": false,
+  "active_neo_goods_proven": false,
+  "common_save_reload_proven": false,
+  "reverse_role_proven": false,
+  "final_installed_package_proven": false,
+  "public_mixed_entry_enabled": false
+}

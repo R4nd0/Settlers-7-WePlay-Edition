@@ -2,8 +2,9 @@
 
 The opt-in `crossplay_gold_local_observer.h` observes original Gold events sent
 with LOCALONLY mode. The previous outgoing probes observe targeted/broadcast
-calls and miss this path, including the original fresh-start event. Ordinary
-adapters do not include the new header. Observation does not deliver a start to
+calls and miss this path, including the original fresh-start event. The mixed
+runtime installs it after native admission; production activation remains gated.
+Observation does not deliver a start to
 History, defer a start, or establish working mixed gameplay.
 
 The observer guards all 225 bytes of the original sender and the ten-byte patch
@@ -44,8 +45,15 @@ callback and observer-state exclusions. Original game code is not executed.
 
 The outgoing fixture passed 431 checks, including detached canonicalization and
 foreign-change rejection for all three edition profiles. This component result
-does not establish a live two-human installation or common world start. The
+alone does not establish a live two-human installation or common world start. The
 2026-11-12 live result below remains historical evidence for the earlier hook.
+
+The subsequent actual DXVK start-setup runs installed the updated observer and
+start hold on a Gold host admitted with each original History guest. Both
+observed original neutral-slot events and native guest cache/preparation
+consumption following the actual Gold Start widget. Both pairs exited with
+code 0 and strict restoration. This qualifies the bounded two-human installation
+and closed setup, not a common world. See the [start-setup receipt](receipts/native-start-setup-20261116.json).
 
 ## Verification on 2026-11-12
 

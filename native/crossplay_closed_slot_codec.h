@@ -2,7 +2,7 @@
 #include "crossplay_player_option_codec.h"
 #include "crossplay_session_map_observer.h"
 #include "crossplay_closed_slot_pins.h"
-// Experimental four-slot fresh-lobby primitive; ordinary adapters exclude it.
+// Four-slot fresh-lobby primitive; production mixed activation remains gated.
 // The caller owns ordering, interval/deadline and complete setup agreement.
 namespace CrossplayClosedSlot {
 constexpr uint32_t Class=0xd32e9949,Type=7u|(55u<<16);

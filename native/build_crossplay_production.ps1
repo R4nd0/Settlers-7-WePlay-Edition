@@ -83,6 +83,12 @@ try{
     if($LASTEXITCODE){throw 'Fresh NEO selection fixture did not compile'}
     & (Join-Path $out 'crossplay_neo_selection_tests.exe')
     if($LASTEXITCODE){throw 'Fresh NEO selection fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_neutral_setup_tests.cpp') /Fe:crossplay_neutral_setup_tests.exe /link /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if($LASTEXITCODE){throw 'Original neutral setup fixture did not compile'}
+    & (Join-Path $out 'crossplay_neutral_setup_tests.exe')
+    if($LASTEXITCODE){throw 'Original neutral setup fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_neutral_setup_tests.cpp') /Fe:crossplay_neutral_setup_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT /MANIFEST:EMBED "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    if($LASTEXITCODE){throw 'Original neutral setup guard fixture did not compile'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_tests.exe /link /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'History preparation claim fixture did not compile'}
     & (Join-Path $out 'crossplay_history_claim_tests.exe')
