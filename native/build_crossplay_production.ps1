@@ -50,5 +50,11 @@ try{
     if($LASTEXITCODE){throw 'Host bootstrap fixture did not compile'}
     & (Join-Path $out 'crossplay_bootstrap_tests.exe')
     if($LASTEXITCODE){throw 'Host bootstrap fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'History preparation claim fixture did not compile'}
+    & (Join-Path $out 'crossplay_history_claim_tests.exe')
+    if($LASTEXITCODE){throw 'History preparation claim fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    if($LASTEXITCODE){throw 'History preparation claim emulator guard fixture did not compile'}
 }finally{Pop-Location}
 Write-Output 'Production handoff fixtures passed. No adapter was deployed or game started.'

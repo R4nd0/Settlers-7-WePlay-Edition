@@ -125,8 +125,24 @@ map after authenticated receipt, and false while it is unavailable. The guest
 waits for this value, then invokes its original local session preparation once
 with that map and an empty local save token. It does not invent a Gold session
 in Storm's browser or open the host's file locally. Its original LocalConfirmed
-then permits native admission and role projection; only then is its normal guest
-lobby presented. Roster/setup/AI/save/start agreement follows separately.
+then permits native admission and role projection. `roster-bound` alone must not
+open the guest lobby: the host configuration must be consumed and the admitted
+local preparation row and castle must be observed before presentation. Actual
+host template/team/position/coop settings must come from that applied setup;
+bootstrap defaults must never be displayed as authoritative host choices.
+The separate setup-bound presentation query is still pending. AI/save/start
+agreement follows separately.
+
+`HistoryGuestClaim` ports the original History preparation-row claim into the
+production source. After authenticated roster binding, it verifies the original
+edition-specific methods and actual four-player preparation owner, invokes the
+original prepare/claim/identity/name methods for local slot 2, and queues the
+original local Confirmed event carrying the captured castle. Backend host-role
+projection follows that claim. Its read-only postcondition additionally checks
+the unchanged session/preparation interval, original row identities/names and
+the actual consumed castle. Queueing is not consumption, Ready or world-start
+permission. The production entry remains closed; this component has not yet
+been exercised in a normal mixed-game run.
 
 Bootstrap payload magic is eight bytes `S7XBOOT\x01`, followed by sender and
 recipient channel IDs (16 bytes each), a little-endian `uint32` saved-kind (`0/1`),

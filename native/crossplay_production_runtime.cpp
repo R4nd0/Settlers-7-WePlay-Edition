@@ -8,6 +8,7 @@
 #include "crossplay_production_observer.h"
 #include "crossplay_admission.h"
 #include "crossplay_history_role.h"
+#include "crossplay_history_claim.h"
 #include "crossplay_load_progress_codec.h"
 #include "crossplay_bootstrap.h"
 #include "crossplay_session_config_codec.h"
@@ -40,6 +41,9 @@ struct Runtime {
     Crossplay::Channel channel;
     CrossplayNative::ParticipantEvent original;
     CrossplayNative::LobbyAdmission admission;
+    CrossplayNative::HistoryGuestClaim guest_claim;
+    CrossplayNative::Participant captured_player;
+    CrossplayCastleSetup::Value captured_castle;
     uintptr_t session=0,gate=0;
     uint32_t extra=0;
     bool backend_projected=false,native_bound=false,gate_installed=false,lobby_captured=false;
@@ -62,7 +66,7 @@ struct Runtime {
         if(!original.ConstructConfirmedSetup(lobby.members[0].player,castle,extra) || !RoundTrip(launch.channel.edition,event)){
             Fail();return;
         }
-        lobby_captured=true;
+        captured_player=lobby.members[0].player;captured_castle=std::move(castle);lobby_captured=true;
     }
     static bool __fastcall GoldSlot(void* self,void*,uint32_t station,uint32_t* result){
         const DWORD error=GetLastError();auto* runtime=current;
@@ -143,6 +147,7 @@ struct Runtime {
             if(!admission.Poll()){Fail();return;}
             if(admission.GetState()==CrossplayNative::AdmissionState::RosterBound){
                 if(!launch.host && !backend_projected){
+                    if(!guest_claim.Begin(launch.channel.edition,original,admission,captured_player.principal,captured_castle,extra)){Fail();return;}
                     if(!CrossplayNative::ProjectHistoryGuestHost(launch.channel.edition,original,admission)){Fail();return;}
                     backend_projected=true;
                 }

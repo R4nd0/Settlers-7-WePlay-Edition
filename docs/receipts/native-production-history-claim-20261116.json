@@ -1,0 +1,26 @@
+{
+  "format": "weplay-native-production-history-claim-v1",
+  "maintainer": "WePlay Community",
+  "verified_date": "2026-11-16",
+  "editions": ["original Ubisoft History", "original Steam History"],
+  "source_scope": "Owner-bound local preparation claim after authenticated native roster binding, before backend host-role projection",
+  "identity_and_preparation_interval_checks": 109,
+  "compiled_original_method_guard_checks": {
+    "original_ubisoft_history": 14,
+    "original_steam_history_analysis_image": 14
+  },
+  "compiled_guard_executed_in_emulator_only": true,
+  "original_game_methods_executed_by_tests": false,
+  "original_prepare_claim_identity_and_name_methods_retained": true,
+  "confirmed_castle_comes_from_original_local_event": true,
+  "postcondition_requires_actual_consumed_castle": true,
+  "native_ready_fields_written": false,
+  "world_start_permission_supplied": false,
+  "production_runtime_source_links": true,
+  "production_launch_gate_opened": false,
+  "ordinary_adapter_deployed": false,
+  "actual_mixed_pair_started": false,
+  "final_installer_qualified": false,
+  "production_pins_promoted": false,
+  "release_published": false
+}
