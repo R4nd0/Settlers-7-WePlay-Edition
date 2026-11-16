@@ -36,3 +36,21 @@ and changed no checkout production pin. These checks do not establish live world
 reload, checksum agreement or LAN/EasyTier qualification. RC4.00 publication
 still requires both original History editions to pass mixed reload in the final
 installed package, including continued original checksums and active logistics.
+
+## Shared content admission
+
+`crossplay_content.py` validates the contract's canonical three-edition catalog.
+Each edition must include its pinned original executable and native adapter;
+reviewed gameplay/script/map files are then frozen with the final qualified
+profiles. The parser enforces exact schema/types, ordered editions and file IDs,
+nonzero lowercase SHA-256 values, bounded size/counts and Windows-safe relative
+paths. Duplicate JSON fields, case-colliding paths, links and local profile/save
+inputs are rejected.
+
+Schema validity supplies no release approval. `APPROVED_DIGESTS` remains empty
+until the reviewed final catalog exists. An explicit standalone mixed launch
+requires both an admitted production adapter and that exact approved catalog,
+verifies the local installed files and requires the binding's content digest to
+match. This prevents an arbitrary nonzero content value from reaching the game.
+Ten catalog tests plus the nine handoff, seven migration and ten portable-runtime
+tests pass. These are authored checks, separate from the required game tests.

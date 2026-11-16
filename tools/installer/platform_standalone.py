@@ -10,7 +10,7 @@ import compatibility as content
 FORMAT = 'weplay-platform-independent-v1'
 RECORD = 'Launcher/platform-standalone.json'
 TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py','network_elevation.py','network_peer_policy.py',
-         'crossplay_session.py')
+         'crossplay_session.py', 'crossplay_content.py')
 HISTORY = '3e400b5d108ec99ca05105fb7d9149e2a4978435691ba2d9143fc68078f55aac'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
@@ -160,7 +160,8 @@ def options_path(root):
     return content.plain(Path(root)/'LocalData/ProfileRoot'/suffix/'Options.ini')
 
 
-def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None,crossplay=None):
+def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None,
+           crossplay=None,crossplay_catalog=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
     environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
@@ -170,9 +171,16 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
             raise ValueError('crossplay_configuration_invalid')
         if value['files'][adapter.relative_to(root).as_posix()] not in crossplay_session.ADAPTER_PINS.get(crossplay.edition, ()):
             raise ValueError('crossplay_adapter_unavailable')
+        import crossplay_content
+        if type(crossplay_catalog) is not crossplay_content.Catalog:
+            raise ValueError('crossplay_catalog_invalid')
+        if crossplay.content != crossplay_catalog.verify(root, crossplay.edition):
+            raise ValueError('crossplay_content_changed')
         # A mixed game keeps its ordinary loopback-only WFP policy. Remote
         # transport terminates in the broker, never in the game executable.
         environment = crossplay.environment(root, executable, environment)
+    elif crossplay_catalog is not None:
+        raise ValueError('crossplay_configuration_invalid')
     helper=root/'Launcher/weplay_network_policy.exe'
     result=subprocess.run([str(helper),'check',str(executable)],capture_output=True,timeout=15)
     if result.returncode and lan is None:

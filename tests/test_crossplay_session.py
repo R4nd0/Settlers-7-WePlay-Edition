@@ -1,6 +1,7 @@
 """Launcher admission boundaries with authored files; no game/world proof."""
 from dataclasses import replace
 import hashlib
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -11,6 +12,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/installer'))
 import crossplay_session as session
+import crossplay_content as content
 import platform_standalone as platform
 
 
@@ -109,19 +111,35 @@ class CrossplaySessionTests(unittest.TestCase):
 
     def test_platform_passes_explicit_handoff_after_graphics_and_keeps_native_loopback_policy(self):
         adapter = self.root / 'Launcher/weplay_gold_startup.dll'; adapter.parent.mkdir(); adapter.write_bytes(b'adapter')
-        descriptor = {'edition': 'gold', 'files': {adapter.relative_to(self.root).as_posix(): 'adapter digest'}}
+        digest = hashlib.sha256(b'adapter').hexdigest()
+        descriptor = {'edition': 'gold', 'files': {adapter.relative_to(self.root).as_posix(): digest}}
+        editions = []
+        for edition in (1, 2, 3):
+            exe = self.digest if edition == 1 else next(pin for pin, local in session.EXECUTABLE_EDITIONS.items() if local == edition)
+            files = [{'id': name, 'sha256': pin} for name, pin in zip(content.REQUIRED[edition], (exe, digest))]
+            editions.append({'edition': edition, 'files': sorted(files, key=lambda row: row['id'])})
+        catalog = content.Catalog(json.dumps({'format': content.FORMAT, 'native_protocol': 1, 'neo_features': 19,
+            'editions': editions}, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode())
         game = SimpleNamespace()
         with patch.object(platform, 'load', return_value=(descriptor, self.exe, adapter)), \
                 patch.object(platform.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), \
-                patch.dict(session.ADAPTER_PINS, {1: ('adapter digest',)}), \
+                patch.dict(session.ADAPTER_PINS, {1: (digest,)}), \
+                patch.object(content, 'APPROVED_DIGESTS', frozenset((catalog.digest.hex(),))), \
                 patch('isolated_process.launch', return_value=game) as launch:
-            result = platform.launch(self.root, crossplay=binding(), environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
+            supplied = replace(binding(), content=catalog.digest)
+            result = platform.launch(self.root, crossplay=supplied, crossplay_catalog=catalog,
+                                     environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
+            with self.assertRaisesRegex(ValueError, 'content_changed'):
+                platform.launch(self.root, crossplay=binding(), crossplay_catalog=catalog)
+            with self.assertRaisesRegex(ValueError, 'catalog_invalid'):
+                platform.launch(self.root, crossplay=supplied)
+            self.assertEqual(launch.call_count, 1)
         self.assertIs(result, game)
         arguments = launch.call_args.kwargs
         self.assertIsNone(game.network_policy)
         self.assertEqual(arguments['environment']['WEPLAY_CROSSPLAY_V1_PROFILE'], str(self.profile))
         self.assertEqual(arguments['environment']['DXVK_CONFIG_FILE'], str(self.exe.with_name('dxvk.conf')))
-        self.assertEqual(arguments['dll_sha256'], 'adapter digest')
+        self.assertEqual(arguments['dll_sha256'], digest)
         self.assertEqual(arguments['policy_sha256'], platform.POLICY)
 
     def test_invalid_handoff_cannot_reach_policy_or_process_creation(self):
