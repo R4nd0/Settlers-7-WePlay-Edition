@@ -7,6 +7,7 @@ History with the existing mandatory platform-isolation contract. Publication is
 gated on proven mixed-session reload against both History editions and its
 production integration. Protected copies require the isolated signed manifest.
 [RC4.00 installation and compatibility](RC4.00-RELEASE-NOTES.md).
+[Current/legacy adapter migration and builder inputs](RC4-ADAPTER-MIGRATION.md).
 
 The RC3.4 bootstrap and later launchers can check for signed preview releases at
 startup and on demand. Checking does not hold the game operation lock or require

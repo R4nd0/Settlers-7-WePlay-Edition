@@ -11,8 +11,8 @@ FOLDER = 'Payload/Gold'
 EXE = 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
 
 
-def module(app):
-    path=content.plain(Path(app)/'Tools/gold/installer.py')
+def module(app, *, source_root=None):
+    path=content.plain(Path(source_root)/'tools/gold/installer.py' if source_root is not None else Path(app)/'Tools/gold/installer.py')
     spec=importlib.util.spec_from_file_location('weplay_bundled_gold_installer',path)
     result=importlib.util.module_from_spec(spec)
     previous=sys.path[:]
@@ -30,10 +30,27 @@ def verify_package(app):
     return value
 
 
-def bundle(source,target,*,source_root=None,quiet_reshade=None):
+def verify_source_package(app, *, source_root):
+    # A previous package is build input, never authority to ship an old adapter.
+    # Validate it with the current trusted verifier, not its older Python code.
+    runtime=module(app,source_root=source_root)
+    value=runtime.verify_package(content.plain(app),source_package=True)
+    if value.get('platform_independent') is not True:raise ValueError('platform_isolation_required')
+    return value
+
+
+def adapter_input(source, adapter=None):
+    path=content.plain(adapter if adapter is not None else Path(source)/'Payload/weplay_gold_startup.dll')
+    if content.digest(path)!=platform_standalone.GOLD:
+        raise ValueError('Supply the current verified Gold production adapter; the source package has an older or unknown adapter.')
+    return path
+
+
+def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None):
     source,target=map(content.plain,(source,target))
-    value=verify_package(source)
+    value=verify_source_package(source,source_root=source_root) if source_root is not None else verify_package(source)
     if target.exists():raise ValueError('Gold payload destination exists')
+    adapter=adapter_input(source,adapter)
     payload=None
     if quiet_reshade is not None:
         import reshade_runtime
@@ -46,6 +63,7 @@ def bundle(source,target,*,source_root=None,quiet_reshade=None):
     for name in ('package.json',*value['files']):
         path=content.plain(target/name);path.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(content.plain(source/name),path)
+    shutil.copyfile(adapter,content.plain(target/'Payload/weplay_gold_startup.dll'))
     if source_root is not None:
         repo=content.plain(source_root)
         # Reuse pinned native/interpreter inputs, while always shipping the

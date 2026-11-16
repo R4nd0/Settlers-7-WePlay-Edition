@@ -45,7 +45,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=29,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=29,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -60,7 +60,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     # main package. Subsequent builds inherit both runtimes from the last package.
     platform_runtime=platform_standalone.payload(platform_runtime or old/'Payload/Platform')
     gold_package=content.plain(gold_package or old/'Payload/Gold')
-    gold_support.verify_package(gold_package)
+    gold_support.verify_source_package(gold_package,source_root=REPO)
+    gold_adapter=gold_support.adapter_input(gold_package,gold_adapter)
     stage.mkdir();output.mkdir(parents=True,exist_ok=True)
     app=stage/'App';app.mkdir()
     for path in desktop_publish.iterdir():
@@ -82,7 +83,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
         memory_scanner=memory_scanner or old/'Tools/d3d11/memory_scan.dll',
         easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,quiet_reshade=quiet_reshade,platform_runtime=platform_runtime)
-    gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,quiet_reshade=quiet_reshade)
+    gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,quiet_reshade=quiet_reshade,adapter=gold_adapter)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
     package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
     package_record['files']=content.inventory(app/'Package',('Payload','Runtime','Tools'))
@@ -175,7 +176,8 @@ if __name__=='__main__':
     parser.add_argument('--quiet-reshade')
     parser.add_argument('--platform-runtime')
     parser.add_argument('--gold-package')
+    parser.add_argument('--gold-adapter')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,memory_scanner=values.memory_scanner,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package,gold_adapter=values.gold_adapter)

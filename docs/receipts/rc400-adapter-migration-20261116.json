@@ -1,0 +1,42 @@
+{
+  "format": "weplay-rc400-adapter-migration-v1",
+  "date": "2026-11-16",
+  "verified_utc": "2026-11-16T06:53:39.192891+00:00",
+  "maintainer": "WePlay Community",
+  "scope": "Builder, known-legacy read compatibility and isolated package migration checks",
+  "explicit_gold_adapter_input": true,
+  "current_output_pin_required": true,
+  "legacy_source_package_verified_by_current_source": true,
+  "known_legacy_descriptor_readable": true,
+  "missing_legacy_descriptor_prevents_shared_profile_fallback": true,
+  "legacy_adapter_does_not_authorize_fresh_preparation": true,
+  "foreign_self_consistent_adapter_rejected": true,
+  "old_and_current_history_graphics_supported": true,
+  "tests": {
+    "migration": 7,
+    "platform_standalone": 10,
+    "release_policy": 6,
+    "gold_installer": 10,
+    "graphics_choice": 39,
+    "installer": 35,
+    "quiet_reshade_packaging": 2,
+    "release_documents": 3,
+    "passed": true
+  },
+  "real_package_integration": {
+    "private_source_tree_pin_rotation_only": true,
+    "old_gold_source_verified": true,
+    "missing_current_replacement_rejected_before_staging": true,
+    "explicit_new_native_payload_and_inventory_verified": true,
+    "fresh_bundled_interpreter_verified": true,
+    "files": 68,
+    "integration_fixture_adapter_sha256": "99a25506a2877ac764265a1214a6e988dfee38b78bf69fbf730d53d1efb92799",
+    "generated_release_interface_sha256": "9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928",
+    "old_template_inventory_unchanged": true
+  },
+  "checkout_production_pins_changed": false,
+  "actual_game_started": false,
+  "final_installer_built": false,
+  "final_package_mixed_reload_qualified": false,
+  "release_published": false
+}

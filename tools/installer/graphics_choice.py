@@ -28,8 +28,9 @@ def visual_supported(root):
     if gold_graphics.is_gold(root):
         value,_,_=gold_graphics.platform.load(root)
         return value['edition']=='gold'
+    import platform_standalone
     return content.digest(graphics._plain(root / graphics.LOADER)) in (VISUAL_ADAPTER_SHA256,
-        'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112')
+        platform_standalone.HISTORY_PINS.get((True,True)),*platform_standalone.LEGACY_HISTORY_PINS)
 
 
 def _require_visual_support(root, selected):

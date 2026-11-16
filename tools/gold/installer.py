@@ -17,6 +17,8 @@ EXE_SHA256 = '76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab'
 PYTHON_SHA256 = '90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159'
 FORMAT = 'weplay-gold-package-v1'
 INSTALLED = 'weplay-gold-install-v1'
+SOURCE_MENU_PINS = ('de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db657635',
+                    '98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92')
 
 
 def inventory(root, folders):
@@ -57,27 +59,29 @@ def verified_files(root, files, folders):
             raise ValueError('Gold-Datei fehlt oder wurde verändert: ' + name)
 
 
-def verify_package(app):
+def verify_package(app, *, source_package=False):
     app = gold.plain(app)
     value = read_json(app / 'package.json')
-    if (value.get('format') != FORMAT or value.get('menu_sha256') != gold.MENU_SHA256
+    if type(source_package) is not bool:raise ValueError('Invalid Gold source-package selection.')
+    menus=(gold.MENU_SHA256,*SOURCE_MENU_PINS) if source_package else (gold.MENU_SHA256,)
+    if (value.get('format') != FORMAT or value.get('menu_sha256') not in menus
             or type(value.get('platform_independent',False)) is not bool
             or value.get('multiplayer') is not False):
         raise ValueError('Unbekanntes Gold-Installationspaket.')
     verified_files(app, value.get('files'), ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses'))
     if inventory(app, ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses')) != value['files']:
         raise ValueError('Gold-Paketinventar verändert.')
-    adapter=ADAPTER_SHA256
+    adapters=(ADAPTER_SHA256,)
     if value.get('platform_independent',False):
         import platform_standalone
-        adapter=platform_standalone.GOLD
+        adapters=platform_standalone.adapter_pins(gold=True) if source_package else (platform_standalone.GOLD,)
         platform_standalone.payload(app/'Payload/Platform')
         if any(('Tools/gold/'+name) not in value['files'] for name in (*platform_standalone.TOOLS,'compatibility.py')):
             raise ValueError('Die Gold-Standalone-Werkzeuge fehlen.')
-    for name, expected in (
-        ('Payload/weplay_gold_startup.dll', adapter),
-        ('Payload/d3d9.dll', gold.DXVK_SHA256), ('Definitions/Definitions.bin', gold.DEFINITIONS_SHA256)):
-        if value['files'].get(name) != expected:
+    for name, allowed in (
+        ('Payload/weplay_gold_startup.dll', adapters),
+        ('Payload/d3d9.dll', (gold.DXVK_SHA256,)), ('Definitions/Definitions.bin', (gold.DEFINITIONS_SHA256,))):
+        if value['files'].get(name) not in allowed:
             raise ValueError('Gold-Paket enthält einen ungeprüften Laufzeitstand.')
     return value
 

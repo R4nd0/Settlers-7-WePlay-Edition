@@ -59,7 +59,7 @@ def protected_game(root):
     import platform_standalone
     for name in ('Base/Bin/uplay_r1_loader.dll','Launcher/weplay_gold_startup.dll'):
         path=content.plain(root/name)
-        if path.is_file() and content.digest(path) in (*platform_standalone.HISTORY_PINS.values(),platform_standalone.GOLD):
+        if path.is_file() and content.digest(path) in (*platform_standalone.adapter_pins(),*platform_standalone.adapter_pins(gold=True)):
             return True
     return False
 

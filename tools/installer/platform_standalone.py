@@ -16,12 +16,22 @@ HISTORY_PINS = {(False,False):HISTORY,
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
                 (True,True):'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112'}
 GOLD = 'fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2'
+# Known previous release adapters remain readable for safe upgrade/repair.
+# New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
+LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',)
+LEGACY_GOLD_PINS = ('fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2',)
 STEAM_API = '2e9836aeb19373dc1cc0743a9d8bdd5f322fbb426d077ea2718005c5a4bef140'
 MILES_GATE = 'ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63'
 MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf'
 STEAM_ORIGINAL = 'd99d425793f588fbc15f91c7765977cdd642b477be01dac41c0388ab6a5d492d'
 POLICY = '3317aec4210f8214cb6fbe586502a4e26c23fb68182d8b00a1b0353848e49b41'
 PAYLOAD = {'steam_api.dll': STEAM_API, 'mss32.dll': MILES_GATE, 'weplay_network_policy.exe': POLICY}
+
+
+def adapter_pins(*, gold=False):
+    current = (GOLD,) if gold else tuple(HISTORY_PINS.values())
+    legacy = LEGACY_GOLD_PINS if gold else LEGACY_HISTORY_PINS
+    return tuple(dict.fromkeys((*current, *legacy)))
 
 
 def enabled(root):
@@ -31,7 +41,7 @@ def enabled(root):
     # A missing descriptor must never redirect an installed release back into
     # shared Documents before its guarded DLL refuses the game start.
     for adapter in (root/'Base/Bin/uplay_r1_loader.dll', root/'Launcher/weplay_gold_startup.dll'):
-        if adapter.is_file() and content.digest(content.plain(adapter)) in (*HISTORY_PINS.values(), GOLD):
+        if adapter.is_file() and content.digest(content.plain(adapter)) in (*adapter_pins(), *adapter_pins(gold=True)):
             raise ValueError('Das Standalone-Manifest fehlt. Die Kopie muss repariert werden.')
     return False
 
@@ -79,7 +89,7 @@ def load(root):
         raise ValueError('Unbekannte Standalone-Spielversion.')
     adapter_name=adapter.relative_to(root).as_posix()
     expected_adapter=value['files'].get(adapter_name)
-    if expected_adapter not in ((GOLD,) if gold else tuple(HISTORY_PINS.values())):
+    if expected_adapter not in adapter_pins(gold=gold):
         raise ValueError('Ungeprüftes Standalone-Adapterprofil.')
     files = {adapter_name: expected_adapter,
              (executable.parent/'mss32.dll').relative_to(root).as_posix(): MILES_GATE,
