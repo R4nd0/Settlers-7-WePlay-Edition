@@ -36,8 +36,12 @@ inline bool Snapshot(Crossplay::Edition edition,const CrossplayNative::Participa
         snapshot.push_back(row[4]);Word(snapshot,CrossplayChat::Word(row+8));
         snapshot.push_back(row[12]);Word(snapshot,CrossplayChat::Word(row+16));snapshot.push_back(static_cast<unsigned char>(state));
     }
-    std::string after_map,after_save;CrossplaySessionConfig::Layout layout;
-    if(!CrossplaySessionConfig::Inspect(snapshot,ids,layout)
+    // The original History cache can retain zero station placeholders after
+    // consuming a configuration with receiver-local routing CIDs. Bind only
+    // those typed routing fields as the Gold source snapshot already does.
+    // Keep the raw cache below for the stability check; never write it back.
+    std::string after_map,after_save;std::vector<unsigned char> bound;
+    if(!CrossplaySessionConfig::BindSource(snapshot,ids,bound)
         || ReadyStateDetail::HistoryConfiguration(edition)!=cache
         || *reinterpret_cast<const unsigned char* const*>(cache+0x44)!=begin
         || !Detail::Readable(begin,slots.size()) || memcmp(begin,slots.data(),slots.size())
@@ -45,6 +49,6 @@ inline bool Snapshot(Crossplay::Edition edition,const CrossplayNative::Participa
         || !SessionConfigDetail::NativeString(cache+0x34,after_save) || after_save!=save
         || !binding.CaptureLobby(lobby) || lobby.instance!=interval.session
         || !SessionConfigDetail::Roster(binding,ids,false))return false;
-    wire=std::move(snapshot);return true;
+    wire=std::move(bound);return true;
 }
 }

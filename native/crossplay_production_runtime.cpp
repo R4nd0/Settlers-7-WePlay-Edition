@@ -16,6 +16,7 @@
 #include "crossplay_gold_host_choices.h"
 #include "crossplay_configuration_observer.h"
 #include "crossplay_configuration_native.h"
+#include "crossplay_configuration_readiness.h"
 namespace CrossplayProduction {
 namespace {
 struct Runtime;
@@ -58,6 +59,8 @@ struct Runtime {
     ULONGLONG configuration_started=0;
     CrossplayConfigurationReceipt::Interval configuration_interval;
     CrossplayConfigurationReceipt::Receipt configuration_receipt;
+    bool configuration_readiness_queued=false;
+    CrossplayNativeCodec::PendingHistoryReadyState configuration_readiness;
     UINT_PTR timer=0;
     explicit Runtime(const Launch& input):launch(input){}
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
@@ -179,7 +182,20 @@ struct Runtime {
             if(!CrossplayNativeCodec::EnqueueSessionConfig(launch.channel.edition,original,ids,wire))return false;
         }
         if(!configuration_receipt.HasConsumed())return true;
+        if(configuration_readiness_queued){
+            const auto ready=CrossplayNativeCodec::ObserveHistoryReadySnapshot(launch.channel.edition,original,ids,configuration_readiness);
+            if(ready==CrossplayNativeCodec::ReadyObservation::Invalid)return false;
+            if(ready==CrossplayNativeCodec::ReadyObservation::Pending)return true;
+        }
         if(!CrossplayConfigurationNative::Snapshot(launch.channel.edition,original,ids,configuration_interval,wire))return false;
+        CrossplayReadyState::Snapshot observed_ready;
+        const auto difference=CrossplayConfigurationReadiness::Compare(configuration_receipt.Expected(),wire,ids,observed_ready);
+        if(difference==CrossplayConfigurationReadiness::Difference::Invalid)return false;
+        if(difference==CrossplayConfigurationReadiness::Difference::HostOnly){
+            if(configuration_readiness_queued
+                || !CrossplayNativeCodec::ApplyHistoryReadySnapshot(launch.channel.edition,original,ids,observed_ready,configuration_readiness))return false;
+            configuration_readiness_queued=true;return true;
+        }
         const auto observed=configuration_receipt.Observe(configuration_interval,wire,GetTickCount64());
         if(observed==CrossplayConfigurationReceipt::Observation::Invalid)return false;
         configuration_applied=observed==CrossplayConfigurationReceipt::Observation::Applied;

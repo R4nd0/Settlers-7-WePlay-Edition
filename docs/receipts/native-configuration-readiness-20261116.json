@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Original configuration consumption diagnosis and source-only initial observed host-Ready projection",
+  "actual_diagnostic_pair": {
+    "original_gold_host_and_ubisoft_history_guest": true,
+    "renderer": "DXVK",
+    "private_instrumented_normal_adapters": true,
+    "authenticated_native_roster_and_own_castle_claim": true,
+    "exact_original_configuration_consumer_observed": true,
+    "history_raw_cache_station_placeholders_observed": true,
+    "after_typed_routing_binding_only_host_ready_differs": true,
+    "host_ready_expected": 1,
+    "history_host_ready_observed": 0,
+    "guest_ready_unchanged": true,
+    "complete_configuration_application_qualified": false,
+    "normal_exit_codes": [0, 0],
+    "guarded_files_profiles_runtime_and_platform_saves_restored": true,
+    "owned_services_closed": true
+  },
+  "source_change": {
+    "read_only_routing_binding": true,
+    "raw_cache_stability_checks_retained": true,
+    "exact_original_consumption_required_before_projection": true,
+    "only_observed_host_ready_can_differ": true,
+    "every_other_snapshot_byte_must_match": true,
+    "guest_ready_cannot_change": true,
+    "original_history_confirmed_events_and_ready_setters": true,
+    "original_ready_postcondition_required": true,
+    "complete_snapshot_required_after_projection": true,
+    "one_initial_projection_per_fresh_transaction": true,
+    "deadline_owner_cache_and_session_guards_retained": true
+  },
+  "synthetic_verification": {
+    "configuration_receipt_and_projection_checks": 1077,
+    "all_non_host_ready_byte_changes_rejected": true,
+    "both_ready_values_and_guest_states_covered": true,
+    "zero_local_and_remote_routing_binding_covered": true,
+    "matching_cache_without_original_consumption_stays_pending": true,
+    "production_handoff_fixture_build_passed": true,
+    "native_ready_methods_executed_by_fixtures": false
+  },
+  "new_game_test": {
+    "started": false,
+    "stopped_before_deployment": true,
+    "reason": "measured startup RAM buffer unavailable",
+    "startup_buffer_gib": 7
+  },
+  "qualification": {
+    "new_host_ready_projection_in_game": false,
+    "steam_history_actual_consumer_pair": false,
+    "common_world": false,
+    "neo_and_shared_reload": false,
+    "ordinary_mixed_entry_enabled": false,
+    "final_installed_package": false
+  }
+}

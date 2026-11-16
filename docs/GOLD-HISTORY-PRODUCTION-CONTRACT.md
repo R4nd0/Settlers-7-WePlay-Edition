@@ -266,6 +266,29 @@ separate source-bound resume protocol. The [component receipt](receipts/native-p
 does not establish actual mixed-game delivery, applied template/flags, complete
 setup/root agreement or a `setup-bound` UI result. Those remain separate gates.
 
+Later bounded Gold/Ubisoft diagnostic pairs now observe the exact original
+configuration consumer. The original History cache retains zero station
+placeholders; the read-only comparison therefore uses the same typed routing
+binding as the Gold source snapshot. It still checks the unchanged raw cache,
+map, all eight slots and owner interval and never writes that cache.
+
+Those pairs also expose a separate initial host-Ready difference: the original
+Gold host snapshot has Ready set, while History's configuration consumer leaves
+its prior host-Ready value unchanged. The source now permits the existing
+original History Confirmed events and preparation setters to project only that
+actually observed host value, after exact configuration consumption and only
+when every other snapshot byte already agrees. This cannot change the guest's
+own Ready. The original preparation/cache postcondition and complete snapshot
+comparison must then succeed. This is one initial projection per fresh
+transaction, not general Ready handling or a start permission.
+
+The expanded 1,077-check receipt fixture rejects every non-host-Ready byte
+change and retains exact-consumption, routing, owner and deadline checks. The
+new projection has not yet run in a game: its first pair stopped before
+deployment because the measured startup RAM buffer was unavailable. The
+[source-and-diagnosis receipt](receipts/native-configuration-readiness-20261116.json)
+does not qualify a common world or a final installed package.
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.

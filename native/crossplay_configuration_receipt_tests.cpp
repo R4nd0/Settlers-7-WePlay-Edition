@@ -1,4 +1,5 @@
 #include "crossplay_configuration_receipt.h"
+#include "crossplay_configuration_readiness.h"
 #include <cstdio>
 #include <cstdlib>
 namespace {
@@ -55,6 +56,54 @@ int main(){
     Receipt wrong_map;Check(!wrong_map.Arm(own,ids,"Maps/OtherSelection",wire,100));
     Receipt wrong_ids;Check(!wrong_ids.Arm(own,{0,1},"Maps/ActualSelection",wire,100));
     Receipt repeated;Check(repeated.Arm(own,ids,"Maps/ActualSelection",wire,100));Check(!repeated.Arm(own,ids,"Maps/ActualSelection",wire,100));
+    for(unsigned flags=0;flags<4;++flags){
+        using CrossplayConfigurationReadiness::Difference;
+        const auto selected=Wire(flags);CrossplayReadyState::Snapshot ready;
+        CrossplaySessionConfig::Layout layout;Check(CrossplaySessionConfig::Inspect(selected,ids,layout));
+        Check(CrossplayConfigurationReadiness::Compare(selected,selected,ids,ready)==Difference::Equal&&!ready.revision);
+        auto other=selected;other[layout.slots_at]^=1;
+        Check(CrossplayConfigurationReadiness::Compare(selected,other,ids,ready)==Difference::HostOnly
+            &&ready.revision==1&&ready.host==(flags&1)&&ready.guest==((flags>>1)&1));
+        for(size_t at=0;at<selected.size();++at){
+            if(at==layout.slots_at)continue;
+            other=selected;other[at]^=1;
+            Check(CrossplayConfigurationReadiness::Compare(selected,other,ids,ready)==Difference::Invalid&&!ready.revision);
+        }
+        Check(CrossplayConfigurationReadiness::Compare(selected,selected,{0,1},ready)==Difference::Invalid);
+        other=selected;other[layout.slots_at]=2;
+        Check(CrossplayConfigurationReadiness::Compare(selected,other,ids,ready)==Difference::Invalid);
+    }
+    // The original History cache retains zero station placeholders. Canonical
+    // routing comparison still needs the exact consumed event and must retain
+    // every non-routing field, including actual Ready/privacy and slot states.
+    for(auto connections:std::vector<CrossplaySessionConfig::Connections>{{1,0},{0,1},{101,102}}){
+        for(unsigned flags=0;flags<4;++flags){
+            auto cache=Wire(flags);CrossplaySessionConfig::Layout layout;
+            Check(CrossplaySessionConfig::Inspect(cache,ids,layout));
+            CrossplayChat::Put(cache.data()+8,connections.host);
+            CrossplayChat::Put(cache.data()+layout.slots_at+6,0);
+            CrossplayChat::Put(cache.data()+layout.slots_at+CrossplaySessionConfig::SlotBytes+6,0);
+            auto expected=cache;
+            CrossplayChat::Put(expected.data()+layout.slots_at+6,connections.host);
+            CrossplayChat::Put(expected.data()+layout.slots_at+CrossplaySessionConfig::SlotBytes+6,connections.guest);
+            std::vector<unsigned char> bound;
+            Check(CrossplaySessionConfig::BindSource(cache,connections,bound)&&bound==expected);
+            Receipt receipt;Check(receipt.Arm(own,connections,"Maps/ActualSelection",expected,100));
+            Check(receipt.Observe(own,bound,101)==Observation::Pending);
+            Check(receipt.Consumed(own,expected,102));
+            Check(receipt.Observe(own,bound,103)==Observation::Applied);
+            auto changed=cache;changed[layout.slots_at]^=1;
+            Check(CrossplaySessionConfig::BindSource(changed,connections,bound));
+            Check(receipt.Observe(own,bound,104)==Observation::Pending);
+            changed=cache;changed[layout.slots_at+5]=1;
+            Check(CrossplaySessionConfig::BindSource(changed,connections,bound));
+            Check(receipt.Observe(own,bound,105)==Observation::Pending);
+            changed=cache;CrossplayChat::Put(changed.data()+layout.slots_at+6,UINT32_MAX);
+            Check(!CrossplaySessionConfig::BindSource(changed,connections,bound)&&bound.empty());
+            changed=cache;CrossplayChat::Put(changed.data()+layout.slots_at+1,2);
+            Check(!CrossplaySessionConfig::BindSource(changed,connections,bound)&&bound.empty());
+        }
+    }
     for(size_t at=0;at<wire.size();++at){
         auto altered=wire;altered[at]^=0x80;Receipt receipt;
         Check(receipt.Arm(own,ids,"Maps/ActualSelection",wire,100));Check(!receipt.Consumed(own,altered,101));
