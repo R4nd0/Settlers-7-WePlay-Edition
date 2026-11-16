@@ -35,11 +35,14 @@ inline bool Methods(Crossplay::Edition edition){
 inline bool ParticipantForClaim(const LobbySnapshot& snapshot,uint32_t own_connection,uint32_t source_principal,
                                 Participant& result){
     result={};
-    if(!snapshot.instance || snapshot.host || snapshot.local_slot!=2 || snapshot.members.size()!=2 || !own_connection)return false;
+    // History uses receiver-local numeric routing CIDs. Zero is a valid own or
+    // remote CID; UINT32_MAX is the unavailable sentinel. These are not Gold
+    // principals, network slots or Storm GUIDs.
+    if(!snapshot.instance || snapshot.host || snapshot.local_slot!=2 || snapshot.members.size()!=2 || own_connection==UINT32_MAX)return false;
     const Participant* local=nullptr;const Participant* host=nullptr;
     for(const auto& member:snapshot.members){
         const auto& p=member.player;
-        if(member.status!=2 || !p.connection || p.connection==UINT32_MAX || p.principal==UINT32_MAX
+        if(member.status!=2 || p.connection==UINT32_MAX || p.principal==UINT32_MAX
             || p.name.empty() || p.name.size()>128 || p.name.find('\0')!=std::string::npos)return false;
         if(p.local && !p.host && p.slot==2 && p.connection==own_connection && p.principal==source_principal)local=&p;
         else if(!p.local && p.host && p.slot==1 && p.connection!=own_connection)host=&p;

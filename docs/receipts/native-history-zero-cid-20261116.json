@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "History routing-CID validation and bounded original Gold-host/Ubisoft-History-guest preparation",
+  "change": {
+    "zero_routing_cid_valid": true,
+    "unavailable_routing_cid": "UINT32_MAX",
+    "routing_cid_distinct_from_principal_slot_and_storm_guid": true,
+    "owner_and_distinct_participant_checks_retained": true,
+    "readiness_or_world_authority_added": false
+  },
+  "synthetic_verification": {
+    "history_claim_checks": 119,
+    "both_history_layouts": true,
+    "zero_local_and_remote_cid": true,
+    "duplicate_wrong_owner_wrong_principal_and_unavailable_rejected": true,
+    "production_handoff_fixture_build_passed": true,
+    "native_game_methods_executed_by_fixtures": false
+  },
+  "actual_pair": {
+    "original_executables": true,
+    "renderer": "DXVK",
+    "private_instrumented_normal_adapters": true,
+    "laboratory_executable_build_flag": false,
+    "account_login_build_flag": false,
+    "gold_host": true,
+    "ubisoft_history_guest": true,
+    "both_authenticated": true,
+    "original_history_map_load_valid": true,
+    "original_history_session_create_returned_true": true,
+    "original_history_game_mode_before_after": [1, 2],
+    "native_roster_bound": true,
+    "history_own_preparation_claim_returned_true": true,
+    "captured_castle_confirmed_event_queued": true,
+    "backend_host_projection_returned_true": true,
+    "host_configuration_frame_sent": true,
+    "original_configuration_consumption_qualified": false,
+    "ready_or_world_start_requested": false,
+    "normal_exit_codes": [0, 0],
+    "guarded_files_and_profiles_restored": true,
+    "history_auxiliary_runtime_and_platform_saves_restored": true,
+    "owned_services_closed": true
+  },
+  "qualification": {
+    "steam_history_actual_pair": false,
+    "common_world": false,
+    "neo": false,
+    "save_reload": false,
+    "ordinary_mixed_entry_enabled": false,
+    "final_installed_package": false
+  }
+}

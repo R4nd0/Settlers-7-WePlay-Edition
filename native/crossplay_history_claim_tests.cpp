@@ -37,7 +37,6 @@ int main(){
         changed=snapshot;changed.members.push_back(changed.members[0]);Check(!ParticipantForClaim(changed,102,502,participant));
         for(unsigned member:{0u,1u}){
             changed=snapshot;changed.members[member].status=1;Check(!ParticipantForClaim(changed,102,502,participant));
-            changed=snapshot;changed.members[member].player.connection=0;Check(!ParticipantForClaim(changed,102,502,participant));
             changed=snapshot;changed.members[member].player.connection=UINT32_MAX;Check(!ParticipantForClaim(changed,102,502,participant));
             changed=snapshot;changed.members[member].player.principal=UINT32_MAX;Check(!ParticipantForClaim(changed,102,member?UINT32_MAX:502,participant));
             changed=snapshot;changed.members[member].player.name.clear();Check(!ParticipantForClaim(changed,102,502,participant));
@@ -48,6 +47,17 @@ int main(){
             changed=snapshot;changed.members[member].player.local=!changed.members[member].player.local;Check(!ParticipantForClaim(changed,102,502,participant));
         }
         changed=snapshot;changed.members[0].player.connection=102;Check(!ParticipantForClaim(changed,102,502,participant));
+        // Original History sessions can own CID zero. Preserve that exact
+        // routing identity instead of borrowing Gold's nonzero-principal rule.
+        changed=snapshot;changed.members[1].player.connection=0;
+        Check(ParticipantForClaim(changed,0,502,participant)&&participant.connection==0&&participant.slot==2);
+        Check(!ParticipantForClaim(changed,102,502,participant));
+        Check(!ParticipantForClaim(changed,UINT32_MAX,502,participant));
+        Check(!ParticipantForClaim(changed,0,501,participant));
+        changed.members[0].player.connection=0;Check(!ParticipantForClaim(changed,0,502,participant));
+        changed=snapshot;changed.members[0].player.connection=0;
+        Check(ParticipantForClaim(changed,102,502,participant)&&participant.connection==102);
+        changed.members[1].player.connection=0;Check(!ParticipantForClaim(changed,0,502,participant));
         changed=snapshot;changed.members[0].player.principal=502;Check(!ParticipantForClaim(changed,102,502,participant));
         changed=snapshot;changed.members[1].player.principal=0;Check(ParticipantForClaim(changed,102,0,participant)&&participant.slot==2);
         changed.members[0].player.principal=2;Check(!ParticipantForClaim(changed,102,0,participant));

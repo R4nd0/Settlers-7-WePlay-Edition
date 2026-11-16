@@ -238,8 +238,19 @@ original local Confirmed event carrying the captured castle. Backend host-role
 projection follows that claim. Its read-only postcondition additionally checks
 the unchanged session/preparation interval, original row identities/names and
 the actual consumed castle. Queueing is not consumption, Ready or world-start
-permission. The production entry remains closed; this component has not yet
-been exercised in a normal mixed-game run.
+permission. History routing CID zero is valid for either participant. Only
+`UINT32_MAX` is unavailable; owner matching, distinct participants, original
+slot/status/name/principal checks still apply. The earlier nonzero check had
+incorrectly carried a Gold identity restriction into History routing.
+
+A bounded diagnostic pair using the original Gold and Ubisoft History
+executables under DXVK now reaches native roster binding, returns successfully
+from the original History preparation claim and queues its captured castle,
+then completes backend host-role projection. The ordinary production entry
+remains closed; this run explicitly attaches the component in private,
+instrumented normal adapters. It does not qualify original configuration
+consumption, a common world, Steam History, NEO, reload or a final installed
+package. See the [claim correction receipt](receipts/native-history-zero-cid-20261116.json).
 
 The production source now sends the host's original `SessionConfig` snapshot
 after roster binding and projects only its three routing fields for History.
