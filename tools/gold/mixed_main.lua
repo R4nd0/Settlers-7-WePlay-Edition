@@ -1,6 +1,6 @@
 -- Bind one routing kernel to this original main-menu lifetime. No game controls
 -- or preparation rows are written here. Native jobs execute without pcall.
-local G, State, expectedMode, route, prepare = ...
+local G, State, expectedMode, route, prepare, present = ...
 if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return {tick=function()end} end
 local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
 if mode~=expectedMode then return {tick=function()end} end
@@ -14,8 +14,8 @@ local actions={
  can_prepare_guest=function()return Pages.Browser.weplayCanPrepareMixedGuest()==true end,
  open_host_creation=function()return Pages.Browser.weplayOpenMixedCreation()end,
  prepare_guest_map=prepare,
- -- Deliberately closed until the production adapter supplies an applied-setup
- -- presentation contract. Bootstrap choices cannot authorize a guest page.
- open_guest_lobby=function()end,
+ -- This callback reads the native APPLIED settings itself; bootstrap choices
+ -- cannot authorize a guest page. It returns true only after original entry.
+ open_guest_lobby=present,
 }
 return route(G,State,Pages,actions)

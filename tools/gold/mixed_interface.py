@@ -1,7 +1,7 @@
 """Pinned production UI routing candidate; does not enable mixed capability.
 
-Only menu routing is composed here. Guest presentation remains closed pending
-the native applied-setup contract; no laboratory drivers or NEO API are embedded.
+Only menu routing and applied-setup guest presentation are composed here;
+no laboratory drivers, Ready/Start actions or NEO API are embedded.
 The ordinary installer does not call this candidate builder yet.
 """
 import hashlib
@@ -40,6 +40,8 @@ def main_fragment(edition):
     mode='host' if edition=='gold' else 'guest'
     prepare=('function()return false end' if edition=='gold' else
              '(function(...)\n'+fragment('mixed_guest_prepare.lua')+'\nend)(e)')
+    present=('function()return false end' if edition=='gold' else
+             '(function(...)\n'+fragment('mixed_guest_lobby.lua')+'\nend)(e,l)')
     return '''
 if l and not l.weplayMixedMenuBuilding then
  if not l.weplayMixedMenu then
@@ -48,7 +50,7 @@ if l and not l.weplayMixedMenuBuilding then
 '''+fragment('mixed_main.lua')+'''
 end)(e,l,"'''+mode+'''",function(...)
 '''+fragment('mixed_menu.lua')+'''
-end,'''+prepare+''')
+end,'''+prepare+''','''+present+''')
   l.weplayMixedMenuBuilding=false
  end
  l.weplayMixedMenu.tick()

@@ -1,5 +1,5 @@
--- Unembedded presentation candidate. Call only after the native applied-setup
--- contract is qualified. This never selects Ready, starts a world or uses the
+-- Guest presentation from the native applied-setup contract.
+-- This never selects Ready, starts a world or uses the
 -- bootstrap choices as the guest's applied settings.
 local G, State = ...
 local busy,opened=false,false

@@ -1,4 +1,4 @@
-"""Unembedded guest presentation with authored native queries and original callbacks."""
+"""Guest presentation with authored native queries and original callbacks."""
 from pathlib import Path
 import unittest
 

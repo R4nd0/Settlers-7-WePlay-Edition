@@ -252,14 +252,14 @@ The Windows interface pinning API was also exercised against four actual local
 interfaces with unbound, unconnected sockets. All requested socket options were
 consumed. This opens no connection and does not qualify actual tunnel carriage.
 
-## Menu routing primitives — not embedded
+## Menu routing candidate — not in the release
 
 The authored `mixed_menu.lua` kernel follows the qualified bootstrap-v2 query
 format, waits for the original profile/main-menu flow and preserves the host's
 actual map, three flags and template. The separate History preparation helper
 uses the exact original eight-argument call after its yieldable map load. It
 validates the loaded setup and never supplies a save token or native Ready value.
-Seventeen routing Lua 5.1 tests pass, including engine-job suspension and reentry. These
+Twenty-two routing Lua 5.1 tests pass, including engine-job suspension and reentry. These
 helpers are not embedded or admitted by any release archive.
 Relative engine map names accept either original resource separator, matching
 the native validator. Their exact spelling is passed to the original loader;
@@ -278,8 +278,9 @@ wrappers from the current normal Gold and History archives. Gold exports its
 original browser creation callback, retaining the actual selected LAN filter
 and waiting for the original consumed discovery result. Per-menu lifetime
 routing ignores ordinary launches and the wrong edition role. History uses
-the exact original map-load/session-create helper; guest presentation is still
-an inert action until applied settings have their own native contract.
+the exact original map-load/session-create helper and the separate applied-setup
+presentation helper described below. These remain candidate compositions, not
+admitted release payloads.
 
 The candidate was built twice in memory with identical results. All 284 Lua
 members in each archive compile under Lua 5.1. Gold changes only mainState and
@@ -322,16 +323,21 @@ resume contract remains required before connecting this UI to the release.
 
 ## History bootstrap lifetime
 
-`mixed_guest_lobby.lua` is a separate, unembedded presentation candidate for the
-proposed native `applied-flags` / `applied-template` queries. It requires explicit
+`mixed_guest_lobby.lua` is now connected to the guarded mixed UI composer using
+the native `applied-flags` / `applied-template` queries. It requires explicit
 guest mode, `setup-bound`, the original guest role in slot 2 and stable canonical
 applied values across direct, yieldable reads. It calls only the original
 `toJoinLobby` callback with the applied positions/teams booleans, once; no
 bootstrap fallback, Ready or Start call exists. Five authored Lua 5.1 tests cover
 all eight flag combinations, missing/changed data, loss of authority and yielding
-callback/query reentry. Neither the main wrapper nor the builder includes this
-component. Its proposed native queries and both editions' nonzero-flag runtime
-controls must qualify before integration; these tests establish no game result.
+callback/query reentry. The kernel passes no bootstrap choices to this action,
+waits while applied data is unavailable, and finishes only after its boolean
+success. Two additional kernel tests cover delayed success and yielding page
+entry. `setup-bound` authorizes only original guest-lobby presentation, while
+the native runtime remains roster-bound; it grants no world, content, Ready or
+Start authority. The ordinary installer still does not use this candidate
+builder. These tests establish no game result; the native chat owns the next
+fresh actual lobby tests and the exact qualified native source.
 
 The public mixed UI candidate now opens the original History browser once through
 its action-manager callback and waits for its actual frame, completed discovery
@@ -344,9 +350,9 @@ not qualify local-session creation. The History
 composition exports a read-only browser guard using its own verified `a/l/r`
 aliases; no timer, repeated creation, synthetic completion or automatic guest
 Ready is added. The entire routing tick remains latched across yielding callbacks
-and queries. Guest setup presentation remains closed pending its native contract.
+and queries. Guest setup presentation requires the native applied-setup predicate.
 
-Twenty Lua 5.1 routing tests pass, including original browser/discovery waits,
+Twenty-two Lua 5.1 routing tests pass, including original browser/discovery waits,
 yielding and reentry, failed creation, and exact preparation arity. Both pinned
 normal archives compile all 284 Lua members after deterministic in-memory
 composition, changing only mainState and sessionList. Nothing was deployed. The

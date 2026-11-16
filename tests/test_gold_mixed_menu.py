@@ -40,7 +40,7 @@ function fixture(mode)
   can_prepare_guest=function()return state.discovery==true end,
   open_host_creation=function()state.opened=state.opened+1 end,
   prepare_guest_map=function(map,choices)state.prepared=state.prepared+1;state.actualMap=map;state.choices=choices;return true end,
-  open_guest_lobby=function(choices)state.guest=state.guest+1;state.lobbyChoices=choices end}
+  open_guest_lobby=function(...)assert(select('#',...)==0);state.guest=state.guest+1;return true end}
  local driver=assert(loadstring(source))(game,ui,pages,actions)
  return state,ui,pages,actions,driver,game
 end
@@ -195,7 +195,7 @@ for bits=0,7 do
  assert(s.choices.coop==(math.floor(bits/4)%2==1))
  if bits==0 then assert(s.choices.template==nil)else assert(s.choices.template==s.template)end
  s.phase="roster-bound";s.inSession=true;s.slot=2;d.tick();assert(s.guest==0)
- s.phase="setup-bound";d.tick();assert(s.guest==1 and s.lobbyChoices==s.choices)
+ s.phase="setup-bound";d.tick();assert(s.guest==1)
 end
 ''')
 
@@ -213,6 +213,34 @@ for _,template in ipairs({19, true, string.rep("a",256), "line\\nfeed", "nul\\0b
  local s,u,p,a,d=fixture("guest");s.map="maps/actual.map";s.template=template
  d.tick();assert(s.prepared==0 and d.state()=="failed")
 end
+''')
+
+    def test_guest_kernel_waits_for_boolean_presentation_success_then_latches_once(self):
+        self.lua.execute('''
+local s,u,p,a,d=fixture('guest');s.map='maps/authenticated.map';d.tick()
+s.phase='setup-bound';s.inSession=true;s.slot=2
+local result,calls=false,0
+a.open_guest_lobby=function(...)assert(select('#',...)==0);calls=calls+1;return result end
+for _,value in ipairs({false,1,'true'})do
+ result=value;d.tick();assert(d.state()=='waiting-applied-setup')
+end
+result=true;d.tick();assert(d.state()=='guest-lobby-requested' and calls==4)
+for i=1,10 do d.tick()end;assert(calls==4)
+''')
+
+    def test_guest_presentation_yield_reentry_does_not_finish_or_repeat_early(self):
+        self.lua.execute('''
+local s,u,p,a,d=fixture('guest');s.map='maps/authenticated.map';d.tick()
+s.phase='setup-bound';s.inSession=true;s.slot=2
+local calls=0
+a.open_guest_lobby=function()
+ calls=calls+1;d.tick();coroutine.yield('original-guest-page');d.tick();return true
+end
+local job=coroutine.create(d.tick)
+local okay,value=coroutine.resume(job);assert(okay and value=='original-guest-page')
+d.tick();assert(calls==1 and d.state()=='waiting-applied-setup')
+assert(coroutine.resume(job));assert(d.state()=='guest-lobby-requested')
+d.tick();assert(calls==1)
 ''')
 
     def test_failed_closed_unknown_state_or_invalid_map_never_opens_lobby(self):
@@ -355,7 +383,7 @@ for _,value in ipairs({'solo','guest',false})do
 end
 ''')
 
-    def test_composed_history_fragment_can_prepare_but_cannot_present_unapplied_setup(self):
+    def test_composed_history_fragment_presents_only_applied_setup_after_boolean_success(self):
         self.lua.globals().source=mixed_interface.main_fragment('history')
         self.lua.execute('''
 local main,browser,creation={},{},{}
@@ -363,11 +391,12 @@ for _,p in ipairs({main,browser,creation})do p.isCreated=function()return true e
 local pages={['sectionMenus.mainMenu']=main,['play.multiplayer.sessionList']=browser,
  ['play.multiplayer.sessionCreation']=creation}
 local phase,session,loads,creates,callbacks='pending',false,0,0,0
+local applied,opened=false,0
 local discovery=false
 browser.weplayCanPrepareMixedGuest=function()return discovery end
 local e={UI={WriteToConsole=function(command)
  local values={mode='guest',phase=phase,['bootstrap-map']='maps/original.map',
- ['bootstrap-flags']='5',['bootstrap-template']=''}
+ ['bootstrap-flags']='5',['bootstrap-template']='',['applied-flags']=applied,['applied-template']=''}
  return values[command:sub(#'weplay-crossplay-v1:'+1)] end},
  require=function(path)return assert(pages[path:sub(#'local.menu.panel.menu.'+1)])end,
  map={loadSetupMapConfig=function(map,template)assert(map=='maps/original.map' and template==nil);loads=loads+1 end},
@@ -379,13 +408,19 @@ local e={UI={WriteToConsole=function(command)
  assert(positions==true and teams==false and template==nil and coop==true)
  creates=creates+1;session=true;return true end}}
 local l={currentPageModule=main,actionManager={createCallbacks=function()
- callbacks=callbacks+1;return {toSessionList=function()end}
+ callbacks=callbacks+1;return {toSessionList=function()end,toJoinLobby=function(settings)
+  assert(settings.fixedPositions and settings.fixedTeams);opened=opened+1
+ end}
 end}}
 local tick=assert(loadstring('return function(e,l) '..source..' end'))()
 tick(e,l);tick(e,l);assert(callbacks==1 and loads==0 and creates==0)
 l.currentPageModule=browser;tick(e,l);assert(loads==0 and creates==0)
-discovery=true;tick(e,l);phase='roster-bound';tick(e,l);phase='setup-bound';tick(e,l);tick(e,l)
-assert(loads==1 and creates==1 and callbacks==1)
+discovery=true;tick(e,l);phase='roster-bound';tick(e,l);assert(opened==0)
+phase='setup-bound';tick(e,l);tick(e,l)
+assert(opened==0 and l.weplayMixedMenu.state()=='waiting-applied-setup')
+applied='7';tick(e,l);tick(e,l)
+assert(loads==1 and creates==1 and callbacks==2 and opened==1)
+assert(l.weplayMixedMenu.state()=='guest-lobby-requested')
 ''')
 
     def test_main_construction_is_latched_before_direct_yieldable_mode_queries(self):

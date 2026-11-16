@@ -88,8 +88,10 @@ local function step()
  end
  if native=="setup-bound" and G.Network.SessionIsInSession()
   and not G.Network.IsHost() and G.Network.GetLocalPlayerSlot()==2 then
-  finished=true;phase="guest-lobby-requested"
-  actions.open_guest_lobby(hostChoices)
+  phase="waiting-applied-setup"
+  if actions.open_guest_lobby()==true then
+   finished=true;phase="guest-lobby-requested"
+  end
  end
 end
 local function tick()
