@@ -5,6 +5,7 @@ fields never establish authority. Explicit peer-laboratory discovery publishes
 eligible local host records; content and simulation admission remain excluded.
 """
 from dataclasses import dataclass, replace
+from collections import Counter
 
 from gathering_codec import SessionGathering, decode
 
@@ -27,6 +28,7 @@ class LocalGatherings:
         self.discovery = discovery
         self.records: dict[int, Registration] = {}
         self.next_identifier = 1
+        self.rejections = Counter()
 
     def catalogue(self, offset, count, version, now):
         if (not self.discovery or type(offset) is not int or not 0 <= offset <= 4096
@@ -89,13 +91,22 @@ class LocalGatherings:
         return self.session_urls(records[0].identifier, now)
 
     def create(self, owner, principal, data, reader_type):
-        value = decode(data, reader_type)
+        try:value = decode(data, reader_type)
+        except ValueError:
+            self.rejections['schema'] += 1
+            raise
         previous = [record for record in self.records.values() if record.owner is owner]
-        if (owner is None or type(principal) is not int or not 0 < principal <= 0x7fffffff
-                or not isinstance(value, SessionGathering) or value.matchmaking_word is not None
-                or value.base.words[0] != 0 or len(self.records) - len(previous) >= 8
-                or any(not record.released or record.principal != principal for record in previous)
-                or self.next_identifier > 0xffffffff):
+        # Fixed reason counters distinguish native registration failures without
+        # retaining arguments, IDs, strings, exceptions or packet payloads.
+        reason = ('principal' if owner is None or type(principal) is not int or not 0 < principal <= 0x7fffffff
+            else 'class' if not isinstance(value, SessionGathering)
+            else 'matchmaking' if value.matchmaking_word is not None
+            else 'initial_identifier' if value.base.words[0] != 0
+            else 'capacity' if len(self.records) - len(previous) >= 8
+            else 'previous_owner' if any(not record.released or record.principal != principal for record in previous)
+            else 'identifier_exhausted' if self.next_identifier > 0xffffffff else None)
+        if reason is not None:
+            self.rejections[reason] += 1
             raise ValueError("Registration not eligible")
         identifier = self.next_identifier
         # Native A89360 compares Gathering+0xc with the authenticated backend

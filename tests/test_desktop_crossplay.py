@@ -156,6 +156,8 @@ class DesktopCrossplayTests(unittest.TestCase):
         self.owner.close.assert_called_once();game.wait.assert_called_once_with(close=False)
         game.terminate.assert_not_called();game.kill.assert_not_called();game.close.assert_called_once()
         self.assertIn(('warning',{'code':'crossplay_service_failed'}),self.events)
+        kinds=[kind for kind,_ in self.events if kind in ('game_started','warning','game_finished')]
+        self.assertEqual(kinds,['game_started','warning','game_finished'])
 
 
 if __name__=='__main__':unittest.main()

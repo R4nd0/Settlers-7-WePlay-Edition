@@ -214,3 +214,10 @@ including synthetic capability changes, role restrictions, mandatory History
 edition selection and private share round-trips. The rendered mixed screens
 use synthetic capability data, not an admitted production adapter or live game.
 Production native/catalog approval sets remain empty and no release was made.
+
+Registration diagnostics now expose fixed reason counters through the owned Gold
+service summary. Schema, principal, matchmaking variant, initial identifier,
+capacity and prior-owner failures can be distinguished without retaining request
+data or loosening admission. All 27 registration, gathering and single-service
+tests pass; a small valid principal is explicitly covered. A native lobby
+registration rejection remains a failed runtime test until its cause is resolved.

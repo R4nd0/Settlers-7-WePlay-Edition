@@ -142,6 +142,21 @@ class RegistrationTests(unittest.TestCase):
         self.send(server, 7, 21, 1, self.data)
         self.assertFalse(self.adapter.gatherings.records)
 
+    def test_rejection_diagnostics_are_fixed_counters_and_accept_small_valid_principal(self):
+        registry=LocalGatherings();owner=object()
+        identifier=registry.create(owner,123,self.data,gold.Reader)
+        self.assertEqual(registry.records[identifier].principal,123)
+        self.assertFalse(registry.rejections)
+        registry=LocalGatherings()
+        variants=((self.data[:-1],'schema'),
+            (codec.encode(replace(self.value,matchmaking_word=1)),'matchmaking'),
+            (codec.encode(replace(self.value,base=replace(self.value.base,words=(7,)+(0,)*6))),'initial_identifier'))
+        for data,reason in variants:
+            with self.assertRaises(ValueError):registry.create(owner,123,data,gold.Reader)
+            self.assertEqual(registry.rejections[reason],1)
+            self.assertFalse(registry.records)
+        self.assertEqual(dict(registry.rejections),{'schema':1,'matchmaking':1,'initial_identifier':1})
+
     def test_registry_capacity_ids_and_owner_lifetime(self):
         registry = LocalGatherings()
         owners = [object() for _ in range(9)]

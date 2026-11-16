@@ -87,6 +87,7 @@ class GoldSessionService:
     def summary(self):
         return {'loopback_only': True, 'configured_gold_identities': 1,
                 'local_registrations': len(self.gatherings.records),
+                'registration_rejections': dict(self.gatherings.rejections),
                 'events': dict(self.adapter.events), 'input_rejections': dict(self.adapter.input_rejections),
                 'config_responses': self.config.responses, 'closed': self.closed,
                 'raw_payload_saved': False, 'game_session_admission': False}

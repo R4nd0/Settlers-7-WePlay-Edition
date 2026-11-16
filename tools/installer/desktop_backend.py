@@ -1008,12 +1008,13 @@ class Desktop:
         if owner.binding.edition==1:
             import gold_graphics
             graphics_options=gold_graphics.launch_options(root)
-        game=observer=window=None
+        game=observer=window=None;reported=False
         try:
             owner.check();self.progress('starting')
             game=platform_standalone.launch(root,environment=environment,arguments=choice.game_arguments(root),
                 graphics_options=graphics_options,crossplay=owner.binding,crossplay_catalog=catalog,
                 on_initialized=owner.attach)
+            self.emit('game_started',pid=game.pid,invitation_run=None);reported=True;self.operation_state('live_game')
             window=choice.start_window_mode(root,game)
             _,executable,_=platform_standalone.load(root)
             observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
@@ -1021,7 +1022,6 @@ class Desktop:
                 warn=lambda level:self.emit('warning',code='memory_warning',level=level))
             observer.start()
             if invitation_ready:invitation_ready(owner.invitation())
-            self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
             code=game.wait(close=False);owner.runtime.check()
         except BaseException:
             # If a post-start UI/pipe observer fails, close only the room. Keep
@@ -1029,15 +1029,18 @@ class Desktop:
             try:owner.close()
             finally:
                 if game is not None and game.poll() is None:
+                    if not reported:
+                        self.emit('game_started',pid=game.pid,invitation_run=None);reported=True
                     self.emit('warning',code='crossplay_service_failed')
                     self.operation_state('live_game');game.wait(close=False)
             raise
         finally:
             if window:window.close()
             if observer:observer.close()
-            if game:game.close()
+            if game:
+                finished=game.poll();game.close()
+                if reported and finished is not None:self.emit('game_finished',exit_code=finished)
             self.operation_state('cancellable')
-        self.emit('game_finished',exit_code=code)
         if code:raise RuntimeError('game_failed')
         return {'exit_code':code}
 

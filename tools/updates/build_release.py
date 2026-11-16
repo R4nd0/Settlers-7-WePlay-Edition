@@ -10,9 +10,11 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools/installer'))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import compatibility
 import update_client
 import release_policy
+import mixed_release_gate
 
 def build(setup,output,*,version,sequence,tag,notes='',key_path=None):
     setup,output=map(compatibility.plain,(setup,output))
@@ -23,6 +25,7 @@ def build(setup,output,*,version,sequence,tag,notes='',key_path=None):
     if (proof.get('format')!='weplay-main-package-release-v1' or not release_policy.valid(proof.get('platform_isolation'))
             or proof.get('setup_sha256')!=compatibility.digest(setup) or proof.get('setup_bytes')!=setup.stat().st_size):
         raise ValueError('Signing requires the completed isolated main package and its matching build receipt.')
+    mixed_release_gate.check(setup,proof,version=version,sequence=sequence,tag=tag)
     value={'format':'weplay-update-v1','repository':update_client.REPOSITORY,'channel':'preview','sequence':sequence,
            'version':version,'tag':tag,'notes':notes,'platform_isolation':release_policy.CONTRACT,'setup':{'name':'Setup.exe',
            'url':'https://github.com/'+update_client.REPOSITORY+'/releases/download/'+tag+'/Setup.exe',

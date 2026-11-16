@@ -45,7 +45,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=29,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=29,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -86,6 +86,12 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,quiet_reshade=quiet_reshade,adapter=gold_adapter)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
     package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
+    if crossplay_catalog is not None:
+        import crossplay_content
+        catalog=crossplay_content.read(crossplay_catalog)
+        target=app/'Package'/crossplay_content.PACKAGE_CATALOG
+        target.parent.mkdir(parents=True);target.write_bytes(catalog.canonical)
+        package_record['crossplay_mixed']=True
     package_record['files']=content.inventory(app/'Package',('Payload','Runtime','Tools'))
     (app/'Package/package.json').write_text(json.dumps(package_record,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(app/'Package')
@@ -116,7 +122,9 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     compile_setup(app,output,compiler)
     proof={'format':'weplay-main-package-release-v1','platform_isolation':release_policy.CONTRACT,
            'setup_sha256':content.digest(output/'Setup.exe'),'setup_bytes':(output/'Setup.exe').stat().st_size,
-           'source_commit':release['source_commit'],'package_id':release['package_id']}
+           'source_commit':release['source_commit'],'package_id':release['package_id'],
+           'source_tree_dirty':release['source_tree_dirty'],
+           'crossplay_mixed':package_record.get('crossplay_mixed',False)}
     (output/'Setup.release.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
     return app
 
@@ -177,7 +185,8 @@ if __name__=='__main__':
     parser.add_argument('--platform-runtime')
     parser.add_argument('--gold-package')
     parser.add_argument('--gold-adapter')
+    parser.add_argument('--crossplay-catalog')
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,memory_scanner=values.memory_scanner,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package,gold_adapter=values.gold_adapter)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package,gold_adapter=values.gold_adapter,crossplay_catalog=values.crossplay_catalog)

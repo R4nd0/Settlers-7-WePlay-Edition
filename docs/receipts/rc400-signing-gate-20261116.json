@@ -1,0 +1,21 @@
+{
+  "format": "weplay-rc400-signing-gate-v1",
+  "date": "2026-11-16",
+  "scope": "Require two reviewed final-installed mixed reload receipts before RC4.00 update signing",
+  "release_published": false,
+  "final_package_mixed_reload_proven": false,
+  "signing_gate_tests_passed": 7,
+  "updater_signing_regressions_passed": 21,
+  "release_document_tests_passed": 3,
+  "post_start_game_lifecycle_regressions_passed": 8,
+  "gold_registration_gathering_and_single_service_tests_passed": 27,
+  "actual_earlier_single_player_candidate_rejected": true,
+  "production_signing_key_accessed": false,
+  "production_signing_process_started": false,
+  "production_update_manifests_created": false,
+  "fixture_signatures_used_only_disposable_test_key": true,
+  "limitations": [
+    "The gate verifies reviewed evidence identity and completeness; it cannot replace real game runs or native diagnostic review.",
+    "Both required final installed mixed reload cases remain outstanding."
+  ]
+}
