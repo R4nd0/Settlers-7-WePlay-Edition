@@ -76,7 +76,7 @@ uintptr_t LocalLoginRendezVous(bool before_login = true) {
     return rendezvous;
 }
 
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
 #include "gold_account_login.inc"
 #else
 void LocalLoginPoll() {
@@ -134,7 +134,7 @@ bool LocalLoginPrepare(std::vector<Patch>& patches) {
     const DWORD slot_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOOPBACK_SLOT", slot, 3);
     if (slot_length && (slot_length != 1 || slot[0] < '2' || slot[0] > '9'
         || !ConfigureGoldLoopbackGuard(static_cast<unsigned int>(slot[0] - '0')))) return false;
-#if defined(S7_GOLD_ACCOUNT_LOGIN) && defined(S7_GOLD_LOCAL_SIMULATION)
+#if defined(S7_GOLD_NATIVE_SESSION_PROVIDER) && defined(S7_GOLD_LOCAL_SIMULATION)
     char multiplayer[3]{};
     const DWORD multiplayer_length = GetEnvironmentVariableA("WEPLAY_GOLD_LOCAL_MULTIPLAYER", multiplayer, 3);
     if (multiplayer_length) {
@@ -175,7 +175,7 @@ bool LocalLoginPrepare(std::vector<Patch>& patches) {
     for (DWORD i = 0; i < length; ++i)
         if (local_login_name[i] < 32 || local_login_name[i] > 126) return false;
     if (!SetEnvironmentVariableA("WEPLAY_GOLD_LOCAL_SECRET", nullptr)) return false;
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
     if (!AccountLoginPrepare(patches)) return false;
 #endif
     return Add(patches, 0x655cfb, {0xe8,0x80,0x5e,0x1d,0x00}, LocalLoginAccessKey);

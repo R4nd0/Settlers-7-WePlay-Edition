@@ -14,7 +14,7 @@ struct GoldNetworkQualification {
 };
 GoldNetworkQualification network_qualification{};
 bool NetworkLocalReadyAllowed() {
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
     if (!local_multiplayer_enabled || GetCurrentThreadId() != owner_thread.load()
         || !AccountLocalSceneAllowed()) return false;
     const uintptr_t main = *reinterpret_cast<uintptr_t*>(image + 0xcf83dc);

@@ -1,0 +1,48 @@
+{
+  "format": "weplay-native-production-startup-v1",
+  "maintainer": "WePlay Community",
+  "verified_date": "2026-11-16",
+  "ordinary_gold_build": {
+    "flags": ["LocalSimulation", "PlatformIndependent"],
+    "account_login_build_flag": false,
+    "lab_executable_build_flag": false,
+    "actual_test_adapter_sha256": "686caf1b017bcfa1ee3469f944d7a487eae235ebc18e7aa71c44e308ef60074f",
+    "protected_native_initialization_passed": true,
+    "actual_kernel_network_isolation_confirmed": true,
+    "actual_dxvk_version": "3.1.1",
+    "profile_manager_and_main_menu_visually_observed": true,
+    "normal_exit_code": 0,
+    "leased_adapter_and_nine_guarded_files_restored": true,
+    "portable_profile_files_restored": true,
+    "interface_archive_unchanged": true,
+    "public_fingerprint_overrides": false
+  },
+  "ordinary_history_build": {
+    "flags": ["GameDirectory", "NeoLogistics", "ResumeCatchup", "MaximumPhysicalCores=2", "PlatformIndependent"],
+    "build_passed": true,
+    "baseline_cpu_loopback_fixtures_executed": 25,
+    "baseline_fixture_scope": "Existing History-only behavior; not mixed gameplay",
+    "actual_game_started": false
+  },
+  "both_ordinary_dlls_reject_direct_loading": true,
+  "component_checks": {
+    "launch_context_and_readonly_ui_inputs": 167,
+    "gold_request_postload_policy_and_lifetime": 133,
+    "gold_request_predicate_abi": 16,
+    "session_observer_inputs_abi_and_lifetime": 21,
+    "session_observer_compiled_original_guards": 24,
+    "readonly_ui_compiled_abi": 61,
+    "readonly_ui_compiled_original_guards": 51,
+    "host_observed_map_bootstrap_protocol": 241,
+    "fixed_high_base_guard_images_emulated_only": true
+  },
+  "early_authenticated_channel_does_not_require_native_lobby": true,
+  "guest_map_comes_from_observed_host_configuration": true,
+  "no_fixed_map_or_save_used_to_prepare_guest": true,
+  "world_neo_and_save_runtime_connected": false,
+  "explicit_mixed_entry_still_fails_closed": true,
+  "actual_mixed_pair_started_from_these_adapters": false,
+  "final_installer_qualified": false,
+  "production_pins_promoted": false,
+  "release_published": false
+}

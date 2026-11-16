@@ -1,9 +1,14 @@
 #include "standalone_gate.h"
 #include "standalone_image.h"
 #include "standalone_profile.h"
+#include "crossplay_production_context.h"
+#include "crossplay_production_ui.h"
 #include <vector>
 
 bool InstallOfflineNetworkGuard();
+#ifdef S7_GOLD_STARTUP
+bool ConfigureGoldLoopbackGuard(unsigned int slot);
+#endif
 DWORD ProbeStandaloneKernelIsolation();
 #ifdef S7_GOLD_STARTUP
 extern "C" DWORD WINAPI GoldInitialize(void*);
@@ -40,28 +45,47 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     CloseHandle(file);
     if (!read) return 0;
     uint32_t entry = 0;
+    Crossplay::Edition channel_edition{};
+    const char* verified_hash=nullptr;
     StandaloneProfile::Edition edition = StandaloneProfile::Edition::History;
 #ifdef S7_GOLD_STARTUP
     if (context->edition != 3 || context->entry != 0x7aee5b
         || !StandaloneImage::Matches(bytes.data(),bytes.size(),GoldHash)) return 0;
     entry = context->entry; edition = StandaloneProfile::Edition::Gold;
+    channel_edition=Crossplay::Edition::Gold;verified_hash=GoldHash;
 #else
     if (context->edition == 1 && context->entry == 0x622fb7
-        && StandaloneImage::Matches(bytes.data(),bytes.size(),UbisoftHash)) entry = context->entry;
+        && StandaloneImage::Matches(bytes.data(),bytes.size(),UbisoftHash)){
+        entry = context->entry;channel_edition=Crossplay::Edition::UbisoftHistory;verified_hash=UbisoftHash;
+    }
     else if (context->edition == 2 && context->entry == 0x10e3310) {
         StandaloneImage::SteamText text;
         StandaloneImage::Error error{};
         if (!StandaloneImage::DecodeSteam(bytes,text,error) || !StandaloneImage::InstallSteam(context->image,text,error)) return 0;
         entry = text.entry;
+        channel_edition=Crossplay::Edition::SteamHistory;
+        verified_hash="8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410";
     } else return 0;
 #endif
     const DWORD kernel_probe=ProbeStandaloneKernelIsolation();
     if (!(kernel_probe&1)) return 0;
     *reinterpret_cast<DWORD*>(reinterpret_cast<uintptr_t>(context)-12)=kernel_probe;
-    if (!StandaloneProfile::Prepare(path,edition,module) || !InstallOfflineNetworkGuard()) return 0;
+    if (!StandaloneProfile::Prepare(path,edition,module)) return 0;
+    Crossplay::Digest executable{};
+    if(!verified_hash || !CrossplayProduction::Hex(std::wstring(verified_hash,verified_hash+64),executable)
+        || !CrossplayProduction::PrepareLaunch(channel_edition,executable,StandaloneProfile::ProfileDirectory()))return 0;
+#ifdef S7_GOLD_STARTUP
+    if(CrossplayProduction::CurrentLaunch()->mixed && !ConfigureGoldLoopbackGuard(2))return 0;
+#endif
+    if(!InstallOfflineNetworkGuard())return 0;
+    // Fail closed until the normal session runtime is attached. A valid mixed
+    // handoff must never silently launch the existing solo/History-only path.
+    if(CrossplayProduction::CurrentLaunch()->mixed)return 0;
 #ifdef S7_GOLD_STARTUP
     if (GoldInitialize(nullptr) != 1) return 0;
 #endif
+    CrossplayNative::ParticipantEvent ui_binding;
+    if(!ui_binding.Bind(channel_edition) || !CrossplayProduction::UiConsole::Install(channel_edition,GetCurrentThreadId()))return 0;
     return context->image+entry;
 }
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID) {

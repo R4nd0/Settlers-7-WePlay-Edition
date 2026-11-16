@@ -29,6 +29,27 @@ for a mixed session. They are not installation settings or account data.
 | `WEPLAY_CROSSPLAY_V1_CONTENT` | 32 nonzero bytes identifying the mutually checked content contract, 64 lowercase hexadecimal characters |
 | `WEPLAY_CROSSPLAY_V1_NAME` | Local display name, 1..64 printable ASCII bytes |
 | `WEPLAY_CROSSPLAY_V1_PROFILE` | Absolute, resolved portable profile directory; must match `StandaloneProfile::ProfileDirectory()` |
+| `WEPLAY_CROSSPLAY_V1_GOLD_AUTH_PORT` | Gold host only: decimal local UDP authentication service port, `1024..65535` |
+| `WEPLAY_CROSSPLAY_V1_GOLD_CONFIG_PORT` | Gold host only: decimal local HTTP configuration service port, `1024..65535` |
+
+Both Gold port fields are mandatory for Gold and absent for History. The
+launcher owns one independent local Gold service with an authentication UDP
+socket, a backend UDP socket and a configuration HTTP endpoint. All bind to
+`127.0.0.1` and accept only Gold's own `127.0.0.2` source. The backend endpoint
+is supplied by the original service ticket, not an extra environment variable.
+Its implementation reuses `GoldLoginAdapter` with `account_mode=True` and
+`session_mode=True`, a `LocalGatherings` owner and the existing `ConfigService`;
+there is exactly one Gold identity and no phantom second player. The independent
+service is not a Ubisoft login and reads no vendor credentials or account cache.
+
+The native/UI display name is `NAME`, and the service's explicit local principal
+is the same validated Gold `IDENTITY` little-endian scalar. Its launch password
+is lowercase hexadecimal
+`HMAC-SHA256(KEY_bytes, b'S7X-GOLD-LOCAL-AUTH-1' + SESSION_bytes)`.
+This separates the service password from the channel authenticator. Endpoints,
+secrets and tickets remain process/session-local and are not persisted in
+installation descriptors, catalogs or reports. Closing the owned game closes
+its service. Existing solo and History-only starts create no Gold service.
 
 The native channel slot is derived from role: host `1`, guest `2`. The native
 adapter obtains the executable identity from its existing full-image guard,
@@ -80,6 +101,39 @@ on `127.0.0.1`. Existing Hello, namespace projection and payload frames retain
 their implementation's full identity, executable, session and content checks.
 
 ## Native choices and save provenance
+
+The version-1 read-only UI query is
+`G.UI.WriteToConsole('weplay-crossplay-v1:mode')`: it returns `host`, `guest`, or
+`solo`. `...:phase` returns `pending`, `local-lobby`, `connecting`, `admitting`,
+`roster-bound`, `closed`, or `failed`. An older adapter can return nil; that
+must retain ordinary solo/History-only UI. Unknown owned commands return false.
+These queries never expose keys, identities, endpoints or profile paths.
+
+The launcher requests automatic entry into the original host/guest lobby for
+explicit mixed mode. The interface uses the original login/session-creation
+actions and their actual completion callbacks. It must not wait for the removed
+solo-only main-menu Multiplayer button, manufacture native completion, toggle
+Ready automatically, or treat `roster-bound` as a started world. UI query support
+alone does not enable mixed-play capability in the launcher. The production
+entry remains closed until the complete runtime is attached and qualified.
+
+The authenticated control channel starts before either original local lobby.
+Gold still captures its actual original local Confirmed event and selected map
+before sending the versioned bootstrap context. On History only,
+`G.UI.WriteToConsole('weplay-crossplay-v1:bootstrap-map')` returns that observed
+map after authenticated receipt, and false while it is unavailable. The guest
+waits for this value, then invokes its original local session preparation once
+with that map and an empty local save token. It does not invent a Gold session
+in Storm's browser or open the host's file locally. Its original LocalConfirmed
+then permits native admission and role projection; only then is its normal guest
+lobby presented. Roster/setup/AI/save/start agreement follows separately.
+
+Bootstrap payload magic is eight bytes `S7XBOOT\x01`, followed by sender and
+recipient channel IDs (16 bytes each), a little-endian `uint32` saved-kind (`0/1`),
+a little-endian map-byte count, then the bounded printable ASCII relative map.
+It is carried inside the existing authenticated channel. It contains no save
+token, AI choice, native Ready or world-start permission. Its map came from the
+owned host's original configuration, not from the launcher or a test constant.
 
 The native host UI owns map, AI, castle, start and NEO selection. The launcher
 does not write a preparation buffer, synthesize Ready, toggle a native start

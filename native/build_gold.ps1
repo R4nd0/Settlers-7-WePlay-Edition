@@ -21,14 +21,19 @@ if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
 if ($LocalLogin -or $AccountLogin) { $common += '/DS7_GOLD_LOCAL_LOGIN' }
 if ($AccountLogin) { $common += '/DS7_GOLD_ACCOUNT_LOGIN' }
 $standaloneSources = @()
+$productionSources = @()
 if ($PlatformIndependent) {
     if ($IsolatedLabExecutable -or $AccountLogin -or $LocalLogin) { throw 'Standalone Gold uses the verified local simulation and original prepared executable only.' }
     if (!$LocalSimulation) { throw 'Standalone Gold requires LocalSimulation.' }
     $common += '/DS7_PLATFORM_INDEPENDENT'
+    foreach ($name in @('crossplay_production_launch.cpp','crossplay_production_context.cpp','crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp')) {
+        $productionSources += (Join-Path $nativeSource $name)
+    }
     foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp')) {
         $standaloneSources += (Join-Path $nativeSource $name)
     }
     $standaloneSources += '/DS7_KERNEL_PROBE_LIBRARY'
+    $standaloneSources += $productionSources
 }
 if ($IsolatedLabExecutable) {
     $labPath = (Resolve-Path -LiteralPath $IsolatedLabExecutable).Path
@@ -43,7 +48,7 @@ Push-Location $nativeOutput
 try {
     & cl.exe @common (Join-Path $nativeSource 'ai_catalog_unlock_tests.cpp') /Fe:ai_catalog_unlock_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /INCREMENTAL:NO
     if ($LASTEXITCODE -ne 0) { throw 'AI catalog offline guard fixture build failed.' }
-    & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
+    & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') @productionSources /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"
     if ($LASTEXITCODE -ne 0) { throw 'Gold native fixture build failed.' }
     & (Join-Path $nativeOutput 'gold_startup_tests.exe')
     if ($LASTEXITCODE -ne 0) { throw "Gold native startup fixtures failed ($LASTEXITCODE)." }

@@ -185,17 +185,20 @@ void LocalLoginPoll() {
 
 #include "gold_participant.inc"
 
-bool AccountLoginPrepare(std::vector<Patch>& patches) {
+bool AccountLoginPrepare(std::vector<Patch>& patches,unsigned int owned_config_port=0) {
     // One independent launch identity per process, shared by the original
     // facade labels, authenticated SDK login and native player creation.
     // This does not enable re-login, persistent progression or peer admission.
     if (!ConfigureLocalIdentity(local_login_name)) return false;
     char port[8]{};
-    const DWORD length = GetEnvironmentVariableA("WEPLAY_GOLD_CONFIG_PORT", port, 8);
-    if (!length || length >= 8) return false;
-    for (DWORD i = 0; i < length; ++i) {
-        if (port[i] < '0' || port[i] > '9') return false;
-        account_config_port = account_config_port * 10 + static_cast<unsigned int>(port[i] - '0');
+    if(owned_config_port)account_config_port=owned_config_port;
+    else{
+        const DWORD length = GetEnvironmentVariableA("WEPLAY_GOLD_CONFIG_PORT", port, 8);
+        if (!length || length >= 8) return false;
+        for (DWORD i = 0; i < length; ++i) {
+            if (port[i] < '0' || port[i] > '9') return false;
+            account_config_port = account_config_port * 10 + static_cast<unsigned int>(port[i] - '0');
+        }
     }
     if (account_config_port < 1024 || account_config_port > 65535) return false;
     const struct { uintptr_t rva; std::vector<unsigned char> bytes; } guards[] = {

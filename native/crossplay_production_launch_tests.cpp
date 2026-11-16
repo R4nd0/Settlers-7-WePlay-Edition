@@ -1,6 +1,10 @@
 #define WIN32_LEAN_AND_MEAN
+#define S7_PRODUCTION_UI_TESTING
 #include <windows.h>
 #include "crossplay_production_launch.h"
+#include "crossplay_production_context.h"
+#include "crossplay_production_runtime.h"
+#include "crossplay_production_ui.h"
 #include <cstdio>
 #include <cstdlib>
 namespace {
@@ -10,7 +14,19 @@ using Crossplay::Edition;
 using namespace CrossplayProduction;
 const std::wstring Profile=L"Z:\\Game\\LocalData\\ProfileRoot\\Profiles";
 LaunchInput Input(){return {L"1",L"host",L"2",L"32100",std::wstring(32,L'1'),std::wstring(64,L'2'),
-    std::wstring(L"7b")+std::wstring(30,L'0'),std::wstring(64,L'4'),L"WePlay Host",Profile};}
+    std::wstring(L"7b")+std::wstring(30,L'0'),std::wstring(64,L'4'),L"WePlay Host",Profile,L"32101",L"32102"};}
+DWORD WINAPI ForeignContext(void*){return CurrentLaunch()?1:0;}
+uint32_t lua[8]{},argument[2]{};alignas(16) unsigned char lua_string[128]{};
+std::string ui_result;int ui_boolean=-1;unsigned ui_pushes=0;
+void PushString(void* state,const char* text,size_t size){Check(state==lua);ui_result.assign(text,size);++ui_pushes;SetLastError(0x99887766);}
+void PushBoolean(void* state,int value){Check(state==lua);ui_boolean=value;++ui_pushes;SetLastError(0x99887766);}
+void UiInput(const std::string& command){
+    memset(lua,0,sizeof(lua));memset(lua_string,0,sizeof(lua_string));ui_result.clear();ui_boolean=-1;ui_pushes=0;
+    Check(command.size()<sizeof(lua_string)-16);
+    lua[4]=reinterpret_cast<uintptr_t>(argument);lua[5]=lua[4]+8;
+    argument[0]=reinterpret_cast<uintptr_t>(lua_string);argument[1]=0xfffffffb;
+    const auto size=static_cast<uint32_t>(command.size());memcpy(lua_string+12,&size,4);memcpy(lua_string+16,command.data(),command.size());
+}
 }
 int main(){
     Crossplay::Digest executable{};executable[0]=7;Launch output;
@@ -21,6 +37,7 @@ int main(){
     input.peer=L"3";Check(accept(input) && output.channel.expected_peer==Edition::SteamHistory);
     for(auto local:{Edition::UbisoftHistory,Edition::SteamHistory}){
         input=Input();input.role=L"guest";input.peer=L"1";
+        input.gold_auth_port.clear();input.gold_config_port.clear();
         Check(accept(input,local) && !output.host && output.channel.slot==2);
         input.peer=L"2";Check(!accept(input,local) && !output.mixed);
         input.role=L"host";input.peer=L"1";Check(!accept(input,local));
@@ -40,7 +57,7 @@ int main(){
         input=Input();(input.*member).pop_back();Check(!accept(input));
         input=Input();(input.*member).push_back(L'1');Check(!accept(input));
         input=Input();input.*member=std::wstring(size,L'f');
-        if(member==&LaunchInput::identity){input.role=L"guest";input.peer=L"1";Check(accept(input,Edition::SteamHistory));}
+        if(member==&LaunchInput::identity){input.role=L"guest";input.peer=L"1";input.gold_auth_port.clear();input.gold_config_port.clear();Check(accept(input,Edition::SteamHistory));}
         else Check(accept(input));
     }
     for(const auto& invalid:{L"",L"relative",L"Z:relative",L"Z:\\Game\\..\\Profiles",L"Z:\\Game\\.\\Profiles",
@@ -70,12 +87,45 @@ int main(){
         {L"WEPLAY_CROSSPLAY_V1_PEER",&environment.peer},{L"WEPLAY_CROSSPLAY_V1_PORT",&environment.port},
         {L"WEPLAY_CROSSPLAY_V1_SESSION",&environment.session},{L"WEPLAY_CROSSPLAY_V1_KEY",&environment.key},
         {L"WEPLAY_CROSSPLAY_V1_IDENTITY",&environment.identity},{L"WEPLAY_CROSSPLAY_V1_CONTENT",&environment.content},
-        {L"WEPLAY_CROSSPLAY_V1_NAME",&environment.name},{L"WEPLAY_CROSSPLAY_V1_PROFILE",&environment.profile}};
+        {L"WEPLAY_CROSSPLAY_V1_NAME",&environment.name},{L"WEPLAY_CROSSPLAY_V1_PROFILE",&environment.profile},
+        {L"WEPLAY_CROSSPLAY_V1_GOLD_AUTH_PORT",&environment.gold_auth_port},{L"WEPLAY_CROSSPLAY_V1_GOLD_CONFIG_PORT",&environment.gold_config_port}};
     for(const auto& field:fields)Check(SetEnvironmentVariableW(field.first,field.second->c_str())!=FALSE);
     Check(ReadLaunch(Edition::Gold,executable,Profile,output)&&output.mixed&&output.host);
+    Check(PrepareLaunch(Edition::Gold,executable,Profile));
+    Check(CurrentLaunch()&&CurrentLaunch()->mixed&&CurrentLaunch()->gold_auth_port==32101);
+    Check(!PrepareRuntime()&&RuntimePhase()==Phase::Dormant);PumpRuntime();Check(!CloseRuntime());
+    Check(!PrepareLaunch(Edition::Gold,executable,Profile));
+    HANDLE foreign=CreateThread(nullptr,0,ForeignContext,nullptr,0,nullptr);Check(foreign!=nullptr);
+    Check(WaitForSingleObject(foreign,5000)==WAIT_OBJECT_0);DWORD foreign_result=1;
+    Check(GetExitCodeThread(foreign,&foreign_result)&&foreign_result==0);Check(CloseHandle(foreign)!=FALSE);
     Check(!ReadLaunch(Edition::Gold,executable,L"Z:\\ForeignProfile",output)&&!output.mixed);
     Check(SetEnvironmentVariableW(L"WEPLAY_CROSSPLAY_V1_KEY",nullptr)!=FALSE);
     Check(!ReadLaunch(Edition::Gold,executable,Profile,output)&&!output.mixed);
     for(const auto& field:fields)Check(SetEnvironmentVariableW(field.first,nullptr)!=FALSE);
+    Check(CurrentLaunch()&&CurrentLaunch()->mixed&&CurrentLaunch()->channel.port==32100);
+    input=Input();input.gold_auth_port.clear();Check(!accept(input));
+    input=Input();input.gold_config_port=L"65536";Check(!accept(input));
+    input=Input();input.role=L"guest";input.peer=L"1";Check(!accept(input,Edition::UbisoftHistory));
+    Check(accept(Input()));std::string secret;
+    for(unsigned i=0;i<32;++i)output.channel.key[i]=static_cast<unsigned char>(i);
+    for(unsigned i=0;i<16;++i)output.channel.session[i]=static_cast<unsigned char>(i);
+    SetLastError(1908);Check(GoldLocalSecret(output,secret)&&GetLastError()==1908
+        && secret=="9b88c19d84020f1d655a60c3a23287aba853d838cd30ca552ec12a5c3accd12e");
+    output.channel.session[0]^=1;std::string changed;Check(GoldLocalSecret(output,changed)&&changed!=secret);
+    output.host=false;Check(!GoldLocalSecret(output,changed)&&changed.empty());
+    std::string ui;Check(UiCommand("mode",ui)&&ui=="host");Check(UiCommand("phase",ui)&&ui=="pending");
+    Check(!UiCommand("key",ui)&&ui.empty());
+    UiConsole::installed=true;UiConsole::owner=GetCurrentThreadId();UiConsole::profile=UiConsole::Pin(Edition::Gold);
+    UiConsole::test_push_string=&PushString;UiConsole::test_push_boolean=&PushBoolean;
+    UiInput("weplay-crossplay-v1:mode");SetLastError(1910);
+    Check(UiConsole::Handle(lua)==1&&ui_result=="host"&&ui_pushes==1&&GetLastError()==1910);
+    UiInput("weplay-crossplay-v1:phase");Check(UiConsole::Handle(lua)==1&&ui_result=="pending");
+    UiInput("weplay-crossplay-v1:key");Check(UiConsole::Handle(lua)==1&&ui_boolean==0&&ui_result.empty());
+    UiInput("ordinary console output");Check(UiConsole::Handle(lua)==0&&!ui_pushes);
+    UiInput("weplay-crossplay-v1:mode");argument[1]=0;Check(UiConsole::Handle(lua)==0&&!ui_pushes);
+    UiInput("weplay-crossplay-v1:mode");lua[5]+=8;Check(UiConsole::Handle(lua)==0&&!ui_pushes);
+    UiInput("weplay-crossplay-v1:mode");++UiConsole::owner;Check(UiConsole::Handle(lua)==0&&!ui_pushes);--UiConsole::owner;
+    UiInput("weplay-crossplay-v1:mode");UiConsole::installed=false;Check(UiConsole::Handle(lua)==0&&!ui_pushes);
+    Check(UiConsole::Handle(nullptr)==0);
     std::printf("Production launch contract: %u checks passed.\n",checks);
 }

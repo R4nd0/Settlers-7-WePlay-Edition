@@ -21,7 +21,7 @@ $standaloneSources = @()
 if ($PlatformIndependent) {
     if ($LocalPairLab -or $NeoFifoLab) { throw 'Standalone release builds accept original executable fingerprints only.' }
     $common += '/DS7_PLATFORM_INDEPENDENT'
-    foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp')) {
+    foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp','crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp')) {
         $standaloneSources += (Join-Path $nativeSource $name)
     }
     $standaloneSources += '/DS7_KERNEL_PROBE_LIBRARY'

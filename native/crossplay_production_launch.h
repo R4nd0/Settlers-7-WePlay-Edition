@@ -7,13 +7,14 @@
 // Keep this parser independent of the native initialization and hook code.
 namespace CrossplayProduction {
 struct LaunchInput {
-    std::wstring activation,role,peer,port,session,key,identity,content,name,profile;
+    std::wstring activation,role,peer,port,session,key,identity,content,name,profile,gold_auth_port,gold_config_port;
 };
 struct Launch {
     bool mixed=false,host=false;
     Crossplay::Config channel{};
     std::string name;
     std::wstring profile;
+    uint16_t gold_auth_port=0,gold_config_port=0;
 };
 inline bool Nonzero(const unsigned char* bytes,size_t size){
     unsigned value=0;for(size_t i=0;i<size;++i)value|=bytes[i];return value!=0;
@@ -70,6 +71,10 @@ inline bool Parse(const LaunchInput& input,Crossplay::Edition edition,const Cros
     if(next.host?(edition!=Crossplay::Edition::Gold || peer==Crossplay::Edition::Gold)
         :(peer!=Crossplay::Edition::Gold || (edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)))return false;
     auto& config=next.channel;config.edition=edition;config.expected_peer=peer;config.slot=next.host?1:2;config.executable=executable;
+    if(edition==Crossplay::Edition::Gold){
+        if(!Port(input.gold_auth_port,next.gold_auth_port) || !Port(input.gold_config_port,next.gold_config_port)
+            || next.gold_auth_port<1024 || next.gold_config_port<1024)return false;
+    }else if(!input.gold_auth_port.empty() || !input.gold_config_port.empty())return false;
     if(!Port(input.port,config.port) || !Hex(input.session,config.session) || !Hex(input.key,config.key)
         || !Hex(input.identity,config.native_identity) || !Identity(edition,config.native_identity) || !Hex(input.content,config.content)
         || input.name.empty() || input.name.size()>64 || !AbsoluteProfile(input.profile)
@@ -81,4 +86,5 @@ inline bool Parse(const LaunchInput& input,Crossplay::Edition edition,const Cros
 // activation is invalid; an absent activation retains the existing mode.
 bool ReadLaunch(Crossplay::Edition edition,const Crossplay::Digest& executable,
                 const std::wstring& actual_profile,Launch& output);
+bool GoldLocalSecret(const Launch& launch,std::string& output);
 }

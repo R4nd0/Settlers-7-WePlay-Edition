@@ -18,7 +18,8 @@ foreach($line in $lines){
 New-Item -ItemType Directory -Path $out | Out-Null
 Push-Location $out
 try{
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_launch_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') /Fe:crossplay_production_launch_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    $runtimeSources=@('crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_launch_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') @runtimeSources /Fe:crossplay_production_launch_tests.exe /link bcrypt.lib ws2_32.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Production launch contract fixture did not compile'}
     & (Join-Path $out 'crossplay_production_launch_tests.exe')
     if($LASTEXITCODE){throw 'Production launch contract fixture failed'}
@@ -30,5 +31,24 @@ try{
     # image natively: its absolute original-game addresses are intentionally real.
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_gold_resume_postload_tests.cpp') /Fe:crossplay_gold_resume_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'Gold saved request original-code guard fixture did not compile'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 (Join-Path $PSScriptRoot 'crossplay_production_gate_tests.cpp') /Fe:crossplay_production_gate_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production direct-load gate fixture did not compile'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_observer_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') /Fe:crossplay_production_observer_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production session observer fixture did not compile'}
+    & (Join-Path $out 'crossplay_production_observer_tests.exe')
+    if($LASTEXITCODE){throw 'Production session observer fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_observer_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') /Fe:crossplay_production_observer_guard_tests.exe /link bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production session observer emulator guard fixture did not compile'}
+    $uiSources=@('crossplay_production_ui_tests.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) @uiSources @runtimeSources /Fe:crossplay_production_ui_tests.exe /link bcrypt.lib ws2_32.lib /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production UI ABI fixture did not compile'}
+    & (Join-Path $out 'crossplay_production_ui_tests.exe')
+    if($LASTEXITCODE){throw 'Production UI ABI fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) @uiSources @runtimeSources /Fe:crossplay_production_ui_guard_tests.exe /link bcrypt.lib ws2_32.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    if($LASTEXITCODE){throw 'Production UI emulator guard fixture did not compile'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_bootstrap_tests.cpp') /Fe:crossplay_bootstrap_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Host bootstrap fixture did not compile'}
+    & (Join-Path $out 'crossplay_bootstrap_tests.exe')
+    if($LASTEXITCODE){throw 'Host bootstrap fixture failed'}
 }finally{Pop-Location}
 Write-Output 'Production handoff fixtures passed. No adapter was deployed or game started.'

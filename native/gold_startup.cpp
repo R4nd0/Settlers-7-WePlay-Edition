@@ -13,6 +13,12 @@
 #include "ai_catalog_unlock.h"
 #include <shlobj.h>
 #include <string>
+#ifdef S7_PLATFORM_INDEPENDENT
+#include "crossplay_production_context.h"
+#endif
+#if defined(S7_GOLD_ACCOUNT_LOGIN) || defined(S7_PLATFORM_INDEPENDENT)
+#define S7_GOLD_NATIVE_SESSION_PROVIDER
+#endif
 
 #if !defined(_M_IX86)
 #error Gold startup requires the independently mapped x86 ABI.
@@ -32,7 +38,7 @@ char local_identity_name[65] = "WePlayGoldLocal";
 wchar_t local_identity_display[65] = L"WePlay Gold Local";
 unsigned int local_identity_name_length = 15, local_identity_display_length = 17;
 
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
 bool ConfigureLocalIdentity(const char (&launch_name)[65]) {
     const size_t length = strnlen_s(launch_name, sizeof(launch_name));
     if (!length || length >= sizeof(launch_name)) return false;
@@ -231,7 +237,7 @@ bool AddBytes(std::vector<Patch>& patches, uintptr_t rva, const void* before, co
 }
 #include "gold_visual.inc"
 #ifdef S7_GOLD_LOCAL_SIMULATION
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
 bool AccountLocalSceneAllowed();
 bool AccountIsService(uintptr_t account);
 #endif
@@ -271,7 +277,7 @@ uintptr_t LocalCore(void* outer) {
         || *reinterpret_cast<unsigned int*>(game + 0x184) != 2) Stop();
     const auto network_mode = reinterpret_cast<bool (__cdecl*)()>(image + 0x58c910);
     if (network_mode()) {
-#ifdef S7_GOLD_ACCOUNT_LOGIN
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
         // Opening the original multiplayer UI sets this global predicate even
         // while the menu still owns its local OSF message handler. Permit only
         // that authenticated account mode; all local owner/core/type guards
@@ -523,8 +529,11 @@ bool Write(const Patch& patch, bool install) {
     if (memcmp(patch.at, after.data(), after.size())) Stop();
     return true;
 }
-#ifdef S7_GOLD_LOCAL_LOGIN
+#if defined(S7_GOLD_LOCAL_LOGIN) || defined(S7_PLATFORM_INDEPENDENT)
 #include "gold_local_login.inc"
+#endif
+#ifdef S7_PLATFORM_INDEPENDENT
+#include "gold_independent_session.inc"
 #endif
 }
 
@@ -557,6 +566,10 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
 #ifdef S7_GOLD_LOCAL_LOGIN
     if (!LocalLoginPrepare(patches)) return 0;
 #endif
+#ifdef S7_PLATFORM_INDEPENDENT
+    const auto* independent_launch=CrossplayProduction::CurrentLaunch();
+    if(!independent_launch || (independent_launch->mixed && !IndependentSessionPrepare(patches,*independent_launch)))return 0;
+#endif
     if (!ProfileNames() || !ProfilePatches(patches) || !GoldVisualPatches(patches)
         || !CloudSavePatches(patches) || !StartupOptionsPatches(patches)) return 0;
 #ifdef S7_GOLD_LOCAL_SIMULATION
@@ -571,6 +584,9 @@ extern "C" __declspec(dllexport) DWORD WINAPI GoldInitialize(void*) {
     }
 #ifdef S7_GOLD_LOCAL_LOGIN
     if (!LocalLoginInstall()) return 0;
+#endif
+#ifdef S7_PLATFORM_INDEPENDENT
+    if(independent_launch->mixed && !LocalLoginInstall())return 0;
 #endif
     if (!WePlayAICatalog::Install(1)) return 0;
     return 1;
