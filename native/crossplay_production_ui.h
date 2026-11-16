@@ -27,7 +27,9 @@ inline bool UiCommand(const std::string& command,std::string& output){
     case Phase::LobbyCaptured:output="local-lobby";break;
     case Phase::Connecting:output="connecting";break;
     case Phase::Admitting:output="admitting";break;
-    case Phase::RosterBound:output="roster-bound";break;
+    // This derived UI result permits presentation of the original guest page.
+    // It is not complete setup/root, Ready or world-start agreement.
+    case Phase::RosterBound:output=GuestPresentationBound()?"setup-bound":"roster-bound";break;
     case Phase::Closed:output="closed";break;
     case Phase::Failed:output="failed";break;
     }

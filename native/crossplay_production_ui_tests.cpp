@@ -85,6 +85,7 @@ int main(){
     using namespace CrossplayProduction;
     std::string metadata="stale";uint32_t flags=99;
     Check(!AppliedGuestChoices(flags,metadata)&&!flags&&metadata.empty());
+    Check(!GuestPresentationBound());
     for(const char* command:{"applied-flags","applied-template"}){
         metadata="stale";Check(!UiCommand(command,metadata)&&metadata.empty());
     }
@@ -98,6 +99,7 @@ int main(){
     for(const auto& value:values)Check(SetEnvironmentVariableW(value.first,value.second.c_str())!=FALSE);
     Crossplay::Digest executable{};executable[0]=1;Check(PrepareLaunch(Crossplay::Edition::Gold,executable,L"Z:\\Fixture\\Profiles"));
     for(const auto& value:values)Check(SetEnvironmentVariableW(value.first,nullptr)!=FALSE);
+    Check(!GuestPresentationBound());
     for(const char* command:{"applied-flags","applied-template"}){
         metadata="stale";Check(!UiCommand(command,metadata)&&metadata.empty());
     }

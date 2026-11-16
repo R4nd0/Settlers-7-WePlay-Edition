@@ -314,13 +314,19 @@ roots. Bootstrap values are never returned as substituted applied values.
 With fresh public discovery/Coop helpers, bounded original Ubisoft and Steam
 pairs independently observe flags `0` and an empty template matching the host,
 74 and 75 times respectively. Both end normally with strict restoration. The
-nonzero-flags control was stopped before deployment by the unchanged RAM guard;
-nonempty templates also remain unqualified. The reader passes 813 synthetic
+first nonzero-flags attempts stopped before deployment at the unchanged RAM
+guard. After resources became available, actual Ubisoft and Steam pairs also
+observed flags `7` and an empty template through the committed public queries,
+51 and 22 times respectively, with normal exits and strict restoration.
+Nonempty templates remain unqualified. The reader passes 813 synthetic
 checks and compiled guard checks against both original image layouts; those
-guard checks do not execute game methods. The newly exposed public query
-wrappers have not yet been exercised in a game. The runtime still reports
-`roster-bound`: it does not yet emit `setup-bound`, open a guest lobby or grant
-world authority from these values. See the [bounded applied-choice receipt](receipts/native-history-applied-choices-20261116.json).
+guard checks do not execute game methods. The source now derives the UI-only
+`setup-bound` result from `roster-bound` plus `GuestPresentationBound()`, which
+requires those actual owned choices and the admitted preparation/castle. This
+permits presentation of the original guest page only. The underlying runtime
+phase remains `RosterBound`; complete setup/root, content, Ready and start
+agreements remain separate. The derived presentation result has passed source
+fixtures but has not yet been exercised in a game. See the [bounded applied-choice receipt](receipts/native-history-applied-choices-20261116.json).
 
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`

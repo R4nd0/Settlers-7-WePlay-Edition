@@ -12,11 +12,13 @@
     "ui_queries": ["applied-flags", "applied-template"],
     "unavailable_query_returns_false": true,
     "observed_empty_template_returns_empty_string": true,
-    "no_setup_bound_phase_or_lobby_opening_added": true
+    "derived_setup_bound_is_guest_presentation_only": true,
+    "underlying_runtime_phase_remains_roster_bound": true,
+    "no_root_content_ready_or_world_authority_added": true
   },
   "synthetic_verification": {
     "history_choices_checks": 813,
-    "production_ui_bridge_checks": 66,
+    "production_ui_bridge_checks": 68,
     "production_handoff_fixture_build_passed": true,
     "compiled_guard_cases_ubisoft": 5,
     "compiled_guard_cases_steam_analysis": 5,
@@ -55,9 +57,38 @@
       "owned_services_closed": true
     }
   ],
+  "actual_public_query_followups": [
+    {
+      "host": "gold",
+      "guest": "original-ubisoft-history",
+      "native_original_configuration_applied": true,
+      "actual_owned_flags": 7,
+      "actual_owned_template_empty": true,
+      "public_flag_string_observations": 51,
+      "public_empty_template_string_observations": 51,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "world_start_requested": false
+    },
+    {
+      "host": "gold",
+      "guest": "original-steam-history",
+      "native_original_configuration_applied": true,
+      "actual_owned_flags": 7,
+      "actual_owned_template_empty": true,
+      "public_flag_string_observations": 22,
+      "public_empty_template_string_observations": 22,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "world_start_requested": false
+    }
+  ],
   "limits": {
-    "public_query_wrappers_in_game": false,
-    "nonzero_flags_in_pair": false,
+    "public_query_wrappers_in_game": true,
+    "nonzero_flags_in_pair": true,
+    "derived_guest_presentation_phase_in_game": false,
     "nonempty_templates_in_pair": false,
     "nonzero_control_stopped_before_deployment_for_ram": true,
     "complete_setup_root": false,

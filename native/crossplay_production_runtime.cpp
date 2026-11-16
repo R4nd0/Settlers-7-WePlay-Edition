@@ -302,4 +302,8 @@ bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
         || observed.map_template!=current->bootstrap.map_template)return false;
     flags=observed.flags;map_template=std::move(observed.map_template);return true;
 }
+bool GuestPresentationBound(){
+    uint32_t flags=0;std::string map_template;
+    return AppliedGuestChoices(flags,map_template);
+}
 }
