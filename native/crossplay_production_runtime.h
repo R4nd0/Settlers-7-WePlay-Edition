@@ -19,6 +19,10 @@ bool GuestPresentationBound();
 // Ownership of an actually started original Gold session on the admitted
 // mixed channel. This does not compute or acknowledge native Ready.
 bool GoldWorldOwnsStartedSession(uintptr_t session);
+// Exact AI rows admitted by the original chooser and common complete root.
+// This predicate does not replace the original Ready result.
+bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row);
+unsigned GoldWorldExpectedAIPlayers(uintptr_t session);
 // Explicit mixed NEO control namespace. Success returns a string; mutable
 // stage commands return "1" only after the owned host selection is accepted.
 // Fresh lobby selection never grants full root/start or saved-source authority.

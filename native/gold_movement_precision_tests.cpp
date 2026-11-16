@@ -1,5 +1,5 @@
 #define S7_GOLD_MOVEMENT_PRECISION_TESTING
-#include "crossplay_gold_movement_precision.h"
+#include "crossplay_gold_movement_wrapper.h"
 #include <cstdio>
 namespace {
 uint32_t units[1][0x400/4]{},logic[0x200/4]{},registry[8]{},members[256]{};
@@ -127,6 +127,46 @@ DWORD WINAPI ForeignPrecision(void* argument) {
 }
 bool HostGuardReject(){return false;}
 bool HostGuardAccept(){return true;}
+unsigned wrapper_calls=0,wrapper_duration=0,wrapper_control=0;
+void* wrapper_self=nullptr;void* wrapper_output=nullptr;DWORD wrapper_error=0;
+bool wrapper_throw=false;
+uint32_t __fastcall WrapperNative(void* self,void*,uint32_t duration,void* output){
+ ++wrapper_calls;wrapper_self=self;wrapper_duration=duration;wrapper_output=output;wrapper_error=GetLastError();
+ __asm fnstcw word ptr wrapper_control
+ if(wrapper_throw)PrecisionRaise();
+ *static_cast<uint32_t*>(output)=0x87654321;SetLastError(0xabc123);return 0xfedcba98;
+}
+int TestMovementWrapperException(void* self,uint32_t* output){
+ wrapper_throw=true;bool caught=false;
+ __try {GoldMovementWrapper::Entry(self,nullptr,100,output);}
+ __except(GetExceptionCode()==0xe1234578?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){caught=true;}
+ wrapper_throw=false;unsigned short control=0;__asm fnstcw control
+ return caught && control==0x27f && GoldMovementPrecision::movement_depth==0?0:74;
+}
+int TestMovementWrapper(){
+ using namespace GoldMovementPrecision;
+ const auto saved_logic=logic_global;logic_global=reinterpret_cast<uintptr_t>(&logic_pointer);
+ owner=GetCurrentThreadId();ready=&PrecisionReady;installed=true;
+ GoldMovementWrapper::original=reinterpret_cast<GoldMovementWrapper::Update>(&WrapperNative);
+ auto* self=reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(units[0])+0xd8);
+ unsigned short previous=0,normal=0x27f,after=0;__asm fnstcw previous
+ __asm fldcw normal
+ for(unsigned context=0;context<3;++context){
+  precision_allowed=context!=1;owner=GetCurrentThreadId()+(context==2?1u:0u);
+  uint32_t output=0;const auto before_calls=wrapper_calls;SetLastError(0x456789);
+  const auto result=GoldMovementWrapper::Entry(self,nullptr,100,&output);const auto native_error=GetLastError();__asm fnstcw after
+  if(wrapper_calls!=before_calls+1 || wrapper_self!=self || wrapper_duration!=100 || wrapper_output!=&output
+   || wrapper_error!=0x456789 || native_error!=0xabc123 || result!=0xfedcba98 || output!=0x87654321
+   || wrapper_control!=(context==0?0x7fu:0x27fu) || after!=normal || movement_depth)return 73;
+ }
+ owner=GetCurrentThreadId();precision_allowed=true;uint32_t output=0;
+ if(const int exception=TestMovementWrapperException(self,&output))return exception;
+ __asm fldcw previous
+ GoldMovementWrapper::original=nullptr;installed=false;owner=0;ready=nullptr;logic_global=saved_logic;
+ if(GoldMovementWrapper::Install(GetCurrentThreadId(),&PrecisionReady) || GoldMovementWrapper::installed
+  || GoldMovementWrapper::installing || GoldMovementWrapper::owner || GoldMovementWrapper::original)return 75;
+ puts("PASS compiled original movement owner: native method once, exact this/duration/output/rawEAX/LastError, scoped24-bit or unchanged disabled/foreign-owner precision, normal and SEH restoration, ordinary-image rejection.");return 0;
+}
 int TestForeignAndImageGate() {
  using namespace GoldMovementPrecision;
  owner=GetCurrentThreadId();ready=&PrecisionReady;installed=true;original_path=reinterpret_cast<uintptr_t>(&PrecisionNativePath);
@@ -146,5 +186,6 @@ int main() {
  members[15*2]=65551;members[15*2+1]=reinterpret_cast<uintptr_t>(units[0]);units[0][0]=0xf3f084;
  Put(units[0],0xd8,0xf3ed90);Put(units[0],0x274,reinterpret_cast<uintptr_t>(units[0])+0xd8);
  if(const int precision=TestPrecision())return precision;
+ if(const int wrapper=TestMovementWrapper())return wrapper;
  return TestForeignAndImageGate();
 }

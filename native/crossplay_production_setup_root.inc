@@ -15,6 +15,7 @@
     }
     bool HostTeamsConsumed(){
         if(!launch.host)return start_applied;
+        if(ai_layout)return start_sent && AIReadback();
         if(!start_sent || start_teams.size()!=2)return false;
         CrossplaySetupCheckpoint::Snapshot before{},after{};const auto ids=LocalConnections();
         if(!CrossplaySetupCheckpointNative::Detail::Local(launch.channel.edition,original,ids,true,before)
@@ -35,6 +36,8 @@
         // These flags record a completed comparison only. They are not fresh
         // world authority; a later start must revalidate its native checkpoint.
         if(setup_roots_verified[0] && setup_roots_verified[1])return true;
+        CrossplayAIPreparation::PreparationScope ai_scope(launch.channel.edition,original,LocalConnections(),launch.host,ai_values);
+        if(ai_layout && !CrossplayAIPreparation::EligibleScope(launch.channel.edition,original,LocalConnections(),launch.host))return false;
         if(!StartInterval())return false;
         const auto* other=channel.GetPeer();if(!other)return false;const auto peer=*other;
         const auto ids=LocalConnections();const auto edition=launch.channel.edition;std::vector<unsigned char> output;

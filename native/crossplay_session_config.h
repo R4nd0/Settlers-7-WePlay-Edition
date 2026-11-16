@@ -19,6 +19,9 @@ inline bool SlotValid(size_t index,unsigned ready,unsigned privacy,uint32_t slot
     if(index<2)return slot==index+1 && (state==3 || state==4)
         && (station==(index?ids.guest:ids.host) || (local_snapshot && !station));
     if(station)return false;
+    // Original CPU cache records have no network station. Parsing this narrow
+    // shape grants no AI preparation, Ready or world-start authority.
+    if(state==4)return index<4 && ready==1 && !privacy && slot==index+1;
     if(state==2)return index<4 && ready==1 && slot==index+1;
     return (state==0 || state==1 || state==5) && !ready && slot==UINT32_MAX;
 }

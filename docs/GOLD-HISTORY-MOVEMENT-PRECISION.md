@@ -1,5 +1,14 @@
 # Gold/History movement precision, 2026-11-15
 
+2026-11-16 integration update: the diagnostic normal-adapter path now installs
+the extracted precision component through `crossplay_gold_movement_wrapper.h`.
+Original normal-speed worlds with active NEO and two AI opponents produced
+2,854 common Steam and 3,412 common Ubisoft CRCs without a mismatch. The latter
+ended in an unresolved world predicate failure, so it is not a clean-exit
+qualification. See [current integration and limits](GOLD-HISTORY-NEO-WORLD.md).
+The original extraction and older measurements below describe the earlier
+private session adapter.
+
 The experimental Gold arithmetic port passed bounded local DXVK matches against
 both original History executables. The previous repeatable first checksum
 divergence at finished turn 1278 did not recur within either test:

@@ -100,6 +100,12 @@ int main() {
     }
     changed=wire;changed[second+SlotBytes]=1;CrossplayChat::Put(changed.data()+second+SlotBytes+1,3);changed[second+SlotBytes+10]=2;
     Check(Inspect(changed,source,layout),"native AI network slot and real readiness retained");
+    changed[second+SlotBytes+10]=4;
+    Check(Inspect(changed,source,layout),"original CPU cache state retained without granting start");
+    for(size_t offset:{size_t(0),size_t(1),size_t(5),size_t(6),size_t(10)}){
+        auto invalid=changed;invalid[second+SlotBytes+offset]^=0x80;
+        Check(!Inspect(invalid,source,layout),"invalid CPU readiness, slot, privacy, routing or state excluded");
+    }
     for(Connections invalid:{Connections{0,0},Connections{UINT32_MAX,0},Connections{1,UINT32_MAX}}) {
         Check(!Encode(peer,wire,invalid,decoded) && decoded.empty(),"invalid source IDs excluded");
         Check(!Decode(reverse,frame,source,invalid,decoded) && decoded.empty(),"invalid target IDs excluded");

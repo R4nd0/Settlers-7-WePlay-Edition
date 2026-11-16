@@ -64,6 +64,17 @@ int main() {
         for(size_t i=0;i<8;++i){auto* p=rows.data()+i*0x18;CrossplayChat::Put(p,i<2?3u:i<4?2u:0u);p[4]=i<4?1u:0u;CrossplayChat::Put(p+8,i<4?static_cast<uint32_t>(i+1):UINT32_MAX);}
         auto valid=[&](const Rows& value){return CrossplayNativeCodec::GameStartDetail::FreshReadySlots(value.data(),value.size(),ids);};
         Check(valid(rows),"two ready humans and original closed neutral slots accepted");
+        {
+            auto cpu=rows;for(unsigned i=2;i<4;++i)CrossplayChat::Put(cpu.data()+i*24,4);
+            Check(!valid(cpu),"CPU slots require explicit admitted preparation scope");
+            Check(CrossplayNativeCodec::GameStartDetail::FreshReadySlots(cpu.data(),cpu.size(),ids,true),"two exact admitted CPU records accepted");
+            for(unsigned i=2;i<4;++i)for(size_t offset:{size_t(0),size_t(4),size_t(8),size_t(12),size_t(16),size_t(20)}){
+                auto bad=cpu;bad[i*24+offset]^=0x80;
+                Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(bad.data(),bad.size(),ids,true),"malformed admitted CPU record rejected");
+            }
+            CrossplayChat::Put(cpu.data()+2*24,2);
+            Check(!CrossplayNativeCodec::GameStartDetail::FreshReadySlots(cpu.data(),cpu.size(),ids,true),"partial neutral/AI roster excluded");
+        }
         for(size_t i=0;i<2;++i){auto altered=rows;CrossplayChat::Put(altered.data()+i*24,4);Check(valid(altered),"admitted alternate human state preserved");}
         {auto altered=rows;CrossplayChat::Put(altered.data()+16,42);Check(valid(altered),"bound human routing CID accepted");}
         for(size_t i=0;i<4;++i)for(size_t offset:{size_t(0),size_t(4),size_t(8),size_t(16)}) {

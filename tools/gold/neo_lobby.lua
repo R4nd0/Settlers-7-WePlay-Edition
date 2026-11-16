@@ -1,9 +1,28 @@
 -- Gold host choice. Native ownership and the final peer agreement are required.
-local G, Panel, getState = ...
+local G, Panel, getState, mixed = ...
 local Options = G.require("local.ui.optionsGroup")
 local create, update, destroy = Panel.create, Panel.update, Panel.destroy
-local group, item, syncing
+local group, item, syncing, defaultRequested
 local function bridge(command)
+    if mixed then
+        local prefix="weplay-crossplay-neo-v1:"
+        if command=="setup-capabilities" then return G.UI.WriteToConsole(prefix.."capabilities") end
+        if command=="setup-state" then
+            local value=G.UI.WriteToConsole(prefix.."selection")
+            local selectable=G.UI.WriteToConsole(prefix.."selectable")=="1"
+            if value~="0" and value~="1" and selectable and G.Network.IsHost() and not defaultRequested then
+                defaultRequested=true
+                G.UI.WriteToConsole(prefix.."stage:0")
+                value=G.UI.WriteToConsole(prefix.."selection")
+            end
+            if value~="0" and value~="1" then return false end
+            return (selectable and "selected:" or "locked:")..value
+        end
+        if command=="setup:0" or command=="setup:1" then
+            return G.UI.WriteToConsole(prefix.."stage:"..command:sub(-1))
+        end
+        return false
+    end
     return G.UI.WriteToConsole("weplay-neo-lab-v1:" .. command)
 end
 local function change(_, checked)
@@ -25,8 +44,9 @@ function Panel.create(...)
     create(...)
     local State = getState()
     if not State.frame then return end
-    local _, height = G.system.getScreenSize()
-    group = Options.create(State.frame, {x=620,y=height-155}, 500, 60, nil, G.font.small,
+    local width, height = G.system.getScreenSize()
+    local size=width<540 and width-40 or 500
+    group = Options.create(State.frame, {x=width-size-20,y=height-155}, size, 60, nil, G.font.small,
         Options.groupType.checkBoxGroup, Options.arrangeOrder.heightFirst, 1,
         Options.buttonPlacement.toLeft, change)
     item = group.addItem("NEO-Logistik",
@@ -45,6 +65,6 @@ function Panel.weplaySelectNEO(value)
     return okay
 end
 function Panel.destroy(...)
-    group, item, syncing = nil, nil, nil
+    group, item, syncing, defaultRequested = nil, nil, nil, nil
     return destroy(...)
 end

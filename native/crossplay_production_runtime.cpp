@@ -33,6 +33,13 @@
 #include "crossplay_desync_turn_codec.h"
 #include "crossplay_gold_building_math.h"
 #include "crossplay_gold_resource_math.h"
+#include "crossplay_road_command_codec.h"
+#include "crossplay_priority_command_codec.h"
+#include "crossplay_world_event_queue.h"
+#include "crossplay_gold_animal_path_points.h"
+#include "crossplay_ai_playing_row.h"
+#include "crossplay_neo_snapshot.h"
+#include "crossplay_gold_movement_wrapper.h"
 #include <bcrypt.h>
 #include <deque>
 namespace CrossplayProduction {
@@ -106,6 +113,7 @@ struct Runtime {
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
     bool Owned()const{return owner==GetCurrentThreadId() && CurrentLaunch() && CurrentLaunch()->mixed;}
 #include "crossplay_production_start_setup.inc"
+#include "crossplay_production_ai_setup.inc"
 #include "crossplay_production_setup_root.inc"
 #include "crossplay_production_world.inc"
     void Capture(void* source,const unsigned char* event){
@@ -601,11 +609,40 @@ bool GoldWorldOwnsStartedSession(uintptr_t session){
     return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
         && session && current->neo_world_session==session && current->WorldNeoScope();
 }
+bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+    if(!GoldWorldOwnsStartedSession(session) || !current->ai_layout || row<3 || row>4
+        || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<const void*>(rows),25*0x5c4))return false;
+    using CrossplayNativeCodec::Detail::Readable;
+    if(!Readable(reinterpret_cast<const void*>(0x10f834c),4))return false;
+    const auto* manager=*reinterpret_cast<const unsigned char* const*>(0x10f834c);
+    if(!Readable(manager,8+2*0xd4) || CrossplayChat::Word(manager)!=0xf51af0 || manager[4]>1)return false;
+    const auto mode=manager[4];const auto* reference=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(manager+mode*0xd4+0xa4));
+    if(!Readable(reference,4) || CrossplayChat::Word(reference)!=rows)return false;
+    const auto& value=current->ai_values[row-3];
+    const auto* player=reinterpret_cast<const unsigned char*>(rows)+row*0x5c4;
+    return value.slot==row && CrossplayAIPreparation::GoldPlayingRow(player,0x5c4,value)
+        && *reinterpret_cast<const unsigned char* const*>(0x10f834c)==manager && manager[4]==mode
+        && CrossplayChat::Word(manager+mode*0xd4+0xa4)==reinterpret_cast<uintptr_t>(reference)
+        && CrossplayChat::Word(reference)==rows && GoldWorldOwnsStartedSession(session);
+}
+unsigned GoldWorldExpectedAIPlayers(uintptr_t session){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+    return GoldWorldOwnsStartedSession(session) && current->ai_layout?24u:0u;
+}
 bool NeoCommand(const std::string& command,std::string& output){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output.clear();
     if(!current || !current->Owned() || current->phase==Phase::Failed || current->phase==Phase::Closed)return false;
     if(command=="capabilities"){
         if(!current->NeoModules())return false;output="NEO-FIFO-INTENT-1";return true;
+    }
+    if(command=="selectable"){
+        if(!current->launch.host || current->start_started || current->neo_world_queued || current->bootstrap.saved){output="0";return true;}
+        Crossplay::Digest context{};bool guest_ready=false;
+        const bool selectable=current->phase==Phase::RosterBound && !current->ready_pending.configuration
+            && current->ready_requests.empty() && current->ready_states.empty()
+            && current->NeoContext(context,guest_ready)==CrossplayGoldChoices::Observation::Captured && !guest_ready;
+        output=selectable?"1":"0";return true;
     }
     if(command=="stage:0" || command=="stage:1"){
         if(!current->launch.host || current->neo_world_queued || current->bootstrap.saved || current->start_started)return false;

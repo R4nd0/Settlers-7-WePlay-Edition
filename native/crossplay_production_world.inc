@@ -7,8 +7,9 @@
     bool world_lua_begin=false,world_lua_ready=false;
     ULONGLONG world_dispatch_started=0;
     std::deque<std::vector<unsigned char>> world_control_frames,world_neo_frames,world_checkpoint_frames;
-    std::deque<std::vector<unsigned char>> world_progress_frames,world_turn_frames,world_desync_frames;
+    CrossplayWorldEvents::Inbox world_events;
     uint32_t progress_sent=0,progress_received=0,turn_sent=0,turn_received=0,desync_sent=0,desync_received=0;
+    uint32_t build_sent=0,build_received=0,road_sent=0,road_received=0,priority_sent=0,priority_received=0;
     unsigned world_diagnostic=0;
     static bool Magic(const std::vector<unsigned char>& frame,const unsigned char* magic){return frame.size()>=8 && !memcmp(frame.data(),magic,8);}
     bool WorldFrame(const std::vector<unsigned char>& frame,bool& recognized){
@@ -27,17 +28,13 @@
                 || (frame.size()!=CrossplayFreshStart::ReceiptSize && frame.size()!=CrossplayGameStart::FrameSize))return false;
             world_control_frames.push_back(frame);return true;
         }
-        const bool progress=Magic(frame,CrossplayLoadProgress::Magic),turn=Magic(frame,CrossplayTurnBatch::Magic),desync=Magic(frame,CrossplayDesyncTurn::Magic);
-        if(!progress && !turn && !desync){recognized=false;return true;}
+        if(CrossplayWorldEvents::Identify(frame)==CrossplayWorldEvents::Kind::Unknown){recognized=false;return true;}
         if(!neo_world_queued && !world_barrier.CanBufferWorldEvents(GetTickCount64()))return false;
-        auto& queue=progress?world_progress_frames:turn?world_turn_frames:world_desync_frames;
-        if(queue.size()>=(progress?256u:turn?256u:64u)
-            || (progress && frame.size()!=CrossplayLoadProgress::FrameSize)
-            || (turn && (frame.size()<CrossplayTurnBatch::Header+CrossplayTurnBatch::BaseWire || frame.size()>CrossplayTurnBatch::Header+CrossplayTurnBatch::MaxWire))
-            || (desync && frame.size()!=CrossplayDesyncTurn::FrameSize))return false;
-        queue.push_back(frame);return true;
+        return world_events.Push(frame);
     }
     bool FreshWorldRoot(){
+        CrossplayAIPreparation::PreparationScope ai_scope(launch.channel.edition,original,LocalConnections(),launch.host,ai_values);
+        if(ai_layout && !CrossplayAIPreparation::EligibleScope(launch.channel.edition,original,LocalConnections(),launch.host))return false;
         if(!Owned() || phase!=Phase::RosterBound || !setup_roots_verified[0] || !setup_roots_verified[1]
             || setup_checkpoint.GetPhase()!=CrossplaySetupCheckpoint::Phase::Confirmed || !StartInterval())return false;
         CrossplaySetupRootCapture::Snapshot fresh{};const auto ids=LocalConnections();
@@ -85,6 +82,8 @@
     }
     bool PumpWorldStart(){
         if(neo_world_queued || !setup_roots_verified[0] || !setup_roots_verified[1])return true;
+        CrossplayAIPreparation::PreparationScope ai_scope(launch.channel.edition,original,LocalConnections(),launch.host,ai_values);
+        if(ai_layout && !CrossplayAIPreparation::EligibleScope(launch.channel.edition,original,LocalConnections(),launch.host))return false;
         world_diagnostic=1;if(!FreshWorldRoot() || !NeoModules())return false;
         const auto* other=channel.GetPeer();if(!other)return false;const auto peer=*other;
         std::vector<unsigned char> output;
@@ -113,7 +112,13 @@
         if(!SharedEngineMode::Verify(launch.channel.edition,owner))return false;
         if(!world_math_installed){
             if(launch.channel.edition==Crossplay::Edition::Gold
-                && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)))return false;
+                && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
+                    || !GoldMovementWrapper::Install(owner,&NeoWorldReady)
+                    // Path-point guards include the original movement-time
+                    // routine. Preserve this order before either original map
+                    // creates or advances its registered animal objects.
+                    || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
+                    || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
             world_math_installed=true;
         }
         if(!world_bound){
@@ -191,6 +196,9 @@
                 || CrossplayLogisticsActive::ledger.enabled!=neo_world_agreement.Value().enabled)return false;
             output=CrossplayLogisticsActive::ledger.enabled?"1":"0";return true;
         }
+        uint32_t logic_turn=0;
+        if(world_lua_ready && CrossplayNeoSnapshot::LogicTurn(command,logic_turn))
+            return CrossplayNeoSnapshot::Capture(launch.channel.edition,owner,logic_turn,output);
         return false;
     }
     bool OutgoingWorld(void* manager,const void* event,uint32_t mode,uint32_t target){
@@ -200,7 +208,8 @@
         if(!Detail::Readable(event,4))return false;
         const auto edition=launch.channel.edition;const auto table=*static_cast<const uintptr_t*>(event);
         const bool progress=table==LoadProgressDetail::Pin(edition).event_vt,turn=table==TurnBatchDetail::Pin(edition).event_vt,desync=table==DesyncTurnDetail::Pin(edition).event_vt;
-        if(!progress && !turn && !desync)return false;
+        const bool logic=table==BuildCommandDetail::Pin(edition).event_vt;
+        if(!progress && !turn && !desync && !logic)return false;
         uintptr_t sender=0;const auto* p=channel.GetPeer();std::vector<unsigned char> wire,frame;
         if(!p || manager!=Detail::Transport(edition,sender)){Fail();return true;}const auto peer=*p;
         const auto own=admission.OwnConnection(),other=admission.PeerLocalConnection();bool okay=false;
@@ -210,8 +219,20 @@
             && CrossplayTurnBatch::Encode(peer,turn_sent+1,wire,own,frame);
         if(desync && desync_sent<CrossplayDesyncTurn::MaxSequence)okay=DesyncTurnDetail::Encode(edition,original,owner,neo_world_session,own,other,event,wire)
             && CrossplayDesyncTurn::Encode(peer,desync_sent+1,wire,own,frame);
+        const uint32_t player=launch.host?1u:2u;
+        const bool build=logic && BuildCommandDetail::Source(edition,event,own,player);
+        const bool road=logic && RoadCommandDetail::Source(edition,event,own,player);
+        const bool priority=logic && PriorityCommandDetail::Source(edition,event,own,player);
+        if(build && build_sent<UINT32_MAX)okay=BuildCommandDetail::Encode(edition,original,owner,neo_world_session,own,other,player,event,wire)
+            && CrossplayBuildCommand::Encode(peer,build_sent+1,wire,own,player,frame);
+        if(road && road_sent<UINT32_MAX)okay=RoadCommandDetail::Encode(edition,original,owner,neo_world_session,own,other,player,event,wire)
+            && CrossplayRoadCommand::Encode(peer,road_sent+1,wire,own,player,frame);
+        if(priority && priority_sent<UINT32_MAX && (neo_world_agreement.Value().features&CrossplayNeo::PriorityCommands))
+            okay=PriorityCommandDetail::Encode(edition,original,owner,neo_world_session,own,other,player,event,wire)
+                && CrossplayPriorityCommand::Encode(peer,priority_sent+1,wire,own,player,frame);
         if(!okay || !channel.Send(frame)){Fail();return true;}
-        if(progress)++progress_sent;if(turn)++turn_sent;if(desync)++desync_sent;return true;
+        if(progress)++progress_sent;if(turn)++turn_sent;if(desync)++desync_sent;
+        if(build)++build_sent;if(road)++road_sent;if(priority)++priority_sent;return true;
     }
     bool PumpWorldEvents(){
         if(!neo_world_queued)return true;
@@ -219,19 +240,24 @@
         if(!WorldDispatchReady())return phase!=Phase::Failed && !world_dispatch_ready && GetTickCount64()-world_dispatch_started<=10000;
         const auto* other=channel.GetPeer();if(!other)return false;const auto peer=*other;
         const auto edition=launch.channel.edition;const auto own=admission.OwnConnection(),remote=admission.PeerLocalConnection();
-        for(auto kind:{0u,1u,2u}){
-            auto& queue=kind==0?world_progress_frames:kind==1?world_turn_frames:world_desync_frames;
-            auto& received=kind==0?progress_received:kind==1?turn_received:desync_received;
-            for(unsigned budget=0;budget<16 && !queue.empty();++budget){
-                std::vector<unsigned char> wire;bool okay=false;
-                if(kind==0)okay=CrossplayLoadProgress::Decode(peer,received,queue.front(),admission.PeerSourceConnection(),remote,wire)
-                    && CrossplayNativeCodec::LoadProgressDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
-                if(kind==1)okay=CrossplayTurnBatch::Decode(peer,received,queue.front(),admission.PeerSourceConnection(),remote,wire)
-                    && CrossplayNativeCodec::TurnBatchDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
-                if(kind==2)okay=CrossplayDesyncTurn::Decode(peer,received,queue.front(),admission.PeerSourceConnection(),remote,wire)
-                    && CrossplayNativeCodec::DesyncTurnDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
-                if(!okay)return false;queue.pop_front();++received;
-            }
+        using namespace CrossplayWorldEvents;const uint32_t player=launch.host?2u:1u;
+        for(unsigned budget=0;budget<16 && !world_events.Empty();++budget){
+            if(!world_events.Deliver(peer,admission.PeerSourceConnection(),remote,player,[&](Kind kind,const std::vector<unsigned char>& wire){
+                using namespace CrossplayNativeCodec;
+                switch(kind){
+                case Kind::Progress:return LoadProgressDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
+                case Kind::Turn:return TurnBatchDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
+                case Kind::Desync:return DesyncTurnDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,wire);
+                case Kind::Build:return BuildCommandDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,player,wire);
+                case Kind::Road:return RoadCommandDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,player,wire);
+                case Kind::Priority:return (neo_world_agreement.Value().features&CrossplayNeo::PriorityCommands)
+                    && PriorityCommandDetail::Enqueue(edition,original,owner,neo_world_session,own,remote,player,wire);
+                default:return false;
+                }
+            }))return false;
+            progress_received=world_events.Received(Kind::Progress);turn_received=world_events.Received(Kind::Turn);
+            desync_received=world_events.Received(Kind::Desync);build_received=world_events.Received(Kind::Build);
+            road_received=world_events.Received(Kind::Road);priority_received=world_events.Received(Kind::Priority);
         }
         return true;
     }

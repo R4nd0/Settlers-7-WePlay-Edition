@@ -49,6 +49,13 @@ void Reset(Crossplay::Edition edition){
 }
 }
 int main(){
+    uint32_t parsed=UINT32_MAX;
+    for(uint32_t value:{0u,1u,9u,10u,99u,100u,2147483647u,4294967294u}){
+        Check(CrossplayNeoSnapshot::LogicTurn("save-snapshot:"+std::to_string(value),parsed) && parsed==value);
+    }
+    for(const std::string invalid:{"", "snapshot", "save-snapshot:", "save-snapshot:00", "save-snapshot:01", "save-snapshot:-1", "save-snapshot:+1", "save-snapshot: 1", "save-snapshot:1 ", "save-snapshot:1x", "save-snapshot:4294967295", "save-snapshot:4294967296", "save-snapshot:10000000000"}){
+        parsed=UINT32_MAX;Check(!CrossplayNeoSnapshot::LogicTurn(invalid,parsed) && parsed==0);
+    }
     for(auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}){
         Reset(edition);std::string output;const auto owner=GetCurrentThreadId();
         unsigned char native_before[sizeof(tasks)]{};memcpy(native_before,tasks,sizeof(tasks));

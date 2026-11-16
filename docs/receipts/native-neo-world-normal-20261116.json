@@ -1,0 +1,254 @@
+{
+  "format": "weplay-native-neo-world-receipt-v1",
+  "date": "2026-11-16",
+  "scope": "Bounded original Gold-host/original History guest, standalone DXVK, Monhaim Valley, two human clients and two original easy AI opponents. Local loopback only; diagnostic entry and unapproved complete candidate catalog.",
+  "pacing": {
+    "original_native_duration_ms": 100,
+    "accelerated_clock_requested": false,
+    "all_future_tests_without_x20": true
+  },
+  "steam": {
+    "original_crc": {
+      "common": 2854,
+      "first": 0,
+      "last": 2853,
+      "mismatches": 0,
+      "first_mismatches": []
+    },
+    "original_transport": [
+      {
+        "source": "gold",
+        "destination": "history",
+        "compared": 2855,
+        "mismatches": 0
+      },
+      {
+        "source": "history",
+        "destination": "gold",
+        "compared": 2851,
+        "mismatches": 0
+      }
+    ],
+    "gold": {
+      "native_clock_durations_observed": [
+        100.0
+      ],
+      "last_clock_turn_enabled_comparisons_changes_excluded": [
+        2816,
+        1,
+        6293,
+        15,
+        0
+      ],
+      "new_human_storehouses": {
+        "65540": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 415
+        },
+        "65541": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 479
+        }
+      },
+      "original_easy_ai": {
+        "3": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 14,
+          "max_finished": 13,
+          "max_construction_goods": 20
+        },
+        "4": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 16,
+          "max_finished": 14,
+          "max_construction_goods": 5
+        }
+      },
+      "snapshots_captured": 99,
+      "failures": []
+    },
+    "history": {
+      "native_clock_durations_observed": [
+        100.0
+      ],
+      "last_clock_turn_enabled_comparisons_changes_excluded": [
+        2688,
+        1,
+        4139,
+        9,
+        0
+      ],
+      "new_human_storehouses": {
+        "65540": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 418
+        },
+        "65541": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 483
+        }
+      },
+      "original_easy_ai": {
+        "3": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 14,
+          "max_finished": 13,
+          "max_construction_goods": 20
+        },
+        "4": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 16,
+          "max_finished": 14,
+          "max_construction_goods": 5
+        }
+      },
+      "snapshots_captured": 80,
+      "failures": [
+        "runtime-failure-root-100-world-9011"
+      ]
+    },
+    "native_neo_snapshot": {
+      "common_logic_turns": 80,
+      "first": 257,
+      "last": 1055,
+      "mismatches": [],
+      "any_nonempty_marks": false
+    },
+    "normal_exit_both": true,
+    "strict_restoration": true,
+    "visible_world_and_hud_both": true,
+    "loading_overlay_closed_both": true,
+    "stop_reason": "Operator closed original Gold window normally after measured free physical RAM fell below the conservative 4 GiB test buffer. History then exited normally; its channel-closed diagnostic is a shutdown observation. One broker rejection recorded during shutdown; not presented as zero.",
+    "broker_rejections_including_shutdown": 1
+  },
+  "ubisoft": {
+    "original_crc": {
+      "common": 3412,
+      "first": 0,
+      "last": 3411,
+      "mismatches": 0,
+      "first_mismatches": []
+    },
+    "original_transport": [
+      {
+        "source": "gold",
+        "destination": "history",
+        "compared": 3413,
+        "mismatches": 0
+      },
+      {
+        "source": "history",
+        "destination": "gold",
+        "compared": 3411,
+        "mismatches": 0
+      }
+    ],
+    "gold": {
+      "native_clock_durations_observed": [
+        100.0
+      ],
+      "last_clock_turn_enabled_comparisons_changes_excluded": [
+        3328,
+        1,
+        7929,
+        15,
+        0
+      ],
+      "new_human_storehouses": {
+        "65540": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 415
+        },
+        "65541": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 479
+        }
+      },
+      "original_easy_ai": {
+        "3": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 14,
+          "max_finished": 14,
+          "max_construction_goods": 20
+        },
+        "4": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 16,
+          "max_finished": 15,
+          "max_construction_goods": 20
+        }
+      },
+      "snapshots_captured": 0,
+      "failures": [
+        "runtime-failure-root-100-world-9011"
+      ]
+    },
+    "history": {
+      "native_clock_durations_observed": [
+        100.0
+      ],
+      "last_clock_turn_enabled_comparisons_changes_excluded": [
+        3328,
+        1,
+        6574,
+        9,
+        0
+      ],
+      "new_human_storehouses": {
+        "65540": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 417
+        },
+        "65541": {
+          "goods_max": 1,
+          "first_observed_finished_logic_turn": 481
+        }
+      },
+      "original_easy_ai": {
+        "3": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 14,
+          "max_finished": 14,
+          "max_construction_goods": 20
+        },
+        "4": {
+          "observed": true,
+          "initial_buildings": 7,
+          "max_buildings": 16,
+          "max_finished": 15,
+          "max_construction_goods": 20
+        }
+      },
+      "snapshots_captured": 88,
+      "failures": [
+        "runtime-failure-root-100-world-4"
+      ]
+    },
+    "strict_restoration": true,
+    "normal_exit_both": false,
+    "stop_reason": "Late History world predicate failure, followed by Gold ownership-guard exit after peer close. Precise cause remains open; no original CRC mismatch observed before the failure.",
+    "gold_complete_lua_lifecycle_present": false
+  },
+  "changes": "One ordered native command/EOT inbox; original payable storehouse/road and individual-priority codecs; original two-CPU setup and active-row validation; guarded Gold movement precision owner; Gold NEO lifecycle and native-authorized host checkbox; read-only current-world NEO snapshot.",
+  "validation": {
+    "production_fixture_build": "passed; two Windows address-layout cases excluded and fixed guard images built, not run natively",
+    "gold_startup_abi_movement_network_build": "passed, including 75 host loopback checks",
+    "history_adapter_build": "passed",
+    "gold_checkbox_lua51_tests": 15,
+    "shared_neo_runtime_lua51_tests": 15,
+    "archive_members_lua51_compiled": 568
+  },
+  "limitations": [
+    "No current normal-adapter mixed save or reload qualification.",
+    "No nonempty individual-priority snapshot in these fresh-world runs.",
+    "Ubisoft still requires the complete Gold Lua lifecycle candidate and late failure diagnosis.",
+    "No final installer, ordinary entry approval, arbitrary maps/saves, reverse host, sustained stability or EasyTier gameplay qualification."
+  ]
+}

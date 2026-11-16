@@ -14,7 +14,8 @@
     static bool StartFrame(const std::vector<unsigned char>& frame){
         const unsigned char config[8]={'S','7','S','C','F','G',0,1};
         return frame.size()>=8 && (!memcmp(frame.data(),config,8)
-            || !memcmp(frame.data(),CrossplayClosedSlot::Magic,8) || !memcmp(frame.data(),CrossplayNeutralSetup::Magic,8));
+            || !memcmp(frame.data(),CrossplayClosedSlot::Magic,8) || !memcmp(frame.data(),CrossplayNeutralSetup::Magic,8)
+            || !memcmp(frame.data(),CrossplayAIProfile::Magic,8) || !memcmp(frame.data(),CrossplayAIPreparation::Magic,8));
     }
     bool StartInterval(){
         if(!Owned() || phase!=Phase::RosterBound || bootstrap.saved || !neo_installed
@@ -27,9 +28,10 @@
     void GoldLocal(void* manager,const void* event,uint32_t mode){
         if(!Owned() || phase!=Phase::RosterBound || !launch.host || mode || !configuration_sent)return;
         using namespace CrossplayNativeCodec;
+        if(GoldAIProfile(manager,event,mode))return;
         if(!Detail::Readable(event,4) || *static_cast<const uintptr_t*>(event)!=CrossplayClosedSlot::Vtable(launch.channel.edition))return;
         uintptr_t sender=0;std::vector<unsigned char> wire;uint32_t slot=0;
-        if(!StartInterval() || start_sent || start_slots.size()>=2 || manager!=Detail::Transport(launch.channel.edition,sender)
+        if(ai_layout || !StartInterval() || start_sent || start_slots.size()>=2 || manager!=Detail::Transport(launch.channel.edition,sender)
             || !CrossplayClosedSlot::Capture(original,LocalConnections(),event,wire)
             || !CrossplayClosedSlot::Wire(wire,admission.OwnConnection(),slot) || slot!=3+start_slots.size()){Fail();return;}
         if(!start_started)start_started=GetTickCount64();start_slots.push_back(std::move(wire));
@@ -41,7 +43,7 @@
             || !Detail::Readable(event,24) || *static_cast<const uintptr_t*>(event)!=spec.vt)return;
         const auto slot=CrossplayChat::Word(static_cast<const unsigned char*>(event)+16);if(slot<3 || slot>4)return;
         uintptr_t sender=0;std::vector<unsigned char> wire;uint32_t parsed=0,team=0;
-        if(!StartInterval() || start_sent || start_teams.size()>=2 || manager!=Detail::Transport(launch.channel.edition,sender)
+        if(ai_layout || !StartInterval() || start_sent || start_teams.size()>=2 || manager!=Detail::Transport(launch.channel.edition,sender)
             || !CrossplayNeutralSetup::Capture(original,LocalConnections(),bootstrap.map,event,wire)
             || !CrossplayNeutralSetup::Wire(wire,admission.OwnConnection(),parsed,team) || parsed!=3+start_teams.size()){Fail();return;}
         if(!start_started)start_started=GetTickCount64();start_teams.push_back(std::move(wire));
@@ -64,9 +66,11 @@
             uint32_t own=UINT32_MAX;CrossplaySessionConfig::Layout layout;
             if(!CrossplayNative::ProjectConnection(peer.edition,admission.PeerSourceConnection(),peer.local_in_peer_namespace,own)
                 || !CrossplaySessionConfig::Decode(peer,frame,{admission.PeerSourceConnection(),own},ids,start_expected)
-                || !CrossplayNeutralSetup::Closed(start_expected,ids,bootstrap.map,layout))return false;
+                || (!CrossplayNeutralSetup::Closed(start_expected,ids,bootstrap.map,layout)
+                    && !(ai_layout=CrossplayAIProfile::FreshConfig(start_expected,ids,layout))))return false;
             start_received=true;start_started=GetTickCount64();return true;
         }
+        if(ai_layout)return ReceiveAISetup(peer,frame);
         std::vector<unsigned char> wire;
         if(frame.size()>=8 && !memcmp(frame.data(),CrossplayClosedSlot::Magic,8)){
             if(start_teams_received || !CrossplayClosedSlot::Receive(peer,start_slots_received,admission.PeerSourceConnection(),ids.host,frame,wire))return false;
@@ -90,6 +94,7 @@
         if((launch.host && start_sent) || (!launch.host && start_applied))return true;
         if(GetTickCount64()-start_started>10000)return false;
         const auto ids=LocalConnections();const auto edition=launch.channel.edition;
+        if(ai_layout)return PumpAISetup();
         if(launch.host){
             if(start_sent || held_start_wire.empty() || start_slots.size()!=2 || start_teams.size()!=2)return true;
             const auto* peer=channel.GetPeer();CrossplaySessionConfig::Layout layout;std::vector<unsigned char> frame;

@@ -68,10 +68,16 @@ bool NetworkLocalReadyAllowed() {
     if(!NetworkPlayingRows(setup,mixed,view))return false;
     const uintptr_t rows=view.rows;
     unsigned int humans = 0, computers = 0, indices = 0, own = 0, own_row = 0, peer_row = 0;
+    unsigned int admitted_ai=0;
     for (unsigned int row = 1; row <= 24; ++row) {
         const uintptr_t player = rows + row * 0x5c4;
         const auto kind = *reinterpret_cast<unsigned int*>(player + 0x64);
         if (kind != 1 && kind != 2) continue;
+#ifdef S7_PLATFORM_INDEPENDENT
+        if(mixed && kind==2 && CrossplayProduction::GoldWorldAIPlayer(session,rows,row)){
+            admitted_ai|=1u<<row;continue;
+        }
+#endif
         if (kind == 2 && !local_peer_leave_enabled) return false;
         if (*reinterpret_cast<unsigned int*>(player + 0x60) != 3) return false;
         const auto index = *reinterpret_cast<unsigned int*>(player + 0x5c);
@@ -84,6 +90,9 @@ bool NetworkLocalReadyAllowed() {
         } else peer_row = row;
     }
     if (indices != 6 || own != 1 || humans + computers != 2) return false;
+#ifdef S7_PLATFORM_INDEPENDENT
+    if(mixed && admitted_ai!=CrossplayProduction::GoldWorldExpectedAIPlayers(session))return false;
+#endif
 #ifdef S7_PLATFORM_INDEPENDENT
     if(mixed){
         GoldNetworkRowsView after;

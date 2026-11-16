@@ -18,6 +18,18 @@ foreach($line in $lines){
 New-Item -ItemType Directory -Path $out | Out-Null
 Push-Location $out
 try{
+    foreach($fixture in @('crossplay_session_config','crossplay_game_start','crossplay_ai_profile','crossplay_ai_preparation')){
+        $sources=@((Join-Path $PSScriptRoot ($fixture+'_tests.cpp')))
+        if($fixture -ne 'crossplay_session_config'){$sources+=(Join-Path $PSScriptRoot 'crossplay_participant.cpp')}
+        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 @sources ('/Fe:'+$fixture+'_tests.exe') /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
+        if($LASTEXITCODE){throw ('Original AI/start fixture did not compile: '+$fixture)}
+        & (Join-Path $out ($fixture+'_tests.exe'))
+        if($LASTEXITCODE){throw ('Original AI/start fixture failed: '+$fixture)}
+    }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_world_event_queue_tests.cpp') /Fe:crossplay_world_event_queue_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Ordered world event fixture did not compile'}
+    & (Join-Path $out 'crossplay_world_event_queue_tests.exe')
+    if($LASTEXITCODE){throw 'Ordered world event fixture failed'}
     foreach($fixture in @('crossplay_gold_animal_movement_time','crossplay_gold_animal_path_points')){
         & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($fixture+'_tests.cpp')) ('/Fe:'+ $fixture+'_tests.exe') /link /DYNAMICBASE /NXCOMPAT
         if($LASTEXITCODE){throw "Original animal arithmetic bridge did not compile: $fixture"}

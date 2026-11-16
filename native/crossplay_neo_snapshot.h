@@ -5,6 +5,18 @@
 // This does not authorize a save, select an archive, acknowledge file receipt or
 // restore a world. Those original operations retain their separate controller.
 namespace CrossplayNeoSnapshot {
+inline bool LogicTurn(const std::string& command,uint32_t& turn){
+    turn=0;constexpr char prefix[]="save-snapshot:";constexpr size_t size=sizeof(prefix)-1;
+    if(command.size()<=size || command.size()>size+10 || command.compare(0,size,prefix)
+        || (command.size()>size+1 && command[size]=='0'))return false;
+    uint32_t value=0;
+    for(size_t i=size;i<command.size();++i){
+        const unsigned char digit=static_cast<unsigned char>(command[i]);
+        if(digit<'0' || digit>'9' || value>(UINT32_MAX-1-(digit-'0'))/10)return false;
+        value=value*10+(digit-'0');
+    }
+    turn=value;return true;
+}
 inline bool Clock(CrossplayNativeClock::Snapshot& output){
 #ifdef S7_CROSSPLAY_LOGISTICS_TESTING
     if(CrossplayLogisticsActive::test_clock)return CrossplayLogisticsActive::test_clock(output);

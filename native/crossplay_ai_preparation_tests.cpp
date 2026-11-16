@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include "crossplay_ai_preparation_codec.h"
+#include "crossplay_ai_playing_row.h"
 #include <cstdio>
 #include <cstdlib>
 unsigned checks=0;
@@ -15,6 +16,25 @@ int main() {
   Check(!EligibleScope(Crossplay::Edition::Gold,unbound,{42,77},true));
  }
  Check(!active_read_scope);
+ for(uint32_t slot:{3u,4u})for(uint32_t difficulty:{0u,1u,2u})for(uint32_t peaceful:{0u,1u}){
+  Value expected{slot,29,difficulty,peaceful,{}};expected.catalog[0]=1;
+  std::array<unsigned char,0x5c4> row{};
+  CrossplayChat::Put(row.data()+0x18,expected.profile);CrossplayChat::Put(row.data()+0x5c,slot);
+  CrossplayChat::Put(row.data()+0x60,1);CrossplayChat::Put(row.data()+0x64,2);
+  CrossplayChat::Put(row.data()+0x6c,difficulty);row[0x70]=static_cast<unsigned char>(peaceful);
+  const auto unchanged=row;
+  Check(GoldPlayingRow(row.data(),row.size(),expected));
+  Check(!GoldPlayingRow(nullptr,row.size(),expected));Check(!GoldPlayingRow(row.data(),row.size()-1,expected));
+  for(uint32_t controller:{0u,2u,3u,UINT32_MAX}){
+   auto changed=row;CrossplayChat::Put(changed.data()+0x60,controller);Check(!GoldPlayingRow(changed.data(),changed.size(),expected));
+  }
+  for(size_t offset:{size_t(0x18),size_t(0x5c),size_t(0x64),size_t(0x6c),size_t(0x70)}){
+   auto changed=row;changed[offset]^=0x80;Check(!GoldPlayingRow(changed.data(),changed.size(),expected));
+  }
+  auto stale=expected;stale.slot=slot==3?4u:3u;Check(!GoldPlayingRow(row.data(),row.size(),stale));
+  stale=expected;stale.catalog={};Check(!GoldPlayingRow(row.data(),row.size(),stale));
+  Check(row==unchanged);
+ }
  Crossplay::Peer host{},guest{};host.local_id[0]=1;host.remote_id[0]=2;guest.local_id=host.remote_id;guest.remote_id=host.local_id;
  Value v{3,29,2,0,{}};v.catalog[0]=1;Value result{};std::vector<unsigned char> frame;
  Check(Frame(host,1,v,frame) && frame.size()==92 && Receive(guest,0,frame,result) && result.profile==29);
