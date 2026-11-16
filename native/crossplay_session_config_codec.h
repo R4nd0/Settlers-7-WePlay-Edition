@@ -122,11 +122,11 @@ struct ConfigLock {
     explicit ConfigLock(unsigned char* config) {
         const auto* holder=*reinterpret_cast<const unsigned char* const*>(config+8);
         if(!Detail::Readable(holder,8) || *reinterpret_cast<const uintptr_t*>(holder)!=0xf30dcc)return;
-        section=*reinterpret_cast<CRITICAL_SECTION* const*>(holder+4);MEMORY_BASIC_INFORMATION memory{};
-        if(!Detail::Readable(section,sizeof(*section)) || !VirtualQuery(section,&memory,sizeof(memory)))return;
+        auto* candidate=*reinterpret_cast<CRITICAL_SECTION* const*>(holder+4);MEMORY_BASIC_INFORMATION memory{};
+        if(!Detail::Readable(candidate,sizeof(*candidate)) || !VirtualQuery(candidate,&memory,sizeof(memory)))return;
         const DWORD access=memory.Protect&0xff;
         if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY)return;
-        acquired=TryEnterCriticalSection(section)!=FALSE;
+        section=candidate;acquired=TryEnterCriticalSection(section)!=FALSE;
     }
     ~ConfigLock(){if(acquired)LeaveCriticalSection(section);}
 };

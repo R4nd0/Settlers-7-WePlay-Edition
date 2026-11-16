@@ -12,6 +12,7 @@
 #include "crossplay_load_progress_codec.h"
 #include "crossplay_bootstrap.h"
 #include "crossplay_session_config_codec.h"
+#include "crossplay_gold_host_choices.h"
 namespace CrossplayProduction {
 namespace {
 struct Runtime;
@@ -113,13 +114,10 @@ struct Runtime {
             if(!lobby_captured)return true;
             CrossplayNative::LobbySnapshot lobby;
             if(!original.CaptureLobby(lobby) || lobby.instance!=session || !lobby.host || lobby.members.size()!=1)return false;
-            using namespace CrossplayNativeCodec::SessionConfigDetail;
-            if(!Methods(Crossplay::Edition::Gold))return false;
-            auto* cache=GoldConfiguration();if(!cache)return true;
-            std::string map,save;
-            {ConfigLock lock(cache);if(!lock.acquired || !NativeString(cache+0x24,map) || !NativeString(cache+0x34,save))return false;}
-            if(map.empty())return true;
-            CrossplayBootstrap::Context captured{map,!save.empty()};std::vector<unsigned char> frame;
+            CrossplayBootstrap::Context captured;std::vector<unsigned char> frame;
+            const auto observed=CrossplayGoldChoices::Capture(original,owner,session,captured_player,captured);
+            if(observed==CrossplayGoldChoices::Observation::Pending)return true;
+            if(observed!=CrossplayGoldChoices::Observation::Captured)return false;
             if(!CrossplayBootstrap::Encode(*peer,captured,frame) || !channel.Send(frame))return false;
             bootstrap=std::move(captured);bootstrap_sent=true;
         }
@@ -192,5 +190,11 @@ Phase RuntimePhase(){return current && current->Owned()?current->phase:Phase::Do
 std::string BootstrapMap(){
     return current && current->Owned() && !current->launch.host && current->bootstrap_received
         && current->phase!=Phase::Failed && current->phase!=Phase::Closed?current->bootstrap.map:std::string();
+}
+bool BootstrapChoices(uint32_t& flags,std::string& map_template){
+    flags=0;map_template.clear();
+    if(!current || !current->Owned() || current->launch.host || !current->bootstrap_received
+        || current->phase==Phase::Failed || current->phase==Phase::Closed || !CrossplayBootstrap::Valid(current->bootstrap))return false;
+    flags=current->bootstrap.flags;map_template=current->bootstrap.map_template;return true;
 }
 }

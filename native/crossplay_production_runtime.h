@@ -9,4 +9,5 @@ void PumpRuntime();
 bool CloseRuntime();
 Phase RuntimePhase();
 std::string BootstrapMap();
+bool BootstrapChoices(uint32_t& flags,std::string& map_template);
 }

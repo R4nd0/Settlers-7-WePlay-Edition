@@ -118,13 +118,40 @@ alone does not enable mixed-play capability in the launcher. The production
 entry remains closed until the complete runtime is attached and qualified.
 
 The authenticated control channel starts before either original local lobby.
-Gold still captures its actual original local Confirmed event and selected map
-before sending the versioned bootstrap context. On History only,
-`G.UI.WriteToConsole('weplay-crossplay-v1:bootstrap-map')` returns that observed
-map after authenticated receipt, and false while it is unavailable. The guest
-waits for this value, then invokes its original local session preparation once
-with that map and an empty local save token. It does not invent a Gold session
-in Storm's browser or open the host's file locally. Its original LocalConfirmed
+Gold captures its actual original local Confirmed event, selected map and host
+choices before sending bootstrap payload version 2. On History only, these
+read-only queries become available after authenticated receipt:
+
+| `weplay-crossplay-v1:` command | Successful Lua return |
+| --- | --- |
+| `bootstrap-map` | Observed nonempty map string |
+| `bootstrap-flags` | Decimal **string** `"0"` through `"7"`; bits `1` positions, `2` teams, `4` coop |
+| `bootstrap-template` | Observed template string; `""` explicitly means no template |
+
+Each returns boolean false while unavailable, after failure/closure, on Gold or
+outside mixed mode. An empty template is not an unavailable result. The owner
+thread, exact native session and actual local Confirmed host identity bind
+capture. Original configuration snapshots and template reads must remain stable
+across the observation interval. A busy configuration lock retries; an invalid
+object or method guard rejects capture. No map-only/default-choice fallback is
+accepted.
+
+The guest waits for all three values. After the original
+`G.map.loadSetupMapConfig(map, templateOrNil)`, it invokes the original
+yield-capable History function once:
+
+```lua
+Network.SessionCreate(map, false, false, 2,
+    positions, teams, templateOrNil, coop)
+```
+
+The two false arguments initialize the local backend. The literal `2` is the
+original UI argument, not evidence of the maximum human-player count. Decode
+the three boolean choices from the received flags; use nil only for the
+observed empty template. Original jobs must remain able to yield: do not wrap
+this call in `pcall` or `xpcall`. These values are not Ready or world authority.
+The guest does not invent a Gold session in Storm's browser or open the host's
+save file locally. Its original LocalConfirmed
 then permits native admission and role projection. `roster-bound` alone must not
 open the guest lobby: the host configuration must be consumed and the admitted
 local preparation row and castle must be observed before presentation. Actual
@@ -144,12 +171,27 @@ the actual consumed castle. Queueing is not consumption, Ready or world-start
 permission. The production entry remains closed; this component has not yet
 been exercised in a normal mixed-game run.
 
-Bootstrap payload magic is eight bytes `S7XBOOT\x01`, followed by sender and
-recipient channel IDs (16 bytes each), a little-endian `uint32` saved-kind (`0/1`),
-a little-endian map-byte count, then the bounded printable ASCII relative map.
-It is carried inside the existing authenticated channel. It contains no save
-token, AI choice, native Ready or world-start permission. Its map came from the
-owned host's original configuration, not from the launcher or a test constant.
+Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
+sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
+saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.
+Map bytes precede template bytes; both are printable ASCII, at most 255 bytes,
+without a terminator. The nonempty map is a relative engine resource name.
+The template may be empty, relative, or Gold's original virtual resource
+`\Download\Template` (optionally with a relative child). Absolute OS paths,
+parent traversal, malformed counts and old map-only version-1 frames are
+rejected. The existing authenticated channel binds the payload to its peer and
+session. It contains no save token, AI choice, native Ready or world-start
+permission. Choices come from the owned host's original configuration and
+original template getter, not from launcher values or test constants.
+
+The [host-choice receipt](receipts/native-production-host-choices-20261116.json)
+records the bounded actual Gold observation: original session creation and
+local host registration under DXVK, flags `0` and `7`, and an observed empty
+template. The flags-7 control uses the original discovery notification with no
+completion relay. An enum typo in the laboratory driver had blocked earlier
+observations; it was not evidence of a missing production callback. Nonempty
+templates and normal mixed guest preparation remain unqualified. These probes
+do not qualify a common world or final production package.
 
 The native host UI owns map, AI, castle, start and NEO selection. The launcher
 does not write a preparation buffer, synthesize Ready, toggle a native start

@@ -1,0 +1,53 @@
+{
+  "format": "weplay-native-production-host-choices-v1",
+  "maintainer": "WePlay Community",
+  "verified_date": "2026-11-16",
+  "bootstrap_payload_version": 2,
+  "launch_and_ui_command_namespace_version": 1,
+  "source_checks": {
+    "bootstrap_fields_bounds_peer_and_rejected_defaults": 27675,
+    "gold_choice_policy_and_modeled_getter_destructor_abi": 129,
+    "compiled_original_gold_method_guard_cases": 11,
+    "compiled_guard_executed_in_emulator_only": true,
+    "source_policy_tests_execute_original_game_methods": false
+  },
+  "actual_single_gold_probes": {
+    "normal_original_prepared_executable": true,
+    "normal_local_simulation_and_platform_independent_build_inputs": true,
+    "private_probe_dll": true,
+    "private_exceptions": [
+      "Mixed entry rejection removed for single-provider diagnostics only; no native peer runtime started",
+      "Read-only host-choice query and phase logger added",
+      "Original UI host flow driven automatically; no Ready or world-start action"
+    ],
+    "gold_service_identities": 1,
+    "phantom_peer_registered": false,
+    "transport": "loopback only",
+    "renderer": "DXVK 3.1.1",
+    "original_local_session_created": true,
+    "original_local_host_registration_observed": true,
+    "actual_observed_flags": [0, 7],
+    "actual_observed_templates": [""],
+    "flags_7_control": {
+      "completion_relay_present": false,
+      "original_discovery_notification_observed": true,
+      "flags_returned_by_native_original_configuration": 7
+    },
+    "earlier_driver_error": "Incorrect idle-enum owner aborted the lab flow once original discovery completed",
+    "missing_production_callback_established": false,
+    "normal_game_exit_codes": [0, 0],
+    "all_eleven_guarded_files_restored": true,
+    "portable_profiles_restored": true,
+    "local_services_closed": true,
+    "raw_packet_payloads_saved": false
+  },
+  "nonempty_template_observed_in_game": false,
+  "readonly_history_getters_exercised_in_actual_mixed_game": false,
+  "guest_setup_consumption_qualified": false,
+  "native_ready_fields_written": false,
+  "actual_mixed_pair_started": false,
+  "production_launch_gate_opened": false,
+  "production_pins_promoted": false,
+  "final_installer_qualified": false,
+  "release_published": false
+}

@@ -115,6 +115,8 @@ int main(){
     output.host=false;Check(!GoldLocalSecret(output,changed)&&changed.empty());
     std::string ui;Check(UiCommand("mode",ui)&&ui=="host");Check(UiCommand("phase",ui)&&ui=="pending");
     Check(!UiCommand("key",ui)&&ui.empty());
+    Check(!UiCommand("bootstrap-flags",ui)&&ui.empty());
+    Check(!UiCommand("bootstrap-template",ui)&&ui.empty());
     UiConsole::installed=true;UiConsole::owner=GetCurrentThreadId();UiConsole::profile=UiConsole::Pin(Edition::Gold);
     UiConsole::test_push_string=&PushString;UiConsole::test_push_boolean=&PushBoolean;
     UiInput("weplay-crossplay-v1:mode");SetLastError(1910);

@@ -56,5 +56,11 @@ try{
     if($LASTEXITCODE){throw 'History preparation claim fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'History preparation claim emulator guard fixture did not compile'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_gold_host_choices_tests.cpp') /Fe:crossplay_gold_host_choices_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    if($LASTEXITCODE){throw 'Gold host choice fixture did not compile'}
+    & (Join-Path $out 'crossplay_gold_host_choices_tests.exe')
+    if($LASTEXITCODE){throw 'Gold host choice fixture failed'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_gold_host_choices_tests.cpp') /Fe:crossplay_gold_host_choices_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    if($LASTEXITCODE){throw 'Gold host choice emulator guard fixture did not compile'}
 }finally{Pop-Location}
 Write-Output 'Production handoff fixtures passed. No adapter was deployed or game started.'
