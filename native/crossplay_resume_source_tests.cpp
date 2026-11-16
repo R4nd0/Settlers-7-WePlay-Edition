@@ -25,14 +25,15 @@ std::string Pickle(uint32_t turn){
     std::string value="return{{[\"version\"]=1,[\"payload\"]=\"";
     for(char c:payload){if(c=='\n')value+="\\n";else value+=c;}return value+="\",},}";
 }
-Bytes Archive(const std::string& pickle,uint32_t turn,unsigned copies=1){
+Bytes Archive(const std::string& pickle,uint32_t turn,unsigned copies=1,const Bytes* world=nullptr){
     Bytes cache;Text(cache,"bin1");Put(cache,1);Put(cache,0);Put(cache,1);Text(cache,"Coll");Put(cache,0);Put(cache,copies);
     for(unsigned i=0;i<copies;++i){Put(cache,1);String(cache,"weplay_neo_logistics_v1");String(cache,pickle);}Text(cache,"coll");
     const std::string xml="<root><LogicTurn>"+std::to_string(turn)+"</LogicTurn></root>";
-    const std::array<std::string,2> names{"SaveGameCache.s7","SavegameInfo.xml"};
-    const std::array<Bytes,2> members{cache,Bytes(xml.begin(),xml.end())};
-    Bytes data(80),directory(272);Put(directory,2);
-    for(size_t i=0;i<2;++i){
+    std::vector<std::string> names{"SaveGameCache.s7","SavegameInfo.xml"};
+    std::vector<Bytes> members{cache,Bytes(xml.begin(),xml.end())};
+    if(world){names.push_back("SaveGame.s7");members.push_back(*world);}
+    Bytes data(80),directory(272);Put(directory,static_cast<uint32_t>(names.size()));
+    for(size_t i=0;i<names.size();++i){
         const auto at=directory.size();directory.resize(at+64);const auto& raw=members[i];const auto n=names[i].size()+1;
         neo_save::Put(directory.data()+at+8,static_cast<uint32_t>(raw.size()));neo_save::Put(directory.data()+at+12,neo_save::Crc(raw.data(),raw.size()));
         neo_save::Put(directory.data()+at+24,static_cast<uint32_t>(data.size()));neo_save::Put(directory.data()+at+32,static_cast<uint32_t>(raw.size()));
@@ -86,5 +87,43 @@ int wmain(){
     SetLastError(0x55443322);CHECK(!S::Read(path,bi,bc,serialized,payload));CHECK(GetLastError()==0x55443322 && serialized.empty() && payload.empty());CHECK(CloseHandle(writer));
     CHECK(!S::Read(L"relative.s7s",bi,bc,serialized,payload));wrong=bi;wrong.bytes=S::MaximumArchiveBytes+1;CHECK(!S::Read(path,wrong,bc,serialized,payload));
     CHECK(DeleteFileW(path.c_str()));CHECK(!S::Read(path,bi,bc,serialized,payload));
+    // Production capture derives every checkpoint field from the selected
+    // archive. Two valid worlds at the same filename must never reuse state.
+    Crossplay::Digest content{};content[0]=17;const std::string map="Maps\\Skirmish\\s04_m06_Monhaim_Valley";
+    S::Selected selected;Bytes world(100,0x51);const auto full=Archive(second,700,1,&world);
+    CHECK(S::Describe(full.data(),full.size(),content,map,selected));
+    CHECK(selected.checkpoint.logic_turn==700 && selected.checkpoint.replay_turn==701
+        && selected.checkpoint.bytes==world.size() && selected.checkpoint.features==19 && selected.checkpoint.enabled);
+    CHECK(selected.checkpoint.neo==bc.neo && selected.serialized==second && selected.payload.find("701\n700\n")!=std::string::npos);
+    Crossplay::Digest world_hash{};CHECK(CrossplayResumeNeo::Hash(world.data(),world.size(),world_hash));
+    CHECK(selected.checkpoint.file==world_hash && selected.archive.sha256==Identity(full).sha256);
+    const auto original=selected;
+    world[0]^=1;const auto changed=Archive(second,700,1,&world);
+    CHECK(S::Describe(changed.data(),changed.size(),content,map,selected));
+    CHECK(selected.checkpoint.file!=original.checkpoint.file && selected.checkpoint.setup!=original.checkpoint.setup
+        && selected.archive.sha256!=original.archive.sha256 && selected.checkpoint.neo==original.checkpoint.neo);
+    CHECK(S::Describe(full.data(),full.size(),content,map+"Other",selected));
+    CHECK(selected.checkpoint.setup!=original.checkpoint.setup && selected.checkpoint.file==original.checkpoint.file);
+    CHECK(!S::Describe(b.data(),b.size(),content,map,selected) && selected.serialized.empty());
+    for(const auto& invalid:{Archive(second,699,1,&world),Archive(second,700,0,&world),Archive(second,700,2,&world),Archive("return error('never execute')",700,1,&world)}){
+        CHECK(!S::Describe(invalid.data(),invalid.size(),content,map,selected));CHECK(selected.payload.empty() && !selected.lease);
+    }
+    world.resize(79);const auto short_world=Archive(second,700,1,&world);
+    CHECK(!S::Describe(short_world.data(),short_world.size(),content,map,selected));
+    CHECK(!S::Describe(full.data(),full.size(),{},map,selected));
+    CHECK(!S::Describe(full.data(),full.size(),content,"../Map",selected));
+    CHECK(!S::Describe(full.data(),full.size(),content,std::string(256,'a'),selected));
+    // Restore a sufficiently sized world after the short-world negative case.
+    world.resize(100,0x51);const auto disabled=Archive("return{{[\"version\"]=1,[\"payload\"]=\"NEO0\\n\",},}",700,1,&world);
+    CHECK(S::Describe(disabled.data(),disabled.size(),content,map,selected));
+    CHECK(!selected.checkpoint.enabled && selected.payload=="NEO0\n" && selected.checkpoint.features==19
+        && selected.checkpoint.logic_turn==700 && selected.checkpoint.replay_turn==701);
+    CHECK(Write(path,full,CREATE_NEW));SetLastError(1907);CHECK(S::CaptureSelected(path,content,map,selected) && GetLastError()==1907);
+    CHECK(selected.lease && selected.lease->value!=INVALID_HANDLE_VALUE);
+    const auto blocked=CreateFileW(path.c_str(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    CHECK(blocked==INVALID_HANDLE_VALUE);CHECK(!DeleteFileW(path.c_str()));
+    selected={};CHECK(Write(path,changed,TRUNCATE_EXISTING));
+    CHECK(S::CaptureSelected(path,content,map,selected));CHECK(selected.checkpoint.file!=original.checkpoint.file);
+    selected={};CHECK(DeleteFileW(path.c_str()));
     printf("PASS %u selected resume archive checks: two checkpoints, complete archive/NEO hashes, clocks, restricted metadata, no stale fixture, writer exclusion, error preservation.\n",checks);return 0;
 }

@@ -1,0 +1,44 @@
+{
+  "format": "weplay-native-production-components-v1",
+  "maintainer": "WePlay Community",
+  "verified_date": "2026-11-16",
+  "launch_contract": {
+    "version": 1,
+    "native_environment_checks": 123,
+    "unchanged_standalone_entry_abi": true,
+    "gold_host_history_guest_only": true,
+    "invalid_explicit_configuration_rejected": true,
+    "native_channel_identity_shape_preserved": true
+  },
+  "selected_source": {
+    "protocol_fixture_checks": 15132,
+    "source_fixture_checks": 75,
+    "actual_retained_archives_read_only": 2,
+    "actual_logic_turns": [300, 700],
+    "actual_original_world_bytes": [24722247, 24718764],
+    "archive_world_and_neo_hashes_match_independent_prior_receipts": true,
+    "checkpoint_constants_not_required": true,
+    "setup_provenance_bound_to_selected_archive_and_observed_map": true,
+    "enabled_and_disabled_neo_metadata_tested_synthetically": true,
+    "retained_file_lease_rejects_writers_and_replacement": true,
+    "save_supplied_lua_not_executed": true
+  },
+  "gold_request_postload": {
+    "policy_and_lifetime_checks": 133,
+    "compiled_predicate_abi_assertions": 16,
+    "compiled_original_region_guard_cases": 50,
+    "original_regions": 16,
+    "fixed_high_base_guard_executable_run_only_in_emulator": true,
+    "exact_postload_callers_and_saved_states_only": true,
+    "full_generation_registry_object_and_saved_identity_required": true,
+    "state_wait_ready_clock_rng_checksum_writes": false,
+    "foreign_hook_release_rejected_without_writes": true
+  },
+  "no_private_include_paths_or_test_executable_required_by_new_components": true,
+  "ordinary_runtime_connected": false,
+  "new_production_adapters_built": false,
+  "game_started": false,
+  "adapter_deployed": false,
+  "final_installer_qualified": false,
+  "release_published": false
+}

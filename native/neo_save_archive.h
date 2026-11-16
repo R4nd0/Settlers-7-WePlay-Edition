@@ -1,5 +1,6 @@
 #pragma once
-// Read only the two small saved-state members, never the native world payload.
+// Metadata readers retain their two-small-member limit. The explicit production
+// checkpoint reader may additionally inspect the bounded original world member.
 // BAF v6 crypto/layout follows tools/lan/bba.py (S7Packer, MIT).
 #include "neo_logistics_state.h"
 #include <array>
@@ -11,6 +12,7 @@ extern "C" int puff(unsigned char*, unsigned long*, const unsigned char*, unsign
 namespace neo_save {
 using Bytes = std::vector<unsigned char>;
 constexpr size_t MaximumCache = 8 * 1024 * 1024;
+constexpr size_t MaximumWorld = 64 * 1024 * 1024;
 inline void RequireAt(bool value,int line) { if (!value) throw std::runtime_error("Invalid NEO save archive at " + std::to_string(line)); }
 #define Require(value) RequireAt((value),__LINE__)
 inline uint32_t Word(const unsigned char* p) {
@@ -38,7 +40,7 @@ inline Bytes Decrypt(Bytes data, const std::array<uint32_t,4>& key, uint32_t del
     for(size_t i=0;i<v.size();++i)Put(data.data()+i*4,v[i]);
     return data;
 }
-inline Bytes Gzip(Bytes data, uint32_t nameLength, size_t expected) {
+inline Bytes Gzip(Bytes data, uint32_t nameLength, size_t expected,size_t maximum=MaximumCache) {
     constexpr uint32_t x[]={68040748,166934560,1719695735,4247314248u};
     for(size_t at=0;at<data.size();at+=1048576) {
         Require(data.size()-at>=16);uint32_t w[4];for(unsigned i=0;i<4;++i)w[i]=Word(data.data()+at+i*4);
@@ -46,7 +48,7 @@ inline Bytes Gzip(Bytes data, uint32_t nameLength, size_t expected) {
         w[1]^=w[0]^nameLength^x[1];w[0]^=w[3]^nameLength^x[0];
         for(unsigned i=0;i<4;++i)Put(data.data()+at+i*4,w[i]);
     }
-    Require(expected<=MaximumCache && data.size()>=18 && data[0]==31 && data[1]==139 && data[2]==8 && !(data[3]&0xe0));
+    Require(maximum<=MaximumWorld && expected<=maximum && data.size()>=18 && data[0]==31 && data[1]==139 && data[2]==8 && !(data[3]&0xe0));
     size_t at=10;const size_t end=data.size()-8;
     if(data[3]&4) {Require(at+2<=end);const size_t n=data[at]+(size_t(data[at+1])<<8);at+=2;Require(n<=end-at);at+=n;}
     for(unsigned flag:{8u,16u})if(data[3]&flag) {while(at<end && data[at])++at;Require(at<end);++at;}
@@ -61,12 +63,13 @@ struct Reader {
     explicit Reader(std::istream& in):stream(in),length(0) {
         stream.seekg(0,std::ios::end);const auto n=stream.tellg();Require(n>=80);length=static_cast<uint64_t>(n);Require(length<=UINT32_MAX);
     }
-    Bytes Read(uint64_t at,size_t n) {
-        Require(n<=MaximumCache && at<=length && n<=length-at);Bytes b(n);
+    Bytes Read(uint64_t at,size_t n,size_t maximum=MaximumCache) {
+        Require(maximum<=MaximumWorld && n<=maximum && at<=length && n<=length-at);Bytes b(n);
         stream.clear();stream.seekg(static_cast<std::streamoff>(at));stream.read(reinterpret_cast<char*>(b.data()),static_cast<std::streamsize>(n));
         Require(stream.good());return b;
     }
-    std::array<Bytes,2> Members() {
+    template<size_t N> std::array<Bytes,N> Extract() {
+        static_assert(N==2 || N==3,"Only metadata or metadata plus original world are supported");
         const auto h=Read(0,16);Require(std::memcmp(h.data(),"BAF\6",4)==0);
         const auto hs=Word(h.data()+8);Require(hs==16 || hs==64);
         const auto head=Decrypt(Read(16,hs),{623092400,3578011951u,428883204,211416760},1231853475,7);
@@ -76,24 +79,27 @@ struct Reader {
         const auto dir=Decrypt(std::move(encoded),{892421091,3702197895u,3064602941u,189782668},1532281822,8);
         const auto namesEnd=Word(dir.data()+8);Require(Word(dir.data()+4)==272 && namesEnd>=276 && namesEnd<=dir.size()-4);
         const uint32_t count=Word(dir.data()+272);Require(count && count<=100000);
-        size_t pos=276;std::array<Bytes,2> result;std::array<bool,2> found{};
+        size_t pos=276;std::array<Bytes,N> result;std::array<bool,N> found{};
         for(uint32_t i=0;i<count;++i) {
             Require(pos<=namesEnd && namesEnd-pos>=64);uint32_t v[16];for(unsigned j=0;j<16;++j)v[j]=Word(dir.data()+pos+j*4);
             const size_t n=v[12],padded=((n+3)&~size_t(3))+(n%4==0?4:0);
             Require(n && n<10000 && padded<=namesEnd-pos-64);
             std::string name(reinterpret_cast<const char*>(dir.data()+pos+64),n);while(!name.empty() && name.back()==0)name.pop_back();
             pos+=64+padded;
-            const int target=name=="SaveGameCache.s7"?0:name=="SavegameInfo.xml"?1:-1;if(target<0)continue;
-            Require(!found[target] && !v[1] && !v[5] && !v[7] && v[6]>=16+hs && v[2]<=MaximumCache && (target==0 || v[2]<=65536));
+            const int target=name=="SaveGameCache.s7"?0:name=="SavegameInfo.xml"?1:(N==3 && name=="SaveGame.s7"?2:-1);if(target<0)continue;
+            const size_t maximum=target==2?MaximumWorld:(target==1?65536:MaximumCache);
+            Require(!found[target] && !v[1] && !v[5] && !v[7] && v[6]>=16+hs && v[2]<=maximum);
             // Like the existing BBA reader: the native writer leaves the stored
             // compressed CRC stale. Require gzip CRC, decoded CRC/size and directory CRC.
-            auto packed=Read(v[6],v[8]);
-            Bytes raw;if(v[4]==17)raw=Gzip(std::move(packed),v[12],v[2]);else {Require(v[4]==0);raw=std::move(packed);}
+            auto packed=Read(v[6],v[8],target==2?MaximumWorld:MaximumCache);
+            Bytes raw;if(v[4]==17)raw=Gzip(std::move(packed),v[12],v[2],maximum);else {Require(v[4]==0);raw=std::move(packed);}
             Require(raw.size()==v[2] && Crc(raw.data(),raw.size())==v[3]);result[target]=std::move(raw);found[target]=true;
         }
         Require(pos==namesEnd && uint64_t(namesEnd)+4+uint64_t(Word(dir.data()+namesEnd))*8==dir.size());
-        Require(found[0] && found[1]);return result;
+        for(bool present:found)Require(present);return result;
     }
+    std::array<Bytes,2> Members(){return Extract<2>();}
+    std::array<Bytes,3> MembersWithWorld(){return Extract<3>();}
 };
 struct Cache {
     const Bytes& bytes;size_t at=0;
