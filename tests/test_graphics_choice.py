@@ -18,6 +18,7 @@ import test_graphics_profile as fixtures
 class GraphicsChoiceTests(unittest.TestCase):
     def setUp(self):
         fixtures.GraphicsProfileTests.setUp(self)
+        self.install()
         enumeration = patch.object(choice.display, 'enumerate_displays', return_value=[{
             'device': r'\\.\DISPLAY1', 'adapter': 'Fixture GPU', 'primary': True,
             'x': 0, 'y': 0, 'width': 1920, 'height': 1080, 'resolutions': [[1280,720],[1920,1080]]}])
@@ -42,11 +43,12 @@ class GraphicsChoiceTests(unittest.TestCase):
     def saved(self):
         return json.loads((self.root / choice.CHOICE_FILE).read_bytes())
 
-    def test_native_auto_has_hidden_gui_every_start_and_no_fake_gpu_filter(self):
+    def test_dxvk_has_hidden_gpu_gui_every_start_and_clears_stale_filter(self):
         before = self.snapshot()
         inherited = {'PATH': 'fixture', 'dxvk_filter_device_name': 'old GPU'}
         environment, runner = self.choose(self.result(), inherited)
-        self.assertEqual(environment, {'PATH': 'fixture'})
+        self.assertEqual(environment['PATH'], 'fixture')
+        self.assertNotIn('dxvk_filter_device_name',environment)
         self.assertEqual(inherited['dxvk_filter_device_name'], 'old GPU')
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.saved(), {'format': choice.FORMAT, 'choice': None})
@@ -54,7 +56,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertIn('-STA', command)
         self.assertIn('-NonInteractive', command)
         self.assertEqual(command[command.index('-WindowStyle') + 1], 'Hidden')
-        self.assertEqual(command[-2:], ['-RendererMode', 'native'])
+        self.assertEqual(command[-2:], ['-RendererMode', 'dxvk'])
         self.assertEqual(runner.call_args.kwargs['creationflags'], subprocess.CREATE_NO_WINDOW)
         self.assertNotIn('shell', runner.call_args.kwargs)
         self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous'], self.saved())
@@ -104,9 +106,11 @@ class GraphicsChoiceTests(unittest.TestCase):
                                   's7_extended_shadow_range': '1', 'PATH': 'fixture'})
 
     def test_legacy_visual_choices_cannot_be_enabled_by_inherited_environment(self):
-        self.assertEqual(choice.saved_launch_environment(self.root, {
+        environment=choice.saved_launch_environment(self.root, {
             's7_extended_detail': '1', 's7_detailed_shadows': '1',
-            's7_extended_shadow_range': '1', 'PATH': 'fixture'}), {'PATH': 'fixture'})
+            's7_extended_shadow_range': '1', 'PATH': 'fixture'})
+        self.assertEqual(environment['PATH'],'fixture')
+        self.assertFalse(any(name.lower().startswith('s7_') for name in environment))
 
     def test_visual_options_need_capable_adapter_and_strict_booleans(self):
         before = self.snapshot()
@@ -122,14 +126,16 @@ class GraphicsChoiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             graphics.launch_environment(self.root, {}, extended_detail='true')
 
-    def test_native_visual_choices_do_not_claim_dxvk_texture_override(self):
+    def test_native_recovery_state_cannot_launch_even_with_valid_visual_preferences(self):
+        graphics.restore(self.root)
         with patch.object(choice, 'VISUAL_ADAPTER_SHA256', content.digest(self.root / graphics.LOADER)):
             choice.save_choice(self.root, {'format': choice.FORMAT, 'choice': None,
                                           'extended_detail': True, 'detailed_shadows': True,
                                           'extended_shadow_range': True})
-            self.assertEqual(choice.saved_launch_environment(self.root, {}),
-                             {'S7_EXTENDED_DETAIL': '1', 'S7_DETAILED_SHADOWS': '1',
-                              'S7_EXTENDED_SHADOW_RANGE': '1'})
+            before=self.snapshot()
+            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+                choice.saved_launch_environment(self.root,{})
+            self.assertEqual(self.snapshot(),before)
 
     def test_tone_is_explicit_and_download_failure_preserves_saved_choice(self):
         import reshade_runtime
@@ -186,9 +192,10 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), record)
         raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'anisotropic_filtering': True})
         graphics.restore(self.root)
-        environment, _ = self.choose(self.result(raw=raw), {})
-        self.assertNotIn('DXVK_CONFIG', environment)
-        self.assertEqual(choice.saved_launch_environment(self.root, {}), {})
+        with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+            self.choose(self.result(raw=raw), {})
+        with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+            choice.saved_launch_environment(self.root, {})
 
     def test_filtering_rejects_coercion_and_arbitrary_config(self):
         for value in (None, 0, 1, '16', 'true', [], {}, '16; d3d9.maxFrameRate = -1'):
@@ -202,7 +209,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         environment, _ = self.choose(self.result(code=choice.CANCELLED, raw=b'ignored'))
         self.assertIsNone(environment)
         self.assertEqual(self.snapshot(), before)
-        self.assertFalse((self.root / 'LocalData').exists())
+        self.assertFalse((self.root / choice.CHOICE_FILE).exists())
         self.install()
         self.choose(self.result('Fixture GPU'))
         record = (self.root / choice.CHOICE_FILE).read_bytes()
@@ -210,8 +217,12 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertIsNone(environment)
         self.assertEqual((self.root / choice.CHOICE_FILE).read_bytes(), record)
 
-    def test_native_renderer_rejects_concrete_choice_from_child(self):
-        with self.assertRaises(ValueError): self.choose(self.result('Fixture GPU'))
+    def test_native_renderer_rejects_launch_before_child(self):
+        graphics.restore(self.root)
+        with patch.object(subprocess,'run') as runner:
+            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+                choice.choose_launch_environment(self.root,{})
+        runner.assert_not_called()
         self.assertFalse((self.root / choice.CHOICE_FILE).exists())
 
     def test_previous_model_passed_privately_and_stale_auto_saved(self):
@@ -246,7 +257,7 @@ class GraphicsChoiceTests(unittest.TestCase):
 
     def test_damaged_preference_is_preserved_and_no_dialog_started(self):
         path = self.root / choice.CHOICE_FILE
-        path.parent.mkdir()
+        path.parent.mkdir(exist_ok=True)
         path.write_bytes(b'foreign file')
         with patch.object(subprocess, 'run') as runner:
             with self.assertRaises(ValueError): choice.choose_launch_environment(self.root, {})
@@ -259,12 +270,10 @@ class GraphicsChoiceTests(unittest.TestCase):
             with self.assertRaises(ValueError): choice.choose_launch_environment(self.root, {})
         runner.assert_not_called()
 
-    def test_inactive_owned_profile_is_honest_native_mode(self):
-        self.install()
+    def test_inactive_owned_profile_cannot_fall_back_to_native(self):
         graphics.restore(self.root)
-        environment, runner = self.choose(self.result(), {})
-        self.assertEqual(environment, {})
-        self.assertEqual(runner.call_args.args[0][-1], 'native')
+        with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+            self.choose(self.result(), {})
 
     def test_pending_profile_journal_rejects_dialog(self):
         self.install()
@@ -296,7 +305,7 @@ class GraphicsChoiceTests(unittest.TestCase):
     def test_existing_session_lock_can_be_owned_by_caller(self):
         with graphics.session_lock(self.root):
             environment, _ = self.choose(self.result(), {})
-        self.assertEqual(environment, {})
+        self.assertIn('DXVK_CONFIG_FILE',environment)
 
     def test_atomic_save_failure_preserves_previous_choice(self):
         self.install()
@@ -310,7 +319,7 @@ class GraphicsChoiceTests(unittest.TestCase):
         outside = self.parent / 'external.json'
         outside.write_bytes(graphics.encoded({'format': choice.FORMAT, 'choice': None}))
         path = self.root / choice.CHOICE_FILE
-        path.parent.mkdir()
+        path.parent.mkdir(exist_ok=True)
         try:
             path.symlink_to(outside)
         except OSError as exc:
@@ -323,7 +332,7 @@ class GraphicsChoiceTests(unittest.TestCase):
 
     def test_simple_menu_defaults_legacy_toggle_and_fixed_arguments(self):
         self.assertEqual(choice.game_arguments(self.root), ())
-        self.assertFalse((self.root / 'LocalData').exists())
+        self.assertFalse((self.root / choice.CHOICE_FILE).exists())
         self.choose(self.result())  # Legacy v1 record, no new field.
         self.assertEqual(choice.game_arguments(self.root), ())
         before = content.verify(self.root)
@@ -347,7 +356,7 @@ class GraphicsChoiceTests(unittest.TestCase):
     def test_saved_bad_menu_bool_is_not_ignored_and_environment_cannot_enable_it(self):
         with patch.dict(os.environ, {'S7_SIMPLE_MENU': 'true', 'S7_GAME_ARGS': '-noMapInMainMenu'}):
             self.assertEqual(choice.game_arguments(self.root), ())
-        path = self.root / choice.CHOICE_FILE; path.parent.mkdir()
+        path = self.root / choice.CHOICE_FILE; path.parent.mkdir(exist_ok=True)
         raw = graphics.encoded({'format': choice.FORMAT, 'choice': None, 'simple_menu': 1})
         path.write_bytes(raw)
         with patch.object(subprocess, 'run') as runner:
@@ -438,7 +447,7 @@ class GraphicsChoiceTests(unittest.TestCase):
     def test_display_enumeration_failure_and_cancel_leave_legacy_usable(self):
         self.displays.side_effect = RuntimeError('fixture enumeration unavailable')
         environment, runner = self.choose(self.result(), {})
-        self.assertEqual(environment, {})
+        self.assertIn('DXVK_CONFIG_FILE',environment)
         self.assertEqual(json.loads(runner.call_args.kwargs['input'])['displays'], [])
         before = (self.root / choice.CHOICE_FILE).read_bytes()
         self.choose(self.result(code=choice.CANCELLED))

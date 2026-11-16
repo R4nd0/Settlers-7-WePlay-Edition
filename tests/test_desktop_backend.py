@@ -53,7 +53,7 @@ class DesktopTests(unittest.TestCase):
         self.desktop=backend.Desktop(self.app,lambda kind,**fields:self.events.append((kind,fields)))
         self.screens=[dict(device=r'\\.\DISPLAY1',adapter='Fixture GPU',primary=True,x=0,y=0,width=1920,height=1080,
                            resolutions=[[1280,720],[1920,1080]])]
-        self.probe={'format':'s7-desktop-probe-v1','probe_sha256':'a'*64,'adapters':['Fixture GPU'],'devices':[],'failure':'unsupported'}
+        self.probe={'format':'s7-desktop-probe-v1','probe_sha256':'a'*64,'adapters':['Fixture GPU'],'devices':['Fixture GPU'],'failure':None}
         def save(root,value):
             value=choice.validate_choice(value);(root/'LocalData').mkdir(exist_ok=True)
             (root/choice.CHOICE_FILE).write_bytes(graphics.encoded(value));return value
@@ -61,7 +61,7 @@ class DesktopTests(unittest.TestCase):
                                ((choice,'_renderer'),{'return_value':('native',{})}),
                                ((self.desktop,'probe'),{'return_value':self.probe}),
                                ((self.desktop,'displays'),{'return_value':self.screens}),
-                               ((self.desktop,'renderer'),{'return_value':'native'})]:
+                               ((self.desktop,'renderer'),{'return_value':'dxvk'})]:
             item=patch.object(*target,**options);item.start();self.addCleanup(item.stop)
 
     def prepare(self):
@@ -504,21 +504,37 @@ class DesktopTests(unittest.TestCase):
     def test_pending_graphics_transaction_is_recovered_by_profile_api(self):
         self.prepare();root=self.desktop.game();folder=root/graphics.STATE;folder.mkdir(parents=True)
         (folder/'transaction.json').write_bytes(b'pending fixture')
-        with patch.object(graphics,'restore') as restore:
-            self.assertEqual(backend.Desktop.renderer(self.desktop,root,'native',self.probe),'native')
-            restore.assert_called_once_with(root)
+        with patch.object(graphics,'install') as install_profile,patch.object(graphics,'restore') as restore:
+            self.assertEqual(backend.Desktop.renderer(self.desktop,root,'native',self.probe),'dxvk')
+            install_profile.assert_called_once_with(root,self.desktop.package/'Payload/Graphics/d3d9.dll')
+            restore.assert_not_called()
 
-    def test_automatic_native_fallback_clears_stale_gpu_and_dxvk_only_effects(self):
-        self.prepare()
-        effects=('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
-        selected={'format':choice.FORMAT,'choice':'Previously supported GPU',**dict.fromkeys(effects,True)}
-        self.desktop.save_settings(dict(renderer_policy='auto',choice=selected,
-            quality=dict(quality.DEFAULTS),player_name='Tester'))
-        saved=choice._load_choice(self.desktop.game())
-        self.assertIsNone(saved['choice'])
-        self.assertTrue(all(saved[name] is False for name in effects))
-        self.assertEqual(self.desktop.installed()['renderer_policy'],'auto')
-        self.assertEqual(quality.load(self.desktop.game()),quality.DEFAULTS)
+    def test_legacy_policies_migrate_to_dxvk_without_restoring_native(self):
+        self.prepare();root=self.desktop.game()
+        for policy in ('auto','native','dxvk'):
+            record=self.desktop.installed();record['renderer_policy']=policy
+            self.desktop.write(self.desktop.state/'installation.json',record)
+            self.assertEqual(self.desktop.installed()['renderer_policy'],'dxvk')
+            self.assertEqual(self.desktop.snapshot()['renderer_policy'],'dxvk')
+            with patch.object(choice,'_renderer',return_value=('native',{})), \
+                    patch.object(graphics,'install') as install_profile,patch.object(graphics,'restore') as restore:
+                self.assertEqual(backend.Desktop.renderer(self.desktop,root,policy,self.probe),'dxvk')
+                install_profile.assert_called_once();restore.assert_not_called()
+
+    def test_removed_renderer_requests_and_unsupported_gpu_preserve_preferences(self):
+        self.prepare();root=self.desktop.game()
+        before=(self.desktop.state/'installation.json').read_bytes()
+        choice_before=(root/choice.CHOICE_FILE).read_bytes()
+        request=dict(renderer_policy='dxvk',choice=dict(format=choice.FORMAT,choice=None),
+                     quality=dict(quality.DEFAULTS),player_name='Tester')
+        for policy in ('auto','native'):
+            with self.assertRaisesRegex(ValueError,'request_invalid'):
+                self.desktop.save_settings(dict(request,renderer_policy=policy))
+        with patch.object(self.desktop,'probe',return_value=dict(self.probe,devices=[],failure='unsupported')):
+            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
+                self.desktop.save_settings(request)
+        self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
+        self.assertEqual((root/choice.CHOICE_FILE).read_bytes(),choice_before)
 
     def test_default_native_choice_keeps_native_details_and_does_not_mutate_preferences(self):
         self.prepare()
@@ -533,14 +549,14 @@ class DesktopTests(unittest.TestCase):
         self.prepare()
         with patch.object(graphics,'install') as install_profile,patch.object(graphics,'restore') as restore:
             with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
-                backend.Desktop.renderer(self.desktop,self.desktop.game(),'dxvk',self.probe)
+                backend.Desktop.renderer(self.desktop,self.desktop.game(),'dxvk',dict(self.probe,devices=[],failure='unsupported'))
         install_profile.assert_not_called();restore.assert_not_called()
 
     def test_unknown_gpu_is_still_rejected_when_modern_renderer_is_supported(self):
         self.prepare();self.probe['devices']=['Fixture GPU'];self.desktop.renderer.reset_mock()
         before=(self.desktop.state/'installation.json').read_bytes()
         with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
-            self.desktop.save_settings(dict(renderer_policy='auto',
+            self.desktop.save_settings(dict(renderer_policy='dxvk',
                 choice={'format':choice.FORMAT,'choice':'Unknown GPU'},
                 quality=dict(quality.DEFAULTS),player_name='Tester'))
         self.desktop.renderer.assert_not_called()
@@ -566,7 +582,7 @@ class DesktopTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'version_mismatch'):
                 self.desktop.align_lan({'player_name':'Tester'})
             self.assertNotIn('acceptable_content_ids',discover.call_args.kwargs)
-            self.assertEqual(self.desktop.renderer.call_args.args[1],'auto')
+            self.assertEqual(self.desktop.renderer.call_args.args[1],'dxvk')
         for code in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
             self.assertEqual(backend.error_code(lan_autoconnect.LanConnectionError(code,'private details')),code)
 

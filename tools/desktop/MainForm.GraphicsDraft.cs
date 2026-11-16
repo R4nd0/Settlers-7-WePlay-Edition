@@ -12,7 +12,7 @@ internal sealed partial class MainForm
     private bool GraphicsDirty=>savedGraphicsDraft!=null&&savedGraphicsDraft!=CaptureGraphicsDraft();
 
     private string CaptureGraphicsDraft()=>JsonSerializer.Serialize(new {
-        renderer=renderer.SelectedIndex,gpu=(gpu.SelectedItem as Item)?.Key,
+        gpu=(gpu.SelectedItem as Item)?.Key,
         keepDisplay=keepDisplay.Checked,monitor=keepDisplay.Checked?null:(monitor.SelectedItem as Item)?.Key,
         window=keepDisplay.Checked?-1:window.SelectedIndex,resolution=keepDisplay.Checked?null:(resolution.SelectedItem as Item)?.Key,
         quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex),
@@ -47,7 +47,7 @@ internal sealed partial class MainForm
     }
     private void TrackGraphicsDraft()
     {
-        foreach(var combo in new[]{renderer,gpu,monitor,window,resolution}.Concat(qualities.Values))
+        foreach(var combo in new[]{gpu,monitor,window,resolution}.Concat(qualities.Values))
             combo.SelectedIndexChanged+=(_,_)=>UpdateGraphicsDraft();
         foreach(var box in new[]{keepDisplay,simple,anisotropicFiltering,extendedDetail,detailedShadows,extendedShadowRange,
             ultraShadows,midsummerTone,enhancedAa,contactShadows,maximumFx}.Concat(effects.Values))

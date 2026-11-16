@@ -24,7 +24,7 @@ internal sealed partial class MainForm
         if(!internetCreate.Enabled||internetJoinButton.Visible||!internetJoin.UseSystemPasswordChar)
             throw new Exception("Mixed Gold host route or private invitation guard failed");
         ApplyLanguage();Application.DoEvents();
-        if(crossplayHistory.SelectedIndex!=1||!MixedInternet||renderer.Items.Count!=2)
+        if(crossplayHistory.SelectedIndex!=1||!MixedInternet||accessibleFields.Values.Contains("renderer"))
             throw new Exception("Language change altered mixed edition choice or Gold renderer");
         CaptureMixed("gold-mixed-host");
         var guest=JsonNode.Parse(history.GetRawText())!.AsObject();guest["crossplay_available"]=true;

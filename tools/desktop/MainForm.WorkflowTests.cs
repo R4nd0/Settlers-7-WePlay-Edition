@@ -34,29 +34,29 @@ internal sealed partial class MainForm
         finally{testJoinDirectory=null;testCancellation=null;gameRunning=false;internetOperation=publicRoomOperation=false;SetBusy(false);}
 
         // Exercise Save -> committed response without hardware -> edit -> Discard -> Save.
-        // The backend normalizes this fixture to Native and clears the selected GPU.
+        // Hardware refresh can fail after a committed DXVK settings generation.
         LoadSnapshot(original,acceptGraphics:true);tabs.SelectedTab=graphicsPage;
         qualities["TextureQuality"].SelectedIndex=2;int saves=0;
         testUiBackend=(action,data)=>{
             if(action!="save")throw new Exception("Unexpected workflow action: "+action);
             var request=JsonSerializer.SerializeToElement(data);
             if(saves>0&&(request.GetProperty("quality").GetProperty("TextureQuality").GetInt32()!=2
-                ||request.GetProperty("renderer_policy").GetString()!="native"
+                ||request.GetProperty("renderer_policy").GetString()!="dxvk"
                 ||request.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null))
                 throw new Exception("Discard caused a subsequent Save to overwrite the committed generation");
             saves++;
             var selected=JsonNode.Parse(request.GetProperty("choice").GetRawText())!.AsObject();selected["choice"]=null;
             foreach(string flag in new[]{"midsummer_tone","enhanced_aa","contact_shadows","maximum_fx"})selected[flag]=false;
             return Task.FromResult(JsonSerializer.SerializeToElement(new {settings_committed=true,refresh_failed=true,
-                committed_settings=new {renderer_policy="native",renderer="native",choice=selected,quality=request.GetProperty("quality"),player_name="Tester"}}));
+                committed_settings=new {renderer_policy="dxvk",renderer="dxvk",choice=selected,quality=request.GetProperty("quality"),player_name="Tester"}}));
         };
         try
         {
             Application.DoEvents();graphicsSave.PerformClick();Application.DoEvents();
-            if(saves!=1||GraphicsDirty||renderer.SelectedIndex!=2||status.Text!=Lang.T("settings_saved_refresh_failed"))throw new Exception("Committed generation was not accepted after failed hardware refresh");
-            qualities["TextureQuality"].SelectedIndex=0;renderer.SelectedIndex=1;
+            if(saves!=1||GraphicsDirty||status.Text!=Lang.T("settings_saved_refresh_failed"))throw new Exception("Committed generation was not accepted after failed hardware refresh");
+            qualities["TextureQuality"].SelectedIndex=0;
             graphicsDiscard.PerformClick();Application.DoEvents();
-            if(GraphicsDirty||qualities["TextureQuality"].SelectedIndex!=2||renderer.SelectedIndex!=2)throw new Exception("Discard restored the obsolete pre-commit snapshot");
+            if(GraphicsDirty||qualities["TextureQuality"].SelectedIndex!=2)throw new Exception("Discard restored the obsolete pre-commit snapshot");
             graphicsSave.PerformClick();Application.DoEvents();if(saves!=2)throw new Exception("Save after Discard did not complete");
         }
         finally{testUiBackend=null;LoadSnapshot(original,acceptGraphics:true);}
@@ -68,7 +68,7 @@ internal sealed partial class MainForm
             throw new Exception("Unsupported Modern preset remains actionable or lacks an explanation");
         LoadSnapshot(original,acceptGraphics:true);midsummerToneAvailable=true;UpdateGraphicsPresets();
         graphicsRecommended.PerformClick();Application.DoEvents();
-        if(renderer.SelectedIndex!=1||!enhancedAa.Checked)throw new Exception("Supported Recommended click failed");
+        if(!enhancedAa.Checked)throw new Exception("Supported Recommended click failed");
         graphicsMaximum.PerformClick();Application.DoEvents();if(!maximumFx.Checked)throw new Exception("Supported Maximum click failed");
         LoadSnapshot(original,acceptGraphics:true);
         TestSettingsRecoveryWorkflow(original);

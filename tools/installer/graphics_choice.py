@@ -1,8 +1,8 @@
 """Per-PC graphics selection before launch, without changing game content.
 
 The caller owns the launch/session lock. A cancel result is None and must abort
-launch. GPU filtering is supported only by the verified optional DXVK profile;
-native Direct3D9 is presented honestly as the automatic standard renderer.
+launch. The verified DXVK profile is required; native Direct3D9 is retained only
+as an internal state understood by profile recovery, never as a launch fallback.
 """
 import json
 import os
@@ -164,12 +164,10 @@ def saved_launch_environment(root, inherited=None):
     root = graphics._preflight(root)
     selected = _load_choice(root)
     mode, environment = _renderer(root, inherited)
-    if mode == 'dxvk':
-        environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
-            anisotropic_filtering=selected.get('anisotropic_filtering', False),
-            extended_detail=selected.get('extended_detail', False))
-    elif selected['choice'] is not None:
-        raise ValueError('Die gespeicherte Grafikkarte passt nicht zum Standardrenderer.')
+    if mode != 'dxvk':raise ValueError('renderer_unsupported')
+    environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
+        anisotropic_filtering=selected.get('anisotropic_filtering', False),
+        extended_detail=selected.get('extended_detail', False))
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
     if graphics._plain(root / 'LocalData/graphics-quality.json').exists():
@@ -238,6 +236,7 @@ def choose_launch_environment(root, inherited=None):
     """
     root = graphics._preflight(root)
     mode, environment = _renderer(root, inherited)
+    if mode != 'dxvk':raise ValueError('renderer_unsupported')
     previous = _load_choice(root)
     try:
         displays = display.enumerate_displays()
@@ -265,15 +264,12 @@ def choose_launch_environment(root, inherited=None):
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
         reshade_runtime.prepare(root, options=selected)
-    if mode == 'native' and selected['choice'] is not None:
-        raise ValueError('Der Standardrenderer unterstuetzt diesen Grafikkartenfilter nicht.')
     current_mode, environment = _renderer(root, inherited)
     if current_mode != mode:
         raise ValueError('Das Grafikprofil wurde waehrend des Dialogs veraendert.')
-    if mode == 'dxvk':
-        environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
-            anisotropic_filtering=selected.get('anisotropic_filtering', False),
-            extended_detail=selected.get('extended_detail', False))
+    environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
+        anisotropic_filtering=selected.get('anisotropic_filtering', False),
+        extended_detail=selected.get('extended_detail', False))
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(),
                         renderer=mode, gpu=selected['choice'])

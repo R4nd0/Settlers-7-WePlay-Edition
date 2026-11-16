@@ -1,5 +1,10 @@
 # Optional edge smoothing, Ultra shadows, contacts and cinematic shading
 
+RC4.00 update, 2026-11-16: all editions now require DXVK (Vulkan). The launcher
+offers no legacy renderer or automatic native fallback. Existing native/automatic
+preferences migrate to DXVK, and an unsupported GPU stops launch. The native
+renderer comparisons below describe earlier releases.
+
 Development update, 2026-11-08: edge smoothing now uses genuine SMAA independently
 of Maximum. With tone, contacts and Maximum disabled, the profile loads only
 SMAA and its lookup textures, using the standard runtime, no clock add-on and no

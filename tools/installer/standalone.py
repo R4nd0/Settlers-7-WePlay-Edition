@@ -222,7 +222,7 @@ def bind(root):
             raise ValueError('Die mitgelieferte Spiellaufzeit ist beschaedigt.')
         # Renderer transactions acquire their own game lock.
         probe = desktop.probe(refresh=True)
-        mode = desktop.renderer(game, 'auto', probe)
+        mode = desktop.renderer(game, 'dxvk', probe)
         with backend.graphics.session_lock(game):
             # Choose hardware on the destination, not the exporting PC.
             backend.choice.save_choice(game, desktop.default_choice(game, mode, probe))
@@ -237,7 +237,7 @@ def bind(root):
                 'format': backend.INSTALL_FORMAT, 'source': '',
                 'container': str(game.parent), 'current': value['instance'],
                 'previous':[{'container':str(game.parent),'instance':prior.name} for prior,_ in previous],
-                'package_id': package_id, 'renderer_policy': 'auto'})
+                'package_id': package_id, 'renderer_policy': 'dxvk'})
     return desktop
 
 

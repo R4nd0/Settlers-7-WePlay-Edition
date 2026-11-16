@@ -14,7 +14,7 @@ internal sealed partial class MainForm
         if(tabs.TabPages.Count!=4||tabs.TabPages.Contains(lanPage)||!tabs.TabPages.Contains(graphicsPage)||
            tabs.TabPages.Contains(internetPage)||tabs.TabPages.Contains(directoryPage)||!openGraphics.Visible)
             throw new Exception("Gold exposes unsupported History routes");
-        if(renderer.Items.Count!=2)throw new Exception("Gold exposes unsupported native renderer");
+        if(accessibleFields.Values.Contains("renderer")||labels.Values.Contains("fallback"))throw new Exception("Gold exposes an alternative renderer");
         if(graphicsMaximum.Visible||maximumFx.Visible)throw new Exception("Gold exposes unqualified Maximum combination");
         if(playModes.Count(x=>x.Card.Visible)!=1||!playModes.Single(x=>x.Card.Mode==PlayMode.Solo).Card.Visible)
             throw new Exception("Gold must expose its local single-player route");
@@ -33,7 +33,7 @@ internal sealed partial class MainForm
         if(graphicsMaximum.Visible||maximumFx.Visible)throw new Exception("Gold exposes Maximum for unknown output size");
         keepDisplay.Checked=false;Application.DoEvents();
         ApplyLanguage();
-        if(renderer.Items.Count!=2)throw new Exception("Language refresh restores Gold's unsupported native renderer");
+        if(accessibleFields.Values.Contains("renderer")||labels.Values.Contains("fallback"))throw new Exception("Language refresh restores an alternative renderer");
         LoadSnapshot(history,acceptGraphics:true);SetBusy(false);tabs.SelectedTab=homePage;Application.DoEvents();
         if(tabs.TabPages.Count!=7||playModes.Any(x=>!x.Card.Visible)||!openGraphics.Visible)
             throw new Exception("History routes did not recover after Gold snapshot");

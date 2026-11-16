@@ -219,7 +219,7 @@ internal sealed partial class MainForm : Form
     private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
     private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
-    private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
+    private readonly ComboBox gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
     private readonly CheckBox extendedDetail = new() { AutoSize = true };
@@ -468,7 +468,7 @@ internal sealed partial class MainForm : Form
         var maintenance=Label("maintenanceTitle");maintenance.Font=new Font(Font.FontFamily,12,FontStyle.Bold);Add(h,maintenance);
         Add(h,Label("maintenanceGuide"));
         Add(h,Buttons(Button("verify",Verify),Button("repair",ShowRepair)));
-        Add(h,Buttons(Button("fallback",Fallback),Button("probe",Probe),Button("lanPermission",Firewall)));
+        Add(h,Buttons(Button("probe",Probe),Button("lanPermission",Firewall)));
         maintenanceCleanup=Button("cleanup",Cleanup);
         Add(h,Buttons(maintenanceCleanup,Button("diagnostics",Diagnostics))); Add(h,Label("details")); Add(h,details);
         Add(h,Label("discordTitle"));Add(h,Label("discordInfo"));
@@ -496,8 +496,7 @@ internal sealed partial class MainForm : Form
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
         Text=Lang.T("app"); tray.Text=Lang.T("app");
         loading=true;
-        int oldRenderer=renderer.SelectedIndex,oldWindow=window.SelectedIndex;
-        renderer.Items.Clear();renderer.Items.AddRange([Lang.T("auto"),Lang.T("modern"),Lang.T("native")]); renderer.SelectedIndex=Math.Max(0,oldRenderer);
+        int oldWindow=window.SelectedIndex;
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
         int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
         ApplyCrossplayLanguage();
@@ -542,8 +541,6 @@ internal sealed partial class MainForm : Form
         if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
         singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
-        if(singlePlayerOnly&&renderer.Items.Count==3)renderer.Items.RemoveAt(2);
-        if(!singlePlayerOnly&&renderer.Items.Count==2)renderer.Items.Add(Lang.T("native"));
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
@@ -553,7 +550,6 @@ internal sealed partial class MainForm : Form
         if(replaceFields)
         {
             destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();internetPlayer.Text=player.Text;
-            string policy=value.GetProperty("renderer_policy").GetString()!;renderer.SelectedIndex=policy=="dxvk"?1:policy=="native"?2:0;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
             anisotropicFiltering.Checked=value.GetProperty("choice").TryGetProperty("anisotropic_filtering",out var filteringValue)&&filteringValue.GetBoolean();
             extendedDetail.Checked=value.GetProperty("choice").TryGetProperty("extended_detail",out var detailValue)&&detailValue.GetBoolean();
@@ -577,7 +573,7 @@ internal sealed partial class MainForm : Form
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
-        activeRenderer.Text=Lang.T("activeRenderer")+": "+Lang.T(value.GetProperty("renderer").GetString()=="dxvk"?"modern":"native");
+        activeRenderer.Text=Lang.T("activeRenderer")+": DXVK (Vulkan)";
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
         foreach(var item in value.GetProperty("probe").GetProperty("devices").EnumerateArray())gpu.Items.Add(new Item(item.GetString()!,item.GetString()!));
@@ -612,9 +608,6 @@ internal sealed partial class MainForm : Form
         var visiblePages=singlePlayerOnly?(crossplayAvailable?new[]{homePage,internetPage,graphicsPage,helpPage,updatesPage}:new[]{homePage,graphicsPage,helpPage,updatesPage}):pages;
         for(int i=0;i<visiblePages.Length;i++)
             if(!tabs.TabPages.Contains(visiblePages[i]))tabs.TabPages.Insert(Math.Min(i,tabs.TabPages.Count),visiblePages[i]);
-        if(singlePlayerOnly&&renderer.Items.Count==3)renderer.Items.RemoveAt(2);
-        if(!singlePlayerOnly&&renderer.Items.Count==2)renderer.Items.Add(Lang.T("native"));
-        foreach(var item in labels.Where(x=>x.Value=="fallback"))item.Key.Visible=!singlePlayerOnly;
         foreach(var entry in playModes)
         {
             entry.Card.Visible=!singlePlayerOnly||entry.Card.Mode==PlayMode.Solo||(crossplayAvailable&&entry.Card.Mode==PlayMode.PrivateInternet);
@@ -762,17 +755,16 @@ internal sealed partial class MainForm : Form
     {
         UpdateGraphicsPresets();
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
-        gpu.Enabled=!busy&&renderer.SelectedIndex!=2&&gpu.Items.Count>1;
-        anisotropicFiltering.Enabled=!busy&&renderer.SelectedIndex!=2;
+        gpu.Enabled=!busy&&gpu.Items.Count>1;
+        anisotropicFiltering.Enabled=!busy&&modernGraphicsAvailable;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
         ultraShadows.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&midsummerToneAvailable&&renderer.SelectedIndex!=2;
+        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&modernGraphicsAvailable&&midsummerToneAvailable;
         bool maximumVisible=!singlePlayerOnly||MaximumGraphicsAvailable;
         maximumFx.Visible=maximumVisible;
         foreach(var item in labels.Where(x=>x.Value=="maximumFxInfo"))item.Key.Visible=maximumVisible;
         if(singlePlayerOnly&&!MaximumGraphicsAvailable&&!loading)maximumFx.Checked=false;
         maximumFx.Enabled&=MaximumGraphicsAvailable;
-        if(renderer.SelectedIndex==2&&!loading)midsummerTone.Checked=enhancedAa.Checked=contactShadows.Checked=maximumFx.Checked=false;
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
@@ -783,7 +775,6 @@ internal sealed partial class MainForm : Form
     private void ApplyRecommendedGraphics()
     {
         if(!modernGraphicsAvailable)throw new BackendError("renderer_unsupported","");
-        renderer.SelectedIndex=1;
         DisplayEnabled();
         ApplyQualityPreset(true);
         extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
@@ -792,7 +783,7 @@ internal sealed partial class MainForm : Form
         midsummerTone.Checked=contactShadows.Checked=false;
         enhancedAa.Checked=midsummerToneAvailable;
     }
-    private object GraphicsRequest(bool compatible=false)
+    private object GraphicsRequest()
     {
         object? output=null;
         if(!keepDisplay.Checked)
@@ -801,10 +792,9 @@ internal sealed partial class MainForm : Form
             string[] dimensions=size.Key.Split('x');output=new {device=item.Key,width=int.Parse(dimensions[0]),height=int.Parse(dimensions[1]),mode=window.SelectedIndex==1?"borderless":"windowed"};
         }
         var quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex);foreach(var pair in effects)quality[pair.Key]=pair.Value.Checked?1:0;
-        string policy=compatible?"native":renderer.SelectedIndex==1?"dxvk":renderer.SelectedIndex==2?"native":"auto";
-        string? card=compatible||policy=="native"?null:(gpu.SelectedItem as Item)?.Key;
+        string? card=(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
-        return new {renderer_policy=policy,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
+        return new {renderer_policy="dxvk",choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
             enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
@@ -819,11 +809,6 @@ internal sealed partial class MainForm : Form
     private async Task SaveGraphics()
     {
         ApplySettingsResult(await RunUiBackend("save",GraphicsRequest()));
-    }
-    private async Task Fallback()
-    {
-        if(!await ResolveGraphicsDraft())return;
-        ApplySettingsResult(await RunUiBackend("save",GraphicsRequest(true)));
     }
     private async Task Probe(){await Backend.Run("probe",new {},Receive);LoadSnapshot(await Backend.Run("snapshot",new {},Receive));}
     private async Task Verify(){await Backend.Run("verify",new {},Receive);status.Text=Lang.T("verified");}
@@ -1171,7 +1156,7 @@ internal sealed partial class MainForm : Form
                     if(!detailChoice.GetProperty("extended_detail").GetBoolean()||!detailChoice.GetProperty("detailed_shadows").GetBoolean()||!detailChoice.GetProperty("extended_shadow_range").GetBoolean())
                         throw new Exception("Visual detail choices lost in request");
                 }
-                form.midsummerToneAvailable=true;form.renderer.SelectedIndex=1;form.DisplayEnabled();form.midsummerTone.Checked=true;
+                form.midsummerToneAvailable=true;form.DisplayEnabled();form.midsummerTone.Checked=true;
                 form.enhancedAa.Checked=true;form.contactShadows.Checked=true;form.ultraShadows.Checked=true;form.maximumFx.Checked=true;
                 using(var tone=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
                     if(!form.midsummerTone.Enabled||!form.enhancedAa.Enabled||!form.contactShadows.Enabled
@@ -1204,13 +1189,12 @@ internal sealed partial class MainForm : Form
                         throw new Exception("Recommended graphics profile failed");
                 }
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);
-                form.renderer.SelectedIndex=2;
-                using var compatible=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
-                if(compatible.RootElement.GetProperty("choice").GetProperty("choice").ValueKind!=JsonValueKind.Null)throw new Exception("Native GPU filtering enabled");
-                if(form.anisotropicFiltering.Enabled||form.midsummerTone.Enabled||form.midsummerTone.Checked
-                    ||form.enhancedAa.Enabled||form.contactShadows.Enabled||form.maximumFx.Enabled||form.maximumFx.Checked||form.enhancedAa.Checked||form.contactShadows.Checked)throw new Exception("Native renderer exposes Modern-only filtering");
+                using var fixedGraphics=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
+                if(fixedGraphics.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
+                    ||form.accessibleFields.Values.Contains("renderer")||form.labels.Values.Contains("fallback"))
+                    throw new Exception("Launcher exposes an alternative renderer");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
-                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("Native visual detail controls unavailable");
+                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("DXVK visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
                 void Capture(string name)
                 {
@@ -1306,7 +1290,7 @@ internal sealed partial class MainForm : Form
                     using var bitmap=new Bitmap(form.Width,form.Height);
                     form.DrawToBitmap(bitmap,new Rectangle(0,0,form.Width,form.Height));bitmap.Save(Path.Combine(folder,language+"-"+form.tabs.SelectedIndex+".png"));
                 }
-                form.tabs.SelectedTab=form.graphicsPage;form.renderer.SelectedIndex=0;form.ApplyQualityPreset(false);
+                form.tabs.SelectedTab=form.graphicsPage;form.ApplyQualityPreset(false);
                 var graphicsScroll=form.graphicsPage.Controls.OfType<Panel>().Single(panel=>panel.AutoScroll);
                 form.graphicsQualityDetails.Checked=true;form.graphicsEffectDetails.Checked=true;Application.DoEvents();
                 graphicsScroll.ScrollControlIntoView(form.qualities["ShaderQuality"]);Capture("graphics-quality");

@@ -175,7 +175,10 @@ Lieferbeschleunigung oder neue x20-Qualifikation.
   Tone, SMAA, Kontaktverschattung und Mittsommer sind verfügbar. Das nachgewiesen
   fehlerhafte Gold-**Maximum** bleibt gesperrt. History behält sein vorhandenes
   Maximum und die native Rendererauswahl; Gold hat keinen freigegebenen nativen
-  Fallback. Vulkan-Unterstützung ist für DXVK erforderlich.
+  Fallback. Alle drei Editionen verwenden DXVK fest; die Auswahl „Automatisch“
+  und „Kompatible Grafik“ sowie der automatische Rückfall auf die alte Pipeline
+  entfallen. Ältere Renderer-Wahlen werden auf DXVK migriert. Vulkan-Unterstützung
+  ist erforderlich; ohne bestätigte passende GPU wird der Start angehalten.
 - Keine neue FPS-, Flimmerfreiheits- oder Performance-Garantie.
 
 ## Neu installieren — alle drei Editionen
@@ -316,7 +319,10 @@ startup by skipping trailers and the main-menu map**, **Modernized graphics and
 rendering pipeline via DXVK**, and **Increased level of detail (LOD) and extended
 draw distance**. ReShade 6.8.0 now has no compiled GUI/overlay while preserving
 effects. Gold Maximum remains disabled because of verified UI defects; Gold
-requires its qualified DXVK path. History retains native rendering and Maximum.
+requires its qualified DXVK path. All three editions now require DXVK (Vulkan).
+The renderer selector, Compatible graphics action and automatic native fallback
+are removed. Older renderer choices migrate to DXVK; unsupported hardware stops
+before game launch. History retains its Maximum option.
 
 **Cross-play between Gold Edition and History Edition** has now passed a bounded
 private save/second-reload sequence with both original History editions. The

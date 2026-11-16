@@ -157,7 +157,8 @@ class Desktop:
             root=self.instance(item['container'],item['instance'])
             if root.name in seen:raise ValueError('installation_invalid')
             seen.add(item['instance']);references.append({'container':str(root.parent),'instance':root.name})
-        value={**value,'format':INSTALL_FORMAT,'previous':references}
+        # Older records remain readable; renderer choice is no longer a policy.
+        value={**value,'format':INSTALL_FORMAT,'previous':references,'renderer_policy':'dxvk'}
         return value
 
     def instance(self,container,name):
@@ -285,10 +286,10 @@ class Desktop:
         metadata=install.package_metadata(self.package)
         result={'installed':value is not None,'displays':self.displays() if displays is None else displays,
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
-                'renderer_policy':value['renderer_policy'] if value else 'auto',
+                'renderer_policy':'dxvk',
                 'probe':self.read(self.state/'graphics-probe.json',{'devices':[],'failure':None}),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
-                'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
+                'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'dxvk',
                 'current':None,'update_available':False,'needs_repair':False,
                 'maintenance_pending':len(value['previous']) if value else 0,
                 'internet_available':metadata.get('internet_easytier',False) is True,
@@ -338,24 +339,20 @@ class Desktop:
 
     def renderer(self,root,policy,probe):
         if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
+        if not probe['devices']:raise ValueError('renderer_unsupported')
         if self.is_gold(root):
-            if policy=='native':raise ValueError('gold_dxvk_required')
-            if not probe['devices']:raise ValueError('renderer_unsupported')
             import gold_graphics
             gold_graphics.checked_root(root)
             return 'dxvk'
-        supported=bool(probe['devices'])
-        if policy=='dxvk' and not supported:raise ValueError('renderer_unsupported')
-        use_dxvk=policy=='dxvk' or (policy=='auto' and supported)
-        wanted='dxvk' if use_dxvk else 'native'
+        # Legacy values are migration inputs, never permission to restore D3D9.
+        wanted='dxvk'
         pending=graphics._plain(root/graphics.STATE/'transaction.json').exists()
         if not pending and choice._renderer(root,{})[0]==wanted:return wanted
         self.progress('graphics_apply')
         if self._settings_lock_held:
-            graphics._change_locked(root,use_dxvk,self.package/'Payload/Graphics/d3d9.dll' if use_dxvk else None)
-        elif use_dxvk:graphics.install(root,self.package/'Payload/Graphics/d3d9.dll')
-        else:graphics.restore(root)
-        return 'dxvk' if use_dxvk else 'native'
+            graphics._change_locked(root,True,self.package/'Payload/Graphics/d3d9.dll')
+        else:graphics.install(root,self.package/'Payload/Graphics/d3d9.dll')
+        return 'dxvk'
 
     def restore_settings_renderer(self,root,mode,expected):
         if self.is_gold(root):
@@ -614,8 +611,7 @@ class Desktop:
             except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
             raise
         if old:self.transfer_preferences(old,root)
-        policy=previous['renderer_policy'] if previous else 'auto'
-        if gold and policy=='native':policy='auto'
+        policy='dxvk'
         probe=self.probe()
         mode=self.renderer(root,policy,probe)
         with graphics.session_lock(root):
@@ -661,6 +657,7 @@ class Desktop:
     def save_settings(self,request):
         gold=self.is_gold()
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
+        if request['renderer_policy']!='dxvk':raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -668,7 +665,6 @@ class Desktop:
         if gold:
             import gold_graphics
             gold_graphics.validate(root,selected)
-            if request['renderer_policy']=='native':raise ValueError('gold_dxvk_required')
         choice._require_visual_support(root,selected)
         player_settings.player_name(request['player_name'])
         probe=self.probe()
@@ -676,18 +672,13 @@ class Desktop:
         screens=self.displays()
         # Reject invalid display/GPU requests before making any profile change.
         if selected.get('display') is not None:display.resolve(selected['display'],screens)
-        expected_mode='dxvk' if policy!='native' and probe['devices'] else 'native'
-        if expected_mode=='dxvk' and selected['choice'] is not None and selected['choice'] not in probe['devices']:
+        expected_mode='dxvk'
+        if selected['choice'] is not None and selected['choice'] not in probe['devices']:
             raise ValueError('renderer_unsupported')
-        if expected_mode=='dxvk' and selected.get('display') is not None:
+        if selected.get('display') is not None:
             display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
-        if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
-        if policy=='dxvk' and not probe['devices']:raise ValueError('renderer_unsupported')
-        if expected_mode=='native':
-            selected['choice']=None
-            for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
-                if name in selected:selected[name]=False
-        elif selected['choice'] is None:
+        if not probe['devices']:raise ValueError('renderer_unsupported')
+        if selected['choice'] is None:
             target=next((s for s in screens if selected.get('display') and s['device']==selected['display']['device']),screens[0] if screens else None)
             if target and target['adapter'] in probe['devices']:selected['choice']=target['adapter']
         with graphics.session_lock(root):
@@ -788,7 +779,7 @@ class Desktop:
         from lan_autoconnect import discover_preferred
         self.progress('lan_search')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
-        # Renderer policy belongs to this PC, including automatic fallback.
+        # DXVK is required on this PC; discovery cannot select another pipeline.
         self.renderer(root,self.installed()['renderer_policy'],self.probe())
         current=self.network_id(root)
         room=discover_preferred(directory,current,

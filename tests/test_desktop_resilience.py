@@ -29,7 +29,7 @@ class DesktopResilienceTests(unittest.TestCase):
         self.desktop=self.base.desktop;self.base.prepare();self.root=self.desktop.game()
 
     def request(self):
-        return dict(renderer_policy='native',choice={'format':choice.FORMAT,'choice':None,'simple_menu':False},
+        return dict(renderer_policy='dxvk',choice={'format':choice.FORMAT,'choice':'Fixture GPU','simple_menu':False},
                     quality=dict(quality.DEFAULTS,TextureQuality=2),player_name='Changed')
 
     def before(self):return {key:settings.read(path) for key,path in settings.paths(self.desktop,self.root).items()}
@@ -121,11 +121,11 @@ class DesktopResilienceTests(unittest.TestCase):
         with patch.object(self.desktop,'snapshot',side_effect=OSError('synthetic UI refresh failure')):
             result=self.desktop.save_settings(self.request())
         self.assertTrue(result['settings_committed']);self.assertTrue(result['refresh_failed'])
-        self.assertEqual(result['committed_settings'],dict(self.request(),renderer='native'))
+        self.assertEqual(result['committed_settings'],dict(self.request(),renderer='dxvk'))
         self.assertFalse((self.desktop.state/settings.NAME).exists())
         self.assertFalse(choice._load_choice(self.root)['simple_menu'])
         self.assertEqual(quality.load(self.root)['TextureQuality'],2)
-        self.assertEqual(self.desktop.installed()['renderer_policy'],'native')
+        self.assertEqual(self.desktop.installed()['renderer_policy'],'dxvk')
 
     def interrupted(self):
         original=self.desktop.write
@@ -286,13 +286,15 @@ class DesktopResilienceTests(unittest.TestCase):
             result=self.desktop.save_settings(self.request())
         self.assertEqual(displays.call_count,1);self.assertEqual(result['displays'],self.base.screens)
 
-    def test_failed_refresh_returns_normalized_native_generation_not_requested_effects(self):
+    def test_failed_refresh_keeps_committed_dxvk_effects(self):
         request=self.request();request['choice'].update(enhanced_aa=True,maximum_fx=True)
-        with patch.object(choice,'_require_visual_support'),patch.object(self.desktop,'snapshot',side_effect=OSError('refresh failure')):
+        with patch.object(choice,'_require_visual_support'),patch('reshade_runtime.prepare'), \
+                patch.object(self.desktop,'snapshot',side_effect=OSError('refresh failure')):
             result=self.desktop.save_settings(request)
         self.assertTrue(result['refresh_failed'])
-        self.assertFalse(result['committed_settings']['choice']['enhanced_aa'])
-        self.assertFalse(result['committed_settings']['choice']['maximum_fx'])
+        self.assertEqual(result['committed_settings']['renderer'],'dxvk')
+        self.assertTrue(result['committed_settings']['choice']['enhanced_aa'])
+        self.assertTrue(result['committed_settings']['choice']['maximum_fx'])
         self.assertEqual(result['committed_settings']['choice'],choice._load_choice(self.root))
 
     def test_settings_save_verifies_package_once_then_discards_context(self):
@@ -387,8 +389,8 @@ class RendererGroupTests(unittest.TestCase):
         if path==self.root/quality.FILE:raise OSError('synthetic quality failure')
         return self.write(path,value)
 
-    def test_native_to_modern_and_modern_to_native_failure_restore_renderer_and_settings(self):
-        for previous,policy in (('native','auto'),('dxvk','native')):
+    def test_failed_dxvk_save_restores_previous_native_or_dxvk_state(self):
+        for previous,policy in (('native','dxvk'),('dxvk','dxvk')):
             with self.subTest(previous=previous):
                 if previous=='dxvk':graphics.install(self.root,self.desktop.package/'Payload/Graphics/d3d9.dll')
                 before={key:settings.read(path) for key,path in settings.paths(self.desktop,self.root).items()}
@@ -404,7 +406,7 @@ class RendererGroupTests(unittest.TestCase):
         compatibility=(self.root/graphics.COMPAT).read_bytes();self.write=self.desktop.write
         with patch.object(self.desktop,'write',side_effect=self.fail_quality),\
                 patch.object(settings.Transaction,'rollback',side_effect=SystemExit('simulated abrupt exit')):
-            with self.assertRaises(SystemExit):self.desktop.save_settings(self.request('auto'))
+            with self.assertRaises(SystemExit):self.desktop.save_settings(self.request('dxvk'))
         self.assertEqual(choice._renderer(self.root,{})[0],'dxvk')
         self.desktop.recover_settings()
         self.assertEqual(choice._renderer(self.root,{})[0],'native')
@@ -419,7 +421,7 @@ class RendererGroupTests(unittest.TestCase):
                 raise OSError('synthetic failure')
             return self.write(path,value)
         with patch.object(self.desktop,'write',side_effect=fail):
-            with self.assertRaises(ValueError):self.desktop.save_settings(self.request('auto'))
+            with self.assertRaises(ValueError):self.desktop.save_settings(self.request('dxvk'))
         self.assertEqual((self.root/graphics.DLL).read_bytes(),b'foreign renderer edit')
         self.assertTrue((self.desktop.state/settings.NAME).exists())
 

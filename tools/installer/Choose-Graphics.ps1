@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('dxvk', 'native')]
+    [ValidateSet('dxvk')]
     [string]$RendererMode,
     [switch]$VisualDetailAvailable,
     [switch]$MidsummerToneAvailable
@@ -164,11 +164,7 @@ try {
 
     $description = New-Object Windows.Forms.Label
     $description.SetBounds(18, 16, 614, 48)
-    if ($filterAvailable) {
-        $description.Text = 'Choose a graphics card for The Settlers 7. Your choice is saved on this PC and shown again at the next launch.'
-    } else {
-        $description.Text = 'Standard graphics: Windows and the game select the GPU. Direct GPU selection requires a compatible graphics profile.'
-    }
+    $description.Text = 'DXVK (Vulkan) is required. Choose a graphics card for The Settlers 7. Your choice is saved on this PC.'
     [void]$form.Controls.Add($description)
 
     $combo = New-Object Windows.Forms.ComboBox

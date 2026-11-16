@@ -1,5 +1,23 @@
 # RC4 launcher handoff — integration in progress
 
+## Fixed DXVK pipeline, 2026-11-16
+
+All three editions require DXVK (Vulkan). The desktop renderer selector and Help
+fallback action are removed in both languages. Old `auto`/`native` installation
+records remain readable and normalize to `dxvk`; prepare, upgrade, portable
+registration and launch apply only the verified DXVK profile. Unsupported GPUs
+stop before launch. Explicit legacy settings requests are rejected. Direct
+saved/dialog launch helpers also reject an inactive DXVK profile. Internal
+transaction rollback still restores the exact previous files on failure.
+
+The launcher builds and passes 41 bilingual UI checks; rendered Graphics and
+Help views were inspected. There are 52 backend, 28 settings/recovery, 39 graphics
+choice, 21 standalone and three release-document checks. These use isolated
+fixtures and no games. Reserved Crossplay roots were not changed, and these
+checks provide no mixed-world or reload qualification.
+
+## Process-local handoff
+
 The process-local handoff in `tools/installer/crossplay_session.py` implements
 the launcher side of the [version 1 production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md).
 It does not enable mixed play in the launcher UI. Its production-adapter allowlist
