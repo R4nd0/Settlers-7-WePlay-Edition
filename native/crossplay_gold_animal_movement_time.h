@@ -79,7 +79,9 @@ __declspec(naked) inline void Bridge() {
   push eax
   push ebp
   call Prepare
-  test eax,eax
+  // MSVC's x86 bool result is AL. Optimized Prepare may leave nonzero
+  // upper EAX bits even when a foreign/disabled context returns false.
+  test al,al
   jz Forward
   fxrstor [esp]
   fstp st(0)

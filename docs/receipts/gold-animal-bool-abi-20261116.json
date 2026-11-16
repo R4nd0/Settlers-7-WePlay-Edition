@@ -1,0 +1,22 @@
+{
+  "format": "gold-animal-bool-abi-v1",
+  "date": "2026-11-16",
+  "scope": "Existing original Gold animal movement-time bridge only; no mixed-world, FIFO goods or save qualification.",
+  "defect": "MSVC x86 bool results occupy AL; optimized false returns may retain nonzero upper EAX bits. Whole-EAX testing could replace an original quotient after context rejection.",
+  "correction": "Consume AL; retain the original forwarding path for every rejected context.",
+  "optimized_regression": {
+    "before": "Disabled context produced0 rather than original44 under O2; Od alone masked the issue.",
+    "after": "Both O2/Oy- native ABI fixtures passed.",
+    "movement_accepted_calls": 41,
+    "movement_excluded_contexts": 6,
+    "path_accepted_calls": 42,
+    "path_excluded_contexts": 8,
+    "additional_disabled_and_foreign_owner_forwarding": true,
+    "fp_register_stack_flags_last_error_preserved": true
+  },
+  "test_models": "Synthetic typed native objects and original-call stubs; no game executed by these fixtures.",
+  "native_source_sha256": {
+    "crossplay_gold_animal_movement_time.h": "592cec530b05ca1f92a008824d33d46acb6cc68649422947f923bce86cdbe815"
+  },
+  "catalog_or_adapter_approval_promoted": false
+}

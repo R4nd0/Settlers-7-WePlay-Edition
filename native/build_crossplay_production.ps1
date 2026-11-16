@@ -18,6 +18,12 @@ foreach($line in $lines){
 New-Item -ItemType Directory -Path $out | Out-Null
 Push-Location $out
 try{
+    foreach($fixture in @('crossplay_gold_animal_movement_time','crossplay_gold_animal_path_points')){
+        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($fixture+'_tests.cpp')) ('/Fe:'+ $fixture+'_tests.exe') /link /DYNAMICBASE /NXCOMPAT
+        if($LASTEXITCODE){throw "Original animal arithmetic bridge did not compile: $fixture"}
+        & (Join-Path $out ($fixture+'_tests.exe'))
+        if($LASTEXITCODE){throw "Original animal arithmetic bridge failed: $fixture"}
+    }
     $runtimeSources=@('crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_launch_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') @runtimeSources /Fe:crossplay_production_launch_tests.exe /link bcrypt.lib ws2_32.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Production launch contract fixture did not compile'}
