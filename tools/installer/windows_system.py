@@ -82,8 +82,10 @@ def lan_firewall(root,*,remove=False):
     root=compatibility.plain(root)
     return command('lan-firewall',root,'remove' if remove else 'apply',timeout=180)
 
-def internet_firewall(root,key,interface=None):
+def internet_firewall(root,key,interface=None,*,crossplay=False):
+    if type(crossplay) is not bool: raise ValueError('helper_invalid')
     args=(root,key,'remove') if interface is None else (root,key,'apply',interface.address,interface.name)
+    if crossplay: args += ('crossplay',)
     return command('internet-firewall',*args,root=root)
 
 def remove_adapter(root,name,address):

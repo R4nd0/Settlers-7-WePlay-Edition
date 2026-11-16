@@ -132,8 +132,15 @@ class StreamBridge:
                 end.sock.close()
 
 
+def tunnel_alive(overlay):
+    alive = getattr(overlay, 'alive', None)
+    if callable(alive): return alive() is True
+    child = getattr(overlay, 'child', None)
+    return child is not None and child.poll() is None
+
+
 def tunnel_state(overlay, peer):
-    if getattr(overlay, 'crossplay', False) is not True or overlay.child is None or overlay.child.poll() is not None:
+    if getattr(overlay, 'crossplay', False) is not True or not tunnel_alive(overlay):
         raise GatewayError('owned-crossplay-tunnel-required')
     interface, peers = overlay.snapshot()
     address = ipaddress.IPv4Address(peer)
@@ -155,8 +162,8 @@ class EasyTierGateway:
     mode needs that broker's ephemeral port and the already observed VPN guest.
     Guest mode returns its loopback `port` for the unchanged native channel.
     """
-    def __init__(self, overlay, *, peer, broker_port=None, seconds=1800):
-        if type(seconds) is not int or not 15 <= seconds <= 1800:
+    def __init__(self, overlay, *, peer, broker_port=None, seconds=None):
+        if seconds is not None and (type(seconds) is not int or not 15 <= seconds <= 1800):
             raise ValueError('Invalid gateway lifetime')
         if overlay.host and (type(broker_port) is not int or not 1024 <= broker_port <= 65535):
             raise ValueError('Expected the owned loopback broker port')
@@ -164,7 +171,8 @@ class EasyTierGateway:
             raise ValueError('Guest cannot choose a broker endpoint')
         self.overlay, self.peer, self.broker_port = overlay, peer, broker_port
         self.interface = tunnel_state(overlay, peer)
-        self.deadline, self.checked_at = time.monotonic() + seconds, time.monotonic()
+        self.deadline = None if seconds is None else time.monotonic() + seconds
+        self.checked_at = time.monotonic()
         self.listener, self.bridge, self.closed = None, None, False
         try:
             self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -185,7 +193,7 @@ class EasyTierGateway:
             return
         try:
             now = time.monotonic()
-            if now >= self.deadline or self.overlay.child.poll() is not None:
+            if (self.deadline is not None and now >= self.deadline) or not tunnel_alive(self.overlay):
                 raise GatewayError('tunnel-ended')
             if now - self.checked_at >= 2:
                 current = tunnel_state(self.overlay, self.peer)

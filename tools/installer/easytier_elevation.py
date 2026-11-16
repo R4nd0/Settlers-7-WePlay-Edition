@@ -130,14 +130,16 @@ def write_state(directory, value):
             time.sleep(.02)
 
 
-def firewall(root, key, interface=None):
+def firewall(root, key, interface=None, *, crossplay=False):
     from windows_system import internet_firewall
-    try:internet_firewall(root,key,interface)
+    try:
+        if crossplay: internet_firewall(root,key,interface,crossplay=True)
+        else: internet_firewall(root,key,interface)
     except (OSError,ValueError,subprocess.TimeoutExpired):
         raise InternetError('internet_firewall_failed')
 
 
-def verify_worker(root):
+def verify_worker(root, *, package=None):
     """Check every elevated import/interpreter against the shipped app package.
 
     The installed content manifest alone is insufficient for elevation because
@@ -145,14 +147,23 @@ def verify_worker(root):
     DLL, embeddable-Python search file or bytecode cache enters the UAC worker.
     """
     import install
-    module = Path(__file__).resolve()
-    package = module.parents[2]
-    if module.parent != package / 'Tools/installer':
-        raise InternetError('internet_runtime_invalid')
+    if package is None:
+        module = Path(__file__).resolve()
+        package = module.parents[2]
+        if module.parent != package / 'Tools/installer':
+            raise InternetError('internet_runtime_invalid')
+    package=compatibility.plain(package)
     manifest = install.package_manifest(package)
     expected = {('launcher/'+target).lower():manifest['files'][('tools/'+original).lower()]
                 for original,target in install.launcher_sources(manifest)}
     expected['launcher/license.txt'] = manifest['files']['tools/license.txt']
+    if manifest.get('platform_independent',False):
+        import platform_standalone
+        profile,_,adapter=platform_standalone.load(root)
+        expected['launcher/weplay_network_policy.exe']=manifest['files']['payload/platform/weplay_network_policy.exe']
+        expected[platform_standalone.RECORD.lower()]=compatibility.digest(root/platform_standalone.RECORD)
+        if profile['edition']=='gold':
+            expected[adapter.relative_to(root).as_posix().lower()]=manifest['files']['payload/gold/payload/weplay_gold_startup.dll']
     python = {key:digest for key,digest in manifest['files'].items() if key.startswith('runtime/python/')}
     if (not python or compatibility.inventory(root, ('Launcher',)) != expected or
             compatibility.inventory(root, ('Runtime/python',)) != python):
@@ -163,8 +174,11 @@ def verify_worker(root):
 
 
 class ElevatedEasyTier:
-    def __init__(self, root, room, *, host, cancel_check=None, progress=None):
+    def __init__(self, root, room, *, host, cancel_check=None, progress=None,crossplay=False):
+        if type(crossplay) is not bool: raise InternetError('internet_runtime_invalid')
         self.root, self.room, self.host = Path(root), room, host
+        self.crossplay = crossplay
+        self.address = self.device_name = None
         self.cancel_check, self.progress = cancel_check, progress
         self.private = self.handle = None
         self.nonce = secrets.token_hex(16)
@@ -189,6 +203,7 @@ class ElevatedEasyTier:
         request = self.private / 'request.json'
         value = dict(format=FORMAT, root=str(self.root), room=self.room.token(), host=self.host,
                      parent_pid=os.getpid(), parent_start=stamp, nonce=self.nonce)
+        if self.crossplay: value['crossplay'] = True
         try:
             inherit_private_access(self.private)
             with request.open('x', encoding='utf-8') as stream: json.dump(value, stream)
@@ -209,6 +224,9 @@ class ElevatedEasyTier:
         except BaseException:
             self.close()
             raise
+
+    def alive(self):
+        return self.handle is not None and winapi().WaitForSingleObject(self.handle, 0) == 0x102
 
     def snapshot(self):
         path = compatibility.plain(self.private / 'state.json')
@@ -232,7 +250,8 @@ class ElevatedEasyTier:
                 if not isinstance(code, str) or not code.startswith('internet_') or len(code) > 64:
                     raise ValueError()
                 raise InternetError(code)
-            if value.get('phase') != 'ready': raise ValueError()
+            if value.get('phase') != 'ready' or value.get('crossplay',False) is not self.crossplay:
+                raise ValueError()
             interface = select_interface(self.room, value['address'], value['device'], enumerate_interfaces())
             peers = value['peers']
             if not isinstance(peers, dict) or len(peers) > 255:
@@ -241,6 +260,7 @@ class ElevatedEasyTier:
                 if not interface.contains(address) or address == interface.address or cost not in ('p2p', 'relay'):
                     raise ValueError()
                 if self.room.mode == 'direct' and cost != 'p2p': raise ValueError()
+            self.address, self.device_name = interface.address, interface.name
             return interface, peers
         except InternetError:
             raise
@@ -279,8 +299,10 @@ def worker(request):
     if request.name != 'request.json' or request.stat().st_size > 8192:
         raise InternetError('internet_request_invalid')
     value = json.loads(request.read_text(encoding='utf-8'))
-    if (not isinstance(value, dict) or set(value) != {'format', 'root', 'room', 'host', 'parent_pid', 'parent_start', 'nonce'} or
+    fields={'format', 'root', 'room', 'host', 'parent_pid', 'parent_start', 'nonce'}
+    if (not isinstance(value, dict) or set(value) not in (fields, fields|{'crossplay'}) or
             value['format'] != FORMAT or type(value['host']) is not bool or
+            type(value.get('crossplay',False)) is not bool or
             type(value['parent_pid']) is not int or type(value['parent_start']) is not int or
             not isinstance(value['nonce'], str) or len(value['nonce']) != 32):
         raise InternetError('internet_request_invalid')
@@ -291,6 +313,7 @@ def worker(request):
     api, parent, stamp, image = parent_process(value['parent_pid'])
     overlay = None
     nonce = value['nonce']
+    crossplay = value.get('crossplay',False)
     try:
         # The desktop's backend may run from the app package's identical Python
         # runtime, rather than from the game copy. Bind to the exact process
@@ -301,20 +324,31 @@ def worker(request):
             raise InternetError('internet_parent_invalid')
         from easytier_runtime import EasyTier
         import launch_local
-        launch_local.verify_bundle(root)
+        if crossplay:
+            import platform_standalone,crossplay_session
+            profile,executable,adapter=platform_standalone.load(root)
+            edition=crossplay_session.EXECUTABLE_EDITIONS.get(compatibility.digest(executable))
+            if profile['files'][adapter.relative_to(root).as_posix()] not in crossplay_session.ADAPTER_PINS.get(edition,()):
+                raise InternetError('internet_runtime_invalid')
+        else: launch_local.verify_bundle(root)
         def cancel():
             if (directory / 'stop').exists() or api.WaitForSingleObject(parent, 0) != 0x102:
                 raise InternetError('internet_cancelled')
-        overlay = EasyTier(root, parse(value['room']), host=value['host'], cancel_check=cancel)
+        options=dict(host=value['host'],cancel_check=cancel)
+        if crossplay: options['crossplay']=True
+        overlay = EasyTier(root, parse(value['room']), **options)
         interface = overlay.start()
-        firewall(root, nonce, interface)
+        if crossplay: firewall(root, nonce, interface, crossplay=True)
+        else: firewall(root, nonce, interface)
         request.unlink()  # The private core config is now the only copy on disk.
         deadline = time.monotonic() + 86400
-        while time.monotonic() < deadline:
+        while crossplay or time.monotonic() < deadline:
             cancel()
             interface, peers = overlay.snapshot()
-            write_state(directory, dict(format=FORMAT, nonce=nonce, phase='ready',
-                address=interface.address, device=interface.name, peers=peers))
+            state=dict(format=FORMAT, nonce=nonce, phase='ready',
+                address=interface.address, device=interface.name, peers=peers)
+            if crossplay: state['crossplay']=True
+            write_state(directory,state)
             time.sleep(.5)
     except BaseException as error:
         code = getattr(error, 'code', 'internet_failed')
@@ -323,7 +357,8 @@ def worker(request):
         try:
             if overlay:
                 try:
-                    firewall(root, nonce)
+                    if crossplay: firewall(root, nonce, crossplay=True)
+                    else: firewall(root, nonce)
                 finally:
                     overlay.close()
         finally:

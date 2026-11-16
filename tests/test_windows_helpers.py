@@ -3,6 +3,7 @@ import ctypes
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -72,6 +73,37 @@ class WindowsHelperTests(unittest.TestCase):
         key='a'*32;rows=json.loads(self.run_helper('plan-internet',self.root,key,'remove').stdout)
         self.assertEqual(len(rows),8)
         self.assertTrue(all(row['Name'].startswith('S7ET-'+key+'-') for row in rows))
+
+    def test_crossplay_plan_only_opens_python_broker_and_owned_easytier_core(self):
+        key='a'*32;rows=json.loads(self.run_helper('plan-internet',self.root,key,'remove','crossplay').stdout)
+        self.assertEqual(len(rows),8)
+        admitted=[row for row in rows if row['Install'] and '-core-' not in row['Name']]
+        self.assertEqual(len(admitted),1)
+        self.assertEqual(admitted[0]['Name'],'S7ET-'+key+'-2-TCP')
+        self.assertEqual(admitted[0]['Port'],'9113')
+        self.assertEqual(Path(admitted[0]['Program']),self.root/'Runtime/python/python.exe')
+        capabilities=json.loads(self.run_helper('capabilities').stdout)
+        self.assertEqual(capabilities['crossplay_firewall'],1)
+
+    def test_crossplay_gold_root_requires_real_pinned_executable_and_portable_descriptor(self):
+        exe=self.root/'Data/Base/_Dbg/Bin/Release/Settlers7R.exe';exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'MZ benign unexecuted fixture')
+        (self.root/'gold-install.json').write_text('{"format":"weplay-gold-install-v1","platform_independent":true}')
+        descriptor=self.root/'Launcher/platform-standalone.json';descriptor.parent.mkdir()
+        descriptor.write_text('{"format":"weplay-platform-independent-v1","edition":"gold"}')
+        self.run_helper('plan-internet',self.root,'a'*32,'remove','crossplay',success=False)
+        original=os.environ.get('S7_GOLD_PREPARED_EXE')
+        if original:
+            shutil.copyfile(original,exe)
+            rows=json.loads(self.run_helper('plan-internet',self.root,'a'*32,'remove','crossplay').stdout)
+            self.assertTrue(all(Path(row['Program'])==exe for row in rows if '-0-' in row['Name']))
+            self.assertTrue(all(not row['Install'] for row in rows if '-0-' in row['Name']))
+            descriptor.write_text('{"format":"weplay-platform-independent-v1","edition":"history"}')
+            self.run_helper('plan-internet',self.root,'a'*32,'remove','crossplay',success=False)
+
+    def test_crossplay_scope_accepts_no_arbitrary_port_or_unknown_flag(self):
+        for suffix in ('9114','crossplay=true','Crossplay'):
+            self.run_helper('plan-internet',self.root,'a'*32,'remove',suffix,success=False)
 
     def test_bad_network_parameters_and_nonexistent_overlay_fail_before_elevation(self):
         for key,address,name in [('not-a-key','10.203.77.1','WePlay-12345678'),

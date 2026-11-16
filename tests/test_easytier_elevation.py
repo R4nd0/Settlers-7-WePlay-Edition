@@ -68,6 +68,42 @@ class ElevationTests(unittest.TestCase):
                 state.write_text(json.dumps(dict(value, peers={'192.168.1.2': 'p2p'})))
                 with self.assertRaises(InternetError): overlay.snapshot()
 
+    def test_crossplay_state_must_echo_scope_and_tracks_verified_interface(self):
+        with tempfile.TemporaryDirectory() as folder:
+            overlay=elevation.ElevatedEasyTier(Path(folder),ROOM,host=False,crossplay=True)
+            overlay.private=Path(folder)
+            interface=LanInterface('10.203.77.2',24,'WePlay-12345678')
+            value=dict(format=elevation.FORMAT,nonce=overlay.nonce,phase='ready',
+                address=interface.address,device=interface.name,peers={ROOM.coordinator:'p2p'})
+            state=Path(folder)/'state.json';state.write_text(json.dumps(value))
+            with patch.object(elevation,'enumerate_interfaces',return_value=[interface]):
+                with self.assertRaises(InternetError):overlay.snapshot()
+                state.write_text(json.dumps(dict(value,crossplay=True)))
+                self.assertEqual(overlay.snapshot(),(interface,{ROOM.coordinator:'p2p'}))
+                self.assertEqual((overlay.address,overlay.device_name),(interface.address,interface.name))
+        for setting in (1,'true',None):
+            with self.assertRaises(InternetError):elevation.ElevatedEasyTier(ROOT,ROOM,host=True,crossplay=setting)
+
+    def test_crossplay_uac_request_is_explicit_and_owned_handle_liveness_is_used(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for name in ('Runtime/python/python.exe','Launcher/easytier_elevation.py'):
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+            overlay=elevation.ElevatedEasyTier(root,ROOM,host=True,crossplay=True)
+            api=Mock()
+            def cancel(_python,_script,request):
+                self.assertIs(json.loads(request.read_text())['crossplay'],True)
+                raise InternetError('internet_elevation_cancelled')
+            with patch('easytier_runtime.verify_runtime'),patch.object(elevation,'verify_worker'), \
+                    patch.object(elevation,'parent_process',return_value=(api,1,123,Path(sys.executable))), \
+                    patch.object(elevation,'elevate',side_effect=cancel):
+                with self.assertRaises(InternetError):overlay.start()
+            self.assertFalse(overlay.alive())
+            overlay.handle=123
+            with patch.object(elevation,'winapi',return_value=api):
+                api.WaitForSingleObject.return_value=0x102;self.assertTrue(overlay.alive())
+                api.WaitForSingleObject.return_value=0;self.assertFalse(overlay.alive())
+
     def test_worker_refuses_arbitrary_request_path_before_opening_parent(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'other.json'; path.write_text('{}')
@@ -104,6 +140,48 @@ class ElevationTests(unittest.TestCase):
         self.assertEqual(args[1:],['internet-firewall',str(root),'a'*32,'apply',interface.address,interface.name])
         self.assertNotIn(ROOM.secret, repr(command.call_args))
         self.assertNotIn('shell', command.call_args.kwargs)
+
+    def test_crossplay_firewall_uses_fixed_scope_for_apply_and_removal(self):
+        import windows_system
+        root=ROOT/'work/fictional-internet-copy';key='a'*32
+        interface=LanInterface('10.203.77.1',24,'WePlay-12345678')
+        with patch.object(windows_system,'command',return_value=b'{}') as command:
+            windows_system.internet_firewall(root,key,interface,crossplay=True)
+            self.assertEqual(command.call_args.args,('internet-firewall',root,key,'apply',interface.address,interface.name,'crossplay'))
+            windows_system.internet_firewall(root,key,crossplay=True)
+            self.assertEqual(command.call_args.args,('internet-firewall',root,key,'remove','crossplay'))
+            with self.assertRaises(ValueError):windows_system.internet_firewall(root,key,crossplay=1)
+
+    def test_crossplay_worker_forwards_scope_after_approved_native_profile_and_cleans_up(self):
+        import compatibility,crossplay_session
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);private=root/'LocalData/easytier-uac-fixture';private.mkdir(parents=True)
+            image=root/'Runtime/python/python.exe';image.parent.mkdir(parents=True);image.write_bytes(b'python')
+            executable=root/'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
+            executable.parent.mkdir(parents=True);executable.write_bytes(b'fixture executable')
+            adapter=root/'Launcher/weplay_gold_startup.dll'
+            profile={'files':{'Launcher/weplay_gold_startup.dll':'approved adapter'}}
+            request=private/'request.json'
+            request.write_text(json.dumps(dict(format=elevation.FORMAT,root=str(root),room=ROOM.token(),
+                host=True,parent_pid=123,parent_start=456,nonce='a'*32,crossplay=True)))
+            api=Mock();api.WaitForSingleObject.return_value=0x102
+            interface=LanInterface(ROOM.coordinator,24,'WePlay-12345678')
+            overlay=Mock();overlay.start.return_value=interface;overlay.snapshot.return_value=(interface,{})
+            def stop(_seconds):(private/'stop').touch()
+            with patch.object(elevation,'__file__',str(root/'Launcher/easytier_elevation.py')), \
+                    patch.object(elevation,'parent_process',return_value=(api,1,456,image)), \
+                    patch('easytier_runtime.EasyTier',return_value=overlay) as factory, \
+                    patch('platform_standalone.load',return_value=(profile,executable,adapter)), \
+                    patch.dict(crossplay_session.EXECUTABLE_EDITIONS,{compatibility.digest(executable):1}), \
+                    patch.dict(crossplay_session.ADAPTER_PINS,{1:('approved adapter',)}), \
+                    patch.object(elevation.time,'sleep',side_effect=stop), \
+                    patch.object(elevation,'write_state') as write,patch.object(elevation,'firewall') as firewall:
+                elevation.worker(request)
+            self.assertIs(factory.call_args.kwargs['crossplay'],True)
+            firewall.assert_any_call(root,'a'*32,interface,crossplay=True)
+            firewall.assert_any_call(root,'a'*32,crossplay=True)
+            self.assertTrue(any(call.args[1].get('crossplay') is True for call in write.call_args_list))
+            overlay.close.assert_called_once();self.assertFalse(request.exists())
 
     def test_worker_imports_and_python_must_match_trusted_package_inventory(self):
         import compatibility, install

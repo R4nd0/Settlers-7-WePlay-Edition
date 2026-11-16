@@ -24,7 +24,7 @@ internal static class Program
         Console.OutputEncoding=new UTF8Encoding(false);
         try
         {
-            if(args is ["capabilities"]){Print(new {format="weplay-windows-capabilities-v1",directory_crypto=1,internet_firewall=2});return 0;}
+            if(args is ["capabilities"]){Print(new {format="weplay-windows-capabilities-v1",directory_crypto=1,internet_firewall=2,crossplay_firewall=1});return 0;}
             if(args is ["directory-crypto",string operation]){Print(DirectoryCrypto.Run(operation));return 0;}
             if(args is ["interfaces"]){Print(Interfaces());return 0;}
             if(args is ["processes"]){Print(Processes());return 0;}
@@ -53,11 +53,13 @@ internal static class Program
             }
             if(args.Length>0&&args[0] is "internet-firewall" or "plan-internet")
             {
-                if(args.Length is not (4 or 6)||!Regex.IsMatch(args[2],"\\A[0-9a-f]{32}\\z"))throw new InvalidDataException("helper_invalid");
-                string root=Bundle(args[1]);bool remove=args[3]=="remove";
-                if((remove&&args.Length!=4)||(!remove&&(args[3]!="apply"||args.Length!=6)))throw new InvalidDataException("helper_invalid");
+                if(args.Length is not (4 or 5 or 6 or 7)||!Regex.IsMatch(args[2],"\\A[0-9a-f]{32}\\z"))throw new InvalidDataException("helper_invalid");
+                bool crossplay=args[^1]=="crossplay",remove=args[3]=="remove";
+                int extra=crossplay?1:0;
+                if((remove&&args.Length!=4+extra)||(!remove&&(args[3]!="apply"||args.Length!=6+extra)))throw new InvalidDataException("helper_invalid");
+                string root=Bundle(args[1],crossplay);
                 // Removal needs only owned names; no live adapter is required after failure.
-                var rules=InternetRules(root,args[2],remove?null:args[4],remove?null:args[5]);
+                var rules=InternetRules(root,args[2],remove?null:args[4],remove?null:args[5],crossplay);
                 if(plan){Print(rules);return 0;}
                 if(!IsAdmin())throw new UnauthorizedAccessException("helper_admin_required");
                 Apply(rules,remove);Print(new {ok=true});return 0;
@@ -90,14 +92,31 @@ internal static class Program
         try{using var child=Process.Start(start)??throw new InvalidDataException("helper_failed");child.WaitForExit();return child.ExitCode;}
         catch(System.ComponentModel.Win32Exception error) when(error.NativeErrorCode==1223){throw new InvalidDataException("helper_cancelled");}
     }
-    private static string Bundle(string path)
+    private static bool GoldRoot(string root)=>File.Exists(Path.Combine(root,"gold-install.json"));
+    private static string[] NetworkPrograms(string root,bool crossplay)=>crossplay&&GoldRoot(root)
+        ?["Data/Base/_Dbg/Bin/Release/Settlers7R.exe",Programs[1],Programs[2]]:Programs;
+    private static string Bundle(string path,bool crossplay=false)
     {
         string root=SafePaths.Plain(path);
-        string manifest=SafePaths.FileAt(root,"compatibility.json");
+        bool gold=crossplay&&GoldRoot(root);
+        string manifest=SafePaths.FileAt(root,gold?"gold-install.json":"compatibility.json");
         if(new FileInfo(manifest).Length>4*1024*1024)throw new InvalidDataException("helper_invalid");
         using(var json=JsonDocument.Parse(File.ReadAllBytes(manifest)))
-            if(json.RootElement.GetProperty("format").GetString()!="s7-content-v1")throw new InvalidDataException("helper_invalid");
-        foreach(string program in Programs)SafePaths.FileAt(root,program);
+            if(json.RootElement.GetProperty("format").GetString()!=(gold?"weplay-gold-install-v1":"s7-content-v1")
+                ||gold&&json.RootElement.GetProperty("platform_independent").ValueKind!=JsonValueKind.True)
+                throw new InvalidDataException("helper_invalid");
+        foreach(string program in NetworkPrograms(root,crossplay))SafePaths.FileAt(root,program);
+        if(gold)
+        {
+            string descriptor=SafePaths.FileAt(root,"Launcher/platform-standalone.json");
+            if(new FileInfo(descriptor).Length>16384)throw new InvalidDataException("helper_invalid");
+            using(var json=JsonDocument.Parse(File.ReadAllBytes(descriptor)))
+                if(json.RootElement.GetProperty("format").GetString()!="weplay-platform-independent-v1"
+                    ||json.RootElement.GetProperty("edition").GetString()!="gold")throw new InvalidDataException("helper_invalid");
+            using var image=File.OpenRead(SafePaths.FileAt(root,"Data/Base/_Dbg/Bin/Release/Settlers7R.exe"));
+            if(Convert.ToHexString(SHA256.HashData(image)).ToLowerInvariant()!="76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab")
+                throw new InvalidDataException("helper_invalid");
+        }
         return root;
     }
     private static string LanKey(string root)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root.ToLowerInvariant())))[..16];
@@ -108,7 +127,7 @@ internal static class Program
             result.Add(new($"S7LAN-{key}-{i}-{(protocol==6?"TCP":"UDP")}",SafePaths.FileAt(root,Programs[i]),protocol,2,"LocalSubnet"));
         return result;
     }
-    private static List<Rule> InternetRules(string root,string key,string? address,string? name)
+    private static List<Rule> InternetRules(string root,string key,string? address,string? name,bool crossplay=false)
     {
         string local="*",remote="*";
         if(address!=null)
@@ -128,13 +147,13 @@ internal static class Program
             // Keep the old owned names so removal also reclaims earlier broad
             // rules. Unused combinations remain removal-only plans.
             // Overlay ACLs enforce the default deny.
-            string? port=(i,protocol) switch
+            string? port=crossplay?((i,protocol)==(2,6)?"9113":null):(i,protocol) switch
             {
                 (0,17)=>"3074,6200,9103",
                 (1,6)=>"9110", (1,17)=>"9111", (2,17)=>"9112",
                 _=>null
             };
-            result.Add(new($"S7ET-{key}-{i}-{(protocol==6?"TCP":"UDP")}",SafePaths.FileAt(root,Programs[i]),protocol,int.MaxValue,remote,local,name,port,port!=null));
+            result.Add(new($"S7ET-{key}-{i}-{(protocol==6?"TCP":"UDP")}",SafePaths.FileAt(root,NetworkPrograms(root,crossplay)[i]),protocol,int.MaxValue,remote,local,name,port,port!=null));
         }
         string core=SafePaths.FileAt(root,"Runtime/easytier/easytier-core.exe");
         result.Add(new($"S7ET-{key}-core-TCP",core,6,int.MaxValue,"*",Port:"11010"));

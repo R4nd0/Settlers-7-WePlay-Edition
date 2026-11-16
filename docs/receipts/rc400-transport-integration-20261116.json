@@ -1,0 +1,43 @@
+{
+  "format": "weplay-rc400-transport-integration-v1",
+  "date": "2026-11-16",
+  "scope": "Explicit Windows mixed transport scope, gateway lifetime and trusted Gold runtime packaging",
+  "release_published": false,
+  "final_package_mixed_reload_proven": false,
+  "mixed_adapters_admitted": false,
+  "targeted_tests_passed": 206,
+  "test_suites": {
+    "easytier_elevation": 12,
+    "crossplay_easytier_gateway": 17,
+    "easytier_runtime": 18,
+    "compiled_windows_helper": 11,
+    "gold_network_runtime": 4,
+    "gold_installer": 10,
+    "adapter_migration": 7,
+    "platform_standalone": 11,
+    "quiet_reshade_packaging": 2,
+    "desktop_backend": 51,
+    "desktop_resilience": 28,
+    "installer": 35
+  },
+  "real_runtime_package_fixture": {
+    "passed": true,
+    "package_files": 460,
+    "copied_runtime_and_helper_files": 312,
+    "fresh_embedded_python": true,
+    "trusted_worker_inventory_verified": true,
+    "compiled_broker_rule_plan_verified": true,
+    "native_remote_rule_enabled": false,
+    "broker_tcp_port": 9113,
+    "playable_game_fixture": false,
+    "game_started": false,
+    "vpn_started": false,
+    "firewall_rules_applied": false,
+    "production_native_pins_changed": false
+  },
+  "limitations": [
+    "Gateway stream tests use real local sockets with authored bytes; tunnel ownership tests use mocks.",
+    "The compiled Windows helper tests inspect plans and Windows APIs without applying network policy.",
+    "Actual EasyTier transport and native mixed games in the final installed package remain unqualified."
+  ]
+}

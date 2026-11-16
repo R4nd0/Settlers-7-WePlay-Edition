@@ -65,7 +65,10 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         helper=content.plain(Path(windows_helpers)/'System/WePlay.WindowsHelper.dll')
         probe=subprocess.run([str(dotnet/'dotnet.exe'),str(helper),'capabilities'],
             capture_output=True,timeout=30)
-        if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig'))!={'format':'weplay-windows-capabilities-v1','directory_crypto':1,'internet_firewall':2}:
+        ordinary={'format':'weplay-windows-capabilities-v1','directory_crypto':1,'internet_firewall':2}
+        mixed={**ordinary,'crossplay_firewall':1}
+        allowed=(mixed,) if platform_runtime is not None else (ordinary,mixed)
+        if probe.returncode or json.loads(probe.stdout.decode('utf-8-sig')) not in allowed:
             raise ValueError('Directory cryptography or restricted Internet firewall helper is missing')
     check_output_location(repo, output, (service, dotnet, python_zip.parent, adapter.parent))
     if platform_runtime is not None:

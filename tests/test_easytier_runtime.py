@@ -32,16 +32,17 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(candidate['flags']['encryption_algorithm'],'aes-gcm')
             chains=candidate['acl']['acl_v1']['chains']
             inbound=next(c for c in chains if c['chain_type']==1)
-            rules=[r for r in inbound['rules'] if r['protocol']==1]
+            rules=[r for r in inbound.get('rules',[]) if r['protocol']==1]
             self.assertEqual(bool(rules),address==ROOM.coordinator)
             for rule in rules:
-                self.assertEqual(set(rule['ports']),{'9110','9113'})
+                self.assertEqual(set(rule['ports']),{'9113'})
                 self.assertEqual(rule['destination_ips'],[ROOM.coordinator+'/32'])
             outbound=next(c for c in chains if c['chain_type']==2)
             requests=[r for r in outbound['rules'] if r['protocol']==1 and 'ports' in r]
             self.assertEqual(len(requests),1)
             self.assertEqual(requests[0]['destination_ips'],[ROOM.coordinator+'/32'])
-            self.assertEqual(set(requests[0]['ports']),{'9110','9113'})
+            self.assertEqual(set(requests[0]['ports']),{'9113'})
+            self.assertTrue(all(rule['protocol']==1 for chain in chains for rule in chain.get('rules',[])))
             self.assertNotIn('rules',next(c for c in chains if c['chain_type']==3))
 
     def test_crossplay_flag_cannot_be_accidentally_enabled_by_truthy_string(self):

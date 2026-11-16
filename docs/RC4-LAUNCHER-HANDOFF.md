@@ -109,3 +109,41 @@ relay for both History edition numbers with authored protocol clients. The refre
 83-file Gold package separately imports the new host/invitation dependencies in
 fresh embedded Python, round-trips the invitation and opens/closes the one-owner
 Gold service. Actual game and EasyTier tunnel qualification remain pending.
+
+## Scoped Windows transport integration
+
+The Windows EasyTier worker now carries and echoes an explicit boolean mixed
+scope. Its parent-process creation binding, protected IPC directory, interpreter
+and helper inventory checks remain mandatory. Crossplay requires an admitted
+native adapter before the worker starts the tunnel. The elevated worker checks
+the standalone profile; the launcher separately verifies the approved gameplay
+catalog before producing either native launch binding.
+
+Mixed EasyTier ACLs permit only the broker's TCP `9113` to the coordinator and
+its replies. Classic History-only ACLs keep their existing ports. The compiled
+Windows helper has the same explicit scope and restricts the game-side transport
+to the Python broker on the verified tunnel interface. It installs no remote
+native-game rule in that scope. Gold roots additionally require their portable
+descriptor and exact original prepared executable. Ordinary rule plans and
+owned-name removal remain supported. No firewall change was applied by the
+integration tests.
+
+The gateway supports both a direct owned core and the elevated worker's live
+process handle. Normal mixed sessions have no 30-minute gateway limit or worker
+day limit; the owner still closes their endpoints on exit or cancellation.
+Explicit bounded gateway durations remain available for development tests.
+
+Unified Gold preparation now copies the common launcher, Python, .NET helper
+and EasyTier runtimes from the verified package and includes them in its game
+inventory and ownership tracking. Trusted worker verification admits only the
+specific additional portable descriptor, policy helper and pinned Gold adapter;
+it continues to reject unknown launcher files. Package construction requires the
+compiled mixed-scope helper capability for platform-independent directory builds.
+
+Validation on 2026-11-16: 206 targeted tests passed, including 11 read-only checks
+against the newly compiled Windows helper. A fresh 460-file runtime package
+copied 312 runtime/helper files into a minimal guarded Gold inventory fixture;
+its embedded Python passed trusted-worker verification and the read-only compiled
+broker rule plan. That fixture is deliberately not a playable game. No VPN or
+game was started, and no firewall rule was applied by this package check. Actual
+EasyTier transport and final installed mixed-world qualification remain pending.

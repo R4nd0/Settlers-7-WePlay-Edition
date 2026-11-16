@@ -116,7 +116,40 @@ def inspect(package,source,*,managed=False):
     return runtime.gold.inspect(source,app/'Definitions/Definitions.bin')
 
 
-def prepare(package,source,target,**options):
+def prepare_network_runtime(package,root,*,tracker=None):
+    """Copy current trusted launcher/runtime inputs into a freshly prepared Gold copy."""
+    import install
+    package,root=map(content.plain,(package,root))
+    manifest=install.package_manifest(package)
+    if not all(manifest.get(key) is True for key in ('platform_independent','internet_easytier','windows_helpers')):
+        raise ValueError('platform_isolation_required')
+    files=manifest['files']
+    sources=[('tools/'+original,'Launcher/'+target) for original,target in install.launcher_sources(manifest)]
+    sources.append(('tools/license.txt','Launcher/LICENSE.txt'))
+    sources.extend((name,'Runtime/'+name[len('runtime/'):]) for name in files
+                   if name.startswith(('runtime/python/','runtime/dotnet/','runtime/easytier/')))
+    unique={}
+    for original,target in sources:
+        key=target.casefold()
+        if key in unique:
+            if files[unique[key][0].lower()]!=files[original.lower()]:raise ValueError('Ambiguous Gold network runtime input.')
+        else:unique[key]=(original,target)
+    sources=list(unique.values())
+    for original,target in sources:
+        incoming=content.plain(package/original);outgoing=content.plain(root/target)
+        expected=files[original.lower()]
+        if content.digest(incoming)!=expected or outgoing.exists():
+            raise ValueError('Gold network runtime input changed or destination exists.')
+        outgoing.parent.mkdir(parents=True,exist_ok=True)
+        with incoming.open('rb') as source,outgoing.open('xb') as destination:
+            shutil.copyfileobj(source,destination)
+        if content.digest(outgoing)!=expected:raise ValueError('Gold network runtime copy changed.')
+        if tracker:tracker(outgoing,expected)
+    return sources
+
+
+def prepare(package,source,target,*,network_runtime=False,**options):
+    if type(network_runtime) is not bool:raise ValueError('request_invalid')
     app=content.plain(Path(package)/FOLDER);verify_package(app)
     previous=sys.path[:]
     try:
@@ -136,6 +169,14 @@ def prepare(package,source,target,**options):
             if content.digest(destination)!=reshade_runtime.SETUP_SHA256:
                 raise ValueError('Quiet ReShade copy fingerprint mismatch')
             if options.get('tracker'):options['tracker'](destination,reshade_runtime.SETUP_SHA256)
+        if network_runtime:
+            prepare_network_runtime(package,target,tracker=options.get('tracker'))
+            runtime=module(app)
+            record=runtime.read_json(Path(target)/'gold-install.json')
+            record['files'].update(runtime.inventory(Path(target),('Launcher','Runtime')))
+            record['network_runtime']=True
+            (Path(target)/'gold-install.json').write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
+            result=runtime.verify_root(target)
         return result
     finally:sys.path[:]=previous
 
@@ -144,4 +185,7 @@ def verify(package,root):
     app=content.plain(Path(package)/FOLDER)
     value=module(app).verify_root(root)
     if value.get('platform_independent') is not True:raise ValueError('platform_isolation_required')
+    if value.get('network_runtime',False):
+        from easytier_elevation import verify_worker
+        verify_worker(content.plain(root),package=content.plain(package))
     return {'files':{**value['files'],**{name:content.digest(Path(root)/name) for name in ('gold-install.json','gold-development.json','README.txt')}}}

@@ -101,7 +101,13 @@ def verify_root(root):
         raise ValueError('Gold-Installation unvollständig.')
     if (root / 'PREPARATION-INCOMPLETE.txt').exists():
         raise ValueError('Gold-Vorbereitung unvollständig.')
-    verified_files(root, value.get('files'), ('Data', 'Launcher', 'Backup'))
+    if type(value.get('network_runtime',False)) is not bool:raise ValueError('Gold-Installation unvollständig.')
+    if value.get('network_runtime',False) and (value.get('platform_independent') is not True or
+            any(name not in value.get('files',{}) for name in ('Runtime/python/python.exe','Runtime/dotnet/dotnet.exe',
+                                                              'Runtime/easytier/easytier-core.exe'))):
+        raise ValueError('Gold-Netzlaufzeit unvollständig.')
+    folders=('Data','Launcher','Backup','Runtime') if value.get('network_runtime',False) else ('Data','Launcher','Backup')
+    verified_files(root, value.get('files'), folders)
     adapter=ADAPTER_SHA256
     if value.get('platform_independent',False):
         import platform_standalone

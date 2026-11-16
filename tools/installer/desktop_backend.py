@@ -602,7 +602,8 @@ class Desktop:
         options={'managed':True} if repairable else {}
         try:
             if gold:
-                gold_support.prepare(self.package,source,root,managed=repairable,on_created=created,tracker=track,progress=self.progress)
+                gold_support.prepare(self.package,source,root,network_runtime=self.package_manifest().get('internet_easytier',False),
+                    managed=repairable,on_created=created,tracker=track,progress=self.progress)
             else:
                 install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,
                     publish_starters=False,additional_bytes=self.preference_bytes(old),on_created=created,tracker=track,**options)

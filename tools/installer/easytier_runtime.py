@@ -48,9 +48,9 @@ def room_acl(room, address, *, crossplay=False):
             continue
         source = room.subnet if kind == 1 else address + '/32'
         target = address + '/32' if kind == 1 else room.subnet
-        rules = [(2, ROOM_UDP_PORTS, source, target)]
+        rules = [] if crossplay else [(2, ROOM_UDP_PORTS, source, target)]
         if kind == 2 or address == room.coordinator:
-            tcp_ports = (9110, CROSSPLAY_TCP_PORT) if crossplay else (9110,)
+            tcp_ports = (CROSSPLAY_TCP_PORT,) if crossplay else (9110,)
             rules.append((1, tcp_ports, source, target if kind == 1 else room.coordinator + '/32'))
         for protocol, ports, src, dst in rules:
             lines += ['[[acl.acl_v1.chains.rules]]', f'name = "weplay-{name}-{protocol}"',
@@ -61,9 +61,9 @@ def room_acl(room, address, *, crossplay=False):
         if kind == 2:
             # Replies originate from these fixed service sockets and target
             # the caller's ephemeral port. Do not open an inbound port range.
-            replies=[(2,ROOM_UDP_PORTS)]
+            replies=[] if crossplay else [(2,ROOM_UDP_PORTS)]
             if address == room.coordinator:
-                replies.append((1,(9110,CROSSPLAY_TCP_PORT) if crossplay else (9110,)))
+                replies.append((1,(CROSSPLAY_TCP_PORT,) if crossplay else (9110,)))
             for protocol,ports in replies:
                 lines += ['[[acl.acl_v1.chains.rules]]',f'name = "weplay-reply-{protocol}"',
                           'priority = 900','enabled = true','action = 1',f'protocol = {protocol}',
@@ -279,8 +279,11 @@ class EasyTier:
             output.seek(0)
             return output.read(131073)
 
+    def alive(self):
+        return self.child is not None and self.child.poll() is None
+
     def snapshot(self):
-        if self.child is None or self.child.poll() is not None:
+        if not self.alive():
             raise InternetError('internet_disconnected')
         address, peers = peer_snapshot(self.query('peer'), self.room, self.device_name)
         if address != self.address:

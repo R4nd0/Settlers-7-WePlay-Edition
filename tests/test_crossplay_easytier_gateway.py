@@ -227,6 +227,25 @@ class TunnelTests(unittest.TestCase):
             with self.assertRaises(gateway.GatewayError):g.pump()
             self.assertTrue(g.closed);listener.accept.assert_not_called();o.child.terminate.assert_not_called()
 
+    def test_elevated_owner_liveness_and_no_default_duration_limit(self):
+        o,peer=overlay(False);del o.child;o.alive=Mock(return_value=True)
+        listener=Mock();listener.getsockname.return_value=('127.0.0.1',49154)
+        listener.accept.side_effect=BlockingIOError
+        with patch.object(gateway.socket,'socket',return_value=listener):
+            g=gateway.EasyTierGateway(o,peer=peer)
+            self.assertIsNone(g.deadline);g.pump()
+            o.alive.return_value=False
+            with self.assertRaises(gateway.GatewayError):g.pump()
+            self.assertTrue(g.closed)
+
+    def test_explicit_development_timeout_remains_bounded(self):
+        o,peer=overlay(False);listener=Mock();listener.getsockname.return_value=('127.0.0.1',49154)
+        with patch.object(gateway.socket,'socket',return_value=listener):
+            g=gateway.EasyTierGateway(o,peer=peer,seconds=15);g.deadline=0
+            with self.assertRaises(gateway.GatewayError):g.pump()
+            for seconds in (True,0,14,1801,'15'):
+                with self.assertRaises(ValueError):gateway.EasyTierGateway(o,peer=peer,seconds=seconds)
+
     def test_unsupported_interface_pinning_has_no_unpinned_fallback(self):
         with patch.object(gateway.sys,'platform','unsupported'):
             sock=Mock()
