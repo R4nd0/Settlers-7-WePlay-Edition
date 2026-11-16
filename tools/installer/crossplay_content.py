@@ -11,6 +11,7 @@ FORMAT = 'weplay-crossplay-content-v1'
 MAX_BYTES = 16 * 1024 * 1024
 MAX_FILES = 30000
 APPROVED_DIGESTS = frozenset()
+PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {
     1: ('Data/Base/_Dbg/Bin/Release/Settlers7R.exe', 'Launcher/weplay_gold_startup.dll'),
     2: ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll'),
@@ -108,3 +109,24 @@ def read(path):
     with path.open('rb') as stream:
         raw = stream.read(MAX_BYTES + 1)
     return Catalog(raw)
+
+
+def package_catalog(root, manifest):
+    """A feature flag cannot promote an arbitrary catalog or ordinary adapter."""
+    required = ('platform_independent', 'internet_easytier', 'gold_standalone',
+                'steam_history', 'windows_helpers', 'game_directory', 'neo_logistics',
+                'multiplayer_resume')
+    if any(manifest.get(name) is not True for name in required):
+        raise ValueError('crossplay_package_invalid')
+    catalog = read(compatibility.plain(root) / PACKAGE_CATALOG)
+    if catalog.digest.hex() not in APPROVED_DIGESTS:
+        raise ValueError('crossplay_catalog_unapproved')
+    files = manifest.get('files', {})
+    for edition, profile in enumerate(catalog.profiles, 1):
+        adapter = dict(profile)[REQUIRED[edition][1]]
+        payload = ('payload/gold/payload/weplay_gold_startup.dll' if edition == 1
+                   else 'payload/uplay_r1_loader.dll')
+        if (adapter not in crossplay_session.ADAPTER_PINS.get(edition, ())
+                or files.get(payload) != adapter):
+            raise ValueError('crossplay_adapter_unavailable')
+    return catalog

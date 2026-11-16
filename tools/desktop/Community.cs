@@ -26,6 +26,10 @@ internal static class Community
     public static string InvitationMessage(string invitation, string language)
     {
         string code = InvitationCode(invitation);
+        if(code.StartsWith("weplayx1.",StringComparison.Ordinal))
+            return code+"\n\n"+(language=="de"
+                ?"WePlay – private Gold/History-Einladung\nIm WePlay-Starter: Internet spielen → Gold + History → Einladung einfügen → Raum beitreten + S7 starten.\nGold erstellt die Partie; die eingeladene History-Ausgabe tritt bei. Folge anschließend der Anzeige im Spiel.\nAlle benötigen dieselbe WePlay-Version. Teile diesen Code nur mit deinem Mitspieler."
+                :"WePlay – private Gold/History invitation\nIn the WePlay launcher: Internet play → Gold + History → Paste invitation → Join room + start S7.\nGold creates the match; the invited History edition joins. Then follow the instructions in the game.\nEveryone needs the same WePlay version. Share this code only with your fellow player.");
         if(language=="de")
             return code+"\n\nWePlay – private Raumeinladung\n"+
                 "Im WePlay-Starter: Internet spielen → Ich habe eine Einladung → Einladung einfügen → Raum beitreten + S7 starten.\n"+
@@ -46,9 +50,10 @@ internal static class Community
         if(text.Length>4096)throw new BackendError("internet_invitation_invalid", "");
         string[] lines=text.Trim().Replace("\r\n","\n").Split('\n');
         string code=lines[0];
-        if(code.Length>2048||!Regex.IsMatch(code,@"\Aweplay1\.[A-Za-z0-9_-]+\z") ||
+        if(code.Length>2048||!Regex.IsMatch(code,@"\Aweplay(?:1|x1)\.[A-Za-z0-9_-]+\z") ||
             (lines.Length>1 && !(lines.Length>=3 && lines[1]=="" &&
-                lines[2] is "WePlay – private Raumeinladung" or "WePlay – private room invitation")))
+                lines[2] is "WePlay – private Raumeinladung" or "WePlay – private room invitation" or
+                    "WePlay – private Gold/History-Einladung" or "WePlay – private Gold/History invitation")))
             throw new BackendError("internet_invitation_invalid", "");
         return code;
     }

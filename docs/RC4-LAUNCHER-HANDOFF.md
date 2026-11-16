@@ -183,3 +183,34 @@ stale diagnostic assets; it provides no new gameplay or mixed-reload result.
 The launcher UI remains gated. Both native-adapter and content-catalog approval
 sets are empty. RC4.00 must not be signed or published until mixed reload with
 Gold and each original History edition passes in the final installed package.
+
+## Gated desktop entry points
+
+The desktop backend now has separate `crossplay-create` and `crossplay-join`
+operations. They require the strict `crossplay_mixed` package capability, exact
+request fields, explicit connection consent and the original local edition.
+Before private-channel or tunnel startup, they verify the installed copy and
+the approved catalog at `Payload/Crossplay/catalog.json`. Package validation
+also binds the catalog to the actual shipped Gold and shared History adapters;
+the feature flag alone grants nothing. Changes to this capability or catalog
+invalidate the desktop's installed package identity and require an update.
+
+The existing current-user private pipe carries invitations. The native launch
+attaches to its service owner while the original game entry is still held;
+the host invitation is returned only after native initialization. If a later
+private-pipe or UI observer fails, the room closes while the parent waits for
+the original game to exit. It does not terminate the healthy game. The ordinary
+single-player and History-only multiplayer paths remain separate operations.
+
+The Windows launcher has a gated Gold + History choice. Gold hosts explicitly
+choose Ubisoft or Steam History; History can only join that mixed mode. An
+unqualified package hides Gold's network entry. Private invitations stay masked
+and their clipboard share text explains the matching mixed route. Original
+Ready, map/save, AI and castle choices remain in the game.
+
+On 2026-11-16, all 87 desktop/recovery tests, 35 installer tests and 12 content
+catalog tests passed. The rebuilt launcher passed 41 bilingual rendered checks,
+including synthetic capability changes, role restrictions, mandatory History
+edition selection and private share round-trips. The rendered mixed screens
+use synthetic capability data, not an admitted production adapter or live game.
+Production native/catalog approval sets remain empty and no release was made.

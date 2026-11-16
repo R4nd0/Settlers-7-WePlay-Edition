@@ -31,12 +31,15 @@ class DesktopTests(unittest.TestCase):
         record['platform_independent']=True
         self.desktop.write(self.desktop.package/'package.json',record)
         self.assertNotEqual(before,self.desktop.package_id())
+        before=self.desktop.package_id();record['crossplay_mixed']=True
+        self.desktop.write(self.desktop.package/'package.json',record)
+        self.assertNotEqual(before,self.desktop.package_id())
         for name in ('payload/platform/mss32.dll','payload/platform/steam_api.dll',
                      'payload/platform/weplay_network_policy.exe','tools/installer/isolated_process.py',
                      'tools/installer/network_peer_policy.py','tools/installer/standalone_entry.py',
                      'payload/gold/tools/gold/prepare.py','payload/gold/tools/gold/profile_interface.py',
                      'payload/gold/tools/gold/release_interface.py','payload/gold/package.json',
-                     'payload/gold/payload/weplay_gold_startup.dll'):
+                     'payload/gold/payload/weplay_gold_startup.dll','payload/crossplay/catalog.json'):
             record['files'][name]='a'*64;self.desktop.write(self.desktop.package/'package.json',record)
             before=self.desktop.package_id()
             record['files'][name]='b'*64;self.desktop.write(self.desktop.package/'package.json',record)

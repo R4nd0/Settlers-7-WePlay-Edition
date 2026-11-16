@@ -57,6 +57,38 @@ class CrossplayContentTests(unittest.TestCase):
         catalog = self.catalog()
         with self.assertRaisesRegex(ValueError, 'catalog_unapproved'): catalog.verify(self.roots[1], 1)
 
+    def test_package_flag_requires_approved_catalog_and_both_shipped_adapters(self):
+        catalog=self.catalog();path=self.root/content.PACKAGE_CATALOG
+        path.parent.mkdir(parents=True);path.write_bytes(catalog.canonical)
+        manifest={name:True for name in ('platform_independent','internet_easytier','gold_standalone',
+            'steam_history','windows_helpers','game_directory','neo_logistics','multiplayer_resume')}
+        manifest['files']={'payload/gold/payload/weplay_gold_startup.dll':
+            dict(catalog.profiles[0])[content.REQUIRED[1][1]],
+            'payload/uplay_r1_loader.dll':dict(catalog.profiles[1])[content.REQUIRED[2][1]]}
+        with self.assertRaisesRegex(ValueError,'catalog_unapproved'):content.package_catalog(self.root,manifest)
+        self.approve(catalog)
+        # The two fixture History DLLs intentionally differ; one shipped DLL
+        # must satisfy both original edition profiles before package admission.
+        with self.assertRaisesRegex(ValueError,'adapter_unavailable'):content.package_catalog(self.root,manifest)
+        manifest['internet_easytier']=False
+        with self.assertRaisesRegex(ValueError,'package_invalid'):content.package_catalog(self.root,manifest)
+
+    def test_one_admitted_shipped_history_adapter_covers_both_original_executables(self):
+        adapter2=self.roots[2]/content.REQUIRED[2][1]
+        adapter3=self.roots[3]/content.REQUIRED[3][1]
+        adapter3.write_bytes(adapter2.read_bytes());digest=sha(adapter2.read_bytes())
+        for row in self.data['editions'][2]['files']:
+            if row['id']==content.REQUIRED[3][1]:row['sha256']=digest
+        self.adapter_pins[3]=(digest,)
+        catalog=self.catalog();self.approve(catalog)
+        path=self.root/content.PACKAGE_CATALOG;path.parent.mkdir(parents=True);path.write_bytes(catalog.canonical)
+        manifest={name:True for name in ('platform_independent','internet_easytier','gold_standalone',
+            'steam_history','windows_helpers','game_directory','neo_logistics','multiplayer_resume')}
+        manifest['files']={'payload/gold/payload/weplay_gold_startup.dll':
+            dict(catalog.profiles[0])[content.REQUIRED[1][1]],'payload/uplay_r1_loader.dll':digest}
+        self.assertEqual(content.package_catalog(self.root,manifest),catalog)
+        for edition in (1,2,3):self.assertEqual(catalog.verify(self.roots[edition],edition),catalog.digest)
+
     def test_approved_catalog_does_not_grant_old_adapter_a_mixed_capability(self):
         catalog = self.catalog()
         with patch.object(content, 'APPROVED_DIGESTS', frozenset((catalog.digest.hex(),))):

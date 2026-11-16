@@ -196,12 +196,12 @@ class Desktop:
         if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
         if value.get('multiplayer_resume',False):flags['multiplayer_resume']=True
-        for key in ('platform_independent','main_package','gold_standalone'):
+        for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed'):
             if value.get(key,False):flags[key]=True
         if value.get('platform_independent',False):
             import platform_standalone
             records.update({name:hashed for name,hashed in value['files'].items() if
-                name.startswith(('payload/platform/','payload/gold/')) or name in
+                name.startswith(('payload/platform/','payload/gold/','payload/crossplay/')) or name in
                 {'tools/installer/'+n for n in (*platform_standalone.TOOLS,'gold_support.py','release_policy.py')}})
             flags['platform_isolation']=value.get('platform_isolation')
         if value.get('windows_helpers',False):
@@ -291,7 +291,8 @@ class Desktop:
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'native',
                 'current':None,'update_available':False,'needs_repair':False,
                 'maintenance_pending':len(value['previous']) if value else 0,
-                'internet_available':metadata.get('internet_easytier',False) is True}
+                'internet_available':metadata.get('internet_easytier',False) is True,
+                'crossplay_available':metadata.get('crossplay_mixed',False) is True}
         result['updates_supported']=metadata.get('update_patcher',False) is True
         result['update_last_error']=None
         if result['updates_supported']:
@@ -950,6 +951,96 @@ class Desktop:
         elif sample['host_physical_free']<=1536*memory_guard.MIB:
             self.emit('warning',code='memory_physical_warning')
 
+    @verified_operation
+    def crossplay_play(self,request,*,host):
+        manifest=self.package_manifest()
+        if manifest.get('crossplay_mixed',False) is not True:raise ValueError('crossplay_unavailable')
+        required=({'player_name','channel','history_edition','mode','direct_endpoint','internet_consent'}
+                  if host else {'player_name','channel','internet_consent'})
+        if type(host) is not bool or not isinstance(request,dict) or set(request)!=required:
+            raise ValueError('request_invalid')
+        if type(request['internet_consent']) is not int or request['internet_consent']!=1:
+            raise ValueError('internet_consent_required')
+        name=request['player_name']
+        if (not isinstance(name,str) or not 1<=len(name)<=64 or any(not 32<=ord(c)<=126 for c in name)):
+            raise ValueError('crossplay_configuration_invalid')
+        if host and (type(request['history_edition']) is not int or request['history_edition'] not in (2,3)
+                or request['mode'] not in ('assisted','direct')
+                or (request['mode']=='direct')!=(request['direct_endpoint'] is not None)):
+            raise ValueError('request_invalid')
+        if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
+        root=self.game();self.progress('verify');self.verify_instance(root)
+        import platform_standalone,crossplay_content,crossplay_session
+        _,executable,_=platform_standalone.load(root)
+        edition=crossplay_session.EXECUTABLE_EDITIONS.get(content.digest(executable))
+        if (host and edition!=1) or (not host and edition not in (2,3)):
+            raise ValueError('crossplay_edition_mismatch')
+        catalog=crossplay_content.package_catalog(self.package,manifest)
+        catalog.verify(root,edition)
+        graphics.ensure_closed();self.check_start_memory()
+        from internet_private_channel import PrivateChannel
+        from internet_room import create,check_overlap,endpoint
+        from crossplay_invitation import parse
+        from crossplay_network import NetworkSession
+        with PrivateChannel(request['channel'],cancel_check=lambda:self.progress('internet_connect')) as channel:
+            invitation=channel.read()
+            if (invitation is None)!=host:raise ValueError('crossplay_invitation_invalid')
+            if host:
+                if request['mode']=='direct':endpoint(request['direct_endpoint'])
+                room=create(enumerate_interfaces(),mode=request['mode'],direct_endpoint=request['direct_endpoint'])
+            else:
+                invite=parse(invitation)
+                if invite.edition!=edition:raise ValueError('crossplay_edition_mismatch')
+                check_overlap(invite.room,enumerate_interfaces())
+            options=dict(name=name,consent=1,cancel_check=lambda:self.progress('internet_connect'),progress=self.progress)
+            with graphics.session_lock(root):
+                owner=(NetworkSession.host(root,catalog,room=room,history=request['history_edition'],**options)
+                       if host else NetworkSession.guest(root,catalog,invitation=invitation,**options))
+                with owner:
+                    return self.crossplay_game(root,catalog,owner,invitation_ready=channel.invitation_ready if host else None)
+
+    def crossplay_game(self,root,catalog,owner,*,invitation_ready=None):
+        import platform_standalone,memory_guard
+        environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
+        environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
+        environment=choice.saved_launch_environment(root,environment)
+        graphics_options=None
+        if owner.binding.edition==1:
+            import gold_graphics
+            graphics_options=gold_graphics.launch_options(root)
+        game=observer=window=None
+        try:
+            owner.check();self.progress('starting')
+            game=platform_standalone.launch(root,environment=environment,arguments=choice.game_arguments(root),
+                graphics_options=graphics_options,crossplay=owner.binding,crossplay_catalog=catalog,
+                on_initialized=owner.attach)
+            window=choice.start_window_mode(root,game)
+            _,executable,_=platform_standalone.load(root)
+            observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
+                memory_guard.Probe(game,executable),
+                warn=lambda level:self.emit('warning',code='memory_warning',level=level))
+            observer.start()
+            if invitation_ready:invitation_ready(owner.invitation())
+            self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
+            code=game.wait(close=False);owner.runtime.check()
+        except BaseException:
+            # If a post-start UI/pipe observer fails, close only the room. Keep
+            # the parent alive for the original game/disconnect and user exit.
+            try:owner.close()
+            finally:
+                if game is not None and game.poll() is None:
+                    self.emit('warning',code='crossplay_service_failed')
+                    self.operation_state('live_game');game.wait(close=False)
+            raise
+        finally:
+            if window:window.close()
+            if observer:observer.close()
+            if game:game.close()
+            self.operation_state('cancellable')
+        self.emit('game_finished',exit_code=code)
+        if code:raise RuntimeError('game_failed')
+        return {'exit_code':code}
+
     def play_gold(self,request=None,*,internet=None):
         if request is not None or internet is not None:raise ValueError('gold_single_player_only')
         self.package_manifest()
@@ -1334,6 +1425,7 @@ def _dispatch(desktop,request):
         if action=='lan-list' and not data:return desktop.lan_list()
         if action=='lan-play':return desktop.play(data)
         if action in ('internet-create','internet-join'):return desktop.internet_play(data,host=action=='internet-create')
+        if action in ('crossplay-create','crossplay-join'):return desktop.crossplay_play(data,host=action=='crossplay-create')
         if action=='discord-connect':return desktop.connect_discord(data)
         if action=='discord-disconnect' and not data:return desktop.disconnect_discord()
         if action=='directory-connect':return desktop.directory_connect(data)
@@ -1365,7 +1457,9 @@ def error_code(error):
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
                 'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings',
-                'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required'}
+                'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required',
+                'crossplay_unavailable','crossplay_configuration_invalid','crossplay_edition_mismatch',
+                'crossplay_invitation_invalid','crossplay_content_changed','crossplay_service_failed'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
     if text in known:return text
@@ -1394,7 +1488,7 @@ def main():
             result=dispatch(desktop,request)
         emit('result',data=result);return 0
     except (OSError,ValueError,RuntimeError,TimeoutError,KeyError,TypeError) as error:
-        private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join','discord-connect')
+        private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join','crossplay-create','crossplay-join','discord-connect')
         emit('error',code=error_code(error),detail='' if private else str(error)[:512]);return 2
     finally:
         if desktop is not None and desktop.cancel.exists():desktop.cancel.unlink()

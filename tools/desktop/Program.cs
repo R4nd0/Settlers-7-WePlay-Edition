@@ -415,6 +415,7 @@ internal sealed partial class MainForm : Form
         Add(net,Label("internetNetworkSummary"));
         Add(net,internetConnection);Add(net,internetNext);
         void AddSetup(Control control){internetSetupControls.Add(control);Add(net,control);}
+        BuildCrossplayControls(AddSetup);
         AddSetup(Field("player",internetPlayer));
         Bind(internetHostChoice,"internetHostChoice");Bind(internetGuestChoice,"internetGuestChoice");internetHostChoice.Checked=true;
         AddSetup(Buttons(internetHostChoice,internetGuestChoice));
@@ -499,6 +500,7 @@ internal sealed partial class MainForm : Form
         renderer.Items.Clear();renderer.Items.AddRange([Lang.T("auto"),Lang.T("modern"),Lang.T("native")]); renderer.SelectedIndex=Math.Max(0,oldRenderer);
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
         int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
+        ApplyCrossplayLanguage();
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
         if(snapshot.ValueKind==JsonValueKind.Object) LoadSnapshot(snapshot,false);
@@ -566,6 +568,7 @@ internal sealed partial class MainForm : Form
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
         }
         internetAvailable=value.TryGetProperty("internet_available",out var available)&&available.GetBoolean();
+        crossplayAvailable=value.TryGetProperty("crossplay_available",out var mixedCapability)&&mixedCapability.GetBoolean();
         discordAvailable=value.TryGetProperty("discord_available",out var discordCapability)&&discordCapability.GetBoolean();
         discordConnected=value.TryGetProperty("discord_connected",out var connected)&&connected.GetBoolean();
         directoryAvailable=value.TryGetProperty("directory_available",out var directoryCapability)&&directoryCapability.GetBoolean();
@@ -605,8 +608,8 @@ internal sealed partial class MainForm : Form
         if(modeGrid==null)return;
         var pages=new[]{homePage,lanPage,internetPage,directoryPage,graphicsPage,helpPage,updatesPage};
         foreach(var page in new[]{lanPage,internetPage,directoryPage})
-            if(singlePlayerOnly)tabs.TabPages.Remove(page);
-        var visiblePages=singlePlayerOnly?new[]{homePage,graphicsPage,helpPage,updatesPage}:pages;
+            if(singlePlayerOnly&&(page!=internetPage||!crossplayAvailable))tabs.TabPages.Remove(page);
+        var visiblePages=singlePlayerOnly?(crossplayAvailable?new[]{homePage,internetPage,graphicsPage,helpPage,updatesPage}:new[]{homePage,graphicsPage,helpPage,updatesPage}):pages;
         for(int i=0;i<visiblePages.Length;i++)
             if(!tabs.TabPages.Contains(visiblePages[i]))tabs.TabPages.Insert(Math.Min(i,tabs.TabPages.Count),visiblePages[i]);
         if(singlePlayerOnly&&renderer.Items.Count==3)renderer.Items.RemoveAt(2);
@@ -614,20 +617,32 @@ internal sealed partial class MainForm : Form
         foreach(var item in labels.Where(x=>x.Value=="fallback"))item.Key.Visible=!singlePlayerOnly;
         foreach(var entry in playModes)
         {
-            entry.Card.Visible=!singlePlayerOnly||entry.Card.Mode==PlayMode.Solo;
-            modeGrid.SetColumnSpan(entry.Card,singlePlayerOnly&&entry.Card.Mode==PlayMode.Solo?2:1);
+            entry.Card.Visible=!singlePlayerOnly||entry.Card.Mode==PlayMode.Solo||(crossplayAvailable&&entry.Card.Mode==PlayMode.PrivateInternet);
+            modeGrid.SetColumnSpan(entry.Card,singlePlayerOnly&&!crossplayAvailable&&entry.Card.Mode==PlayMode.Solo?2:1);
+            modeGrid.SetCellPosition(entry.Card,singlePlayerOnly&&crossplayAvailable&&entry.Card.Mode==PlayMode.PrivateInternet
+                ?new TableLayoutPanelCellPosition(1,0):new TableLayoutPanelCellPosition(((int)entry.Card.Mode)%2,((int)entry.Card.Mode)/2));
             if(entry.Card.Mode==PlayMode.Solo)
             {
                 entry.Card.Summary=Lang.T(singlePlayerOnly?"goldSoloSummary":entry.Summary);
                 entry.Card.FeatureOne=Lang.T(singlePlayerOnly?"goldSoloFeatures":entry.One);
                 entry.Card.RefreshDescription();
             }
+            if(entry.Card.Mode==PlayMode.PrivateInternet)
+            {
+                bool mixed=singlePlayerOnly&&crossplayAvailable;
+                entry.Card.Text=Lang.T(mixed?"crossplayTitle":"startInternetTitle");
+                entry.Card.Summary=Lang.T(mixed?"crossplayGoldSummary":entry.Summary);
+                entry.Card.FeatureOne=Lang.T(mixed?"crossplayPlayers":entry.One);
+                entry.Card.FeatureTwo=Lang.T(mixed?"crossplayHostFeature":entry.Two);
+                entry.Card.RefreshDescription();
+            }
         }
         foreach(var item in labels.Where(x=>x.Value=="modeConsentInfo"))item.Key.Visible=!singlePlayerOnly;
         openGraphics.Visible=true;
-        if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");
+        if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");
+        UpdateCrossplayControls();
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?"goldIntro":"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
         if(!await ResolveGraphicsDraft())return;
@@ -841,11 +856,12 @@ internal sealed partial class MainForm : Form
     }
     private void UpdateInternetControls()
     {
+        bool available=MixedInternet?crossplayAvailable:internetAvailable;
         bool direct=internetMode.SelectedIndex==1;
         internetPolicy.Text=Lang.T(direct?"internetDirectInfo":"internetAssistedInfo");
         internetConnection.Text=Lang.T(!internetOperation&&internetGuestChoice.Checked?"internetConnectionFromInvite":
             direct?"internetConnectionDirect":"internetConnectionAuto");
-        internetUnavailable.Visible=!internetAvailable;
+        internetUnavailable.Visible=!available;
         internetNext.Visible=internetOperation&&!publicRoomOperation;
         internetNext.Text=Lang.T(internetCreating
             ? internetStage=="hosting"?"internetHostWaiting":internetStage=="playing"?"internetHostPlaying":internetStage=="ready"?"internetHostReady":"internetHostConnecting"
@@ -858,9 +874,9 @@ internal sealed partial class MainForm : Form
         }
         internetEndpoint.Enabled=!busy&&direct;
         internetMode.Enabled=internetPlayer.Enabled=internetJoin.Enabled=!busy;
-        if(internetCreate!=null)internetCreate.Enabled=!busy&&internetAvailable;
-        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&internetAvailable&&!string.IsNullOrWhiteSpace(internetJoin.Text);
-        if(internetPaste!=null)internetPaste.Enabled=!busy&&internetAvailable;
+        if(internetCreate!=null)internetCreate.Enabled=!busy&&available;
+        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&available&&!string.IsNullOrWhiteSpace(internetJoin.Text);
+        if(internetPaste!=null)internetPaste.Enabled=!busy&&available;
         if(internetCopy!=null)internetCopy.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
         if(internetShare!=null)internetShare.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
         if(internetEnd!=null)
@@ -886,12 +902,18 @@ internal sealed partial class MainForm : Form
         if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordAvailable&&discordConnected;
         if(discordOptionsPanel!=null)discordOptionsPanel.Visible=discordOptions.Checked;
         discordNotice.Text=Lang.T(!discordAvailable?"discordUnavailableInfo":!discordConnected?"discordNotConnected":"directoryPublisherReady");
+        UpdateCrossplayControls();
         UpdateDirectoryControls();
     }
     private void PasteInternetInvitation()
     {
         // Read the clipboard only after the explicit paste action. Never log it.
-        try{internetJoin.Text=Community.InvitationCode(Clipboard.GetText());}
+        try
+        {
+            string code=Community.InvitationCode(Clipboard.GetText());
+            if(crossplayAvailable)internetSessionKind.SelectedIndex=code.StartsWith("weplayx1.",StringComparison.Ordinal)?1:0;
+            internetJoin.Text=code;
+        }
         catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardReadFailed","");}
     }
     private async Task ConnectDiscord()
@@ -919,7 +941,10 @@ internal sealed partial class MainForm : Form
     private async Task PlayInternet(bool create,bool publish=false,bool publicLobby=false)
     {
         if(!await ResolveGraphicsDraft())return;
+        bool mixed=MixedInternet&&!publish&&!publicLobby;
+        if(mixed&&(create!=singlePlayerOnly||create&&crossplayHistory.SelectedIndex<0))throw new BackendError("crossplay_configuration_invalid","");
         player.Text=internetPlayer.Text;string name=ValidName();
+        if(mixed&&name.Any(c=>c<32||c>126))throw new BackendError("crossplay_name_invalid","");
         string? invitation=create?null:Community.InvitationCode(internetJoin.Text);
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=internetMode.SelectedIndex==1;
@@ -937,7 +962,12 @@ internal sealed partial class MainForm : Form
         try
         {
             JsonElement result;
-            if(create)
+            if(mixed&&create)
+                result=await Backend.Run("crossplay-create",new {player_name=name,channel=channel.Name,history_edition=crossplayHistory.SelectedIndex==0?2:3,
+                    mode=direct?"direct":"assisted",direct_endpoint=endpoint,internet_consent=1},Receive);
+            else if(mixed)
+                result=await Backend.Run("crossplay-join",new {player_name=name,channel=channel.Name,internet_consent=1},Receive);
+            else if(create)
             {
                 var request=new Dictionary<string,object?> { ["player_name"]=name,["channel"]=channel.Name,["mode"]=direct?"direct":"assisted",
                     ["direct_endpoint"]=endpoint,["publish_discord"]=publish,["internet_consent"]=1 };
@@ -1105,6 +1135,7 @@ internal sealed partial class MainForm : Form
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.TestStandaloneEdition(json.RootElement,folder,language);
+                form.TestCrossplayEdition(json.RootElement,folder,language);
                 form.TestLauncherResilience(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
@@ -1323,7 +1354,9 @@ internal sealed partial class MainForm : Form
                     "public_join_actual_click_captures_before_busy","public_end_actual_click_cancels_while_busy",
                     "save_refresh_failure_discard_save_uses_committed_generation","unsupported_modern_presets_explained_and_disabled",
                     "settings_conflict_diagnostics_confirm_stale_token_restore_detach_journey","recovery_actions_visible_at_125_150_percent",
-                    "primary_actions_at_125_150_percent_geometry_and_text_scale"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
+                    "primary_actions_at_125_150_percent_geometry_and_text_scale",
+                    "mixed_package_gate_and_gold_host_history_guest_roles","mixed_host_requires_explicit_history_edition",
+                    "mixed_private_share_roundtrip","mixed_language_preserves_edition_and_gold_graphics"},menu_layouts=menuLayouts,private_pipe_roundtrip=pipeProbe!=null&&testPython!=null}));return 0;
         }
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"failure.txt"),error.ToString());return 2;}
     }

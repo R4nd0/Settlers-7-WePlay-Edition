@@ -1,0 +1,28 @@
+{
+  "format": "weplay-rc400-desktop-integration-v1",
+  "date": "2026-11-16",
+  "scope": "Gated desktop host/guest IPC, private invitations and bilingual launcher routing",
+  "release_published": false,
+  "final_package_mixed_reload_proven": false,
+  "mixed_adapters_admitted": false,
+  "approved_content_catalogs": 0,
+  "desktop_and_recovery_tests_passed": 87,
+  "installer_tests_passed": 35,
+  "catalog_tests_passed": 12,
+  "bilingual_rendered_launcher_checks_passed": 41,
+  "package_identity_gate_regression_passed": true,
+  "gold_requires_explicit_history_edition": true,
+  "mixed_history_mode_guest_only": true,
+  "private_invitation_share_roundtrip": true,
+  "native_initialization_precedes_invitation_delivery": true,
+  "post_start_pipe_failure_waits_for_original_game_exit": true,
+  "native_pins_changed": false,
+  "game_started": false,
+  "vpn_started": false,
+  "limitations": [
+    "Desktop tests use invented content, mocked native processes and mocked tunnel ownership.",
+    "Mixed launcher renders use synthetic capability data; no production capability was enabled.",
+    "The game archive routing is not embedded while native bootstrap getter qualification is pending.",
+    "Final installed Gold/Steam History and Gold/Ubisoft History reload qualification remains mandatory."
+  ]
+}

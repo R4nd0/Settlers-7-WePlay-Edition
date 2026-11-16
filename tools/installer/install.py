@@ -154,7 +154,7 @@ def package_metadata(root):
     for name in ('join_menu_update','lan_public_creation','graphics_choice','display_selection','automatic_lan',
                  'desktop_launcher','internet_easytier','discord_directory','update_patcher','achievement_notifications_disabled',
                  'cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume',
-                 'game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','steam_history'):
+                 'game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','steam_history','crossplay_mixed'):
         if type(value.get(name,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     return value
 
@@ -219,7 +219,7 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone','crossplay_mixed'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
@@ -231,6 +231,9 @@ def package_manifest(root):
     if manifest.get('gold_standalone',False):
         import gold_support
         gold_support.verify_package(root/gold_support.FOLDER)
+    if manifest.get('crossplay_mixed',False):
+        from crossplay_content import package_catalog
+        package_catalog(root,manifest)
     if manifest.get('midsummer_profile',False) and (not manifest.get('neo_logistics',False)
             or not manifest.get('graphics_choice',False)
             or any(('tools/'+name).lower() not in expected for name in MIDSUMMER_PACKAGE_TOOLS)):
