@@ -10,4 +10,7 @@ bool CloseRuntime();
 Phase RuntimePhase();
 std::string BootstrapMap();
 bool BootstrapChoices(uint32_t& flags,std::string& map_template);
+// Actual owned History values after exact configuration application. This is
+// read-only metadata, not complete setup/root agreement or start permission.
+bool AppliedGuestChoices(uint32_t& flags,std::string& map_template);
 }

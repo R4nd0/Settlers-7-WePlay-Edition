@@ -83,6 +83,11 @@ flags_ready:
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionUiGuardOracle(uint32_t edition){return U::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;}
 int main(){
     using namespace CrossplayProduction;
+    std::string metadata="stale";uint32_t flags=99;
+    Check(!AppliedGuestChoices(flags,metadata)&&!flags&&metadata.empty());
+    for(const char* command:{"applied-flags","applied-template"}){
+        metadata="stale";Check(!UiCommand(command,metadata)&&metadata.empty());
+    }
     const std::pair<const wchar_t*,std::wstring> values[]={
         {L"WEPLAY_CROSSPLAY_V1",L"1"},{L"WEPLAY_CROSSPLAY_V1_ROLE",L"host"},{L"WEPLAY_CROSSPLAY_V1_PEER",L"2"},
         {L"WEPLAY_CROSSPLAY_V1_PORT",L"32000"},{L"WEPLAY_CROSSPLAY_V1_SESSION",std::wstring(32,L'1')},
@@ -93,6 +98,9 @@ int main(){
     for(const auto& value:values)Check(SetEnvironmentVariableW(value.first,value.second.c_str())!=FALSE);
     Crossplay::Digest executable{};executable[0]=1;Check(PrepareLaunch(Crossplay::Edition::Gold,executable,L"Z:\\Fixture\\Profiles"));
     for(const auto& value:values)Check(SetEnvironmentVariableW(value.first,nullptr)!=FALSE);
+    for(const char* command:{"applied-flags","applied-template"}){
+        metadata="stale";Check(!UiCommand(command,metadata)&&metadata.empty());
+    }
     U::installed=true;U::owner=GetCurrentThreadId();U::test_push_string=&PushString;U::test_push_boolean=&PushBoolean;
     lua[4]=reinterpret_cast<uintptr_t>(argument);lua[5]=lua[4]+8;argument[0]=reinterpret_cast<uintptr_t>(text);argument[1]=0xfffffffb;
     U::resume=reinterpret_cast<uintptr_t>(&Continue);

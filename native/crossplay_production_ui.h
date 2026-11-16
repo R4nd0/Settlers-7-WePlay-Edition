@@ -16,6 +16,11 @@ inline bool UiCommand(const std::string& command,std::string& output){
         if(!launch->mixed || launch->host || !BootstrapChoices(flags,map_template))return false;
         output=command=="bootstrap-flags"?std::to_string(flags):std::move(map_template);return true;
     }
+    if(command=="applied-flags" || command=="applied-template"){
+        uint32_t flags=0;std::string map_template;
+        if(!launch->mixed || launch->host || !AppliedGuestChoices(flags,map_template))return false;
+        output=command=="applied-flags"?std::to_string(flags):std::move(map_template);return true;
+    }
     if(command!="phase")return false;
     switch(RuntimePhase()){
     case Phase::Dormant:output="pending";break;

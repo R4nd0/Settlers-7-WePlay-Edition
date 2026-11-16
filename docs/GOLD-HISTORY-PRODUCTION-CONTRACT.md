@@ -301,6 +301,27 @@ Ready or NAT override. The [updated bounded receipt](receipts/native-configurati
 does not qualify complete setup/root agreement, applied template/flags,
 a common world, NEO/reload, reversed host roles or a final installed package.
 
+The source also provides read-only `applied-flags` and `applied-template`
+queries. They return a decimal string `0..7` and the actual template string
+(including an observed empty string), respectively; unavailable values return
+Lua `false`. They require the owned History guest, exact configuration
+application, its admitted preparation/castle, a stable native cache/session and
+actual values equal to the authenticated host choices. Flags are read under the
+original cache mutex. The template is copied from the original owned backend
+descriptor with its original inline/heap string layout and checked ownership
+roots. Bootstrap values are never returned as substituted applied values.
+
+With fresh public discovery/Coop helpers, bounded original Ubisoft and Steam
+pairs independently observe flags `0` and an empty template matching the host,
+74 and 75 times respectively. Both end normally with strict restoration. The
+nonzero-flags control was stopped before deployment by the unchanged RAM guard;
+nonempty templates also remain unqualified. The reader passes 813 synthetic
+checks and compiled guard checks against both original image layouts; those
+guard checks do not execute game methods. The newly exposed public query
+wrappers have not yet been exercised in a game. The runtime still reports
+`roster-bound`: it does not yet emit `setup-bound`, open a guest lobby or grant
+world authority from these values. See the [bounded applied-choice receipt](receipts/native-history-applied-choices-20261116.json).
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.

@@ -17,6 +17,7 @@
 #include "crossplay_configuration_observer.h"
 #include "crossplay_configuration_native.h"
 #include "crossplay_configuration_readiness.h"
+#include "crossplay_history_choices.h"
 namespace CrossplayProduction {
 namespace {
 struct Runtime;
@@ -287,5 +288,18 @@ bool BootstrapChoices(uint32_t& flags,std::string& map_template){
     if(!current || !current->Owned() || current->launch.host || !current->bootstrap_received
         || current->phase==Phase::Failed || current->phase==Phase::Closed || !CrossplayBootstrap::Valid(current->bootstrap))return false;
     flags=current->bootstrap.flags;map_template=current->bootstrap.map_template;return true;
+}
+bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+    flags=0;map_template.clear();
+    if(!current || !current->Owned() || current->launch.host || !current->configuration_applied
+        || current->phase!=Phase::RosterBound || !CrossplayBootstrap::Valid(current->bootstrap)
+        || !current->guest_claim.Applied(current->original,current->admission))return false;
+    CrossplayHistoryChoices::Value observed;
+    if(CrossplayHistoryChoices::Capture(current->launch.channel.edition,current->original,current->LocalConnections(),false,
+            current->configuration_interval,observed)!=CrossplayHistoryChoices::Observation::Captured
+        || observed.map!=current->bootstrap.map || observed.flags!=current->bootstrap.flags
+        || observed.map_template!=current->bootstrap.map_template)return false;
+    flags=observed.flags;map_template=std::move(observed.map_template);return true;
 }
 }

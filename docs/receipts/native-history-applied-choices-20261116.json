@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Readonly original History applied choices after exact native configuration application",
+  "source": {
+    "original_configuration_mutex_and_create_method_guards": true,
+    "owned_backend_handler_descriptor_and_property_guards": true,
+    "inline_or_heap_string_copied_without_native_mutation": true,
+    "double_capture_and_native_owner_interval_checks": true,
+    "authenticated_map_flags_template_must_match_actual_values": true,
+    "exact_configuration_and_own_preparation_castle_required": true,
+    "ui_queries": ["applied-flags", "applied-template"],
+    "unavailable_query_returns_false": true,
+    "observed_empty_template_returns_empty_string": true,
+    "no_setup_bound_phase_or_lobby_opening_added": true
+  },
+  "synthetic_verification": {
+    "history_choices_checks": 813,
+    "production_ui_bridge_checks": 66,
+    "production_handoff_fixture_build_passed": true,
+    "compiled_guard_cases_ubisoft": 5,
+    "compiled_guard_cases_steam_analysis": 5,
+    "guard_cases_emulated_only": true,
+    "native_game_methods_executed_by_fixtures": false
+  },
+  "actual_pairs": [
+    {
+      "host": "gold",
+      "guest": "original-ubisoft-history",
+      "renderer": "DXVK",
+      "fresh_public_discovery_and_coop_helpers": true,
+      "private_frame_driver_and_instrumented_normal_adapters": true,
+      "native_original_configuration_applied": true,
+      "actual_owned_choices_match_authenticated_host": true,
+      "observed_flags": 0,
+      "observed_template_empty": true,
+      "successful_choice_observations": 74,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    },
+    {
+      "host": "gold",
+      "guest": "original-steam-history",
+      "renderer": "DXVK",
+      "fresh_public_discovery_and_coop_helpers": true,
+      "private_frame_driver_and_instrumented_normal_adapters": true,
+      "native_original_configuration_applied": true,
+      "actual_owned_choices_match_authenticated_host": true,
+      "observed_flags": 0,
+      "observed_template_empty": true,
+      "successful_choice_observations": 75,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    }
+  ],
+  "limits": {
+    "public_query_wrappers_in_game": false,
+    "nonzero_flags_in_pair": false,
+    "nonempty_templates_in_pair": false,
+    "nonzero_control_stopped_before_deployment_for_ram": true,
+    "complete_setup_root": false,
+    "common_world_start": false,
+    "neo_and_shared_save_reload": false,
+    "reverse_steam_host_gold_guest": false,
+    "ordinary_mixed_entry_enabled": false,
+    "final_installed_package": false
+  }
+}
