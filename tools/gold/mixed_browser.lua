@@ -3,8 +3,8 @@
 local G, Panel, State, states, create = ...
 local function allowed()
  if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return false end
- local okay,mode=_G.pcall(G.UI.WriteToConsole,"weplay-crossplay-v1:mode")
- if not okay or mode~="host" or not State.frame or State.lastDiscoveryFinished~=true
+ local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
+ if mode~="host" or not State.frame or State.lastDiscoveryFinished~=true
   or State.sessionListState~=states.idle or not G.Network.IsLoggedIn()
   or G.Network.SessionIsInSession() then return false end
  local selected=State.sessionsFilterList and State.sessionsFilterList.getSelectedItemData()

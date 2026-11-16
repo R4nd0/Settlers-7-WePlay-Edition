@@ -37,6 +37,7 @@ end
 
     def test_only_a_live_original_mixed_gold_host_gets_save_without_load(self):
         self.lua.execute('''
+_G.pcall=nil
 local s,G,allowed,menu=fixture();assert(allowed())
 local calls=menu();assert(#calls==1 and calls[1][1]=='SAVE GAME' and calls[1][2]==17)
 for field,value in pairs({mode='guest',gameMode=3,network=false,session=false,host=false,slot=2,inMap=false})do
@@ -48,7 +49,7 @@ for _,field in ipairs({'started','isDisconnected','exitTriggerTime','lastDesyncT
  assert(not allowed() and #menu()==0);s.game[field]=before
 end
 s.mode='solo';assert(not allowed() and #menu()==0)
-G.UI.WriteToConsole=function()error('unavailable adapter')end
+G.UI.WriteToConsole=nil
 assert(not allowed() and #menu()==0)
 ''')
 

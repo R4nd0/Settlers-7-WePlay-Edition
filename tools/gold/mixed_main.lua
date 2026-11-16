@@ -1,8 +1,9 @@
 -- Bind one routing kernel to this original main-menu lifetime. No game controls
 -- or preparation rows are written here. Native jobs execute without pcall.
 local G, State, expectedMode, route, prepare = ...
-local okay,mode=_G.pcall(G.UI.WriteToConsole,"weplay-crossplay-v1:mode")
-if not okay or mode~=expectedMode then return {tick=function()end} end
+if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return {tick=function()end} end
+local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
+if mode~=expectedMode then return {tick=function()end} end
 local function page(name)return G.require("local.menu.panel.menu."..name)end
 local Pages={Main=page("sectionMenus.mainMenu"),Browser=page("play.multiplayer.sessionList"),
  Creation=page("play.multiplayer.sessionCreation")}

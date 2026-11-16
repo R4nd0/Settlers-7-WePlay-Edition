@@ -41,13 +41,15 @@ def main_fragment(edition):
     prepare=('function()return false end' if edition=='gold' else
              '(function(...)\n'+fragment('mixed_guest_prepare.lua')+'\nend)(e)')
     return '''
-if l then
+if l and not l.weplayMixedMenuBuilding then
  if not l.weplayMixedMenu then
+  l.weplayMixedMenuBuilding=true
   l.weplayMixedMenu=(function(...)
 '''+fragment('mixed_main.lua')+'''
 end)(e,l,"'''+mode+'''",function(...)
 '''+fragment('mixed_menu.lua')+'''
 end,'''+prepare+''')
+  l.weplayMixedMenuBuilding=false
  end
  l.weplayMixedMenu.tick()
 end

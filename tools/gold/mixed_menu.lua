@@ -1,12 +1,10 @@
 -- One-shot menu routing for an explicitly admitted native mixed launch.
 -- The native host owns every map/save/AI/castle/Ready/start choice. Read-only
--- console queries may be protected; original engine jobs must remain yieldable.
+-- console calls and original engine jobs must remain direct and yieldable.
 local G, State, Pages, actions = ...
 local function query(name)
  if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return nil end
- local okay,value=_G.pcall(G.UI.WriteToConsole,"weplay-crossplay-v1:"..name)
- if okay then return value end
- return nil
+ return G.UI.WriteToConsole("weplay-crossplay-v1:"..name)
 end
 local mode=query("mode")
 local active=mode=="host" or mode=="guest"
@@ -35,8 +33,7 @@ end
 local function created(page)
  return page and State.currentPageModule==page and page.isCreated()
 end
-local function tick()
- if finished or busy then return end
+local function step()
  local native=query("phase")
  if native=="closed" or native=="failed" then finished=true;phase=native;return end
  if not nativePhases[native] then fail();return end
@@ -77,9 +74,8 @@ local function tick()
    coop=_G.math.floor(bits/4)%2==1,template=template~="" and template or nil}
   -- Latch before entering the original, potentially yielding engine job. A
   -- nested frame must not duplicate map loading or local session preparation.
-  prepared=true;busy=true;phase="guest-preparing"
+  prepared=true;phase="guest-preparing"
   local success=actions.prepare_guest_map(map,hostChoices)
-  busy=false
   if success~=true then fail();return end
   phase="guest-prepared"
   return
@@ -89,5 +85,11 @@ local function tick()
   finished=true;phase="guest-lobby-requested"
   actions.open_guest_lobby(hostChoices)
  end
+end
+local function tick()
+ if finished or busy then return end
+ busy=true
+ step()
+ busy=false
 end
 return {tick=tick,state=function()return phase end,active=function()return active end}

@@ -190,6 +190,29 @@ for _,map in ipairs({'maps/actual.map','maps\\\\actual.map','maps/folder\\\\actu
 end
 ''')
 
+    def test_query_jobs_can_yield_and_reenter_without_repeating_the_tick(self):
+        self.lua.execute('''
+_G.pcall=function()error('protected engine console calls are forbidden')end
+local s,u,p,a,d,g=fixture('guest');s.map='Maps\\\\Skirmish\\\\actual.map'
+local original=g.UI.WriteToConsole
+local phases,maps=0,0
+g.UI.WriteToConsole=function(command)
+ if command=='weplay-crossplay-v1:phase' then
+  phases=phases+1;d.tick();coroutine.yield('phase-query');return s.phase
+ elseif command=='weplay-crossplay-v1:bootstrap-map' then
+  maps=maps+1;d.tick();coroutine.yield('map-query');return s.map
+ end
+ return original(command)
+end
+local job=coroutine.create(d.tick)
+local okay,value=coroutine.resume(job);assert(okay and value=='phase-query')
+d.tick();assert(phases==1 and maps==0)
+okay,value=coroutine.resume(job);assert(okay and value=='map-query')
+d.tick();assert(phases==1 and maps==1 and s.prepared==0)
+assert(coroutine.resume(job));assert(coroutine.status(job)=='dead')
+assert(s.prepared==1 and s.actualMap==s.map and d.state()=='guest-prepared')
+''')
+
 
 @unittest.skipUnless(LuaRuntime,'Lua 5.1 test runtime is required')
 class MixedWrapperTests(unittest.TestCase):
@@ -199,6 +222,7 @@ class MixedWrapperTests(unittest.TestCase):
     def test_gold_browser_uses_only_original_completed_discovery_and_selected_filter(self):
         self.lua.globals().source=mixed_interface.fragment('mixed_browser.lua')
         self.lua.execute('''
+_G.pcall=nil
 local mode,login,session,discovery="host",true,false,{State=2}
 local selected={lan=false}
 local G={UI={WriteToConsole=function()return mode end},Network={
@@ -227,6 +251,7 @@ S.frame=nil;assert(not P.weplayOpenMixedCreation());assert(count==2)
     def test_composed_main_fragment_routes_host_once_through_original_action_manager(self):
         self.lua.globals().source=mixed_interface.main_fragment('gold')
         self.lua.execute('''
+_G.pcall=nil
 local mode="host"
 local main,browser,creation={},{},{}
 for _,p in ipairs({main,browser,creation})do p.isCreated=function()return true end end
@@ -283,6 +308,33 @@ local l={currentPageModule=main,actionManager={createCallbacks=function()callbac
 local tick=assert(loadstring('return function(e,l) '..source..' end'))()
 tick(e,l);phase='roster-bound';tick(e,l);phase='setup-bound';tick(e,l);tick(e,l)
 assert(loads==1 and creates==1 and callbacks==0)
+''')
+
+    def test_main_construction_is_latched_before_direct_yieldable_mode_queries(self):
+        self.lua.globals().source=mixed_interface.main_fragment('history')
+        self.lua.execute('''
+_G.pcall=nil
+local main,browser,creation={},{},{}
+for _,p in ipairs({main,browser,creation})do p.isCreated=function()return true end end
+local pages={['sectionMenus.mainMenu']=main,['play.multiplayer.sessionList']=browser,
+ ['play.multiplayer.sessionCreation']=creation}
+local calls,requires=0,0
+local e={UI={WriteToConsole=function(command)
+ if command=='weplay-crossplay-v1:mode' then calls=calls+1;coroutine.yield('mode-query');return 'guest' end
+ if command=='weplay-crossplay-v1:phase' then return 'pending' end
+ if command=='weplay-crossplay-v1:bootstrap-map' then return false end
+end},require=function(path)requires=requires+1;return assert(pages[path:sub(#'local.menu.panel.menu.'+1)])end,
+ Network={IsLoggedIn=function()return true end,SessionIsInSession=function()return false end}}
+local l={currentPageModule=main}
+local tick=assert(loadstring('return function(e,l) '..source..' end'))()
+local job=coroutine.create(function()tick(e,l)end)
+local okay,value=coroutine.resume(job);assert(okay and value=='mode-query')
+tick(e,l);assert(calls==1 and requires==0 and l.weplayMixedMenuBuilding)
+okay,value=coroutine.resume(job);assert(okay and value=='mode-query')
+tick(e,l);assert(calls==2 and requires==3 and l.weplayMixedMenuBuilding)
+assert(coroutine.resume(job));assert(coroutine.status(job)=='dead')
+assert(l.weplayMixedMenuBuilding==false and l.weplayMixedMenu.state()=='waiting-host-context')
+tick(e,l);assert(calls==2 and requires==3)
 ''')
 
 
