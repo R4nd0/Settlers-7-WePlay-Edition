@@ -237,8 +237,11 @@ format, waits for the original profile/main-menu flow and preserves the host's
 actual map, three flags and template. The separate History preparation helper
 uses the exact original eight-argument call after its yieldable map load. It
 validates the loaded setup and never supplies a save token or native Ready value.
-Fourteen Lua 5.1 tests pass, including engine-job suspension and reentry. These
+Fifteen Lua 5.1 tests pass, including engine-job suspension and reentry. These
 helpers are not embedded or admitted by any release archive.
+Relative engine map names accept either original resource separator, matching
+the native validator. Their exact spelling is passed to the original loader;
+absolute paths and empty, current-directory or parent-directory components fail.
 
 The fingerprinted `mixed_interface.py` candidate composes concrete main-menu
 wrappers from the current normal Gold and History archives. Gold exports its

@@ -20,13 +20,14 @@ local function fail()
 end
 local function mapPath(value)
  if _G.type(value)~="string" or #value<1 or #value>255
-  or value:sub(1,1)=="/" or value:find("\\",1,true) or value:find(":",1,true)
-  or value:sub(-1)=="/" or value:find("//",1,true) then return false end
+  or value:sub(1,1)=="/" or value:sub(1,1)=="\\" or value:find(":",1,true) then return false end
  for i=1,#value do
   local byte=value:byte(i)
   if byte<32 or byte>126 then return false end
  end
- for part in value:gmatch("[^/]+") do
+ local components=value:gsub("\\","/")
+ if components:sub(-1)=="/" or components:find("//",1,true) then return false end
+ for part in components:gmatch("[^/]+") do
   if part=="." or part==".." then return false end
  end
  return true

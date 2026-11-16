@@ -173,13 +173,21 @@ for _,phase in ipairs({"closed","failed","unknown",false})do
  d.tick();d.tick();assert(s.prepared==0 and s.guest==0)
 end
 for _,map in ipairs({"/absolute","C:/file","maps/../file","maps/./file","maps//file",
- "maps\\\\file","maps/file/","maps/line\\nfile",string.rep("a",256),19})do
+ "\\\\absolute","maps/\\\\file","maps\\\\..\\\\file","maps/file/","maps/line\\nfile",string.rep("a",256),19})do
  local s,u,p,a,d=fixture("guest");s.map=map;d.tick();d.tick()
  assert(s.prepared==0 and s.guest==0 and d.state()=="failed")
 end
 local s,u,p,a,d=fixture("guest");s.map="maps/test.map"
 a.prepare_guest_map=function()s.prepared=s.prepared+1;return false end
 d.tick();d.tick();assert(s.prepared==1 and s.guest==0 and d.state()=="failed")
+''')
+
+    def test_original_relative_resource_separators_are_preserved_without_normalizing_the_engine_input(self):
+        self.lua.execute('''
+for _,map in ipairs({'maps/actual.map','maps\\\\actual.map','maps/folder\\\\actual.map'})do
+ local s,u,p,a,d=fixture('guest');s.map=map
+ d.tick();assert(s.prepared==1 and s.actualMap==map and d.state()=='guest-prepared')
+end
 ''')
 
 
