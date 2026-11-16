@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-16",
+  "scope": "Read-only native NEO metadata capture component; synthetic native-layout models only",
+  "verification": {
+    "builder": "native/build_crossplay_neo_snapshot.ps1",
+    "checks_passed": 420,
+    "compiler": "MSVC x86 C++17 /O2 /Oy- /W4 /WX",
+    "layouts": ["Gold", "Ubisoft History", "Steam History"],
+    "checked": [
+      "Complete generational individual-priority intent state",
+      "Exact original logic-turn and replay-turn boundary",
+      "Stable native clock, world pointers, owner and authority before and after serialization",
+      "Stale generations and unavailable or changed authority rejected",
+      "Disabled and already restored NEO modes",
+      "Task bytes, LastError and floating-point environment preserved"
+    ]
+  },
+  "limits": {
+    "wired_into_production_runtime": false,
+    "native_save_executed": false,
+    "native_reload_executed": false,
+    "mixed_save_authority_granted": false,
+    "gameplay_or_package_qualification": false
+  }
+}
