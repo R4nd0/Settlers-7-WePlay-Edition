@@ -15,7 +15,8 @@ import platform_standalone
 VERSION='2.0.0-rc4.0'
 TAG='v2.0.0-rc4.00'
 SEQUENCE=29
-ERROR='RC4.00 signing requires both original History mixed reloads in this exact final installed package.'
+CASES=((1,2,'ubisoft'),(1,3,'steam'),(3,1,'steam-host'))
+ERROR='RC4.00 signing requires both original History mixed reloads and Steam hosting Gold in this exact final installed package.'
 
 
 def digest(value,size=64):
@@ -54,26 +55,28 @@ def check(setup,build,*,version,sequence,tag):
         proof,_=read(setup.with_suffix('.mixed-reload.json'))
         expected={'format','version','sequence','tag','setup_sha256','setup_bytes','source_commit',
                   'package_id','catalog_sha256','cases'}
-        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v1'
+        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v2'
                 or proof['version']!=VERSION or type(proof['sequence']) is not int
                 or proof['sequence']!=SEQUENCE or proof['tag']!=TAG
                 or type(proof['setup_bytes']) is not int or proof['setup_bytes']!=setup.stat().st_size
                 or proof['setup_sha256']!=compatibility.digest(setup)
                 or any(proof[name]!=build.get(name) for name in ('setup_sha256','setup_bytes','source_commit','package_id'))
                 or proof['catalog_sha256'] not in crossplay_content.APPROVED_DIGESTS
-                or not isinstance(proof['cases'],list) or len(proof['cases'])!=2):
+                or not isinstance(proof['cases'],list) or len(proof['cases'])!=len(CASES)):
             raise ValueError(ERROR)
         gold=platform_standalone.GOLD
         history=platform_standalone.HISTORY_PINS[(True,True)]
-        for edition,name,record in zip((2,3),('ubisoft','steam'),proof['cases']):
+        for (host,guest,name),record in zip(CASES,proof['cases']):
+            edition=guest if host==1 else host
             filename='Setup.mixed-reload-'+name+'.json'
-            if (not isinstance(record,dict) or set(record)!={'edition','file','sha256'}
-                    or type(record['edition']) is not int or record['edition']!=edition
+            if (not isinstance(record,dict) or set(record)!={'host_edition','guest_edition','file','sha256'}
+                    or type(record['host_edition']) is not int or record['host_edition']!=host
+                    or type(record['guest_edition']) is not int or record['guest_edition']!=guest
                     or record['file']!=filename or not digest(record['sha256'])):
                 raise ValueError(ERROR)
             case,actual=read(setup.with_name(filename))
             if record['sha256']!=actual:raise ValueError(ERROR)
-            keys={'format','edition','installed_from_setup_sha256','installed_package_id','source_commit',
+            keys={'format','host_edition','guest_edition','installed_from_setup_sha256','installed_package_id','source_commit',
                   'catalog_sha256','gold_exe_sha256','history_exe_sha256','gold_adapter_sha256',
                   'history_adapter_sha256','normal_production_launch','fresh_host_save_written',
                   'mixed_reload_completed','continued_logistics_observed','original_crc_source',
@@ -82,8 +85,9 @@ def check(setup,build,*,version,sequence,tag):
                   'restoration_verified','native_lab_features','reviewed_evidence_sha256'}
             checks=('normal_production_launch','fresh_host_save_written','mixed_reload_completed',
                     'continued_logistics_observed','neo_state_preserved','restoration_verified')
-            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v1'
-                    or type(case['edition']) is not int or case['edition']!=edition
+            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v2'
+                    or type(case['host_edition']) is not int or case['host_edition']!=host
+                    or type(case['guest_edition']) is not int or case['guest_edition']!=guest
                     or case['installed_from_setup_sha256']!=proof['setup_sha256']
                     or case['installed_package_id']!=proof['package_id']
                     or case['source_commit']!=proof['source_commit']

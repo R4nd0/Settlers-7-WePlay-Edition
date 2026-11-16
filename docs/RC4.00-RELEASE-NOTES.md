@@ -6,10 +6,11 @@
 > Die nachfolgende Matrix beschreibt den bisherigen Produktionsstand und wird
 > nach diesem Nachweis überarbeitet. Downloadziele sind für den Release reserviert.
 
-> **Verbindliches RC4.00-Ziel:** Ein Gold-Host spielt mit genau einem Gast aus
-> Steam History oder Ubisoft History auf Monhaim Valley mit zwei Menschen und
-> zwei nativen KIs. Der gemischte Speicher-/Ladepfad muss mit beiden Ausgaben aus
-> demselben final installierten Paket belegt sein. Ein Solo-Paket wird nicht als
+> **Verbindliches RC4.00-Ziel:** Gold als Host mit einem originalen Steam- oder
+> Ubisoft-History-Gast sowie die zusätzlich angeforderte Gegenrichtung Steam
+> History als Host mit Gold als Gast. Jeweils Monhaim Valley mit zwei Menschen
+> und zwei nativen KIs. Alle drei Rollenfälle müssen aus demselben final
+> installierten Paket mit echtem gemischtem Reload belegt sein. Ein Solo-Paket wird nicht als
 > RC4.00 veröffentlicht. Signierung und Veröffentlichung bleiben bis zu diesen
 > Nachweisen gesperrt. [Bindung an den finalen Installer](RC4-RELOAD-RELEASE-GATE.md).
 
@@ -55,9 +56,9 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 
 | Gemischte Sitzung | Vorgesehener Umfang |
 | --- | --- |
-| Host / Gast | Gold-Host; ein originaler Steam- oder Ubisoft-History-Gast |
+| Host / Gast | Gold-Host mit originalem Steam-/Ubisoft-History-Gast; zusätzlich originaler Steam-History-Host mit Gold-Gast |
 | Karte und Spieler | Monhaim Valley; zwei Menschen und zwei native KIs |
-| Speichern / erneutes Laden | Neuer Host-Save, Neustart und gemeinsamer Reload mit beiden History-Ausgaben |
+| Speichern / erneutes Laden | Neuer Save des tatsächlichen Hosts, Neustart und gemeinsamer Reload in allen drei Rollenfällen |
 | Logistik | Optionale gemischte FIFO-/Einzelprioritäten-Funktionen, Maske 19; gespeicherter Zustand bleibt erhalten |
 | Freigabe | Erst nach Original-CRC-Vergleich, fortgesetzter Logistik und regulärem Beenden im finalen Paket |
 
@@ -287,9 +288,10 @@ without requiring Steam or Ubisoft Connect at runtime. Supply your own supported
 game files. The current production candidate still exposes Gold as single-player;
 RC4.00 publication waits for integration of the qualified mixed-reload path.
 That older solo candidate will not ship as RC4.00. The release requires a Gold
-host and one original Steam or Ubisoft History guest, two humans and two native
-AI players on Monhaim Valley, with actual mixed save/reload proof from both
-History editions in the same final installed package. Mixed FIFO/individual
+host with an original Steam or Ubisoft History guest, plus original Steam History
+hosting Gold. Each case uses two humans and two native AI players on Monhaim
+Valley. All three role cases require actual mixed save/reload proof from the
+same final installed package. Mixed FIFO/individual
 priorities use feature mask 19, separate from full History NEO5. Final bilingual
 feature images must match that qualified scope; the earlier solo draft is obsolete.
 

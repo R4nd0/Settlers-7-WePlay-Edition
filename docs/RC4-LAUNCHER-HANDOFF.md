@@ -34,8 +34,9 @@ Python verification with the added helper and current UI, while retaining the
 original template inventory. That fixture used an ordinary rebuilt AI adapter
 and changed no checkout production pin. These checks do not establish live world start, save,
 reload, checksum agreement or LAN/EasyTier qualification. RC4.00 publication
-still requires both original History editions to pass mixed reload in the final
-installed package, including continued original checksums and active logistics.
+still requires Gold hosting each original History edition and original Steam
+History hosting Gold to pass mixed reload in the same final installed package,
+including continued original checksums and active logistics.
 
 ## Shared content admission
 
@@ -181,8 +182,11 @@ copy's 445-file inventory and the migrated diagnostic guards. This corrects the
 stale diagnostic assets; it provides no new gameplay or mixed-reload result.
 
 The launcher UI remains gated. Both native-adapter and content-catalog approval
-sets are empty. RC4.00 must not be signed or published until mixed reload with
-Gold and each original History edition passes in the final installed package.
+sets are empty. RC4.00 must not be signed or published until Gold hosting each
+original History edition and original Steam History hosting Gold pass mixed
+reload in the same final installed package. The version-2 signer receipts bind
+all three explicit host/guest roles to that installer; the earlier forward-only
+receipt format cannot qualify the expanded scope.
 
 ## Gated desktop entry points
 

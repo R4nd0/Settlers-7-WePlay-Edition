@@ -1,7 +1,8 @@
 # RC4.00 final installed mixed reload gate
 
-RC4.00 is not publishable until Gold has completed a genuine mixed reload with
-each original History edition in the final installed package. Private Native162
+RC4.00 is not publishable until the final installed package has completed genuine
+mixed reloads for Gold hosting each original History edition and for original
+Steam History hosting Gold. Private Native162
 results, authored fixtures, a visible lobby and a successful installer build do
 not satisfy this condition.
 
@@ -19,14 +20,21 @@ optional `--crossplay-catalog` input enables that capability only through the
 existing approved catalog and shipped-adapter validation. It cannot promote a
 development DLL or a self-generated compatibility digest.
 
-After installing this exact Setup and completing both real reload tests, retain
+After installing this exact Setup and completing all three real reload tests, retain
 these reviewed, sanitized receipts beside it:
 
 | Receipt | Purpose |
 | --- | --- |
-| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and the two case-receipt hashes |
+| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and the three case-receipt hashes |
 | `Setup.mixed-reload-ubisoft.json` | Gold host / original Ubisoft History guest, edition 2 |
 | `Setup.mixed-reload-steam.json` | Gold host / original Steam History guest, edition 3 |
+| `Setup.mixed-reload-steam-host.json` | Original Steam History host / Gold guest |
+
+The aggregate and case formats are version 2. Each record and each case carries
+strict integer `host_edition` and `guest_edition` fields. The required order is
+`(1,2)`, `(1,3)`, `(3,1)`. The old forward-only version-1 schema cannot qualify
+the expanded scope. The reverse case must record the actual Steam host's own
+new save and mixed reload; repeating a Gold-host record cannot substitute for it.
 
 The exact schemas and checks are in
 [`mixed_release_gate.py`](../tools/updates/mixed_release_gate.py). Each case binds
@@ -43,7 +51,7 @@ game data, save content, identities, invitations, keys or local paths. The
 manifest must come from the actual guarded controllers and native observations,
 not from the authored fixtures used to test the gate.
 
-Changing Setup, its source/package identity, either case receipt, catalog or
+Changing Setup, its source/package identity, any case receipt, catalog or
 production adapter invalidates the binding. A new final package requires its own
 installed qualification. The gate checks evidence identity and completeness; it
 does not establish that the game ran or replace review of native diagnostics.
@@ -55,13 +63,15 @@ package and these observed cases. Describe only the admitted player/map scope,
 actual save/reload behavior and NEO features. Keep mixed NEO19 separate from
 History-only NEO5. The existing single-player draft poster is not a final RC4.00
 asset. No release tag, signed update metadata or publication is permitted while
-either required final case is missing.
+any required final case is missing. Internal gate, test and development text does
+not belong on the customer-facing posters.
 
 ## Gate verification
 
-Seven authored gate tests pass, including rejection of missing/duplicate History
+Nine authored gate tests pass, including rejection of missing/duplicate History
 cases, changed installer or evidence bytes, nonproduction adapters, synthetic
-turns, failed reloads, dirty builds and abnormal exits. All 21 updater/signing
+turns, failed reloads, dirty builds, abnormal exits and a missing or mislabelled
+Steam-host case. All 21 updater/signing
 regressions pass using a temporary fixture key. The actual earlier single-player
 RC4.00 candidate was separately rejected before any signing process or production
 key access. None of these checks is a new mixed-game result.
