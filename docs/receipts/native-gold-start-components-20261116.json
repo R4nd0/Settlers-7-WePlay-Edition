@@ -1,0 +1,32 @@
+{
+  "scope": "compiled Gold start/local-observer components; no live world qualification",
+  "date": "2026-11-16",
+  "production_component_build": {
+    "msvc_warnings_as_errors": true,
+    "existing_production_fixtures_passed": true,
+    "outgoing_observer_windows_checks": 431,
+    "gold_local_windows_abi": "excluded: modeled addresses occupied",
+    "gold_start_windows_abi": "excluded: modeled addresses occupied"
+  },
+  "offline_compiled_execution": {
+    "gold_local_abi_cases": 12,
+    "gold_local_owned_release_cases": 6,
+    "gold_local_original_guard_cases": 5,
+    "gold_local_original_dispatcher_composition_cases": 9,
+    "gold_start_abi_cases": 17,
+    "gold_start_owned_release_cases": 6,
+    "gold_start_original_guard_cases": 5,
+    "outgoing_original_guard_cases_per_edition": 5,
+    "editions": ["Gold", "Ubisoft History", "Steam History unpacked analysis image"],
+    "gold_local_fixture_sha256": "7850d524f90e0e2299a73db21596b5b47367fc4fc9a18b6bec6f956bae503cc3",
+    "gold_start_fixture_sha256": "11d35e72e6798ead395c35528e6c386fb314fd385918da3b502b04de41a7f61b",
+    "original_game_code_executed": false,
+    "windows_imports_modeled": true,
+    "cpp_exception_path_emulated": false
+  },
+  "admitted_two_human_installation_live_proven": false,
+  "shared_world_start_proven": false,
+  "active_neo_goods_proven": false,
+  "common_save_reload_proven": false,
+  "release_package_promoted": false
+}

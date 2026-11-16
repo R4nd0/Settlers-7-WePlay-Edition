@@ -16,6 +16,34 @@ DWORD original_error=0;
 uint32_t original_flags=0;bool direction=false;
 __declspec(align(16)) unsigned char saved[512]{};
 void Require(bool value){++checks;if(!value)throw std::runtime_error("outgoing observer fixture");}
+void CanonicalGuards(){
+    for(const auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}){
+        auto p=O::Pin(edition);O::DispatcherBytes original{},patched{};
+        for(size_t i=0;i<p.bytes;++i)original[i]=static_cast<unsigned char>(i*13+7);
+        std::array<uintptr_t,3> bridges{0x21001000,0x21002000,0x21003000};
+        auto call=[&](O::DispatcherBytes& bytes,unsigned i,uintptr_t target){
+            const auto at=p.sites[i]-p.dispatcher;bytes[at]=0xe8;
+            const int32_t delta=static_cast<int32_t>(target-p.sites[i]-5);memcpy(bytes.data()+at+1,&delta,4);
+        };
+        for(unsigned i=0;i<3;++i)call(original,i,i<2?p.target:p.broadcast);
+        p.fingerprint=14695981039346656037ull;
+        for(size_t i=0;i<p.bytes;++i)p.fingerprint=(p.fingerprint^original[i])*1099511628211ull;
+        auto copy=original;Require(O::CanonicalDispatcher(p,false,{},copy));Require(copy==original);
+        patched=original;for(unsigned i=0;i<3;++i)call(patched,i,bridges[i]);
+        copy=patched;Require(O::CanonicalDispatcher(p,true,bridges,copy));Require(copy==original);Require(patched!=original);
+        copy=patched;Require(!O::CanonicalDispatcher(p,false,bridges,copy));
+        for(unsigned i=0;i<3;++i){
+            copy=patched;call(copy,i,bridges[i]+1);Require(!O::CanonicalDispatcher(p,true,bridges,copy));
+            copy=patched;copy[p.sites[i]-p.dispatcher]=0xe9;Require(!O::CanonicalDispatcher(p,true,bridges,copy));
+        }
+        copy=patched;copy[0]^=1;Require(!O::CanonicalDispatcher(p,true,bridges,copy));
+        auto bad=p;bad.sites[0]=p.dispatcher-1;copy=patched;Require(!O::CanonicalDispatcher(bad,true,bridges,copy));
+        bad=p;bad.sites[0]=p.dispatcher+p.bytes-4;copy=patched;Require(!O::CanonicalDispatcher(bad,true,bridges,copy));
+        bad=p;bad.bytes=O::MaximumDispatcherBytes+1;copy=patched;Require(!O::CanonicalDispatcher(bad,true,bridges,copy));
+        bad=p;bad.fingerprint^=1;copy=patched;Require(!O::CanonicalDispatcher(bad,true,bridges,copy));
+        copy=patched;Require(!O::CanonicalDispatcher(p,true,{},copy));
+    }
+}
 void __cdecl Original(void* manager,uint32_t target,const void* event){
     original_error=GetLastError();++forwarded;
     arguments=manager==expected_manager && event==expected_event && target==(broadcast?UINT32_MAX:0x3456789au);
@@ -160,6 +188,7 @@ extern "C" __declspec(dllexport) uint32_t __cdecl WePlayOutgoingGuard(uint32_t e
     return O::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;
 }
 int main(){try{
+    CanonicalGuards();
     O::installed=true;O::test_authorized=true;O::owner=GetCurrentThreadId();
     O::manager=reinterpret_cast<uintptr_t>(expected_manager);O::callback=&Observe;
     for(const auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}){

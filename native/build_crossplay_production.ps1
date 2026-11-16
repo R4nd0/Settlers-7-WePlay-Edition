@@ -45,6 +45,18 @@ try{
     if($LASTEXITCODE){throw 'Production outgoing observer fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_outgoing_observer_tests.cpp') /Fe:crossplay_outgoing_observer_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'Production outgoing observer emulator guard fixture did not compile'}
+    foreach($fixture in @('crossplay_gold_local_observer','crossplay_gold_start_hold')){
+        $source=Join-Path $PSScriptRoot ($fixture+'_tests.cpp')
+        # Keep the relocatable test image and its initial heap away from the
+        # modeled low game addresses. This is separate from the fixed oracle.
+        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) $source ('/Fe:'+ $fixture+'_runtime_tests.exe') /link /BASE:0x30000000 /DYNAMICBASE /NXCOMPAT
+        if($LASTEXITCODE){throw "Gold bridge fixture did not compile: $fixture"}
+        & (Join-Path $out ($fixture+'_runtime_tests.exe'))
+        if($LASTEXITCODE -eq 77){Write-Output "Windows address-layout exclusion: $fixture not executed; qualify the fixed fixture offline."}
+        elseif($LASTEXITCODE){throw "Gold bridge fixture failed: $fixture"}
+        & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) $source ('/Fe:'+ $fixture+'_guard_tests.exe') /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+        if($LASTEXITCODE){throw "Gold bridge emulator guard fixture did not compile: $fixture"}
+    }
     $configurationObserverSources=@('crossplay_production_observer_tests.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /DS7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING ('/I'+$PSScriptRoot) @configurationObserverSources /Fe:crossplay_configuration_observer_tests.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Production configuration consumer observer fixture did not compile'}

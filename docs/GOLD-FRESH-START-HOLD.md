@@ -3,8 +3,9 @@
 The opt-in `crossplay_gold_start_hold.h` holds the original Gold fresh-start
 event at its original send call. It invokes a borrowed-event callback and
 returns through the original caller cleanup without enqueuing that event.
-There is no release, replay, History delivery or world-start permission in this
-primitive. Ordinary adapters do not include it.
+`Release` restores only its exact owned hook; it never replays or delivers the
+captured event. There is no History delivery or world-start permission in this
+primitive. Ordinary adapters do not yet include it.
 
 This supplies the missing capture point for a later coordinated start. The
 [local-event observer](GOLD-LOCAL-EVENT-OBSERVER.md) always forwards events and
@@ -13,8 +14,10 @@ The hold instead replaces only the six-byte original fresh-start callsite and
 guards its entire 254-byte caller before installation. The original general
 sender and other network events remain intact.
 
-Installation requires an owned one-human Gold host lobby and the existing
-native fresh-start method guards. Each invocation checks the owner thread,
+`Install` requires an owned one-human Gold host lobby. `InstallBound` requires
+the separately authenticated two-human native Gold host admission and current
+session/connection roots. Both retain the existing full native fresh-start
+method guards. Each invocation checks the owner thread,
 main/transport/session roots, expected original sender, zero local-only
 arguments, exact event type, source host, async flag and empty fresh-save path.
 Only one capture is attempted. Invalid, repeated or reentrant invocations stay
@@ -22,7 +25,29 @@ held and mark the state failed. A callback must validate and copy the event
 before returning; the original caller destroys its temporary afterward. The
 callback cannot retain that borrowed pointer. Caught C++ exceptions fail the
 hold; access violations are not caught as recoverable exceptions. The hook is
-tied to its first session and requires process exit rather than session reuse.
+tied to its first session. Owned release enables safe teardown but does not
+authorize reuse with a new session or replay of an old event.
+
+The bridge preserves incoming general registers, flags, direction flag and
+x87/SSE state around the C++ callback, clears DF before entering C++, replays
+the original caller store and removes the original five stack arguments once.
+Release rejects foreign patches, the wrong owner and calls inside a callback.
+
+## Updated component qualification, 2026-11-16
+
+The compiled offline fixture passed 17 ABI scenarios, six owned-release cases
+and five full-caller original-byte guard cases. The callback deliberately
+destroys floating-point state; the continuation must still observe the original
+state, volatile registers and flags. Tests include DF set on entry, incorrect
+original sender and release attempted inside the callback. Native roots/events,
+the continuation and Windows imports are modeled. C++ exception handling and a
+positive installation transaction are not emulated. The relocatable Windows
+fixture is explicitly excluded when its modeled low addresses are occupied;
+that exclusion is not a successful ABI run.
+
+This is component qualification, not a new paired world-start result. The
+historical live capture below does not qualify the updated admitted-host entry
+or common Gold/History loading.
 
 ## Actual game result, 2026-11-12
 

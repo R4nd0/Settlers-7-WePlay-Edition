@@ -15,6 +15,7 @@ inline Profile Pin(Crossplay::Edition edition){
 }
 inline Profile profile{};
 inline uintptr_t target_method=0,broadcast_method=0,manager=0;
+inline std::array<uintptr_t,3> replacements{};
 inline DWORD owner=0;
 inline Callback callback=nullptr;
 inline bool installed=false,inside=false,failed=false;
@@ -124,14 +125,38 @@ inline bool Matches(uintptr_t at,uintptr_t expected){
     const auto* code=reinterpret_cast<const unsigned char*>(at);int32_t delta=0;memcpy(&delta,code+1,4);
     return code[0]==0xe8 && at+5+delta==expected;
 }
+inline constexpr size_t MaximumDispatcherBytes=0x103;
+using DispatcherBytes=std::array<unsigned char,MaximumDispatcherBytes>;
+// Normalize only our three verified CALL displacements in a detached copy.
+// This permits a later owned local observer to retain the complete original
+// dispatcher fingerprint instead of weakening it after these hooks are active.
+inline bool CanonicalDispatcher(const Profile& p,bool patched,const std::array<uintptr_t,3>& bridges,DispatcherBytes& bytes){
+    if(!p.dispatcher || !p.bytes || p.bytes>bytes.size())return false;
+    for(unsigned i=0;i<3;++i){
+        if(p.sites[i]<p.dispatcher || p.sites[i]-p.dispatcher>p.bytes || p.bytes-(p.sites[i]-p.dispatcher)<5)return false;
+        const auto at=p.sites[i]-p.dispatcher;int32_t relative=0;memcpy(&relative,bytes.data()+at+1,4);
+        const auto original=i<2?p.target:p.broadcast;
+        const auto expected=patched?bridges[i]:original;
+        if(!expected || bytes[at]!=0xe8 || p.sites[i]+5+relative!=expected)return false;
+        if(patched){const int32_t restored=static_cast<int32_t>(original-p.sites[i]-5);memcpy(bytes.data()+at+1,&restored,4);}
+    }
+    uint64_t hash=14695981039346656037ull;
+    for(size_t i=0;i<p.bytes;++i)hash=(hash^bytes[i])*1099511628211ull;
+    return hash==p.fingerprint;
+}
+inline bool OriginalDispatcher(Crossplay::Edition edition,DispatcherBytes& bytes){
+    const auto p=Pin(edition);bytes={};
+    if(!p.dispatcher || p.bytes>bytes.size() || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(p.dispatcher),p.bytes))return false;
+    if(installed){
+        if(failed || inside || owner!=GetCurrentThreadId() || !manager || !callback || profile.dispatcher!=p.dispatcher
+            || profile.target!=p.target || profile.broadcast!=p.broadcast || profile.gold!=p.gold)return false;
+        for(unsigned i=0;i<3;++i)if(profile.sites[i]!=p.sites[i] || replacements[i]!=Bridge(p,i))return false;
+    }
+    memcpy(bytes.data(),reinterpret_cast<const void*>(p.dispatcher),p.bytes);
+    return CanonicalDispatcher(p,installed,replacements,bytes);
+}
 inline bool Methods(Crossplay::Edition edition){
-    const auto p=Pin(edition);
-    if(!p.dispatcher || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(p.dispatcher),p.bytes))return false;
-    uint64_t hash=14695981039346656037ull;const auto* code=reinterpret_cast<const unsigned char*>(p.dispatcher);
-    for(size_t i=0;i<p.bytes;++i)hash=(hash^code[i])*1099511628211ull;
-    if(hash!=p.fingerprint)return false;
-    for(unsigned i=0;i<3;++i)if(!Matches(p.sites[i],i<2?p.target:p.broadcast))return false;
-    return true;
+    DispatcherBytes bytes{};return OriginalDispatcher(edition,bytes);
 }
 inline bool Exchange(uintptr_t at,uintptr_t expected,uintptr_t replacement){
     if(!Matches(at,expected))return false;
@@ -153,12 +178,13 @@ inline bool Install(Crossplay::Edition edition,DWORD thread,Callback observer){
     if(!transport)return false;
     for(unsigned i=0;i<3;++i)if(!Matches(p.sites[i],i<2?p.target:p.broadcast))return false;
     profile=p;target_method=p.target;broadcast_method=p.broadcast;manager=reinterpret_cast<uintptr_t>(transport);
+    for(unsigned i=0;i<3;++i)replacements[i]=Bridge(p,i);
     owner=thread;callback=observer;inside=false;failed=false;
     unsigned changed=0;
     for(;changed<3;++changed)if(!Exchange(p.sites[changed],changed<2?p.target:p.broadcast,Bridge(p,changed)))break;
     if(changed!=3){
         while(changed){--changed;if(!Exchange(p.sites[changed],Bridge(p,changed),changed<2?p.target:p.broadcast))__fastfail(7);}
-        profile={};target_method=broadcast_method=manager=0;owner=0;callback=nullptr;
+        profile={};target_method=broadcast_method=manager=0;replacements={};owner=0;callback=nullptr;
         SetLastError(incoming);return false;
     }
     installed=true;SetLastError(incoming);return true;
@@ -173,7 +199,7 @@ inline bool Release(){
         while(changed){--changed;if(!Exchange(profile.sites[changed],changed<2?profile.target:profile.broadcast,Bridge(profile,changed)))__fastfail(7);}
         SetLastError(incoming);return false;
     }
-    installed=false;profile={};target_method=broadcast_method=manager=0;owner=0;callback=nullptr;failed=inside=false;
+    installed=false;profile={};target_method=broadcast_method=manager=0;replacements={};owner=0;callback=nullptr;failed=inside=false;
     SetLastError(incoming);return true;
 }
 }}

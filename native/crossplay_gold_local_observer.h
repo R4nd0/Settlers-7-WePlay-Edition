@@ -1,13 +1,17 @@
 #pragma once
 #include "crossplay_event_codec.h"
+#include "crossplay_outgoing_observer.h"
+#include "crossplay_admission.h"
+#include "crossplay_session_config_codec.h"
 // Opt-in observation only; ordinary game adapters do not include this header.
 // This neither suppresses a native event nor authorizes a cross-edition start.
 namespace CrossplayNativeObserver {
 inline void __stdcall GoldLocalRecordThunk(void* manager,const void* event,uint32_t mode);
 inline void GoldLocalBridge();
 // Borrowed, read-only callbacks at the original Gold local-queue branch.
-// Install during the owned one-human preparation interval, before the existing
-// targeted/broadcast callsite probes. Native forwarding remains unconditional.
+// One-human diagnostics and explicitly admitted two-human host intervals have
+// separate entry points. Known owned outgoing probes compose through a detached
+// original-byte fingerprint; native forwarding remains unconditional.
 struct GoldLocalObserver {
     using Callback=void (__stdcall*)(void*,const void*,uint32_t);
     struct State {
@@ -18,12 +22,10 @@ struct GoldLocalObserver {
     static State& Current(){static State state;return state;}
     static bool OriginalMethods() {
         using CrossplayNativeCodec::Detail::Readable;
-        const auto* body=reinterpret_cast<const unsigned char*>(0xa4e430);
-        if(!Readable(body,0xe1))return false;
-        uint64_t hash=14695981039346656037ull;
-        for(size_t i=0;i<0xe1;++i)hash=(hash^body[i])*1099511628211ull;
+        CrossplayProduction::OutgoingObserver::DispatcherBytes body{};
         const unsigned char site[]={0x8b,0x47,0x18,0x50,0xff,0x15,0x4c,0xf0,0xeb,0x00};
-        return hash==0x6b1a903a26be84feull && !memcmp(reinterpret_cast<void*>(0xa4e4cf),site,sizeof(site));
+        return CrossplayProduction::OutgoingObserver::OriginalDispatcher(Crossplay::Edition::Gold,body)
+            && Readable(reinterpret_cast<void*>(0xa4e4cf),sizeof(site)) && !memcmp(reinterpret_cast<void*>(0xa4e4cf),site,sizeof(site));
     }
     static bool Root(const State& state) {
         using CrossplayNativeCodec::Detail::Readable;
@@ -48,16 +50,32 @@ struct GoldLocalObserver {
         }
         SetLastError(incoming);
     }
-    static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback) {
-        const DWORD incoming=GetLastError();auto& state=Current();
-        if(state.installed || !callback || !OriginalMethods())return false;
+    static bool CaptureHost(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission* admission,State& candidate,uint32_t& host) {
+        candidate={};host=UINT32_MAX;
         CrossplayNative::LobbySnapshot snapshot;uintptr_t send=0;
         auto* manager=CrossplayNativeCodec::Detail::Transport(Crossplay::Edition::Gold,send);
-        if(!manager || send!=0xa4e430 || !binding.CaptureLobby(snapshot) || !snapshot.host || snapshot.local_slot!=1
-            || snapshot.members.size()!=1 || !snapshot.instance)return false;
-        State candidate;candidate.callback=callback;candidate.owner=GetCurrentThreadId();candidate.manager=reinterpret_cast<uintptr_t>(manager);
+        if(!manager || send!=0xa4e430 || !binding.CaptureLobby(snapshot) || !snapshot.host || snapshot.local_slot!=1 || !snapshot.instance)return false;
+        if(admission){
+            const auto* launch=CrossplayProduction::CurrentLaunch();
+            if(!launch || !launch->mixed || !launch->host || launch->channel.edition!=Crossplay::Edition::Gold
+                || !admission->Poll() || admission->GetState()!=CrossplayNative::AdmissionState::RosterBound
+                || snapshot.members.size()!=2 || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,
+                    {admission->OwnConnection(),admission->PeerLocalConnection()},true))return false;
+        }else if(snapshot.members.size()!=1)return false;
+        if(CrossplayProduction::OutgoingObserver::installed
+            && (CrossplayProduction::OutgoingObserver::owner!=GetCurrentThreadId()
+                || CrossplayProduction::OutgoingObserver::manager!=reinterpret_cast<uintptr_t>(manager)))return false;
+        host=admission?admission->OwnConnection():snapshot.members[0].player.connection;
+        candidate.owner=GetCurrentThreadId();candidate.manager=reinterpret_cast<uintptr_t>(manager);
         candidate.session=snapshot.instance;candidate.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);
-        if(!Root(candidate))return false;
+        return host!=UINT32_MAX && Root(candidate);
+    }
+    static bool InstallFor(const CrossplayNative::ParticipantEvent& binding,Callback callback,CrossplayNative::LobbyAdmission* admission) {
+        const DWORD incoming=GetLastError();auto& state=Current();
+        if(state.installed || !callback || !OriginalMethods())return false;
+        State candidate;uint32_t host=UINT32_MAX;
+        if(!CaptureHost(binding,admission,candidate,host))return false;
+        candidate.callback=callback;
         auto* site=reinterpret_cast<unsigned char*>(0xa4e4cf);unsigned char before[10]{};memcpy(before,site,10);
         unsigned char replacement[10]={0xe9,0,0,0,0,0x90,0x90,0x90,0x90,0x90};
         const int32_t relative=static_cast<int32_t>(reinterpret_cast<uintptr_t>(&GoldLocalBridge)-(0xa4e4cf+5));memcpy(replacement+1,&relative,4);
@@ -67,11 +85,34 @@ struct GoldLocalObserver {
         DWORD unused=0;const bool restored=VirtualProtect(site,10,protection,&unused)!=FALSE;
         if(!flushed || !restored) {
             // No successful installation is reported after a partial mutation.
-            DWORD temporary=0;const bool writable=VirtualProtect(site,10,PAGE_EXECUTE_READWRITE,&temporary)!=FALSE;
-            if(writable){memcpy(site,before,10);FlushInstructionCache(GetCurrentProcess(),site,10);VirtualProtect(site,10,protection,&unused);}
-            state.failed=true;state.callback=nullptr;SetLastError(incoming);return false;
+            DWORD temporary=0;
+            if(!VirtualProtect(site,10,PAGE_EXECUTE_READWRITE,&temporary))__fastfail(7);
+            memcpy(site,before,10);
+            const bool rollback_flushed=FlushInstructionCache(GetCurrentProcess(),site,10)!=FALSE;
+            const bool rollback_restored=VirtualProtect(site,10,protection,&unused)!=FALSE;
+            if(!rollback_flushed || !rollback_restored)__fastfail(7);
+            state={};SetLastError(incoming);return false;
         }
         SetLastError(incoming);return true;
+    }
+    static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback){return InstallFor(binding,callback,nullptr);}
+    static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,Callback callback){return InstallFor(binding,callback,&admission);}
+    static bool Release(){
+        const DWORD incoming=GetLastError();auto& state=Current();
+        using CrossplayNativeCodec::Detail::Readable;
+        constexpr uintptr_t at=0xa4e4cf;
+        if(!state.installed || state.inside || state.owner!=GetCurrentThreadId() || !Readable(reinterpret_cast<void*>(at),10))return false;
+        const auto* code=reinterpret_cast<const unsigned char*>(at);int32_t relative=0;memcpy(&relative,code+1,4);
+        if(code[0]!=0xe9 || at+5+relative!=reinterpret_cast<uintptr_t>(&GoldLocalBridge))return false;
+        for(unsigned i=5;i<10;++i)if(code[i]!=0x90)return false;
+        const unsigned char original[]={0x8b,0x47,0x18,0x50,0xff,0x15,0x4c,0xf0,0xeb,0x00};
+        DWORD protection=0,unused=0;
+        if(!VirtualProtect(reinterpret_cast<void*>(at),10,PAGE_EXECUTE_READWRITE,&protection))return false;
+        memcpy(reinterpret_cast<void*>(at),original,10);
+        const bool flushed=FlushInstructionCache(GetCurrentProcess(),reinterpret_cast<void*>(at),10)!=FALSE;
+        const bool restored=VirtualProtect(reinterpret_cast<void*>(at),10,protection,&unused)!=FALSE;
+        if(!flushed || !restored)__fastfail(7);
+        state={};SetLastError(incoming);return true;
     }
 };
 inline void __stdcall GoldLocalRecordThunk(void* manager,const void* event,uint32_t mode) {
@@ -81,10 +122,17 @@ __declspec(naked) inline void GoldLocalBridge() {
     __asm {
         pushfd
         pushad
+        cld
+        mov edi,esp
+        sub esp,528
+        and esp,0xfffffff0
+        fxsave [esp]
         push dword ptr [ebp+0xc]
         push esi
-        push edi
+        push dword ptr [edi]
         call GoldLocalRecordThunk
+        fxrstor [esp]
+        mov esp,edi
         popad
         popfd
         mov eax,dword ptr [edi+0x18]

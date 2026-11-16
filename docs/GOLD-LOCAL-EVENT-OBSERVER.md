@@ -7,15 +7,22 @@ adapters do not include the new header. Observation does not deliver a start to
 History, defer a start, or establish working mixed gameplay.
 
 The observer guards all 225 bytes of the original sender and the ten-byte patch
-site before installation. It installs during the owned one-human host lobby,
-before other outgoing probes change sender bytes. It checks the owner thread,
+site before installation. `Install` requires the owned one-human host lobby.
+`InstallBound` separately requires an authenticated mixed Gold host, completed
+two-human native admission and the exact native connection/session roots.
+When the production outgoing observer is already installed, only its three exact
+owned CALL replacements are normalized in a detached copy before checking the
+complete original fingerprint. Foreign changes remain excluded. Install the
+outgoing observer first and release this local observer before releasing it.
+The observer checks the owner thread,
 main object, transport, session identity, readable event and reentrancy before
 calling a borrowed read-only callback. The callback cannot retain the event.
 Only mode zero invokes it; native forwarding remains unconditional. The bridge
-preserves registers, flags and incoming LastError before executing the exact
+preserves registers, flags, x87/SSE state and incoming LastError before executing the exact
 original lock call and returning to the original clone/queue continuation.
 Caught C++ exceptions fail the observer without suppressing the native event.
-Installation failures attempt rollback and never report a successful install.
+Installation failures roll back and never report a successful install; an unsafe
+partial rollback terminates rather than continuing with ambiguous hook state.
 Access violations are not converted into recoverable callback exceptions.
 
 The hook covers the common local branch rather than crossing the separate
@@ -23,6 +30,22 @@ mode-zero entry: broadcast enters that same branch at its second instruction.
 Both original queue choices and native event ownership remain with Gold.
 This observer is tied to its first session and fails closed after that session
 changes. It is a laboratory component, not a session-reuse implementation.
+
+## Updated component qualification, 2026-11-16
+
+The production component build now includes separate relocatable Windows and
+fixed offline fixtures for both Gold bridges. Occupied modeled addresses produce
+an explicit Windows exclusion, never a passing ABI result. The offline run
+passed 12 local-branch ABI scenarios (including an incoming set direction flag
+and a callback that destroys x87/SSE state), six owned-release cases and five
+original-code guard cases. Nine additional cases validate composition against
+the fingerprinted original Gold dispatcher, including foreign patch, owner,
+callback and observer-state exclusions. Original game code is not executed.
+
+The outgoing fixture passed 431 checks, including detached canonicalization and
+foreign-change rejection for all three edition profiles. This component result
+does not establish a live two-human installation or common world start. The
+2026-11-12 live result below remains historical evidence for the earlier hook.
 
 ## Verification on 2026-11-12
 

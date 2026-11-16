@@ -6,7 +6,8 @@ inline void GoldStartBridge();
 // This opt-in capture-only primitive deliberately does not enqueue a world.
 // It replaces only the original fresh-start send call, not the general sender.
 // The callback must copy/validate its borrowed event before returning. There is
-// no release/replay operation here. Ordinary adapters never include this file.
+// no replay operation here. Release restores only the owned callsite; it never
+// queues the held event. Ordinary adapters do not yet include this file.
 struct GoldStartHold {
     using Callback=bool (__stdcall*)(void*,const void*);
     struct State {
@@ -39,22 +40,18 @@ struct GoldStartHold {
         const auto p=CrossplayNativeCodec::GameStartDetail::Pin(Crossplay::Edition::Gold);
         if(!CrossplayNativeCodec::GameStartDetail::Source(p,event,s.host))s.failed=true;
         else {
+            s.roots.inside=true;
             try {const bool accepted=s.callback(manager,event);s.captured=accepted && !s.failed;}catch(...){s.failed=true;}
+            s.roots.inside=false;
             if(!s.captured)s.failed=true;
         }
         SetLastError(error);
     }
-    static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback) {
-        auto& s=Current();if(s.roots.installed || !callback || !Methods()
+    static bool InstallFor(const CrossplayNative::ParticipantEvent& binding,Callback callback,CrossplayNative::LobbyAdmission* admission) {
+        const DWORD incoming=GetLastError();auto& s=Current();if(s.roots.installed || !callback || !Methods()
             || !CrossplayNativeCodec::GameStartDetail::Methods(Crossplay::Edition::Gold))return false;
-        CrossplayNative::LobbySnapshot lobby;uintptr_t sender=0;
-        auto* manager=CrossplayNativeCodec::Detail::Transport(Crossplay::Edition::Gold,sender);
-        if(!manager || sender!=0xa4e430 || !binding.CaptureLobby(lobby) || !lobby.host || lobby.local_slot!=1
-            || lobby.members.size()!=1 || !lobby.instance)return false;
-        State next;next.callback=callback;next.host=lobby.members[0].player.connection;
-        next.roots.owner=GetCurrentThreadId();next.roots.manager=reinterpret_cast<uintptr_t>(manager);
-        next.roots.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);next.roots.session=lobby.instance;
-        if(next.host==UINT32_MAX || !CrossplayNativeObserver::GoldLocalObserver::Root(next.roots))return false;
+        State next;next.callback=callback;
+        if(!CrossplayNativeObserver::GoldLocalObserver::CaptureHost(binding,admission,next.roots,next.host))return false;
         auto* at=reinterpret_cast<unsigned char*>(0xa35f64);unsigned char old[6]{};memcpy(old,at,6);
         unsigned char patch[6]={0xe9,0,0,0,0,0x90};
         const int32_t relative=static_cast<int32_t>(reinterpret_cast<uintptr_t>(&GoldStartBridge)-(0xa35f64+5));memcpy(patch+1,&relative,4);
@@ -64,18 +61,55 @@ struct GoldStartHold {
         DWORD ignored=0;const bool restored=VirtualProtect(at,6,protection,&ignored)!=FALSE;
         if(!flushed || !restored) {
             DWORD temporary=0;
-            if(VirtualProtect(at,6,PAGE_EXECUTE_READWRITE,&temporary)) {
-                memcpy(at,old,6);FlushInstructionCache(GetCurrentProcess(),at,6);VirtualProtect(at,6,protection,&ignored);
-            }
-            s.failed=true;s.callback=nullptr;return false;
+            if(!VirtualProtect(at,6,PAGE_EXECUTE_READWRITE,&temporary))__fastfail(7);
+            memcpy(at,old,6);
+            const bool rollback_flushed=FlushInstructionCache(GetCurrentProcess(),at,6)!=FALSE;
+            const bool rollback_restored=VirtualProtect(at,6,protection,&ignored)!=FALSE;
+            if(!rollback_flushed || !rollback_restored)__fastfail(7);
+            s={};SetLastError(incoming);return false;
         }
-        return true;
+        SetLastError(incoming);return true;
+    }
+    static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback){return InstallFor(binding,callback,nullptr);}
+    static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,Callback callback){return InstallFor(binding,callback,&admission);}
+    static bool Release(){
+        const DWORD incoming=GetLastError();auto& s=Current();constexpr uintptr_t at=0xa35f64;
+        if(!s.roots.installed || s.roots.inside || s.roots.owner!=GetCurrentThreadId()
+            || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(at),6))return false;
+        const auto* code=reinterpret_cast<const unsigned char*>(at);int32_t relative=0;memcpy(&relative,code+1,4);
+        if(code[0]!=0xe9 || code[5]!=0x90 || at+5+relative!=reinterpret_cast<uintptr_t>(&GoldStartBridge))return false;
+        const unsigned char original[]={0x89,0x5c,0x24,0x34,0xff,0xd2};DWORD protection=0,unused=0;
+        if(!VirtualProtect(reinterpret_cast<void*>(at),6,PAGE_EXECUTE_READWRITE,&protection))return false;
+        memcpy(reinterpret_cast<void*>(at),original,6);
+        const bool flushed=FlushInstructionCache(GetCurrentProcess(),reinterpret_cast<void*>(at),6)!=FALSE;
+        const bool restored=VirtualProtect(reinterpret_cast<void*>(at),6,protection,&unused)!=FALSE;
+        if(!flushed || !restored)__fastfail(7);
+        s={};SetLastError(incoming);return true;
     }
 };
 __declspec(naked) inline void GoldStartBridge() {
     __asm {
         mov dword ptr [esp+0x34],ebx
+        pushfd
+        pushad
+        cld
+        mov edi,esp
+        sub esp,528
+        and esp,0xfffffff0
+        fxsave [esp]
+        push dword ptr [edi+52]
+        push dword ptr [edi+48]
+        push dword ptr [edi+44]
+        push dword ptr [edi+40]
+        push dword ptr [edi+36]
+        mov ecx,dword ptr [edi+24]
+        mov edx,dword ptr [edi+20]
         call GoldStartHold::Send
+        fxrstor [esp]
+        mov esp,edi
+        popad
+        popfd
+        lea esp,[esp+20]
         push 0x0a35f6a
         ret
     }
