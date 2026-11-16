@@ -64,6 +64,76 @@ map. A History host with a Gold guest, four humans, additional peers and other
 roster layouts are rejected until separately implemented and tested. Existing
 History-only sessions use their existing path.
 
+### Required reverse role extension
+
+The required production scope also includes **original Steam History as the
+actual host and Gold as its guest**. The paragraph above describes the current
+parser/component boundary, not the final feature requirement. This reverse path
+is not implemented or admitted by the current normal entry, parser or catalog.
+Do not advertise it by changing a label or relaxing the existing role checks.
+
+| Actual host | Actual guest | Required final qualification |
+| --- | --- | --- |
+| Gold | Original Ubisoft History | Retain and qualify the existing forward path |
+| Gold | Original Steam History | Retain and qualify the existing forward path |
+| Original Steam History | Gold | Implement and qualify the reverse path |
+
+The common host always owns channel/native slot 1 and the guest slot 2,
+independently of edition. The actual host's original UI owns map, template,
+positions/teams/coop, AI, castle setup, NEO selection, start and selected save.
+Host bootstrap must therefore capture either Gold's original host state or
+Steam History's original host state. Gold guest preparation needs its own
+original native row claim, backend role projection, consumed castle/configuration
+checks and applied-choice queries. The History guest claim is not reusable by
+casting a Gold object or rewriting its role flag.
+
+Each edition's initial local scaffold is distinct from common host authority:
+the independent Gold login/session service may still prepare Gold's own local
+NetZ session, but it does not make a common Gold guest authoritative. Its local
+SDK source binding and the role-derived control-channel source binding must
+remain independently guarded. The Gold local service is required for Gold in
+either common role; extending its current host-only activation/secret guards
+must accompany the real guest implementation, not precede it as a bypass.
+
+Original Steam History start/setup/root events must be captured as host events,
+delivered through Gold's verified original reader and queue consumer, and
+acknowledged against Gold's actual loaded world. Preserve original human Ready
+actions and host start authority. Mixed NEO still uses shared mask 19 and the
+same explicit host checkbox/peer agreement in either direction; History NEO5
+must not run in parallel or have its Lua handshake fabricated.
+
+The reverse save test must originate in the Steam History host's original save
+UI and actual owned profile. A fresh owner/session/keys and namespace projections
+must then resume that host-selected archive through the original mixed file
+stream, restore the admitted NEO state and continue original turn checksums and
+logistics. Reusing a Gold-host archive or fixed old identities cannot qualify
+the reverse direction. Final packaged validation is required for all three
+rows above, including custom castles, common start, active NEO, host save,
+coordinated reload, continued logistics/checksum agreement and normal exit.
+Ubisoft History hosting Gold remains outside this required reverse-path scope
+until separately implemented and qualified.
+
+### History local startup service
+
+The normal History adapter also requires its existing owned loopback startup
+service and a fresh `LocalData/s7-local-runtime.ini` before `UPLAY_Start`.
+`platform_standalone.launch_environment` alone does not prepare that service.
+The original five-minute configuration freshness guard remains in force. Bind
+service/configuration/profile/save ownership to the same game lifetime, close
+the service on owned exit, and preserve the persistent solo profile identifier.
+The normal local platform save directory is `LocalData/saves`, in addition to
+the game's isolated History profile and its own save/options paths.
+
+The History `IDENTITY` bytes are an opaque WePlay channel identity. A local
+runtime UUID text, the Storm descriptor's optional `ProfileID`, the native
+Storm peer GUID and a preparation row's scalar `principal` are distinct fields.
+No Windows-GUID or UUID network-byte-order equivalence between them is currently
+qualified. Do not derive a UUID with an assumed byte order or substitute that
+UUID for a captured native principal. A separate fresh owner-scoped runtime
+profile UUID can be associated with the same session without modifying the
+persistent solo identifier. Any claimed native GUID equivalence needs its own
+original-parser/capture evidence.
+
 ## Shared content catalog and broker wire
 
 `CONTENT` is the SHA-256 of a single qualified catalog containing all three
@@ -266,8 +336,9 @@ game exit closes the channel and releases owned queues.
 
 The launcher must keep the mixed-play capability unavailable until the ordinary
 production adapters implement and pass this contract. Updating installer pins
-alone does not enable it. RC4 remains held until the final packaged Gold/Steam
-and Gold/Ubisoft pairs demonstrate common world start, active NEO logistics,
+alone does not enable it. RC4 remains held until final packaged
+Gold-host/Steam-guest, Gold-host/Ubisoft-guest and required Steam-host/Gold-guest
+pairs demonstrate common world start, active NEO logistics,
 host save, shared reload, continued original checksum agreement and clean exit
 under DXVK. The private Native162 results are implementation evidence, not that
 final-package qualification.
