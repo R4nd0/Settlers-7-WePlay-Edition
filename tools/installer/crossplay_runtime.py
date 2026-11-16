@@ -3,10 +3,11 @@ import threading
 
 
 class SessionPump:
-    def __init__(self, *, broker=None, gold=None, gateway=None):
+    def __init__(self, *, broker=None, gold=None, history=None, gateway=None):
         if (broker is None and gateway is None) or (gold is not None and broker is None):
             raise ValueError('crossplay_configuration_invalid')
         self.broker, self.gold, self.gateway = broker, gold, gateway
+        self.history=history
         self.stop = threading.Event(); self.lock = threading.Lock()
         self.thread = self.game = None
         self.failed = self.closed = False
@@ -28,7 +29,7 @@ class SessionPump:
         return self
 
     def _release(self):
-        for service in (self.gateway, self.broker, self.gold):
+        for service in (self.gateway, self.broker, self.gold, self.history):
             if service is not None:
                 try: service.close()
                 except Exception: self.failed = True
@@ -41,6 +42,7 @@ class SessionPump:
                 if game is not None and game.poll() is not None: break
                 if self.broker is not None: self.broker.pump(0)
                 if self.gold is not None: self.gold.pump(0)
+                if self.history is not None:self.history.pump(0)
                 if self.gateway is not None:
                     self.gateway.pump()
                     if self.gateway.closed: break

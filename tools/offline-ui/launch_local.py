@@ -187,7 +187,7 @@ def lan_pair(local, peer):
 
 
 def write_configuration(data, configuration, udp_port, connect_probe=False, *, address="127.0.0.1", lan=None,
-                        lan_group=None, display_name=None):
+                        lan_group=None, display_name=None, profile_id=None):
     if lan_group is not None:
         if lan is not None or not connect_probe:
             raise ValueError("Unvereinbare LAN-Konfiguration.")
@@ -222,7 +222,16 @@ def write_configuration(data, configuration, udp_port, connect_probe=False, *, a
         name = 'LocalPlayer'
     else:
         name = player_settings.load(data.parent) if display_name is None else player_settings.player_name(display_name)
-    profile = local_identity(data)
+    if profile_id is None:
+        profile = local_identity(data)
+    else:
+        # An owned mixed session supplies its own local platform profile. It is
+        # separate from the opaque channel ID and the Storm principal. Keep the
+        # persistent solo profile identifier unchanged and out of this path.
+        if (not isinstance(profile_id,str) or len(profile_id)!=36
+                or str(uuid.UUID(profile_id))!=profile_id or uuid.UUID(profile_id).int==0):
+            raise ValueError("Die lokale Sitzungskennung ist ungueltig.")
+        profile=profile_id
     content = (f"format=s7-local-runtime-v1\naddress={address}\n"
                f"udp_port={udp_port}\npublic_key={public}\nprofile_id={profile}\n"
                f"display_name={name}\nticket=local-s7:{profile}\n")

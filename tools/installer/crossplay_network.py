@@ -2,6 +2,7 @@
 import importlib
 from pathlib import Path
 import sys
+import uuid
 
 from crossplay_content import Catalog
 from crossplay_host import Host
@@ -9,6 +10,7 @@ from crossplay_invitation import parse
 from crossplay_runtime import SessionPump
 from easytier_elevation import open_overlay
 from internet_room import Room
+from history_session import HistorySessionService
 
 
 def gateway_classes():
@@ -30,6 +32,7 @@ class NetworkSession:
     """
     def __init__(self):
         self.overlay = self.pair = self.gateway = self.runtime = self.binding = None
+        self.history=None
         self.closed = False
 
     @staticmethod
@@ -79,7 +82,12 @@ class NetworkSession:
             _, guest_gateway = gateway_classes()
             result.gateway = guest_gateway(result.overlay, peer=invite.room.coordinator)
             result.binding = invite.binding(root, catalog, port=result.gateway.port, name=name)
-            result.runtime = SessionPump(gateway=result.gateway).start()
+            # The local platform profile, opaque channel identity and Storm
+            # principal are separate. Bind a fresh profile to this same owner;
+            # never reinterpret channel bytes as an unqualified GUID layout.
+            result.history=HistorySessionService(root,profile_id=str(uuid.uuid4()),name=name)
+            result.history.start()
+            result.runtime = SessionPump(gateway=result.gateway,history=result.history).start()
             result.check()
             return result
         except BaseException:
@@ -105,7 +113,7 @@ class NetworkSession:
         # Never remove the tunnel while its service thread can still use it.
         if self.runtime is not None: self.runtime.close()
         failed = False
-        for owner in (self.pair, self.gateway, self.overlay):
+        for owner in (self.pair, self.history, self.gateway, self.overlay):
             if owner is not None:
                 try: owner.close()
                 except Exception: failed = True

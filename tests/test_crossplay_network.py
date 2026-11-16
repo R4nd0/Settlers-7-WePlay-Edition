@@ -2,6 +2,7 @@
 from pathlib import Path
 import sys
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -26,6 +27,9 @@ class CrossplayNetworkTests(unittest.TestCase):
         self.classes=self.enterContext(patch.object(network,'gateway_classes',return_value=(
             Mock(return_value=self.gateway),Mock(return_value=self.gateway))))
         self.enterContext(patch.object(network.sys,'platform','win32'))
+        self.history=Mock()
+        self.history.start.return_value=self.history
+        self.history_factory=self.enterContext(patch.object(network,'HistorySessionService',return_value=self.history))
 
     def host(self,edition=3):
         result=network.NetworkSession.host(self.fixture.roots[1],self.catalog,room=ROOM,
@@ -69,8 +73,22 @@ class CrossplayNetworkTests(unittest.TestCase):
             self.assertEqual(guest.binding.port,12345)
             self.assertIsNone(guest.binding.gold_auth_port)
             self.assertEqual(guest.binding.key,host.pair._guest.key)
+            self.history_factory.assert_called_with(self.fixture.roots[edition],
+                profile_id=self.history_factory.call_args.kwargs['profile_id'],name='Guest')
+            profile=self.history_factory.call_args.kwargs['profile_id']
+            self.assertEqual(str(uuid.UUID(profile)),profile)
+            self.assertNotEqual(uuid.UUID(profile).bytes,guest.binding.identity)
+            self.assertIs(guest.runtime.history,self.history)
             self.classes.return_value[1].assert_called_with(self.overlay,peer=ROOM.coordinator)
             guest.close();host.close()
+
+    def test_history_start_failure_closes_transport_and_prevents_game_attachment(self):
+        host=self.host();self.history.start.side_effect=RuntimeError('fixture history bootstrap failure')
+        with self.assertRaisesRegex(RuntimeError,'history bootstrap failure'):
+            network.NetworkSession.guest(self.fixture.roots[3],self.catalog,
+                invitation=host.invitation(),name='Guest',consent=1)
+        self.history.close.assert_called_once()
+        self.gateway.close.assert_called();self.overlay.close.assert_called()
 
     def test_wrong_guest_content_fails_before_a_second_overlay(self):
         pair=self.host();token=pair.invitation();self.open.reset_mock()

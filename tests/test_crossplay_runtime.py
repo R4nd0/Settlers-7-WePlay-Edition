@@ -15,15 +15,15 @@ class RuntimeTests(unittest.TestCase):
         return result
 
     def test_owned_game_exit_closes_all_services_without_terminating_game(self):
-        broker, gold, gateway = self.endpoint(), self.endpoint(), self.endpoint()
+        broker, gold, history, gateway = self.endpoint(), self.endpoint(), self.endpoint(), self.endpoint()
         game = Mock(); game.poll.return_value = None
-        reached = threading.Event(); broker.pump.side_effect = lambda *_: reached.set()
-        owner = SessionPump(broker=broker, gold=gold, gateway=gateway).attach(game)
+        reached = threading.Event(); history.pump.side_effect = lambda *_: reached.set()
+        owner = SessionPump(broker=broker, gold=gold, history=history, gateway=gateway).attach(game)
         self.addCleanup(owner.close); owner.start()
         self.assertTrue(reached.wait(2)); self.assertFalse(owner.closed)
         game.poll.return_value = 0; owner.thread.join(timeout=2)
         self.assertTrue(owner.closed); owner.check()
-        for service in (broker, gold, gateway): service.close.assert_called_once()
+        for service in (broker, gold, history, gateway): service.close.assert_called_once()
         game.terminate.assert_not_called(); game.kill.assert_not_called()
 
     def test_service_failure_closes_channel_and_reports_only_safe_error(self):
@@ -36,6 +36,16 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, '^crossplay_service_failed$'): owner.check()
         broker.close.assert_called_once(); gold.close.assert_called_once()
         game.terminate.assert_not_called(); game.kill.assert_not_called()
+
+    def test_history_service_failure_closes_gateway_without_terminating_the_game(self):
+        history,gateway=self.endpoint(),self.endpoint()
+        history.pump.side_effect=RuntimeError('fixture private local service failure')
+        game=Mock();game.poll.return_value=None
+        owner=SessionPump(history=history,gateway=gateway).attach(game)
+        self.addCleanup(owner.close);owner.start();owner.thread.join(timeout=2)
+        with self.assertRaisesRegex(RuntimeError,'^crossplay_service_failed$'):owner.check()
+        history.close.assert_called_once();gateway.close.assert_called_once()
+        game.terminate.assert_not_called();game.kill.assert_not_called()
 
     def test_explicit_cancel_closes_waiting_session_and_close_is_idempotent(self):
         broker, gold = self.endpoint(), self.endpoint()

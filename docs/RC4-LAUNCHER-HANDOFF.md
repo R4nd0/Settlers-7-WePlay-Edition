@@ -286,3 +286,40 @@ tests pass. An in-memory composition of the real current Gold archive compiles
 all 284 Lua members and changes only gameMenu; no game or deployment occurred.
 This adds no save serialization, roster or NEO hook. The actual native save and
 resume contract remains required before connecting this UI to the release.
+
+## History bootstrap lifetime
+
+The original History UPLAY startup also needs its ordinary local service and a
+fresh `LocalData/s7-local-runtime.ini`. `history_session.py` now owns that service
+for the mixed History guest before native launch. It reuses the normal .NET
+configuration server in loopback catalogue mode, validates readiness through the
+existing HTTP helper and writes the original configuration with a fresh explicit
+platform-profile UUID and chosen display name. This UUID, the opaque 16-byte
+channel identity and the original Storm principal are distinct identities; no
+unqualified UUID byte-order conversion or persistent solo-ID replacement occurs.
+
+The service has no fixed hours limit. The shared session pump monitors it and
+closes it with the room/game lifetime, including partial startup failure. A known
+previous runtime file is restored with its timestamps only if the owned runtime
+bytes remain unchanged; changed files are retained and reported. The native
+300-second startup freshness guard and original `LocalData/saves` path remain.
+
+Eight authored service lifecycle tests and 91 applicable service, handoff, host/
+guest, desktop, installer, standalone and configuration checks pass. A separate real
+test started the pinned .NET server in catalogue mode, validated its HTTP
+configuration, wrote the explicit profile and closed it, restoring prior runtime
+bytes/timestamps while retaining the persistent solo identifier. No game started
+in this check. Original History initialization, configuration consumption and the
+remaining native world/save/reload paths still need their real game evidence.
+
+A fresh 464-file real runtime package also passed inventory validation and its
+embedded-Python import of the History owner. Its minimal Gold inventory fixture
+copied 314 runtime/helper files and passed the trusted-worker inventory and
+compiled broker-only rule plan. This fixture is not a playable game; no game,
+VPN, firewall change or native-pin promotion occurred.
+
+The user additionally requested Steam History host / Gold guest. That direction
+has been handed to the Crossplay chat for a separate production authority,
+guest-claim, start, NEO and host-save/reload implementation. Current launcher and
+adapter role admission stays closed to it until that contract is implemented and
+qualified; the existing Gold-host direction remains required.
