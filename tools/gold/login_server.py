@@ -448,6 +448,10 @@ class GoldLoginAdapter:
                         kind = reader.text(64)
                         offset, count = reader.u32(), reader.u32()
                         reader.finish()
+                        kinds={b"S7Multiplayer":"multiplayer",b"S7Session":"session",
+                            b"S7SessionMM":"matchmaking",b"DynamicGathering":"dynamic",b"":"empty"}
+                        self.event("gathering_group_kind_"+kinds.get(kind,"other"))
+                        self.event("gathering_group_kind_type_"+('bytes' if type(kind) is bytes else 'other'))
                         # No predefined S7Multiplayer groups are installed in
                         # this disposable service. Registered S7Session objects
                         # are a different type and are not published here.

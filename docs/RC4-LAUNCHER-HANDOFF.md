@@ -229,3 +229,27 @@ All 85 relevant Gold protocol, service and host/guest ownership regressions pass
 The Windows interface pinning API was also exercised against four actual local
 interfaces with unbound, unconnected sockets. All requested socket options were
 consumed. This opens no connection and does not qualify actual tunnel carriage.
+
+## Menu routing primitives — not embedded
+
+The authored `mixed_menu.lua` kernel follows the qualified bootstrap-v2 query
+format, waits for the original profile/main-menu flow and preserves the host's
+actual map, three flags and template. The separate History preparation helper
+uses the exact original eight-argument call after its yieldable map load. It
+validates the loaded setup and never supplies a save token or native Ready value.
+Ten Lua 5.1 tests pass, including engine-job suspension and reentry. These helpers
+are not yet embedded or admitted by any release archive.
+
+The guest presentation still waits for `setup-bound`; `roster-bound` grants no
+lobby display. That native applied-setup barrier and the separate production
+NEO checkbox setter are pending. The laboratory NEO console prefix is not a
+production UI contract and must not be copied into a release.
+
+A separate laboratory browser-guard typo is corrected: Gold uses its original
+`h.idle` enum rather than indexing the unrelated local function `r`. All 19
+pair-driver tests pass, including generated guards for all three editions. The
+normal Gold discovery callback, action queue and main-state dispatcher are
+unchanged in the current release archive. Their original Lua 5.1 chain was
+separately exercised against authored pages. The native flags-7 control then
+observed the original notification and successful local host creation without
+any completion relay. No production relay was added.

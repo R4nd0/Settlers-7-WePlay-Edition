@@ -52,6 +52,26 @@ class PairDriverTests(unittest.TestCase):
             c.G, c.State, c.Pages, c.transition, c.actions, c.options, c.report)
         c.driver = self.driver
 
+    def test_generated_browser_guard_uses_each_original_enum_without_function_indexing(self):
+        sys.path.insert(0,str(ROOT/'tools/gold'))
+        import pair_interface
+        for edition in ('gold','steam','ubisoft'):
+            guard,anchor=pair_interface.browser_parts(edition)
+            module='f' if edition=='gold' else 'a'
+            enum='h' if edition=='gold' else 'r'
+            other='r' if edition=='gold' else 'h'
+            self.assertEqual(anchor,'function '+module+'.notifyDiscoveryEnded()')
+            self.lua.execute('local '+module+'={}; local '+enum+'={idle=4}; local '+other+'=function()end; '+'''
+local l={frame={},lastDiscoveryFinished=true,sessionListState=4}
+local state=2
+local e={Network={SessionGetDiscovery=function(lan)assert(lan==false);return {State=state}end}}
+'''+guard+'\nlocal check='+module+'''.weplayCanAutoCreate
+assert(check());l.sessionListState=3;assert(not check())
+l.sessionListState=4;l.lastDiscoveryFinished=false;assert(not check())
+l.lastDiscoveryFinished=true;state=1;assert(not check())
+state=2;assert(check());l.frame=nil;assert(not check())
+''')
+
     def test_native_jobs_suspend_and_resume_without_protected_c_boundary(self):
         self.c.yieldDiscovery = self.c.yieldLoad = self.c.yieldCreate = self.c.reenter = True
         resume = self.lua.eval('function(driver) local co=coroutine.create(driver.tick); '

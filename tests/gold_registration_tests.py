@@ -213,6 +213,9 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(self.adapter.events['gathering_rejected_method_17'],4)
         for reason in ('trailing','truncated','group_kind','group_count'):
             self.assertEqual(self.adapter.events['gathering_rejected_reason_'+reason],1)
+        self.assertEqual(self.adapter.events['gathering_group_kind_multiplayer'],2)
+        self.assertEqual(self.adapter.events['gathering_group_kind_session'],1)
+        self.assertEqual(self.adapter.events['gathering_group_kind_type_bytes'],3)
 
     def test_title_update_requires_current_owned_host_and_preserves_authority(self):
         server = self.register()

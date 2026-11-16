@@ -50,6 +50,14 @@ end
 '''
 
 
+def browser_parts(edition):
+    if edition not in PINS:raise ValueError('Unrecognized automation edition')
+    if edition=='gold':
+        return (BROWSER_GUARD.replace('function a.','function f.').replace('~=r.idle','~=h.idle'),
+                'function f.notifyDiscoveryEnded()')
+    return BROWSER_GUARD,'function a.notifyDiscoveryEnded()'
+
+
 def insert(raw, decode, anchor, fragment, after=False):
     source, body, offsets = decode(raw)
     if body.count(anchor) != 1:
@@ -78,11 +86,7 @@ def build(raw, edition, duration=180000, construction_probe=False, speed=1,
     decode = gold_decode if edition == 'gold' else history.decoded_view
     archive = Archive(raw)
     gold = 'true' if edition == 'gold' else 'false'
-    browser_guard = BROWSER_GUARD
-    browser_anchor = 'function a.notifyDiscoveryEnded()'
-    if edition == 'gold':
-        browser_guard = browser_guard.replace('function a.', 'function f.').replace('==r.idle', '==h.idle')
-        browser_anchor = 'function f.notifyDiscoveryEnded()'
+    browser_guard,browser_anchor=browser_parts(edition)
     driver = DRIVER.read_text(encoding='utf-8')
     options = ('local weplayPairOptions={gold='+gold+',host='+gold+',duration='+str(duration)
                +',map_token='+json.dumps(map_token)+',ai_players='+str(ai_players)+'}\n')
