@@ -322,6 +322,17 @@ resume contract remains required before connecting this UI to the release.
 
 ## History bootstrap lifetime
 
+`mixed_guest_lobby.lua` is a separate, unembedded presentation candidate for the
+proposed native `applied-flags` / `applied-template` queries. It requires explicit
+guest mode, `setup-bound`, the original guest role in slot 2 and stable canonical
+applied values across direct, yieldable reads. It calls only the original
+`toJoinLobby` callback with the applied positions/teams booleans, once; no
+bootstrap fallback, Ready or Start call exists. Five authored Lua 5.1 tests cover
+all eight flag combinations, missing/changed data, loss of authority and yielding
+callback/query reentry. Neither the main wrapper nor the builder includes this
+component. Its proposed native queries and both editions' nonzero-flag runtime
+controls must qualify before integration; these tests establish no game result.
+
 The public mixed UI candidate now opens the original History browser once through
 its action-manager callback and waits for its actual frame, completed discovery
 callback, idle enum and original `SessionGetDiscovery(false).State == 2`. Only
