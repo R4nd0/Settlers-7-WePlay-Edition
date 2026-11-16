@@ -267,3 +267,22 @@ unchanged in the current release archive. Their original Lua 5.1 chain was
 separately exercised against authored pages. The native flags-7 control then
 observed the original notification and successful local host creation without
 any completion relay. No production relay was added.
+
+## Remaining game UI integration
+
+The normal History archive already contains History-NEO5 hooks around network
+start, Ready, save and restore. Mixed NEO19 must use its own production contract;
+the existing History handshake cannot be represented as a mixed acknowledgement.
+The final composition must preserve ordinary History-only behavior while routing
+mixed lifecycle operations to their actual native implementation.
+
+Gold's original game menu exposes Save/Load only in solo mode; its browser has no
+usable multiplayer-resume route. The original multiplayer load/save dialogs do
+exist. A separate, unembedded `mixed_save_interface.py` composition adds only the
+original Save callback for an explicitly mixed running Gold host, checking the
+original world/session/role/slot and excluding disconnect, desync and shutdown.
+Solo retains Save and Load; a guest receives neither host action. Two Lua 5.1
+tests pass. An in-memory composition of the real current Gold archive compiles
+all 284 Lua members and changes only gameMenu; no game or deployment occurred.
+This adds no save serialization, roster or NEO hook. The actual native save and
+resume contract remains required before connecting this UI to the release.
