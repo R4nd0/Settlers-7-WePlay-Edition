@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Source migration of the shared feature-19 logistics components; production session lifecycle not yet connected",
+  "components": [
+    "Typed Gold and both original History world/task/transfer bindings",
+    "Shared FIFO ledger with explicit inherited priority intent",
+    "Gold original sort and inline comparator bridges",
+    "History original comparator bridge",
+    "All three original individual-priority entry bridges",
+    "Original replay clock and explicitly authorized x20 request",
+    "NEO2 snapshot and atomic restoration against live task identities"
+  ],
+  "feature_mask": 19,
+  "history_full_neo5_claimed": false,
+  "synthetic_verification": {
+    "native_layout_fifo_identity_and_restore_checks": 210,
+    "individual_intent_and_active_resume_checks": 94,
+    "gold_sort_and_inline_native_abi_fixtures": true,
+    "history_comparator_native_abi_fixture": true,
+    "all_three_priority_entry_native_abi_fixtures": true,
+    "compiled_original_guard_checks": {
+      "gold": {"binding": 23, "intent": 11, "native_clock": 8, "sort": 44, "inline": 11},
+      "ubisoft_history": {"binding": 23, "intent": 26, "native_clock": 8},
+      "steam_history_analysis": {"binding": 23, "intent": 26, "native_clock": 8}
+    },
+    "original_guards_emulated_only": true,
+    "original_game_methods_executed": false,
+    "game_hooks_installed": false
+  },
+  "production_limits": {
+    "components_connected_to_production_session_lifecycle": false,
+    "production_ui_neo_gate_bypassed": false,
+    "actual_production_neo_world_started": false,
+    "actual_production_shared_save_reload_qualified": false,
+    "reverse_steam_host_gold_guest_qualified": false,
+    "ordinary_mixed_launch_gate_opened": false,
+    "production_pins_promoted": false,
+    "final_installer_qualified": false
+  }
+}

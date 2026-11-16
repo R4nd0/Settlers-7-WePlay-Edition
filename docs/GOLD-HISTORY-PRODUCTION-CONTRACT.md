@@ -353,6 +353,22 @@ These pairs request no Ready action: the existing NEO UI gate remains intact.
 Actual Ready delivery, the production NEO lifecycle, complete setup/start and
 shared reload therefore remain unqualified. See the [Ready transport receipt](receipts/native-production-ready-transport-20261116.json).
 
+The shared logistics source components have also been migrated from the bounded
+world prototype: typed world/task bindings for all three editions, the FIFO and
+explicit-intent ledger, both Gold comparator paths, the History comparator,
+individual-priority entry bridges, replay clock and NEO2 snapshot/restoration.
+They represent feature mask `19` (FIFO, intent and priority commands), not the
+complete History NEO5 variant. Private passive diagnostics were removed; native
+method/layout guards remain. Synthetic verification covers 210 layout/ledger
+checks, 94 intent/active-resume checks and the comparator/priority-entry ABIs.
+Another 211 compiled guard checks use offline original-image emulation and never
+execute original game methods. Run `native/build_crossplay_logistics.ps1` with a
+fresh output directory under `work/`. These components are not yet called by the
+production session controller, provide no independent world/Ready authority and
+must not be stacked with History's NEO5 hooks. Session selection, shared start,
+live logistics and source-bound reload still require runtime integration and
+actual package tests. See the [shared logistics component receipt](receipts/native-shared-logistics-components-20261116.json).
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.
