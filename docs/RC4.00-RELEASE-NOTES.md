@@ -6,6 +6,13 @@
 > Die nachfolgende Matrix beschreibt den bisherigen Produktionsstand und wird
 > nach diesem Nachweis überarbeitet. Downloadziele sind für den Release reserviert.
 
+> **Verbindliches RC4.00-Ziel:** Ein Gold-Host spielt mit genau einem Gast aus
+> Steam History oder Ubisoft History auf Monhaim Valley mit zwei Menschen und
+> zwei nativen KIs. Der gemischte Speicher-/Ladepfad muss mit beiden Ausgaben aus
+> demselben final installierten Paket belegt sein. Ein Solo-Paket wird nicht als
+> RC4.00 veröffentlicht. Signierung und Veröffentlichung bleiben bis zu diesen
+> Nachweisen gesperrt. [Bindung an den finalen Installer](RC4-RELOAD-RELEASE-GATE.md).
+
 > **Aktualisierter Entwicklungsnachweis:** Ein neuer Host-Checkpoint und sein
 > zweiter gemischter Reload sind inzwischen im privaten, bewachten Native162-
 > Kandidaten gegen beide Original-History-Ausgaben nachgewiesen: Steam 1.824,
@@ -31,7 +38,7 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 · [Windows-ZIP](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc4.00/WePlay-RC4.00.zip)
 · [SHA256SUMS](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc4.00/SHA256SUMS)
 
-## Was in welcher Ausgabe enthalten ist
+## Älterer Paketkandidat — keine RC4.00-Freigabe
 
 | Funktion | Gold | Steam History | Ubisoft History |
 | --- | --- | --- | --- |
@@ -43,6 +50,27 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 | Eigene Burgen und Multiplayer-Speichern/Laden | Nein | Ja, Grenzen unten | Ja, Grenzen unten |
 | Optionale vollständige History-NEO5-Logistik | Nein | Ja | Ja |
 | Gold ↔ History Crossplay | Nicht ausgeliefert | Nicht ausgeliefert | Nicht ausgeliefert |
+
+## Vorgesehener RC4.00-Umfang nach Paketnachweis
+
+| Gemischte Sitzung | Vorgesehener Umfang |
+| --- | --- |
+| Host / Gast | Gold-Host; ein originaler Steam- oder Ubisoft-History-Gast |
+| Karte und Spieler | Monhaim Valley; zwei Menschen und zwei native KIs |
+| Speichern / erneutes Laden | Neuer Host-Save, Neustart und gemeinsamer Reload mit beiden History-Ausgaben |
+| Logistik | Optionale gemischte FIFO-/Einzelprioritäten-Funktionen, Maske 19; gespeicherter Zustand bleibt erhalten |
+| Freigabe | Erst nach Original-CRC-Vergleich, fortgesetzter Logistik und regulärem Beenden im finalen Paket |
+
+Diese Zielmatrix ist noch kein bestandener Pakettest. Vollständiges Gold-NEO5,
+beliebige Karten/Saves, vier menschliche Spieler und neue Dauerzusagen für
+getrennte PCs gehören nicht zu diesem begrenzten Nachweis.
+
+Release-Bilder und Funktionskarten müssen diesen geprüften Umfang zweisprachig
+wiedergeben: **rc4.00**, **Gold + Steam History + Ubisoft History** und nach dem
+Paketnachweis **gemischtes Speichern und Laden / mixed save and reload**.
+Der alte Solo-Entwurf ist kein Release-Asset. Keine Darstellung als vollständiges
+Gold-NEO5 oder pauschal desync-freier Multiplayer; endgültige Bilder und ihre
+Prüfsummen werden erst zusammen mit dem qualifizierten Paket eingefroren.
 
 ## Multiplayer
 
@@ -101,7 +129,9 @@ für jede Produktionskette und wird nicht als neuer Gold-Logistikfix beworben.
 steht in History als Option in der Kartenkonfiguration zur Verfügung, zunächst
 ausgeschaltet. Der Host wählt sie vor Spielbeginn; ein Kartenwechsel setzt sie
 zurück. Nach dem Start bleibt die Wahl fest und ein kompatibler Save stellt sie
-wieder her. Gold zeigt diese Option im normalen RC4.00-Spiel nicht an.
+wieder her. Der ältere Solo-Kandidat zeigt in Gold keine NEO-Option. Der
+RC4.00-Zielpfad für gemischte Sitzungen verwendet die oben getrennt beschriebene
+FIFO-/Einzelprioritäten-Maske 19; deren Produktionsbedienung ist noch zu prüfen.
 
 NEO verwendet für unterstützte Lager-Transportaufträge das Erstellungsalter
 (FIFO). **Gruppenprioritäten** sind deaktiviert; ausdrückliche **Einzelprioritäten
@@ -256,6 +286,12 @@ one Windows installer. Each uses its own verified copy and isolated profile,
 without requiring Steam or Ubisoft Connect at runtime. Supply your own supported
 game files. The current production candidate still exposes Gold as single-player;
 RC4.00 publication waits for integration of the qualified mixed-reload path.
+That older solo candidate will not ship as RC4.00. The release requires a Gold
+host and one original Steam or Ubisoft History guest, two humans and two native
+AI players on Monhaim Valley, with actual mixed save/reload proof from both
+History editions in the same final installed package. Mixed FIFO/individual
+priorities use feature mask 19, separate from full History NEO5. Final bilingual
+feature images must match that qualified scope; the earlier solo draft is obsolete.
 
 History includes **Local multiplayer over LAN**, **Private multiplayer via
 integrated EasyTier VPN**, and a **Public lobby server for finding games, with
@@ -269,7 +305,9 @@ stalled production** and **Optional NEO Logistics: FIFO job processing with
 transport priorities removed**. NEO starts off and is selected by the host before
 the match. Group priorities are removed; explicit individual player/AI priorities
 remain effective and are saved. Full History NEO5 includes road-distance handoffs
-and the workshop pickup correction. Gold does not include NEO in RC4.00.
+and the workshop pickup correction. The older Gold solo candidate has no NEO
+option. The intended mixed RC4.00 path uses the separately qualified FIFO and
+individual-priority mask 19; its production UI still requires verification.
 
 All editions include **Removed non-functional interface elements**, **Faster
 startup by skipping trailers and the main-menu map**, **Modernized graphics and
@@ -306,7 +344,8 @@ same host uses Multiplayer → Load game after restart; players rejoin original
 slots, choose Ready and wait for native transfer. Compatible NEO state restores
 the selected policy and individual intents. Missing metadata, edition conversion
 and arbitrary loose-save migration are unsupported. Keep backups and matching
-Map Forge templates. Mixed Gold/History resume is unavailable.
+Map Forge templates. Mixed Gold/History resume remains unavailable in released
+packages until the required final RC4.00 package evidence exists.
 
 ## Nachweise und weiterführende Hilfe
 

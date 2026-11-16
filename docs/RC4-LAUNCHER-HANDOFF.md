@@ -219,11 +219,11 @@ Registration diagnostics now expose fixed reason counters through the owned Gold
 service summary. Schema, principal, matchmaking variant, initial identifier,
 capacity and prior-owner failures can be distinguished without retaining request
 data or loosening admission. All 27 registration, gathering and single-service
-tests pass; a small valid principal is explicitly covered. Follow-up native UI
-markers showed that the current failure occurs during browser discovery, before
-SessionCreate. The shared RPC rejection counter therefore cannot establish a
-failed creation or a particular host-option cause. Fixed method/reason counters
-now distinguish the catalogue kind, offset, count and argument-shape checks.
+tests pass; a small valid principal is explicitly covered. The earlier apparent
+browser stall was later traced to the laboratory enum typo described below.
+The startup catalogue-kind rejection was independent of the successful local
+SessionCreate. Fixed method/reason counters distinguish the catalogue kind,
+offset, count and argument-shape checks without weakening those checks.
 All 85 relevant Gold protocol, service and host/guest ownership regressions pass.
 
 The Windows interface pinning API was also exercised against four actual local
@@ -237,8 +237,22 @@ format, waits for the original profile/main-menu flow and preserves the host's
 actual map, three flags and template. The separate History preparation helper
 uses the exact original eight-argument call after its yieldable map load. It
 validates the loaded setup and never supplies a save token or native Ready value.
-Ten Lua 5.1 tests pass, including engine-job suspension and reentry. These helpers
-are not yet embedded or admitted by any release archive.
+Fourteen Lua 5.1 tests pass, including engine-job suspension and reentry. These
+helpers are not embedded or admitted by any release archive.
+
+The fingerprinted `mixed_interface.py` candidate composes concrete main-menu
+wrappers from the current normal Gold and History archives. Gold exports its
+original browser creation callback, retaining the actual selected LAN filter
+and waiting for the original consumed discovery result. Per-menu lifetime
+routing ignores ordinary launches and the wrong edition role. History uses
+the exact original map-load/session-create helper; guest presentation is still
+an inert action until applied settings have their own native contract.
+
+The candidate was built twice in memory with identical results. All 284 Lua
+members in each archive compile under Lua 5.1. Gold changes only mainState and
+sessionList; History changes only mainState. Every other archive member stays
+byte-identical. No candidate archive was deployed, no current pin was changed,
+the installer does not call this builder, and no game was started for this check.
 
 The guest presentation still waits for `setup-bound`; `roster-bound` grants no
 lobby display. That native applied-setup barrier and the separate production
