@@ -15,6 +15,7 @@
 #include <string>
 #ifdef S7_PLATFORM_INDEPENDENT
 #include "crossplay_production_context.h"
+#include "crossplay_production_runtime.h"
 #endif
 #if defined(S7_GOLD_ACCOUNT_LOGIN) || defined(S7_PLATFORM_INDEPENDENT)
 #define S7_GOLD_NATIVE_SESSION_PROVIDER

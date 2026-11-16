@@ -89,7 +89,8 @@ int main(){
     std::string metadata="stale";uint32_t flags=99;
     Check(!AppliedGuestChoices(flags,metadata)&&!flags&&metadata.empty());
     Check(!GuestPresentationBound());
-    for(const char* command:{"capabilities","stage:0","stage:1","network-state","selection","start-event","begin:1","save-snapshot:1","restore-network","end"}){
+    Check(!GoldWorldOwnsStartedSession(0) && !GoldWorldOwnsStartedSession(0x12345));
+    for(const char* command:{"capabilities","stage:0","stage:1","network-state","selection","start-event","begin:0","begin:1","ready","status","save-snapshot:1","restore-network","end"}){
         metadata="stale";Check(!NeoCommand(command,metadata)&&metadata.empty());
     }
     for(const char* command:{"applied-flags","applied-template"}){

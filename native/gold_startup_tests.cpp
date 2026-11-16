@@ -443,6 +443,44 @@ bool LocalPatchGuards() {
     return !memcmp(reinterpret_cast<void*>(image+0x54943f),caller,sizeof(caller))
         && *reinterpret_cast<uintptr_t*>(image+0xb247dc)==image+0x1470;
 }
+bool PlayingRowsViews(){
+    std::array<uintptr_t,0x1ac/4> preparation{};
+    std::vector<uintptr_t> first(25*0x5c4/4),second(25*0x5c4/4);
+    uintptr_t first_ref=reinterpret_cast<uintptr_t>(first.data()),second_ref=reinterpret_cast<uintptr_t>(second.data());
+    const auto setup=reinterpret_cast<uintptr_t>(preparation.data());
+    auto& mode=*reinterpret_cast<unsigned char*>(setup+4);
+    preparation[0]=image+0xb51af0;
+    preparation[0xa4/4]=reinterpret_cast<uintptr_t>(&first_ref);
+    preparation[0x178/4]=reinterpret_cast<uintptr_t>(&second_ref);
+    GoldNetworkRowsView view;
+    mode=0;
+    if(!NetworkPlayingRows(setup,true,view) || view.rows!=first_ref || view.mode!=0)return false;
+    mode=1;
+    if(!NetworkPlayingRows(setup,true,view) || view.rows!=second_ref || view.mode!=1)return false;
+    // A bad inactive buffer cannot replace the original active one. Conversely,
+    // an invalid active buffer must fail, even when the other buffer is readable.
+    preparation[0xa4/4]=0;
+    if(!NetworkPlayingRows(setup,true,view) || view.rows!=second_ref)return false;
+    if(NetworkPlayingRows(setup,false,view) || view.rows)return false;
+    mode=0;
+    if(NetworkPlayingRows(setup,true,view) || view.rows)return false;
+    preparation[0xa4/4]=reinterpret_cast<uintptr_t>(&first_ref);
+    second_ref=0;mode=1;
+    if(NetworkPlayingRows(setup,true,view) || view.rows)return false;
+    if(!NetworkPlayingRows(setup,false,view) || view.rows!=first_ref)return false;
+    second_ref=reinterpret_cast<uintptr_t>(second.data());
+    mode=2;
+    if(NetworkPlayingRows(setup,true,view) || view.rows)return false;
+    mode=1;++preparation[0];
+    if(NetworkPlayingRows(setup,true,view) || view.rows)return false;
+    // The separately qualified legacy path retains its original frame-zero view.
+    if(!NetworkPlayingRows(setup,false,view) || view.rows!=first_ref)return false;
+    --preparation[0];first_ref=1;mode=0;
+    if(NetworkPlayingRows(setup,true,view) || view.rows)return false;
+    if(NetworkPlayingRows(0,true,view) || NetworkPlayingRows(1,true,view) || view.rows)return false;
+    std::puts("Gold active playing-row views and invalid active/inactive/mode/type/ref contexts passed; no Ready result supplied.");
+    return true;
+}
 #endif
 }
 #include "gold_visual_tests.inc"
@@ -524,7 +562,7 @@ int main(int argc,char** argv) {
     for (unsigned int mode=19;mode<=21;++mode) if (!RejectedChild(mode)) return 80+static_cast<int>(mode);
 #endif
 #ifdef S7_GOLD_LOCAL_SIMULATION
-    if (!LocalSimulationAbi() || !LocalPatchGuards()) return 33;
+    if (!LocalSimulationAbi() || !LocalPatchGuards() || !PlayingRowsViews()) return 33;
     if (!RejectedChild(22)) return 102;
 #ifdef S7_GOLD_ACCOUNT_LOGIN
     if (!GoldAccountLocalScene()) return 37;

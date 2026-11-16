@@ -13,6 +13,29 @@ struct GoldNetworkQualification {
     bool departed = false;
 };
 GoldNetworkQualification network_qualification{};
+struct GoldNetworkRowsView {
+    uintptr_t setup=0,reference=0,rows=0;
+    unsigned char mode=0;
+};
+// Select a bounded original preparation view only. The caller independently
+// authorizes mixed-world ownership before requesting the active-buffer view.
+bool NetworkPlayingRows(uintptr_t setup,bool mixed,GoldNetworkRowsView& result){
+    result={};
+    if(!ValidRange(reinterpret_cast<const void*>(setup),0x1ac))return false;
+    unsigned char mode=0;uintptr_t offset=0;
+    if(mixed){
+        if(*reinterpret_cast<const uintptr_t*>(setup)!=image+0xb51af0)return false;
+        mode=*reinterpret_cast<const unsigned char*>(setup+4);if(mode>1)return false;
+        // Playing data uses the selected buffer. The preparation writers read
+        // its opposite buffer while assembling the next game configuration.
+        offset=mode*0xd4;
+    }
+    const auto reference=*reinterpret_cast<const uintptr_t*>(setup+offset+0xa4);
+    if(!ValidRange(reinterpret_cast<const void*>(reference),sizeof(uintptr_t)))return false;
+    const auto rows=*reinterpret_cast<const uintptr_t*>(reference);
+    if(!ValidRange(reinterpret_cast<const void*>(rows),25*0x5c4))return false;
+    result={setup,reference,rows,mode};return true;
+}
 bool NetworkLocalReadyAllowed() {
 #ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
     if (!local_multiplayer_enabled || GetCurrentThreadId() != owner_thread.load()
@@ -33,12 +56,17 @@ bool NetworkLocalReadyAllowed() {
     const auto local = *reinterpret_cast<unsigned int*>(session + 0xc);
     if (local != 1 && local != 2) return false;
     const uintptr_t setup = *reinterpret_cast<uintptr_t*>(image + 0xcf834c);
-    if (!ValidRange(reinterpret_cast<void*>(setup), 0x1ac)) return false;
-    // The independently observed playing-session roster is frame zero.
-    const uintptr_t ref = *reinterpret_cast<uintptr_t*>(setup + 0xa4);
-    if (!ValidRange(reinterpret_cast<void*>(ref), sizeof(uintptr_t))) return false;
-    const uintptr_t rows = *reinterpret_cast<uintptr_t*>(ref);
-    if (!ValidRange(reinterpret_cast<void*>(rows), 25 * 0x5c4)) return false;
+    bool mixed=false;
+#ifdef S7_PLATFORM_INDEPENDENT
+    const auto* launch=CrossplayProduction::CurrentLaunch();
+    if(launch && launch->mixed){
+        if(!CrossplayProduction::GoldWorldOwnsStartedSession(session))return false;
+        mixed=true;
+    }
+#endif
+    GoldNetworkRowsView view;
+    if(!NetworkPlayingRows(setup,mixed,view))return false;
+    const uintptr_t rows=view.rows;
     unsigned int humans = 0, computers = 0, indices = 0, own = 0, own_row = 0, peer_row = 0;
     for (unsigned int row = 1; row <= 24; ++row) {
         const uintptr_t player = rows + row * 0x5c4;
@@ -56,6 +84,15 @@ bool NetworkLocalReadyAllowed() {
         } else peer_row = row;
     }
     if (indices != 6 || own != 1 || humans + computers != 2) return false;
+#ifdef S7_PLATFORM_INDEPENDENT
+    if(mixed){
+        GoldNetworkRowsView after;
+        if(*reinterpret_cast<const uintptr_t*>(image+0xcf834c)!=setup
+            || !CrossplayProduction::GoldWorldOwnsStartedSession(session)
+            || !NetworkPlayingRows(setup,true,after) || after.setup!=view.setup || after.reference!=view.reference
+            || after.rows!=view.rows || after.mode!=view.mode)return false;
+    }
+#endif
     if (!local_peer_leave_enabled) return humans == 2;
     const uintptr_t world = *reinterpret_cast<uintptr_t*>(image + 0xcf83f0);
     if (!ValidRange(reinterpret_cast<void*>(world), 0x30)

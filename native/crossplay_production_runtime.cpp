@@ -27,6 +27,12 @@
 #include "crossplay_neutral_setup_codec.h"
 #include "crossplay_setup_root_reader.h"
 #include "crossplay_setup_root_stream.h"
+#include "crossplay_shared_engine_mode.h"
+#include "crossplay_fresh_start_barrier.h"
+#include "crossplay_turn_batch_codec.h"
+#include "crossplay_desync_turn_codec.h"
+#include "crossplay_gold_building_math.h"
+#include "crossplay_gold_resource_math.h"
 #include <bcrypt.h>
 #include <deque>
 namespace CrossplayProduction {
@@ -39,6 +45,7 @@ void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t targ
 void __stdcall CaptureGoldLocal(void* manager,const void* event,uint32_t mode);
 bool __stdcall CaptureGoldStart(void* manager,const void* event);
 bool NeoWorldReady();
+bool WorldMathReady();
 void CALLBACK Tick(HWND,UINT,UINT_PTR,DWORD);
 struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}};
 bool RoundTrip(Crossplay::Edition edition,const void* event){
@@ -89,8 +96,8 @@ struct Runtime {
     std::deque<std::vector<unsigned char>> neo_selections;
     ULONGLONG neo_selection_started=0;
     // Full world agreement and original queue ownership are separate from the
-    // fresh selection frame. Only the later native world controller may bind
-    // this agreement and record its original start delivery.
+    // fresh selection frame. The native world controller binds this agreement
+    // separately and records only its actual original start delivery.
     CrossplayNeo::Agreement neo_world_agreement;
     bool neo_world_queued=false;
     uintptr_t neo_world_session=0;
@@ -100,6 +107,7 @@ struct Runtime {
     bool Owned()const{return owner==GetCurrentThreadId() && CurrentLaunch() && CurrentLaunch()->mixed;}
 #include "crossplay_production_start_setup.inc"
 #include "crossplay_production_setup_root.inc"
+#include "crossplay_production_world.inc"
     void Capture(void* source,const unsigned char* event){
         if(!Owned() || lobby_captured || phase==Phase::Closed || phase==Phase::Failed)return;
         CrossplayNative::LobbySnapshot lobby;CrossplayCastleSetup::Value castle;
@@ -226,7 +234,9 @@ struct Runtime {
     CrossplayGoldChoices::Observation NeoContext(Crossplay::Digest& digest,bool& guest_ready){
         using Observation=CrossplayGoldChoices::Observation;using namespace CrossplayNativeCodec;
         digest={};guest_ready=false;
-        if(!Owned() || phase!=Phase::RosterBound || !NeoModules() || bootstrap.saved
+        // Poll validates a preparation session. A UI query after native start
+        // must never retire the live world by polling its former lobby.
+        if(!Owned() || phase!=Phase::RosterBound || start_started || neo_world_queued || !NeoModules() || bootstrap.saved
             || !CrossplayBootstrap::Valid(bootstrap) || !admission.Poll())return Observation::Invalid;
         if(launch.host?!configuration_sent:!configuration_applied)return Observation::Pending;
         CrossplayBootstrap::Context first,second;std::vector<unsigned char> wire,canonical;
@@ -258,7 +268,7 @@ struct Runtime {
         return okay && CrossplayNeoSelection::Nonzero(digest)?Observation::Captured:Observation::Invalid;
     }
     bool NeoSelectionCurrent(std::string& output){
-        if(!neo_staged || neo_dirty || !CrossplayNeoSelection::Valid(neo_selection))return false;
+        if(start_started || neo_world_queued || !neo_staged || neo_dirty || !CrossplayNeoSelection::Valid(neo_selection))return false;
         Crossplay::Digest context{};bool guest_ready=false;
         if(NeoContext(context,guest_ready)!=CrossplayGoldChoices::Observation::Captured
             || context!=neo_selection.configuration || neo_selection.content!=launch.channel.content)return false;
@@ -290,8 +300,9 @@ struct Runtime {
     }
     void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
+        if(OutgoingWorld(manager,event,mode,target))return;
         if(Owned() && phase==Phase::RosterBound && launch.host){GoldNeutralTeam(manager,event,mode,target);return;}
-        if(!Owned() || launch.host || phase!=Phase::RosterBound || !configuration_applied
+        if(!Owned() || launch.host || phase!=Phase::RosterBound || start_started || neo_world_queued || !configuration_applied
             || (mode!=2 && (mode!=1 || target!=admission.PeerLocalConnection())))return;
         const auto pin=ReadyDetail::Pin(launch.channel.edition);
         if(!Detail::Readable(event,4) || *static_cast<const uintptr_t*>(event)!=pin.event_vt)return;
@@ -310,6 +321,7 @@ struct Runtime {
         const auto peer=*peer_pointer;
         const auto ids=LocalConnections();std::vector<unsigned char> frame,wire;
         for(unsigned i=0;i<8 && channel.Receive(frame);++i){
+            bool recognized=false;if(!WorldFrame(frame,recognized))return false;if(recognized)continue;
             if(CheckpointFrame(frame)){
                 if((setup_roots_verified[0] && setup_roots_verified[1]) || setup_checkpoint_frames.size()>=4
                     || frame.size()!=CrossplaySetupCheckpoint::FrameSize)return false;
@@ -339,7 +351,8 @@ struct Runtime {
                 ready_received=value.revision;ready_states.push_back(value);
             }
         }
-        if(start_started)return PumpStartFrames() && PumpSetupRoot();
+        if(neo_world_queued)return PumpWorldEvents();
+        if(start_started)return PumpStartFrames() && PumpSetupRoot() && PumpWorldStart() && PumpWorldEvents();
         if(!PumpNeoSelection())return false;
         const auto now=GetTickCount64();
         if(launch.host){
@@ -370,7 +383,7 @@ struct Runtime {
                 ready_states.pop_front();projection_started=now;
             }
         }
-        return PumpStartFrames() && PumpSetupRoot();
+        return PumpStartFrames() && PumpSetupRoot() && PumpWorldStart() && PumpWorldEvents();
     }
     void ConfigurationConsumed(void* cache,const unsigned char* event){
         if(Owned() && phase==Phase::RosterBound && StartConfigurationConsumed(cache,event))return;
@@ -436,6 +449,7 @@ struct Runtime {
         if(!channel.Poll() || (outgoing_installed && OutgoingObserver::failed)
             || (gold_local_installed && CrossplayNativeObserver::GoldLocalObserver::Current().failed)
             || (start_hold_installed && CrossplayNativeStart::GoldStartHold::Current().failed)){Fail();return;}
+        if(neo_world_queued){if(!Readiness())Fail();return;}
         if(phase==Phase::Connecting){
             if(channel.GetState()!=Crossplay::State::Connected)return;
             if(!Bootstrap()){Fail();return;}
@@ -502,6 +516,12 @@ bool NeoWorldReady(){
         && CrossplayNativeCodec::LoadProgressDetail::World(current->original,current->owner,current->neo_world_session,
             current->admission.OwnConnection(),current->admission.PeerLocalConnection());
 }
+bool WorldMathReady(){
+    return current && current->Owned() && current->phase==Phase::RosterBound
+        && current->launch.channel.edition==Crossplay::Edition::Gold && current->world_bound
+        && current->setup_roots_verified[0] && current->setup_roots_verified[1]
+        && current->channel.GetState()==Crossplay::State::Connected;
+}
 void CALLBACK Tick(HWND,UINT,UINT_PTR id,DWORD){if(current && current->timer==id)PumpRuntime();}
 }
 bool PrepareRuntime(){
@@ -562,7 +582,7 @@ bool BootstrapChoices(uint32_t& flags,std::string& map_template){
 bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     flags=0;map_template.clear();
-    if(!current || !current->Owned() || current->launch.host || !current->configuration_applied
+    if(!current || !current->Owned() || current->launch.host || current->start_started || current->neo_world_queued || !current->configuration_applied
         || current->phase!=Phase::RosterBound || !CrossplayBootstrap::Valid(current->bootstrap)
         || !current->guest_claim.Applied(current->original,current->admission))return false;
     CrossplayHistoryChoices::Value observed;
@@ -575,6 +595,11 @@ bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
 bool GuestPresentationBound(){
     uint32_t flags=0;std::string map_template;
     return AppliedGuestChoices(flags,map_template);
+}
+bool GoldWorldOwnsStartedSession(uintptr_t session){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+    return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
+        && session && current->neo_world_session==session && current->WorldNeoScope();
 }
 bool NeoCommand(const std::string& command,std::string& output){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output.clear();
@@ -593,9 +618,12 @@ bool NeoCommand(const std::string& command,std::string& output){
         if(!current->neo_staged || current->neo_choice!=choice){current->neo_dirty=true;current->neo_selection_started=0;}
         current->neo_staged=true;current->neo_choice=choice;output="1";return true;
     }
-    if(command=="network-state" || command=="selection")return current->NeoSelectionCurrent(output);
-    // World/start and selected-save commands remain unavailable until their
-    // original native delivery/source-bound lifecycle has been connected.
-    return false;
+    if(command=="network-state" || command=="selection"){
+        if(current->start_started || current->neo_world_queued)return current->WorldNeoSelection(output);
+        return current->NeoSelectionCurrent(output);
+    }
+    // Selected-save and other lifecycle commands remain unavailable. World
+    // acknowledgements describe facts; the original engine event owns start.
+    return current->WorldNeoCommand(command,output);
 }
 }

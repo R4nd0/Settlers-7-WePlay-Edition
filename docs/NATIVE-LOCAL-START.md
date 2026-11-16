@@ -1,5 +1,16 @@
 # Experimental native local start, 2026-10-26
 
+Normal-adapter port update (2026-11-16): original Gold-host/original Steam-History
+and Gold-host/original Ubisoft-History fresh worlds now advanced on both clients
+through at least 768 and 640 native turns respectively under DXVK 3.1.1. Original
+EOT delivery and original x20 clock consumption were observed; all four processes
+exited with code 0 and strict restoration. Fresh generation 2 checkpoints retain the 10 s
+lifetime and original Ready results are never substituted. This diagnostic-entry
+result does not qualify active FIFO goods, mixed save/reload, other maps/AI,
+reverse roles, remote transport or final installed packages. See the
+[bounded original-world receipt](receipts/native-production-world-turns-20261116.json)
+and the [production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md).
+
 Gold crossplay update (2026-11-15): an experimental scoped pathfinding/movement
 precision port passed bounded local DXVK worlds against both original History
 editions, with 3334 and 3137 common original checksums and no mismatches. Ordinary

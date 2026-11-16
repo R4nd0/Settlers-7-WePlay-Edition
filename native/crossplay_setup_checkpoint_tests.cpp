@@ -96,6 +96,39 @@ int main(){
         Pair fresh;fresh.hn.fill(55);fresh.gn.fill(66);fresh.Bind();fresh.Offer();
         Check(!fresh.h.Receive(fresh.hs,105,old.ack,fresh.empty));
         fresh.Ack();Check(!fresh.g.Receive(fresh.gs,107,old.confirm,fresh.empty));}
+    // A completed root comparison cannot lend its expired lease to world
+    // delivery. A separately challenged generation gets its own full interval.
+    {Pair old;old.Bind();old.Offer();old.Ack();old.Confirm();old.Finish();
+        Check(!old.h.Confirmed(old.hs,10101));Check(!old.g.Confirmed(old.gs,10101));
+        Pair fresh;fresh.hn.fill(55);fresh.gn.fill(66);
+        Check(fresh.h.Bind(fresh.hp,true,2,fresh.hs,fresh.hn,10101));
+        Check(fresh.g.Bind(fresh.gp,false,2,fresh.gs,fresh.gn,10101));
+        Check(fresh.h.Offer(fresh.hs,10102,fresh.offer));Check(fresh.h.Sent(fresh.hs,10103));
+        Check(fresh.g.Receive(fresh.gs,10104,fresh.offer,fresh.ack));Check(fresh.g.Sent(fresh.gs,10105));
+        Check(fresh.h.Receive(fresh.hs,10106,fresh.ack,fresh.confirm));Check(fresh.h.Sent(fresh.hs,10107));
+        Check(fresh.g.Receive(fresh.gs,10108,fresh.confirm,fresh.empty));Check(fresh.empty.empty());
+        Check(fresh.h.Confirmed(fresh.hs,20101));Check(fresh.g.Confirmed(fresh.gs,20101));
+        Check(!fresh.h.Confirmed(fresh.hs,20102));Check(!fresh.g.Confirmed(fresh.gs,20102));
+        Check(!old.h.Bind(old.hp,true,2,old.hs,fresh.hn,10109));}
+    // Generation routing and fresh nonces independently reject old records.
+    for(unsigned stage=0;stage<3;++stage)for(unsigned forged_revision=0;forged_revision<2;++forged_revision){
+        Pair old;old.Bind();old.Offer();old.Ack();old.Confirm();old.Finish();
+        Pair fresh;fresh.hn.fill(55);fresh.gn.fill(66);
+        Check(fresh.h.Bind(fresh.hp,true,2,fresh.hs,fresh.hn,10101));
+        Check(fresh.g.Bind(fresh.gp,false,2,fresh.gs,fresh.gn,10101));
+        Check(fresh.h.Offer(fresh.hs,10102,fresh.offer));Check(fresh.h.Sent(fresh.hs,10103));
+        if(stage==2){Check(fresh.g.Receive(fresh.gs,10104,fresh.offer,fresh.ack));Check(fresh.g.Sent(fresh.gs,10105));}
+        auto replay=stage==0?old.offer:stage==1?old.ack:old.confirm;
+        if(forged_revision)CrossplayChat::Put(replay.data()+44,2);
+        auto& receiver=stage==1?fresh.h:fresh.g;const auto& snapshot=stage==1?fresh.hs:fresh.gs;
+        // An offer with a substituted revision has no prior peer nonce to
+        // compare yet; its later echo must still fail at the fresh host.
+        const bool accepted=receiver.Receive(snapshot,10106,replay,fresh.empty);
+        if(stage==0 && forged_revision){
+            Check(accepted);Check(fresh.g.Sent(fresh.gs,10107));
+            Check(!fresh.h.Receive(fresh.hs,10108,fresh.empty,fresh.ack));
+        }else Check(!accepted && receiver.GetPhase()==C::Phase::Failed);
+    }
     {Pair p;p.gn=p.hn;p.Bind();p.Offer();Check(!p.g.Receive(p.gs,103,p.offer,p.empty));}
     // The native reader must reject an unbound participant without touching
     // an assumed game's absolute memory. Production adapters do not include it.

@@ -1,0 +1,106 @@
+{
+  "format": "native-production-world-turns-v1",
+  "date": "2026-11-16",
+  "experimental_only": true,
+  "scope": "Original Gold host and each original History guest, fresh two-human Monhaim world, standalone local loopback under DXVK3.1.1.",
+  "full_actual_content_catalog_sha256": "01631d52a1e9c44be0a94adbb92518162ddf994891fba5f7fd21734bc1c8bd62",
+  "catalog_and_adapter_approval_promoted": false,
+  "fresh_original_checkpoint_generation": 2,
+  "native_checkpoint_lifetime_ms_unchanged": 10000,
+  "gold_playing_buffer_selected_only_under_actual_mixed_world_ownership": true,
+  "original_ready_false_and_true_results_forwarded_unchanged": true,
+  "owned_preparation_observers_retired_before_original_start": true,
+  "original_checksum_and_turn_scalars_modified": false,
+  "per_checksum_comparison_count_recorded": false,
+  "pairs": [
+    {
+      "history_edition": "Steam History",
+      "original_gold_host": true,
+      "loopback_only": true,
+      "clients": [
+        {
+          "edition": 1,
+          "native_clock_observed_at_least": 768,
+          "original_eot_batches_sent_at_least": 769,
+          "original_eot_batches_originally_enqueued_at_least": 769,
+          "x20_original_setter_and_clock_consumption_observed": true,
+          "neo_selected_and_native_ledger_started": true,
+          "fifo_comparisons_observed": 0,
+          "native_desync_events_observed": 0,
+          "native_started_session_and_map_first_frame_observed": true,
+          "normal_exit0_and_strict_restoration": true,
+          "channel_close_failure_retained": false
+        },
+        {
+          "edition": 3,
+          "native_clock_observed_at_least": 768,
+          "original_eot_batches_sent_at_least": 769,
+          "original_eot_batches_originally_enqueued_at_least": 769,
+          "x20_original_setter_and_clock_consumption_observed": true,
+          "neo_selected_and_native_ledger_started": true,
+          "fifo_comparisons_observed": 0,
+          "native_desync_events_observed": 0,
+          "native_started_session_and_map_first_frame_observed": true,
+          "normal_exit0_and_strict_restoration": true,
+          "channel_close_failure_retained": true
+        }
+      ],
+      "broker_relayed_frames": 1626,
+      "broker_rejections_retained": 1
+    },
+    {
+      "history_edition": "Ubisoft History",
+      "original_gold_host": true,
+      "loopback_only": true,
+      "clients": [
+        {
+          "edition": 1,
+          "native_clock_observed_at_least": 640,
+          "original_eot_batches_sent_at_least": 641,
+          "original_eot_batches_originally_enqueued_at_least": 641,
+          "x20_original_setter_and_clock_consumption_observed": true,
+          "neo_selected_and_native_ledger_started": true,
+          "fifo_comparisons_observed": 0,
+          "native_desync_events_observed": 0,
+          "native_started_session_and_map_first_frame_observed": true,
+          "normal_exit0_and_strict_restoration": true,
+          "channel_close_failure_retained": false
+        },
+        {
+          "edition": 2,
+          "native_clock_observed_at_least": 640,
+          "original_eot_batches_sent_at_least": 641,
+          "original_eot_batches_originally_enqueued_at_least": 641,
+          "x20_original_setter_and_clock_consumption_observed": true,
+          "neo_selected_and_native_ledger_started": true,
+          "fifo_comparisons_observed": 0,
+          "native_desync_events_observed": 0,
+          "native_started_session_and_map_first_frame_observed": true,
+          "normal_exit0_and_strict_restoration": true,
+          "channel_close_failure_retained": true
+        }
+      ],
+      "broker_relayed_frames": 1522,
+      "broker_rejections_retained": 1
+    }
+  ],
+  "bounded_verification": {
+    "checkpoint_protocol_checks": 6067,
+    "production_ui_bridge_checks": 138,
+    "legacy_two_human_ready_session_roster_denials": 40,
+    "legacy_peer_departure_denials": 26,
+    "active_playing_buffer_and_invalid_view_fixtures_passed": true,
+    "complete_staged_lua51_members_compiled": 568
+  },
+  "not_qualified": [
+    "FIFO goods or construction deliveries",
+    "mixed save/load and selected host-file reload",
+    "Gold NEO checkbox/full Lua lifecycle",
+    "History host / Gold guest",
+    "four-player AI or other maps",
+    "LAN or EasyTier crossplay",
+    "UI loading-overlay visibility",
+    "final installed mixed packages"
+  ],
+  "native_source_proof_sha256": "499ef082f5126db7bfc4da46234008cd0c6c1b2984b58e8f4b6502edcbef5e4e"
+}
