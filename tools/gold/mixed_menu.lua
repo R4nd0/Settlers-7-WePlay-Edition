@@ -54,7 +54,13 @@ local function step()
  end
  if not prepared then
   if G.Network.SessionIsInSession() then fail();return end
-  if not created(Pages.Main) then phase="waiting-menu";return end
+  if created(Pages.Main) and not requested then
+   requested=true;phase="guest-browser-requested"
+   actions.open_browser()
+   return
+  end
+  if not created(Pages.Browser) then phase="waiting-menu";return end
+  if not actions.can_prepare_guest() then phase="waiting-discovery";return end
   local map=query("bootstrap-map")
   if map==false or map==nil then phase="waiting-host-context";return end
   if not mapPath(map) then fail();return end

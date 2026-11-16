@@ -21,10 +21,10 @@ class MixedMenuTests(unittest.TestCase):
         self.lua.execute('''
 function fixture(mode)
  local state={mode=mode,phase="pending",map=false,flags="0",template="",login=true,inSession=false,
-  isHost=false,slot=0,opened=0,prepared=0,guest=0,browser=0,queries={}}
+  isHost=false,slot=0,opened=0,prepared=0,guest=0,browser=0,queries={},discovery=mode=="guest"}
  local pages={Main={},Browser={},Creation={}}
  for _,page in pairs(pages)do page.isCreated=function()return true end end
- local ui={currentPageModule=pages.Main}
+ local ui={currentPageModule=mode=="guest" and pages.Browser or pages.Main}
  local game={UI={WriteToConsole=function(command)
   state.queries[#state.queries+1]=command
   if command=="weplay-crossplay-v1:mode" then return state.mode end
@@ -37,6 +37,7 @@ function fixture(mode)
   IsHost=function()return state.isHost end,GetLocalPlayerSlot=function()return state.slot end}}
  local actions={open_browser=function()state.browser=state.browser+1 end,
   can_open_host_creation=function()return state.discovery==true end,
+  can_prepare_guest=function()return state.discovery==true end,
   open_host_creation=function()state.opened=state.opened+1 end,
   prepare_guest_map=function(map,choices)state.prepared=state.prepared+1;state.actualMap=map;state.choices=choices;return true end,
   open_guest_lobby=function(choices)state.guest=state.guest+1;state.lobbyChoices=choices end}
@@ -84,7 +85,9 @@ assert(s.browser==0 and s.opened==0)
 local s,u,p,a,d=fixture("guest");s.map="maps/actual.map"
 u.currentPageModule={isCreated=function()return true end}
 d.tick();assert(s.prepared==0 and d.state()=="waiting-menu")
-u.currentPageModule=p.Main;d.tick();assert(s.prepared==1)
+u.currentPageModule=p.Main;d.tick();d.tick();assert(s.prepared==0 and s.browser==1)
+u.currentPageModule=p.Browser;s.discovery=false;d.tick();assert(s.prepared==0 and d.state()=="waiting-discovery")
+s.discovery=true;d.tick();assert(s.prepared==1)
 ''')
 
     def test_native_preparation_can_yield_and_reenter_without_duplicate_calls(self):
@@ -101,6 +104,29 @@ d.tick();assert(s.prepared==1 and coroutine.status(job)=="suspended")
 assert(coroutine.resume(job));assert(d.state()=="guest-prepared" and s.prepared==1)
 ''')
 
+    def test_guest_browser_callback_and_discovery_can_yield_without_duplicate_preparation(self):
+        self.lua.execute('''
+local s,u,p,a,d=fixture('guest');s.map='maps/authenticated.map'
+u.currentPageModule=p.Main
+a.open_browser=function()
+ s.browser=s.browser+1;d.tick();coroutine.yield('original-browser');u.currentPageModule=p.Browser
+end
+local job=coroutine.create(d.tick)
+local okay,value=coroutine.resume(job);assert(okay and value=='original-browser')
+d.tick();assert(s.browser==1 and s.prepared==0)
+assert(coroutine.resume(job));assert(coroutine.status(job)=='dead')
+local checks=0
+a.can_prepare_guest=function()
+ checks=checks+1;d.tick();coroutine.yield('original-discovery-query');return true
+end
+job=coroutine.create(d.tick)
+okay,value=coroutine.resume(job);assert(okay and value=='original-discovery-query')
+d.tick();assert(checks==1 and s.browser==1 and s.prepared==0)
+assert(coroutine.resume(job));assert(s.prepared==1 and d.state()=='guest-prepared')
+for i=1,10 do d.tick()end
+assert(s.browser==1 and checks==1 and s.prepared==1)
+''')
+
     def test_original_history_prepare_jobs_keep_exact_arity_flags_and_yielding(self):
         self.lua.execute('''
 local s,u,p,a,d,g=fixture("guest");s.map="maps/actual.map";s.flags="7";s.template="Host Template"
@@ -108,7 +134,7 @@ local loads,creates=0,0
 g.map={loadSetupMapConfig=function(map,template)
  assert(map==s.map and template==s.template);loads=loads+1;d.tick();coroutine.yield("load")
 end}
-g.MapSetup={IsValid=function()return true end}
+g.MapSetup={IsValid=function()return true end,SetCoopMode=function(value)assert(value==1 and creates==1);s.coop=value end}
 g.Network.SessionCreate=function(...)
  local args={n=select("#",...),...};creates=creates+1
  assert(args.n==8 and args[1]==s.map and args[2]==false and args[3]==false and args[4]==2)
@@ -121,7 +147,7 @@ local okay,value=coroutine.resume(job);assert(okay and value=="load")
 d.tick();assert(loads==1 and creates==0)
 okay,value=coroutine.resume(job);assert(okay and value=="create")
 d.tick();assert(loads==1 and creates==1)
-assert(coroutine.resume(job));assert(d.state()=="guest-prepared")
+assert(coroutine.resume(job));assert(d.state()=="guest-prepared" and s.coop==1)
 ''')
 
     def test_original_history_prepare_rejects_invalid_loaded_map_without_create(self):
@@ -133,6 +159,29 @@ g.MapSetup={IsValid=function()return false end}
 g.Network.SessionCreate=function()creates=creates+1;return true end
 a.prepare_guest_map=assert(loadstring(prepare_source))(g)
 d.tick();assert(loads==1 and creates==0 and d.state()=="failed")
+''')
+
+    def test_original_coop_setter_follows_successful_create_and_never_runs_after_failure(self):
+        self.lua.execute('''
+for _,coop in ipairs({false,true})do
+ for _,success in ipairs({false,true})do
+  local events={}
+  local g={map={loadSetupMapConfig=function()events[#events+1]='map' end},MapSetup={
+   IsValid=function()return true end,
+   SetCoopMode=function(...)assert(select('#',...)==1);local value=...;
+    assert(value==(coop and 1 or 0));events[#events+1]='coop';coroutine.yield('coop-setter')end},
+   Network={SessionCreate=function()events[#events+1]='create';return success end}}
+  local prepare=assert(loadstring(prepare_source))(g)
+  local job=coroutine.create(function()return prepare('maps/actual.map',{coop=coop})end)
+  local okay,value=coroutine.resume(job);assert(okay)
+  assert(events[1]=='map' and events[2]=='create')
+  if success then
+   assert(value=='coop-setter' and events[3]=='coop')
+   okay,value=coroutine.resume(job);assert(okay and value==true)
+  else assert(value==false and #events==2)end
+  assert(coroutine.status(job)=='dead')
+ end
+end
 ''')
 
     def test_guest_preserves_all_actual_host_flags_and_template_until_setup_bound(self):
@@ -219,6 +268,29 @@ class MixedWrapperTests(unittest.TestCase):
     def setUp(self):
         self.lua=LuaRuntime(unpack_returned_tuples=True)
 
+    def test_history_guest_requires_the_original_completed_browser_discovery(self):
+        self.lua.globals().source=mixed_interface.fragment('mixed_guest_browser.lua')
+        self.lua.execute('''
+_G.pcall=function()error('engine calls must remain yieldable')end
+local mode,login,session,discovery='guest',true,false,{State=2}
+local G={UI={WriteToConsole=function()return mode end},Network={
+ IsLoggedIn=function()return login end,SessionIsInSession=function()return session end,
+ SessionGetDiscovery=function(lan)assert(lan==false);return discovery end}}
+local S={frame={},lastDiscoveryFinished=true,sessionListState=7}
+local P={};assert(loadstring(source))(G,P,S,{idle=7})
+assert(P.weplayCanPrepareMixedGuest())
+for _,bad in ipairs({'solo','host',false})do mode=bad;assert(not P.weplayCanPrepareMixedGuest())end
+mode='guest';S.lastDiscoveryFinished=false;assert(not P.weplayCanPrepareMixedGuest());S.lastDiscoveryFinished=true
+S.sessionListState=8;assert(not P.weplayCanPrepareMixedGuest());S.sessionListState=7
+S.frame=nil;assert(not P.weplayCanPrepareMixedGuest());S.frame={}
+login=false;assert(not P.weplayCanPrepareMixedGuest());login=true
+session=true;assert(not P.weplayCanPrepareMixedGuest());session=false
+for _,bad in ipairs({false,1,{}, {State=1},{State=true}})do
+ discovery=bad;assert(not P.weplayCanPrepareMixedGuest())
+end
+discovery={State=2};assert(P.weplayCanPrepareMixedGuest())
+''')
+
     def test_gold_browser_uses_only_original_completed_discovery_and_selected_filter(self):
         self.lua.globals().source=mixed_interface.fragment('mixed_browser.lua')
         self.lua.execute('''
@@ -291,23 +363,29 @@ for _,p in ipairs({main,browser,creation})do p.isCreated=function()return true e
 local pages={['sectionMenus.mainMenu']=main,['play.multiplayer.sessionList']=browser,
  ['play.multiplayer.sessionCreation']=creation}
 local phase,session,loads,creates,callbacks='pending',false,0,0,0
+local discovery=false
+browser.weplayCanPrepareMixedGuest=function()return discovery end
 local e={UI={WriteToConsole=function(command)
  local values={mode='guest',phase=phase,['bootstrap-map']='maps/original.map',
  ['bootstrap-flags']='5',['bootstrap-template']=''}
  return values[command:sub(#'weplay-crossplay-v1:'+1)] end},
  require=function(path)return assert(pages[path:sub(#'local.menu.panel.menu.'+1)])end,
  map={loadSetupMapConfig=function(map,template)assert(map=='maps/original.map' and template==nil);loads=loads+1 end},
- MapSetup={IsValid=function()return true end},Network={
+ MapSetup={IsValid=function()return true end,SetCoopMode=function(value)assert(value==1 and creates==1)end},Network={
  IsLoggedIn=function()return true end,SessionIsInSession=function()return session end,
  IsHost=function()return false end,GetLocalPlayerSlot=function()return 2 end,
  SessionCreate=function(map,private,lan,two,positions,teams,template,coop)
  assert(map=='maps/original.map' and private==false and lan==false and two==2)
  assert(positions==true and teams==false and template==nil and coop==true)
  creates=creates+1;session=true;return true end}}
-local l={currentPageModule=main,actionManager={createCallbacks=function()callbacks=callbacks+1;return {}end}}
+local l={currentPageModule=main,actionManager={createCallbacks=function()
+ callbacks=callbacks+1;return {toSessionList=function()end}
+end}}
 local tick=assert(loadstring('return function(e,l) '..source..' end'))()
-tick(e,l);phase='roster-bound';tick(e,l);phase='setup-bound';tick(e,l);tick(e,l)
-assert(loads==1 and creates==1 and callbacks==0)
+tick(e,l);tick(e,l);assert(callbacks==1 and loads==0 and creates==0)
+l.currentPageModule=browser;tick(e,l);assert(loads==0 and creates==0)
+discovery=true;tick(e,l);phase='roster-bound';tick(e,l);phase='setup-bound';tick(e,l);tick(e,l)
+assert(loads==1 and creates==1 and callbacks==1)
 ''')
 
     def test_main_construction_is_latched_before_direct_yieldable_mode_queries(self):
@@ -325,7 +403,8 @@ local e={UI={WriteToConsole=function(command)
  if command=='weplay-crossplay-v1:bootstrap-map' then return false end
 end},require=function(path)requires=requires+1;return assert(pages[path:sub(#'local.menu.panel.menu.'+1)])end,
  Network={IsLoggedIn=function()return true end,SessionIsInSession=function()return false end}}
-local l={currentPageModule=main}
+browser.weplayCanPrepareMixedGuest=function()return true end
+local l={currentPageModule=browser}
 local tick=assert(loadstring('return function(e,l) '..source..' end'))()
 local job=coroutine.create(function()tick(e,l)end)
 local okay,value=coroutine.resume(job);assert(okay and value=='mode-query')

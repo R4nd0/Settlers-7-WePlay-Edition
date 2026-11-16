@@ -11,6 +11,7 @@ local function callbacks()return State.actionManager.createCallbacks(State.curre
 local actions={
  open_browser=function()callbacks().toSessionList()end,
  can_open_host_creation=function()return Pages.Browser.weplayCanOpenMixedCreation()==true end,
+ can_prepare_guest=function()return Pages.Browser.weplayCanPrepareMixedGuest()==true end,
  open_host_creation=function()return Pages.Browser.weplayOpenMixedCreation()end,
  prepare_guest_map=prepare,
  -- Deliberately closed until the production adapter supplies an applied-setup

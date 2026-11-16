@@ -5,6 +5,10 @@ local G = ...
 return function(map, choices)
  G.map.loadSetupMapConfig(map, choices.template)
  if G.MapSetup.IsValid() ~= true then return false end
- return G.Network.SessionCreate(map, false, false, 2,
-  choices.fixedPositions, choices.fixedTeams, choices.template, choices.coop) == true
+ if G.Network.SessionCreate(map, false, false, 2,
+  choices.fixedPositions, choices.fixedTeams, choices.template, choices.coop) ~= true then return false end
+ -- Original History join preludes set both coop states after loading the map.
+ -- Use only the authenticated host's choice, and only after local creation.
+ G.MapSetup.SetCoopMode(choices.coop and 1 or 0)
+ return true
 end

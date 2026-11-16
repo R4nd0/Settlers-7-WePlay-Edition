@@ -322,6 +322,28 @@ resume contract remains required before connecting this UI to the release.
 
 ## History bootstrap lifetime
 
+The public mixed UI candidate now opens the original History browser once through
+its action-manager callback and waits for its actual frame, completed discovery
+callback, idle enum and original `SessionGetDiscovery(false).State == 2`. Only
+then may it run the authenticated host-map preparation and original eight-argument
+`SessionCreate`. After successful creation it follows the original History join
+prelude's `MapSetup.SetCoopMode(1/0)` using the authenticated host choice, including
+an explicit zero for non-coop; failed creation never applies it. Login alone does
+not qualify local-session creation. The History
+composition exports a read-only browser guard using its own verified `a/l/r`
+aliases; no timer, repeated creation, synthetic completion or automatic guest
+Ready is added. The entire routing tick remains latched across yielding callbacks
+and queries. Guest setup presentation remains closed pending its native contract.
+
+Twenty Lua 5.1 routing tests pass, including original browser/discovery waits,
+yielding and reentry, failed creation, and exact preparation arity. Both pinned
+normal archives compile all 284 Lua members after deterministic in-memory
+composition, changing only mainState and sessionList. Nothing was deployed. The
+Crossplay chat separately observed the equivalent private browser sequence through
+initial configuration consumption with original Ubisoft and Steam guests; those
+bounded tests do not establish world, NEO or reload qualification for this public
+composition or the final installer.
+
 The original History UPLAY startup also needs its ordinary local service and a
 fresh `LocalData/s7-local-runtime.ini`. `history_session.py` now owns that service
 for the mixed History guest before native launch. It reuses the normal .NET

@@ -66,6 +66,9 @@ def build(raw,edition):
     if edition=='gold':
         changes[BROWSER]=insert(archive.read(BROWSER),decode,'return f\n',
             '\n;(function(...)\n'+fragment('mixed_browser.lua')+'\nend)(e,f,l,h,D)\n')
+    else:
+        changes[BROWSER]=insert(archive.read(BROWSER),decode,'return a\n',
+            '\n;(function(...)\n'+fragment('mixed_guest_browser.lua')+'\nend)(e,a,l,r)\n')
     result=archive.replace(changes)
     verified=Archive(result)
     if archive.entries.keys()!=verified.entries.keys():raise ValueError('Mixed UI member set changed')
