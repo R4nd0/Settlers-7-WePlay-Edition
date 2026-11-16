@@ -18,12 +18,16 @@
 #include "crossplay_configuration_native.h"
 #include "crossplay_configuration_readiness.h"
 #include "crossplay_history_choices.h"
+#include "crossplay_outgoing_observer.h"
+#include "crossplay_ready_codec.h"
+#include <deque>
 namespace CrossplayProduction {
 namespace {
 struct Runtime;
 Runtime* current=nullptr;
 void CaptureLocal(void* session,const unsigned char* event);
 void CaptureConfiguration(void* cache,const unsigned char* event);
+void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t target);
 void CALLBACK Tick(HWND,UINT,UINT_PTR,DWORD);
 struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}};
 bool RoundTrip(Crossplay::Edition edition,const void* event){
@@ -62,6 +66,13 @@ struct Runtime {
     CrossplayConfigurationReceipt::Receipt configuration_receipt;
     bool configuration_readiness_queued=false;
     CrossplayNativeCodec::PendingHistoryReadyState configuration_readiness;
+    bool outgoing_installed=false;
+    std::deque<std::vector<unsigned char>> ready_requests;
+    std::deque<CrossplayReadyState::Snapshot> ready_states;
+    CrossplayNativeCodec::PendingReadyToggle ready_pending;
+    CrossplayNativeCodec::PendingHistoryReadyState ready_projection;
+    uint32_t ready_sent=0,ready_received=0;
+    ULONGLONG ready_started=0,projection_started=0;
     UINT_PTR timer=0;
     explicit Runtime(const Launch& input):launch(input){}
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
@@ -144,6 +155,65 @@ struct Runtime {
         return launch.host?CrossplaySessionConfig::Connections{admission.OwnConnection(),admission.PeerLocalConnection()}
             :CrossplaySessionConfig::Connections{admission.PeerLocalConnection(),admission.OwnConnection()};
     }
+    void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
+        using namespace CrossplayNativeCodec;
+        if(!Owned() || launch.host || phase!=Phase::RosterBound || !configuration_applied
+            || (mode!=2 && (mode!=1 || target!=admission.PeerLocalConnection())))return;
+        const auto pin=ReadyDetail::Pin(launch.channel.edition);
+        if(!Detail::Readable(event,4) || *static_cast<const uintptr_t*>(event)!=pin.event_vt)return;
+        uintptr_t send=0;CrossplayNative::LobbySnapshot lobby;uint32_t flags=0;std::string map_template;
+        const auto* peer=channel.GetPeer();std::vector<unsigned char> wire,frame;
+        if(manager!=Detail::Transport(launch.channel.edition,send) || !original.CaptureLobby(lobby)
+            || lobby.instance!=session || !AppliedGuestChoices(flags,map_template) || !peer
+            || !EncodeReadyRequest(launch.channel.edition,original,LocalConnections(),event,wire)
+            || !CrossplayReady::Encode(*peer,wire,admission.OwnConnection(),frame) || !channel.Send(frame))Fail();
+    }
+    bool Readiness(){
+        using namespace CrossplayNativeCodec;
+        if(launch.host?!configuration_sent:!configuration_applied)return true;
+        const auto* peer=channel.GetPeer();if(!peer)return false;
+        const auto ids=LocalConnections();std::vector<unsigned char> frame,wire;
+        for(unsigned i=0;i<8 && channel.Receive(frame);++i){
+            if(launch.host){
+                if(ready_requests.size()>=4 || !CrossplayReady::Decode(*peer,frame,admission.PeerSourceConnection(),ids.guest,wire))return false;
+                ready_requests.push_back(std::move(wire));
+            }else{
+                CrossplayReadyState::Snapshot value;
+                if(ready_states.size()>=4 || !CrossplayReadyState::Decode(*peer,frame,ready_received,value))return false;
+                ready_received=value.revision;ready_states.push_back(value);
+            }
+        }
+        const auto now=GetTickCount64();
+        if(launch.host){
+            if(ready_pending.configuration){
+                const auto observed=ObserveReadyToggle(original,ready_pending);
+                if(observed==ReadyObservation::Invalid)return false;
+                if(observed==ReadyObservation::Pending)return now-ready_started<=10000;
+                CrossplayReadyState::Snapshot value;
+                if(ready_sent==UINT32_MAX || !CaptureGoldReadySnapshot(original,ready_pending,ready_sent+1,value)
+                    || !CrossplayReadyState::Encode(*peer,value,frame) || !channel.Send(frame))return false;
+                ++ready_sent;ready_pending={};
+            }
+            if(!ready_requests.empty()){
+                if(!EnqueueReadyToggle(launch.channel.edition,original,ids,ready_requests.front(),ready_pending))return false;
+                ready_requests.pop_front();ready_started=now;
+            }
+        }else{
+            if(ready_projection.session){
+                const auto observed=ObserveHistoryReadySnapshot(launch.channel.edition,original,ids,ready_projection);
+                if(observed==ReadyObservation::Invalid)return false;
+                if(observed==ReadyObservation::Pending)return now-projection_started<=10000;
+                ready_projection={};
+            }
+            if(!ready_states.empty()){
+                uint32_t flags=0;std::string map_template;
+                if(!AppliedGuestChoices(flags,map_template)
+                    || !ApplyHistoryReadySnapshot(launch.channel.edition,original,ids,ready_states.front(),ready_projection))return false;
+                ready_states.pop_front();projection_started=now;
+            }
+        }
+        return true;
+    }
     void ConfigurationConsumed(void* cache,const unsigned char* event){
         if(!Owned() || launch.host || phase!=Phase::RosterBound || !configuration_enqueued || configuration_applied)return;
         using namespace CrossplayNativeCodec;
@@ -204,7 +274,7 @@ struct Runtime {
     }
     void Pump(){
         if(!Owned() || phase==Phase::Dormant || phase==Phase::Closed || phase==Phase::Failed)return;
-        if(!channel.Poll()){Fail();return;}
+        if(!channel.Poll() || (outgoing_installed && OutgoingObserver::failed)){Fail();return;}
         if(phase==Phase::Connecting){
             if(channel.GetState()!=Crossplay::State::Connected)return;
             if(!Bootstrap()){Fail();return;}
@@ -224,7 +294,12 @@ struct Runtime {
                     backend_projected=true;
                 }
                 phase=Phase::RosterBound;
+                if(!outgoing_installed){
+                    if(!OutgoingObserver::Install(launch.channel.edition,owner,&CaptureOutgoing)){Fail();return;}
+                    outgoing_installed=true;
+                }
                 if(!Configure()){Fail();return;}
+                if(!Readiness()){Fail();return;}
             }
         }
     }
@@ -241,6 +316,9 @@ void CaptureLocal(void* session,const unsigned char* event){
 }
 void CaptureConfiguration(void* cache,const unsigned char* event){
     if(current)try{current->ConfigurationConsumed(cache,event);}catch(...){current->Fail();}
+}
+void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
+    if(current)try{current->Outgoing(manager,event,mode,target);}catch(...){current->Fail();}
 }
 void CALLBACK Tick(HWND,UINT,UINT_PTR id,DWORD){if(current && current->timer==id)PumpRuntime();}
 }
@@ -271,6 +349,10 @@ void PumpRuntime(){ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::Fp
 bool CloseRuntime(){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     if(!current || !current->Close())return false;
+    if(current->outgoing_installed){
+        if(!OutgoingObserver::Release())return false;
+        current->outgoing_installed=false;
+    }
     if(current->configuration_observer_installed){
         if(!ConfigurationObserver::Release())return false;
         current->configuration_observer_installed=false;

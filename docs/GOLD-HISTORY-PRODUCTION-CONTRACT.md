@@ -325,8 +325,33 @@ guard checks do not execute game methods. The source now derives the UI-only
 requires those actual owned choices and the admitted preparation/castle. This
 permits presentation of the original guest page only. The underlying runtime
 phase remains `RosterBound`; complete setup/root, content, Ready and start
-agreements remain separate. The derived presentation result has passed source
-fixtures but has not yet been exercised in a game. See the [bounded applied-choice receipt](receipts/native-history-applied-choices-20261116.json).
+agreements remain separate. Actual Gold-host pairs now exercise the public
+derived phase and presenter with both original History editions: the original
+guest page is created and visibly shows both assigned humans and its Ready
+button, with flags `7` and an empty template. The Ubisoft probe's Gold watchdog
+closed normally after 45 seconds; its subsequent channel EOF is not a desync.
+After correcting that second watchdog, the Steam probe retained matching
+metadata through 119 seconds before both clients closed normally. Both probes
+strictly restored files/profiles and closed their services. They still use a
+private frame driver and instrumented normal adapters. No Ready action, world
+start, active NEO or shared reload was requested in these presentation probes.
+See the [bounded applied-choice receipt](receipts/native-history-applied-choices-20261116.json).
+
+The production runtime now observes original targeted/broadcast transport calls
+and routes genuine History Ready requests through the authenticated channel.
+Gold enqueues its original state event and publishes a snapshot only after
+observing actual consumption. History projects that snapshot through original
+Confirmed clones and preparation setters, then observes the native result.
+Queues and consumer deadlines are bounded. The observer preserves incoming
+registers, flags, LastError, x87/SSE and direction flag, forwards unconditionally
+exactly once, and rejects foreign owners, changed call sites and recursive
+callbacks. Its source passes 377 synthetic checks and original-image guard
+emulation for all three editions. Actual Gold-host DXVK pairs with both original
+History editions install the observers and retain the original configuration and
+guest page through 119 seconds, then exit normally with strict restoration.
+These pairs request no Ready action: the existing NEO UI gate remains intact.
+Actual Ready delivery, the production NEO lifecycle, complete setup/start and
+shared reload therefore remain unqualified. See the [Ready transport receipt](receipts/native-production-ready-transport-20261116.json).
 
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`

@@ -85,10 +85,46 @@
       "world_start_requested": false
     }
   ],
+  "actual_original_guest_page_followups": [
+    {
+      "host": "gold",
+      "guest": "original-ubisoft-history",
+      "renderer": "DXVK",
+      "exact_public_phase_queries_and_presenter": true,
+      "private_frame_driver_and_instrumented_normal_adapters": true,
+      "original_guest_page_created_and_visually_observed": true,
+      "both_assigned_humans_and_original_ready_button_visible": true,
+      "observed_flags": 7,
+      "observed_template_empty": true,
+      "gold_normal_watchdog_seconds": 45,
+      "subsequent_history_channel_eof_observed": true,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "ready_or_world_start_requested": false
+    },
+    {
+      "host": "gold",
+      "guest": "original-steam-history",
+      "renderer": "DXVK",
+      "exact_public_phase_queries_and_presenter": true,
+      "private_frame_driver_and_instrumented_normal_adapters": true,
+      "original_guest_page_created_and_visually_observed": true,
+      "both_assigned_humans_and_original_ready_button_visible": true,
+      "observed_flags": 7,
+      "observed_template_empty": true,
+      "gold_second_watchdog_corrected_seconds": 120,
+      "matching_metadata_observed_through_seconds": 119,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "ready_or_world_start_requested": false
+    }
+  ],
   "limits": {
     "public_query_wrappers_in_game": true,
     "nonzero_flags_in_pair": true,
-    "derived_guest_presentation_phase_in_game": false,
+    "derived_guest_presentation_phase_in_game": true,
     "nonempty_templates_in_pair": false,
     "nonzero_control_stopped_before_deployment_for_ram": true,
     "complete_setup_root": false,

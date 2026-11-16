@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Production Ready transport source; actual original observer installation and configuration retention, without Ready actions",
+  "source": {
+    "original_targeted_and_broadcast_forwarding_unconditional": true,
+    "incoming_registers_flags_last_error_x87_sse_preserved": true,
+    "owner_thread_manager_and_authenticated_launch_required": true,
+    "recursive_callbacks_excluded_and_exceptions_contained": true,
+    "original_dispatcher_regions_and_three_call_sites_guarded": true,
+    "transactional_call_site_install_and_release": true,
+    "history_original_ready_request_only": true,
+    "gold_original_state_enqueue_and_observed_consumption": true,
+    "history_original_confirmed_and_preparation_setters": true,
+    "bounded_queues_and_original_consumption_deadlines": true,
+    "native_ready_result_not_accepted_from_guest": true,
+    "neo_ui_ready_gate_not_bypassed": true
+  },
+  "synthetic_verification": {
+    "outgoing_abi_fp_df_owner_reentrancy_exception_callsite_checks": 377,
+    "full_production_component_fixture_build_passed": true,
+    "original_dispatcher_guard_cases_per_edition": 5,
+    "original_guard_editions": ["gold", "ubisoft-history", "steam-history-analysis"],
+    "original_guards_emulated_only": true,
+    "original_game_methods_executed_by_fixtures": false
+  },
+  "actual_pairs": [
+    {
+      "host": "gold",
+      "guest": "original-steam-history",
+      "renderer": "DXVK",
+      "instrumented_normal_build_inputs_and_private_frame_driver": true,
+      "both_original_outgoing_observers_installed": true,
+      "native_configuration_applied_and_original_guest_page_created": true,
+      "matching_applied_flags": 7,
+      "matching_template_empty": true,
+      "metadata_observed_through_seconds": 119,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration_and_services_closed": true,
+      "ready_or_world_start_requested": false
+    },
+    {
+      "host": "gold",
+      "guest": "original-ubisoft-history",
+      "renderer": "DXVK",
+      "instrumented_normal_build_inputs_and_private_frame_driver": true,
+      "both_original_outgoing_observers_installed": true,
+      "native_configuration_applied_and_original_guest_page_created": true,
+      "matching_applied_flags": 7,
+      "matching_template_empty": true,
+      "metadata_observed_through_seconds": 119,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration_and_services_closed": true,
+      "ready_or_world_start_requested": false
+    }
+  ],
+  "limits": {
+    "actual_ready_toggle_delivery_qualified": false,
+    "neo_production_lifecycle_integrated": false,
+    "common_world_turns_or_save_reload_qualified": false,
+    "reverse_steam_host_gold_guest_qualified": false,
+    "ordinary_mixed_launch_gate_opened": false,
+    "production_pins_promoted": false,
+    "final_installer_qualified": false
+  }
+}
