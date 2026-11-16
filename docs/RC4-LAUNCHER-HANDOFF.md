@@ -334,6 +334,23 @@ the existing History handshake cannot be represented as a mixed acknowledgement.
 The final composition must preserve ordinary History-only behavior while routing
 mixed lifecycle operations to their actual native implementation.
 
+The History `neo-logistics/runtime.lua` source now resolves the explicit mixed
+mode once and routes only host/guest to `weplay-crossplay-neo-v1:`. It recognizes
+`NEO-FIFO-INTENT-1`; readonly state strings remain strings, while only the exact
+string `"1"` acknowledges supported stage/start-event/begin/ready actions. It
+performs no phase or applied-lobby queries at world transition and never falls
+back to the old NEO5 prefix in mixed mode. Legacy/solo keeps its existing path.
+
+Unsupported mixed saved selection/load/restore/save/end operations are rejected.
+Saved network start, load and pickle stop before original game I/O, even with
+NEO off; saved metadata is not written. Original destroy still executes, clears
+only local UI state and reports no native end acknowledgement. Native save/end
+and Gold checkbox integration remain pending. Twenty-seven isolated Lua 5.1
+checks pass: 15 existing runtime, nine mixed routing/lifecycle and three probe
+regressions. No game or reserved root was touched; the native chat must qualify
+this exact helper in the next actual History world test. Production UI/archive
+pins and release admission remain unchanged.
+
 Gold's original game menu exposes Save/Load only in solo mode; its browser has no
 usable multiplayer-resume route. The original multiplayer load/save dialogs do
 exist. A separate, unembedded `mixed_save_interface.py` composition adds only the
