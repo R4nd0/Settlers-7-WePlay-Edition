@@ -25,6 +25,8 @@
 #include "crossplay_gold_start_hold.h"
 #include "crossplay_closed_preparation.h"
 #include "crossplay_neutral_setup_codec.h"
+#include "crossplay_setup_root_reader.h"
+#include "crossplay_setup_root_stream.h"
 #include <bcrypt.h>
 #include <deque>
 namespace CrossplayProduction {
@@ -97,6 +99,7 @@ struct Runtime {
     bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
     bool Owned()const{return owner==GetCurrentThreadId() && CurrentLaunch() && CurrentLaunch()->mixed;}
 #include "crossplay_production_start_setup.inc"
+#include "crossplay_production_setup_root.inc"
     void Capture(void* source,const unsigned char* event){
         if(!Owned() || lobby_captured || phase==Phase::Closed || phase==Phase::Failed)return;
         CrossplayNative::LobbySnapshot lobby;CrossplayCastleSetup::Value castle;
@@ -307,6 +310,16 @@ struct Runtime {
         const auto peer=*peer_pointer;
         const auto ids=LocalConnections();std::vector<unsigned char> frame,wire;
         for(unsigned i=0;i<8 && channel.Receive(frame);++i){
+            if(CheckpointFrame(frame)){
+                if((setup_roots_verified[0] && setup_roots_verified[1]) || setup_checkpoint_frames.size()>=4
+                    || frame.size()!=CrossplaySetupCheckpoint::FrameSize)return false;
+                setup_checkpoint_frames.push_back(std::move(frame));continue;
+            }
+            if(RootFrame(frame)){
+                if((setup_roots_verified[0] && setup_roots_verified[1]) || setup_root_frames.size()>=16 || frame.size()<CrossplaySetupRootStream::Header
+                    || frame.size()>CrossplaySetupRootStream::Header+CrossplaySetupRootStream::ChunkBytes)return false;
+                setup_root_frames.push_back(std::move(frame));continue;
+            }
             if(StartFrame(frame)){
                 if(launch.host || start_frames.size()>=5 || frame.size()>CrossplaySessionConfig::Header+CrossplaySessionConfig::MaximumWire)return false;
                 start_frames.push_back(std::move(frame));continue;
@@ -326,7 +339,7 @@ struct Runtime {
                 ready_received=value.revision;ready_states.push_back(value);
             }
         }
-        if(start_started)return PumpStartFrames();
+        if(start_started)return PumpStartFrames() && PumpSetupRoot();
         if(!PumpNeoSelection())return false;
         const auto now=GetTickCount64();
         if(launch.host){
@@ -357,7 +370,7 @@ struct Runtime {
                 ready_states.pop_front();projection_started=now;
             }
         }
-        return PumpStartFrames();
+        return PumpStartFrames() && PumpSetupRoot();
     }
     void ConfigurationConsumed(void* cache,const unsigned char* event){
         if(Owned() && phase==Phase::RosterBound && StartConfigurationConsumed(cache,event))return;

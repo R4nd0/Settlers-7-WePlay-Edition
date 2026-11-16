@@ -428,6 +428,32 @@ Both pairs remained observed through 119 seconds, exited normally with code 0,
 restored guarded files and profiles, and closed their owned services. See the
 [original start-setup receipt](receipts/native-start-setup-20261116.json).
 
+The subsequent native root stage waits for that closed transition and the
+original host's actual neutral Team values. Both clients bind a fresh owned
+rules/player checkpoint, exchange the original complete enclosing setup in
+formats 1 and 2, and compare received bytes with a fresh local original-writer
+snapshot. Format 2 is then read into an independently constructed original-owned
+target, written back and destroyed. Complete input consumption, bounded target
+dependencies, canaries, matching writeback and an unchanged active root are all
+required. Neither the received object nor a historical success flag authorizes
+replacement of the active root or a later world start. Incoming frames remain
+bounded and reject invalid namespace, order, versions and completed-phase replay.
+
+Actual DXVK pairs now qualify that complete native root comparison with both
+original History executables. Each pair also verified its complete real asset
+file hashes and file set against an independently reconstructed three-edition
+candidate catalog, including the actual adapter and test-interface overrides.
+The candidate describes 124 Gold, 58 Ubisoft History and 57 Steam History files;
+it remains unapproved. Both successful pairs exited with code 0 and strict
+restoration. A separate Ubisoft attempt failed before native lobby/root work;
+it remains recorded as a failure. Its retry serviced the local endpoints during
+blocking native initialization without relaxing native authentication or
+timeouts. That success does not prove the exact cause of the prior failure.
+See the [whole-setup root receipt](receipts/native-whole-setup-root-20261116.json).
+
+World event delivery, active NEO goods, shared save/reload, AI setups, reverse
+hosting and the final installed package remain outside this root qualification.
+
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
 saved-kind (`0/1`), map-byte count, host flags (`0..7`) and template-byte count.

@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-16",
+  "scope": "actual original native whole-setup/root comparison; no world event delivered",
+  "pairs": [
+    {
+      "host": "Gold",
+      "guest": "original Steam History",
+      "renderer": "DXVK",
+      "both_actual_asset_profiles_verified": true,
+      "native_closed_setup_checkpoint_confirmed": true,
+      "whole_native_root_versions_fresh_equal": [
+        1,
+        2
+      ],
+      "independent_original_constructor_reader_writeback_destructor_verified": true,
+      "active_root_unchanged": true,
+      "observed_seconds": 119,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    },
+    {
+      "host": "Gold",
+      "guest": "original Ubisoft History",
+      "renderer": "DXVK",
+      "both_actual_asset_profiles_verified": true,
+      "native_closed_setup_checkpoint_confirmed": true,
+      "whole_native_root_versions_fresh_equal": [
+        1,
+        2
+      ],
+      "independent_original_constructor_reader_writeback_destructor_verified": true,
+      "active_root_unchanged": true,
+      "observed_seconds": 119,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "strict_restoration": true,
+      "owned_services_closed": true
+    }
+  ],
+  "candidate_content_catalog_sha256": "de67fc6d9a94d8ddd8f32d66d4e43dffe56ae97b75df86a7ab908b2775dca15f",
+  "candidate_records_per_edition": [
+    124,
+    58,
+    57
+  ],
+  "candidate_catalog_independently_reconstructed": true,
+  "candidate_catalog_production_approved": false,
+  "retained_failed_startup": {
+    "guest": "Ubisoft History",
+    "phase": "before lobby/root",
+    "authenticated_clients": 1,
+    "relayed_frames": 0,
+    "exit_codes": [
+      0,
+      0
+    ],
+    "strict_restoration": true,
+    "retry_change": "private controller pumps services during native initialization; native guards and timeouts unchanged",
+    "exact_prior_failure_cause_proven": false
+  },
+  "shared_world_start_proven": false,
+  "active_neo_goods_proven": false,
+  "common_save_reload_proven": false,
+  "ai_setup_proven": false,
+  "reverse_role_proven": false,
+  "final_installed_package_proven": false,
+  "public_mixed_entry_enabled": false
+}
