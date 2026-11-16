@@ -19,6 +19,8 @@ FORMAT = 'weplay-gold-package-v1'
 INSTALLED = 'weplay-gold-install-v1'
 SOURCE_MENU_PINS = ('de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db657635',
                     '98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92')
+SOURCE_STANDALONE_TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py',
+                           'network_elevation.py', 'network_peer_policy.py')
 
 
 def inventory(root, folders):
@@ -76,7 +78,8 @@ def verify_package(app, *, source_package=False):
         import platform_standalone
         adapters=platform_standalone.adapter_pins(gold=True) if source_package else (platform_standalone.GOLD,)
         platform_standalone.payload(app/'Payload/Platform')
-        if any(('Tools/gold/'+name) not in value['files'] for name in (*platform_standalone.TOOLS,'compatibility.py')):
+        tools=SOURCE_STANDALONE_TOOLS if source_package else platform_standalone.TOOLS
+        if any(('Tools/gold/'+name) not in value['files'] for name in (*tools,'compatibility.py')):
             raise ValueError('Die Gold-Standalone-Werkzeuge fehlen.')
     for name, allowed in (
         ('Payload/weplay_gold_startup.dll', adapters),

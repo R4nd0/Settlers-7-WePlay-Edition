@@ -92,7 +92,7 @@ class GoldPayloadMigrationTests(unittest.TestCase):
                            ('PAYLOAD',{'policy.fixture':sha(b'authored policy')})]:
             guard=patch.object(platform,name,value);guard.start();self.addCleanup(guard.stop)
         path=self.source/'Payload/Platform/policy.fixture';path.parent.mkdir();path.write_bytes(b'authored policy')
-        for name in (*platform.TOOLS,'compatibility.py'):
+        for name in (*self.runtime.SOURCE_STANDALONE_TOOLS,'compatibility.py'):
             path=self.source/'Tools/gold'/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'authored fixture tool')
         self.case.manifest.update(platform_independent=True,menu_sha256=self.runtime.SOURCE_MENU_PINS[0])
         self.case.manifest['files']=self.runtime.inventory(self.source,('Tools','Runtime','Payload','Definitions','Licenses'))
@@ -112,6 +112,9 @@ class GoldPayloadMigrationTests(unittest.TestCase):
             if name.startswith('Tools/gold/'):
                 path=repo/'tools/installer'/Path(name).name;path.parent.mkdir(parents=True,exist_ok=True)
                 path.write_bytes(b'current fixture helper')
+        for name in (*platform.TOOLS,'compatibility.py'):
+            path=repo/'tools/installer'/name;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(b'current fixture helper')
         for folder,names in [('gold',('release_interface.py','graphics_assets.py')),
                              ('midsummer',('profile.py','archive_append.py','camera_preferences.lua','runtime.lua'))]:
             for name in names:
@@ -126,6 +129,8 @@ class GoldPayloadMigrationTests(unittest.TestCase):
         self.assertEqual((target/'Payload/weplay_gold_startup.dll').read_bytes(),self.new_adapter)
         self.assertEqual(value['files']['Payload/weplay_gold_startup.dll'],sha(self.new_adapter))
         self.assertEqual(value['menu_sha256'],self.runtime.gold.MENU_SHA256)
+        self.assertFalse((self.source/'Tools/gold/crossplay_session.py').exists())
+        self.assertEqual((target/'Tools/gold/crossplay_session.py').read_bytes(),b'current fixture helper')
         self.assertEqual(self.runtime.inventory(self.source,('Tools','Runtime','Payload','Definitions','Licenses')),before)
 
 

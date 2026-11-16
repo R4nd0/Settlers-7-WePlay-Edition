@@ -75,6 +75,10 @@ def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None):
             elif name=='Tools/lan/bba.py':local=repo/'tools/lan/bba.py'
             else:continue
             shutil.copyfile(content.plain(local),content.plain(target/name))
+        # A previous package cannot enumerate newly added helper dependencies.
+        # Output always receives the complete current standalone tool set.
+        for name in (*platform_standalone.TOOLS,'compatibility.py'):
+            shutil.copyfile(content.plain(repo/'tools/installer'/name),content.plain(target/'Tools/gold'/name))
         for name in ('release_interface.py','graphics_assets.py'):
             shutil.copyfile(content.plain(repo/'tools/gold'/name),content.plain(target/'Tools/gold'/name))
         shared=target/'Tools/midsummer';shared.mkdir(exist_ok=True)

@@ -9,7 +9,8 @@ import compatibility as content
 
 FORMAT = 'weplay-platform-independent-v1'
 RECORD = 'Launcher/platform-standalone.json'
-TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py','network_elevation.py','network_peer_policy.py')
+TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py','network_elevation.py','network_peer_policy.py',
+         'crossplay_session.py')
 HISTORY = '3e400b5d108ec99ca05105fb7d9149e2a4978435691ba2d9143fc68078f55aac'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
@@ -159,10 +160,19 @@ def options_path(root):
     return content.plain(Path(root)/'LocalData/ProfileRoot'/suffix/'Options.ini')
 
 
-def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None):
+def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None,crossplay=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
     environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
+    if crossplay is not None:
+        import crossplay_session
+        if type(crossplay) is not crossplay_session.Binding or lan is not None:
+            raise ValueError('crossplay_configuration_invalid')
+        if value['files'][adapter.relative_to(root).as_posix()] not in crossplay_session.ADAPTER_PINS.get(crossplay.edition, ()):
+            raise ValueError('crossplay_adapter_unavailable')
+        # A mixed game keeps its ordinary loopback-only WFP policy. Remote
+        # transport terminates in the broker, never in the game executable.
+        environment = crossplay.environment(root, executable, environment)
     helper=root/'Launcher/weplay_network_policy.exe'
     result=subprocess.run([str(helper),'check',str(executable)],capture_output=True,timeout=15)
     if result.returncode and lan is None:
@@ -186,7 +196,8 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
 
 
 def launch_environment(value, executable, inherited, *, graphics_options=None):
-    environment = dict(inherited)
+    import crossplay_session
+    environment = crossplay_session.clean_environment(inherited)
     if value['edition'] == 'gold':
         # Gold changes its working directory before D3D9 initializes. DXVK's
         # relative default then misses the verified configuration beside the
