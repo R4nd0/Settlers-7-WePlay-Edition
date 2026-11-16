@@ -451,8 +451,9 @@ class GoldLoginAdapter:
                         # No predefined S7Multiplayer groups are installed in
                         # this disposable service. Registered S7Session objects
                         # are a different type and are not published here.
-                        if kind != b"S7Multiplayer" or offset > 4096 or count > 64:
-                            raise ValueError("Unsupported group catalogue query")
+                        if kind != b"S7Multiplayer":raise ValueError("Unsupported group catalogue kind")
+                        if offset > 4096:raise ValueError("Group catalogue offset bound")
+                        if count > 64:raise ValueError("Group catalogue count bound")
                         arguments = struct.pack("<I", 0)
                         event = "gathering_multiplayer_group_catalogue_read"
                     elif method == 21:
@@ -472,8 +473,19 @@ class GoldLoginAdapter:
                         self.gatherings.claim_host(state, identifier)
                         arguments = b""
                         event = "gathering_owner_host_claimed"
-                except (ValueError, struct.error, UnicodeError):
+                except (ValueError, struct.error, UnicodeError) as error:
                     self.event("gathering_registration_rejected")
+                    # This branch has a fixed method allowlist. Emit only its
+                    # method and a fixed failure category, never argument data.
+                    self.event("gathering_rejected_method_" + str(method))
+                    reasons={"Unsupported group catalogue kind":"group_kind",
+                        "Group catalogue offset bound":"group_offset","Group catalogue count bound":"group_count",
+                        "Trailing arguments":"trailing","Truncated argument":"truncated",
+                        "Invalid string length":"string_bound","Invalid local ASCII string":"string_encoding",
+                        "Registration not eligible":"registration_eligibility",
+                        "Registration not owned":"ownership","Host registration not owned":"host_ownership",
+                        "Registration update not owned":"update_ownership"}
+                    self.event("gathering_rejected_reason_" + reasons.get(str(error),"other"))
                     return rpc_rejection(protocol, call)
                 self.event(event)
                 return rpc_response(protocol, call, method, arguments)

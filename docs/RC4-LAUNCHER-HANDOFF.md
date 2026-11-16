@@ -219,5 +219,13 @@ Registration diagnostics now expose fixed reason counters through the owned Gold
 service summary. Schema, principal, matchmaking variant, initial identifier,
 capacity and prior-owner failures can be distinguished without retaining request
 data or loosening admission. All 27 registration, gathering and single-service
-tests pass; a small valid principal is explicitly covered. A native lobby
-registration rejection remains a failed runtime test until its cause is resolved.
+tests pass; a small valid principal is explicitly covered. Follow-up native UI
+markers showed that the current failure occurs during browser discovery, before
+SessionCreate. The shared RPC rejection counter therefore cannot establish a
+failed creation or a particular host-option cause. Fixed method/reason counters
+now distinguish the catalogue kind, offset, count and argument-shape checks.
+All 85 relevant Gold protocol, service and host/guest ownership regressions pass.
+
+The Windows interface pinning API was also exercised against four actual local
+interfaces with unbound, unconnected sockets. All requested socket options were
+consumed. This opens no connection and does not qualify actual tunnel carriage.

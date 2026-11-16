@@ -92,8 +92,13 @@ class LocalGatherings:
 
     def create(self, owner, principal, data, reader_type):
         try:value = decode(data, reader_type)
-        except ValueError:
-            self.rejections['schema'] += 1
+        except ValueError as error:
+            reasons={'Gathering record bound':'record_bound','Gathering string bound':'string_bound',
+                'Unsupported gathering class':'class','Gathering body bound':'body_bound',
+                'Trailing arguments':'trailing','Truncated argument':'truncated',
+                'Gathering string terminator':'terminator','Gathering stream length mismatch':'stream_length',
+                'Noncanonical gathering boolean':'boolean'}
+            self.rejections['schema_'+reasons.get(str(error),'other')] += 1
             raise
         previous = [record for record in self.records.values() if record.owner is owner]
         # Fixed reason counters distinguish native registration failures without

@@ -148,14 +148,14 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(registry.records[identifier].principal,123)
         self.assertFalse(registry.rejections)
         registry=LocalGatherings()
-        variants=((self.data[:-1],'schema'),
+        variants=((self.data[:-1],'schema_truncated'),
             (codec.encode(replace(self.value,matchmaking_word=1)),'matchmaking'),
             (codec.encode(replace(self.value,base=replace(self.value.base,words=(7,)+(0,)*6))),'initial_identifier'))
         for data,reason in variants:
             with self.assertRaises(ValueError):registry.create(owner,123,data,gold.Reader)
             self.assertEqual(registry.rejections[reason],1)
             self.assertFalse(registry.records)
-        self.assertEqual(dict(registry.rejections),{'schema':1,'matchmaking':1,'initial_identifier':1})
+        self.assertEqual(dict(registry.rejections),{'schema_truncated':1,'matchmaking':1,'initial_identifier':1})
 
     def test_registry_capacity_ids_and_owner_lifetime(self):
         registry = LocalGatherings()
@@ -210,6 +210,9 @@ class RegistrationTests(unittest.TestCase):
             denied = self.send(server, sequence, 21, 17, args)
             self.assertEqual(gold.unwrap(denied[1][13:-1])[4:6], b"\x15\0")
         self.assertEqual(self.adapter.gatherings.records, snapshot)
+        self.assertEqual(self.adapter.events['gathering_rejected_method_17'],4)
+        for reason in ('trailing','truncated','group_kind','group_count'):
+            self.assertEqual(self.adapter.events['gathering_rejected_reason_'+reason],1)
 
     def test_title_update_requires_current_owned_host_and_preserves_authority(self):
         server = self.register()
