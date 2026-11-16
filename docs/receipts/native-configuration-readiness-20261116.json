@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-11-16",
-  "scope": "Original configuration consumption diagnosis and source-only initial observed host-Ready projection",
+  "scope": "Original configuration consumption diagnosis and bounded initial host-Ready projection against both original History editions",
   "actual_diagnostic_pair": {
     "original_gold_host_and_ubisoft_history_guest": true,
     "renderer": "DXVK",
@@ -40,15 +40,57 @@
     "production_handoff_fixture_build_passed": true,
     "native_ready_methods_executed_by_fixtures": false
   },
-  "new_game_test": {
+  "first_game_test_attempt": {
     "started": false,
     "stopped_before_deployment": true,
     "reason": "measured startup RAM buffer unavailable",
     "startup_buffer_gib": 7
   },
+  "actual_followup_pairs": [
+    {
+      "host": "gold",
+      "guest": "ubisoft-history",
+      "original_browser_discovery_completed": true,
+      "original_session_create_returned_true": true,
+      "exact_original_configuration_consumer_observed": true,
+      "only_original_observed_host_ready_projected": true,
+      "complete_native_cache_applied": true,
+      "successful_applied_observations": 70,
+      "configuration_flags": 0,
+      "template_empty": true,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "world_start_requested": false
+    },
+    {
+      "host": "gold",
+      "guest": "steam-history",
+      "original_browser_discovery_completed": true,
+      "original_session_create_returned_true": true,
+      "exact_original_configuration_consumer_observed": true,
+      "only_original_observed_host_ready_projected": true,
+      "complete_native_cache_applied": true,
+      "successful_applied_observations": 69,
+      "configuration_flags": 0,
+      "template_empty": true,
+      "normal_exit_codes": [0, 0],
+      "strict_restoration": true,
+      "owned_services_closed": true,
+      "world_start_requested": false
+    }
+  ],
+  "followup_limits": {
+    "private_instrumented_normal_adapters": true,
+    "original_history_browser_lifecycle_required": true,
+    "earlier_create_before_native_discovery_ready_returned_false": true,
+    "no_create_retry_sleep_fake_ready_or_nat_override": true,
+    "complete_map_and_all_eight_configuration_slots_compared": true,
+    "complete_setup_root_or_applied_template_flags_not_qualified": true
+  },
   "qualification": {
-    "new_host_ready_projection_in_game": false,
-    "steam_history_actual_consumer_pair": false,
+    "new_host_ready_projection_in_game": true,
+    "steam_history_actual_consumer_pair": true,
     "common_world": false,
     "neo_and_shared_reload": false,
     "ordinary_mixed_entry_enabled": false,

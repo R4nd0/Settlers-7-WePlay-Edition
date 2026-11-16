@@ -284,10 +284,22 @@ transaction, not general Ready handling or a start permission.
 
 The expanded 1,077-check receipt fixture rejects every non-host-Ready byte
 change and retains exact-consumption, routing, owner and deadline checks. The
-new projection has not yet run in a game: its first pair stopped before
-deployment because the measured startup RAM buffer was unavailable. The
-[source-and-diagnosis receipt](receipts/native-configuration-readiness-20261116.json)
-does not qualify a common world or a final installed package.
+first pair stopped before deployment because the measured startup RAM buffer
+was unavailable. After resources were freed, bounded pairs against both original
+History editions now consume the original configuration, apply the observed
+host-Ready through the original events/setters and pass the complete native
+configuration-cache comparison, with 70 Ubisoft and 69 Steam applied observations.
+Both pairs exit normally with code zero and strictly restore their guarded
+files, profiles, History runtime and platform saves; their owned services close.
+
+The guest must first enter its original session browser and wait for its actual
+discovery completion, idle browser state and original discovery state `2`.
+Login alone is insufficient: an earlier fresh run returned false from the
+original create call before that readiness. The diagnostic correction uses
+the original callback and lifecycle, with no sleep, create retry, fabricated
+Ready or NAT override. The [updated bounded receipt](receipts/native-configuration-readiness-20261116.json)
+does not qualify complete setup/root agreement, applied template/flags,
+a common world, NEO/reload, reversed host roles or a final installed package.
 
 Bootstrap payload magic is eight bytes `S7XBOOT\x02`. Its 56-byte header contains
 sender and recipient channel IDs (16 bytes each), then little-endian `uint32`
