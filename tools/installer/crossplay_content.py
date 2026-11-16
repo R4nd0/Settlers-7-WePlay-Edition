@@ -2,7 +2,9 @@
 from dataclasses import dataclass, field
 import hashlib
 import json
+from pathlib import Path
 import re
+import stat
 
 import compatibility
 import crossplay_session
@@ -17,7 +19,9 @@ REQUIRED = {
     2: ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll'),
     3: ('Base/Bin/Settlers7R.exe', 'Base/Bin/uplay_r1_loader.dll'),
 }
-PRIVATE_COMPONENTS = frozenset(('localdata', 'profiles', 'savegames', 'saves', '.agent', '.git'))
+GAME_SCOPE = {1:'Data',2:'Base',3:'Base'}
+PRIVATE_COMPONENTS = frozenset(('localdata', 'profile', 'profiles', 'savegames', 'saves',
+                               'account', 'accounts', 'backup', 'backups', 'cache', 'caches', '.agent', '.git'))
 
 
 def file_id(value):
@@ -38,6 +42,39 @@ def unique(items):
         if key in result: raise ValueError('crossplay_catalog_invalid')
         result[key] = value
     return result
+
+
+def plain_asset(path):
+    """Reject every reparse component before resolving or traversing it."""
+    path=Path(path).absolute()
+    for part in (path,*path.parents):
+        info=part.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info,'st_file_attributes',0)&0x400:
+            raise ValueError('crossplay_content_changed')
+    return compatibility.plain(path)
+
+
+def asset_names(root,edition):
+    """Enumerate the full game scope without reading any file contents.
+
+    There are no suffix exclusions. Writable logs/caches belong outside assets;
+    unknown private directories are rejected before they are traversed.
+    """
+    start=plain_asset(root/GAME_SCOPE[edition])
+    if not start.is_dir():raise ValueError('crossplay_content_changed')
+    pending=[start];seen=set();files=set()
+    while pending:
+        folder=plain_asset(pending.pop())
+        for child in folder.iterdir():
+            path=plain_asset(child)
+            name=file_id(path.relative_to(root).as_posix()).casefold()
+            if name in seen or len(seen)>=MAX_FILES*2:raise ValueError('crossplay_content_changed')
+            seen.add(name)
+            if path.is_dir():pending.append(path)
+            elif path.is_file():files.add(name)
+            else:raise ValueError('crossplay_content_changed')
+            if len(files)>MAX_FILES:raise ValueError('crossplay_content_changed')
+    return files
 
 
 @dataclass(frozen=True)
@@ -68,7 +105,9 @@ class Catalog:
                     if not isinstance(row, dict) or set(row) != {'id', 'sha256'}:
                         raise ValueError('crossplay_catalog_invalid')
                     name = file_id(row['id']); digest = row['sha256']
-                    if (name <= previous or name.casefold() in seen or not isinstance(digest, str)
+                    in_scope=name.casefold().startswith(GAME_SCOPE[edition].casefold()+'/')
+                    if ((not in_scope and name!=REQUIRED[edition][1])
+                            or name <= previous or name.casefold() in seen or not isinstance(digest, str)
                             or not re.fullmatch('[0-9a-f]{64}', digest) or digest == '0' * 64):
                         raise ValueError('crossplay_catalog_invalid')
                     records.append((name, digest)); seen.add(name.casefold()); previous = name
@@ -90,15 +129,25 @@ class Catalog:
             raise ValueError('crossplay_catalog_unapproved')
         if type(edition) is not int or edition not in (1, 2, 3):
             raise ValueError('crossplay_edition_mismatch')
-        root = compatibility.plain(root)
         files = self.profiles[edition - 1]
         adapter = dict(files)[REQUIRED[edition][1]]
         if adapter not in crossplay_session.ADAPTER_PINS.get(edition, ()):
             raise ValueError('crossplay_adapter_unavailable')
-        for name, digest in files:
-            path = compatibility.plain(root / name)
-            if not path.is_file() or compatibility.digest(path) != digest:
-                raise ValueError('crossplay_content_changed')
+        try:
+            root=plain_asset(root)
+            expected={name.casefold() for name,_ in files
+                      if name.casefold().startswith(GAME_SCOPE[edition].casefold()+'/')}
+            if asset_names(root,edition)!=expected:raise ValueError('crossplay_content_changed')
+            for name,digest in files:
+                path=plain_asset(root/name);before=path.stat()
+                if not path.is_file() or compatibility.digest(path)!=digest:
+                    raise ValueError('crossplay_content_changed')
+                path=plain_asset(path);after=path.stat()
+                if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
+                    raise ValueError('crossplay_content_changed')
+            if asset_names(root,edition)!=expected:raise ValueError('crossplay_content_changed')
+        except (OSError,ValueError):
+            raise ValueError('crossplay_content_changed') from None
         return self.digest
 
 

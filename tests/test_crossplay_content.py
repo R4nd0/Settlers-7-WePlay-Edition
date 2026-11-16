@@ -3,7 +3,9 @@ from dataclasses import FrozenInstanceError
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import tempfile
 import unittest
@@ -28,7 +30,8 @@ class CrossplayContentTests(unittest.TestCase):
         for edition in (1, 2, 3):
             root = self.root / str(edition); self.roots[edition] = root
             files = []
-            for index, name in enumerate((*content.REQUIRED[edition], 'Base/BBA/reviewed-gameplay.bba')):
+            gameplay=('Data/' if edition==1 else '')+'Base/BBA/reviewed-gameplay.bba'
+            for index, name in enumerate((*content.REQUIRED[edition], gameplay)):
                 raw = f'authored edition {edition} file {index}'.encode('ascii')
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(raw)
                 files.append({'id': name, 'sha256': sha(raw)})
@@ -96,12 +99,85 @@ class CrossplayContentTests(unittest.TestCase):
 
     def test_changed_or_missing_owned_gameplay_input_is_rejected(self):
         catalog = self.catalog(); self.approve(catalog)
-        path = self.roots[1] / 'Base/BBA/reviewed-gameplay.bba'
+        path = self.roots[1] / 'Data/Base/BBA/reviewed-gameplay.bba'
         path.write_bytes(b'foreign gameplay')
         with self.assertRaisesRegex(ValueError, 'content_changed'): catalog.verify(self.roots[1], 1)
         path.unlink()
         with self.assertRaisesRegex(ValueError, 'content_changed'): catalog.verify(self.roots[1], 1)
 
+    def test_extra_game_files_are_rejected_before_hashing_with_no_suffix_exemptions(self):
+        catalog=self.catalog();self.approve(catalog)
+        for edition in (1,2,3):
+            folder=self.roots[edition]/content.GAME_SCOPE[edition]/'Overrides'
+            folder.mkdir()
+            for name in ('loose.lua','asset.bba','runtime.log','crash.dmp','renderer.dxvk-cache'):
+                path=folder/name;path.write_bytes(b'unlisted file, never hash')
+                with self.subTest(edition=edition,name=name),patch.object(content.compatibility,'digest') as digest:
+                    with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[edition],edition)
+                    digest.assert_not_called()
+                path.unlink()
+
+    def test_explicitly_listed_suffix_file_is_hashed_and_cannot_change(self):
+        for edition in (1,2,3):
+            name=content.GAME_SCOPE[edition]+'/static.log'
+            path=self.roots[edition]/name;path.write_bytes(b'reviewed immutable input')
+            rows=self.data['editions'][edition-1]['files']
+            rows.append({'id':name,'sha256':sha(path.read_bytes())});rows.sort(key=lambda row:row['id'])
+        catalog=self.catalog();self.approve(catalog)
+        for edition in (1,2,3):
+            catalog.verify(self.roots[edition],edition)
+            (self.roots[edition]/content.GAME_SCOPE[edition]/'static.log').write_bytes(b'changed suffix file')
+            with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[edition],edition)
+
+    def test_file_added_during_hashing_is_detected_by_the_final_set_check(self):
+        catalog=self.catalog();self.approve(catalog)
+        original=content.compatibility.digest
+        added=self.roots[1]/'Data/late-override.lua'
+        def hash_and_add(path):
+            digest=original(path)
+            if not added.exists():added.write_bytes(b'late addition')
+            return digest
+        with patch.object(content.compatibility,'digest',side_effect=hash_and_add):
+            with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[1],1)
+
+    def test_file_modified_while_hashing_cannot_pass_with_the_previous_digest(self):
+        catalog=self.catalog();self.approve(catalog)
+        original=content.compatibility.digest
+        def hash_and_touch(path):
+            digest=original(path);info=path.stat()
+            os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns+10000000))
+            return digest
+        with patch.object(content.compatibility,'digest',side_effect=hash_and_touch):
+            with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[1],1)
+
+    def test_private_directory_is_not_traversed_and_external_profile_stays_outside_assets(self):
+        catalog=self.catalog();self.approve(catalog)
+        private=self.roots[2]/'Base/Accounts';private.mkdir()
+        outside=self.roots[1]/'LocalData/Profiles';outside.mkdir(parents=True)
+        (outside/'fixture.json').write_bytes(b'private fixture')
+        original=Path.iterdir
+        def guarded(path):
+            if path==private or path==outside:raise AssertionError('Private directory traversed')
+            return original(path)
+        with patch.object(Path,'iterdir',guarded):
+            catalog.verify(self.roots[1],1)
+            with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[2],2)
+
+    def test_non_junction_reparse_attributes_are_rejected_before_traversal(self):
+        catalog=self.catalog();self.approve(catalog)
+        folder=self.roots[2]/'Base/Bin';original=Path.lstat
+        def reparse(path):
+            info=original(path)
+            return SimpleNamespace(st_mode=info.st_mode,st_file_attributes=0x400) if path==folder else info
+        with patch.object(Path,'lstat',reparse):
+            with self.assertRaisesRegex(ValueError,'content_changed'):catalog.verify(self.roots[2],2)
+
+    def test_catalog_cannot_declare_other_scopes_as_game_assets(self):
+        for edition,name in ((1,'Base/unused.bba'),(2,'Launcher/extra.dll'),(3,'Runtime/extra.dll')):
+            changed=copy.deepcopy(self.data);rows=changed['editions'][edition-1]['files']
+            rows.append({'id':name,'sha256':'a'*64});rows.sort(key=lambda row:row['id'])
+            with self.subTest(edition=edition),self.assertRaisesRegex(ValueError,'catalog_invalid'):
+                content.Catalog(encode(changed))
     def test_catalog_cannot_verify_another_editions_root_or_invalid_role(self):
         catalog = self.catalog(); self.approve(catalog)
         with self.assertRaises(ValueError): catalog.verify(self.roots[2], 1)
@@ -110,7 +186,7 @@ class CrossplayContentTests(unittest.TestCase):
 
     def test_linked_inputs_never_escape_the_own_profile(self):
         catalog = self.catalog(); self.approve(catalog)
-        path = self.roots[1] / 'Base/BBA/reviewed-gameplay.bba'
+        path = self.roots[1] / 'Data/Base/BBA/reviewed-gameplay.bba'
         other = self.root / 'outside.bba'; other.write_bytes(path.read_bytes())
         path.unlink(); path.symlink_to(other)
         with self.assertRaises(ValueError): catalog.verify(self.roots[1], 1)

@@ -101,7 +101,7 @@ class DesktopCrossplayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'edition_mismatch'):
             self.desktop.crossplay_play(self.request(),host=True)
         self.edition(1)
-        (self.fixture.roots[1]/'Base/BBA/reviewed-gameplay.bba').write_bytes(b'changed')
+        (self.fixture.roots[1]/'Data/Base/BBA/reviewed-gameplay.bba').write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'content_changed'):
             self.desktop.crossplay_play(self.request(),host=True)
         self.private.assert_not_called();self.host.assert_not_called()

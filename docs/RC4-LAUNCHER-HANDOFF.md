@@ -72,20 +72,31 @@ including continued original checksums and active logistics.
 ## Shared content admission
 
 `crossplay_content.py` validates the contract's canonical three-edition catalog.
-Each edition must include its pinned original executable and native adapter;
-reviewed gameplay/script/map files are then frozen with the final qualified
-profiles. The parser enforces exact schema/types, ordered editions and file IDs,
+Each edition includes its pinned original executable, native adapter and every
+ordinary file in Gold `Data/**` or History `Base/**`. Gold's adapter is explicitly
+bound at `Launcher/weplay_gold_startup.dll` outside its game-asset scope. No other
+outside-scope entries are accepted. The parser enforces exact schema/types, ordered editions and file IDs,
 nonzero lowercase SHA-256 values, bounded size/counts and Windows-safe relative
 paths. Duplicate JSON fields, case-colliding paths, links and local profile/save
 inputs are rejected.
+
+Verification checks the exact relative file set before and after hashing, rejects
+all reparse points before traversal, and checks size/mtime stability around each
+hash. Added loose overrides fail even when every previously listed hash matches.
+There is no global `.log`, `.dmp` or `.dxvk-cache` exception: all files within the
+asset scope participate. Writable runtime output must stay in explicitly managed
+locations outside that scope. Unknown private/profile/account/cache directories
+inside it are rejected before traversal. These checks do not read other profiles
+or change the frozen content. Nineteen catalog tests pass, including extra suffix
+files, mid-verification changes and reparse/privacy boundaries.
 
 Schema validity supplies no release approval. `APPROVED_DIGESTS` remains empty
 until the reviewed final catalog exists. An explicit standalone mixed launch
 requires both an admitted production adapter and that exact approved catalog,
 verifies the local installed files and requires the binding's content digest to
 match. This prevents an arbitrary nonzero content value from reaching the game.
-Ten catalog tests plus the nine handoff, seven migration and ten portable-runtime
-tests pass. These are authored checks, separate from the required game tests.
+The handoff, migration and portable-runtime checks remain separate from the
+required real game and final installed package qualification.
 
 ## Owned local services
 
