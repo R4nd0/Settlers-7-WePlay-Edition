@@ -6,6 +6,12 @@ admitted by the normal launcher parser, runtime, content catalog or installer.
 The [production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md#required-reverse-role-extension)
 defines the complete original-engine and final-package requirements.
 
+Current measured milestone: an original Steam History host and original Gold
+guest now complete a genuine native READY exchange under DXVK, with both clients
+exiting0 and strict restoration. This does not qualify a reverse world start,
+NEO logistics or History-origin save/reload. See the
+[actual READY receipt and limits](receipts/native-reverse-ready-20261117.json).
+
 ## First native components
 
 `crossplay_history_host_choices.h` observes the original Steam History host's
@@ -232,12 +238,29 @@ preparation flag. Four original-consumer prefix cases retain host cache1 and hos
 preparation0 while the guest is genuinely toggled. The observer still requires the
 actual guest cache/preparation result, unchanged roots, Boolean ranges and10s
 deadline. It reports the four actual flags without writing any of them. The full
-398-check component run passes; the next actual pair for this observation change
-is prepared and awaiting the original memory guard. See the
+398-check component run passes. The subsequent actual pair completed the native
+READY exchange described below. See the
 [host-row evidence and pending observation limits](receipts/native-reverse-host-row-20261117.json).
 
-The runtime still needs a completed original human Ready exchange with the new
-SDK boundary, History host start capture, host/guest setup-root agreement
+### Actual original READY exchange
+
+The genuine Gold READY action now reaches the original Steam host as authenticated
+intent. The original host request changes guest cache0 to1 and guest preparation0
+to1; its own cache stays1 and its own preparation stays0. This confirms why the
+extra host-flag equality was invalid. The native host result is observed32ms
+after original local enqueueing. Gold then decodes and locally clones only the
+authenticated observed host states, and reads both native cache values as1/1
+31ms after that original queueing. The interval from the original UI action marker
+to Gold's final readback is312ms.
+
+Both original clients used DXVK3.1.1 at normal pace and exited0. All guarded files,
+portable profiles, auxiliary files, saves and owned services were restored. The
+broker relayed11 frames and recorded one rejection whose exact cause was not
+captured; it remains an explicit limitation. The native evidence does not qualify
+the visible READY screen or long-term lobby stability. No world-start action was
+requested, and no gameplay turn, NEO delivery or reverse save/load is claimed.
+
+The runtime still needs History host start capture, host/guest setup-root agreement
 and full NEO lifecycle. Its save
 checkpoint must come from a new original Steam History host save, followed by
 a fresh-owner transfer/load, matching original turns, continued logistics and
