@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Steam History host START capture-only component; reverse world admission remains closed",
+  "component": {
+    "name": "CrossplayNativeStart::HistoryStartHold",
+    "original_start_method_bytes_pinned": 208,
+    "original_callsite_bytes_owned": 5,
+    "original_stack_arguments_preserved": 5,
+    "callee_cleaned_argument_bytes": 20,
+    "general_event_sender_suppression_or_replacement": false,
+    "borrowed_original_event_must_be_copied_synchronously": true,
+    "replay_or_world_enqueue_api": false,
+    "restoration_requires_exact_owned_jump": true
+  },
+  "offline_evidence": {
+    "authored_component_checks_passed": 19,
+    "compiled_original_image_guard_cases_passed": 29,
+    "compiled_owned_patch_normalization_cases_passed": 29,
+    "compiled_original_continuation_entry_cases_passed": 2,
+    "direction_flag_clear_and_set": true,
+    "general_registers_flags_stack_x87_sse_and_last_error_checked": true,
+    "original_game_code_executed_by_guard_or_entry_checks": false,
+    "all_ten_reverse_component_fixtures_passed": true,
+    "bounded_lua51_candidate_members_parsed": 568,
+    "unmodified_archive_payloads_compared": true,
+    "original_start_widget_availability_and_yield_reentry_guards_checked": true
+  },
+  "actual_pair_evidence": {
+    "completed_original_game_pair_runs": 2,
+    "host": "original Steam History",
+    "guest": "original Gold",
+    "renderer": "DXVK 3.1.1",
+    "standalone_loopback": true,
+    "original_normal_pace_without_x20": true,
+    "existing_gold_binary_and_archive_reused_exactly": true,
+    "capture_hold_installed_before_native_ready_in_both_runs": true,
+    "original_native_guest_ready_and_gold_readback_repeated": true,
+    "actual_original_start_ui_action_observed": false,
+    "actual_original_start_event_captured": false,
+    "both_clients_exit0_each_run": true,
+    "guarded_files_profiles_auxiliary_files_and_services_restored": true,
+    "broker_relayed_frames_each_run": 11,
+    "broker_rejections_each_run": 1,
+    "broker_rejection_exact_cause_captured": false,
+    "visual_capture_qualified": false,
+    "visual_capture_errors": [
+      "FrameArrived timed out: timed out waiting on channel",
+      "computer-use request timed out: activate_window"
+    ]
+  },
+  "diagnostic_limits": {
+    "long_ui_exclusion_reports_exceeded_existing_command_limit": true,
+    "compact_ui_reports_prepared_and_offline_checked": true,
+    "command_limit_bytes_unchanged": 80,
+    "compact_candidate_actual_pair_not_started_due_to_ram_guard": true,
+    "startup_physical_and_commit_buffer_bytes_unchanged": 7516192768,
+    "bounded_wait_after_full_hash_prepared_with_candidate_and_file_metadata_rechecks": true
+  },
+  "qualification": {
+    "reverse_shared_world": false,
+    "reverse_active_neo_logistics": false,
+    "history_origin_save_reload_resave": false,
+    "ordinary_reverse_parser_or_installer_admission": false,
+    "catalog_or_adapter_pins_promoted": false,
+    "next_actual_check": "Use compact original lobby/start-availability reports to identify the remaining original START exclusion; then capture the genuine original event before integrating existing setup/root/world barriers"
+  }
+}

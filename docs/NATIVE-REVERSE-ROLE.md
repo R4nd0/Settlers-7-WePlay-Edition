@@ -12,6 +12,13 @@ exiting0 and strict restoration. This does not qualify a reverse world start,
 NEO logistics or History-origin save/reload. See the
 [actual READY receipt and limits](receipts/native-reverse-ready-20261117.json).
 
+A capture-only original History START component now passes its offline
+ABI/integrity checks and installs before Ready in two further actual DXVK pairs.
+Neither pair reached the original START action. Compact original UI/native
+exclusion diagnostics are prepared; the unchanged RAM guard prevented their
+actual pair from starting. See the [component, evidence and remaining exclusion](NATIVE-HISTORY-START-CAPTURE.md).
+Reverse world/NEO/History-origin save qualification remains open.
+
 ## First native components
 
 `crossplay_history_host_choices.h` observes the original Steam History host's
