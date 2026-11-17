@@ -11,17 +11,23 @@ except ImportError:
     LuaRuntime = None
 
 BACKEND = r'''
-local C={now=0,session=true,host=true,map=true,ready=false,roster=true,enabled=false,
+local C={now=0,session=true,host=true,slot=1,map=true,ready=false,roster=true,enabled=false,created=true,
     updates=0,refreshes=0,destroys=0}
 C.State={startButton={},allHumansAreReady=false}
-C.Panel={update=function() C.updates=C.updates+1;C.enabled=C.State.allHumansAreReady end,
-    destroy=function() C.destroys=C.destroys+1 end,
-    updatePlayerSlots=function() C.refreshes=C.refreshes+1;C.State.allHumansAreReady=C.ready end}
+C.getState=function() return C.State end
+C.Panel={isCreated=function() return C.created end,
+    create=function() C.created=true;C.State={startButton={},allHumansAreReady=false} end,
+    update=function() C.updates=C.updates+1;C.enabled=C.State.allHumansAreReady
+        if C.onUpdate then C.onUpdate() end end,
+    destroy=function() C.destroys=C.destroys+1;C.created=false;C.State={} end,
+    updatePlayerSlots=function()
+        assert(C.created and C.session and C.host,"native slot update after lobby ownership ended")
+        C.refreshes=C.refreshes+1;C.State.allHumansAreReady=C.ready end}
 C.G={Game={GetRunTime=function() return C.now end},
     require=function() return {weplayMPResume={ready=function() return C.roster end}} end,
     ui={enable=function(button,enabled) assert(button==C.State.startButton);C.enabled=enabled end},
     Network={SessionIsInSession=function() return C.session end,IsHost=function() return C.host end,
-        GetLocalPlayerSlot=function() return 1 end},MapSetup={IsValid=function() return C.map end}}
+        GetLocalPlayerSlot=function() return C.slot end},MapSetup={IsValid=function() return C.map end}}
 return C
 '''
 
@@ -32,7 +38,7 @@ class HostLobbyTests(unittest.TestCase):
         self.lua = LuaRuntime()
         self.c = self.lua.execute(BACKEND)
         self.panel = self.lua.execute((HERE / 'host_lobby.lua').read_text(encoding='utf8'),
-                                      self.c.G, self.c.Panel, self.c.State)
+                                      self.c.G, self.c.Panel, self.c.getState)
         self.callback = self.lua.eval('function() return true end')
         self.record = self.lua.table()
 
@@ -74,10 +80,65 @@ class HostLobbyTests(unittest.TestCase):
         self.panel.update()
         self.assertEqual(self.c.refreshes, 0)
         self.assertEqual(self.c.destroys, 1)
+        self.panel.create()
         self.panel.weplayPrepareResume(self.lua.eval('function() return false end'), self.record)
         self.c.now = 3500
         self.panel.update()
         self.assertEqual(self.c.refreshes, 0)
+
+    def test_late_configuration_event_after_destroy_never_updates_native_slots(self):
+        self.panel.destroy()
+        self.panel.updatePlayerSlots()
+        self.assertEqual(self.c.refreshes, 0)
+
+    def test_session_loss_cancels_cached_ready_refresh(self):
+        self.panel.weplayPrepareResume(self.callback, self.record)
+        self.c.now = 1500
+        self.panel.update()
+        before = self.c.refreshes
+        self.c.session = False
+        self.c.now = 1700
+        self.panel.update()
+        self.panel.updatePlayerSlots()
+        self.assertEqual(self.c.refreshes, before)
+        self.assertFalse(self.c.enabled)
+
+    def test_destroy_during_original_update_cancels_deferred_work(self):
+        self.panel.weplayPrepareResume(self.callback, self.record)
+        self.c.onUpdate = self.panel.destroy
+        self.c.now = 1500
+        self.panel.update()
+        self.assertEqual(self.c.refreshes, 0)
+        self.assertEqual(self.c.destroys, 1)
+
+    def test_resume_callback_leaving_session_does_not_refresh_native_slots(self):
+        callback = self.lua.eval('function(C) return function() C.session=false;return true end end')(self.c)
+        self.panel.weplayPrepareResume(callback, self.record)
+        self.c.now = 1500
+        self.panel.update()
+        self.assertEqual(self.c.refreshes, 0)
+
+    def test_recreated_lobby_reads_current_original_state(self):
+        self.panel.destroy()
+        self.panel.create()
+        self.panel.weplayPrepareResume(self.callback, self.record)
+        self.c.ready = True
+        self.c.now = 1500
+        self.panel.update()
+        self.panel.update()
+        self.assertTrue(self.c.enabled)
+        self.assertTrue(self.c.State.allHumansAreReady)
+
+    def test_lost_host_role_disables_start_without_native_slot_updates(self):
+        for field, value in [('host', False), ('slot', 2)]:
+            with self.subTest(field=field):
+                self.setUp()
+                self.c.State.allHumansAreReady = True
+                self.c[field] = value
+                self.panel.update()
+                self.panel.updatePlayerSlots()
+                self.assertFalse(self.c.enabled)
+                self.assertEqual(self.c.refreshes, 0)
 
 
 if __name__ == '__main__':

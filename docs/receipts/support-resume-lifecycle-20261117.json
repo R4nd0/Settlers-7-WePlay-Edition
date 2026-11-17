@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-17",
+  "scope": "original Ubisoft History autosave resume-lobby lifecycle comparison",
+  "executable_sha256": "4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f",
+  "adapter_sha256": "f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112",
+  "renderer": "DXVK",
+  "exact_rc325_package_reproduction": false,
+  "private_fixture": {
+    "embedded_save_roster_crc_validated": true,
+    "saved_neo_choice_parsed_without_executing_lua": true,
+    "original_slot_date_map_name_binding_required": true,
+    "same_index_import_in_both_variants": true,
+    "native_ready_crc_or_simulation_results_substituted": false
+  },
+  "old_lifecycle": {
+    "observed_exit_code": 3221225477,
+    "exception": "0xc0000005",
+    "instruction": "0x00ed6ae1",
+    "access": "read",
+    "access_address": "0x000000c0",
+    "ecx": 0
+  },
+  "corrected_lifecycle": {
+    "actual_runs": 2,
+    "exit_codes": [0, 0],
+    "observed_resume_rejection": "host predicate false after original ChangeSavegame nonempty result",
+    "original_slot_update_crash_observed": false,
+    "world_loaded": false,
+    "manual_save_qualified": false,
+    "three_player_continued_play_qualified": false
+  },
+  "restoration": {
+    "games_closed": true,
+    "prior_localdata_bytes_and_mtimes_exact": true,
+    "prior_copy_pins_unchanged": true,
+    "shared_documents_profiles_unchanged": true
+  },
+  "source_verification": {
+    "resume_tests_passed": 39,
+    "directory_tests_passed": 7,
+    "neo_tests_passed": 35,
+    "midsummer_tests_passed": 15,
+    "historical_fixture_checks_skipped": 3,
+    "complete_archive_variants_verified": 5,
+    "changed_lua_members_compiled": 14,
+    "native_or_release_approval_promoted": false
+  }
+}

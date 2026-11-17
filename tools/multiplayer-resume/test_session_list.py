@@ -24,6 +24,7 @@ C.Host={weplayPrepareResume=function(callback,record)
 C.Panel={create=function() end,update=function() end,destroy=function() end}
 C.State={browserFrame={},sessionsFilterList={getSelectedItemData=function() return {lan=true} end},
     callbacks={toHostLobby=function(options) C.transitions=C.transitions+1;C.options=options end}}
+C.getState=function() return C.State end
 C.G={require=function(name)
     if name=="local.tools.settings" then return {weplayMPResume=C.Resume}
     elseif name=="local.menu.panel.shared.tools.loadSaveDialogFactory" then
@@ -54,7 +55,7 @@ class SessionListTests(unittest.TestCase):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.c = self.lua.execute(BACKEND)
         self.panel = self.lua.execute((HERE / 'session_list.lua').read_text(encoding='utf8'),
-                                      self.c.G, self.c.Panel, self.c.State)
+                                      self.c.G, self.c.Panel, self.c.getState)
 
     def select_save(self):
         self.panel.create(self.lua.table())
@@ -121,6 +122,17 @@ class SessionListTests(unittest.TestCase):
         self.assertIsNone(self.c.templateReads)
         self.assertEqual(self.c.creates, 0)
         self.assertEqual(self.c.prepared, 0)
+
+    def test_recreated_browser_uses_current_filter_and_callbacks(self):
+        self.select_save()
+        self.panel.destroy()
+        self.lua.eval('''function(C)
+            C.State={browserFrame={},sessionsFilterList={getSelectedItemData=function() return {lan=false} end},
+                callbacks={toHostLobby=function(options) C.newPageTransition=true end}}
+        end''')(self.c)
+        self.select_save()
+        self.assertFalse(self.c.args[3])
+        self.assertTrue(self.c.newPageTransition)
 
 
 if __name__ == '__main__':

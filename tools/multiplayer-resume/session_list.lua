@@ -1,6 +1,6 @@
 -- Owned session-browser extension. The caller supplies the existing UI module
 -- and its private state; saved roles come exclusively from validated metadata.
-local G, Panel, State = ...
+local G, Panel, getState = ...
 local Resume = G.require("local.tools.settings").weplayMPResume
 local dialog
 local originalCreate, originalUpdate, originalDestroy = Panel.create, Panel.update, Panel.destroy
@@ -38,6 +38,7 @@ local function loadSlot(slot)
     G.Network.SetIsPrivate(false)
     local humans = 0
     for _, player in _G.ipairs(record.players) do if player.role == 1 then humans = humans + 1 end end
+    local State = getState()
     local filter = State.sessionsFilterList.getSelectedItemData()
     if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, record.template, false) then
         G.ui.messageBox("WePlay", "Die Lobby konnte nicht erstellt werden.")
@@ -58,6 +59,7 @@ local function loadSlot(slot)
 end
 function Panel.create(callbacks)
     originalCreate(callbacks)
+    local State = getState()
     local width, height = G.system.getScreenSize()
     local button = G.button.create(State.browserFrame, {x = 80, y = height - 230}, "LOAD GAME",
         G.button.class.optionsButton, openDialog, nil, G.UI.Anchor.Top, G.UI.Anchor.Left)

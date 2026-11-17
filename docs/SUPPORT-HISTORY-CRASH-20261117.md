@@ -1,5 +1,55 @@
 # History multiplayer crash report, 2026-11-17
 
+## First verified correction: resume-lobby lifecycle
+
+The supplied autosave now reproduces the exact reported host failure locally:
+`0xc0000005` at `0x00ed6ae1`, null ECX, read address `0xc0`. A controlled comparison
+with the corrected Lua lifecycle removes that crash and exits normally, but
+still reports a failed resume. This is a verified crash-path correction, not
+a playable-save or sustained-multiplayer qualification. See the
+[bounded comparison receipt](receipts/support-resume-lifecycle-20261117.json).
+
+The original host-lobby destroy routine replaces its private state table.
+The resume extension previously retained the old table, continued after an
+original update that could synchronously change the page, and refreshed native
+slots after its deferred callback could leave the session. The correction reads
+the current state through an accessor, retires deferred work on lost ownership,
+guards late slot refreshes, and disables START when no owned host lobby remains.
+The browser extension also uses an accessor rather than assuming its state
+object is permanent. Original Ready results and native CRC checks are unchanged.
+
+The comparison used the verified original Ubisoft executable with the existing
+normal standalone adapter (`f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112`)
+and DXVK. This is not an exact RC3.25-package reproduction. Both variants used
+the same explicit private import of the saves' CRC-validated embedded roster
+and NEO choice into the missing local resume index, bound to the original
+engine's slot/date/map/name. No save-supplied Lua was executed. Without that
+controlled import, the supplied Documents-only export is rejected before the
+original resume path because LocalData's index is absent, even with the supplied
+Documents profile copied into the isolated test profile.
+
+After the original `ChangeSavegame` returns a nonempty result, `applyRoster`
+rejects its `host()` predicate. Its original query sequence is network mode,
+host role, game mode 2 and local slot 1. Which condition changes, and why, remains
+under investigation. That rejection causes the normal session leave; the old
+resume extension then reaches the invalid native slot update. The correction
+prevents that follow-up crash without overriding the rejection or claiming the
+underlying resume state is valid. The manual save and live three-player continued
+play have not yet been qualified with this correction.
+
+All actual comparison processes are closed; fixed runs exited 0. Prior LocalData
+files, options, saves and profile bytes/mtimes, unchanged executable/adapter/archive
+pins and shared Documents profiles were verified restored. Private comparison
+archives, logs and receipts remain under `work/support-desync-20261117/`.
+
+Source checks: 39 resume, 7 directory, 35 NEO and 15 Midsummer tests pass; three
+historical Midsummer fixture checks skip. All five complete source archive
+variants match their recomputed transformation hashes, and all 14 changed Lua
+members compile. These source hashes do not approve or publish a native adapter,
+installed package or RC4 release gate.
+
+## Initial triage and subsequently supplied evidence
+
 Offline triage of privately supplied host/client archives for a reported
 three-human match with AI, followed by failing autosave/manual-save reloads.
 Two later launcher reports identify RC3.25. No diagnostic game was launched: the current
@@ -136,8 +186,8 @@ provide a usable captured memory range for the fault context's stack/manager
 fields in this inspection; the earlier cause of the missing handler was not
 reconstructed.
 
-No adapter fix, save repair or successful reload is claimed. Skipping the
-null dereference alone would not restore an owned multiplayer session.
+The first Lua lifecycle correction and its remaining resume failure are described
+above. No adapter correction, save repair or successful world reload is claimed.
 
 ## Required follow-up
 

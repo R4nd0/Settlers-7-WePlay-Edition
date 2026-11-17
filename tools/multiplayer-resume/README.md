@@ -43,6 +43,15 @@ completion. The functional transfer/readiness hooks are built with
 `LocalNetworkPump` for both original executable profiles; laboratory tracing
 remains separate.
 
+The lobby hook receives a function returning the current original private state:
+the original host destroys that table when closing its page. Deferred setup and
+cached-ready refreshes stop when the page or host ownership ends, including a
+page change inside the original update or a session leave inside the resume
+callback. Late configuration events cannot update native slots for a destroyed
+lobby. A local comparison reproduces the reported native slot-update crash with
+the old hook and prevents it with this correction; the supplied save still fails
+the preceding host-state check. See the [actual limits and receipt](../../docs/SUPPORT-HISTORY-CRASH-20261117.md).
+
 Observed native verification on 2026-11-02: a manually saved 2-human/2-AI match
 was resumed after both processes fully exited. Both original human roles and
 AI parameters were restored, and ten minutes of continued play produced 6438

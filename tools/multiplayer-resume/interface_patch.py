@@ -78,7 +78,8 @@ if e.Network.GetGameMode()==1 then f,l=o(i,l,"LOAD GAME",t.actions.load) end
 u=true
 end''')
     for file, arguments, returned in (
-        ('session_list.lua', 'e,a,l', 'a'), ('host_lobby.lua', 'n,d,e', 'd')):
+        ('session_list.lua', 'e,a,function() return l end', 'a'),
+        ('host_lobby.lua', 'n,d,function() return e end', 'd')):
         module = 'sessionList' if returned == 'a' else 'hostLobby'
         fragment = (HERE / file).read_text(encoding='utf8')
         change('menu/panel/menu/play/multiplayer/' + module + '.lua', 'return ' + returned + '\n',
