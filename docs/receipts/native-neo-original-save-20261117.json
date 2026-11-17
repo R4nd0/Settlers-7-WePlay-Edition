@@ -1,0 +1,54 @@
+{
+  "scope": "Bounded original Gold host and original Ubisoft History guest, standalone DXVK, normal speed",
+  "original_clock_duration_ms": 100,
+  "x20_requested": false,
+  "diagnostic_cpu_assignment": {
+    "physical_cores_per_client": 2,
+    "smt_siblings_used": false,
+    "gold_actual_process_mask": 5,
+    "history_actual_process_mask": 80,
+    "disjoint_assignment_verified": true
+  },
+  "original_host_save": {
+    "created_by_original_game": true,
+    "slot": 1000,
+    "logic_turn": 700,
+    "replay_turn": 701,
+    "archive_bytes": 4519264,
+    "native_world_bytes": 24621470,
+    "neo_enabled": true,
+    "features": 19,
+    "restricted_neo_metadata_verified": true,
+    "complete_archive_and_world_hashes_verified": true
+  },
+  "continued_original_world": {
+    "common_crc_count": 1017,
+    "first_crc_turn": 0,
+    "last_crc_turn": 1016,
+    "crc_mismatches": 0,
+    "gold_to_history_exact_eot_comparisons": 1018,
+    "history_to_gold_exact_eot_comparisons": 1018,
+    "both_original_ai_initial_buildings": 7,
+    "both_original_ai_maximum_buildings": 10,
+    "both_original_ai_maximum_construction_goods": 3,
+    "finished_observed_human_sites": 1,
+    "unfinished_observed_human_sites": 1,
+    "common_native_neo_snapshots": 34,
+    "neo_snapshot_mismatches": 0,
+    "nonempty_individual_priority_marks": false
+  },
+  "closure": {
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "gold_closed_by_operator": true,
+    "history_observed_peer_closure": true,
+    "shutdown_broker_rejections": 1,
+    "guarded_files_and_profiles_restored": true,
+    "services_stopped": true
+  },
+  "saved_transfer_qualified": false,
+  "fresh_owner_shared_reload_qualified": false,
+  "steam_saved_session_qualified": false,
+  "stable_full_crossplay_qualified": false,
+  "package_approval_promoted": false
+}

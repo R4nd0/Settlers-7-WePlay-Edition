@@ -45,6 +45,25 @@ original Gold pickle jar and the same NEO helper as History.
 
 ## Verification and remaining work
 
+A subsequent original Gold/Ubisoft DXVK pair produced a new native host save
+at logical turn 700, replay turn 701, with active feature-19 NEO. The restricted
+native archive reader verified the complete archive, its 24,621,470-byte world
+stream and its saved NEO metadata. The pair continued after saving: 1,017 common
+original CRCs (0–1016) matched. Both original AI opponents expanded to ten
+buildings and received construction goods; one observed human storehouse
+finished on both clients. The second observed site remained unfinished. Both
+processes exited normally and the isolated profiles and guarded files were
+restored. History observed the operator's Gold closure; one shutdown broker
+rejection remains recorded. This establishes creation of that actual save,
+not a shared reload or Steam saved-session qualification.
+
+The diagnostic launcher can now assign separate pairs of physical CPU cores
+to its two owned clients while retaining the two-core, no-SMT limit per client.
+It checks the actual process affinity after assignment. Previously both clients
+selected the same first pair. In a measured repeat, History setup operations
+fell from hundreds/thousands of milliseconds to tens of milliseconds and the
+native world start completed. The default single-client assignment is unchanged.
+
 The original AI/start, ordered queue, production handoff, Gold movement/SEH and
 adapter builds passed. Two modeled low-address runtime fixtures were excluded
 by Windows address layout; their fixed guard images were built separately.
@@ -53,9 +72,10 @@ NEO runtime Lua 5.1 tests passed; 568 staged archive members compiled with
 unrelated payloads checked unchanged.
 
 These bounded worlds do not establish long-term stability. The late Ubisoft
-failure remains to be diagnosed, and its complete Gold Lua lifecycle candidate
-still needs its own pair test. Current normal-adapter mixed saving, transfer,
-fresh-owner loading and continued NEO goods have not been proved. The earlier
+failure remains to be diagnosed. A later Ubisoft pair exercised the complete
+Gold Lua lifecycle and created the native save described above. Saved transfer,
+fresh-owner loading and continued NEO goods after reload have not been proved.
+The earlier
 private saved-session results remain a separate implementation, as described
 in [native saved-session transfer](NATIVE-SAVE-TRANSFER.md). Ordinary mixed-entry
 approval and final installer promotion remain closed. Other maps, reverse host
