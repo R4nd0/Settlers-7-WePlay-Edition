@@ -54,6 +54,10 @@ void Setup() {
         call InitOrbitBridge
     }
 }
+// Only these authored callers jump out through a copied return-address stub.
+// Keep their scaffolding unoptimized; the included startup implementation and
+// other fixture targets retain the selected production optimization flags.
+#pragma optimize("", off)
 bool IdentityAbi(const char* expected_name = "WePlayGoldLocal",
     const wchar_t* expected_display = L"WePlay Gold Local") {
     name = {}; ticket = {}; display = {}; display.capacity = 7;
@@ -118,6 +122,7 @@ bool CloudSaveAbi(uintptr_t rva) {
     return before==after && observed_bx==0x12345678 && observed_si==0x34567890 && observed_di==0x56789012
         && GoldStartup::Empty(&record,1) && !facade[0x1c];
 }
+#pragma optimize("", on)
 bool CloudSaveGuards() {
     const unsigned char entry[]={0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
     const unsigned char wait[]={0x6a,0x02,0xff,0x15};
@@ -294,6 +299,7 @@ void LocalSetup() {
     local_ready=reinterpret_cast<NativeReady>(FixtureReady);
     local_advance=FixtureAdvance;
 }
+#pragma optimize("", off)
 bool LocalReadyAbi(bool native_network = false) {
     auto* at=reinterpret_cast<unsigned char*>(image+0x1a6a93);
     at[0]=0xe8;
@@ -347,6 +353,7 @@ bool LocalAdvanceAbi() {
     }
     return GetLastError()==71 && fixture_called && before==after && result==static_cast<DWORD>(fixture_result) && !local_step_active.load();
 }
+#pragma optimize("", on)
 std::array<unsigned int,58> local_task{};
 unsigned int choice_mode=0;
 std::string choice_calls;
@@ -374,6 +381,7 @@ void TaskSetup() {
     local_choice_existing=FixtureExisting;local_choice_transport=FixtureTransport;
     local_choice_alternative=FixtureAlternative;local_choice_fallback=FixtureFallback;
 }
+#pragma optimize("", off)
 bool LocalTaskAbi() {
     TaskSetup();auto* at=reinterpret_cast<unsigned char*>(image+0x54943f);
     at[0]=0xe8;
@@ -410,6 +418,7 @@ bool LocalTaskAbi() {
     }
     return true;
 }
+#pragma optimize("", on)
 bool LocalSimulationAbi() {
     LocalSetup();
     for (bool value : {false,true}) {

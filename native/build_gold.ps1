@@ -25,7 +25,7 @@ $productionSources = @()
 if ($PlatformIndependent) {
     if ($IsolatedLabExecutable -or $AccountLogin -or $LocalLogin) { throw 'Standalone Gold uses the verified local simulation and original prepared executable only.' }
     if (!$LocalSimulation) { throw 'Standalone Gold requires LocalSimulation.' }
-    $common += '/DS7_PLATFORM_INDEPENDENT'
+    $common += @('/DS7_PLATFORM_INDEPENDENT','/O2','/Oy-')
     foreach ($name in @('crossplay_production_launch.cpp','crossplay_production_context.cpp','crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp')) {
         $productionSources += (Join-Path $nativeSource $name)
     }
@@ -46,6 +46,12 @@ if ($IsolatedLabExecutable) {
 }
 Push-Location $nativeOutput
 try {
+    if ($PlatformIndependent) {
+        & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $nativeSource 'third_party/puff/puff.c') /Fo:crossplay_resume_puff.obj
+        if ($LASTEXITCODE) { throw 'Crossplay saved archive inflater build failed.' }
+        $productionSources += (Join-Path $nativeOutput 'crossplay_resume_puff.obj')
+        $standaloneSources += (Join-Path $nativeOutput 'crossplay_resume_puff.obj')
+    }
     & cl.exe @common (Join-Path $nativeSource 'ai_catalog_unlock_tests.cpp') /Fe:ai_catalog_unlock_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /INCREMENTAL:NO
     if ($LASTEXITCODE -ne 0) { throw 'AI catalog offline guard fixture build failed.' }
     & cl.exe @common (Join-Path $nativeSource 'gold_startup_tests.cpp') (Join-Path $nativeSource 'network_guard.cpp') @productionSources /Fe:gold_startup_tests.exe /link bcrypt.lib ws2_32.lib winhttp.lib shell32.lib user32.lib "/MANIFESTUAC:level='asInvoker' uiAccess='false'"

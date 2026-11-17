@@ -48,6 +48,21 @@ function a.weplayCanAutoCreate()
  return _G.type(discovery)=="table" and discovery.State==2
 end
 '''
+GUEST_ACTIONS = '''
+function c.weplayCanAutoReady()
+ if l.UI.WriteToConsole("weplay-crossplay-v1:mode")=="guest"
+  and l.UI.WriteToConsole("weplay-crossplay-v1:guest-ready-available")~="1" then return false end
+ if not o.frame or not o.slots or not l.Network.SessionIsInSession()
+  or l.Network.IsHost() or l.Network.GetLocalPlayerSlot()~=2
+  or l.Network.GetPlayerSlotReadyState(2)~=false then return false end
+ local slot=o.slots[2]
+ return slot~=nil and slot.isLocalPlayerSlot==true and slot.readyButtonID~=nil
+  and l.ui.isEnabled(slot.readyButtonID)
+end
+function c.weplayAutoReady()
+ if c.weplayCanAutoReady() then l.button.activate(o.slots[2].readyButtonID) end
+end
+'''
 
 
 def browser_parts(edition):
@@ -143,19 +158,7 @@ function d.weplayAutoStart()
  if d.weplayCanAutoStart() then n.button.activate(e.startButton) end
 end
 '''
-    guest = '''
-function c.weplayCanAutoReady()
- if not o.frame or not o.slots or not l.Network.SessionIsInSession()
-  or l.Network.IsHost() or l.Network.GetLocalPlayerSlot()~=2
-  or l.Network.GetPlayerSlotReadyState(2)~=false then return false end
- local slot=o.slots[2]
- return slot~=nil and slot.isLocalPlayerSlot==true and slot.readyButtonID~=nil
-  and l.ui.isEnabled(slot.readyButtonID)
-end
-function c.weplayAutoReady()
- if c.weplayCanAutoReady() then l.button.activate(o.slots[2].readyButtonID) end
-end
-'''
+    guest = GUEST_ACTIONS
     if edition == 'gold':
         host += '\n;(function(...)\n' + (HERE / 'neo_lobby.lua').read_text(encoding='utf-8') + '\nend)(n,d,function() return e end)\n'
     frame = '''

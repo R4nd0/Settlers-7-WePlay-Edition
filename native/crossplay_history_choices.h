@@ -49,15 +49,16 @@ inline bool Same(const Value& a,const Value& b){
         && a.implementation && a.implementation==b.implementation && a.descriptor && a.descriptor==b.descriptor
         && a.map==b.map && a.map_template==b.map_template && a.flags==b.flags;
 }
-inline Observation Snapshot(Crossplay::Edition edition,const Pin& pin,CrossplaySessionConfig::Connections ids,bool host,
-                            CrossplayConfigurationReceipt::Interval interval,Value& output){
+inline Observation SnapshotCache(Crossplay::Edition edition,const Pin& pin,CrossplaySessionConfig::Connections ids,bool host,
+                            CrossplayConfigurationReceipt::Interval interval,const std::string& expected_save,Value& output){
     using namespace CrossplayNativeCodec;output={};
+    if(!expected_save.empty() && expected_save!="Savegames/MPSave")return Observation::Invalid;
     auto* cache=ReadyStateDetail::HistoryConfiguration(edition);
     if(!cache || reinterpret_cast<uintptr_t>(cache)!=interval.cache || !Detail::Readable(cache,0x54))return Observation::Invalid;
     CrossplayAIProfile::CacheLock lock(edition,cache);if(!lock.acquired)return Observation::Pending;
     Value next;next.cache=reinterpret_cast<uintptr_t>(cache);std::string save;
     if(!SessionConfigDetail::NativeString(cache+0x24,next.map) || !CrossplaySessionConfig::RelativeMap(next.map)
-        || !SessionConfigDetail::NativeString(cache+0x34,save) || !save.empty()
+        || !SessionConfigDetail::NativeString(cache+0x34,save) || save!=expected_save
         || !Flags(cache[0x50],cache[0x51],cache[0x52],next.flags)
         || !Detail::Readable(reinterpret_cast<const void*>(pin.backend),4))return Observation::Invalid;
     const auto* backend=*reinterpret_cast<const unsigned char* const*>(pin.backend);
@@ -82,6 +83,10 @@ inline Observation Snapshot(Crossplay::Edition edition,const Pin& pin,CrossplayS
         || ReadyStateDetail::HistoryConfiguration(edition)!=cache)return Observation::Invalid;
     output=std::move(next);return Observation::Captured;
 }
+inline Observation Snapshot(Crossplay::Edition edition,const Pin& pin,CrossplaySessionConfig::Connections ids,bool host,
+                            CrossplayConfigurationReceipt::Interval interval,Value& output){
+    return SnapshotCache(edition,pin,ids,host,interval,"",output);
+}
 inline Observation Capture(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                            CrossplaySessionConfig::Connections ids,bool host,
                            CrossplayConfigurationReceipt::Interval interval,Value& output){
@@ -97,5 +102,38 @@ inline Observation Capture(Crossplay::Edition edition,const CrossplayNative::Par
         || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,ids,host) || !Methods(edition))return Observation::Invalid;
     if(!Same(first,second))return Observation::Pending;
     output=std::move(second);return Observation::Captured;
+}
+// Separate saved UI view. Callers have already verified the complete native
+// resident stream against their selected checkpoint. Require that same stream
+// identity before/after reading the actual original flags/template; do not
+// advertise bootstrap values as applied guest state or relax the fresh view.
+inline bool SavedStream(Crossplay::Edition edition,CrossplayConfigurationReceipt::Interval interval,
+                        uintptr_t stream_object,uintptr_t data,uint32_t bytes){
+    using namespace CrossplayNativeCodec;
+    if(interval.owner!=GetCurrentThreadId() || !interval.session || !interval.cache
+        || !stream_object || !data || bytes<80 || bytes>64u*1024u*1024u)return false;
+    auto* cache=ReadyStateDetail::HistoryConfiguration(edition);
+    const auto* stream=reinterpret_cast<const unsigned char*>(stream_object);
+    return cache && reinterpret_cast<uintptr_t>(cache)==interval.cache && Detail::Readable(cache,0x54)
+        && reinterpret_cast<uintptr_t>(*reinterpret_cast<const unsigned char* const*>(cache+0x1c))==stream_object
+        && Detail::Readable(stream,0x28) && CrossplayChat::Word(stream)==Detail::Pin(edition).stream_vt
+        && CrossplayChat::Word(stream+4)==data && CrossplayChat::Word(stream+0xc)==bytes
+        && Detail::Readable(reinterpret_cast<const void*>(data),bytes);
+}
+inline Observation CaptureSaved(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+                                 CrossplaySessionConfig::Connections ids,CrossplayConfigurationReceipt::Interval interval,
+                                 uintptr_t stream,uintptr_t data,uint32_t bytes,Value& output){
+    struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
+    CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output={};Pin pin;
+    CrossplayNative::LobbySnapshot before,after;
+    if(interval.owner!=GetCurrentThreadId() || !interval.session || !interval.cache || !Layout(edition,pin) || !Methods(edition)
+        || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,ids,false)
+        || !binding.CaptureLobby(before) || before.instance!=interval.session || !SavedStream(edition,interval,stream,data,bytes))return Observation::Invalid;
+    Value first,second;
+    auto result=SnapshotCache(edition,pin,ids,false,interval,"Savegames/MPSave",first);if(result!=Observation::Captured)return result;
+    result=SnapshotCache(edition,pin,ids,false,interval,"Savegames/MPSave",second);if(result!=Observation::Captured)return result;
+    if(!binding.CaptureLobby(after) || after.instance!=before.instance || !SavedStream(edition,interval,stream,data,bytes)
+        || !CrossplayNativeCodec::SessionConfigDetail::Roster(binding,ids,false) || !Methods(edition))return Observation::Invalid;
+    if(!Same(first,second))return Observation::Pending;output=std::move(second);return Observation::Captured;
 }
 }

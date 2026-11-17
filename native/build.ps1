@@ -20,7 +20,7 @@ $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 $standaloneSources = @()
 if ($PlatformIndependent) {
     if ($LocalPairLab -or $NeoFifoLab) { throw 'Standalone release builds accept original executable fingerprints only.' }
-    $common += '/DS7_PLATFORM_INDEPENDENT'
+    $common += @('/DS7_PLATFORM_INDEPENDENT','/O2','/Oy-')
     foreach ($name in @('standalone_entry.cpp','standalone_image.cpp','standalone_profile.cpp','standalone_network_fixture.cpp','crossplay_production_launch.cpp','crossplay_production_context.cpp','crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp')) {
         $standaloneSources += (Join-Path $nativeSource $name)
     }
@@ -53,6 +53,11 @@ function Compile-Native([string[]]$Arguments) {
 }
 Push-Location $nativeOutput
 try {
+    if ($PlatformIndependent) {
+        & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $nativeSource 'third_party/puff/puff.c') /Fo:crossplay_resume_puff.obj
+        if ($LASTEXITCODE) { throw 'Crossplay saved archive inflater build failed.' }
+        $standaloneSources += (Join-Path $nativeOutput 'crossplay_resume_puff.obj')
+    }
     if ($NeoLogistics) {
         & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $nativeSource 'third_party/puff/puff.c') /Fo:neo_puff.obj
         if ($LASTEXITCODE -ne 0) { throw 'NEO saved-cache inflater build failed.' }

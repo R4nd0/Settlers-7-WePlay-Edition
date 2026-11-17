@@ -26,6 +26,7 @@
             && CrossplayNativeCodec::SessionConfigDetail::Roster(original,LocalConnections(),launch.host);
     }
     void GoldLocal(void* manager,const void* event,uint32_t mode){
+        if(bootstrap.saved)return;
         if(!Owned() || phase!=Phase::RosterBound || !launch.host || mode || !configuration_sent)return;
         using namespace CrossplayNativeCodec;
         if(GoldAIProfile(manager,event,mode))return;
@@ -49,6 +50,7 @@
         if(!start_started)start_started=GetTickCount64();start_teams.push_back(std::move(wire));
     }
     bool HoldGoldStart(void* manager,const void* event){
+        if(bootstrap.saved)return HoldSavedStart(manager,event);
         if(!launch.host || launch.channel.edition!=Crossplay::Edition::Gold || !StartInterval()
             || !configuration_sent || !held_start_wire.empty()
             || reinterpret_cast<uintptr_t>(manager)!=CrossplayNativeStart::GoldStartHold::Current().roots.manager)return false;

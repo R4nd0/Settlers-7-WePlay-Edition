@@ -114,6 +114,8 @@ int main(){
     output.channel.session[0]^=1;std::string changed;Check(GoldLocalSecret(output,changed)&&changed!=secret);
     output.host=false;Check(!GoldLocalSecret(output,changed)&&changed.empty());
     std::string ui;Check(UiCommand("mode",ui)&&ui=="host");Check(UiCommand("phase",ui)&&ui=="pending");
+    Check(!UiCommand("guest-ready-available",ui)&&ui.empty());
+    Check(!GuestReadyActionAvailable());
     Check(!UiCommand("key",ui)&&ui.empty());
     Check(!UiCommand("bootstrap-flags",ui)&&ui.empty());
     Check(!UiCommand("bootstrap-template",ui)&&ui.empty());

@@ -5,7 +5,7 @@
 namespace {
 unsigned checks=0;void check(bool x){++checks;if(!x){printf("FAIL postload preservation check %u\n",checks);ExitProcess(1);}}
 uint32_t logic[100]{},main_data[4]{},priority_data[1500]{},transfers[110]{},registry[32]{},task[32]{},global_logic=0,frame[16]{};
-bool allow=true;unsigned failures=0;bool Authority(){return allow;}void Report(bool ok,const char*){if(!ok)++failures;}
+bool allow=true;unsigned failures=0;const char* last_error=nullptr;bool Authority(){return allow;}void Report(bool ok,const char* reason){if(!ok){++failures;last_error=reason;}}
 void Setup(){
  using namespace CrossplayGoldResume;
  memset(saved.data(),0,sizeof(saved));memset(task,0,sizeof(task));memset(registry,0,sizeof(registry));memset(frame,0,sizeof(frame));invalid=attempted=validated=false;installed=true;owner=GetCurrentThreadId();saved_count=1;checkpoint_turn=300;
@@ -18,7 +18,7 @@ void Setup(){
  registry[24]=task[2];registry[25]=reinterpret_cast<uintptr_t>(task);check(Read(reinterpret_cast<uintptr_t>(task),saved[12]));
  frame[6]=reinterpret_cast<uintptr_t>(task);frame[9]=0x902dce;
  CrossplayGoldResume::installed=true;CrossplayGoldResume::owner=GetCurrentThreadId();CrossplayGoldResume::authority=&Authority;CrossplayGoldResume::report=&Report;
- CrossplayGoldResume::first_pass=CrossplayGoldResume::second_pass=0;CrossplayGoldResume::test_decide=nullptr;allow=true;failures=0;
+ CrossplayGoldResume::first_pass=CrossplayGoldResume::second_pass=0;CrossplayGoldResume::test_decide=nullptr;allow=true;failures=0;last_error=nullptr;
 }
 alignas(16) unsigned char original_fp[512]{},before_fp[512]{},after_fp[512]{};
 uint32_t vt[8]{},object=0,entry_esp=0,after_esp=0,entry_flags=0,after_flags=0,result=0,expected_return=0,kept[6]{};
@@ -105,7 +105,7 @@ returned:
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl CrossplayGoldResumeGuardOracle(uint32_t e){return e==1&&CrossplayGoldResume::Methods()?1u:0u;}
 int main(){
- for(auto pc:{0x902dceu,0x902ea6u})for(uint32_t state:{0u,1u,6u}){
+ for(auto pc:{0x902dceu,0x902ea6u})for(uint32_t state:{0u,1u,2u,3u,4u,5u,6u,7u,UINT32_MAX}){
   Setup();task[1]=CrossplayGoldResume::saved[12].state=state;frame[9]=pc;uint32_t before[32]{};memcpy(before,task,sizeof(task));check(CrossplayGoldResume::Preserve(frame));check(memcmp(before,task,sizeof(task))==0&&failures==0);
   check(CrossplayGoldResume::first_pass+CrossplayGoldResume::second_pass==1);
  }
@@ -114,10 +114,12 @@ int main(){
  }
  Setup();registry[24]^=65536;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
  Setup();registry[25]+=4;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
- Setup();allow=false;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
- Setup();CrossplayGoldResume::saved[12]={};check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
+ Setup();allow=false;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);check(!strcmp(last_error,"saved-request-postload-authority-excluded"));
+ Setup();CrossplayGoldResume::saved[12]={};check(!CrossplayGoldResume::Preserve(frame));check(failures==1);check(!strcmp(last_error,"saved-request-postload-source-missing"));
  Setup();CrossplayGoldResume::invalid=true;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
- Setup();task[1]=CrossplayGoldResume::saved[12].state=2;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);
+ Setup();task[1]=2;check(!CrossplayGoldResume::Preserve(frame));check(failures==1);check(!strcmp(last_error,"saved-request-postload-state-changed"));
+ Setup();task[4]^=1;check(!CrossplayGoldResume::Preserve(frame));check(!strcmp(last_error,"saved-request-postload-cache-changed"));
+ Setup();registry[25]+=4;check(!CrossplayGoldResume::Preserve(frame));check(!strcmp(last_error,"saved-request-postload-registry-excluded"));
  // Fresh/ordinary callbacks, later ticks, other classes and wrong owners follow
  // the untouched original function, without gaining saved-world permissions.
  Setup();frame[9]=0x949dfa;check(!CrossplayGoldResume::Preserve(frame));check(!failures&&!CrossplayGoldResume::invalid);
@@ -142,7 +144,7 @@ int main(){
  check(!CrossplayGoldResume::installed&&!CrossplayGoldResume::saved_count&&!CrossplayGoldResume::owner&&!CrossplayGoldResume::authority);
  for(unsigned i=0;i<3;++i)for(unsigned j=0;j<6;++j)check(code[i][j]==0x70+i);
  check(!CrossplayGoldResume::Release());
- printf("PASS %u authenticated saved request postload policy checks; both exact callers, states0/1/6, all fields/registry/generation/authority/phase/class exclusions, zero task writes. Synthetic world.\n",checks);
+ printf("PASS %u authenticated saved request postload policy checks; both exact callers, state-independent original History class policy, all source fields/registry/generation/authority/phase/class exclusions, zero task writes. Synthetic world.\n",checks);
  object=reinterpret_cast<uintptr_t>(vt);vt[7]=0x11223344;
  CrossplayGoldResume::test_decide=&Decide;CrossplayGoldResume::predicate_resume=reinterpret_cast<uintptr_t>(&Continue);bridge=reinterpret_cast<uintptr_t>(&CrossplayGoldResume::Predicate);
  for(unsigned route=0;route<2;++route)for(unsigned df=0;df<2;++df){decision=route!=0;recorded=false;SetLastError(0xabcdef12);

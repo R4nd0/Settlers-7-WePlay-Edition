@@ -40,6 +40,13 @@
 #include "crossplay_ai_playing_row.h"
 #include "crossplay_neo_snapshot.h"
 #include "crossplay_gold_movement_wrapper.h"
+#include "crossplay_selected_saved_source.h"
+#include "crossplay_resume_request_codec.h"
+#include "crossplay_resume_info_codec.h"
+#include "crossplay_resume_credit.h"
+#include "crossplay_resume_admission.h"
+#include "crossplay_gold_resume_postload.h"
+#include "crossplay_saved_ready_codec.h"
 #include <bcrypt.h>
 #include <deque>
 namespace CrossplayProduction {
@@ -97,6 +104,7 @@ struct Runtime {
     CrossplayNativeCodec::PendingReadyToggle ready_pending;
     CrossplayNativeCodec::PendingHistoryReadyState ready_projection;
     uint32_t ready_sent=0,ready_received=0;
+    bool guest_ready_observed=false;
     ULONGLONG ready_started=0,projection_started=0;
     bool neo_installed=false,neo_staged=false,neo_choice=false,neo_dirty=false;
     CrossplayNeoSelection::Value neo_selection;
@@ -116,6 +124,7 @@ struct Runtime {
 #include "crossplay_production_ai_setup.inc"
 #include "crossplay_production_setup_root.inc"
 #include "crossplay_production_world.inc"
+#include "crossplay_production_resume.inc"
     void Capture(void* source,const unsigned char* event){
         if(!Owned() || lobby_captured || phase==Phase::Closed || phase==Phase::Failed)return;
         CrossplayNative::LobbySnapshot lobby;CrossplayCastleSetup::Value castle;
@@ -180,6 +189,10 @@ struct Runtime {
             const auto observed=CrossplayGoldChoices::Capture(original,owner,session,captured_player,captured);
             if(observed==CrossplayGoldChoices::Observation::Pending)return true;
             if(observed!=CrossplayGoldChoices::Observation::Captured)return false;
+            // A saved UI handoff can precede the original asynchronous cache
+            // consumer. Do not advertise/admit the temporary fresh map as a
+            // saved session, or change its kind after peer admission.
+            if(!resume_ui_token.empty() && !captured.saved)return true;
             if(!CrossplayBootstrap::Encode(*peer,captured,frame) || !channel.Send(frame))return false;
             bootstrap=std::move(captured);bootstrap_sent=true;
         }
@@ -309,6 +322,7 @@ struct Runtime {
     void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
         if(OutgoingWorld(manager,event,mode,target))return;
+        if(OutgoingSaved(manager,event,mode,target))return;
         if(Owned() && phase==Phase::RosterBound && launch.host){GoldNeutralTeam(manager,event,mode,target);return;}
         if(!Owned() || launch.host || phase!=Phase::RosterBound || start_started || neo_world_queued || !configuration_applied
             || (mode!=2 && (mode!=1 || target!=admission.PeerLocalConnection())))return;
@@ -321,9 +335,11 @@ struct Runtime {
         const auto* peer=channel.GetPeer();
         if(!peer || !EncodeReadyRequest(launch.channel.edition,original,LocalConnections(),event,wire)
             || !CrossplayReady::Encode(*peer,wire,admission.OwnConnection(),frame) || !channel.Send(frame))Fail();
+        else guest_ready_observed=true;
     }
     bool Readiness(){
         using namespace CrossplayNativeCodec;
+        if(bootstrap.saved && !neo_world_queued)return PumpSaved();
         if(launch.host?!configuration_sent:!configuration_applied)return true;
         const auto* peer_pointer=channel.GetPeer();if(!peer_pointer)return false;
         const auto peer=*peer_pointer;
@@ -406,6 +422,7 @@ struct Runtime {
             || !configuration_receipt.Consumed({owner,lobby.instance,reinterpret_cast<uintptr_t>(cache)},wire,GetTickCount64()))Fail();
     }
     bool Configure(){
+        if(bootstrap.saved)return ConfigureSaved();
         if(configuration_applied || (launch.host && configuration_sent))return true;
         const auto now=GetTickCount64();if(!configuration_started)configuration_started=now;
         if(now-configuration_started>10000 || bootstrap.saved)return false; // Saved configuration has a separate source-bound protocol.
@@ -527,7 +544,10 @@ bool NeoWorldReady(){
 bool WorldMathReady(){
     return current && current->Owned() && current->phase==Phase::RosterBound
         && current->launch.channel.edition==Crossplay::Edition::Gold && current->world_bound
-        && current->setup_roots_verified[0] && current->setup_roots_verified[1]
+        && (current->bootstrap.saved
+            ?current->resume_world_prepared && current->resume_neo_armed && current->resume_bound
+                && CrossplayResumeTransfer::Valid(current->resume_checkpoint) && current->WorldNeoScope()
+            :current->setup_roots_verified[0] && current->setup_roots_verified[1])
         && current->channel.GetState()==Crossplay::State::Connected;
 }
 void CALLBACK Tick(HWND,UINT,UINT_PTR id,DWORD){if(current && current->timer==id)PumpRuntime();}
@@ -590,6 +610,18 @@ bool BootstrapChoices(uint32_t& flags,std::string& map_template){
 bool AppliedGuestChoices(uint32_t& flags,std::string& map_template){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     flags=0;map_template.clear();
+    if(current && current->Owned() && current->bootstrap.saved && !current->launch.host){
+        if(!current->configuration_applied || !current->resume_stream_observed || !current->ResumeNativeReady()
+            || !current->guest_claim.Applied(current->original,current->admission))return false;
+        const auto edition=current->launch.channel.edition;
+        const auto* cache=CrossplayNativeCodec::ReadyStateDetail::HistoryConfiguration(edition);if(!cache)return false;
+        const CrossplayConfigurationReceipt::Interval interval{current->owner,current->session,reinterpret_cast<uintptr_t>(cache)};
+        CrossplayHistoryChoices::Value observed;
+        if(CrossplayHistoryChoices::CaptureSaved(edition,current->original,current->LocalConnections(),interval,
+                current->resume_stream_object,current->resume_stream_data,current->resume_checkpoint.bytes,observed)!=CrossplayHistoryChoices::Observation::Captured
+            || observed.map!=current->bootstrap.map || observed.flags!=current->bootstrap.flags || observed.map_template!=current->bootstrap.map_template)return false;
+        flags=observed.flags;map_template=std::move(observed.map_template);return true;
+    }
     if(!current || !current->Owned() || current->launch.host || current->start_started || current->neo_world_queued || !current->configuration_applied
         || current->phase!=Phase::RosterBound || !CrossplayBootstrap::Valid(current->bootstrap)
         || !current->guest_claim.Applied(current->original,current->admission))return false;
@@ -604,14 +636,38 @@ bool GuestPresentationBound(){
     uint32_t flags=0;std::string map_template;
     return AppliedGuestChoices(flags,map_template);
 }
+bool GuestReadyActionAvailable(){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+    uint32_t flags=0;std::string map_template;
+    if(current && current->Owned() && current->bootstrap.saved && !current->launch.host){
+        return !current->guest_ready_observed && current->resume_stream_observed
+            && current->resume_neo_admitted && current->ResumeNativeReady();
+    }
+    return current && !current->guest_ready_observed && AppliedGuestChoices(flags,map_template);
+}
+bool StartUsesSavedWorld(bool& saved){
+    ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;saved=false;
+    if(!current || !current->Owned() || current->phase!=Phase::RosterBound || !current->neo_world_queued
+        || !current->world_bound || !current->neo_world_agreement.Ready() || !current->NeoModules()
+        || !CrossplayNativeCodec::LoadProgressDetail::World(current->original,current->owner,current->neo_world_session,
+            current->admission.OwnConnection(),current->admission.PeerLocalConnection()))return false;
+    if(current->bootstrap.saved){
+        if(!current->resume_start_attempted || !current->resume_world_prepared || !current->resume_neo_armed
+            || !current->resume_bound || !current->resume_digest.Verified()
+            || !CrossplayResumeTransfer::Valid(current->resume_checkpoint))return false;
+        saved=true;
+    }
+    return true;
+}
 bool GoldWorldOwnsStartedSession(uintptr_t session){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
-        && session && current->neo_world_session==session && current->WorldNeoScope();
+        && session && current->neo_world_session==session && current->StartedWorldObservation();
 }
 bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
-    if(!GoldWorldOwnsStartedSession(session) || !current->ai_layout || row<3 || row>4
+    if(!GoldWorldOwnsStartedSession(session) || row<3 || row>4
+        || (current->bootstrap.saved?!(current->resume_source.ai_mask&(1u<<row)):!current->ai_layout)
         || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<const void*>(rows),25*0x5c4))return false;
     using CrossplayNativeCodec::Detail::Readable;
     if(!Readable(reinterpret_cast<const void*>(0x10f834c),4))return false;
@@ -619,20 +675,29 @@ bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
     if(!Readable(manager,8+2*0xd4) || CrossplayChat::Word(manager)!=0xf51af0 || manager[4]>1)return false;
     const auto mode=manager[4];const auto* reference=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(manager+mode*0xd4+0xa4));
     if(!Readable(reference,4) || CrossplayChat::Word(reference)!=rows)return false;
-    const auto& value=current->ai_values[row-3];
     const auto* player=reinterpret_cast<const unsigned char*>(rows)+row*0x5c4;
-    return value.slot==row && CrossplayAIPreparation::GoldPlayingRow(player,0x5c4,value)
+    const bool expected=current->bootstrap.saved
+        ?CrossplaySavedAI::Playing(player,0x5c4,current->resume_source.ai[row-3])
+        :(current->ai_values[row-3].slot==row && CrossplayAIPreparation::GoldPlayingRow(player,0x5c4,current->ai_values[row-3]));
+    return expected
         && *reinterpret_cast<const unsigned char* const*>(0x10f834c)==manager && manager[4]==mode
         && CrossplayChat::Word(manager+mode*0xd4+0xa4)==reinterpret_cast<uintptr_t>(reference)
         && CrossplayChat::Word(reference)==rows && GoldWorldOwnsStartedSession(session);
 }
 unsigned GoldWorldExpectedAIPlayers(uintptr_t session){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
-    return GoldWorldOwnsStartedSession(session) && current->ai_layout?24u:0u;
+    if(!GoldWorldOwnsStartedSession(session))return 0;
+    return current->bootstrap.saved?current->resume_source.ai_mask:(current->ai_layout?24u:0u);
 }
 bool NeoCommand(const std::string& command,std::string& output){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output.clear();
     if(!current || !current->Owned() || current->phase==Phase::Failed || current->phase==Phase::Closed)return false;
+    if(command.compare(0,12,"select-file:")==0){
+        if(current->phase!=Phase::Connecting || current->lobby_captured || current->bootstrap_sent || !current->launch.host)return false;
+        CrossplayResumeSource::ArchiveIdentity identity{};std::string token;
+        if(!CrossplaySelectedSavedSource::SelectFile(current->launch,command.substr(12),identity,token))return false;
+        current->resume_ui_archive=identity;current->resume_ui_token=std::move(token);output="1";return true;
+    }
     if(command=="capabilities"){
         if(!current->NeoModules())return false;output="NEO-FIFO-INTENT-1";return true;
     }
@@ -657,10 +722,17 @@ bool NeoCommand(const std::string& command,std::string& output){
     }
     if(command=="network-state" || command=="selection"){
         if(current->start_started || current->neo_world_queued)return current->WorldNeoSelection(output);
+        if(current->bootstrap.saved){
+            if(!current->resume_bound || !CrossplayResumeTransfer::Valid(current->resume_checkpoint)
+                || (current->launch.host && !CrossplaySelectedSavedSource::Current(current->original,current->resume_source)))return false;
+            // Selected-file metadata only. Original Ready, full native file
+            // consumption and saved start receipts remain independently gated.
+            output=current->resume_checkpoint.enabled?"1":"0";return true;
+        }
         return current->NeoSelectionCurrent(output);
     }
-    // Selected-save and other lifecycle commands remain unavailable. World
-    // acknowledgements describe facts; the original engine event owns start.
+    // World lifecycle acknowledgements describe the authenticated original
+    // start/restoration; the original engine still owns start and file I/O.
     return current->WorldNeoCommand(command,output);
 }
 }

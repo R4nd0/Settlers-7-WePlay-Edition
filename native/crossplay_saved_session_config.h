@@ -70,4 +70,32 @@ inline bool Decode(const Crossplay::Peer& peer,const CrossplayResumeTransfer::Ch
     if(!Inspect(decoded,target,map,save,layout))return false;
     wire=std::move(decoded);return true;
 }
+// Learn the host's advertised checkpoint from this separate saved namespace.
+// The channel authenticates its sender; this does NOT validate the actual file
+// or grant Ready/start. The original file receiver, complete hashes, NEO parser
+// and native consumption receipts must still independently confirm this offer.
+inline bool Discover(const Crossplay::Peer& peer,const Crossplay::Digest& content,
+                     Connections source,Connections target,const std::string& expected_map,
+                     const std::vector<unsigned char>& frame,
+                     CrossplayResumeTransfer::Checkpoint& checkpoint,std::string& save,
+                     std::vector<unsigned char>& wire){
+    checkpoint={};save.clear();wire.clear();
+    if(peer.edition!=Crossplay::Edition::Gold || !CrossplayResumeTransfer::Nonzero(content)
+        || !CrossplaySessionConfig::RelativeMap(expected_map)
+        || frame.size()<Header+13 || frame.size()>Header+CrossplaySessionConfig::MaximumWire
+        || CrossplayChat::Word(frame.data()+184)>1)return false;
+    CrossplayResumeTransfer::Checkpoint advertised{};const auto* p=frame.data()+40;
+    memcpy(advertised.content.data(),p,32);memcpy(advertised.setup.data(),p+32,32);
+    memcpy(advertised.file.data(),p+64,32);memcpy(advertised.neo.data(),p+96,32);
+    advertised.logic_turn=CrossplayChat::Word(p+128);advertised.replay_turn=CrossplayChat::Word(p+132);
+    advertised.bytes=CrossplayChat::Word(p+136);advertised.features=CrossplayChat::Word(p+140);
+    advertised.enabled=CrossplayChat::Word(p+144)!=0;
+    if(advertised.content!=content || !CrossplayResumeTransfer::Valid(advertised))return false;
+    const std::vector<unsigned char> native(frame.begin()+Header,frame.end());
+    size_t at=13;std::string map,token;std::vector<unsigned char> decoded;
+    if(!CrossplaySessionConfig::String(native,at,map) || map!=expected_map
+        || !CrossplaySessionConfig::String(native,at,token) || !CrossplayResumeStart::SlotName(token)
+        || !Decode(peer,advertised,source,target,expected_map,token,frame,decoded))return false;
+    checkpoint=advertised;save=std::move(token);wire=std::move(decoded);return true;
+}
 }

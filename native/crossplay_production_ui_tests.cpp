@@ -86,9 +86,17 @@ flags_ready:
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionUiGuardOracle(uint32_t edition){return U::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;}
 int main(){
     using namespace CrossplayProduction;
+    const std::string selected="weplay-crossplay-neo-v1:select-file:";
+    Check(U::BoundedCommand((selected+std::string(300,'x')).c_str(),selected.size()+300));
+    Check(U::BoundedCommand((selected+std::string(32767,'x')).c_str(),selected.size()+32767));
+    Check(!U::BoundedCommand((selected+std::string(32768,'x')).c_str(),selected.size()+32768));
+    const std::string unknown="weplay-crossplay-neo-v1:restore:"+std::string(300,'x');
+    Check(!U::BoundedCommand(unknown.c_str(),unknown.size()));
     std::string metadata="stale";uint32_t flags=99;
     Check(!AppliedGuestChoices(flags,metadata)&&!flags&&metadata.empty());
     Check(!GuestPresentationBound());
+    bool saved=true;Check(!StartUsesSavedWorld(saved)&&!saved);
+    metadata="stale";Check(!UiCommand("saved-start",metadata)&&metadata.empty());
     Check(!GoldWorldOwnsStartedSession(0) && !GoldWorldOwnsStartedSession(0x12345));
     for(const char* command:{"capabilities","stage:0","stage:1","network-state","selection","start-event","begin:0","begin:1","ready","status","save-snapshot:1","restore-network","end"}){
         metadata="stale";Check(!NeoCommand(command,metadata)&&metadata.empty());

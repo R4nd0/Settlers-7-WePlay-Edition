@@ -3,18 +3,21 @@ local G,settings,store,Resume = ...
 local M = {}
 local key = "weplay_neo_logistics_v1"
 local selected, active, setupMap, loading = false, false, nil, false
+local restoredMixed=false
 -- Resolve this process-local mode once. Start/world calls must not consult
 -- preparation, phase or applied-lobby objects after the native world transition.
 local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
 local mixed=mode=="host" or mode=="guest"
 local mixedQueries={capabilities=true,selection=true,["network-state"]=true,status=true}
 local mixedActions={["stage:0"]=true,["stage:1"]=true,["start-event"]=true,
-    ["begin:0"]=true,["begin:1"]=true,ready=true}
+    ["begin:0"]=true,["begin:1"]=true,ready=true,load=true,["restore-network"]=true}
 local function bridge(command)
     if mixed then
-        if not mixedQueries[command] and not mixedActions[command] then return false end
+        local snapshot=mode=="host" and command:match("^save%-snapshot:%d+$")
+        local selectedFile=mode=="host" and command:sub(1,12)=="select-file:"
+        if not mixedQueries[command] and not mixedActions[command] and not snapshot and not selectedFile then return false end
         local result=G.UI.WriteToConsole("weplay-crossplay-neo-v1:"..command)
-        if mixedActions[command] then return result=="1" end
+        if mixedActions[command] or selectedFile then return result=="1" end
         return result
     end
     return G.UI.WriteToConsole("weplay-neo-v1:"..command)
@@ -26,7 +29,13 @@ function M.networkReady()
     return state=="0" or state=="1"
 end
 function M.selectSaved(slot)
-    if mixed then return false end
+    if mixed then
+        if mode~="host" or _G.type(slot)~="number" or slot<0 or slot>4294967294 or slot~=_G.math.floor(slot)
+            or _G.type(G.Game.GetSaveGameFileName)~="function" then return false end
+        local path=G.Game.GetSaveGameFileName(slot)
+        if _G.type(path)~="string" or #path==0 or #path>32767 or path:find("%z") then return false end
+        return bridge("select-file:"..path)==true
+    end
     if not Resume or not Resume.lookup(slot) then return false end
     local saved=settings.weplayMPResumeSlots[_G.tostring(slot)]
     if saved.neoLogistics~=nil and _G.type(saved.neoLogistics)~="boolean" then return false end
@@ -61,6 +70,7 @@ function M.acceptNetworkStart()
 end
 function M.beforeStart()
     loading = false
+    restoredMixed=false
     -- Starting a map recreates the local Lua state. The native adapter owns
     -- the pending per-map choice across that boundary.
     local choice=bridge("selection")
@@ -76,14 +86,28 @@ function M.beforeStart()
     return true
 end
 function M.beforeLoad()
-    if mixed then return false end
+    if bridge("load") ~= true then return false end
     selected, active, setupMap, loading = false, false, nil, true
-    return bridge("load") == true
+    restoredMixed=false
+    return true
 end
 function M.restore(jar)
-    if mixed then return failed() end
-    if not loading then return true end
+    if not loading then
+        if not mixed then return true end
+        return restoredMixed and bridge("status")== (active and "1" or "0")
+    end
     loading = false
+    if mixed then
+        -- The native owner admits the complete transferred stream and parsed
+        -- host-file NEO state before its original saved start. A recreated Lua
+        -- state must observe that restored ledger, never initialize a new one.
+        if bridge("restore-network")~=true then return failed() end
+        local state=bridge("status")
+        if state~="0" and state~="1" then return failed() end
+        active=state=="1"
+        restoredMixed=true
+        return true
+    end
     if G.Network.InNetworkMode() then
         if bridge("restore-network")==true then
             local state=bridge("status")
@@ -111,9 +135,18 @@ function M.restore(jar)
     return true
 end
 function M.save(jar)
-    if mixed then return failed() end
-    local payload = bridge("save-snapshot:" .. G.Game.GetCurrentTurn())
-    if _G.type(payload) ~= "string" or #payload > 2097152 then
+    if mixed and (mode~="host" or bridge("status")~=(active and "1" or "0")) then return failed() end
+    local turn=G.Game.GetCurrentTurn()
+    if mixed and (_G.type(turn)~="number" or turn<0 or turn>4294967294 or turn~=_G.math.floor(turn)) then return failed() end
+    local payload = bridge("save-snapshot:" .. turn)
+    if mixed then
+        -- Native export checks the actual world, clock, owner and ledger. This
+        -- only puts its exact metadata into the original host's pickle jar;
+        -- it does not select/transfer a file or authorize a saved-world load.
+        local prefix="NEO2\n"..(turn+1).."\n"..turn.."\n"
+        if _G.type(payload)~="string" or #payload>2097152 or payload:find("%z")
+            or (active and payload:sub(1,#prefix)~=prefix) or (not active and payload~="NEO0\n") then return failed() end
+    elseif _G.type(payload) ~= "string" or #payload > 2097152 then
         if active then return failed() end
         return true
     end
@@ -122,6 +155,7 @@ function M.save(jar)
 end
 function M.finished()
     if mixed then
+        restoredMixed=false
         selected, active, setupMap, loading = false, false, nil, false
         return false -- Native end has no qualified mixed lifecycle contract yet.
     end

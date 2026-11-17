@@ -1,6 +1,8 @@
 #include "offline_bootstrap.cpp"
 #include <cstdio>
 void ReportLocalStatus(const char*) {}
+// Authored register caller only; the included renderer bridge stays optimized.
+#pragma optimize("", off)
 int main() {
  int checks=0,failures=0;
  auto check=[&](bool ok){++checks;if(!ok){++failures;std::printf("failure %d\n",checks);}};

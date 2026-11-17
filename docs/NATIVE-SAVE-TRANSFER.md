@@ -1,5 +1,18 @@
 # Native saved-session transfer: qualified stage
 
+Latest normal-adapter saved-world milestone (2026-11-17): real original Gold
+host saves now load and continue with active shared NEO19 and original easy-AI
+construction goods against **each original History edition**, standalone under
+DXVK at normal 100-ms pace, without x20. Both original loaders, matching original
+CRCs/EOT, common NEO snapshots and a new original save after reload were measured.
+All four clients exited0 with strict restoration. See the
+[implementation, actual pair results and limits](NATIVE-PRODUCTION-SAVED-RELOAD.md)
+and [measured receipt](receipts/native-production-saved-reload-20261117.json).
+Ordinary mixed-entry/content approval gates remain closed. This is shared
+FIFO/individual-intent feature19, not complete History NEO5; reverse hosting,
+remote EasyTier, other maps/rosters, nonempty saved marks and installed-package
+qualification remain open. Older results below describe their historical stage.
+
 The experimental Gold-host adapter now transfers the original saved-session
 configuration, native file request, saved-file information and file blocks to
 both **original Ubisoft History and original Steam History** receivers.

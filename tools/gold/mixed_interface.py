@@ -58,6 +58,10 @@ end
 '''
 
 
+def saved_start_fragment():
+    return '\nl=(function(...)\n'+fragment('mixed_saved_start.lua')+'\nend)(e,l)\n'
+
+
 def build(raw,edition):
     if edition not in SOURCES or hashlib.sha256(raw).hexdigest()!=SOURCES[edition]:
         raise ValueError('Mixed UI requires the exact normal production input')
@@ -65,6 +69,7 @@ def build(raw,edition):
     archive=Archive(raw)
     changes={MAIN:insert(archive.read(MAIN),decode,'l["moduleManager"]["update"]()',
                          main_fragment(edition),after=True)}
+    changes[MAIN]=insert(changes[MAIN],decode,'i["restartWithMultiplayer"](l)',saved_start_fragment())
     if edition=='gold':
         changes[BROWSER]=insert(archive.read(BROWSER),decode,'return f\n',
             '\n;(function(...)\n'+fragment('mixed_browser.lua')+'\nend)(e,f,l,h,D)\n')

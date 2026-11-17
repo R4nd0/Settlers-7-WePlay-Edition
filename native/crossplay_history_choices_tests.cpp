@@ -45,5 +45,11 @@ int main(){
         b=a;b.*field=0;Check(!Same(a,b));b=a;(b.*field)+=4;Check(!Same(a,b));
     }
     b=a;b.map="Maps/Foreign";Check(!Same(a,b));b=a;b.map_template="Other";Check(!Same(a,b));b=a;b.flags=0;Check(!Same(a,b));
+    CrossplayConfigurationReceipt::Interval none{};CrossplayNative::ParticipantEvent original;
+    for(const auto edition:{Crossplay::Edition::Gold,Crossplay::Edition::UbisoftHistory,Crossplay::Edition::SteamHistory}){
+        Check(!SavedStream(edition,none,0,0,8192));
+        Value saved=a;
+        Check(CaptureSaved(edition,original,{1,2},none,0,0,8192,saved)==Observation::Invalid && !saved.cache && saved.map.empty());
+    }
     printf("PASS %u History choice guards/string ownership/flags checks. Native game methods not executed.\n",checks);
 }

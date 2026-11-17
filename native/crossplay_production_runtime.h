@@ -16,8 +16,16 @@ bool AppliedGuestChoices(uint32_t& flags,std::string& map_template);
 // Original guest-page presentation only. Full root/content/Ready/start
 // agreements remain separate and cannot be constructed from this predicate.
 bool GuestPresentationBound();
+// Opt-in automation only: survives Lua page recreation. It does not activate
+// a widget, enqueue a command or substitute an original readiness result.
+bool GuestReadyActionAvailable();
+// Read-only routing for the original SessionStarted UI callback. Requires an
+// actual queued original start and its owned started session; never starts it.
+bool StartUsesSavedWorld(bool& saved);
 // Ownership of an actually started original Gold session on the admitted
-// mixed channel. This does not compute or acknowledge native Ready.
+// mixed channel. Read-only ownership may survive channel failure while that
+// exact original world tears down; event and NEO authority do not. This does
+// not compute or acknowledge native Ready.
 bool GoldWorldOwnsStartedSession(uintptr_t session);
 // Exact AI rows admitted by the original chooser and common complete root.
 // This predicate does not replace the original Ready result.

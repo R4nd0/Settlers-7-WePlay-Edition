@@ -37,6 +37,9 @@ try{
         if($LASTEXITCODE){throw "Original animal arithmetic bridge failed: $fixture"}
     }
     $runtimeSources=@('crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
+    & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $PSScriptRoot 'third_party/puff/puff.c') /Fo:crossplay_resume_puff.obj
+    if($LASTEXITCODE){throw 'Crossplay saved archive inflater did not compile'}
+    $runtimeSources+=(Join-Path $out 'crossplay_resume_puff.obj')
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_production_launch_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') @runtimeSources /Fe:crossplay_production_launch_tests.exe /link bcrypt.lib ws2_32.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Production launch contract fixture did not compile'}
     & (Join-Path $out 'crossplay_production_launch_tests.exe')
@@ -113,11 +116,11 @@ try{
     if($LASTEXITCODE){throw 'History preparation claim fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_claim_tests.cpp') /Fe:crossplay_history_claim_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'History preparation claim emulator guard fixture did not compile'}
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_choices_tests.cpp') /Fe:crossplay_history_choices_tests.exe /link /DYNAMICBASE /NXCOMPAT
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_choices_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_participant.cpp') /Fe:crossplay_history_choices_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'History actual choice observation fixture did not compile'}
     & (Join-Path $out 'crossplay_history_choices_tests.exe')
     if($LASTEXITCODE){throw 'History actual choice observation fixture failed'}
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_choices_tests.cpp') /Fe:crossplay_history_choices_guard_tests.exe /link /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_history_choices_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_participant.cpp') /Fe:crossplay_history_choices_guard_tests.exe /link ws2_32.lib bcrypt.lib /BASE:0x24000000 /FIXED /DYNAMICBASE:NO /NXCOMPAT
     if($LASTEXITCODE){throw 'History actual choice emulator guard fixture did not compile'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_gold_host_choices_tests.cpp') /Fe:crossplay_gold_host_choices_tests.exe /link /DYNAMICBASE /NXCOMPAT
     if($LASTEXITCODE){throw 'Gold host choice fixture did not compile'}

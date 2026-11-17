@@ -1,0 +1,237 @@
+{
+  "format": "native-production-saved-reload-v1",
+  "date": "2026-11-17",
+  "experimental_only": true,
+  "scope": "Original Gold host and each original History guest; original saved Monhaim Valley world with two humans and two easy AI; standalone loopback under DXVK 3.1.1.",
+  "normal_speed_only": true,
+  "x20_requested": false,
+  "native_clock_duration_ms": 100,
+  "catalog_and_adapter_approval_promoted": false,
+  "ordinary_mixed_entry_gate_opened": false,
+  "shared_neo_feature_mask": 19,
+  "complete_history_neo5_claimed": false,
+  "source_logic_turn": 800,
+  "source_replay_turn": 801,
+  "original_resave_logic_turn": 900,
+  "original_resave_replay_turn": 901,
+  "source_file_original_and_copied_exactly": true,
+  "original_save_loader_both_clients": true,
+  "native_ready_crc_rng_clock_task_values_fabricated": false,
+  "original_saved_player_prefix_matches_native_reader_on_two_successive_saves": true,
+  "headless_original_request_predicate_cases": 108,
+  "readonly_world_observation_survives_disconnect_without_event_or_neo_authority": true,
+  "pairs": [
+    {
+      "history_edition": "Steam History",
+      "all_saved_reload_checks_passed": true,
+      "original_world_stream_bytes": 24620367,
+      "original_file_blocks": 3006,
+      "full_transferred_and_native_resident_stream_hashes_verified": true,
+      "original_gold_request_postload_policy_accepted": true,
+      "original_crc": {
+        "common": 440,
+        "first": 0,
+        "last": 439,
+        "mismatches": 0
+      },
+      "original_eot_transport": [
+        {
+          "source": "gold",
+          "destination": "history",
+          "compared": 441,
+          "mismatches": 0
+        },
+        {
+          "source": "history",
+          "destination": "gold",
+          "compared": 441,
+          "mismatches": 0
+        }
+      ],
+      "native_neo_snapshots": {
+        "common_logic_turns": 98,
+        "first": 801,
+        "last": 1088,
+        "mismatches": [],
+        "any_nonempty_marks": false
+      },
+      "clients": {
+        "gold": {
+          "native_clock_durations_ms": [
+            100.0
+          ],
+          "last_native_clock_enabled_comparisons_changes_excluded": [
+            1280,
+            1,
+            481,
+            0,
+            0
+          ],
+          "actual_original_easy_ai": {
+            "3": {
+              "observed": true,
+              "initial_buildings": 9,
+              "max_buildings": 12,
+              "max_finished": 10,
+              "max_construction_goods": 3
+            },
+            "4": {
+              "observed": true,
+              "initial_buildings": 10,
+              "max_buildings": 10,
+              "max_finished": 10,
+              "max_construction_goods": 3
+            }
+          },
+          "normal_exit_code": 0
+        },
+        "history": {
+          "native_clock_durations_ms": [
+            100.0
+          ],
+          "last_native_clock_enabled_comparisons_changes_excluded": [
+            1152,
+            1,
+            378,
+            0,
+            0
+          ],
+          "actual_original_easy_ai": {
+            "3": {
+              "observed": true,
+              "initial_buildings": 9,
+              "max_buildings": 11,
+              "max_finished": 9,
+              "max_construction_goods": 2
+            },
+            "4": {
+              "observed": true,
+              "initial_buildings": 10,
+              "max_buildings": 10,
+              "max_finished": 9,
+              "max_construction_goods": 3
+            }
+          },
+          "normal_exit_code": 0
+        }
+      },
+      "original_resave_archive_verified": true,
+      "newer_preexisting_saves_overwritten": false,
+      "services_stopped_and_profiles_and_guarded_files_restored": true,
+      "native_runtime_failures_before_planned_guest_exit": 0,
+      "native_startup_guard_stops": 0,
+      "channel_failure_after_planned_guest_exit_retained": true
+    },
+    {
+      "history_edition": "Ubisoft History",
+      "all_saved_reload_checks_passed": true,
+      "original_world_stream_bytes": 24620367,
+      "original_file_blocks": 3006,
+      "full_transferred_and_native_resident_stream_hashes_verified": true,
+      "original_gold_request_postload_policy_accepted": true,
+      "original_crc": {
+        "common": 477,
+        "first": 0,
+        "last": 476,
+        "mismatches": 0
+      },
+      "original_eot_transport": [
+        {
+          "source": "gold",
+          "destination": "history",
+          "compared": 478,
+          "mismatches": 0
+        },
+        {
+          "source": "history",
+          "destination": "gold",
+          "compared": 478,
+          "mismatches": 0
+        }
+      ],
+      "native_neo_snapshots": {
+        "common_logic_turns": 98,
+        "first": 801,
+        "last": 1088,
+        "mismatches": [],
+        "any_nonempty_marks": false
+      },
+      "clients": {
+        "gold": {
+          "native_clock_durations_ms": [
+            100.0
+          ],
+          "last_native_clock_enabled_comparisons_changes_excluded": [
+            1280,
+            1,
+            481,
+            0,
+            0
+          ],
+          "actual_original_easy_ai": {
+            "3": {
+              "observed": true,
+              "initial_buildings": 9,
+              "max_buildings": 11,
+              "max_finished": 9,
+              "max_construction_goods": 2
+            },
+            "4": {
+              "observed": true,
+              "initial_buildings": 10,
+              "max_buildings": 10,
+              "max_finished": 10,
+              "max_construction_goods": 3
+            }
+          },
+          "normal_exit_code": 0
+        },
+        "history": {
+          "native_clock_durations_ms": [
+            100.0
+          ],
+          "last_native_clock_enabled_comparisons_changes_excluded": [
+            1152,
+            1,
+            378,
+            0,
+            0
+          ],
+          "actual_original_easy_ai": {
+            "3": {
+              "observed": true,
+              "initial_buildings": 9,
+              "max_buildings": 11,
+              "max_finished": 9,
+              "max_construction_goods": 2
+            },
+            "4": {
+              "observed": true,
+              "initial_buildings": 10,
+              "max_buildings": 10,
+              "max_finished": 9,
+              "max_construction_goods": 3
+            }
+          },
+          "normal_exit_code": 0
+        }
+      },
+      "original_resave_archive_verified": true,
+      "newer_preexisting_saves_overwritten": false,
+      "services_stopped_and_profiles_and_guarded_files_restored": true,
+      "native_runtime_failures_before_planned_guest_exit": 0,
+      "native_startup_guard_stops": 0,
+      "channel_failure_after_planned_guest_exit_retained": true
+    }
+  ],
+  "not_qualified": [
+    "History host / Gold guest",
+    "additional maps and rosters",
+    "LAN or EasyTier transport",
+    "nonempty saved individual-priority marks",
+    "complete History NEO5 pickup/distance port",
+    "final installed mixed packages",
+    "general loading-overlay or UI qualification"
+  ],
+  "actual_content_catalog_sha256": "35852339076282911ceceb204243d49bcbe9e49103f1f5df333af4a785c49f84"
+}

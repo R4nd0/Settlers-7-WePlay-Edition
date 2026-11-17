@@ -1,4 +1,5 @@
 #pragma once
+#include "crossplay_saved_players.h"
 #include "crossplay_resume_neo.h"
 #include "crossplay_session_config.h"
 #include <sstream>
@@ -93,6 +94,8 @@ struct Selected {
     CrossplayResumeTransfer::Checkpoint checkpoint{};
     std::string map,serialized,payload;
     std::shared_ptr<ArchiveLease> lease;
+    CrossplaySavedPlayers::Snapshot players{};
+    bool players_observed=false;
 };
 // Derive a checkpoint from the actual selected source rather than trusting
 // launcher/test-case constants. Setup provenance is domain-separated from the
@@ -117,6 +120,7 @@ inline bool Describe(const unsigned char* data,size_t size,const Crossplay::Dige
         next.payload=neo_save::Pickle{next.serialized}.Payload();neo_logistics::SavedState saved;
         if(!neo_logistics::Decode(next.payload,saved))return false;
         cp.enabled=saved.enabled;
+        next.players_observed=CrossplaySavedPlayers::Read(members[2],next.players);
         if(!CrossplayResumeNeo::Hash(members[2].data(),members[2].size(),cp.file)
             || !CrossplayResumeNeo::Hash(reinterpret_cast<const unsigned char*>(next.serialized.data()),next.serialized.size(),cp.neo))return false;
         std::vector<unsigned char> provenance{'S','7','X','S','A','V','E',1};

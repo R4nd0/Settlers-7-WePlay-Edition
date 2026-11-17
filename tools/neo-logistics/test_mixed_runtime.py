@@ -24,6 +24,13 @@ function G.UI.WriteToConsole(command)
  if cmd=='capabilities' then return C.capability end
  if cmd=='selection' then return C.selection end
  if cmd=='network-state' then return C.networkChoice end
+ if cmd:sub(1,12)=='select-file:' then C.fileSelections=(C.fileSelections or 0)+1;return C.fileAck or false end
+ if cmd=='load' then return C.savedWorld and C.loadAck or false end
+ if cmd=='restore-network' then
+  if not C.savedWorld or not C.nativeRestored or C.started==0 then return false end
+  if C.restoreAck=='1' then C.readyAccepted=true end
+  return C.restoreAck
+ end
  if cmd=='status' then return C.readyAccepted and C.selection or false end
  if cmd=='stage:0' or cmd=='stage:1' then
   C.stageCalls=C.stageCalls+1
@@ -42,6 +49,12 @@ function G.UI.WriteToConsole(command)
   if C.beginAck=='1' then C.begun=true end
   return C.beginAck
  end
+ if cmd:sub(1,14)=='save-snapshot:' then
+  C.snapshots=(C.snapshots or 0)+1
+  if C.mode~='host' or not C.readyAccepted or not C.worldAvailable then return false end
+  if C.snapshot~=nil then return C.snapshot end
+  return C.selection=='1' and 'NEO2\n11\n10\n0\n' or 'NEO0\n'
+ end
  if cmd=='ready' then
   C.readies=C.readies+1
   if not C.begun or not C.worldAvailable or C.started==0 then return false end
@@ -50,7 +63,7 @@ function G.UI.WriteToConsole(command)
  end
  error('Unsupported mixed command reached native bridge: '..cmd)
 end
-P.startNetwork=function() C.trace[#C.trace+1]='original-start';C.started=C.started+1;P.started=true end
+P.startNetwork=function() C.trace[#C.trace+1]='original-start';C.started=C.started+1;P.started=true;if C.nestedLoad then P.loadSavegame() end end
 _G.pcall=function()error('Protected engine calls forbidden')end
 '''
 
@@ -151,6 +164,93 @@ R={saved=function()C.savedCalls=C.savedCalls+1;return true end,lookup=function()
         self.assertFalse(self.lua.globals().N.selectSaved(1000))
         self.assertFalse(self.lua.globals().R.saved(1000,'save'))
         self.assertEqual(self.c.savedCalls,0);self.assertEqual(self.c.stores,0)
+
+    def test_saved_start_requires_native_load_and_actual_restored_ledger_in_original_order(self):
+        for mode in ('host','guest'):
+            self.build(mode);self.c.savedWorld=True;self.c.nativeRestored=True
+            self.c.loadAck='1';self.c.restoreAck='1'
+            self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork(1000)
+            self.assertEqual(self.c.started,1);self.assertTrue(self.m.active())
+            self.assertEqual(self.c.begins,0);self.assertEqual(self.c.readies,0)
+            trace=list(self.c.trace.values())
+            self.assertLess(trace.index('load'),trace.index('original-start'))
+            self.assertLess(trace.index('original-start'),trace.index('restore-network'))
+            self.assertEqual(self.c.legacyReads,0)
+
+    def test_saved_ui_selection_is_host_only_and_requires_exact_native_file_ack(self):
+        for ack in (False,True,0,1,'0','true','',None,'1'):
+            self.build('host');self.c.fileAck=ack
+            self.lua.execute("G.Game.GetSaveGameFileName=function(slot)assert(slot==1000);return 'Z:/Owned/Profiles/Savegames/s1000.s7s' end")
+            self.assertEqual(self.m.selectSaved(1000),ack=='1')
+            self.assertEqual(self.c.started,0);self.assertEqual(self.c.begins,0)
+        self.build('guest');self.c.fileAck='1'
+        self.lua.execute("G.Game.GetSaveGameFileName=function()error('Guest must not select a host file')end")
+        self.assertFalse(self.m.selectSaved(1000));self.assertIsNone(self.c.fileSelections)
+        for slot in (-1,1.5,4294967295,float('nan'),float('inf'),'1000',True):
+            self.build('host');self.c.fileAck='1'
+            self.assertFalse(self.m.selectSaved(slot));self.assertIsNone(self.c.fileSelections)
+
+    def test_saved_start_rejects_noncanonical_native_load_or_restore_ack(self):
+        for ack in (False,True,0,1,'0','true','',None):
+            self.build();self.c.savedWorld=True;self.c.nativeRestored=True
+            self.c.loadAck=ack;self.c.restoreAck='1'
+            with self.assertRaises(Exception):self.p.startNetwork(1000)
+            self.assertEqual(self.c.started,0)
+            self.build();self.c.savedWorld=True;self.c.nativeRestored=True
+            self.c.loadAck='1';self.c.restoreAck=ack
+            with self.assertRaises(Exception):self.p.startNetwork(1000)
+            self.assertFalse(self.m.active());self.assertFalse(bool(self.c.readyAccepted))
+        self.build();self.c.savedWorld=True;self.c.nativeRestored=False;self.c.loadAck='1';self.c.restoreAck='1'
+        with self.assertRaises(Exception):self.p.startNetwork(1000)
+        self.assertFalse(self.m.active());self.assertEqual(self.c.begins,0)
+
+    def test_nested_original_saved_load_observes_same_native_restore_without_new_begin(self):
+        self.c.savedWorld=True;self.c.nativeRestored=True;self.c.nestedLoad=True
+        self.c.loadAck='1';self.c.restoreAck='1'
+        self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork(1000)
+        self.assertEqual(self.c.started,1);self.assertEqual(self.c.loaded,1)
+        self.assertTrue(self.m.active());self.assertEqual(self.c.begins,0)
+        self.assertTrue(self.m.restore(self.lua.globals().J))
+        self.c.readyAccepted=False
+        self.assertFalse(self.m.restore(self.lua.globals().J))
+
+    def test_only_ready_host_writes_exact_current_native_snapshot_before_original_pickle(self):
+        for choice in ('0','1'):
+            with self.subTest(choice=choice):
+                self.build('host');self.c.selection=choice;self.c.networkChoice=choice
+                with self.assertRaises(Exception):self.p.pickle()
+                self.assertEqual(self.c.pickled,0)
+                self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork()
+                self.p.pickle();self.assertEqual(self.c.pickled,1)
+                saved=self.c.cache['weplay_neo_logistics_v1']
+                self.assertEqual(saved.version,1)
+                self.assertEqual(saved.payload,'NEO2\n11\n10\n0\n' if choice=='1' else 'NEO0\n')
+                self.assertEqual(self.c.snapshots,2);self.assertEqual(self.c.legacyReads,0)
+                self.assertFalse(self.m.beforeLoad());self.assertFalse(self.m.selectSaved(1000))
+
+    def test_rejected_or_stale_host_snapshot_blocks_original_pickle(self):
+        for payload in (False,True,1,'','NEO1\n10\n0\n','NEO2\n10\n9\n0\n','NEO0\n','NEO2\n11\n10\n0\n\0','x'*2097153):
+            with self.subTest(payload_type=type(payload).__name__,size=len(payload) if isinstance(payload,str) else None):
+                self.build('host');self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork()
+                self.c.snapshot=payload
+                with self.assertRaises(Exception):self.p.pickle()
+                self.assertEqual(self.c.pickled,0);self.assertIsNone(self.c.cache['weplay_neo_logistics_v1'])
+        self.build('host');self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork();self.c.worldAvailable=False
+        with self.assertRaises(Exception):self.p.pickle()
+        self.assertEqual(self.c.pickled,0)
+
+    def test_guest_never_exports_or_writes_a_save_snapshot_even_after_world_ready(self):
+        self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork()
+        with self.assertRaises(Exception):self.p.pickle()
+        self.assertEqual(self.c.pickled,0);self.assertIsNone(self.c.snapshots)
+
+    def test_invalid_native_ui_turn_is_rejected_before_snapshot_or_pickle(self):
+        for turn in (-1,1.5,4294967295,float('nan'),float('inf'),'10',False):
+            with self.subTest(turn=turn):
+                self.build('host');self.assertTrue(self.m.acceptNetworkStart());self.p.startNetwork()
+                self.lua.globals().G.Game.GetCurrentTurn=lambda:turn
+                with self.assertRaises(Exception):self.p.pickle()
+                self.assertEqual(self.c.pickled,0);self.assertIsNone(self.c.snapshots)
 
     def test_mode_is_cached_and_queries_and_actions_remain_directly_yieldable(self):
         self.lua.execute('''

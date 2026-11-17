@@ -6,6 +6,14 @@ namespace CrossplayProduction {
 // start permission and expose no identity, profile, endpoint or secret.
 inline bool UiCommand(const std::string& command,std::string& output){
     output.clear();const auto* launch=CurrentLaunch();if(!launch)return false;
+    if(command=="saved-start"){
+        bool saved=false;if(!launch->mixed || !StartUsesSavedWorld(saved))return false;
+        output=saved?"1":"0";return true;
+    }
+    if(command=="guest-ready-available"){
+        if(!launch->mixed || launch->host)return false;
+        output=GuestReadyActionAvailable()?"1":"0";return true;
+    }
     if(command=="mode"){output=launch->mixed?(launch->host?"host":"guest"):"solo";return true;}
     if(command=="bootstrap-map"){
         if(!launch->mixed || launch->host)return false;
@@ -68,6 +76,11 @@ inline void PushBoolean(void* state,bool value){
 #endif
     reinterpret_cast<void (__cdecl*)(void*,int)>(profile.push_boolean)(state,value?1:0);
 }
+inline bool BoundedCommand(const char* text,size_t length){
+    constexpr char selected[]="weplay-crossplay-neo-v1:select-file:";
+    return length<=80 || (length<=sizeof(selected)-1+32767 && length>sizeof(selected)-1
+        && !memcmp(text,selected,sizeof(selected)-1));
+}
 inline int __cdecl Handle(void* state){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
@@ -77,10 +90,11 @@ inline int __cdecl Handle(void* state){
         || !Word(base+4,tag) || tag!=0xfffffffb || !Word(base,string) || string>UINT32_MAX-16
         || !Word(static_cast<uintptr_t>(string)+12,length))return 0;
     constexpr char prefix[]="weplay-crossplay-v1:",neo_prefix[]="weplay-crossplay-neo-v1:";
-    if(length<sizeof(prefix)-1 || length>80 || string>UINT32_MAX-16-length
+    constexpr size_t maximum=sizeof("weplay-crossplay-neo-v1:select-file:")-1+32767;
+    if(length<sizeof(prefix)-1 || length>maximum || string>UINT32_MAX-16-length
         || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(string+16),length+1))return 0;
     const auto* text=reinterpret_cast<const char*>(string+16);
-    if(text[length])return 0;
+    if(text[length] || !BoundedCommand(text,length))return 0;
     const bool neo=length>=sizeof(neo_prefix)-1 && !memcmp(text,neo_prefix,sizeof(neo_prefix)-1);
     if(!neo && memcmp(text,prefix,sizeof(prefix)-1))return 0;
     const size_t prefix_size=neo?sizeof(neo_prefix)-1:sizeof(prefix)-1;

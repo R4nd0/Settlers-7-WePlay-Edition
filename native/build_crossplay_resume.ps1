@@ -20,12 +20,16 @@ Push-Location $out
 try{
     & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $PSScriptRoot 'third_party/puff/puff.c') /Fo:resume_puff.obj
     if($LASTEXITCODE){throw 'Archive inflater did not compile'}
-    foreach($name in @('crossplay_resume_transfer','crossplay_resume_start','crossplay_saved_session_config','crossplay_resume_request','crossplay_resume_info','crossplay_resume_digest','crossplay_resume_neo','crossplay_resume_source')){
+    foreach($name in @('crossplay_resume_transfer','crossplay_resume_start','crossplay_saved_session_config','crossplay_resume_request','crossplay_resume_info','crossplay_resume_digest','crossplay_resume_neo','crossplay_resume_source','crossplay_saved_ready','crossplay_saved_players')){
         & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($name+'_tests.cpp')) resume_puff.obj bcrypt.lib ('/Fe:'+$name+'.exe')
         if($LASTEXITCODE){throw "Fixture did not compile: $name"}
         & (Join-Path $out ($name+'.exe'))
         if($LASTEXITCODE){throw "Fixture failed: $name"}
     }
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_selected_saved_source_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_participant.cpp') resume_puff.obj bcrypt.lib ws2_32.lib /Fe:crossplay_selected_saved_source_tests.exe
+    if($LASTEXITCODE){throw 'Selected native source fixture did not compile'}
+    & (Join-Path $out 'crossplay_selected_saved_source_tests.exe')
+    if($LASTEXITCODE){throw 'Selected native source boundary fixture failed'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_resume_file_guard_tests.cpp') /Fe:crossplay_resume_file_guard_tests.exe /link /BASE:0x24000000 /FIXED
     if($LASTEXITCODE){throw 'Ownership guard fixture did not compile'}
 }finally{Pop-Location}

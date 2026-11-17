@@ -60,12 +60,39 @@ inline bool __cdecl Preserve(const uint32_t* frame){
     uint32_t table=0;const auto object=frame[6];
     if(!Word(object,table) || table!=0xf4c684)return false;
     Saved row;GoldLogisticsBinding::World world;uint32_t bound=0;
-    if(invalid || !authority || !authority() || !Read(object,row) || !GoldLogisticsBinding::CaptureWorld(world)
-        || !GoldLogisticsBinding::Task(world,row.id,bound) || bound!=object
-        || !saved[row.id&65535u].id || !Same(saved[row.id&65535u],row)
-        || (row.state!=0 && row.state!=1 && row.state!=6)){
-        Reject("saved-request-postload-identity-or-authority-excluded");return false;
+    if(invalid || !authority || !authority()){
+        Reject("saved-request-postload-authority-excluded");return false;
     }
+    if(!Read(object,row)){
+        Reject("saved-request-postload-fields-excluded");return false;
+    }
+    if(!GoldLogisticsBinding::CaptureWorld(world) || !GoldLogisticsBinding::Task(world,row.id,bound) || bound!=object){
+        Reject("saved-request-postload-registry-excluded");return false;
+    }
+    const auto& source=saved[row.id&65535u];
+    if(!source.id){Reject("saved-request-postload-source-missing");return false;}
+    if(!Same(source,row)){
+        const char* reason="saved-request-postload-source-changed";
+        if(source.table!=row.table)reason="saved-request-postload-table-changed";
+        else if(source.id!=row.id)reason="saved-request-postload-generation-changed";
+        else if(source.state!=row.state)reason="saved-request-postload-state-changed";
+        else if(source.base!=row.base)reason="saved-request-postload-base-changed";
+        else if(source.cached!=row.cached)reason="saved-request-postload-cache-changed";
+        else if(source.priority!=row.priority)reason="saved-request-postload-priority-changed";
+        else if(source.wait!=row.wait)reason="saved-request-postload-wait-changed";
+        else if(source.group!=row.group)reason="saved-request-postload-group-changed";
+        else if(source.bucket!=row.bucket)reason="saved-request-postload-bucket-changed";
+        else if(source.parent!=row.parent)reason="saved-request-postload-parent-changed";
+        else if(source.flags!=row.flags)reason="saved-request-postload-flags-changed";
+        else if(source.birth!=row.birth)reason="saved-request-postload-birth-changed";
+        else if(source.last!=row.last)reason="saved-request-postload-last-changed";
+        else if(source.player!=row.player)reason="saved-request-postload-player-changed";
+        Reject(reason);return false;
+    }
+    // Both original History request-class vfunc44 methods return false without
+    // consulting state. The first tested save happened to contain states0/1/6;
+    // that distribution is not an enum or an original postload restriction.
+    // Preserve the exact deserialized state, already checked by Same above.
     if(frame[9]==0x902dce)++first_pass;else ++second_pass;
     return true;
 }

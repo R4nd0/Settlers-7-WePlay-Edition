@@ -80,11 +80,35 @@
         if(!CrossplayNativeObserver::GoldLocalObserver::Release())return false;gold_local_installed=false;
         return true;
     }
+    bool PrepareWorldModules(){
+        // Install/check local arithmetic before creating the short-lived world
+        // checkpoint. These hooks remain inactive until their existing owned
+        // world predicates accept. No Ready/start permission is granted here.
+        if(world_mode_prepared && world_math_installed)return SharedEngineMode::Verify(launch.channel.edition,owner);
+        if(!world_mode_prepared){
+            bool changed=false;
+            if(!SharedEngineMode::Prepare(launch.channel.edition,owner,changed) || !FreshWorldRoot())return false;
+            world_mode_prepared=true;
+        }
+        if(!SharedEngineMode::Verify(launch.channel.edition,owner))return false;
+        if(!world_math_installed){
+            if(launch.channel.edition==Crossplay::Edition::Gold
+                && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
+                    || !GoldMovementWrapper::Install(owner,&NeoWorldReady)
+                    // Path-point guards include the original movement-time
+                    // routine; retain installation order before map loading.
+                    || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
+                    || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
+            world_math_installed=true;
+        }
+        return FreshWorldRoot();
+    }
     bool PumpWorldStart(){
         if(neo_world_queued || !setup_roots_verified[0] || !setup_roots_verified[1])return true;
         CrossplayAIPreparation::PreparationScope ai_scope(launch.channel.edition,original,LocalConnections(),launch.host,ai_values);
         if(ai_layout && !CrossplayAIPreparation::EligibleScope(launch.channel.edition,original,LocalConnections(),launch.host))return false;
         world_diagnostic=1;if(!FreshWorldRoot() || !NeoModules())return false;
+        if(!PrepareWorldModules())return false;
         const auto* other=channel.GetPeer();if(!other)return false;const auto peer=*other;
         std::vector<unsigned char> output;
         if(!world_neo_bound){
@@ -103,24 +127,6 @@
         if(world_checkpoint.GetPhase()!=CrossplaySetupCheckpoint::Phase::Confirmed)return true;
         if(!FreshWorldSetup())return false;
         CrossplayLogisticsActive::selected=neo_world_agreement.Value().enabled;
-        world_diagnostic=2;
-        if(!world_mode_prepared){
-            bool changed=false;
-            if(!SharedEngineMode::Prepare(launch.channel.edition,owner,changed) || !FreshWorldSetup())return false;
-            world_mode_prepared=true;
-        }
-        if(!SharedEngineMode::Verify(launch.channel.edition,owner))return false;
-        if(!world_math_installed){
-            if(launch.channel.edition==Crossplay::Edition::Gold
-                && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
-                    || !GoldMovementWrapper::Install(owner,&NeoWorldReady)
-                    // Path-point guards include the original movement-time
-                    // routine. Preserve this order before either original map
-                    // creates or advances its registered animal objects.
-                    || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
-                    || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
-            world_math_installed=true;
-        }
         if(!world_bound){
             if(!world_barrier.Bind(peer,launch.host,{1,setup_root_digest},launch.channel.content,GetTickCount64())
                 || !world_barrier.Ready(GetTickCount64(),output) || !channel.Send(output) || !world_barrier.Sent(GetTickCount64()))return false;
@@ -163,13 +169,25 @@
         }
         return phase!=Phase::Failed;
     }
-    bool WorldNeoScope()const{
-        return Owned() && phase==Phase::RosterBound && world_bound && neo_world_queued
-            && neo_world_session==session && channel.GetState()==Crossplay::State::Connected
+    // A disconnected channel revokes event/NEO authority, but does not destroy
+    // the original engine's still-running world. Its Ready observer must keep
+    // recognizing the same authenticated AI rows during native teardown.
+    // ParticipantEvent::Reset destroys our temporary event, not its pinned
+    // read-only engine binding. Re-read the actual session and roster below.
+    bool StartedWorldObservation()const{
+        return Owned() && (phase==Phase::RosterBound
+                || (phase==Phase::Failed && world_lua_ready && world_dispatch_ready))
+            && world_bound && neo_world_queued
+            && (!bootstrap.saved || (resume_world_prepared && resume_neo_armed && resume_bound))
+            && neo_world_session==session
             && neo_world_agreement.Ready() && NeoModules()
             && CrossplayLogisticsActive::selected==neo_world_agreement.Value().enabled
             && CrossplayNativeCodec::LoadProgressDetail::World(original,owner,neo_world_session,
                 admission.OwnConnection(),admission.PeerLocalConnection());
+    }
+    bool WorldNeoScope()const{
+        return phase==Phase::RosterBound && channel.GetState()==Crossplay::State::Connected
+            && StartedWorldObservation();
     }
     bool WorldNeoSelection(std::string& output)const{
         if(!WorldNeoScope())return false;
@@ -177,6 +195,17 @@
     }
     bool WorldNeoCommand(const std::string& command,std::string& output){
         if(!WorldNeoScope())return false;
+        if(command=="load"){
+            if(!bootstrap.saved || !resume_world_prepared || !resume_neo_armed)return false;
+            world_lua_begin=true;output="1";return true;
+        }
+        if(command=="restore-network"){
+            if(!bootstrap.saved || !world_lua_begin || !resume_neo_armed || !CrossplayLogisticsActive::Advance()
+                || !CrossplayLogisticsActive::begun || !CrossplayLogisticsActive::resume_restored
+                || CrossplayLogisticsActive::resume_unrestored_comparisons
+                || CrossplayLogisticsActive::ledger.enabled!=resume_checkpoint.enabled)return false;
+            world_lua_ready=true;output="1";return true;
+        }
         if(command=="start-event"){
             // Acknowledges an already consumed original start only. This query
             // cannot enqueue a start or manufacture native session readiness.
