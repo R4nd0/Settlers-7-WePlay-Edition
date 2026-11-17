@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_history_host_guest_row.h"
 #include "crossplay_closed_preparation.h"
+#include "crossplay_profile_name_reference.h"
 
 // Bind only identity metadata from the actually admitted remote human. Reuse
 // History's original setters; Ready, teams, castle and every other row byte stay
@@ -25,12 +26,11 @@ inline bool Storage(const Text& value){
 inline bool Preserved(const unsigned char* before,const unsigned char* after,size_t size){
     if(!before || !after || size!=0x8dc0)return false;
     for(size_t i=0;i<size;++i){
-        if(i>=2*0x5a8+0x18 && i<2*0x5a8+0x2c)continue;
+        if(i>=2*0x5a8+0x1c && i<2*0x5a8+0x2c)continue;
         if(before[i]!=after[i])return false;
     }
     return true;
 }
-inline uint32_t Identity(const Participant& remote){return remote.principal?remote.principal:2u;}
 inline bool Remote(const LobbySnapshot& lobby,uint32_t connection,Participant& result){
     result={};if(!lobby.instance || !lobby.host || lobby.local_slot!=1 || lobby.members.size()!=2)return false;
     const Participant* host=nullptr;const Participant* guest=nullptr;
@@ -42,7 +42,7 @@ inline bool Remote(const LobbySnapshot& lobby,uint32_t connection,Participant& r
         else if(p.slot==2 && !p.local && !p.host && p.connection==connection)guest=&p;
         else return false;
     }
-    if(!host || !guest || host->connection==guest->connection || (host->principal?host->principal:1)==Identity(*guest))return false;
+    if(!host || !guest || host->connection==guest->connection)return false;
     result=*guest;return true;
 }
 inline bool Same(const Participant& a,const Participant& b){
@@ -51,12 +51,11 @@ inline bool Same(const Participant& a,const Participant& b){
 }
 inline bool Matches(const unsigned char* row,const Participant& remote){
     std::string name;
-    return CrossplayChat::Word(row+0x18)==Identity(remote) && CrossplayChat::Word(row+0x5c)==2
+    return CrossplayChat::Word(row+0x5c)==2
         && CrossplayChat::Word(row+0x60)==3 && CrossplayChat::Word(row+0x64)==1
         && CrossplayNativeCodec::SessionConfigDetail::NativeString(row+0x1c,name) && name==remote.name;
 }
-inline void SetWith(uintptr_t id_method,uintptr_t name_method,void* row,uint32_t identity,const Text* text){
-    reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(id_method)(row,identity);
+inline void SetNameWith(uintptr_t name_method,void* row,const Text* text){
     reinterpret_cast<void (__thiscall*)(void*,const Text*)>(name_method)(row,text);
 }
 }
@@ -70,14 +69,14 @@ public:
         if(owner || !Methods() || !claim.Applied(binding,admission) || !binding.CaptureLobby(lobby)
             || !Remote(lobby,admission.PeerLocalConnection(),remote) || !HistoryHostGuestRowDetail::Capture(binding,admission,before))return false;
         auto* rows=reinterpret_cast<unsigned char*>(before.rows);auto* row=rows+2*0x5a8;
-        if(!HistoryRoleDetail::Writable(row+0x18,20))return false;
+        if(!HistoryRoleDetail::Writable(row+0x1c,16))return false;
         const auto old=*reinterpret_cast<const Text*>(row+0x1c);if(!Storage(old))return false;
         if(old.data)for(unsigned i=0;i<25;++i)
             if(i!=2 && *reinterpret_cast<const char* const*>(rows+i*0x5a8+0x1c)==old.data)return false;
         const std::vector<unsigned char> original(rows,rows+0x8dc0);
         const Text source{remote.name.c_str(),static_cast<uint32_t>(remote.name.size()+1),static_cast<uint32_t>(remote.name.size()),0};
         HistoryClaimDetail::Pin pin;if(!HistoryClaimDetail::Layout(Crossplay::Edition::SteamHistory,pin))return false;
-        SetWith(pin.set_id,pin.set_name,row,Identity(remote),&source);
+        SetNameWith(pin.set_name,row,&source);
         const auto copied=*reinterpret_cast<const Text*>(row+0x1c);
         if(!Storage(copied) || copied.data==source.data || copied.length!=source.length
             || memcmp(copied.data,source.data,source.length+1))return false;

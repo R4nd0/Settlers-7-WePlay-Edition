@@ -1,9 +1,10 @@
 #pragma once
 #include "crossplay_gold_guest_row.h"
+#include "crossplay_profile_name_reference.h"
 
 // Human identity metadata for an already claimed original Gold guest row.
-// Values come from the actual admitted native participant, never an account
-// cache or a chosen constant. No Ready/configuration/start authority is granted.
+// Display names come from the admitted participant; the original ProfileName
+// catalogue reference is retained. No Ready/configuration/start authority.
 namespace CrossplayNative {
 namespace GoldGuestIdentityDetail {
 struct Text {const char* data=nullptr;uint32_t capacity=0,length=0,extra=0;};
@@ -44,7 +45,7 @@ inline bool Storage(const Text& text){
 inline bool Preserved(const unsigned char* before,const unsigned char* after,size_t size){
     if(!before || !after || size!=25*0x5c4)return false;
     for(size_t i=0;i<size;++i){
-        if(i>=2*0x5c4+0x18 && i<2*0x5c4+0x2c)continue;
+        if(i>=2*0x5c4+0x1c && i<2*0x5c4+0x2c)continue;
         if(before[i]!=after[i])return false;
     }
     return true;
@@ -55,8 +56,7 @@ inline const Participant* Own(const LobbySnapshot& lobby){
 }
 inline bool RowMatches(const unsigned char* row,const Participant& own){
     std::string name;
-    return CrossplayChat::Word(row+0x18)==own.principal
-        && CrossplayChat::Word(row+0x5c)==2 && CrossplayChat::Word(row+0x60)==3 && CrossplayChat::Word(row+0x64)==1
+    return CrossplayChat::Word(row+0x5c)==2 && CrossplayChat::Word(row+0x60)==3 && CrossplayChat::Word(row+0x64)==1
         && CrossplayNativeCodec::SessionConfigDetail::NativeString(row+0x1c,name) && name==own.name;
 }
 }
@@ -73,7 +73,7 @@ public:
             || !GoldGuestRowDetail::Capture(lobby,before))return false;
         const auto* own=Own(lobby);if(!own)return false;
         auto* rows=reinterpret_cast<unsigned char*>(before.rows);auto* row=rows+2*0x5c4;
-        if(!HistoryRoleDetail::Writable(row+0x18,20))return false;
+        if(!HistoryRoleDetail::Writable(row+0x1c,16))return false;
         const Text old=*reinterpret_cast<const Text*>(row+0x1c);
         if(!Storage(old))return false;
         // The mutable CString must be this row's independent storage. Never
@@ -86,10 +86,6 @@ public:
         const auto copied=*reinterpret_cast<const Text*>(row+0x1c);
         if(!Storage(copied) || copied.data==source.data || copied.length!=source.length
             || memcmp(copied.data,source.data,source.length+1))return false;
-        // This is the actual native local participant's opaque preparation ID,
-        // separate from its routing CID. Project only this identity field; the
-        // original row claim and CString assignment own the other transitions.
-        *reinterpret_cast<uint32_t*>(row+0x18)=own->principal;
         LobbySnapshot current;
         if(!binding.CaptureLobby(current) || !GoldGuestRowDetail::Guest(current,admission.OwnConnection(),admission.PeerLocalConnection())
             || !GoldGuestRowDetail::Capture(current,after) || !GoldGuestRowDetail::Same(before,after)

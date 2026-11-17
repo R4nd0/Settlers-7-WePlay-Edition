@@ -1,5 +1,10 @@
 # Native Gold preparation from a History host
 
+Superseded profile interpretation: row+0x18 is a `ProfileName` catalogue
+reference, not the participant identity assumed at this earlier stage. The
+[corrected original-setter/canonical-name binding and actual complete-root
+receipt](NATIVE-REVERSE-FULL-ROOT.md) now extend this preparation milestone.
+
 The original Steam History host / original Gold guest diagnostic now completes
 the native lobby preparation following the original enabled START widget.
 This extends the [original start-capture milestone](NATIVE-HISTORY-START-CAPTURE.md),

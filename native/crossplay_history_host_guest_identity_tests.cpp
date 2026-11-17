@@ -5,9 +5,8 @@
 #include <cstdlib>
 namespace {
 using namespace CrossplayNative;using namespace HistoryHostGuestIdentityDetail;
-unsigned checks=0,id_calls=0,name_calls=0;void* expected_row=nullptr;const Text* expected_source=nullptr;char copied[128]{};
+unsigned checks=0,name_calls=0;void* expected_row=nullptr;const Text* expected_source=nullptr;char copied[128]{};
 void Check(bool value){++checks;if(!value){printf("FAIL History host guest identity check %u\n",checks);std::exit(1);}}
-void __fastcall SetId(void* row,void*,uint32_t id){Check(row==expected_row && id==93);++id_calls;CrossplayChat::Put(static_cast<unsigned char*>(row)+0x18,id);}
 void __fastcall SetName(void* row,void*,const Text* source){
     Check(row==expected_row && source==expected_source);++name_calls;memcpy(copied,source->data,source->length+1);
     *reinterpret_cast<Text*>(static_cast<unsigned char*>(row)+0x1c)={copied,sizeof(copied),source->length,0};
@@ -20,14 +19,14 @@ int main(){
     using namespace CrossplayNative;using namespace HistoryHostGuestIdentityDetail;
     std::vector<unsigned char> rows(0x8dc0,0);auto* row=rows.data()+2*0x5a8;expected_row=row;
     const std::string name="AdmittedGold";Text source{name.c_str(),static_cast<uint32_t>(name.size()+1),static_cast<uint32_t>(name.size()),0};expected_source=&source;
-    auto original=rows;uintptr_t before=0,after=1;
+    CrossplayChat::Put(row+0x18,93);auto original=rows;uintptr_t before=0,after=1;
     __asm mov before,esp
-    SetWith(reinterpret_cast<uintptr_t>(&SetId),reinterpret_cast<uintptr_t>(&SetName),row,93,&source);
+    SetNameWith(reinterpret_cast<uintptr_t>(&SetName),row,&source);
     __asm mov after,esp
-    Check(before==after && id_calls==1 && name_calls==1);Check(CrossplayChat::Word(row+0x18)==93);
+    Check(before==after && name_calls==1);Check(CrossplayChat::Word(row+0x18)==93);
     const auto value=*reinterpret_cast<const Text*>(row+0x1c);Check(Storage(value) && value.data!=source.data && value.length==source.length);
     Check(Preserved(original.data(),rows.data(),rows.size()));
-    for(size_t offset:{size_t(0),size_t(0x5a8+0x18),size_t(2*0x5a8+0x2c),size_t(2*0x5a8+0x5c),size_t(2*0x5a8+0x60),size_t(2*0x5a8+0x64),size_t(2*0x5a8+0x68),size_t(2*0x5a8+0x71),size_t(2*0x5a8+0x55c),size_t(0x8db8)}){
+    for(size_t offset:{size_t(2*0x5a8+0x18),size_t(0),size_t(0x5a8+0x18),size_t(2*0x5a8+0x2c),size_t(2*0x5a8+0x5c),size_t(2*0x5a8+0x60),size_t(2*0x5a8+0x64),size_t(2*0x5a8+0x68),size_t(2*0x5a8+0x71),size_t(2*0x5a8+0x55c),size_t(0x8db8)}){
         rows[offset]^=1;Check(!Preserved(original.data(),rows.data(),rows.size()));rows[offset]^=1;
     }
     Check(!Preserved(nullptr,rows.data(),rows.size()));Check(!Preserved(original.data(),rows.data(),rows.size()-1));

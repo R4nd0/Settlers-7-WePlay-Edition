@@ -24,8 +24,7 @@ inline bool Context(Crossplay::Edition edition,const ParticipantEvent& binding,L
     for(const auto& member:lobby.members){
         const auto& p=member.player;if(p.slot<1 || p.slot>2)return false;
         const auto* row=reinterpret_cast<const unsigned char*>(rows)+p.slot*stride;std::string name;
-        if(CrossplayChat::Word(row+0x18)!=(p.principal?p.principal:p.slot)
-            || CrossplayChat::Word(row+0x5c)!=p.slot || CrossplayChat::Word(row+0x60)!=3 || CrossplayChat::Word(row+0x64)!=1
+        if(CrossplayChat::Word(row+0x5c)!=p.slot || CrossplayChat::Word(row+0x60)!=3 || CrossplayChat::Word(row+0x64)!=1
             || !CrossplayNativeCodec::SessionConfigDetail::NativeString(row+0x1c,name) || name!=p.name)return false;
         if(!p.local)peer=p;
     }

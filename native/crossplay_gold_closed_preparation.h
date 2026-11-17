@@ -47,15 +47,14 @@ inline bool Project(const CrossplayNative::ParticipantEvent& binding,CrossplaySe
     auto* rows=reinterpret_cast<unsigned char*>(before.rows);auto* row=rows+slot*0x5c4;
     for(const auto& member:lobby.members){
         const auto& p=member.player;const auto* human=rows+p.slot*0x5c4;std::string name;
-        if(CrossplayChat::Word(human+0x18)!=(p.principal?p.principal:p.slot) || CrossplayChat::Word(human+0x5c)!=p.slot
+        if(CrossplayChat::Word(human+0x5c)!=p.slot
             || CrossplayChat::Word(human+0x60)!=3 || CrossplayChat::Word(human+0x64)!=1
             || !SessionConfigDetail::NativeString(human+0x1c,name) || name!=p.name)return false;
     }
     const auto prior_slot=CrossplayChat::Word(row+0x5c),kind=CrossplayChat::Word(row+0x64),id=CrossplayChat::Word(row+0x18);
     if((prior_slot!=UINT32_MAX && prior_slot!=slot) || CrossplayChat::Word(row+0x60)!=1 || (kind!=1 && kind!=4)
-        || !id || id==UINT32_MAX || !HistoryRoleDetail::Writable(row+0x1c,16) || !HistoryRoleDetail::Writable(row+0x5c,4)
+        || !CrossplayProfileNameReference::Valid(Crossplay::Edition::Gold,id) || !HistoryRoleDetail::Writable(row+0x1c,16) || !HistoryRoleDetail::Writable(row+0x5c,4)
         || !HistoryRoleDetail::Writable(row+0x64,4))return false;
-    for(const auto& member:lobby.members)if(id==(member.player.principal?member.player.principal:member.player.slot))return false;
     const auto old=*reinterpret_cast<const GoldGuestIdentityDetail::Text*>(row+0x1c);
     if(!GoldGuestIdentityDetail::Storage(old))return false;
     if(old.data)for(unsigned i=0;i<25;++i)if(i!=slot && *reinterpret_cast<const char* const*>(rows+i*0x5c4+0x1c)==old.data)return false;

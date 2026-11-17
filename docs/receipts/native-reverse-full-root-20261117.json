@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Steam History host / original Gold guest complete native preparation/root/independent reader, before native world queue",
+  "environment": {
+    "standalone_loopback": true,
+    "renderer": "DXVK 3.1.1",
+    "normal_speed_without_x20": true,
+    "map": "Monhaim Valley",
+    "human_clients": 2,
+    "ai_players": 0,
+    "gold_asset_files_hashed": 123,
+    "history_asset_files_hashed": 57,
+    "all_candidate_files_and_exact_file_sets_verified": true,
+    "catalog_unapproved": true
+  },
+  "profile_correction": {
+    "row_offset_hex": "0x18",
+    "original_field": "ProfileName",
+    "original_gold_typed_exception_and_callsite_identified": true,
+    "network_participant_scalar_is_not_catalogue_reference": true,
+    "name_setters_preserve_catalogue_reference_during_their_own_operation": true,
+    "original_confirmed_consumer_changed_guest_reference": true,
+    "actual_host_selected_keys_before_consumer": ["Default", "Profile4"],
+    "same_original_host_selection_restored_by_original_setters_and_native_readback": true,
+    "different_valid_intervening_choice_or_unknown_scalar_rejected": true,
+    "owner_native_root_and_10s_interval_bound": true,
+    "host_canonical_source_keys_transmitted_after_original_start": true,
+    "gold_resolves_unique_existing_native_catalogue_entries": true,
+    "gold_original_setters_and_actual_canonical_readback_ack": true,
+    "catalogue_id_copied_across_engines_or_registry_entry_created": false
+  },
+  "ordered_native_observations": {
+    "actual_ready_readback_ack_before_original_enabled_start": true,
+    "original_start_event_captured_bytes": 21,
+    "actual_original_closed_slot_consumers": [3, 4],
+    "actual_original_neutral_team_enqueue_and_native_readback": [3, 4],
+    "complete_native_config_readback_ack": true,
+    "equal_complete_original_setup_formats": [1, 2],
+    "separate_original_owned_reader_writeback_destructor_both_engines": true,
+    "active_setup_unchanged_by_independent_reader": true,
+    "original_checkpoint_lifetime_ms": 10000,
+    "gold_actual_root_completion_ack_before_host_retirement_and_leave": true,
+    "gold_detected_planned_departure_after_completion": true,
+    "native_world_event_sent_or_enqueued": false
+  },
+  "completed_pair": {
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "broker_authenticated_members": 2,
+    "broker_relayed_frames": 36,
+    "broker_rejections": 0,
+    "all_games_closed": true,
+    "guarded_files_profiles_auxiliary_files_and_platform_saves_restored": true,
+    "services_stopped": true,
+    "newer_preexisting_saves_overwritten": false
+  },
+  "component_checks": {
+    "public_reverse_fixtures": 17,
+    "authored_registry_checks": 31,
+    "authored_profile_frame_scope_preservation_checks": 198,
+    "bounded_original_gold_profile_setter_executions": 10,
+    "bounded_original_steam_profile_setter_executions": 10,
+    "compiled_gold_original_code_integrity_cases": 20,
+    "lua51_members_parsed_in_two_private_ui_archives": 568,
+    "shared_history_lifecycle_and_coop_create_source_integrated": true,
+    "gold_private_ui_archive_unchanged": true
+  },
+  "not_qualified": [
+    "reverse native shared world and synchronized turns",
+    "reverse active NEO goods and History-origin save/reload",
+    "cooperative saved world or Mode3",
+    "one simultaneous Gold Ubisoft Steam session with three humans and one AI",
+    "remote LAN/EasyTier or installed release packages"
+  ],
+  "ordinary_entry_content_and_release_gates_opened": false
+}

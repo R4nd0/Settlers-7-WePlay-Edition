@@ -10,17 +10,16 @@ inline const Participant* Host(const LobbySnapshot& lobby){
     for(const auto& member:lobby.members)if(!member.player.local && member.player.host && member.player.slot==1)return &member.player;
     return nullptr;
 }
-inline uint32_t Identity(const Participant& host){return host.principal?host.principal:1u;}
 inline bool Matches(const unsigned char* row,const Participant& host){
     std::string name;
-    return CrossplayChat::Word(row+0x18)==Identity(host) && CrossplayChat::Word(row+0x5c)==1
+    return CrossplayChat::Word(row+0x5c)==1
         && CrossplayChat::Word(row+0x60)==3 && CrossplayChat::Word(row+0x64)==1
         && CrossplayNativeCodec::SessionConfigDetail::NativeString(row+0x1c,name) && name==host.name;
 }
 inline bool Preserved(const unsigned char* before,const unsigned char* after,size_t size){
     if(!before || !after || size!=25*0x5c4)return false;
     for(size_t i=0;i<size;++i){
-        if(i>=0x5c4+0x18 && i<0x5c4+0x2c)continue;
+        if(i>=0x5c4+0x1c && i<0x5c4+0x2c)continue;
         if(before[i]!=after[i])return false;
     }
     return true;
@@ -37,11 +36,11 @@ public:
             || !binding.CaptureLobby(before) || !GoldGuestRowDetail::Guest(before,admission.OwnConnection(),admission.PeerLocalConnection())
             || !GoldGuestRowDetail::Capture(before,first))return false;
         const auto* host=Host(before);const auto* own=GoldGuestIdentityDetail::Own(before);
-        if(!host || !own || Identity(*host)==own->principal)return false;
+        if(!host || !own || host->connection==own->connection)return false;
         for(unsigned char c:host->name)if(c<32 || c>126)return false;
         auto* rows=reinterpret_cast<unsigned char*>(first.rows);auto* row=rows+0x5c4;
         if(CrossplayChat::Word(row+0x5c)!=1 || CrossplayChat::Word(row+0x60)!=3 || CrossplayChat::Word(row+0x64)!=1
-            || !HistoryRoleDetail::Writable(row+0x18,20))return false;
+            || !HistoryRoleDetail::Writable(row+0x1c,16))return false;
         const auto old=*reinterpret_cast<const GoldGuestIdentityDetail::Text*>(row+0x1c);
         if(!GoldGuestIdentityDetail::Storage(old))return false;
         if(old.data)for(unsigned i=0;i<25;++i)
@@ -52,7 +51,6 @@ public:
         const auto copied=*reinterpret_cast<const GoldGuestIdentityDetail::Text*>(row+0x1c);
         if(!GoldGuestIdentityDetail::Storage(copied) || copied.data==source.data || copied.length!=source.length
             || memcmp(copied.data,source.data,source.length+1))return false;
-        *reinterpret_cast<uint32_t*>(row+0x18)=Identity(*host);
         if(!binding.CaptureLobby(after) || !GoldGuestRowDetail::Guest(after,admission.OwnConnection(),admission.PeerLocalConnection())
             || !GoldGuestRowDetail::Capture(after,last) || !GoldGuestRowDetail::Same(first,last)
             || !GoldGuestIdentityDetail::Methods() || !own_identity.Applied(binding,admission,claim)

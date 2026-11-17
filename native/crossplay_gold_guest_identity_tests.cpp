@@ -43,8 +43,8 @@ int main(){
     Check(!Storage(Text{edge,32,9,0})); // Current text is readable; claimed growth storage is not.
     Check(VirtualFree(guarded,0,MEM_RELEASE)!=0);
     std::vector<unsigned char> rows(25*0x5c4,0);auto original=rows;
-    for(size_t at:{size_t(2*0x5c4+0x18),size_t(2*0x5c4+0x1c),size_t(2*0x5c4+0x2b)}){rows[at]^=1;Check(Preserved(original.data(),rows.data(),rows.size()));}
-    for(size_t at:{size_t(0x18),size_t(0x5c4+0x18),size_t(2*0x5c4+0x2c),size_t(2*0x5c4+0x5c),size_t(2*0x5c4+0x60),size_t(2*0x5c4+0x64),size_t(2*0x5c4+0x71)}){
+    for(size_t at:{size_t(2*0x5c4+0x1c),size_t(2*0x5c4+0x2b)}){rows[at]^=1;Check(Preserved(original.data(),rows.data(),rows.size()));}
+    for(size_t at:{size_t(2*0x5c4+0x18),size_t(0x18),size_t(0x5c4+0x18),size_t(2*0x5c4+0x2c),size_t(2*0x5c4+0x5c),size_t(2*0x5c4+0x60),size_t(2*0x5c4+0x64),size_t(2*0x5c4+0x71)}){
         rows[at]^=1;Check(!Preserved(original.data(),rows.data(),rows.size()));rows[at]^=1;
     }
     Check(!Preserved(nullptr,rows.data(),rows.size()));Check(!Preserved(original.data(),rows.data(),rows.size()-1));

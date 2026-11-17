@@ -6,7 +6,14 @@ admitted by the normal launcher parser, runtime, content catalog or installer.
 The [production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md#required-reverse-role-extension)
 defines the complete original-engine and final-package requirements.
 
-Latest preparation milestone: Gold now consumes the host's original complete
+Latest complete-root milestone: the original Steam History host and Gold guest
+now produce identical complete original setup formats1/2 and pass independent
+original reader/writeback/destructor checks on both sides. Actual catalogue
+profile choices are preserved and resolved by name, separately from participant
+IDs. Both clients exited0 with strict restoration; native world queue remains
+held. See [corrected profile semantics and complete-root evidence](NATIVE-REVERSE-FULL-ROOT.md).
+
+Earlier preparation milestone: Gold now consumes the host's original complete
 configuration and individual closed-slot events, applies original preparation
 setters and acknowledges matching native cache/team readback. Both peer castles
 are originally consumed and read back before Ready. The actual DXVK pair exited0/0
@@ -47,8 +54,9 @@ backend or make that partial preparation a playable session.
 
 `crossplay_gold_guest_identity.h` binds that already claimed row to the actually
 admitted native local participant. It uses Gold's separately pinned original
-CString copy assignment for the name and projects only the observed opaque
-preparation identity field, separately from the routing CID. It validates the
+CString copy assignment for the name and preserves the original catalogue
+reference. The older opaque-identity interpretation was disproved by the
+[original serializer and corrected](NATIVE-REVERSE-FULL-ROOT.md). It validates the
 entire claimed CString capacity before calling the original allocator-backed
 copy, rejects shared row-name storage and preserves every other byte of all
 25 rows, including Ready, network slot, controller and kind. This helper grants
