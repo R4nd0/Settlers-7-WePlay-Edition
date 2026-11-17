@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Gold SDK toggle correction and actual Gold-guest Ready intent delivery to original Steam History host",
+  "normal_runtime_or_installer_activated": false,
+  "cause": "The original SDK routine toggles its private existing Boolean; deriving an achieved value of true from that callsite rejected a genuine original action",
+  "correction": {
+    "private_notification_accepts_boolean_zero_or_one": true,
+    "private_ready_bit_discarded_as_common_state": true,
+    "original_callsites_source_cid_private_slot_native_owner_session_guards_retained": true,
+    "first_guard_failure_stage_retained": true,
+    "common_ready_still_requires_actual_original_history_host_consumer": true
+  },
+  "validation": {
+    "authored_component_checks": 375,
+    "sdk_bridge_and_notification_checks": 30,
+    "compiled_original_guard_checks": 47,
+    "compiled_owned_patch_normalization_checks": 47,
+    "original_sdk_prefix_cases": 4,
+    "original_toggle_transitions": ["0->1", "1->0"],
+    "original_clear_transitions": ["0->0", "1->0"],
+    "prefix_execution_stopped_before_first_external_call": true,
+    "complete_gold_candidate_build_and_existing_tests_passed": true
+  },
+  "actual_pair": {
+    "host": "original Steam History",
+    "guest": "original Gold",
+    "standalone_loopback_dxvk": true,
+    "normal_pace_without_x20": true,
+    "full_gold_asset_files_hashed": 123,
+    "full_history_asset_files_hashed": 57,
+    "genuine_original_gold_ready_action_observed": true,
+    "sdk_boundary_copied_and_sent_intent_only": true,
+    "authenticated_intent_received_by_original_history_host": true,
+    "host_preparation_slot1": {"network_slot": 1, "controller": 3, "kind": 1},
+    "host_preparation_slot2": {"network_slot_available": false, "controller": 1, "kind": 1},
+    "original_host_ready_enqueue_rejected_by_guard": true,
+    "relayed_frames": 10,
+    "broker_rejections": 0,
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "guarded_files_profiles_auxiliary_saves_services_restored": true,
+    "world_start_requested": false
+  },
+  "complete_reverse_ready_exchange_qualified": false,
+  "reverse_world_neo_history_origin_save_reload_resave_qualified": false,
+  "normal_entry_content_final_package_gates_promoted": false
+}

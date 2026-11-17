@@ -179,6 +179,35 @@ deployment or any game/service launch at the unchanged7GiB physical-memory
 guard. Consequently the new hold's actual Ready exchange remains unqualified.
 See the [component evidence and precise limits](receipts/native-reverse-ready-components-20261117.json).
 
+### Original SDK toggle correction
+
+The subsequent real pair isolated an incorrect private-bit assumption in that
+hold. The original Gold SDK routine toggles its existing Boolean; it does not
+unconditionally set it true. Four bounded executions of the original toggle and
+clear prefixes confirm both toggle directions and stop before the first external
+call. The hold now accepts either genuine Boolean, retaining the exact original
+callsites, native owner/session, source CID and private-slot checks. The bit is
+discarded as common state. First-failure stages make future guard rejections
+specific without changing their outcome.
+
+With this correction, a real DXVK pair invoked original Gold READY, copied its
+intent at the original SDK boundary and authenticated/delivered that intent to
+the original Steam host. The host correctly rejected original Ready enqueueing
+because its preparation row2 was still unassigned: network slot unavailable,
+controller1, human kind1. Its native session already contained the admitted guest.
+No Ready result was fabricated. Both clients exited0 and their guarded files,
+profiles, auxiliary files, saves and services were restored; the broker relayed10
+frames with no rejection. The next step is to connect the existing original
+History preparation/claim methods to that admitted remote row, preserving all
+other fields, before retrying the original host consumer.
+
+The updated fixture run passes375 authored checks, including30 SDK ABI/notification
+checks. Two sets of47 compiled guards cover original bytes and exact owned-patch
+normalization; they do not execute original game code. See the
+[SDK-toggle correction receipt](receipts/native-reverse-sdk-toggle-20261117.json).
+This qualifies native intent capture/delivery only; the complete Ready exchange,
+reverse world, NEO and History-origin save/reload remain open.
+
 ## Remaining native path
 
 The runtime still needs a completed original human Ready exchange with the new

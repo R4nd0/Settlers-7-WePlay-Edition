@@ -92,14 +92,43 @@ void Run(){
     Check(before==after);Check(seen_bx==0x11112222 && seen_si==0x33334444 && seen_di==0x55556666);
     Check(seen_ax==0xabcddcba && seen_cx==0x12345678 && seen_dx==0xa4e430);
     Check((seen_flags&0xcd5)==(direction?0x444u:0x44u));Check(fp);Check(arguments && probes==1);
-    Check(GetLastError()==1965);Check(GoldSdkReadyHold::Current().failed && !GoldSdkReadyHold::Current().captured);
+    Check(GetLastError()==1965);Check(GoldSdkReadyHold::Current().failed && !GoldSdkReadyHold::Current().captured
+        && GoldSdkReadyHold::Current().failure==1);
 }
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionGoldSdkReadyHoldGuardOracle(uint32_t edition){
     return edition==1 && GoldSdkReadyHold::Methods()?1u:0u;
 }
+// Offline only: original game pages are mapped by the bounded guard emulator.
+// Validate before patching, then exercise exact owned-patch normalization too.
+extern "C" __declspec(dllexport) uint32_t __cdecl ProductionGoldSdkReadyHeldGuardOracle(uint32_t edition){
+    if(edition!=1 || !GoldSdkReadyHold::Methods())return 0;
+    unsigned char before[2][5]{};auto& state=GoldSdkReadyHold::Current();
+    for(unsigned i=0;i<2;++i){
+        auto* at=reinterpret_cast<unsigned char*>(GoldSdkReadyHold::Site(i));memcpy(before[i],at,5);
+        const int32_t delta=static_cast<int32_t>(GoldSdkReadyHold::Entry(i)-(GoldSdkReadyHold::Site(i)+5));
+        at[0]=0xe9;memcpy(at+1,&delta,4);
+    }
+    state.roots.installed=true;state.patched=3;const bool accepted=GoldSdkReadyHold::Methods();
+    for(unsigned i=0;i<2;++i)memcpy(reinterpret_cast<void*>(GoldSdkReadyHold::Site(i)),before[i],5);
+    state={};return accepted?1u:0u;
+}
 int main(){
     GoldSdkReadyHold::probe=&Probe;Run();direction=true;Run();GoldSdkReadyHold::probe=nullptr;
     Check(!GoldSdkReadyHold::Release());Check(GetLastError()==1965);
+    unsigned char notification[0x18]{};
+    CrossplayChat::Put(notification,0xf562a8);CrossplayChat::Put(notification+4,CrossplayReady::Type);
+    CrossplayChat::Put(notification+8,22);notification[12]=1;CrossplayChat::Put(notification+0x10,1);
+    for(uintptr_t continuation:{0xaa819du,0xaa8277u}){
+        for(unsigned bit=0;bit<=2;++bit){
+            notification[0x14]=static_cast<unsigned char>(bit);
+            Check(GoldSdkReadyHold::NotificationFailure(notification,22,continuation)==(bit<=1?0u:10u));
+        }
+        notification[0x14]=0;Check(GoldSdkReadyHold::NotificationFailure(notification,23,continuation)==8);
+        CrossplayChat::Put(notification+0x10,2);Check(GoldSdkReadyHold::NotificationFailure(notification,22,continuation)==9);
+        CrossplayChat::Put(notification+0x10,1);
+    }
+    Check(GoldSdkReadyHold::NotificationFailure(notification,22,0xaa819e)==5);
+    Check(GoldSdkReadyHold::NotificationFailure(nullptr,22,0xaa819d)==8);
     printf("PASS %u SDK Ready hold ABI/FP/DF/stack/closed-scope checks; authored only, no native Ready qualified.\n",checks);return 0;
 }

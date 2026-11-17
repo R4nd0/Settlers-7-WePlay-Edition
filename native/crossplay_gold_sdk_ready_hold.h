@@ -7,7 +7,7 @@
 // common Gold guest/slot2. The callback copies intent; only the actual common
 // host may subsequently supply an observed achieved state. No replay API here.
 namespace CrossplayNativeReady {
-inline void GoldSdkReadyTrue();inline void GoldSdkReadyFalse();inline void GoldSdkReadyBridge();
+inline void GoldSdkReadyToggle();inline void GoldSdkReadyClear();inline void GoldSdkReadyBridge();
 // Reuses the existing Gold root/guest-role checks and Ready intent codec. Only
 // these two original SDK notifications are held; they do not report common
 // session state. The authenticated native host remains the Ready authority.
@@ -17,11 +17,12 @@ struct GoldSdkReadyHold {
         CrossplayNativeObserver::GoldLocalObserver::State roots{};
         const CrossplayNative::ParticipantEvent* binding=nullptr;CrossplayNative::LobbyAdmission* admission=nullptr;
         const CrossplayNative::GoldGuestRowClaim* claim=nullptr;const CrossplayNative::GoldGuestIdentity* identity=nullptr;
-        Callback callback=nullptr;unsigned patched=0,captured=0;bool inside=false,failed=false;
+        Callback callback=nullptr;unsigned patched=0,captured=0,failure=0;bool inside=false,failed=false;
     };
     static State& Current(){static State state;return state;}
+    static void Reject(unsigned stage){auto& state=Current();if(!state.failed)state.failure=stage;state.failed=true;}
     static uintptr_t Site(unsigned i){return i?0xaa8272:0xaa8198;}
-    static uintptr_t Entry(unsigned i){return reinterpret_cast<uintptr_t>(i?&GoldSdkReadyFalse:&GoldSdkReadyTrue);}
+    static uintptr_t Entry(unsigned i){return reinterpret_cast<uintptr_t>(i?&GoldSdkReadyClear:&GoldSdkReadyToggle);}
     static bool Jump(unsigned i){
         const auto at=Site(i);if(!CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(at),5))return false;
         const auto* bytes=reinterpret_cast<const unsigned char*>(at);int32_t delta=0;memcpy(&delta,bytes+1,4);
@@ -58,26 +59,35 @@ struct GoldSdkReadyHold {
 #ifdef S7_GOLD_SDK_READY_HOLD_TESTING
     inline static void (__cdecl* probe)(void*,void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t,uintptr_t)=nullptr;
 #endif
+    static unsigned NotificationFailure(const void* event,uint32_t own,uintptr_t continuation){
+        using namespace CrossplayNativeCodec;const auto pin=ReadyDetail::Pin(Crossplay::Edition::Gold);
+        if(continuation!=0xaa819d && continuation!=0xaa8277)return 5;
+        if(!ReadyDetail::Source(pin,event,own) || !Detail::Readable(event,0x18))return 8;
+        const auto* bytes=static_cast<const unsigned char*>(event);
+        if(CrossplayChat::Word(bytes+0x10)!=1)return 9;
+        // The original toggle can produce either Boolean. Its private bit is
+        // discarded; only the original common host can determine achieved Ready.
+        return bytes[0x14]<=1?0u:10u;
+    }
     static void __fastcall Send(void* manager,void* original,const void* event,uint32_t mode,uint32_t a,uint32_t b,uint32_t c,uintptr_t continuation){
         struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
         auto& state=Current();
 #ifdef S7_GOLD_SDK_READY_HOLD_TESTING
         if(probe)probe(manager,original,event,mode,a,b,c,continuation);
 #endif
-        if(!state.roots.installed || state.failed || state.inside || !state.callback || state.patched!=3
-            || reinterpret_cast<uintptr_t>(manager)!=state.roots.manager || reinterpret_cast<uintptr_t>(original)!=0xa4e430
-            || mode!=2 || a || b || c || (continuation!=0xaa819d && continuation!=0xaa8277)
-            || !Methods() || !Bound(state)){state.failed=true;return;}
-        using namespace CrossplayNativeCodec;const auto pin=ReadyDetail::Pin(Crossplay::Edition::Gold);
-        const auto* bytes=static_cast<const unsigned char*>(event);
-        if(!ReadyDetail::Source(pin,event,state.admission->OwnConnection()) || !Detail::Readable(event,0x18)
-            || CrossplayChat::Word(bytes+0x10)!=1 || bytes[0x14]!=(continuation==0xaa819d?1:0)){
-            state.failed=true;return;
-        }
+        if(!state.roots.installed || state.failed || state.inside || !state.callback || state.patched!=3){Reject(1);return;}
+        if(reinterpret_cast<uintptr_t>(manager)!=state.roots.manager){Reject(2);return;}
+        if(reinterpret_cast<uintptr_t>(original)!=0xa4e430){Reject(3);return;}
+        if(mode!=2 || a || b || c){Reject(4);return;}
+        if(continuation!=0xaa819d && continuation!=0xaa8277){Reject(5);return;}
+        if(!Methods()){Reject(6);return;}
+        if(!Bound(state)){Reject(7);return;}
+        const unsigned invalid=NotificationFailure(event,state.admission->OwnConnection(),continuation);
+        if(invalid){Reject(invalid);return;}
         state.inside=true;bool accepted=false;
-        try{accepted=state.callback(manager,event);}catch(...){state.failed=true;}
+        try{accepted=state.callback(manager,event);}catch(...){Reject(11);}
         state.inside=false;
-        if(!accepted || state.failed || state.captured==UINT32_MAX)state.failed=true;
+        if(!accepted || state.failed || state.captured==UINT32_MAX)Reject(12);
         else ++state.captured;
     }
     static bool Restore(unsigned i){
@@ -122,13 +132,13 @@ struct GoldSdkReadyHold {
         if(!Restore(0) || !Restore(1))__fastfail(7);state={};return true;
     }
 };
-__declspec(naked) inline void GoldSdkReadyTrue(){__asm{
+__declspec(naked) inline void GoldSdkReadyToggle(){__asm{
     push ecx
     mov ecx,edi
     push 0x0aa819d
     jmp GoldSdkReadyBridge
 }}
-__declspec(naked) inline void GoldSdkReadyFalse(){__asm{
+__declspec(naked) inline void GoldSdkReadyClear(){__asm{
     push eax
     mov ecx,edi
     push 0x0aa8277
