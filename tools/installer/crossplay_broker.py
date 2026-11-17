@@ -49,6 +49,8 @@ class Connection:
 
 
 class CrossplayBroker:
+    allowed_addresses = ('127.0.0.2', '127.0.0.3')
+
     def __init__(self, launches, session=None):
         if (type(launches) is not tuple or len(launches) != 2 or not all(isinstance(x, Launch) and x.valid() for x in launches)
                 or sorted(x.edition for x in launches) not in ([1, 2], [1, 3])
@@ -70,6 +72,9 @@ class CrossplayBroker:
         if not alias or alias == int.from_bytes(gold.native_identity[:4], 'little'):
             raise ValueError('Session projection collision; start a fresh session')
         self.gold_alias = alias.to_bytes(4, 'little')+bytes(12)
+        self._open_listener()
+
+    def _open_listener(self):
         self.selector = selectors.DefaultSelector()
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -173,7 +178,7 @@ class CrossplayBroker:
         for key, flags in self.selector.select(timeout):
             if key.fileobj is self.listener:
                 sock, address = self.listener.accept()
-                if len(self.connections) >= 16 or self.retired or address[0] not in ('127.0.0.2', '127.0.0.3'):
+                if len(self.connections) >= 16 or self.retired or address[0] not in self.allowed_addresses:
                     sock.close(); self.rejections += 1; continue
                 try:
                     sock.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)

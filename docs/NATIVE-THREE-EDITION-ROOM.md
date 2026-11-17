@@ -49,10 +49,34 @@ all three native views, incomplete/extra/mismatched native rosters, wire bounds,
 three acknowledgements, purpose/challenge separation and deadlines. No original
 game or native membership is created by those fixtures.
 
+## Separate three-client connection service
+
+`tools/installer/crossplay_room_broker.py` now provides an explicit WPX2
+loopback-only service for exactly one launch of every original edition. It
+reuses the bounded nonblocking socket processing and drain-before-EOF behavior
+of the existing pair service. The WPX1 pair handshake and two-member checks
+remain unchanged.
+
+The new handshake binds the original executable pin, common content, room,
+generation and chosen Gold/Steam game host. It sends one complete three-member
+snapshot only after all three independent clients authenticate. Logical game
+slots are separate from transport slots and each engine's native identity
+namespace. Targeted events and broadcast to both other members retain their
+authenticated origin; source echo is excluded. Fanout bounds are checked for
+every recipient before any copy is queued. A departing authenticated member
+retires the room after already queued events drain.
+
+Fifteen actual three-socket loopback tests cover both game hosts, complete
+membership, namespace projections, targeted/broadcast delivery, queued EOF,
+replay, tampering, source/epoch mismatch and retired-room rejection. Fourteen
+existing pair-service regression tests also pass. These use authored clients;
+no original game is started and the current native pair channel rejects WPX2.
+
 ## Integration still required
 
-The descriptor/barrier model is not connected to a multi-client broker, native
-join transaction, original three-client Ready/start, NEO agreement, ordered
+The descriptor/barrier model and three-client connection service still require
+their native client channel and integration with an original three-member join
+transaction, original three-client Ready/start, NEO agreement, ordered
 commands/EOT and CRC collection, original save transfer or coordinated reload.
 Each stage needs actual observations from every member and fresh native checks
 before original calls. The canonical profile adapter under development must
