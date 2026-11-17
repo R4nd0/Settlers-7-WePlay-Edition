@@ -1,0 +1,30 @@
+{
+  "format": "weplay-cpu-four-physical-v1",
+  "date": "2026-11-17",
+  "editions": ["Gold", "Ubisoft History", "Steam History"],
+  "default_maximum_physical_cores": 4,
+  "logical_processors_per_selected_core": 1,
+  "fewer_available_cores_use_available_count": true,
+  "hybrid_performance_class_preferred": true,
+  "existing_process_restrictions_preserved": true,
+  "assignment_before_original_entry": true,
+  "native_cpu_fixture_checks": 35,
+  "cpu_assignment_tests": 8,
+  "gold_installer_bootstrap_tests": 12,
+  "standalone_tests": 11,
+  "mixed_launch_boundary_tests": 9,
+  "release_document_tests": 3,
+  "actual_non_game_x86_fixture": {
+    "process_mask": "0x55",
+    "main_thread_mask": "0x55",
+    "selected_physical_cores": 4,
+    "smt_siblings_selected": false,
+    "child_process_restriction_retained": true,
+    "normal_exit_code": 0
+  },
+  "game_started": false,
+  "running_game_or_other_process_affinity_changed": false,
+  "release_pins_changed": false,
+  "gameplay_or_final_package_qualification": false,
+  "performance_improvement_claimed": false
+}

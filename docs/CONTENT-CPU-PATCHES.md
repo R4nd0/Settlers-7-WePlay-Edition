@@ -1,5 +1,39 @@
 # History Edition content and CPU patch audit
 
+## All-edition four-core startup policy, 2026-11-17
+
+Gold, Ubisoft History and Steam History now default to up to four available
+physical cores, with exactly one allowed logical processor per selected core.
+The shared standalone starter assigns and reads back the process mask while
+the original main thread is suspended, before game entry. Fewer available cores
+use their available count. Hybrid CPUs prefer higher Windows efficiency classes;
+existing process restrictions are retained. Invalid/overlapping topology is
+rejected rather than counting SMT siblings as separate physical cores.
+
+This uses the existing S7Patcher AFF mechanism and the native
+`cpu_affinity.cpp` implementation; no fixed hardware mask is installed into the
+game. The standalone History build now uses its existing four-core configuration
+instead of the former two-core diagnostic setting. Gold's older bootstrap also
+selects four cores and verifies the assigned mask. System-wide HT/SMT stays as
+configured; this is a per-game process policy, not new engine parallelism or a
+performance claim. Published packages are not changed in place.
+
+Paired local diagnostics can explicitly retain two disjoint cores per client
+using `cpu_maximum=2` and `cpu_core_offset=0/2`. Normal launches use four without
+an additional user setting. Do not reuse a two-core diagnostic adapter as the
+new four-core production build.
+
+Verification: eight CPU assignment tests, 12 Gold installer/bootstrap tests and
+11 standalone package tests pass. The existing native x86 CPU fixture passes
+35 checks and actually selects four processors with mask `0x55` on this machine.
+A separate owned non-game x86 entry fixture confirms both process and original
+main-thread masks `0x55`, one processor per physical core, before entry, and
+exits normally with its child-process restriction intact. No S7 game was started
+or running process changed. This is not gameplay or final RC4 package evidence.
+See the [measured receipt](receipts/cpu-four-physical-20261117.json).
+
+## Historical audit
+
 2026-10-26, supported Ubisoft HE executable only; original files stay unchanged.
 
 ## Current LAN revision (2026-10-28)

@@ -1,5 +1,21 @@
 # RC4 launcher handoff — integration in progress
 
+## Four physical cores per game, 2026-11-17
+
+All three editions now default to four available physical cores, one allowed
+logical processor per core, using the existing S7Patcher AFF/native topology
+mechanism. The shared suspended starter and older Gold bootstrap select and
+verify the mask; the standalone History build no longer forces the diagnostic
+two-core variant. Fewer available cores use their available count. Explicit
+two-core/disjoint offsets remain available only to diagnostic callers.
+
+The eight assignment, 12 Gold and 11 standalone tests pass, as do the existing
+35 native CPU checks. An owned non-game x86 entry fixture actually retained
+process/main-thread mask0x55 on four distinct physical cores and exited0. No
+game, reserved test root, running process or release pin was changed. Rebuild
+the final History adapter with four cores before package qualification; older
+two-core payloads are not promoted. See [CPU scope and evidence](CONTENT-CPU-PATCHES.md).
+
 ## Fixed DXVK pipeline, 2026-11-16
 
 All three editions require DXVK (Vulkan). The desktop renderer selector and Help

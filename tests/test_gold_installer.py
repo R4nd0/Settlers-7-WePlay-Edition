@@ -136,14 +136,22 @@ class GoldBootstrapFixtures(unittest.TestCase):
         struct.pack_into('<QH', row, 32, mask, group)
         return row
 
-    def test_two_physical_cores_without_smt_and_process_restrictions(self):
+    def test_four_physical_cores_without_smt_and_process_restrictions(self):
         data = self.core(3) + self.core(12) + self.core(48)
-        self.assertEqual(bootstrap.core_mask(data, 63), 5)
-        self.assertEqual(bootstrap.core_mask(data, 42), 10)
+        self.assertEqual(bootstrap.core_mask(data, 63), 21)
+        self.assertEqual(bootstrap.core_mask(data, 42), 42)
         self.assertEqual(bootstrap.core_mask(data, 48), 16)
+        data += self.core(192) + self.core(768)
+        self.assertEqual(bootstrap.core_mask(data, 1023), 0x55)
+        self.assertEqual(bootstrap.core_mask(data, 0x2aa), 0xaa)
+
+    def test_hybrid_gold_uses_faster_physical_cores_first(self):
+        rows = [self.core(3 << (2*n)) for n in range(5)]
+        for row in rows[1:]:row[9] = 1
+        self.assertEqual(bootstrap.core_mask(b''.join(rows), 1023), 0x154)
 
     def test_bad_topology_and_unavailable_group_fail_closed(self):
-        for data in (b'bad', self.core(1)[:-1], self.core(1, group=1)):
+        for data in (b'bad', self.core(1)[:-1], self.core(1, group=1), self.core(0), self.core(3)+self.core(2)):
             with self.assertRaises(ValueError): bootstrap.core_mask(data, 1)
 
     def test_bridge_replays_original_call_after_aslr_and_guards_all_failures(self):

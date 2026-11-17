@@ -51,7 +51,7 @@ try {
         Compile-Standalone @('/LD','/DS7_PLATFORM_INDEPENDENT',(Join-Path $source '../tools/platform-standalone/steam_local_api.cpp'),
             '/Fe:steam_api.dll','/link',"/DEF:$(Join-Path $source '../tools/platform-standalone/steam_local_api.def')")
         if ($Target -in @('History','All')) {
-            & (Join-Path $source 'build.ps1') -OutputDirectory (Join-Path $destination 'History') -PlatformIndependent -MaximumPhysicalCores 2 -GameDirectory:$GameDirectory -NeoLogistics:$NeoLogistics
+            & (Join-Path $source 'build.ps1') -OutputDirectory (Join-Path $destination 'History') -PlatformIndependent -MaximumPhysicalCores 4 -GameDirectory:$GameDirectory -NeoLogistics:$NeoLogistics
             if ($LASTEXITCODE -ne 0) { throw 'Standalone History build failed.' }
         }
         if ($Target -in @('Gold','All')) {

@@ -167,11 +167,13 @@ def bind_extra(api):
         function.argtypes, function.restype = arguments, returns
 
 
-def core_mask(data, allowed, *, core_offset=0):
-    """Two physical cores in the current processor group, before any game code."""
+def core_mask(data, allowed, *, core_offset=0, maximum=4):
+    """Up to four physical cores, one allowed logical CPU per core, before entry."""
     if type(core_offset) is not int or core_offset < 0:
         raise ValueError('Invalid physical CPU core offset.')
-    at, selected = 0, []
+    if type(maximum) is not int or maximum not in (2, 4):
+        raise ValueError('Invalid physical CPU core limit.')
+    at, selected, seen = 0, [], 0
     while at < len(data):
         if at+8 > len(data):raise ValueError('Ungültige CPU-Topologie.')
         relation, size = struct.unpack_from('<II', data, at)
@@ -180,14 +182,18 @@ def core_mask(data, allowed, *, core_offset=0):
             if size < 48 or struct.unpack_from('<H',data,at+30)[0] != 1:
                 raise ValueError('Nicht unterstützte CPU-Gruppe.')
             mask, group = struct.unpack_from('<QH',data,at+32)
+            if not mask or (group == 0 and mask & seen):
+                raise ValueError('Ungültige CPU-Topologie.')
+            if group == 0:seen |= mask
             usable = mask & allowed if group == 0 else 0
-            if usable:selected.append(usable & -usable)
+            if usable:selected.append((data[at+9], usable & -usable))
         at += size
     if not selected:raise ValueError('Keine zulässigen physischen CPU-Kerne gefunden.')
-    chosen = selected[core_offset:core_offset + 2]
-    if not chosen or (core_offset and len(chosen) != 2):
+    selected.sort(key=lambda item: -item[0])  # Same performance-class preference as cpu_affinity.cpp.
+    chosen = selected[core_offset:core_offset + maximum]
+    if not chosen or (core_offset and len(chosen) != maximum):
         raise ValueError('Insufficient physical CPU cores for the isolated client.')
-    return sum(chosen)
+    return sum(mask for _, mask in chosen)
 
 
 class OwnedProcess:
@@ -247,7 +253,7 @@ class OwnedProcess:
             scope.close();self.network_policy=None
 
 
-def launch(executable, dll, *, dll_sha256, policy, policy_sha256, environment=None, arguments=(), on_initialized=None, cpu_core_offset=0):
+def launch(executable, dll, *, dll_sha256, policy, policy_sha256, environment=None, arguments=(), on_initialized=None, cpu_core_offset=0, cpu_maximum=4):
     executable, dll, policy = plain(executable), plain(dll), plain(policy)
     expected = digest(executable)
     profile = PROFILES.get(expected)
@@ -258,10 +264,10 @@ def launch(executable, dll, *, dll_sha256, policy, policy_sha256, environment=No
                             timeout=15, creationflags=0x08000000)
     if result.returncode:
         raise RuntimeError('Die Windows-Netzisolation fehlt oder stimmt nicht mit dieser Kopie überein.')
-    return _launch(executable, dll, expected, profile, environment or os.environ, arguments,on_initialized=on_initialized,cpu_core_offset=cpu_core_offset)
+    return _launch(executable, dll, expected, profile, environment or os.environ, arguments,on_initialized=on_initialized,cpu_core_offset=cpu_core_offset,cpu_maximum=cpu_maximum)
 
 
-def _launch(executable, dll, expected, profile, environment, arguments,*,on_initialized=None,cpu_core_offset=0):
+def _launch(executable, dll, expected, profile, environment, arguments,*,on_initialized=None,cpu_core_offset=0,cpu_maximum=4):
     """Internal launch engine, also exercised with a non-game native fixture."""
     api = Windows(); bind_extra(api); k, check = api.k, api.check
     edition, stamp, image_size, entry_rva, target_rva, entry_hex, imports = profile
@@ -310,7 +316,7 @@ def _launch(executable, dll, expected, profile, environment, arguments,*,on_init
         if not 48 <= topology_size.value <= 1048576:raise ValueError('CPU-Topologie nicht verfügbar.')
         topology=C.create_string_buffer(topology_size.value)
         check(k.GetLogicalProcessorInformationEx(0,topology,C.byref(topology_size)))
-        selected = core_mask(topology.raw[:topology_size.value],allowed.value,core_offset=cpu_core_offset)
+        selected = core_mask(topology.raw[:topology_size.value],allowed.value,core_offset=cpu_core_offset,maximum=cpu_maximum)
         check(k.SetProcessAffinityMask(child.process,selected))
         actual = C.c_size_t()
         check(k.GetProcessAffinityMask(child.process,C.byref(actual),C.byref(system)))

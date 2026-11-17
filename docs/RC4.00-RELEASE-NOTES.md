@@ -29,6 +29,12 @@ geprüfte Plattformisolation. Steam oder Ubisoft Connect müssen für die vorber
 Kopie nicht laufen. Jeder Spieler benötigt eigene unterstützte Originaldateien;
 der Download enthält keine Spieldaten.
 
+Der neue Startpfad ordnet jeder Ausgabe bis zu **vier verfügbare physische
+CPU-Kerne** zu, mit genau einem logischen Prozessor je Kern. Bei weniger
+verfügbaren Kernen wird deren Anzahl verwendet. HT-/SMT-Geschwister werden
+nicht gemeinsam ausgewählt. Das ist keine Zusage zusätzlicher Engine-Parallelität
+oder höherer Bildraten; die Prüfung im finalen Paket steht noch aus.
+
 **Der bisher gebaute Produktionskandidat bietet Gold nur als Singleplayer.**
 RC4.00 wird erst nach Integration und Prüfung des nachgewiesenen gemischten
 Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den

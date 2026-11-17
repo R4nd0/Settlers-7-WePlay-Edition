@@ -123,8 +123,8 @@ def ensure_closed(root=None):
 
 
 def core_mask(data, allowed):
-    """At most two physical cores in processor group 0, respecting process mask."""
-    at, selected = 0, []
+    """At most four physical cores in processor group 0, respecting process mask."""
+    at, selected, seen = 0, [], 0
     while at < len(data):
         if at + 8 > len(data):
             raise ValueError('Ungültige CPU-Topologie.')
@@ -135,13 +135,17 @@ def core_mask(data, allowed):
             if size < 48 or struct.unpack_from('<H', data, at + 30)[0] != 1:
                 raise ValueError('Nicht unterstützte CPU-Gruppe.')
             mask, group = struct.unpack_from('<QH', data, at + 32)
+            if not mask or (group == 0 and mask & seen):
+                raise ValueError('Ungültige CPU-Topologie.')
+            if group == 0:seen |= mask
             usable = mask & allowed if group == 0 else 0
             if usable:
-                selected.append(usable & -usable)
+                selected.append((data[at+9], usable & -usable))
         at += size
     if not selected:
         raise ValueError('Keine zulässigen physischen CPU-Kerne gefunden.')
-    return sum(selected[:2])
+    selected.sort(key=lambda item: -item[0])
+    return sum(mask for _, mask in selected[:4])
 
 
 def launch(executable, dll, *, environment, on_ready=None):
@@ -175,7 +179,12 @@ def launch(executable, dll, *, environment, on_ready=None):
             raise ValueError('CPU-Topologie nicht verfügbar.')
         topology = C.create_string_buffer(length.value)
         check(k.GetLogicalProcessorInformationEx(0, topology, C.byref(length)))
-        check(k.SetProcessAffinityMask(child.process, core_mask(topology.raw[:length.value], allowed.value)))
+        selected = core_mask(topology.raw[:length.value], allowed.value)
+        check(k.SetProcessAffinityMask(child.process, selected))
+        actual = C.c_size_t()
+        check(k.GetProcessAffinityMask(child.process, C.byref(actual), C.byref(system)))
+        if actual.value != selected:
+            raise RuntimeError('Die Gold-CPU-Zuordnung wurde nicht übernommen.')
 
         def read(address, size):
             buffer = C.create_string_buffer(size); done = C.c_size_t()
