@@ -101,11 +101,46 @@ This is native admission and identity readback, not consumed host configuration,
 Ready, a shared world, active NEO, an original History-host save or a reload.
 Ordinary parser/runtime/installer admission and final-package gates remain closed.
 
+## Actual original reverse configuration
+
+The next private original-game pair captured the actual Steam host cache through
+the original History configuration constructor and serializer. That constructor
+uses an output object in ECX and five callee-cleaned stack words; its first
+stack word is unused by the complete original routine. Its map and slot copies
+must have their own original-engine storage before serialization and destruction.
+
+Gold decoded the authenticated host event through its original factory, cloned
+it locally and returned from its separately pinned original consumer. The
+complete native Gold cache then matched the received configuration within46ms
+of original queueing. The cache uses Gold's checked-vector layout and its own
+original lock. The receipt retains the unchanged10s owner/session/cache/byte
+deadline. A consumer return alone or an already matching map is insufficient.
+
+Gold's original consumer resolves the event's routing CID through the native
+roster and requires slot1. The actual reverse roster already provides that
+mapping; no replacement host answer or SDK-role bypass was needed. Original
+Ready, privacy, slot and state values remain unchanged across the host capture
+and receiver comparison; only typed routing CIDs change namespaces.
+
+Both clients exited0 and all guarded files, portable profiles, auxiliary files
+and services were restored. The planned guest close's channel rejection remains
+in the evidence. The [configuration-only receipt](receipts/native-reverse-configuration-20261117.json)
+records13 actual checks, the full123/57 asset-file hashes,11 authored constructor
+ABI/scope checks,27 observer checks,16 original Gold dispatcher/roster cases,
+six original Steam constructor cases and15 compiled method-integrity checks
+across the three editions. Offline assignment/allocator/OS boundaries are
+explicitly modeled; the original-game pair is separate evidence.
+
+The Gold guest's presentation queries still reach History-specific preparation
+checks and fail closed. This diagnostic does not qualify the complete applied
+choice query, human Ready, a world, NEO or an original History-host save/reload.
+Normal role/catalog/installer gates remain closed.
+
 ## Remaining native path
 
-The runtime still needs complete History host configuration/start capture,
-Gold guest configuration-consumer receipts and readback, original human
-Ready exchange, host/guest setup-root agreement and full NEO lifecycle. Its save
+The runtime still needs complete applied Gold guest choice queries, original
+human Ready exchange, History host start capture, host/guest setup-root agreement
+and full NEO lifecycle. Its save
 checkpoint must come from a new original Steam History host save, followed by
 a fresh-owner transfer/load, matching original turns, continued logistics and
 resave. The local Gold SDK service remains separate from common host authority.

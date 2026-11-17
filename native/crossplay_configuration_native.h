@@ -1,8 +1,13 @@
 #pragma once
 #include "crossplay_configuration_receipt.h"
 #include "crossplay_ready_state_codec.h"
+#include <optional>
 
 namespace CrossplayConfigurationNative {
+inline unsigned char* Cache(Crossplay::Edition edition){
+    return edition==Crossplay::Edition::Gold?CrossplayNativeCodec::SessionConfigDetail::GoldConfiguration():
+        CrossplayNativeCodec::ReadyStateDetail::HistoryConfiguration(edition);
+}
 inline void Word(std::vector<unsigned char>& bytes,uint32_t value){
     const auto at=bytes.size();bytes.resize(at+4);CrossplayChat::Put(bytes.data()+at,value);
 }
@@ -16,14 +21,17 @@ inline bool Snapshot(Crossplay::Edition edition,const CrossplayNative::Participa
     using namespace CrossplayNativeCodec;wire.clear();
     CrossplayNative::LobbySnapshot lobby;
     if(interval.owner!=GetCurrentThreadId() || !interval.session || !interval.cache
-        || (edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)
+        || (edition!=Crossplay::Edition::Gold && edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)
         || !SessionConfigDetail::Methods(edition) || !SessionConfigDetail::Roster(binding,ids,false)
         || !binding.CaptureLobby(lobby) || lobby.instance!=interval.session)return false;
-    auto* cache=ReadyStateDetail::HistoryConfiguration(edition);
+    auto* cache=Cache(edition);
     const auto pin=SessionConfigDetail::Pin(edition);
-    if(reinterpret_cast<uintptr_t>(cache)!=interval.cache || !cache
-        || !SessionConfigDetail::Fields(pin,cache+0x24,cache+0x34,cache+0x44,ids))return false;
-    const auto* begin=*reinterpret_cast<const unsigned char* const*>(cache+0x44);
+    if(reinterpret_cast<uintptr_t>(cache)!=interval.cache || !cache)return false;
+    std::optional<SessionConfigDetail::ConfigLock> gold_lock;
+    if(edition==Crossplay::Edition::Gold){gold_lock.emplace(cache);if(!gold_lock->acquired)return false;}
+    if(!SessionConfigDetail::Fields(pin,cache+0x24,cache+0x34,cache+0x44,ids))return false;
+    const size_t vector_offset=edition==Crossplay::Edition::Gold?0x48:0x44;
+    const auto* begin=*reinterpret_cast<const unsigned char* const*>(cache+vector_offset);
     std::array<unsigned char,8*0x18> slots{};memcpy(slots.data(),begin,slots.size());
     std::string map,save;
     if(!SessionConfigDetail::NativeString(cache+0x24,map) || !SessionConfigDetail::NativeString(cache+0x34,save))return false;
@@ -42,8 +50,8 @@ inline bool Snapshot(Crossplay::Edition edition,const CrossplayNative::Participa
     // Keep the raw cache below for the stability check; never write it back.
     std::string after_map,after_save;std::vector<unsigned char> bound;
     if(!CrossplaySessionConfig::BindSource(snapshot,ids,bound)
-        || ReadyStateDetail::HistoryConfiguration(edition)!=cache
-        || *reinterpret_cast<const unsigned char* const*>(cache+0x44)!=begin
+        || Cache(edition)!=cache
+        || *reinterpret_cast<const unsigned char* const*>(cache+vector_offset)!=begin
         || !Detail::Readable(begin,slots.size()) || memcmp(begin,slots.data(),slots.size())
         || !SessionConfigDetail::NativeString(cache+0x24,after_map) || after_map!=map
         || !SessionConfigDetail::NativeString(cache+0x34,after_save) || after_save!=save

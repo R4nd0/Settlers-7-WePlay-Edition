@@ -1,0 +1,57 @@
+{
+  "format": "native-reverse-configuration-v1",
+  "date": "2026-11-17",
+  "experimental_only": true,
+  "scope": "Original Steam History host and original Gold guest, standalone loopback DXVK 3.1.1; original host configuration consumption and exact native Gold cache readback only.",
+  "actual_checks": {
+    "actual_original_steam_host_bootstrap": true,
+    "actual_original_host_slot1": true,
+    "original_gold_row_claim": true,
+    "original_gold_confirmed_consumed": true,
+    "actual_native_profile_name_castle_match": true,
+    "actual_identity_readback_complete": true,
+    "no_world_start_or_turn_bridge_claimed": true,
+    "normal_exit_and_restoration": true,
+    "actual_original_history_host_constructor_serializer_and_send": true,
+    "actual_gold_original_reader_clone_and_queue": true,
+    "actual_gold_original_config_consumer_returned": true,
+    "actual_gold_exact_native_cache_readback": true,
+    "no_configuration_difference_or_timeout": true
+  },
+  "original_enqueue_to_identical_native_cache_ms": 46,
+  "actual_content_files_hashed": {
+    "gold": 123,
+    "history": 57
+  },
+  "private_unapproved_catalog_sha256": "e54f6a983db9f5e62ef8c21647e8fa0e858783f851a94b3eb24720080095a1b0",
+  "native_source_metadata": "Original host map and complete eight-slot state/Ready/privacy/network-slot fields preserved; only typed routing CIDs are projected between actual namespaces.",
+  "gold_native_host_check": "Unmodified original CSession CID-to-slot lookup returns host slot1; guest and unknown source rejected.",
+  "authored_component_checks": {
+    "history_host_constructor_abi_scope": 11,
+    "configuration_consumer_observer": 27,
+    "configuration_consumption_receipt": 1077
+  },
+  "offline_checks": {
+    "original_gold_dispatcher_and_roster_lookup_cases": 16,
+    "original_steam_host_constructor_cases": 6,
+    "compiled_configuration_integrity_guards": {
+      "gold": 5,
+      "ubisoft_history": 5,
+      "steam_history": 5
+    }
+  },
+  "offline_modeled_boundaries": "Gold map/slot assignment and OS calls; History leaf string/vector allocation. These isolated cases are distinct from the actual game pair.",
+  "production_fixture_result": "Passed; two existing Windows native-address-layout exclusions retained, not counted as executed.",
+  "both_clients_exit_codes": {
+    "gold": 0,
+    "steam_history": 0
+  },
+  "guarded_files_profiles_auxiliary_and_services_restored": true,
+  "history_claim_presentation_queries_for_gold_remain_fail_closed": true,
+  "gold_guest_complete_choice_ready_and_start_chain_qualified": false,
+  "reverse_neo_or_saved_reload_qualified": false,
+  "ready_world_neo_or_save_request_made": false,
+  "x20_requested": false,
+  "ordinary_role_or_catalog_approval_promoted": false,
+  "final_installed_package_qualified": false
+}

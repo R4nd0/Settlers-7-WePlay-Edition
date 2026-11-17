@@ -2,12 +2,13 @@
 #include "crossplay_production_observer.h"
 #include "crossplay_session_config_codec.h"
 
-// Observe the original History configuration consumer after it returns.
+// Observe the build-specific original configuration consumer after it returns.
 // A queued clone or a pre-existing matching map alone is not this receipt.
 namespace CrossplayProduction {
 namespace ConfigurationObserver {
-struct Profile {uintptr_t table=0,dispatcher=0,event=0;uint64_t fingerprint=0;};
+struct Profile {uintptr_t table=0,dispatcher=0,event=0;uint64_t fingerprint=0;size_t method_bytes=0xc10,cache_bytes=0x50,event_bytes=0x3c;};
 inline Profile Pin(Crossplay::Edition edition){
+    if(edition==Crossplay::Edition::Gold)return {0xf4e074,0x98e0f0,0xf4e0c0,0xabb76b3f794cf68bull,0x920,0x60,0x40};
     if(edition==Crossplay::Edition::UbisoftHistory)return {0x114dd44,0x841060,0x114dd0c,0xc0d929e13f402749ull};
     if(edition==Crossplay::Edition::SteamHistory)return {0x114c270,0x840e30,0x114c238,0x7699b03a4264f1c9ull};
     return {};
@@ -21,10 +22,10 @@ inline bool Methods(Crossplay::Edition edition){
     using CrossplayNativeCodec::Detail::Readable;const auto p=Pin(edition);
     if(!p.table || !Readable(reinterpret_cast<void*>(p.table+4),4)
         || *reinterpret_cast<const uintptr_t*>(p.table+4)!=p.dispatcher
-        || !Readable(reinterpret_cast<void*>(p.dispatcher),0xc10))return false;
+        || !Readable(reinterpret_cast<void*>(p.dispatcher),p.method_bytes))return false;
     uint64_t hash=14695981039346656037ull;
     const auto* code=reinterpret_cast<const unsigned char*>(p.dispatcher);
-    for(size_t i=0;i<0xc10;++i)hash=(hash^code[i])*1099511628211ull;
+    for(size_t i=0;i<p.method_bytes;++i)hash=(hash^code[i])*1099511628211ull;
     return hash==p.fingerprint;
 }
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
@@ -38,8 +39,8 @@ inline void __cdecl Capture(void* self,const unsigned char* event){
     authorized=authorized || test_authorized;
 #endif
     if(!installed || !authorized || owner!=GetCurrentThreadId() || !capture
-        || !Readable(self,0x50) || *static_cast<uintptr_t*>(self)!=profile.table
-        || !Readable(event,0x3c) || *reinterpret_cast<const uintptr_t*>(event)!=profile.event
+        || !Readable(self,profile.cache_bytes) || *static_cast<uintptr_t*>(self)!=profile.table
+        || !Readable(event,profile.event_bytes) || *reinterpret_cast<const uintptr_t*>(event)!=profile.event
         || CrossplayChat::Word(event+4)!=CrossplaySessionConfig::Type || event[12]!=1)return;
     capture(self,event);
 }

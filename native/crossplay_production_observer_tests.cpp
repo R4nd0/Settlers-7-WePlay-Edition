@@ -119,6 +119,19 @@ int main(){
         SetLastError(1909);O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(!calls&&GetLastError()==1909);
     }
     Setup();O::Capture(nullptr,reinterpret_cast<const unsigned char*>(event));O::Capture(self,nullptr);Check(!calls);
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    const auto gold=O::Pin(Crossplay::Edition::Gold);
+    Check(gold.table==0xf4e074 && gold.dispatcher==0x98e0f0 && gold.event==0xf4e0c0
+        && gold.method_bytes==0x920 && gold.cache_bytes==0x60 && gold.event_bytes==0x40);
+    Setup();O::profile=gold;O::profile.table=self[0];event[0]=static_cast<uint32_t>(gold.event);
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
+    SYSTEM_INFO system{};GetSystemInfo(&system);const size_t page=system.dwPageSize;
+    auto* guarded=static_cast<unsigned char*>(VirtualAlloc(nullptr,2*page,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE));Check(guarded!=nullptr);
+    DWORD previous=0;Check(VirtualProtect(guarded+page,page,PAGE_NOACCESS,&previous)!=0);
+    auto* short_event=guarded+page-0x3c;memcpy(short_event,event,0x3c);calls=0;
+    O::Capture(self,short_event);Check(!calls); // Gold's complete original object is four bytes larger.
+    Check(VirtualFree(guarded,0,MEM_RELEASE)!=0);
+#endif
     for(unsigned df=0;df<2;++df){
         Setup();abi=true;desired_df=df;O::original_dispatch=reinterpret_cast<uintptr_t>(&Original);target=reinterpret_cast<uintptr_t>(&O::Dispatch);
         SetLastError(0xabcdef12);Invoke();
@@ -138,4 +151,5 @@ int main(){
 #else
     printf("PASS %u production session observer checks: owned local Confirmed only; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
 #endif
+    return 0;
 }
