@@ -18,6 +18,9 @@ class Receipt {
 public:
     bool Active()const{return stage==Stage::Armed || stage==Stage::Consumed;}
     bool HasConsumed()const{return stage==Stage::Consumed;}
+    bool ConsumedIn(Interval own,uint64_t now)const{
+        return HasConsumed() && Same(interval,own) && now>=started && now-started<=10000;
+    }
     void Invalidate(){stage=Stage::Invalid;expected.clear();}
     bool Arm(Interval own,CrossplaySessionConfig::Connections connections,const std::string& bootstrap_map,
              const std::vector<unsigned char>& wire,uint64_t now){

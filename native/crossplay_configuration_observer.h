@@ -18,6 +18,9 @@ inline DWORD owner=0;
 inline uintptr_t original_dispatch=0;
 inline bool installed=false;
 inline void (*capture)(void*,const unsigned char*)=nullptr;
+inline bool host_closed=false;
+inline uintptr_t closed_event=0;
+inline void (*capture_closed)(void*,const unsigned char*)=nullptr;
 inline bool Methods(Crossplay::Edition edition){
     using CrossplayNativeCodec::Detail::Readable;const auto p=Pin(edition);
     if(!p.table || !Readable(reinterpret_cast<void*>(p.table+4),4)
@@ -34,13 +37,20 @@ inline bool test_authorized=false;
 inline void __cdecl Capture(void* self,const unsigned char* event){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     using CrossplayNativeCodec::Detail::Readable;
-    const auto* launch=CurrentLaunch();bool authorized=launch && launch->mixed && !launch->host;
+    const auto* launch=CurrentLaunch();bool authorized=launch && launch->mixed && (host_closed?launch->host:!launch->host);
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
     authorized=authorized || test_authorized;
 #endif
-    if(!installed || !authorized || owner!=GetCurrentThreadId() || !capture
-        || !Readable(self,profile.cache_bytes) || *static_cast<uintptr_t*>(self)!=profile.table
-        || !Readable(event,profile.event_bytes) || *reinterpret_cast<const uintptr_t*>(event)!=profile.event
+    if(!installed || !authorized || owner!=GetCurrentThreadId()
+        || !Readable(self,profile.cache_bytes) || *static_cast<uintptr_t*>(self)!=profile.table)return;
+    if(host_closed){
+        if(capture_closed && closed_event && Readable(event,20) && *reinterpret_cast<const uintptr_t*>(event)==closed_event
+            && CrossplayChat::Word(event+4)==(7u|(55u<<16)) && event[12]==1)capture_closed(self,event);
+        return;
+    }
+    if(capture_closed && closed_event && Readable(event,20) && *reinterpret_cast<const uintptr_t*>(event)==closed_event
+        && CrossplayChat::Word(event+4)==(7u|(55u<<16)) && event[12]==1){capture_closed(self,event);return;}
+    if(!capture || !Readable(event,profile.event_bytes) || *reinterpret_cast<const uintptr_t*>(event)!=profile.event
         || CrossplayChat::Word(event+4)!=CrossplaySessionConfig::Type || event[12]!=1)return;
     capture(self,event);
 }
@@ -70,16 +80,34 @@ __declspec(naked) inline void Dispatch(){__asm{
     pop ebp
     ret 4
 }}
-inline bool Install(Crossplay::Edition edition,DWORD thread,void (*callback)(void*,const unsigned char*)){
+inline bool Install(Crossplay::Edition edition,DWORD thread,void (*callback)(void*,const unsigned char*),
+                    void (*closed_callback)(void*,const unsigned char*)=nullptr){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     const auto* launch=CurrentLaunch();
     if(installed || thread!=GetCurrentThreadId() || !callback || !launch || !launch->mixed || launch->host
         || launch->channel.edition!=edition || !Methods(edition)
         || !CrossplayNativeCodec::SessionConfigDetail::Methods(edition))return false;
     const auto next=Pin(edition);
-    profile=next;owner=thread;capture=callback;original_dispatch=next.dispatcher;
+    profile=next;owner=thread;capture=callback;host_closed=false;
+    closed_event=closed_callback?(edition==Crossplay::Edition::Gold?0xf4df88:edition==Crossplay::Edition::SteamHistory?0x113e9cc:0x1140488):0;
+    capture_closed=closed_callback;original_dispatch=next.dispatcher;
     if(!SessionObserver::Exchange(next.table+4,next.dispatcher,reinterpret_cast<uintptr_t>(&Dispatch))){
-        profile={};owner=0;capture=nullptr;original_dispatch=0;return false;
+        profile={};owner=0;capture=nullptr;capture_closed=nullptr;closed_event=0;original_dispatch=0;return false;
+    }
+    installed=true;return true;
+}
+// Separate opt-in host consumer receipt. Normal guest configuration observation
+// keeps its original role/event/size policy and callback.
+inline bool InstallHostClosed(Crossplay::Edition edition,DWORD thread,void (*callback)(void*,const unsigned char*)){
+    struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
+    const auto* launch=CurrentLaunch();
+    if(installed || thread!=GetCurrentThreadId() || !callback || !launch || !launch->mixed || !launch->host
+        || launch->channel.edition!=edition || edition!=Crossplay::Edition::SteamHistory || !Methods(edition)
+        || !CrossplayNativeCodec::SessionConfigDetail::Methods(edition))return false;
+    const auto next=Pin(edition);profile=next;owner=thread;capture=nullptr;host_closed=true;closed_event=0x113e9cc;
+    capture_closed=callback;original_dispatch=next.dispatcher;
+    if(!SessionObserver::Exchange(next.table+4,next.dispatcher,reinterpret_cast<uintptr_t>(&Dispatch))){
+        profile={};owner=0;capture_closed=nullptr;host_closed=false;closed_event=0;original_dispatch=0;return false;
     }
     installed=true;return true;
 }
@@ -87,7 +115,7 @@ inline bool Release(){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     if(!installed || owner!=GetCurrentThreadId()
         || !SessionObserver::Exchange(profile.table+4,reinterpret_cast<uintptr_t>(&Dispatch),original_dispatch))return false;
-    installed=false;profile={};owner=0;capture=nullptr;original_dispatch=0;return true;
+    installed=false;profile={};owner=0;capture=nullptr;capture_closed=nullptr;host_closed=false;closed_event=0;original_dispatch=0;return true;
 }
 }
 }

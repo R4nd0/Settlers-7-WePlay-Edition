@@ -6,7 +6,14 @@ admitted by the normal launcher parser, runtime, content catalog or installer.
 The [production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md#required-reverse-role-extension)
 defines the complete original-engine and final-package requirements.
 
-Current measured milestone: an original Steam History host and original Gold
+Latest preparation milestone: Gold now consumes the host's original complete
+configuration and individual closed-slot events, applies original preparation
+setters and acknowledges matching native cache/team readback. Both peer castles
+are originally consumed and read back before Ready. The actual DXVK pair exited0/0
+with strict restoration; no world event was sent or queued. See
+[native preparation, measured cause and limits](NATIVE-REVERSE-PREPARATION.md).
+
+Earlier measured milestone: an original Steam History host and original Gold
 guest complete genuine native Ready, Gold's actual cache readback and an
 authenticated acknowledgement before the original enabled START widget. The
 genuine 21-byte original start event is captured; original leave and application

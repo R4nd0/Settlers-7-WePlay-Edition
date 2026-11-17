@@ -13,6 +13,9 @@ namespace O=CrossplayProduction::ConfigurationObserver;
 namespace O=CrossplayProduction::SessionObserver;
 #endif
 unsigned checks=0,calls=0;bool abi=false;unsigned desired_df=0;
+#ifndef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+unsigned peer_calls=0;
+#endif
 uint32_t self[24]{},event[40]{},seen_self=0,seen_event=0;
 uint32_t native_self=0,native_event=0,native_flags=0,returned_flags=0,result[6]{},before_sp=0,after_sp=0;
 uintptr_t target=0;
@@ -30,14 +33,19 @@ void Capture(void* object,const unsigned char* message){
 void Setup(){
     memset(self,0,sizeof(self));memset(event,0,sizeof(event));calls=0;abi=false;
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    O::host_closed=false;O::closed_event=0;O::capture_closed=nullptr;
     O::profile={0x11111111,0,0x22222222,0};self[0]=0x11111111;event[0]=0x22222222;
     event[1]=CrossplaySessionConfig::Type;reinterpret_cast<unsigned char*>(event)[12]=1;
 #else
+    O::peer_capture=nullptr;peer_calls=0;
     O::profile={0x11111111,0,0x22222222,0x9c,0x98,true};self[0]=0x11111111;event[0]=0x22222222;
     reinterpret_cast<unsigned short*>(event)[3]=3;reinterpret_cast<unsigned char*>(event)[0x98]=1;
 #endif
     O::owner=GetCurrentThreadId();O::installed=true;O::capture=&Capture;O::test_authorized=true;
 }
+#ifndef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+void CapturePeer(void* object,const unsigned char* message){++peer_calls;Capture(object,message);}
+#endif
 __declspec(naked) void Original(){__asm{
     mov [native_self],ecx
     mov eax,dword ptr [esp+4]
@@ -120,6 +128,21 @@ int main(){
     }
     Setup();O::Capture(nullptr,reinterpret_cast<const unsigned char*>(event));O::Capture(self,nullptr);Check(!calls);
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    Setup();O::host_closed=true;O::closed_event=0x33333333;O::capture_closed=&Capture;
+    event[0]=0x33333333;event[1]=7u|(55u<<16);reinterpret_cast<unsigned char*>(event)[12]=1;
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
+    event[1]^=1;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);event[1]^=1;
+    reinterpret_cast<unsigned char*>(event)[12]=0;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
+    O::capture_closed=nullptr;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
+    // Guest ClosedSlot observation requires explicit opt-in and retains the
+    // exact event/owner guards, including its smaller original object size.
+    Setup();event[0]=0x33333333;event[1]=7u|(55u<<16);
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(!calls);
+    O::closed_event=0x33333333;O::capture_closed=&Capture;
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
+    ++O::owner;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);--O::owner;
+    event[1]^=1;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);event[1]^=1;
+    reinterpret_cast<unsigned char*>(event)[12]=0;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1);
     const auto gold=O::Pin(Crossplay::Edition::Gold);
     Check(gold.table==0xf4e074 && gold.dispatcher==0x98e0f0 && gold.event==0xf4e0c0
         && gold.method_bytes==0x920 && gold.cache_bytes==0x60 && gold.event_bytes==0x40);
@@ -141,6 +164,35 @@ int main(){
             &&result[3]==0x33333333&&result[4]==0x66666666&&result[5]==0x77777777);
         Check(native_flags==returned_flags&&GetLastError()==0xabcdef12&&memcmp(native_fp,returned_fp,288)==0);
     }
+#ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    for(unsigned mode=0;mode<2;++mode)for(unsigned df=0;df<2;++df){
+        Setup();abi=true;desired_df=df;O::host_closed=mode!=0;O::closed_event=0x33333333;O::capture_closed=&Capture;
+        event[0]=0x33333333;event[1]=7u|(55u<<16);reinterpret_cast<unsigned char*>(event)[12]=1;
+        O::original_dispatch=reinterpret_cast<uintptr_t>(&Original);target=reinterpret_cast<uintptr_t>(&O::Dispatch);
+        SetLastError(0xabcdef12);Invoke();
+        Check(calls==1&&seen_self==native_self&&seen_event==native_event&&before_sp==after_sp);
+        Check(result[0]==0xfaceb00c&&result[1]==0x11223344&&result[2]==0x55667788
+            &&result[3]==0x33333333&&result[4]==0x66666666&&result[5]==0x77777777);
+        Check(native_flags==returned_flags&&GetLastError()==0xabcdef12&&memcmp(native_fp,returned_fp,288)==0);
+    }
+#endif
+#ifndef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
+    Setup();event[1]=7u|(3u<<16);reinterpret_cast<unsigned char*>(event)[0x98]=0;
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(!calls&&!peer_calls);
+    O::peer_capture=&CapturePeer;O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1&&peer_calls==1);
+    event[1]=8u|(3u<<16);O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1&&peer_calls==1);
+    event[1]=7u|(3u<<16);reinterpret_cast<unsigned char*>(event)[0x98]=2;
+    O::Capture(self,reinterpret_cast<const unsigned char*>(event));Check(calls==1&&peer_calls==1);
+    for(unsigned df=0;df<2;++df){
+        Setup();abi=true;desired_df=df;O::peer_capture=&CapturePeer;event[1]=7u|(3u<<16);reinterpret_cast<unsigned char*>(event)[0x98]=0;
+        O::original_dispatch=reinterpret_cast<uintptr_t>(&Original);target=reinterpret_cast<uintptr_t>(&O::Dispatch);
+        SetLastError(0xabcdef12);Invoke();
+        Check(calls==1&&peer_calls==1&&seen_self==native_self&&seen_event==native_event&&before_sp==after_sp);
+        Check(result[0]==0xfaceb00c&&result[1]==0x11223344&&result[2]==0x55667788
+            &&result[3]==0x33333333&&result[4]==0x66666666&&result[5]==0x77777777);
+        Check(native_flags==returned_flags&&GetLastError()==0xabcdef12&&memcmp(native_fp,returned_fp,288)==0);
+    }
+#endif
     uintptr_t table[2]{};Setup();O::profile.table=reinterpret_cast<uintptr_t>(table);
     O::original_dispatch=reinterpret_cast<uintptr_t>(&Original);table[1]=reinterpret_cast<uintptr_t>(&O::Dispatch);
     table[1]^=1;Check(!O::Release()&&O::installed);table[1]^=1;
@@ -149,7 +201,7 @@ int main(){
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING
     printf("PASS %u production configuration consumer observer checks: owned native config events only; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
 #else
-    printf("PASS %u production session observer checks: owned local Confirmed only; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
+    printf("PASS %u production session observer checks: local Confirmed and opt-in peer receipt; original result/stack/registers/flags/LastError/x87/SSE/DF preserved; foreign-hook release excluded.\n",checks);
 #endif
     return 0;
 }

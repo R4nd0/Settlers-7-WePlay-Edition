@@ -22,6 +22,9 @@ public:
     uint32_t OwnConnection() const;
     uint32_t PeerSourceConnection() const;
     uint32_t PeerLocalConnection() const;
+    // Copy the already authenticated peer setup only while the actual native
+    // roster remains bound. Does not construct/enqueue events or grant Ready.
+    bool CapturePeerSetup(Participant& peer, CrossplayCastleSetup::Value& castle, uint32_t& extra);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;

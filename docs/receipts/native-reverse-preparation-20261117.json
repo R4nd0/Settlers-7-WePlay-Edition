@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Steam History host to original Gold guest native lobby preparation after original START; no world queue",
+  "environment": {
+    "standalone_loopback": true,
+    "renderer": "DXVK 3.1.1",
+    "normal_pace_without_x20": true,
+    "map": "Monhaim Valley",
+    "human_clients": 2,
+    "ai_players": 0,
+    "all_candidate_asset_files_hashed": true,
+    "gold_asset_files": 123,
+    "steam_history_asset_files": 57,
+    "catalog_unapproved": true
+  },
+  "native_observations": {
+    "gold_remote_host_identity_bound_from_actual_admitted_participant": true,
+    "other_25_row_bytes_preserved_by_identity_projection": true,
+    "both_original_peer_confirmed_consumers_and_matching_castle_readback_before_ready": true,
+    "actual_gold_ready_readback_ack_before_original_host_start": true,
+    "original_start_event_captured_bytes": 21,
+    "original_host_closed_notifications": [3, 4],
+    "original_host_neutral_team_notifications": [3, 4],
+    "gold_full_original_configuration_consumer_returned": true,
+    "gold_cache_already_closed_both_slots_before_individual_closed_delivery": true,
+    "old_sequential_context_preserved": true,
+    "separate_complete_consumed_config_context_exact_snapshot_and_owner_interval": true,
+    "interval_lifetime_ms": 10000,
+    "gold_original_closed_consumers_returned": [3, 4],
+    "gold_original_scalar_and_string_preparation_then_native_readback": true,
+    "gold_original_team_events_enqueued_and_native_values_read_back": [3, 4],
+    "full_native_config_readback_ack_before_host_retirement": true,
+    "gold_detected_planned_host_departure_after_ack": true,
+    "native_world_event_sent_or_enqueued": false
+  },
+  "completed_pair": {
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "broker_authenticated_members": 2,
+    "broker_relayed_frames": 18,
+    "broker_rejections": 0,
+    "all_games_closed": true,
+    "guarded_files_and_portable_profiles_restored": true,
+    "history_auxiliary_files_and_platform_saves_restored": true,
+    "services_stopped": true,
+    "newer_preexisting_saves_not_overwritten": true
+  },
+  "component_verification": {
+    "reverse_fixtures": 15,
+    "authored_reverse_checks": 545,
+    "configuration_observer_checks": 48,
+    "configuration_receipt_checks": 1101,
+    "bounded_original_gold_scalar_leaf_executions": 20,
+    "compiled_gold_host_identity_integrity_cases": 17,
+    "compiled_gold_closed_preparation_integrity_cases": 23,
+    "production_handoff_fixtures_passed": true
+  },
+  "not_qualified": [
+    "reverse full setup-root agreement and independent original reader",
+    "reverse shared world and synchronized native turns",
+    "reverse active NEO goods and History-origin save/reload",
+    "reverse AI roster or other maps",
+    "remote LAN or EasyTier",
+    "ordinary parser/content/installer activation",
+    "installed release packages"
+  ]
+}

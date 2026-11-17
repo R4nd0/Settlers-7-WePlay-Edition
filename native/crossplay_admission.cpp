@@ -203,4 +203,13 @@ AdmissionState LobbyAdmission::GetState() const {return impl->Owned()?impl->stat
 uint32_t LobbyAdmission::OwnConnection() const {return impl->Owned()?impl->own.connection:UINT32_MAX;}
 uint32_t LobbyAdmission::PeerSourceConnection() const {return impl->Owned()?impl->remote_hello.connection:UINT32_MAX;}
 uint32_t LobbyAdmission::PeerLocalConnection() const {return impl->Owned()?impl->remote.connection:UINT32_MAX;}
+bool LobbyAdmission::CapturePeerSetup(Participant& peer,CrossplayCastleSetup::Value& castle,uint32_t& extra) {
+    struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
+    peer={};castle={};extra=0;
+    if(!impl->Owned() || impl->state!=AdmissionState::RosterBound || !impl->received_hello || !Poll())return false;
+    CrossplayCastleSetup::Value value{impl->remote_hello.castle,impl->remote_hello.castle_type};
+    std::vector<unsigned char> checked;
+    if(!CrossplayCastleSetup::Encode(value,checked))return false;
+    peer=impl->remote;castle=std::move(value);extra=impl->remote_hello.extra;return true;
+}
 }

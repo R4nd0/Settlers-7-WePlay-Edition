@@ -43,25 +43,28 @@ inline bool Receive(const Crossplay::Peer& peer,uint32_t previous,uint32_t sourc
     if(!Wire(value,source,slot) || slot!=previous+3)return false;
     CrossplayChat::Put(value.data()+8,local);if(!Wire(value,local,slot))return false;wire=std::move(value);return true;
 }
-inline bool Capture(const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,const void* event,std::vector<unsigned char>& wire) {
+inline bool CaptureHost(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,const void* event,std::vector<unsigned char>& wire) {
     using namespace CrossplayNativeCodec;wire.clear();
-    if(!PlayerOptionDetail::Context(Crossplay::Edition::Gold,binding,ids,true) || !Methods(Crossplay::Edition::Gold)
+    if(!PlayerOptionDetail::Context(edition,binding,ids,true) || !Methods(edition)
         || !Detail::Readable(event,20))return false;
     const auto* p=static_cast<const unsigned char*>(event);const auto slot=CrossplayChat::Word(p+16);
-    if(CrossplayChat::Word(p)!=Vtable(Crossplay::Edition::Gold) || CrossplayChat::Word(p+4)!=Type
+    if(CrossplayChat::Word(p)!=Vtable(edition) || CrossplayChat::Word(p+4)!=Type
         || CrossplayChat::Word(p+8)!=ids.host || p[12]!=1 || slot<3 || slot>4)return false;
-    auto profile=Detail::Pin(Crossplay::Edition::Gold);profile.event_vt=Vtable(Crossplay::Edition::Gold);uint32_t parsed=0;
+    auto profile=Detail::Pin(edition);profile.event_vt=Vtable(edition);uint32_t parsed=0;
     if(Detail::Encode(profile,event,wire) && Wire(wire,ids.host,parsed) && parsed==slot)return true;
     wire.clear();return false;
+}
+inline bool Capture(const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,const void* event,std::vector<unsigned char>& wire) {
+    return CaptureHost(Crossplay::Edition::Gold,binding,ids,event,wire);
 }
 inline bool Context(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,
                     uint32_t target,bool closed,uintptr_t& session,uintptr_t& cache_address) {
     using namespace CrossplayNativeCodec;session=cache_address=0;
     if(target<3 || target>4 || !PlayerOptionDetail::Context(edition,binding,ids,false))return false;
     CrossplayNative::LobbySnapshot snapshot;
-    auto* cache=ReadyStateDetail::HistoryConfiguration(edition);const auto p=Detail::Pin(edition);
+    auto* cache=edition==Crossplay::Edition::Gold?SessionConfigDetail::GoldConfiguration():ReadyStateDetail::HistoryConfiguration(edition);const auto p=Detail::Pin(edition);
     if(!cache || !binding.CaptureLobby(snapshot) || !SessionConfigDetail::Fields(p,cache+0x24,cache+0x34,cache+0x44,ids))return false;
-    const auto* rows=*reinterpret_cast<const unsigned char* const*>(cache+0x44);
+    const auto* rows=*reinterpret_cast<const unsigned char* const*>(cache+(p.gold?0x48:0x44));
     for(size_t i=0;i<8;++i) {
         const auto* row=rows+i*0x18;const auto state=CrossplayChat::Word(row);
         if(row[12])return false;
@@ -82,7 +85,8 @@ inline bool Deliver(Crossplay::Edition edition,const CrossplayNative::Participan
     auto p=Detail::Pin(edition);p.event_vt=Vtable(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
     Detail::Visitor reader{p.reader_vt,1,&stream.value,0};
-    void* decoded=reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,"WePlayEvent",0);
+    void* decoded=p.gold?Detail::GoldRead(p.read,&reader,"WePlayEvent"):
+        reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,"WePlayEvent",0);
     if(!decoded || !Detail::Readable(decoded,20) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;uintptr_t s=0,c=0;
     bool okay=stream.value.position==wire.size() && Detail::Encode(p,decoded,repeated) && repeated==wire

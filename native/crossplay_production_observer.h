@@ -18,6 +18,7 @@ inline DWORD owner=0;
 inline uintptr_t original_dispatch=0;
 inline bool installed=false;
 inline void (*capture)(void*,const unsigned char*)=nullptr;
+inline void (*peer_capture)(void*,const unsigned char*)=nullptr;
 inline bool Methods(Crossplay::Edition edition){
     using CrossplayNativeCodec::Detail::Readable;const auto p=Pin(edition);
     const unsigned char gold[]={0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
@@ -40,8 +41,9 @@ inline void __cdecl Capture(void* self,const unsigned char* event){
     if(!installed || !authorized || GetCurrentThreadId()!=owner || !capture
         || !Readable(self,0x30) || *static_cast<uintptr_t*>(self)!=profile.table
         || !Readable(event,profile.event_bytes) || *reinterpret_cast<const uintptr_t*>(event)!=profile.participant
-        || *reinterpret_cast<const uint16_t*>(event+6)!=3 || event[profile.local_at]!=1)return;
-    capture(self,event);
+        || *reinterpret_cast<const uint16_t*>(event+6)!=3)return;
+    if(event[profile.local_at]==1)capture(self,event);
+    else if(!event[profile.local_at] && peer_capture && *reinterpret_cast<const uint32_t*>(event+4)==(7u|(3u<<16)))peer_capture(self,event);
 }
 __declspec(naked) inline void Dispatch(){__asm{
     push ebp
@@ -78,20 +80,21 @@ inline bool Exchange(uintptr_t at,uintptr_t expected,uintptr_t replacement){
     if(!VirtualProtect(reinterpret_cast<void*>(at),4,previous,&ignored))__fastfail(7);
     return static_cast<uintptr_t>(prior)==expected;
 }
-inline bool Install(Crossplay::Edition edition,DWORD thread,void (*callback)(void*,const unsigned char*)){
+inline bool Install(Crossplay::Edition edition,DWORD thread,void (*callback)(void*,const unsigned char*),
+                    void (*peer_callback)(void*,const unsigned char*)=nullptr){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     const auto* launch=CurrentLaunch();
     if(installed || thread!=GetCurrentThreadId() || !callback || !launch || !launch->mixed
         || launch->channel.edition!=edition || !Methods(edition))return false;
-    profile=Pin(edition);owner=thread;capture=callback;original_dispatch=profile.dispatcher;
-    if(!Exchange(profile.table+4,profile.dispatcher,reinterpret_cast<uintptr_t>(&Dispatch))){owner=0;capture=nullptr;original_dispatch=0;profile={};return false;}
+    profile=Pin(edition);owner=thread;capture=callback;peer_capture=peer_callback;original_dispatch=profile.dispatcher;
+    if(!Exchange(profile.table+4,profile.dispatcher,reinterpret_cast<uintptr_t>(&Dispatch))){owner=0;capture=nullptr;peer_capture=nullptr;original_dispatch=0;profile={};return false;}
     installed=true;return true;
 }
 inline bool Release(){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     if(!installed || owner!=GetCurrentThreadId()
         || !Exchange(profile.table+4,reinterpret_cast<uintptr_t>(&Dispatch),original_dispatch))return false;
-    installed=false;owner=0;capture=nullptr;original_dispatch=0;profile={};return true;
+    installed=false;owner=0;capture=nullptr;peer_capture=nullptr;original_dispatch=0;profile={};return true;
 }
 }
 }

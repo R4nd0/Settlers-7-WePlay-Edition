@@ -27,8 +27,15 @@ int main(){
     for(unsigned flags=0;flags<4;++flags){
         const auto selected=Wire(flags);Receipt receipt;
         Check(receipt.Arm(own,ids,"Maps/ActualSelection",selected,100));
+        Check(!receipt.ConsumedIn(own,101));
         Check(receipt.Observe(own,selected,101)==Observation::Pending); // Cache already matches, but no consumption.
         Check(receipt.Consumed(own,selected,102));
+        Check(receipt.ConsumedIn(own,102)&&receipt.ConsumedIn(own,10100));
+        Check(!receipt.ConsumedIn(own,99)&&!receipt.ConsumedIn(own,10101));
+        for(unsigned which=0;which<3;++which){
+            auto stale=own;if(which==0)++stale.owner;if(which==1)++stale.session;if(which==2)++stale.cache;
+            Check(!receipt.ConsumedIn(stale,103));
+        }
         Check(receipt.Observe(own,selected,103)==Observation::Applied);
         Check(receipt.Observe(own,Wire(flags^1),104)==Observation::Pending); // Real readiness changed; do not mask it.
         Check(receipt.Observe(own,selected,105)==Observation::Applied);
