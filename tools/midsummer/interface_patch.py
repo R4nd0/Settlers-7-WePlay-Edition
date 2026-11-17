@@ -11,8 +11,8 @@ from bba import Archive
 spec = importlib.util.spec_from_file_location('midsummer_decoder', HERE.parent / 'multiplayer-resume/interface_patch.py')
 decoder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(decoder)
-SOURCES = ('3d7ec5053ce91a22b919c3b86d624988f995ad6681b84609188928651286b22c',
-           '62f8e03f6dac9b569f0734fbeb17f77846b888624786981be3f79a27193b6243')
+SOURCES = ('655b3f090dfd0db7dda5a283526e1315c074375f061c5c2e0af79405b169aa45',
+           'd2530f6f5b1ade7a3f3acd21ff84568267dc69652ad2d71922c33e99972e57d8')
 
 
 def camera_preferences(raw):

@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-17",
+  "scope": "original Ubisoft History host resume lobby for both reported saves",
+  "adapter_sha256": "f44fe32131cb3206259b9350683b735d3ebff201d88476ea62cd5e63776c5ab3",
+  "renderer": "DXVK",
+  "before": {
+    "original_change_savegame_nonempty": true,
+    "original_network_and_host_predicates_true": true,
+    "original_game_mode": 3,
+    "both_saves_rejected_by_mode_2_only_check": true
+  },
+  "after": {
+    "autosave_turn_27001_resume_lobby": true,
+    "manual_save_turn_18103_resume_lobby": true,
+    "browser_return_and_second_lobby_observed": true,
+    "saved_ai_slot": 2,
+    "saved_ai_difficulty": "Normal",
+    "open_human_slots": [3, 4],
+    "saved_neo_choice_shown": "on",
+    "original_getters_or_ready_results_substituted": false,
+    "resume_error_dialog_observed": false,
+    "exit_code": 0,
+    "strict_restoration_passed": true,
+    "actual_human_clients": 1,
+    "world_loaded": false
+  },
+  "verification": {
+    "lua_resume_tests": 42,
+    "directory_tests": 7,
+    "native_neo_mode_checks": 912,
+    "actual_save_metadata_readbacks": 2,
+    "standalone_and_neo_combined_build_passed": true,
+    "archive_variants_verified": 5,
+    "changed_lua_members_compiled": 14,
+    "ordinary_release_approval": false
+  }
+}

@@ -89,6 +89,26 @@ class ResumeRuntimeTests(unittest.TestCase):
         self.assertEqual(result.players[3].profile, 123456789)
         self.assertEqual(result.players[4].profile, 4294967295)
 
+    def test_original_empire_multiplayer_mode_keeps_host_authority_for_roster(self):
+        record = self.runtime.captureLobby()
+        self.context.mode = 3
+        self.assertTrue(self.runtime.applyRoster(record))
+        self.assertTrue(self.runtime.ready(record))
+        before = self.context.mutations
+        self.context.host = False
+        self.assertFalse(self.runtime.applyRoster(record))
+        self.assertFalse(self.runtime.ready(record))
+        self.assertEqual(self.context.mutations, before)
+
+    def test_unknown_and_singleplayer_modes_cannot_restore_multiplayer_roster(self):
+        record = self.runtime.captureLobby()
+        for mode in (0, 1, 4, 4294967295):
+            with self.subTest(mode=mode):
+                self.context.mode = mode
+                self.assertFalse(self.runtime.applyRoster(record))
+                self.assertIsNone(self.runtime.captureLobby())
+        self.assertEqual(self.context.mutations, 0)
+
     def test_variant_name_survives_native_cache_profile_index_and_module_reload(self):
         self.context.G.Network.GetMapForgeTemplateName = self.lua.eval('function() return "Mesa +3" end')
         self.saved()

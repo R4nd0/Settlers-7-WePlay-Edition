@@ -33,17 +33,19 @@ local function loadSlot(slot)
     local savePath = G.Game.GetSaveGameFileName(slot)
     if not savePath or savePath == "" then return end
     G.map.loadSetupMapConfig(record.map, template)
-    G.MapSetup.SetCoopMode(record.coop)
     G.Network.SetIsQuickMatch(false)
     G.Network.SetIsPrivate(false)
     local humans = 0
     for _, player in _G.ipairs(record.players) do if player.role == 1 then humans = humans + 1 end end
     local State = getState()
     local filter = State.sessionsFilterList.getSelectedItemData()
-    if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, record.template, false) then
+    if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, record.template, record.coop == 1) then
         G.ui.messageBox("WePlay", "Die Lobby konnte nicht erstellt werden.")
         return
     end
+    -- Match the original session-creation page: advertise the actual saved
+    -- cooperative mode, then apply that same choice to the created setup.
+    G.MapSetup.SetCoopMode(record.coop)
     local function applyResume()
         local loaded = G.Network.ChangeSavegame(savePath)
         if not loaded or loaded == "" or not Resume.applyRoster(record) then

@@ -11,7 +11,7 @@ spec=importlib.util.spec_from_file_location('weplay_multiplayer_interface',HERE.
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 decoded_view=module.decoded_view
 
-SOURCE='ccbad0d99439302490c598278d10e3aa44159b78b6816a95edba80240dad18ac'
+SOURCE='c48b64cc9129a3d8e93d47187f35317eeedc351fa5c5630ad087788cc6841995'
 MEMBER='Script/local/menu/panel/menu/play/multiplayer/sessionList.lua'
 HOST='Script/local/menu/panel/menu/play/multiplayer/hostLobby.lua'
 

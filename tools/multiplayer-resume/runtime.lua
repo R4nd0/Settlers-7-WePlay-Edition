@@ -84,7 +84,11 @@ function M.decode(value)
     return valid(record) and record or nil
 end
 local function host()
-    return N.InNetworkMode() and N.IsHost() and N.GetGameMode() == 2 and N.GetLocalPlayerSlot() == 1
+    if not N.InNetworkMode() or not N.IsHost() then return false end
+    -- The original start path handles both PlayMPSkirmish (2) and
+    -- PlayMPEmpire (3). Loading a valid checkpoint may select the latter.
+    local mode = N.GetGameMode()
+    return (mode == 2 or mode == 3) and N.GetLocalPlayerSlot() == 1
 end
 local function slotValid(slot)
     --1001 is the native autosave.1000 belongs to the received MP world.

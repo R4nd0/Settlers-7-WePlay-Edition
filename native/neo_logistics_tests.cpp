@@ -48,7 +48,7 @@ int main() {
     image_base=reinterpret_cast<uintptr_t>(image);initialization=2;local_connect_probe=true;bootstrap_thread=GetCurrentThreadId();neo_map_installed=true;
     auto addr=[](const void* p){return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));};
     auto put=[](uintptr_t p,uint32_t v){memcpy(reinterpret_cast<void*>(p),&v,4);};
-    for(bool steam:{false,true}) {
+    for(bool steam:{false,true}) for(const uint32_t multiplayer_mode:{2u,3u}) {
         steam_history=steam;
         Stub(NativeVA(0x6679e0),&WriteWord);Stub(NativeVA(0x667a10),&ReadWord);Stub(NativeVA(0xcb16d0),&VisitField);
         Stub(NativeVA(0x668060),&VisitOriginal);Stub(NativeVA(0x668ac0),&ConstructOriginal);
@@ -104,7 +104,7 @@ int main() {
         network_state[0x28/4]=1;replay[11]=0;
         check(command("selection",&menu_choice)&&menu_choice=="1");check(command("begin:1"));check(command("ready"));check(neo_fifo_enabled);
         command("end");check(command("stage:1"));
-        network_state[0x28/4]=2;replay[11]=0;test_host=false;neo_wire_received=2;
+        network_state[0x28/4]=multiplayer_mode;replay[11]=0;test_host=false;neo_wire_received=2;
         check(!command("begin:1")); // no unsynchronized guest activation
         uint32_t message[4]{};
         check(!command("start-event")); // unknown lobby choice cannot lock
@@ -139,7 +139,7 @@ int main() {
         check(!command("begin:0"));check(command("start-event"));check(command("begin:0"));check(command("ready"));
         network_state[0x28/4]=1;command("end");
         // Resume carries the complete immutable state, not only its enabled bit.
-        network_state[0x28/4]=2;test_host=true;check(command("stage:1"));
+        network_state[0x28/4]=multiplayer_mode;test_host=true;check(command("stage:1"));
         neo_wire_local_state=snapshot;TestStream resumeWire;VisitNeoWire(&resumeWire,true);
         check(resumeWire.result==1 && resumeWire.words[2]==snapshot.size());
         test_host=false;ResetNeoWireReceived();neo_wire_received=2;neo_wire_confirmed=false;
@@ -166,6 +166,12 @@ int main() {
         check(NeoSavePath("s1002",path) && path=="C:\\owned\\Savegames\\s1002.s7s");
         check(!NeoSavePath("../s1002.s7s",path));check(!NeoSavePath("s1000.s7s",path));check(!NeoSavePath("Options.ini",path));
         fileRoot[0x74/4]=0;check(!NeoSavePath("s1002.s7s",path));put(NativeVA(0x13789a8),0);
+        for(const uint32_t invalid_mode:{0u,4u,UINT32_MAX}) {
+            network_state[0x28/4]=invalid_mode;
+            check(!command("network-state"));check(!command("selection"));
+            check(!command("start-event"));check(!command("restore-network"));
+            check(!command("begin:0"));check(!command("begin:1"));
+        }
         network_state[0x28/4]=1;command("end");
         const unsigned char task_bytes[][10]={{0x55,0x8b,0xec,0x6a,0xff,0x68,0x70,0x15,0xf9,0},{0x55,0x8b,0xec,0x6a,0xff,0x68,0xe0,0x07,0xf9,0}};
         memcpy(Native<void*>(0x782ee0),task_bytes[steam?1:0],10);

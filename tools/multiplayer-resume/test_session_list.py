@@ -39,7 +39,7 @@ ui={setSize=function() end,messageBox=function(title,text) C.messages[#C.message
 Game={GetSaveGameFileName=function(slot) assert(slot==1002);return C.savePath or "owned/s1002.s7s" end},
 MapForge={GetTemplateNames=function(map) assert(map==C.record.map);C.templateReads=true;return C.templates end},
 map={loadSetupMapConfig=function(map,template) C.setupMap=map;C.setupTemplate=template end},
-MapSetup={SetCoopMode=function(mode) C.coop=mode end},
+MapSetup={SetCoopMode=function(mode) C.coop=mode;C.coopAfterCreates=C.creates end},
 Network={SetIsQuickMatch=function(value) assert(value==false) end,
     SetIsPrivate=function(value) assert(value==false) end,
     SessionCreate=function(...) C.creates=C.creates+1;C.args={...};return C.createOK end,
@@ -85,6 +85,13 @@ class SessionListTests(unittest.TestCase):
         self.assertIsNone(self.c.setupTemplate)
         self.assertEqual(self.c.args[7], '')
         self.assertTrue(self.c.deferred())
+
+    def test_coop_checkpoint_retains_native_session_choice_and_original_setup_order(self):
+        self.c.record.coop = 1
+        self.select_save()
+        self.assertTrue(self.c.args[8])
+        self.assertEqual(self.c.coop, 1)
+        self.assertEqual(self.c.coopAfterCreates, 1)
 
     def test_missing_or_other_map_template_cannot_fall_back_to_standard(self):
         for names in (None, self.lua.table(), self.lua.table_from(['Mesa 16'])):

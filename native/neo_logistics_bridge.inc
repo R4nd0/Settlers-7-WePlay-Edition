@@ -70,24 +70,29 @@ bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is
     if(command=="load") {
         NeoLogisticsClear();neo_map_pending_valid=false;neo_map_loading=true;return true;
     }
-    const auto mode=NeoLogisticsMode();if(mode!=1 && mode!=2) {
+    const auto mode=NeoLogisticsMode();
+    // Original History's start path recognizes PlayMPSkirmish (2) and
+    // PlayMPEmpire (3). Both still require the original owned session,
+    // agreed choice, real start event and world/clock guards below.
+    const bool multiplayer=mode==2 || mode==3;
+    if(mode!=1 && !multiplayer) {
         if(command=="restore-network")ReportLocalStatus("neo-logistics-restore-mode-rejected");
         return false;
     }
-    if(command=="start-event")return mode==2 && AcceptNeoNetworkStart();
+    if(command=="start-event")return multiplayer && AcceptNeoNetworkStart();
     if(command=="network-state") {
-        uint32_t choice=2;if(mode!=2 || !NeoNetworkChoice(choice))return false;
+        uint32_t choice=2;if(!multiplayer || !NeoNetworkChoice(choice))return false;
         output=choice?"1":"0";is_string=true;return true;
     }
     if(command=="selection") {
         uint32_t choice=neo_wire_local.load();
-        if(mode==2 && !NeoNetworkChoice(choice))return false;
+        if(multiplayer && !NeoNetworkChoice(choice))return false;
         output=choice?"1":"0";is_string=true;return true;
     }
     uint32_t turn=0;const auto priority=NeoFifoWorld(turn);
     if(command=="begin:0" || command=="begin:1") {
         if(priority && turn>1)return false;
-        if(mode==2) {
+        if(multiplayer) {
             uint32_t choice=2;
             if(!NeoNetworkChoice(choice,true) || choice!=(command.back()=='1'?1u:0u))return false;
         }
@@ -121,7 +126,7 @@ bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is
             size_t pos=14;int64_t savedTurn=0;const auto text=command+'\n';
             if(!neo_logistics::Number(text,pos,'\n',0,UINT32_MAX,savedTurn) || pos!=text.size()
                 || static_cast<uint64_t>(savedTurn)+1!=turn)return false;
-            if(mode==2)state.logic_turn=savedTurn;
+            if(multiplayer)state.logic_turn=savedTurn;
         }
         if(state.enabled)for(const auto& mark:neo_fifo_marks) {
             if(!mark.id || mark.intent==neo_fifo::Intent::Ordinary)continue;
@@ -137,7 +142,7 @@ bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is
     constexpr char restore[]="restore:";
     if(command=="restore-network") {
         std::string payload;
-        if(mode!=2) {ReportLocalStatus("neo-logistics-restore-mode-rejected");return false;}
+        if(!multiplayer) {ReportLocalStatus("neo-logistics-restore-mode-rejected");return false;}
         if(!NeoNetworkSavedState(payload))return false;
         return NeoLogisticsExecute(std::string(restore)+payload,output,is_string);
     }
@@ -151,7 +156,7 @@ bool NeoLogisticsExecute(const std::string& command,std::string& output,bool& is
         if(saved.enabled && (saved.turn!=turn || (saved.logic_turn>=0 && static_cast<uint64_t>(saved.logic_turn)+1!=turn))) {
             ReportLocalStatus("neo-logistics-restore-turn-mismatch");return false;
         }
-        if(mode==2) {
+        if(multiplayer) {
             uint32_t choice=2;
             if(!NeoNetworkChoice(choice) || choice!=(saved.enabled?1u:0u)) {ReportLocalStatus("neo-logistics-restore-choice-mismatch");return false;}
         }

@@ -1,5 +1,29 @@
 # History multiplayer crash report, 2026-11-17
 
+## Both supplied saves reach the restored lobby
+
+The original Ubisoft History game now opens a resume lobby from each supplied
+save with the corrected Lua and native NEO bridge. The lobby shows the saved
+host configuration, the normal AI in slot 2, two open human slots, and NEO
+Logistics on. The same process returned to the browser between the autosave
+and manual save attempts, then closed normally. The local comparison used one
+host and the private, validated resume-index import described below. Loading
+the world with all three players and continued play remain to be tested.
+[Runtime and build verification](receipts/support-resume-mode3-20261117.json)
+
+Both saves reproduce the same rejection after the original `ChangeSavegame`
+call. The game still reports an active network mode and host role, but changes
+its game mode to 3. The original start script identifies mode 3 as multiplayer
+Empire, alongside multiplayer Skirmish in mode 2. The resume code and the
+native NEO bridge now recognize both multiplayer modes while continuing to
+require their original host, session, and start checks. Resume also passes the
+saved cooperative setting to `SessionCreate` and applies it to map setup after
+session creation, in the same order as the original UI.
+
+The standalone build also links the shared save inflater once when both
+standalone support and NEO are enabled. The verified adapter remains a private
+test build. The published RC3.25 assets and release approval are unchanged.
+
 ## First verified correction: resume-lobby lifecycle
 
 The supplied autosave now reproduces the exact reported host failure locally:
@@ -29,9 +53,9 @@ original resume path because LocalData's index is absent, even with the supplied
 Documents profile copied into the isolated test profile.
 
 After the original `ChangeSavegame` returns a nonempty result, `applyRoster`
-rejects its `host()` predicate. Its original query sequence is network mode,
-host role, game mode 2 and local slot 1. Which condition changes, and why, remains
-under investigation. That rejection causes the normal session leave; the old
+rejected its `host()` predicate. Its original query sequence is network mode,
+host role, game mode 2 and local slot 1. The later comparison above identified
+the game-mode condition. That rejection causes the normal session leave. The old
 resume extension then reaches the invalid native slot update. The correction
 prevents that follow-up crash without overriding the rejection or claiming the
 underlying resume state is valid. The manual save and live three-player continued
@@ -186,8 +210,8 @@ provide a usable captured memory range for the fault context's stack/manager
 fields in this inspection; the earlier cause of the missing handler was not
 reconstructed.
 
-The first Lua lifecycle correction and its remaining resume failure are described
-above. No adapter correction, save repair or successful world reload is claimed.
+The later Lua and adapter corrections resolve the observed failure through
+resume-lobby setup. The original save files were used unchanged.
 
 ## Required follow-up
 
@@ -199,14 +223,12 @@ above. No adapter correction, save repair or successful world reload is claimed.
 2. Determine whether each failing load was started as multiplayer resume or
    single player, and whether the same host was used. The logs alone do not map
    the three later failures to a particular save or UI action.
-3. Once the reserved copies are available, reproduce with a separately guarded
-   RC3.25 setup and isolated profiles. Capture handler/session ownership at
-   SetSlotCounts and original session create/leave transitions before proposing
-   a lifecycle correction. Retain native checksum and executable/ABI guards.
-4. Qualify any correction against both supplied saves, continued native turns,
-   AI/NEO activity and a subsequent save/reload. A menu, a skipped crash or
-   synthetic fixture would not establish recovery of this match.
+3. Qualify both supplied saves with three Ubisoft History clients, matching
+   native turns and checksums, AI and NEO activity, and a subsequent save/reload.
+4. Investigate the original mid-match departure separately. The reproduced
+   failure explains the reload crash but leaves the match interruption open.
 
 Private inputs, extracted saves, replays, dumps and native inspection artifacts
 remain under the ignored `work/support-desync-20261117/` directory. No account
-cache was inspected, and no runtime/profile files were deployed or changed.
+cache was inspected. The diagnostic adapter, archives and profile data were
+deployed only to the isolated test copy, which was restored after each run.

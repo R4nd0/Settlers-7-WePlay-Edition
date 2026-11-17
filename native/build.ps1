@@ -53,7 +53,7 @@ function Compile-Native([string[]]$Arguments) {
 }
 Push-Location $nativeOutput
 try {
-    if ($PlatformIndependent) {
+    if ($PlatformIndependent -and !$NeoLogistics) {
         & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $nativeSource 'third_party/puff/puff.c') /Fo:crossplay_resume_puff.obj
         if ($LASTEXITCODE) { throw 'Crossplay saved archive inflater build failed.' }
         $standaloneSources += (Join-Path $nativeOutput 'crossplay_resume_puff.obj')
