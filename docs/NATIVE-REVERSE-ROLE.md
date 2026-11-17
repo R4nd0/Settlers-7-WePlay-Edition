@@ -7,17 +7,15 @@ The [production contract](GOLD-HISTORY-PRODUCTION-CONTRACT.md#required-reverse-r
 defines the complete original-engine and final-package requirements.
 
 Current measured milestone: an original Steam History host and original Gold
-guest now complete a genuine native READY exchange under DXVK, with both clients
-exiting0 and strict restoration. This does not qualify a reverse world start,
-NEO logistics or History-origin save/reload. See the
-[actual READY receipt and limits](receipts/native-reverse-ready-20261117.json).
-
-A capture-only original History START component now passes its offline
-ABI/integrity checks and installs before Ready in two further actual DXVK pairs.
-Neither pair reached the original START action. Compact original UI/native
-exclusion diagnostics are prepared; the unchanged RAM guard prevented their
-actual pair from starting. See the [component, evidence and remaining exclusion](NATIVE-HISTORY-START-CAPTURE.md).
-Reverse world/NEO/History-origin save qualification remains open.
+guest complete genuine native Ready, Gold's actual cache readback and an
+authenticated acknowledgement before the original enabled START widget. The
+genuine 21-byte original start event is captured; original leave and application
+shutdown complete with exit0/0 and strict restoration in two independent bounded pairs.
+No native world event is sent or queued. See the
+[actual original START/cleanup receipt](receipts/native-reverse-original-start-20261117.json)
+and [native corrections, earlier failures and remaining scope](NATIVE-HISTORY-START-CAPTURE.md).
+The earlier [READY receipt](receipts/native-reverse-ready-20261117.json) remains
+separate evidence. Reverse world/NEO/History-origin save qualification stays open.
 
 ## First native components
 

@@ -1,0 +1,111 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Steam History host / original Gold guest: actual native Ready readback, authenticated acknowledgement, original enabled START capture, and bounded application cleanup",
+  "environment": {
+    "standalone_loopback": true,
+    "renderer": "DXVK 3.1.1",
+    "normal_pace_requested_without_x20": true,
+    "human_clients": 2,
+    "ai_players": 0,
+    "map": "Monhaim Valley",
+    "all_candidate_asset_files_hashed_before_launch": true,
+    "gold_asset_files": 123,
+    "history_asset_files": 57,
+    "catalog_unapproved": true
+  },
+  "native_identity_correction": {
+    "observed_cause_before_fix": "Original History preparation row2 had an empty name; its unchanged UI reclassified that Human slot as Open",
+    "native_teams_already_one_and_two": true,
+    "original_history_identity_setters_reused": true,
+    "values_from_actual_admitted_native_remote_participant": true,
+    "all_other_complete_preparation_container_bytes_preserved": true,
+    "ready_team_castle_and_controller_not_supplied_by_identity_helper": true
+  },
+  "actual_ordered_observations": {
+    "original_gold_ready_widget_and_sdk_intent": true,
+    "private_sdk_ready_bit_discarded_as_common_state": true,
+    "original_history_ready_toggle_and_native_readback": true,
+    "original_gold_state_consumers_and_actual_native_cache_readback": true,
+    "authenticated_readback_ack_before_host_start": true,
+    "existing_ready_state_codec_reused": true,
+    "host_native_ready_reobserved_when_ack_received": true,
+    "ack_bound_ms": 10000,
+    "gold_readback_to_host_ack_ms": 15,
+    "original_enabled_start_widget_activated_once": true,
+    "original_start_event_copied_bytes": 21,
+    "original_ui_start_to_copy_ms": 16,
+    "copy_to_original_producer_return_observation_ms": 16,
+    "original_owned_phase1_lobby_retained": true,
+    "general_event_sender_forwarding_retained": true,
+    "world_event_sent_or_enqueued": false
+  },
+  "cleanup_correction": {
+    "actual_capture_and_native_lobby_proof_required_before_cleanup": true,
+    "owned_capture_hooks_and_timer_restored_before_original_session_leave": true,
+    "original_session_left_observed_before_original_shutdown": true,
+    "original_host_presence_callback_retained": true,
+    "sdk_context_bound_through_original_getter_and_typed_owned_host_sdk_session": true,
+    "sdk_context_first_word_not_assumed_to_be_vtable": true,
+    "same_owner_and_published_context_required": true,
+    "whole_original_metadata_method_bytes_pinned": 335,
+    "whole_original_wrapper_bytes_pinned": 30,
+    "whole_original_context_getter_bytes_pinned": 10,
+    "owned_callsite_bytes": 5,
+    "active_sdk_session_calls_use_complete_original_implementation": true,
+    "unavailable_metadata_updates_after_sdk_session_removed": 2,
+    "native_ready_crc_clock_leave_result_or_world_permission_fabricated": false,
+    "scope": "Only the explicitly armed cleanup epoch of the owned capture diagnostic; no ordinary adapter activation"
+  },
+  "completed_pair": {
+    "successful_independent_runs": 2,
+    "fresh_session_identity_each_run": true,
+    "all_four_clients_exit0": true,
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "broker_authenticated_members": 2,
+    "broker_relayed_frames": 12,
+    "broker_rejections": 0,
+    "all_games_closed": true,
+    "guarded_files_and_portable_profiles_restored": true,
+    "history_auxiliary_files_and_platform_saves_restored": true,
+    "services_stopped": true,
+    "newer_preexisting_saves_not_overwritten": true
+  },
+  "repeat_observations": {
+    "gold_readback_to_host_ack_ms": 16,
+    "original_ui_start_to_copy_ms": 16,
+    "copy_to_original_producer_return_observation_ms": 15,
+    "original_start_event_bytes": 21,
+    "broker_relayed_frames": 12,
+    "broker_rejections": 0,
+    "unavailable_sdk_metadata_updates_after_session_removed": 2,
+    "strict_restoration": true
+  },
+  "component_verification": {
+    "public_reverse_fixture_count": 12,
+    "authored_fixture_checks_passed": 470,
+    "new_identity_abi_storage_scope_checks": 39,
+    "new_cleanup_wrapper_abi_fp_stack_forwarding_checks": 14,
+    "compiled_original_identity_guard_cases": 23,
+    "compiled_original_cleanup_guard_cases": 11,
+    "compiled_owned_cleanup_call_guard_cases": 11,
+    "original_game_code_executed_by_integrity_guards": false,
+    "public_identity_component_matches_actual_source": true,
+    "public_cleanup_component_canonically_matches_actual_source": true
+  },
+  "earlier_failures_retained": [
+    "Captured original START followed by direct shutdown: History pure virtual function call, exit1",
+    "Omitting only vendor presence publication did not fix that failure and was discarded",
+    "Original leave with active observers and original leave after retiring observers both faulted at the same original SDK null-session access",
+    "Unsupported context-vtable assumption was rejected before cleanup guard installation; actual context layout was then observed and correctly bound",
+    "The first combined-source Gold rebuild lacked its separately verified SDK Ready source hold and was rejected before START; the passing pair derives Gold from its verified source plus only the native readback acknowledgement"
+  ],
+  "remaining_qualification": {
+    "reverse_shared_world": false,
+    "reverse_active_neo_goods": false,
+    "history_origin_save_reload_resave": false,
+    "reverse_ubisoft_host": false,
+    "remote_easytier": false,
+    "ordinary_parser_content_installer_or_final_package_promoted": false
+  }
+}

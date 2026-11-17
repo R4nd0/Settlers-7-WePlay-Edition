@@ -19,7 +19,7 @@ New-Item -ItemType Directory -Path $out | Out-Null
 Push-Location $out
 try{
     $sources=@('crossplay_participant.cpp','crossplay_admission.cpp','crossplay_channel.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
-    foreach($fixture in @('crossplay_history_host_choices','crossplay_gold_host_choices','crossplay_gold_guest_row','crossplay_gold_guest_identity','crossplay_history_host_configuration','crossplay_history_host_ready','crossplay_gold_guest_ready','crossplay_gold_sdk_ready_hold','crossplay_history_host_guest_row','crossplay_history_start_hold')){
+    foreach($fixture in @('crossplay_history_host_choices','crossplay_gold_host_choices','crossplay_gold_guest_row','crossplay_gold_guest_identity','crossplay_history_host_configuration','crossplay_history_host_ready','crossplay_gold_guest_ready','crossplay_gold_sdk_ready_hold','crossplay_history_host_guest_row','crossplay_history_start_hold','crossplay_history_host_guest_identity','crossplay_history_sdk_cleanup')){
         & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- /D_WINSOCK_DEPRECATED_NO_WARNINGS ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($fixture+'_tests.cpp')) @sources ('/Fe:'+ $fixture+'_tests.exe') /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
         if($LASTEXITCODE){throw "Reverse component fixture did not compile: $fixture"}
         & (Join-Path $out ($fixture+'_tests.exe'))
