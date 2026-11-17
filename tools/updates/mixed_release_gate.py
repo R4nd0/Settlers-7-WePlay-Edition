@@ -15,8 +15,9 @@ import platform_standalone
 VERSION='2.0.0-rc4.0'
 TAG='v2.0.0-rc4.00'
 SEQUENCE=29
-CASES=((1,2,'ubisoft'),(1,3,'steam'),(3,1,'steam-host'))
-ERROR='RC4.00 signing requires both original History mixed reloads and Steam hosting Gold in this exact final installed package.'
+CASES=((1,'gold-host'),(3,'steam-host'))
+EDITIONS=(1,2,3)
+ERROR='RC4.00 signing requires simultaneous original Gold, Ubisoft History and Steam History clients plus one AI opponent, with saved reload and stable continuation in this exact final installed package.'
 
 
 def digest(value,size=64):
@@ -55,7 +56,7 @@ def check(setup,build,*,version,sequence,tag):
         proof,_=read(setup.with_suffix('.mixed-reload.json'))
         expected={'format','version','sequence','tag','setup_sha256','setup_bytes','source_commit',
                   'package_id','catalog_sha256','cases'}
-        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v2'
+        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v3'
                 or proof['version']!=VERSION or type(proof['sequence']) is not int
                 or proof['sequence']!=SEQUENCE or proof['tag']!=TAG
                 or type(proof['setup_bytes']) is not int or proof['setup_bytes']!=setup.stat().st_size
@@ -66,44 +67,69 @@ def check(setup,build,*,version,sequence,tag):
             raise ValueError(ERROR)
         gold=platform_standalone.GOLD
         history=platform_standalone.HISTORY_PINS[(True,True)]
-        for (host,guest,name),record in zip(CASES,proof['cases']):
-            edition=guest if host==1 else host
+        for (host,name),record in zip(CASES,proof['cases']):
             filename='Setup.mixed-reload-'+name+'.json'
-            if (not isinstance(record,dict) or set(record)!={'host_edition','guest_edition','file','sha256'}
+            if (not isinstance(record,dict) or set(record)!={'host_edition','file','sha256'}
                     or type(record['host_edition']) is not int or record['host_edition']!=host
-                    or type(record['guest_edition']) is not int or record['guest_edition']!=guest
                     or record['file']!=filename or not digest(record['sha256'])):
                 raise ValueError(ERROR)
             case,actual=read(setup.with_name(filename))
             if record['sha256']!=actual:raise ValueError(ERROR)
-            keys={'format','host_edition','guest_edition','installed_from_setup_sha256','installed_package_id','source_commit',
-                  'catalog_sha256','gold_exe_sha256','history_exe_sha256','gold_adapter_sha256',
-                  'history_adapter_sha256','normal_production_launch','fresh_host_save_written',
+            keys={'format','host_edition','installed_from_setup_sha256','installed_package_id','source_commit',
+                  'catalog_sha256','participants','human_players','ai_opponents','all_clients_simultaneous',
+                  'session_sha256','reload_session_sha256','host_save_sha256','normal_speed',
+                  'normal_production_launch','fresh_host_save_written','fresh_reload_processes',
                   'mixed_reload_completed','continued_logistics_observed','original_crc_source',
-                  'shared_crc_blocks','crc_mismatches','synthetic_turns','neo_features','neo_enabled',
-                  'neo_state_preserved','gold_exit_code','history_exit_code','forced_termination',
+                  'crc_compared_editions','shared_crc_blocks_before_save','shared_crc_blocks_after_reload',
+                  'post_reload_duration_ms','stability_review_passed','crc_mismatches','synthetic_turns','neo_features','neo_enabled',
+                  'neo_state_preserved','forced_termination',
                   'restoration_verified','native_lab_features','reviewed_evidence_sha256'}
             checks=('normal_production_launch','fresh_host_save_written','mixed_reload_completed',
-                    'continued_logistics_observed','neo_state_preserved','restoration_verified')
-            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v2'
+                    'continued_logistics_observed','neo_state_preserved','restoration_verified',
+                    'fresh_reload_processes','all_clients_simultaneous','normal_speed','stability_review_passed')
+            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v3'
                     or type(case['host_edition']) is not int or case['host_edition']!=host
-                    or type(case['guest_edition']) is not int or case['guest_edition']!=guest
                     or case['installed_from_setup_sha256']!=proof['setup_sha256']
                     or case['installed_package_id']!=proof['package_id']
                     or case['source_commit']!=proof['source_commit']
                     or case['catalog_sha256']!=proof['catalog_sha256']
-                    or crossplay_session.EXECUTABLE_EDITIONS.get(case['gold_exe_sha256'])!=1
-                    or crossplay_session.EXECUTABLE_EDITIONS.get(case['history_exe_sha256'])!=edition
-                    or case['gold_adapter_sha256']!=gold or gold not in crossplay_session.ADAPTER_PINS.get(1,())
-                    or case['history_adapter_sha256']!=history or history not in crossplay_session.ADAPTER_PINS.get(edition,())
+                    or type(case['human_players']) is not int or case['human_players']!=3
+                    or type(case['ai_opponents']) is not int or case['ai_opponents']!=1
+                    or not digest(case['session_sha256']) or not digest(case['reload_session_sha256'])
+                    or case['session_sha256']==case['reload_session_sha256'] or not digest(case['host_save_sha256'])
                     or any(case[key] is not True for key in checks)
                     or case['original_crc_source']!='native-end-of-turn'
-                    or type(case['shared_crc_blocks']) is not int or case['shared_crc_blocks']<1
+                    or case['crc_compared_editions']!=list(EDITIONS)
+                    or any(type(edition) is not int for edition in case['crc_compared_editions'])
+                    or any(type(case[key]) is not int or case[key]<1 for key in
+                           ('shared_crc_blocks_before_save','shared_crc_blocks_after_reload','post_reload_duration_ms'))
                     or any(type(case[key]) is not int or case[key]!=0 for key in
-                           ('crc_mismatches','synthetic_turns','gold_exit_code','history_exit_code'))
+                           ('crc_mismatches','synthetic_turns'))
                     or type(case['neo_features']) is not int or case['neo_features']!=19
                     or type(case['neo_enabled']) is not bool or case['forced_termination'] is not False
                     or case['native_lab_features'] is not False or not digest(case['reviewed_evidence_sha256'])):
                 raise ValueError(ERROR)
+            participants=case['participants']
+            if not isinstance(participants,list) or len(participants)!=3:raise ValueError(ERROR)
+            for edition,participant in zip(EDITIONS,participants):
+                adapter=gold if edition==1 else history
+                participant_keys={'edition','role','exe_sha256','adapter_sha256','installed_from_setup_sha256',
+                                  'installed_package_id','session_sha256','reload_session_sha256','loaded_host_save_sha256',
+                                  'original_save_loader_used','continued_logistics_observed','ai_opponent_observed',
+                                  'neo_state_preserved','exit_code'}
+                if (not isinstance(participant,dict) or set(participant)!=participant_keys
+                        or type(participant['edition']) is not int or participant['edition']!=edition
+                        or participant['role']!=('host' if edition==host else 'guest')
+                        or crossplay_session.EXECUTABLE_EDITIONS.get(participant['exe_sha256'])!=edition
+                        or participant['adapter_sha256']!=adapter
+                        or adapter not in crossplay_session.ADAPTER_PINS.get(edition,())
+                        or participant['installed_from_setup_sha256']!=proof['setup_sha256']
+                        or participant['installed_package_id']!=proof['package_id']
+                        or any(participant[key]!=case[key] for key in ('session_sha256','reload_session_sha256'))
+                        or participant['loaded_host_save_sha256']!=case['host_save_sha256']
+                        or any(participant[key] is not True for key in
+                               ('original_save_loader_used','continued_logistics_observed','ai_opponent_observed','neo_state_preserved'))
+                        or type(participant['exit_code']) is not int or participant['exit_code']!=0):
+                    raise ValueError(ERROR)
     except (OSError,ValueError,TypeError,KeyError,UnicodeError,RecursionError):
         raise ValueError(ERROR) from None

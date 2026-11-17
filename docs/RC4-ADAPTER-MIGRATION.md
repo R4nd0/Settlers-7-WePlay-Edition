@@ -32,7 +32,10 @@ not game starts or final crossplay qualification.
 The current production fingerprint values are intentionally unchanged by this
 migration mechanism. The final qualified crossplay adapters must replace those
 values together with the normal launcher/native contract. RC4 publication still
-requires mixed-session reload against both original History editions using the
-final installed package. Private experimental DLLs are not release inputs.
+requires all three original editions in the same session, three human clients
+plus one AI opponent, saving/loading and stable continuation from the final
+installed package. Separate pairs no longer satisfy the updated requirement;
+see [the version-3 release gate](RC4-RELOAD-RELEASE-GATE.md).
+Private experimental DLLs are not release inputs.
 
 [Migration verification receipt](receipts/rc400-adapter-migration-20261116.json).

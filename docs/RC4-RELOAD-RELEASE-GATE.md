@@ -1,10 +1,15 @@
 # RC4.00 final installed mixed reload gate
 
-RC4.00 is not publishable until the final installed package has completed genuine
-mixed reloads for Gold hosting each original History edition and for original
-Steam History hosting Gold. Private Native162
-results, authored fixtures, a visible lobby and a successful installer build do
-not satisfy this condition.
+The user's updated release requirement (2026-11-17) is one simultaneous mixed
+session containing **original Gold, original Ubisoft History and original Steam
+History, three human clients plus one AI opponent**, with genuine saving, loading
+and stable continued play. Separate two-client pairs do not satisfy it, even when
+both History editions have independently passed. The previously requested Gold
+and Steam History host directions remain required; each now uses this same
+three-edition roster. All clients must come from the exact final installed package.
+
+Existing native pair results, authored fixtures, a visible lobby and a successful
+installer build remain intermediate evidence, not release qualification.
 
 The maintainer signer enforces this specific release as technical version
 `2.0.0-rc4.0`, sequence `29`, tag `v2.0.0-rc4.00`. Its checks run before signing-key
@@ -20,30 +25,39 @@ optional `--crossplay-catalog` input enables that capability only through the
 existing approved catalog and shipped-adapter validation. It cannot promote a
 development DLL or a self-generated compatibility digest.
 
-After installing this exact Setup and completing all three real reload tests, retain
+After installing this exact Setup and completing both three-client host cases, retain
 these reviewed, sanitized receipts beside it:
 
 | Receipt | Purpose |
 | --- | --- |
-| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and the three case-receipt hashes |
-| `Setup.mixed-reload-ubisoft.json` | Gold host / original Ubisoft History guest, edition 2 |
-| `Setup.mixed-reload-steam.json` | Gold host / original Steam History guest, edition 3 |
-| `Setup.mixed-reload-steam-host.json` | Original Steam History host / Gold guest |
+| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and both case-receipt hashes |
+| `Setup.mixed-reload-gold-host.json` | Gold host, original Ubisoft History and Steam History guests, one AI opponent |
+| `Setup.mixed-reload-steam-host.json` | Original Steam History host, Gold and original Ubisoft History guests, one AI opponent |
 
-The aggregate and case formats are version 2. Each record and each case carries
-strict integer `host_edition` and `guest_edition` fields. The required order is
-`(1,2)`, `(1,3)`, `(3,1)`. The old forward-only version-1 schema cannot qualify
-the expanded scope. The reverse case must record the actual Steam host's own
-new save and mixed reload; repeating a Gold-host record cannot substitute for it.
+The aggregate and case formats are version 3. Both records and cases carry strict
+integer `host_edition` fields, ordered Gold (1), Steam History (3). Every case has
+exactly three `participants`, ordered by edition 1/2/3, with one host and two
+guests, `human_players=3` and `ai_opponents=1`. Version-1 and version-2 pair schemas
+are rejected. The Steam-host case must use that host's actual new save; repeating
+a Gold-host run cannot substitute for it.
 
 The exact schemas and checks are in
 [`mixed_release_gate.py`](../tools/updates/mixed_release_gate.py). Each case binds
-the installed application back to that Setup and package ID, the exact original
-executables and the admitted ordinary production adapters. It records the actual
-host-written save, completed mixed reload, continued logistics, nonzero shared
-original native checksum blocks without mismatch or synthetic turns, preserved
-NEO selection/state, normal exits and verified restoration. Laboratory features
-and forced termination disqualify a passing case.
+each installed client back to that Setup/package ID, its exact original EXE and
+admitted ordinary production adapter. Each participant must identify the same
+initial session, a distinct shared reload session and the actual host-save source
+digest. This save digest identifies source provenance; it does not assume that
+edition-specific local save containers have byte-identical wrappers.
+
+All three must actually load through their original loader, observe continued
+logistics and the AI opponent, retain NEO state and exit normally. Common original
+native checksum blocks must cover all three editions both before saving and
+after reload, with no mismatches or synthetic turns. The measured post-reload
+duration and reviewed stability result are retained. Normal speed is mandatory;
+accelerated x20 runs cannot qualify. A positive counter or declared duration
+alone does not prove stability: the actual continued game diagnostics require
+review. Laboratory features, forced termination and failed restoration disqualify
+a case.
 
 `reviewed_evidence_sha256` identifies the reviewed evidence manifest for that real
 run. Preserve its underlying diagnostics privately; public receipts contain no
@@ -59,7 +73,9 @@ does not establish that the game ran or replace review of native diagnostics.
 ## Release text and assets
 
 Generate the final bilingual notes and release graphics from the qualified
-package and these observed cases. Describe only the admitted player/map scope,
+package and these observed cases. Show all three editions together with three
+human players plus one AI opponent, and actual save/reload continuation. Old
+two-human/two-AI posters and pair-only feature text are superseded. Describe only the admitted player/map scope,
 actual save/reload behavior and NEO features. Keep mixed NEO19 separate from
 History-only NEO5. The existing single-player draft poster is not a final RC4.00
 asset. No release tag, signed update metadata or publication is permitted while
@@ -68,10 +84,10 @@ not belong on the customer-facing posters.
 
 ## Gate verification
 
-Nine authored gate tests pass, including rejection of missing/duplicate History
-cases, changed installer or evidence bytes, nonproduction adapters, synthetic
-turns, failed reloads, dirty builds, abnormal exits and a missing or mislabelled
-Steam-host case. All 21 updater/signing
-regressions pass using a temporary fixture key. The actual earlier single-player
-RC4.00 candidate was separately rejected before any signing process or production
-key access. None of these checks is a new mixed-game result.
+Eleven authored gate tests cover missing/duplicate clients, separate session/save
+identities, wrong AI/human counts, old pair schemas, missing shared three-client
+CRCs, unreviewed continuation, wrong installed payloads, abnormal exits and the
+Steam-host case. They also retain rejection before signing-key access or signing
+subprocesses. These are invented fixtures, not three-client gameplay evidence.
+The actual earlier single-player candidate remains ineligible. No production key
+or release metadata is accessed to perform these gate tests.

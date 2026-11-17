@@ -1,5 +1,23 @@
 # RC4 launcher handoff — integration in progress
 
+## Updated three-client release requirement, 2026-11-17
+
+RC4.00 now requires original Gold, Ubisoft History and Steam History together in
+one session: three human clients plus one AI opponent, actual host save, fresh
+shared reload and stable continued play. Existing separate pair tests and the
+older two-human/two-AI assets do not qualify. The previously assigned Gold and
+Steam History host directions remain; both final cases use all three editions.
+
+The signing gate now uses version-3 aggregate/case receipts with all three exact
+installed clients, common initial/reload session identities and host-save source,
+three-client CRC coverage before/after load, measured continuation at normal
+speed, native NEO state, AI/logistics observations and normal exits/restoration.
+Old v1/v2 pair receipts fail. See [the exact final-package gate](RC4-RELOAD-RELEASE-GATE.md).
+No production pin, runtime admission or game root is changed by this gate update.
+Native three-member authority/fanout remains the Crossplay chat's integration
+work; older pair-only launcher/native constraints below remain historical/current
+implementation limits, not the new release target.
+
 ## Four physical cores per game, 2026-11-17
 
 All three editions now default to four available physical cores, one allowed
