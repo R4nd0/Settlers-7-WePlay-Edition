@@ -131,15 +131,58 @@ six original Steam constructor cases and15 compiled method-integrity checks
 across the three editions. Offline assignment/allocator/OS boundaries are
 explicitly modeled; the original-game pair is separate evidence.
 
-The Gold guest's presentation queries still reach History-specific preparation
-checks and fail closed. This diagnostic does not qualify the complete applied
-choice query, human Ready, a world, NEO or an original History-host save/reload.
-Normal role/catalog/installer gates remain closed.
+That configuration diagnostic did not qualify the complete applied choice query,
+human Ready, a world, NEO or an original History-host save/reload. Normal
+role/catalog/installer gates remain closed.
+
+## Reuse and the remaining Ready boundary
+
+Reverse hosting extends the existing native pipeline. It does not replace the
+qualified Gold-host save/load implementation or require another world protocol.
+
+| Existing component | Reverse use |
+| --- | --- |
+| Native participant/admission and CID projection | Same authenticated transport and actual two-member roster; host/guest ordering follows the real role. |
+| Gold configured-choice observation | Same double cache/template observation, now with an explicit guest-role wrapper and the existing row/identity checks. The host wrapper retains its behavior. |
+| Ready intent and observed-state codecs | Same 13-byte intent and authenticated observed snapshot; no protocol or requested-state authority added. |
+| Original event factories, local clones and destructors | Same owned delivery path, with separately pinned original Steam request-constructor ABI and Gold state-consumer layout. |
+| Original start hold | Existing capture-only, no-replay pattern and read-only Gold root checks; SDK Ready needs its own exact two callsites. |
+| Shared world/NEO/save lifecycle | Existing implementation and forward receipts retained; reverse native role/setup validation must pass before enabling it. |
+
+Two subsequent real diagnostic pairs matched Gold's applied map, flags and
+template to the original host. The corrected automation then invoked the genuine
+original Gold READY action. Its SDK notification carried private local slot1,
+while the admitted common Gold guest correctly owned slot2. The guard rejected
+that mismatch. Both clients exited0 and their guarded files, portable profiles,
+auxiliary files and services were restored. This was a useful failed Ready test,
+not a completed Ready exchange.
+
+`crossplay_gold_sdk_ready_hold.h` now holds only those two pinned original SDK
+Ready notifications, before private state reaches the common session. It reuses
+the existing Gold native-root, guest-row, identity and Ready-codec checks. The
+borrowed original event contributes toggle intent only: its private slot1 and
+Ready bit cannot decide the common guest's achieved state. The original Steam
+host must consume the original request and actually change its cache and
+preparation row. Gold then consumes only that authenticated observed state through
+its original factories and local clones. Manual native mode2 remains required;
+this component grants no auto-start or world permission.
+
+Authored tests cover constructor ABI, slot/wire validation, owner/session scope
+and SDK-bridge stack/register/flags/x87/SSE/LastError preservation. Offline tests
+also execute the original host toggle prefix and Gold state consumer with
+explicitly modeled boundaries. The compiled SDK-emitter guard has47 checks
+against the original image. These checks are separate from actual gameplay.
+
+The next private candidate reuses the exact already-built Steam host adapter and
+corrected UI. Only Gold's SDK boundary is rebuilt. Two attempts stopped before
+deployment or any game/service launch at the unchanged7GiB physical-memory
+guard. Consequently the new hold's actual Ready exchange remains unqualified.
+See the [component evidence and precise limits](receipts/native-reverse-ready-components-20261117.json).
 
 ## Remaining native path
 
-The runtime still needs complete applied Gold guest choice queries, original
-human Ready exchange, History host start capture, host/guest setup-root agreement
+The runtime still needs a completed original human Ready exchange with the new
+SDK boundary, History host start capture, host/guest setup-root agreement
 and full NEO lifecycle. Its save
 checkpoint must come from a new original Steam History host save, followed by
 a fresh-owner transfer/load, matching original turns, continued logistics and

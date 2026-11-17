@@ -81,5 +81,6 @@ int main(){
     altered=snapshot;altered.members[0].player.principal=202;Check(!Local(altered,0x30000,expected));
     altered=snapshot;altered.members[0].player.station=302;Check(!Local(altered,0x30000,expected));
     altered=snapshot;altered.members[0].player.name="Other";Check(!Local(altered,0x30000,expected));
-    std::printf("PASS %u Gold host choice checks; typed original getter/destructor ABI modeled, exact cleanup and LastError/FP retained. Native game methods not executed.\n",checks);
+    std::printf("PASS %u Gold choice checks; typed original getter/destructor ABI modeled, exact cleanup and LastError/FP retained. Native game methods not executed.\n",checks);
+    return 0;
 }

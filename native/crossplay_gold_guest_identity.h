@@ -98,7 +98,7 @@ public:
         if(!actual || actual->principal!=own->principal || actual->name!=own->name || !RowMatches(row,*actual))return false;
         owner=GetCurrentThreadId();interval=before;return true;
     }
-    bool Applied(ParticipantEvent& binding,LobbyAdmission& admission,const GoldGuestRowClaim& claim)const{
+    bool Applied(const ParticipantEvent& binding,LobbyAdmission& admission,const GoldGuestRowClaim& claim)const{
         using namespace GoldGuestIdentityDetail;
         LobbySnapshot lobby;GoldGuestRowDetail::Interval current;
         if(!owner || owner!=GetCurrentThreadId() || !Methods() || !claim.Applied(binding,admission)

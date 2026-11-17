@@ -110,7 +110,7 @@ public:
             || !Preserved(original.data(),rows,original.size()))return false;
         owner=GetCurrentThreadId();interval=before;return true;
     }
-    bool Applied(ParticipantEvent& binding,LobbyAdmission& admission)const{
+    bool Applied(const ParticipantEvent& binding,LobbyAdmission& admission)const{
         using namespace GoldGuestRowDetail;
         LobbySnapshot lobby;Interval current;
         if(!owner || owner!=GetCurrentThreadId() || !Methods()

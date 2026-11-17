@@ -1,7 +1,7 @@
 #pragma once
 #include "crossplay_ready.h"
 
-// An authenticated snapshot of the Gold host's actually consumed configuration.
+// An authenticated snapshot of the actual host's originally consumed configuration.
 // No requested state, fabricated consumer acknowledgement or permission to start.
 namespace CrossplayReadyState {
 constexpr size_t Size=50;

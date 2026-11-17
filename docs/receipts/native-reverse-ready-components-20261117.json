@@ -1,0 +1,75 @@
+{
+  "date": "2026-11-17",
+  "scope": "Original Steam History host / original Gold guest: reusable native Ready components, not an actual passing Ready pair",
+  "activated_in_normal_runtime_or_installer": false,
+  "reused": {
+    "native_admission_cid_projection_and_authenticated_transport": true,
+    "ready_intent_bytes": 13,
+    "existing_observed_ready_snapshot_codec": true,
+    "gold_configured_choice_observation_with_explicit_role": true,
+    "gold_original_factories_local_clones_and_destructors": true,
+    "native_root_checks_and_start_hold_capture_pattern": true,
+    "unchanged_previously_built_steam_host_adapter_for_next_candidate": true,
+    "unchanged_corrected_original_ready_ui_for_next_candidate": true,
+    "forward_world_neo_save_load_implementation_and_receipts_retained": true
+  },
+  "new_native_boundaries": {
+    "steam_original_ready_request_constructor_and_actual_cache_preparation_observation": true,
+    "gold_original_guest_state_consumer_and_actual_cache_observation": true,
+    "gold_two_original_sdk_ready_send_calls_held": true,
+    "private_sdk_slot_and_ready_bit_never_supply_common_ready_result": true,
+    "host_original_consumer_is_achieved_ready_authority": true,
+    "manual_native_mode": 2,
+    "world_start_authorized": false
+  },
+  "authored_component_checks": {
+    "history_host_observation": 36,
+    "reused_gold_choice_fixture": 129,
+    "gold_guest_row": 40,
+    "gold_guest_identity": 30,
+    "history_host_configuration": 11,
+    "history_host_ready_constructor_scope": 17,
+    "gold_guest_ready_slot_wire_scope": 82,
+    "sdk_hold_stack_register_flags_fp_last_error_closed_scope": 18,
+    "fixed_game_address_guard_images_executed_natively": false
+  },
+  "offline_original_code_evidence": {
+    "steam_original_constructor_cases": 6,
+    "steam_original_toggle_prefix_cases": 12,
+    "steam_modeled_boundaries": "SDK source-CID lookup/host role, original preparation getter and OS mutex; execution stops after original Ready writes, before broadcast tail",
+    "gold_original_state_consumer_cases": 8,
+    "gold_modeled_boundaries": "OS mutex and notification calls; original dispatcher and original guest-role getter execute",
+    "compiled_original_sdk_emitter_and_reused_ready_role_guard_checks": 47,
+    "reused_compiled_steam_ready_constructor_consumer_guard_checks": 20,
+    "game_started_by_these_checks": false
+  },
+  "actual_prior_diagnostic": {
+    "gold_applied_map_flags_template_match_original_host": true,
+    "genuine_original_ready_action_observed": true,
+    "private_sdk_notification_slot": 1,
+    "admitted_common_gold_guest_slot": 2,
+    "mismatch_rejected": true,
+    "ready_exchange_passed": false,
+    "gold_exit_code": 0,
+    "steam_exit_code": 0,
+    "guarded_files_profiles_auxiliary_and_services_restored": true,
+    "new_sdk_hold_was_present_in_that_run": false
+  },
+  "new_candidate_pair_attempts": [
+    {
+      "physical_free_bytes": 6643027968,
+      "required_physical_bytes": 7516192768,
+      "stopped_before_deployment_services_or_games": true,
+      "game_files_and_portable_profiles_untouched": true
+    },
+    {
+      "physical_free_bytes": 7120105472,
+      "required_physical_bytes": 7516192768,
+      "stopped_before_deployment_services_or_games": true,
+      "game_files_and_portable_profiles_untouched": true
+    }
+  ],
+  "actual_ready_with_new_sdk_hold_qualified": false,
+  "reverse_shared_world_neo_history_origin_save_reload_resave_qualified": false,
+  "normal_mixed_entry_content_and_final_package_gates_promoted": false
+}
