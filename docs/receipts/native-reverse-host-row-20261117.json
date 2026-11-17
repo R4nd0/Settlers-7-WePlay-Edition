@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-17",
+  "scope": "Actual original Steam host remote-human row claim and original Ready request enqueue; complete Ready exchange remains pending",
+  "normal_runtime_or_installer_activated": false,
+  "reused": ["Original History prepare/claim calling convention and routines", "History layout and preparation interval checks", "Original getter/writer capture and actual native roster", "Exact previously tested Gold SDK-toggle adapter", "Unchanged corrected original READY UI", "Existing authenticated Ready codecs"],
+  "row_claim": {
+    "native_remote_guest_already_admitted": true,
+    "network_slot_before_available": false,
+    "controller_before": 1,
+    "network_slot_after": 2,
+    "controller_after": 3,
+    "kind_after": 1,
+    "complete_native_container_bytes_checked": 36288,
+    "all_other_container_bytes_preserved": true,
+    "identity_castle_and_ready_fields_unchanged": true
+  },
+  "validation": {
+    "authored_component_checks_after_observation_update": 398,
+    "host_remote_row_abi_preservation_scope_checks": 21,
+    "compiled_full_original_prepare_claim_and_existing_setter_guard_checks": 14,
+    "original_claim_and_prepare_claim_execution_cases": 20,
+    "original_guest_consumer_prefix_cases_with_independent_host_flags": 4,
+    "consumer_prefix_modeled_boundaries": "SDK CID lookup/host role, preparation getter and OS mutex; stopped before broadcast tail",
+    "history_candidate_build_passed": true,
+    "gold_binary_and_ui_reused_exactly": true
+  },
+  "actual_pair": {
+    "standalone_loopback_dxvk": true,
+    "normal_pace_without_x20": true,
+    "actual_host_row_claim_and_preservation_observed": true,
+    "genuine_gold_ready_intent_received": true,
+    "original_history_ready_request_constructed_and_locally_cloned": true,
+    "ready_observation_completed": false,
+    "unchanged_observation_deadline_ms": 10000,
+    "relayed_frames": 10,
+    "broker_rejections": 0,
+    "gold_exit_code": 0,
+    "history_exit_code": 0,
+    "guarded_files_profiles_auxiliary_saves_services_restored": true,
+    "world_start_requested": false
+  },
+  "pending_observation_candidate": {
+    "unjustified_host_cache_preparation_equality_removed": true,
+    "actual_guest_cache_and_preparation_result_still_required": true,
+    "all_boolean_ranges_owner_roots_and_deadline_retained": true,
+    "actual_four_flag_readback_without_native_writes": true,
+    "actual_pair_for_this_observation_change_qualified": false
+  },
+  "complete_reverse_ready_exchange_qualified": false,
+  "reverse_world_neo_history_origin_save_reload_resave_qualified": false,
+  "normal_entry_content_final_package_gates_promoted": false
+}

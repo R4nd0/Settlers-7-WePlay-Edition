@@ -86,10 +86,10 @@ inline bool Enqueue(const CrossplayNative::ParticipantEvent& binding,CrossplayNa
 }
 inline CrossplayNativeCodec::ReadyObservation Observe(const CrossplayNative::ParticipantEvent& binding,
                     CrossplayNative::LobbyAdmission& admission,const Pending& pending,uint32_t revision,
-                    CrossplayReadyState::Snapshot& output){
+                    CrossplayReadyState::Snapshot& output,std::array<unsigned char,4>* actual=nullptr){
     struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
     CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
-    using namespace CrossplayNativeCodec;output={};
+    using namespace CrossplayNativeCodec;output={};if(actual)actual->fill(0xff);
     if(!pending.owner || pending.owner!=GetCurrentThreadId() || !revision
         || GetTickCount64()-pending.started>10000)return ReadyObservation::Invalid;
     View current;if(!Context(binding,admission,pending.ids,current) || !Same(current,pending.view))return ReadyObservation::Invalid;
@@ -98,8 +98,11 @@ inline CrossplayNativeCodec::ReadyObservation Observe(const CrossplayNative::Par
     const auto* slots=*reinterpret_cast<const unsigned char* const*>(cache+0x44);
     const auto* rows=reinterpret_cast<const unsigned char*>(current.rows);
     if(slots[4]>1 || slots[0x1c]>1 || rows[0x5a8+0x71]>1 || rows[2*0x5a8+0x71]>1)return ReadyObservation::Invalid;
+    if(actual)*actual={slots[4],slots[0x1c],rows[0x5a8+0x71],rows[2*0x5a8+0x71]};
     const auto expected=static_cast<unsigned char>(!pending.before);
-    if(slots[0x1c]!=expected || rows[2*0x5a8+0x71]!=expected || slots[4]!=rows[0x5a8+0x71])return ReadyObservation::Pending;
+    // The original request targets the guest only. The host's own preparation
+    // flag is not changed by it and need not equal the host's cached Ready bit.
+    if(slots[0x1c]!=expected || rows[2*0x5a8+0x71]!=expected)return ReadyObservation::Pending;
     const CrossplayReadyState::Snapshot state{revision,slots[4],slots[0x1c]};
     if(!CrossplayReadyState::Valid(state))return ReadyObservation::Invalid;
     output=state;return ReadyObservation::Applied;

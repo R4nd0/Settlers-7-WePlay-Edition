@@ -210,6 +210,32 @@ reverse world, NEO and History-origin save/reload remain open.
 
 ## Remaining native path
 
+The next real pair successfully bound the Steam host's previously vacant remote
+row through the existing original History prepare/claim routines. Only row2's
+network slot and controller changed; every other byte of the complete preparation
+container, including all Ready, identity and castle data, was preserved. The
+original host then constructed and locally cloned the genuine guest Ready
+request. The observed Ready condition did not complete within the unchanged10s
+deadline. Both clients exited0 and were fully restored; no reverse Ready or world
+success is claimed.
+
+`crossplay_history_host_guest_row.h` reuses the established History method ABI,
+layout, preparation capture, native roster and original getter/writer checks.
+It adds full fingerprints for both invoked method bodies and a complete-container
+preservation check. Twenty offline executions of the original methods,14 compiled
+integrity checks and21 authored ABI/preservation/scope checks accompany the actual
+row result.
+
+The pending observation candidate also corrects an unsupported extra condition:
+a guest's original Ready request updates the guest, not the host's independent
+preparation flag. Four original-consumer prefix cases retain host cache1 and host
+preparation0 while the guest is genuinely toggled. The observer still requires the
+actual guest cache/preparation result, unchanged roots, Boolean ranges and10s
+deadline. It reports the four actual flags without writing any of them. The full
+398-check component run passes; the next actual pair for this observation change
+is prepared and awaiting the original memory guard. See the
+[host-row evidence and pending observation limits](receipts/native-reverse-host-row-20261117.json).
+
 The runtime still needs a completed original human Ready exchange with the new
 SDK boundary, History host start capture, host/guest setup-root agreement
 and full NEO lifecycle. Its save

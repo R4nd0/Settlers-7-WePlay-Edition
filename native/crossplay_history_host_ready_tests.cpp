@@ -42,5 +42,8 @@ int main(){
     SetLastError(1963);Check(!Enqueue(binding,admission,{0,1},intent,pending));Check(!pending.owner && GetLastError()==1963);
     CrossplayReadyState::Snapshot state{1,1,1};Check(Observe(binding,admission,pending,1,state)==CrossplayNativeCodec::ReadyObservation::Invalid);
     Check(!state.revision && GetLastError()==1963);Check(!Methods());
+    std::array<unsigned char,4> actual{1,1,1,1};
+    Check(Observe(binding,admission,pending,1,state,&actual)==CrossplayNativeCodec::ReadyObservation::Invalid);
+    Check(actual==std::array<unsigned char,4>{0xff,0xff,0xff,0xff} && !state.revision && GetLastError()==1963);
     printf("PASS %u History host Ready constructor ABI/owner/interval/exclusion checks; authored only, no native toggle or world qualified.\n",checks);return 0;
 }
