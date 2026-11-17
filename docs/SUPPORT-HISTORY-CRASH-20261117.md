@@ -2,7 +2,7 @@
 
 Offline triage of privately supplied host/client archives for a reported
 three-human match with AI, followed by failing autosave/manual-save reloads.
-The user suspects RC3.25. No diagnostic game was launched: the current
+Two later launcher reports identify RC3.25. No diagnostic game was launched: the current
 Crossplay work reserves the test copies (see DEVELOPMENT-HANDOFF.md).
 
 ## Observed evidence
@@ -35,9 +35,64 @@ The host dumps and both current game logs identify an adapter with PE timestamp
 `0x6af080ed` and image size `0x00186000`. These match the retained RC3.25 staged
 adapter. That supports the user's version estimate, but these metadata fields
 are not an exact package/content fingerprint. The archives contain game-profile
-data rather than the launcher package identity or a current WePlay connection
-report. [RC3.25's release notes](RC3.25-STANDALONE-UPDATE.md) record that its
+data rather than the launcher package identity. The later reports below identify
+the launcher release, but do not verify the installed game/adapter hashes.
+[RC3.25's release notes](RC3.25-STANDALONE-UPDATE.md) record that its
 native adapter/gameplay contracts were unchanged from the preceding package.
+
+## Subsequent player clarification and launcher diagnostics
+
+The supplied conversation reports that all three players use Ubisoft History
+Edition. This incident is therefore not a reported Gold/History or Steam/Ubisoft
+mixed-edition match. Player 1 was host. Player 2 saw Player 3 leave, while Player
+3 saw Player 2 leave. These reciprocal departure notices do not establish their
+cause or a simulation-checksum mismatch. The host's crash ordering relative to
+these notices remains unknown. The player also says the manual save was made
+roughly 20 minutes before the crash and failed to load too; that approximate
+recollection is separate from the file/log times retained above.
+
+Asked about NEO Logistics, the player replied that they did not think it was
+enabled. Treat the option as unconfirmed, reportedly probably off. Saved NEO2
+metadata alone is not proof that the option was active in the reported match,
+nor grounds to attribute the incident to NEO.
+
+Both `S7-Diagnose(2).json` and `S7-Diagnose(3).json` declare
+`s7-desktop-diagnostics-v1`, release `2.0.0-rc3.25`, source commit
+`bac77a2180efb211513eaceed473fd491f764e20`, network metadata revision 9,
+directory revision 7, NEO wire revision 5 and content contract
+`s7-play-content-v3`. There is no declared version/protocol mismatch between
+these two reports. The user confirms that their player/host assignment cannot
+be recovered; retain them as anonymous reports rather than inferring roles.
+Neither includes an incident timestamp or session identifier, so their memory
+summaries cannot be assigned to a particular match or load attempt.
+
+| Diagnostic field | Report (2) | Report (3) |
+| --- | --- | --- |
+| Renderer selection | native | native |
+| Graphics probe | probe_failed; no devices listed | No failure reported; NVIDIA GeForce RTX 3060 listed |
+| Memory samples | 865 | 44 |
+| Peak private memory, MiB | 1564 | 329 |
+| Minimum free process address space, MiB | 2236 | 3438 |
+| Maximum measured pressure level | 0 | 0 |
+| Monitor failed / recovery required | true / true | false / false |
+
+Neither summary records a memory-pressure warning. Report (2)'s failed monitor
+limits the coverage of that observation. RC3.25's memory guard sets both
+`monitor_failed` and `recovery_required` on a monitoring exception, independently
+of measured pressure. These flags do not prove an out-of-memory crash or save
+corruption. A graphics-probe failure likewise does not establish the crash cause.
+Renderer selection is configuration, not a captured incident module trace.
+
+`known_lan_desync_resolved: false` is a constant returned by RC3.25's diagnostic
+exporter, not an incident detector. Its presence in both reports must not be
+interpreted as detected desyncs. These interpretations were checked against
+the actual RC3.25 source commit's `desktop_backend.py` and `memory_guard.py`.
+
+The launcher action is **Help > Save diagnostic report...**, or German
+**Hilfe > Diagnosebericht speichern...**, with default filename
+`S7-Diagnose.json`. The earlier request for a "connection report" referred
+imprecisely to this export. It supplies launcher/configuration and bounded
+memory-summary data, not a packet/session lifecycle trace.
 
 ## Save and replay checks
 
@@ -86,9 +141,10 @@ null dereference alone would not restore an owned multiplayer session.
 
 ## Required follow-up
 
-1. Obtain the launcher's exact version/package identity and current WePlay
-   connection/support reports from all three machines, especially the removed
-   player. Preserve the already supplied saves, replays, logs and host dumps;
+1. The two received launcher diagnostic reports already identify RC3.25.
+   Preserve their unknown player assignment; the user says it is unrecoverable.
+   Do not request repeat exports merely to reconfirm their versions or roles.
+   Preserve the already supplied saves, replays, logs and host dumps;
    another full historical profile export is unnecessary.
 2. Determine whether each failing load was started as multiplayer resume or
    single player, and whether the same host was used. The logs alone do not map
