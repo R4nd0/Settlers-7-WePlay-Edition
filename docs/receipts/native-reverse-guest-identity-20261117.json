@@ -1,0 +1,59 @@
+{
+  "format": "native-reverse-guest-identity-v1",
+  "date": "2026-11-17",
+  "experimental_only": true,
+  "scope": "Original Steam History host and original Gold guest, standalone loopback under DXVK 3.1.1; native admission and guest identity only, no world requested.",
+  "source_and_destination_roles": {
+    "host": "Steam History",
+    "host_local_slot": 1,
+    "guest": "Gold",
+    "guest_local_slot": 2,
+    "independent_gold_sdk_source_guard": 2
+  },
+  "actual_checks": {
+    "actual_original_steam_host_bootstrap": true,
+    "actual_original_host_slot1": true,
+    "original_gold_row_claim": true,
+    "original_gold_confirmed_consumed": true,
+    "actual_native_profile_name_castle_match": true,
+    "actual_identity_readback_complete": true,
+    "no_world_start_or_turn_bridge_claimed": true,
+    "normal_exit_and_restoration": true
+  },
+  "original_gold_row_prepare_and_claim": true,
+  "original_gold_cstring_copy_assignment_and_allocation": true,
+  "scalar_preparation_identity_projected_from_actual_admitted_native_participant": true,
+  "native_name_copy_requires_full_writable_capacity_and_independent_row_storage": true,
+  "all_other_25_row_bytes_preserved": true,
+  "original_gold_confirmed_consumer_required": true,
+  "actual_profile_name_castle_all_match_after_original_consumption": true,
+  "native_ready_crc_rng_clock_task_values_fabricated": false,
+  "actual_content_files_hashed": {
+    "gold": 123,
+    "history": 57
+  },
+  "private_unapproved_catalog_sha256": "15f4b4b14b282cbe227bacf5e25de013e48ffef3563cb4c060317124542993fc",
+  "both_clients_exit_codes": {
+    "gold": 0,
+    "steam_history": 0
+  },
+  "all_guarded_files_profiles_auxiliary_and_services_restored": true,
+  "authored_component_checks": {
+    "history_host_observation": 36,
+    "gold_row_abi_scope_preservation": 40,
+    "gold_identity_abi_storage_scope_preservation": 30
+  },
+  "offline_original_code_checks": {
+    "gold_row_prepare_claim_cases": 60,
+    "gold_cstring_assignment_cases": 24,
+    "compiled_five_method_integrity_guard_checks": 17,
+    "all_five_regions_match_actual_prepared_executable": true,
+    "native_allocation_free_memcpy_modeled_in_offline_assignment": true
+  },
+  "host_configuration_consumption_qualified": false,
+  "ready_or_world_start_requested": false,
+  "reverse_neo_or_save_reload_qualified": false,
+  "x20_requested": false,
+  "ordinary_parser_runtime_or_installer_role_admission_promoted": false,
+  "final_installed_package_qualified": false
+}
