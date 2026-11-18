@@ -123,5 +123,39 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_prototype": {
+    "saved_logic_turn": 27001,
+    "original_autosave": true,
+    "saved_neo_state_restored_on_all_three": true,
+    "observed_neo_distance_comparisons_at_least_per_client": [256, 256, 256],
+    "wall_seconds_to_stall_sample": 937.64,
+    "stalled_replay_turns": [35608, 35609, 35608],
+    "recorded_checksums": [8606, 8607, 8606],
+    "shared_checksums": 8606,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 1,
+    "divergent_client": "first guest",
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
+  "autosave_read_only_distance_native_trace": {
+    "saved_logic_turn": 27001,
+    "monitor_seconds_to_fail_turn_sample": 944.04,
+    "matching_native_checksum_turn_range": [35580, 35606],
+    "first_native_difference_replay_turn": 35607,
+    "direct_checksum_scalar_count": 42,
+    "different_direct_checksum_scalar_indices_at_first_difference": [0, 1],
+    "extra_native_rng_draws_on_first_guest_at_first_difference": 1,
+    "matching_ai_inputs_at_first_difference": true,
+    "matching_route_comparisons": 49,
+    "matching_storehouse_distance_samples": 5,
+    "recorded_checksums": [9032, 8607, 9032],
+    "shared_checksums": 8607,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 2,
+    "desync_snapshot_copies": 3,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }

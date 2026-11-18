@@ -82,6 +82,25 @@ previous failure also matched across the three clients. This control changes
 the simulation from replay record 23 and leaves the NEO handoff policy to be
 fixed. All three test processes exited normally and exact restoration passed.
 
+A read-only road solver prototype kept NEO handoff selection enabled and
+passed turn 30,195 with matching native checksums. After 15:38 of continued
+play, the three clients stopped advancing at replay turns 35,608, 35,609 and
+35,608. The first 8,605 common replay checksums match. The first guest's
+checksum differs at the final shared record, ordinal 8,605. All three clients
+closed normally and restoration passed. This prototype did not pass the
+20-minute acceptance test.
+
+The original autosave reproduced that later failure on the diagnostic NEO6
+build. All 42 native checksum inputs and accumulator values agree from replay
+turn 35,580 through 35,606. At turn 35,607, the first guest has consumed
+one more value from the simulation random stream. Its random counter and seed
+are the only recorded direct checksum inputs that differ. Both recorded AI
+inputs still match. All 49 observed handoff comparisons and five sampled
+storehouse-distance evaluations per client match. The extra random draw's
+caller remains to be identified. The first guest returned to the browser,
+each participant wrote a desync snapshot, and all three exited normally with
+verified restoration.
+
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
 Ready action, the host finished draining its native send queue, and each
