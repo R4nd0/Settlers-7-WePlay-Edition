@@ -56,9 +56,9 @@ inline bool Same(const Interval& a,const Interval& b){
     return a.session && a.session==b.session && a.manager && a.manager==b.manager
         && a.configuration && a.configuration==b.configuration && a.rows && a.rows==b.rows && a.mode==b.mode;
 }
-inline bool Capture(const Pin& pin,const LobbySnapshot& snapshot,Interval& output){
+inline bool Capture(const Pin& pin,const LobbySnapshot& snapshot,Interval& output,unsigned capacity=4){
     using CrossplayNativeCodec::Detail::Readable;output={};
-    if(!Readable(reinterpret_cast<void*>(pin.manager_pointer),4))return false;
+    if(capacity<2 || capacity>CrossplaySessionConfig::Slots || !Readable(reinterpret_cast<void*>(pin.manager_pointer),4))return false;
     const auto* manager=*reinterpret_cast<const unsigned char* const*>(pin.manager_pointer);
     if(!Readable(manager,0x190) || *reinterpret_cast<const uintptr_t*>(manager)!=pin.manager_type || manager[4]>1)return false;
     const auto mode=manager[4];
@@ -66,9 +66,38 @@ inline bool Capture(const Pin& pin,const LobbySnapshot& snapshot,Interval& outpu
     if(!Readable(configuration,8))return false;
     auto* rows=*reinterpret_cast<unsigned char* const*>(configuration+4);
     if(!Readable(rows,0x8dc0) || *reinterpret_cast<const uintptr_t*>(configuration)!=reinterpret_cast<uintptr_t>(rows)
-        || rows[0x8db8]!=4)return false;
+        || rows[0x8db8]!=capacity)return false;
     output={snapshot.instance,reinterpret_cast<uintptr_t>(manager),reinterpret_cast<uintptr_t>(configuration),reinterpret_cast<uintptr_t>(rows),mode};
     return true;
+}
+inline unsigned char* OpenHumanRow(const Pin& pin,const Interval& interval,const Participant& player) {
+    const uint32_t slot=player.slot;
+    if(!slot || slot>CrossplaySessionConfig::Slots || player.principal==UINT32_MAX
+        || player.name.empty() || player.name.size()>128 || player.name.find('\0')!=std::string::npos)return nullptr;
+    auto* row=reinterpret_cast<unsigned char*>(interval.rows+slot*0x5a8);
+    if(!HistoryRoleDetail::Writable(row,0x5a8) || CrossplayChat::Word(row+0x64)!=1
+        || CrossplayChat::Word(row+0x60)!=1 || CrossplayChat::Word(row+0x55c)!=pin.castle_type)return nullptr;
+    return row;
+}
+inline bool ClaimOpenHumanRow(const Pin& pin,const Interval& interval,const Participant& player) {
+    using CrossplayNativeCodec::Detail::Readable;
+    auto* row=OpenHumanRow(pin,interval,player);
+    if(!row)return false;
+    const uint32_t slot=player.slot;
+    auto* configuration=reinterpret_cast<void*>(interval.configuration);
+    reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(pin.prepare)(configuration,slot);
+    if(CrossplayChat::Word(row+0x60)!=2
+        || !reinterpret_cast<bool (__thiscall*)(void*,uint32_t,uint32_t)>(pin.claim)(configuration,slot,slot)
+        || CrossplayChat::Word(row+0x60)!=3 || CrossplayChat::Word(row+0x5c)!=slot)return false;
+    const uint32_t id=player.principal?player.principal:slot;
+    reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(pin.set_id)(row,id);
+    struct String {const char* data;uint32_t capacity,length,extra;};
+    const String name{player.name.c_str(),static_cast<uint32_t>(player.name.size()+1),static_cast<uint32_t>(player.name.size()),0};
+    reinterpret_cast<void (__thiscall*)(void*,const String*)>(pin.set_name)(row,&name);
+    const auto* copied=reinterpret_cast<const String*>(row+0x1c);
+    return CrossplayChat::Word(row+0x18)==id && copied->data!=name.data && copied->length==name.length
+        && copied->capacity>=name.length+1 && Readable(copied->data,name.length+1)
+        && !memcmp(copied->data,name.data,name.length+1);
 }
 }
 class HistoryGuestClaim {
@@ -81,7 +110,6 @@ public:
     bool Queued()const{return queued;}
     bool Begin(Crossplay::Edition value,ParticipantEvent& binding,LobbyAdmission& admission,
                uint32_t source_principal,const CrossplayCastleSetup::Value& source_castle,uint32_t extra){
-        using CrossplayNativeCodec::Detail::Readable;
         using namespace HistoryClaimDetail;
         Pin pin;LobbySnapshot snapshot;Participant own;
         if(queued || owner || !Layout(value,pin) || admission.GetState()!=AdmissionState::RosterBound || !admission.Poll()
@@ -90,24 +118,12 @@ public:
         // Bind a fresh original event factory before the first original mutation.
         ParticipantEvent confirmed;
         if(!confirmed.Bind(value) || !Capture(pin,snapshot,interval))return false;
-        auto* configuration=reinterpret_cast<unsigned char*>(interval.configuration);
         auto* rows=reinterpret_cast<unsigned char*>(interval.rows);
-        const auto* first=rows+0x5a8;auto* second=rows+2*0x5a8;
+        const auto* first=rows+0x5a8;
         if(*reinterpret_cast<const uint32_t*>(first+0x64)!=1 || *reinterpret_cast<const uint32_t*>(first+0x60)!=3
-            || *reinterpret_cast<const uint32_t*>(first+0x5c)!=1 || *reinterpret_cast<const uint32_t*>(second+0x64)!=1
-            || *reinterpret_cast<const uint32_t*>(second+0x60)!=1 || *reinterpret_cast<const uint32_t*>(second+0x55c)!=pin.castle_type)return false;
+            || *reinterpret_cast<const uint32_t*>(first+0x5c)!=1 || !OpenHumanRow(pin,interval,own))return false;
         expected_castle=source_castle;owner=GetCurrentThreadId();edition=value;
-        reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(pin.prepare)(configuration,2);
-        if(*reinterpret_cast<const uint32_t*>(second+0x60)!=2
-            || !reinterpret_cast<bool (__thiscall*)(void*,uint32_t,uint32_t)>(pin.claim)(configuration,2,2))return false;
-        const uint32_t id=own.principal?own.principal:own.slot;
-        reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(pin.set_id)(second,id);
-        struct String {const char* data;uint32_t capacity,length,extra;};
-        const String name{own.name.c_str(),static_cast<uint32_t>(own.name.size()+1),static_cast<uint32_t>(own.name.size()),0};
-        reinterpret_cast<void (__thiscall*)(void*,const String*)>(pin.set_name)(second,&name);
-        const auto* copied=reinterpret_cast<const String*>(second+0x1c);
-        if(*reinterpret_cast<const uint32_t*>(second+0x18)!=id || copied->data==name.data || copied->length!=name.length
-            || copied->capacity<name.length+1 || !Readable(copied->data,name.length+1) || memcmp(copied->data,name.data,name.length+1))return false;
+        if(!ClaimOpenHumanRow(pin,interval,own))return false;
         LobbySnapshot after;Participant observed;Interval current;
         if(!binding.CaptureLobby(after) || !ParticipantForClaim(after,admission.OwnConnection(),source_principal,observed)
             || observed.principal!=own.principal || observed.name!=own.name || !Capture(pin,after,current) || !Same(interval,current)

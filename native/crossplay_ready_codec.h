@@ -37,6 +37,14 @@ inline bool Source(const Detail::Profile& p,const void* event,uint32_t guest) {
         && CrossplayChat::Word(bytes+4)==CrossplayReady::Type && CrossplayChat::Word(bytes+8)==guest
         && bytes[12]==1;
 }
+inline bool EncodeIntent(Crossplay::Edition edition,uint32_t guest,const void* event,std::vector<unsigned char>& wire) {
+    wire.clear();
+    if(edition==Crossplay::Edition::Gold || !Methods(edition) || !Source(Pin(edition),event,guest))return false;
+    wire.resize(CrossplayReady::WireSize);
+    CrossplayChat::Put(wire.data(),CrossplayReady::Class);
+    memcpy(wire.data()+4,static_cast<const unsigned char*>(event)+4,9);
+    return CrossplayReady::Validate(wire,guest);
+}
 inline bool GoldStateMethods() {
     const uintptr_t addresses[]={0x98e303,0xa51980};const size_t lengths[]={0xaf,0x105};
     uint64_t hash=14695981039346656037ull;
@@ -72,12 +80,7 @@ inline bool EnqueueState(Crossplay::Edition edition,const std::vector<unsigned c
 inline bool EncodeReadyRequest(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                                CrossplaySessionConfig::Connections ids,const void* event,std::vector<unsigned char>& wire) {
     wire.clear();
-    if(edition==Crossplay::Edition::Gold || !SessionConfigDetail::Roster(binding,ids,false) || !ReadyDetail::Methods(edition))return false;
-    const auto p=ReadyDetail::Pin(edition);
-    if(!ReadyDetail::Source(p,event,ids.guest))return false;
-    wire.resize(CrossplayReady::WireSize);CrossplayChat::Put(wire.data(),CrossplayReady::Class);
-    memcpy(wire.data()+4,static_cast<const unsigned char*>(event)+4,9);
-    return CrossplayReady::Validate(wire,ids.guest);
+    return SessionConfigDetail::Roster(binding,ids,false) && ReadyDetail::EncodeIntent(edition,ids.guest,event,wire);
 }
 struct PendingReadyToggle {
     uintptr_t configuration=0,session=0;CrossplaySessionConfig::Connections ids{};unsigned char before=0,after=0;

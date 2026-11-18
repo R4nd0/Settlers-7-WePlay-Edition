@@ -57,6 +57,7 @@ public:
     // matches. A started session is verified separately from lobby phase.
     bool Resolve(unsigned char source_slot,bool started,RoomRoute& route) const;
     bool CaptureConfigurationRoutes(unsigned char capacity,CrossplaySessionConfig::RoomConnections& routes) const;
+    bool CaptureMemberSetup(uint32_t map_slot,Participant& player,CrossplayCastleSetup::Value& castle,uint32_t& extra) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;

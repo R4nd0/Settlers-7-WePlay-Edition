@@ -14,7 +14,7 @@ inline bool LayoutFor(Crossplay::Edition edition,Layout& result) {
     return true;
 }
 template<class Read> bool MatchGuestRows(const Layout& pin,const LobbySnapshot& snapshot,unsigned capacity,
-                                        Read read,uint32_t& row_base,bool host_only=false) {
+                                        Read read,uint32_t& row_base,uint32_t target_slot=0) {
     row_base=0;
     if(!snapshot.instance || snapshot.host || capacity<2 || capacity>CrossplaySessionConfig::Slots
         || !snapshot.local_slot || snapshot.local_slot>capacity
@@ -36,7 +36,7 @@ template<class Read> bool MatchGuestRows(const Layout& pin,const LobbySnapshot& 
         if(p.host)host=&p;
     }
     const auto* local_player=players[snapshot.local_slot-1];
-    if(!host || !local_player)return false;
+    if(!host || !local_player || (target_slot && (target_slot>capacity || !players[target_slot-1])))return false;
     auto value=[&](uint32_t address,auto& result) {
         return address>=0x10000 && address<=0x7fffffffu-sizeof(result) && read(address,&result,sizeof(result));
     };
@@ -46,10 +46,10 @@ template<class Read> bool MatchGuestRows(const Layout& pin,const LobbySnapshot& 
         || !value(manager+((mode-1)&1)*0xc4+0x98,configuration) || configuration>0x7fffffff-8
         || !value(configuration,duplicate) || !value(configuration+4,rows) || rows!=duplicate
         || rows>0x7fffffff-0x8dc0 || !value(rows+0x8db8,slots) || slots!=capacity)return false;
-    // A host-only update reads the same authenticated roster and backend,
+    // A single-seat update reads the same authenticated roster and backend,
     // but only needs the original preparation fields for its target row.
     for(unsigned i=0;i<capacity;++i) {
-        if(!players[i] || (host_only && players[i]!=host))continue;
+        if(!players[i] || (target_slot && i+1!=target_slot))continue;
         const uint32_t row=rows+(i+1)*0x5a8;
         uint32_t id=0,slot=0,state=0,kind=0,data=0,name_capacity=0,length=0;
         if(!value(row+0x18,id) || id!=principals[i] || !value(row+0x5c,slot) || slot!=i+1

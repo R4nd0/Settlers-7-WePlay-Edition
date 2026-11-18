@@ -13,6 +13,8 @@ inline bool UiCommand(const std::string& command,std::string& output){
         if(command=="room-capacity"){output=std::to_string(launch->room.capacity);return true;}
         if(command=="room-players"){output=std::to_string(launch->room.channel.member_count);return true;}
         if(command=="room-configured"){output=RoomConfigurationApplied()?"1":"0";return true;}
+        if(command=="room-ready-action"){output=RoomGuestReadyActionAvailable()?"1":"0";return true;}
+        if(command=="room-all-ready"){output=RoomAllHumansReadyObserved()?"1":"0";return true;}
         if(command!="phase")return false;
     }
 #endif

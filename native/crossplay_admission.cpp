@@ -499,4 +499,19 @@ bool RoomLobbyAdmission::CaptureConfigurationRoutes(unsigned char capacity,Cross
     routes=candidate;
     return true;
 }
+bool RoomLobbyAdmission::CaptureMemberSetup(uint32_t map_slot,Participant& player,
+        CrossplayCastleSetup::Value& castle,uint32_t& extra) const {
+    player={};castle={};extra=0;
+    const auto& s=*impl;
+    if(!s.Owned() || s.state!=AdmissionState::RosterBound)return false;
+    for(size_t i=0;i<s.room.member_count;++i) {
+        if(s.players[i].slot!=map_slot)continue;
+        RoomRoute route;
+        if(!Resolve(static_cast<unsigned char>(i+1),false,route) || route.player_slot!=map_slot)return false;
+        const auto& offer=s.offers[i];
+        player=s.players[i];castle={offer.castle,offer.castle_type};extra=offer.extra;
+        return true;
+    }
+    return false;
+}
 }

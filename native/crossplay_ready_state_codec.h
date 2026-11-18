@@ -2,6 +2,9 @@
 #include "crossplay_ready_state.h"
 #include "crossplay_ready_codec.h"
 #include "crossplay_history_preparation.h"
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#include "crossplay_history_claim.h"
+#endif
 
 namespace CrossplayNativeCodec {
 namespace ReadyStateDetail {
@@ -111,12 +114,12 @@ inline ReadyObservation ObserveHistoryReadySnapshot(Crossplay::Edition edition,c
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
 struct PendingHistoryRoomReady {uintptr_t session=0,row=0;unsigned char slot=0,value=0;};
 namespace ReadyStateDetail {
-inline bool RoomHostRow(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+inline bool RoomReadyRow(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,const CrossplaySessionConfig::RoomConnections& ids,
-        unsigned char slot,CrossplayNative::LobbySnapshot& lobby,CrossplayNative::Participant& host,unsigned char*& row) {
+        unsigned char slot,CrossplayNative::LobbySnapshot& lobby,CrossplayNative::Participant& target,unsigned char*& row) {
     row=nullptr;
     if(!Methods(edition) || !slot || slot>ids.capacity || slot>CrossplaySessionConfig::Slots
-        || ids.stations[slot-1]!=ids.host)return false;
+        || ids.stations[slot-1]==UINT32_MAX)return false;
     CrossplayNative::HistoryPreparationDetail::Layout pin{};
     CrossplaySessionConfig::RoomConnections current;
     uint32_t row_base=0;
@@ -127,46 +130,76 @@ inline bool RoomHostRow(Crossplay::Edition edition,const CrossplayNative::Partic
             [](uint32_t at,void* out,size_t size){
                 const auto* value=reinterpret_cast<const void*>(at);if(!Detail::Readable(value,size))return false;
                 memcpy(out,value,size);return true;
-            },row_base,true))return false;
+            },row_base,slot))return false;
     // CaptureLobby pins the actual session phase. History adjusts +0x28
     // separately in its native timing logic, so it cannot gate lobby Ready.
     for(const auto& member:lobby.members) {
         const auto& player=member.player;
-        if(player.host && !player.local && player.connection==ids.host && player.slot==slot) {
+        if(player.connection==ids.stations[slot-1] && player.slot==slot) {
             row=reinterpret_cast<unsigned char*>(row_base+slot*0x5a8u);
             if(!WritableReadyRow(row))return false;
-            host=player;return true;
+            target=player;return true;
         }
     }
     return false;
 }
+inline bool ClaimRoomReadyRow(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+        const CrossplayNative::RoomLobbyAdmission& admission,const CrossplaySessionConfig::RoomConnections& ids,
+        unsigned char slot,CrossplayCastleSetup::Value& design,uint32_t& extra) {
+    using namespace CrossplayNative::HistoryClaimDetail;
+    if(!slot || slot>ids.capacity || slot>CrossplaySessionConfig::Slots
+        || ids.stations[slot-1]==UINT32_MAX || ids.stations[slot-1]==ids.host
+        || !CrossplayNative::HistoryClaimDetail::Methods(edition))return false;
+    const auto host=std::find(ids.stations.begin(),ids.stations.end(),ids.host);
+    if(host==ids.stations.end())return false;
+    const auto host_slot=static_cast<unsigned char>(host-ids.stations.begin()+1);
+    CrossplayNative::LobbySnapshot lobby,after;
+    CrossplayNative::Participant host_player,target;
+    unsigned char* host_row=nullptr;
+    Pin pin;
+    Interval before,verified;
+    if(!RoomReadyRow(edition,binding,admission,ids,host_slot,lobby,host_player,host_row)
+        || !CrossplayNative::HistoryClaimDetail::Layout(edition,pin)
+        || !admission.CaptureMemberSetup(slot,target,design,extra) || target.connection!=ids.stations[slot-1]
+        || !Capture(pin,lobby,before,ids.capacity))return false;
+    const auto* open=OpenHumanRow(pin,before,target);
+    if(!open || CrossplayChat::Word(open+0x5c)!=UINT32_MAX || !ClaimOpenHumanRow(pin,before,target))return false;
+    unsigned char* claimed=nullptr;
+    return RoomReadyRow(edition,binding,admission,ids,slot,after,target,claimed) && claimed==open
+        && Capture(pin,after,verified,ids.capacity) && Same(before,verified);
 }
-inline bool ApplyHistoryRoomHostReady(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+}
+inline bool ApplyHistoryRoomReady(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,const CrossplaySessionConfig::RoomConnections& ids,
         unsigned char slot,unsigned char ready,PendingHistoryRoomReady& pending) {
     if(pending.session || ready>1)return false;
     CrossplayNative::LobbySnapshot lobby,current;
-    CrossplayNative::Participant host,verified;
+    CrossplayNative::Participant target,verified;
     unsigned char* row=nullptr;
     unsigned char* current_row=nullptr;
     CrossplayCastleSetup::Value design;
+    uint32_t extra=0;
     CrossplayNative::ParticipantEvent event;
-    if(!ReadyStateDetail::RoomHostRow(edition,binding,admission,ids,slot,lobby,host,row)
-        || !binding.CaptureCastleSetup(row+0x55c,design) || !event.Bind(edition)
-        || !event.ConstructConfirmedSetup(host,design,CrossplayChat::Word(row+0x30),ready!=0)
-        || !ReadyStateDetail::RoomHostRow(edition,binding,admission,ids,slot,current,verified,current_row)
+    if(!event.Bind(edition))return false;
+    if(ReadyStateDetail::RoomReadyRow(edition,binding,admission,ids,slot,lobby,target,row)) {
+        if(!binding.CaptureCastleSetup(row+0x55c,design))return false;
+        extra=CrossplayChat::Word(row+0x30);
+    } else if(!ReadyStateDetail::ClaimRoomReadyRow(edition,binding,admission,ids,slot,design,extra)
+        || !ReadyStateDetail::RoomReadyRow(edition,binding,admission,ids,slot,lobby,target,row))return false;
+    if(!event.ConstructConfirmedSetup(target,design,extra,ready!=0)
+        || !ReadyStateDetail::RoomReadyRow(edition,binding,admission,ids,slot,current,verified,current_row)
         || current.instance!=lobby.instance || current_row!=row || !event.EnqueueLocal())return false;
     ReadyStateDetail::SetReady(edition,row,ready);
     pending={lobby.instance,reinterpret_cast<uintptr_t>(row),slot,ready};
     return true;
 }
-inline ReadyObservation ObserveHistoryRoomHostReady(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+inline ReadyObservation ObserveHistoryRoomReady(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,const CrossplaySessionConfig::RoomConnections& ids,
         const PendingHistoryRoomReady& pending) {
     CrossplayNative::LobbySnapshot lobby;
-    CrossplayNative::Participant host;
+    CrossplayNative::Participant target;
     unsigned char* row=nullptr;
-    if(!pending.session || !ReadyStateDetail::RoomHostRow(edition,binding,admission,ids,pending.slot,lobby,host,row)
+    if(!pending.session || !ReadyStateDetail::RoomReadyRow(edition,binding,admission,ids,pending.slot,lobby,target,row)
         || lobby.instance!=pending.session || reinterpret_cast<uintptr_t>(row)!=pending.row)return ReadyObservation::Invalid;
     return row[0x71]==pending.value?ReadyObservation::Applied:ReadyObservation::Pending;
 }

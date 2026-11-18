@@ -346,6 +346,9 @@ struct Runtime {
     }
     void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+        if(launch.IsRoom()){RoomOutgoing(manager,event,mode,target);return;}
+#endif
         if(OutgoingWorld(manager,event,mode,target))return;
         if(OutgoingSaved(manager,event,mode,target))return;
         if(Owned() && phase==Phase::RosterBound && launch.host){GoldNeutralTeam(manager,event,mode,target);return;}
@@ -637,6 +640,29 @@ bool RoomConfigurationApplied(){
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
     return current && current->Owned() && current->launch.IsRoom() && current->room_configuration_complete
         && current->phase==Phase::RosterBound && current->channel.GetState()==Crossplay::State::Connected;
+#else
+    return false;
+#endif
+}
+bool RoomGuestReadyActionAvailable(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    const auto* room=current && current->Owned()?current->channel.GetRoom():nullptr;
+    return room && RoomConfigurationApplied() && !current->launch.host
+        && current->outgoing_installed && current->GoldHostedReadyRoom(*room);
+#else
+    return false;
+#endif
+}
+bool RoomAllHumansReadyObserved(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(!RoomConfigurationApplied() || !current->room_ready_requests.empty() || !current->room_ready_after.empty())return false;
+    std::vector<unsigned char> wire;
+    CrossplaySessionConfig::Layout layout;
+    const auto& routes=current->room_local_routes;
+    if(!current->ReadRoomSnapshot(wire) || !CrossplaySessionConfig::InspectRoom(wire,routes,layout))return false;
+    for(size_t i=0;i<routes.capacity;++i)
+        if(routes.stations[i]!=UINT32_MAX && wire[layout.slots_at+i*CrossplaySessionConfig::SlotBytes]!=1)return false;
+    return true;
 #else
     return false;
 #endif

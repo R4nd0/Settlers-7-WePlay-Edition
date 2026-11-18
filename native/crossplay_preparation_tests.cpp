@@ -48,9 +48,9 @@ struct Fixture {
         return true;
     }
     bool Match() const {return CrossplayNative::HistoryPreparationDetail::Matches(pin,snapshot,[&](uint32_t a,void* o,size_t n){return Read(a,o,n);});}
-    bool MatchRoom(unsigned capacity,uint32_t& output,bool host_only=false) const {
+    bool MatchRoom(unsigned capacity,uint32_t& output,uint32_t target_slot=0) const {
         return CrossplayNative::HistoryPreparationDetail::MatchGuestRows(pin,snapshot,capacity,
-            [&](uint32_t a,void* o,size_t n){return Read(a,o,n);},output,host_only);
+            [&](uint32_t a,void* o,size_t n){return Read(a,o,n);},output,target_slot);
     }
 };
 }
@@ -108,9 +108,9 @@ int main() {
             room.snapshot.members.back().player.host=false;
             room.Put<uint32_t>(Fixture::rows+3*0x5a8+0x18,202);
             Check(!room.MatchRoom(capacity,rows) && rows==0,"the other guest's native row must also match");
-            Check(room.MatchRoom(capacity,rows,true) && rows==Fixture::rows,"host-only operation validates its target preparation row");
+            Check(room.MatchRoom(capacity,rows,capacity) && rows==Fixture::rows,"single-seat operation validates its target preparation row");
             room.Put<uint32_t>(Fixture::rows+capacity*0x5a8+0x18,203);
-            Check(!room.MatchRoom(capacity,rows,true) && rows==0,"host-only operation rejects a mismatched target row");
+            Check(!room.MatchRoom(capacity,rows,capacity) && rows==0,"single-seat operation rejects a mismatched target row");
         }
     }
     std::printf("PASS %u History preparation ownership/read-only checks; no game code executed\n",checks);

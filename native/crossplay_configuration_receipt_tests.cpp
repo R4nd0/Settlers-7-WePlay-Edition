@@ -107,7 +107,7 @@ int main(){
             if(capacity>=3)room.stations[(host+2)%capacity]=303;
             using CrossplayConfigurationReadiness::CompareRoom;
             using CrossplayConfigurationReadiness::Difference;
-            CrossplayConfigurationReadiness::RoomHostReady ready;
+            CrossplayConfigurationReadiness::RoomSeatReady ready;
             for(unsigned flag:{0u,1u}){
                 const auto original=RoomWire(room,flag);
                 CrossplaySessionConfig::Layout layout;
@@ -119,6 +119,16 @@ int main(){
                     const auto difference=CompareRoom(original,readback,room,ready);
                     if(at==ready_at)Check(difference==Difference::HostOnly && ready.player_slot==host+1 && ready.value==flag);
                     else Check(difference==Difference::Invalid && !ready.player_slot);
+                }
+                for(size_t slot=0;slot<capacity;++slot) {
+                    auto changed=original;
+                    const auto at=layout.slots_at+slot*CrossplaySessionConfig::SlotBytes;
+                    changed[at]^=1;
+                    const bool human=room.stations[slot]!=UINT32_MAX;
+                    Check(CrossplayConfigurationReadiness::RoomReadyChange(original,changed,room,ready)==human);
+                    if(human)Check(ready.player_slot==slot+1 && ready.value==changed[at]);
+                    changed[layout.slots_at+(slot+1)%capacity*CrossplaySessionConfig::SlotBytes]^=1;
+                    Check(!CrossplayConfigurationReadiness::RoomReadyChange(original,changed,room,ready));
                 }
             }
         }

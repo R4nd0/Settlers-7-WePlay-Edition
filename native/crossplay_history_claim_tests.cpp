@@ -68,6 +68,21 @@ int main(){
             b=a;(b.*field)+=4;Check(!Same(a,b));
         }
         auto b=a;b.mode=1;Check(!Same(a,b));a.mode=1;Check(Same(a,b));
+        std::array<unsigned char,0x8dc0> prepared{};
+        a.rows=reinterpret_cast<uintptr_t>(prepared.data());
+        auto intended=snapshot.members[1].player;
+        for(uint32_t slot=1;slot<=CrossplaySessionConfig::Slots;++slot){
+            intended.slot=slot;
+            auto* row=prepared.data()+slot*0x5a8;
+            CrossplayChat::Put(row+0x60,1);
+            CrossplayChat::Put(row+0x64,1);
+            CrossplayChat::Put(row+0x55c,static_cast<uint32_t>(pin.castle_type));
+            Check(OpenHumanRow(pin,a,intended)==row);
+            CrossplayChat::Put(row+0x60,3);
+            Check(!OpenHumanRow(pin,a,intended));
+        }
+        intended.slot=CrossplaySessionConfig::Slots+1;
+        Check(!OpenHumanRow(pin,a,intended));
         HistoryGuestClaim claim;Check(!claim.Queued());
     }
     std::printf("PASS %u History claim identity and interval checks. Native methods not executed.\n",checks);
