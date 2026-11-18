@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <thread>
 
 namespace {
@@ -29,8 +30,114 @@ std::vector<unsigned char> Message(unsigned int index,unsigned int direction) {
     for(size_t i=0;i<bytes.size();++i)bytes[i]=static_cast<unsigned char>((i*17+index*31+direction*91)&255);
     return bytes;
 }
+
+int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject) {
+    const auto count=std::strlen(editions);
+    Check(count>=2 && count<=RoomSnapshot::MaximumMembers && host>=1 && host<=count);
+    const auto session=EnvironmentHex<16>("WEPLAY_CROSSPLAY_TEST_SESSION");
+    std::vector<std::unique_ptr<Channel>> clients;
+    std::vector<RoomConfig> configs;
+    for(size_t i=0;i<count;++i) {
+        RoomConfig config{};
+        config.port=port;
+        config.edition=static_cast<Edition>(editions[i]-'0');
+        config.slot=static_cast<unsigned char>(i+1);
+        config.host_slot=host;
+        config.member_count=static_cast<unsigned char>(count);
+        config.generation=7;
+        config.session=session;
+        std::string slot=std::to_string(config.slot);
+        config.key=EnvironmentHex<32>(("WEPLAY_CROSSPLAY_ROOM_KEY_"+slot).c_str());
+        config.executable=EnvironmentHex<32>(("WEPLAY_CROSSPLAY_ROOM_EXE_"+slot).c_str());
+        config.content.fill(0x51);
+        if(config.edition==Edition::Gold)config.native_identity[0]=static_cast<unsigned char>(42+i);
+        else config.native_identity.fill(static_cast<unsigned char>(42+i));
+        auto client=std::make_unique<Channel>();
+        Check(client->StartRoom(config));
+        Check(!client->GetRoom() && !client->GetPeer());
+        Check(!client->BroadcastRoom({1}));
+        clients.push_back(std::move(client));
+        configs.push_back(config);
+    }
+
+    const auto deadline=GetTickCount64()+10000;
+    while(GetTickCount64()<deadline) {
+        size_t connected=0;
+        for(const auto& client:clients) {
+            if(!client->Poll()) {
+                Check(reject && !client->GetRoom());
+                return 0;
+            }
+            if(client->GetRoom())++connected;
+        }
+        if(connected==count)break;
+        Sleep(1);
+    }
+    Check(!reject);
+    const auto* reference=clients[0]->GetRoom();
+    Check(reference!=nullptr);
+    for(size_t i=0;i<count;++i) {
+        const auto& client=*clients[i];
+        const auto* room=client.GetRoom();
+        Check(room && room->host_slot==host && room->member_count==count);
+        Check(room->generation==7 && room->session==session && room->content==configs[i].content);
+        Check(!client.GetPeer());
+        for(size_t j=0;j<count;++j) {
+            Check(room->members[j].id==reference->members[j].id);
+            Check(room->members[j].edition==configs[j].edition);
+            Check(room->members[j].native_identity==configs[j].native_identity);
+            Check(room->members[j].logical_slot==reference->members[j].logical_slot);
+        }
+        Check(room->members[host-1].logical_slot==1);
+    }
+
+    for(size_t i=0;i<count;++i) {
+        auto& client=*clients[i];
+        std::vector<unsigned char> pair_payload;
+        Check(!client.Send({1}) && !client.Receive(pair_payload));
+        Check(!client.SendRoom({1},static_cast<unsigned char>(i+1)));
+        Check(!client.SendRoom({1},static_cast<unsigned char>(count+1)));
+        Check(client.BroadcastRoom({static_cast<unsigned char>(i+1)}));
+    }
+    std::vector<unsigned> received(count);
+    while(GetTickCount64()<deadline) {
+        bool all_received=true;
+        for(size_t i=0;i<count;++i) {
+            auto& client=*clients[i];Check(client.Poll());
+            RoomEvent event;
+            while(client.ReceiveRoom(event)) {
+                Check(event.source_slot>=1 && event.source_slot<=count);
+                Check(event.source_slot!=i+1 && event.bytes==std::vector<unsigned char>{event.source_slot});
+                const auto bit=1u<<(event.source_slot-1);
+                Check(!(received[i]&bit));received[i]|=bit;
+            }
+            if(received[i]!=((1u<<count)-1-(1u<<i)))all_received=false;
+        }
+        if(all_received) {
+            Check(clients[0]->SendRoom({99},static_cast<unsigned char>(count)));
+            while(GetTickCount64()<deadline) {
+                for(size_t i=0;i<count;++i) {
+                    Check(clients[i]->Poll());RoomEvent event;
+                    if(clients[i]->ReceiveRoom(event)) {
+                        Check(i==count-1 && event.source_slot==1 && event.bytes==std::vector<unsigned char>{99});
+                        return 0;
+                    }
+                }
+                Sleep(1);
+            }
+        }
+        Sleep(1);
+    }
+    Check(false);
+    return 2;
+}
 }
 int main(int argc,char** argv) {
+    if(argc==5 && (!std::strcmp(argv[4],"room") || !std::strcmp(argv[4],"room-reject"))) {
+        const auto port=std::strtol(argv[1],nullptr,10),host=std::strtol(argv[3],nullptr,10);
+        Check(port>0 && port<=65535 && host>0 && host<=8);
+        return RunRoom(static_cast<uint16_t>(port),argv[2],static_cast<unsigned char>(host),!std::strcmp(argv[4],"room-reject"));
+    }
     Check(argc==4);char* end=nullptr;const long port=std::strtol(argv[1],&end,10);
     Check(end && !*end && port>0 && port<=65535);
     const long edition=std::strtol(argv[2],&end,10);Check(end && !*end && (edition==2 || edition==3));

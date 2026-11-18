@@ -25,6 +25,32 @@ struct Peer {
     // Session-scoped WePlay projections, never a cast or vendor identity.
     Id peer_in_local_namespace{}, local_in_peer_namespace{};
 };
+struct RoomConfig {
+    uint16_t port = 0;
+    Edition edition{};
+    unsigned char slot = 0, host_slot = 0, member_count = 0;
+    uint32_t generation = 0;
+    Id session{}, native_identity{};
+    Digest key{}, executable{}, content{};
+};
+struct RoomMember {
+    Edition edition{};
+    unsigned char logical_slot = 0;
+    Id id{}, native_identity{}, in_local_namespace{};
+};
+struct RoomSnapshot {
+    unsigned char host_slot = 0, member_count = 0;
+    uint32_t generation = 0;
+    Id session{};
+    Digest content{};
+    // The first member_count entries are indexed by transport slot minus one.
+    static constexpr size_t MaximumMembers = 8;
+    std::array<RoomMember,MaximumMembers> members{};
+};
+struct RoomEvent {
+    unsigned char source_slot = 0;
+    std::vector<unsigned char> bytes;
+};
 class Channel {
 public:
     static constexpr size_t MaximumPayload = 65536;
@@ -37,6 +63,13 @@ public:
     bool Poll();
     bool Send(const std::vector<unsigned char>& bytes);
     bool Receive(std::vector<unsigned char>& bytes);
+    // Explicit WPX2 path for the group relay. A connected room only
+    // establishes transport membership; the game must separately admit peers.
+    bool StartRoom(const RoomConfig& config);
+    const RoomSnapshot* GetRoom() const;
+    bool SendRoom(const std::vector<unsigned char>& bytes, unsigned char target_slot);
+    bool BroadcastRoom(const std::vector<unsigned char>& bytes);
+    bool ReceiveRoom(RoomEvent& event);
     bool HasPendingWrites() const;
     void Close();
     State GetState() const;
@@ -44,6 +77,7 @@ public:
     // before passing them to a separately guarded native session projection.
     const Peer* GetPeer() const;
 private:
+    bool SendTo(const std::vector<unsigned char>& bytes, unsigned char target);
     struct Impl;
     std::unique_ptr<Impl> impl;
 };

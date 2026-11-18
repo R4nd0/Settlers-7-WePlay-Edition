@@ -15,7 +15,7 @@ from crossplay_room_broker import CrossplayRoomBroker
 class RoomBrokerTests(unittest.TestCase):
     def setUp(self):
         self.launches = tuple(Launch(i, secrets.token_bytes(32), bytes((42,))+bytes(15) if i == 1 else bytes((i+20,))*16, bytes((0x51,))*32) for i in (1, 2, 3))
-        self.broker = CrossplayRoomBroker(self.launches, host_edition=3, generation=7)
+        self.broker = CrossplayRoomBroker(self.launches, host_slot=3, generation=7)
         self.sockets = []
 
     def tearDown(self):
@@ -30,7 +30,7 @@ class RoomBrokerTests(unittest.TestCase):
     def frame(self, slot, kind=1, sequence=1, body=None, target=0, generation=7, magic=b'WPX2', version=2):
         launch = self.launches[slot-1]
         if body is None:
-            body = bytes((slot, 3, self.broker.host_slot, 0))+generation.to_bytes(4, 'little')+PINS[slot]+launch.content+launch.native_identity
+            body = bytes((launch.edition, self.broker.count, self.broker.host_slot, 0))+generation.to_bytes(4, 'little')+PINS[launch.edition]+launch.content+launch.native_identity
         value = HEADER.pack(magic, version, kind, self.broker.session, sequence, slot, target, 0, len(body))+body
         return value+hmac.digest(launch.key, value, 'sha256')
 
@@ -91,7 +91,7 @@ class RoomBrokerTests(unittest.TestCase):
             self.assertEqual(len(set(view)), 3)
 
     def test_gold_game_host_has_the_same_three_member_transport(self):
-        self.broker.close();self.broker = CrossplayRoomBroker(self.launches, host_edition=1, generation=7)
+        self.broker.close();self.broker = CrossplayRoomBroker(self.launches, host_slot=1, generation=7)
         self.connected();self.assertEqual(self.broker.logical_slots, (1, 2, 3));self.assertEqual(self.broker.rejections, 0)
 
     def test_broadcast_from_each_origin_reaches_both_other_members_without_echo(self):
@@ -147,9 +147,9 @@ class RoomBrokerTests(unittest.TestCase):
         self.assertEqual(self.broker.relayed, 0);self.assertTrue(self.broker.retired)
 
     def test_invalid_roster_or_host_is_rejected_without_opening_socket(self):
-        for launches, host in ((self.launches[:2], 1), (self.launches, 2), (self.launches[::-1], 1)):
+        for launches, host in ((self.launches[:1], 1), (self.launches, 0), (self.launches, 4), (self.launches*3, 1)):
             with self.assertRaises(ValueError):
-                CrossplayRoomBroker(launches, host_edition=host)
+                CrossplayRoomBroker(launches, host_slot=host)
         with self.assertRaises(ValueError):
             CrossplayBroker(self.launches)
 

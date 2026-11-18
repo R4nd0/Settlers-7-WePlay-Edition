@@ -16,5 +16,7 @@ try{
  if($LASTEXITCODE){throw 'Group roster fixture did not compile'}
  & ./crossplay-group-roster.exe
  if($LASTEXITCODE){throw 'Group roster fixture failed'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $PSScriptRoot 'crossplay_channel.cpp') (Join-Path $PSScriptRoot 'crossplay_channel_tests.cpp') /Fe:crossplay_channel_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
+ if($LASTEXITCODE){throw 'Crossplay channel fixture did not compile'}
 }finally{Pop-Location}
-Write-Output 'Three-edition roster model verified. No broker/native entry enabled, game started or package qualified.'
+Write-Output 'Room roster verified. Run tests/crossplay_channel_tests.py against the built channel fixture for loopback coverage.'
