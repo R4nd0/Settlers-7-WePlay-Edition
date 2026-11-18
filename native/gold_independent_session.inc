@@ -2,7 +2,7 @@
 // local service. Preserve the native async account/session constructors and
 // results; no vendor identity, account cache or synthetic success is supplied.
 bool IndependentSessionPrepare(std::vector<Patch>& patches,const CrossplayProduction::Launch& launch){
-    if(!launch.mixed || !launch.host || launch.channel.edition!=Crossplay::Edition::Gold
+    if(!launch.mixed || (!launch.host && !launch.IsRoom()) || launch.channel.edition!=Crossplay::Edition::Gold
         || launch.gold_auth_port<1024 || launch.gold_config_port<1024
         || local_login_dispatched || local_login_backend || local_login_context)return false;
     const struct{uintptr_t rva;std::vector<unsigned char> bytes;} guards[]={

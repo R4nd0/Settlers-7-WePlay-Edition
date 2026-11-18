@@ -93,7 +93,23 @@ and passes the translated configuration to the original reader and local
 queue. The configuration fixture covers three humans with a separate AI
 position and each of the human positions as host.
 
-The regular game entry path still uses pair admission, setup and start.
-The group codecs need to run in the original clients' lifecycle with actual
-AI preparation, Ready, setup agreement, NEO, world start and save/reload.
-Actual mixed games at normal speed with DXVK remain the test for those stages.
+## Original-client lobby build
+
+Use `-CrossplayRoomLobbyLab -PlatformIndependent` with both native build
+scripts, and `-LocalSimulation` for Gold. This build accepts an explicit
+`WEPLAY_CROSSPLAY_ROOM_V2=1` handoff with the room credentials, transport slot,
+host slot, map slots and map capacity. It uses the original executable and
+profile checks plus the same kernel isolation check used by the pair tests.
+Use it only on independent test copies with the private lobby menus.
+
+The room runtime starts from each client's original local lobby. After native
+admission, it reads the host's actual configuration cache, projects the human
+station IDs and observes each guest's original configuration consumer.
+Each guest acknowledges the matching cache readback. A read-only test query
+reports when the host also observed every guest's acknowledgement.
+
+The Gold and History builds compile and the component fixtures pass. The
+implementation covers lobby admission and configuration readback. The
+original clients still need a live DXVK test for those stages. Group AI
+preparation, Ready, setup agreement, NEO, world start and save/reload remain
+open. The installed launch gate continues to require its existing qualification.

@@ -80,12 +80,20 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     if(!InstallOfflineNetworkGuard())return 0;
     // Fail closed until the normal session runtime is attached. A valid mixed
     // handoff must never silently launch the existing solo/History-only path.
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(CrossplayProduction::CurrentLaunch()->mixed
+        && (!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7))return 0;
+#else
     if(CrossplayProduction::CurrentLaunch()->mixed)return 0;
+#endif
 #ifdef S7_GOLD_STARTUP
     if (GoldInitialize(nullptr) != 1) return 0;
 #endif
     CrossplayNative::ParticipantEvent ui_binding;
     if(!ui_binding.Bind(channel_edition) || !CrossplayProduction::UiConsole::Install(channel_edition,GetCurrentThreadId()))return 0;
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(CrossplayProduction::CurrentLaunch()->IsRoom() && !CrossplayProduction::PrepareRuntime())return 0;
+#endif
     return context->image+entry;
 }
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID) {

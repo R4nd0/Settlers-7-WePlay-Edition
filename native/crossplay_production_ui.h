@@ -6,6 +6,16 @@ namespace CrossplayProduction {
 // start permission and expose no identity, profile, endpoint or secret.
 inline bool UiCommand(const std::string& command,std::string& output){
     output.clear();const auto* launch=CurrentLaunch();if(!launch)return false;
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(launch->IsRoom()){
+        if(command=="mode"){output=launch->host?"room-host":"room-guest";return true;}
+        if(command=="room-map"){output=launch->room.map;return true;}
+        if(command=="room-capacity"){output=std::to_string(launch->room.capacity);return true;}
+        if(command=="room-players"){output=std::to_string(launch->room.channel.member_count);return true;}
+        if(command=="room-configured"){output=RoomConfigurationApplied()?"1":"0";return true;}
+        if(command!="phase")return false;
+    }
+#endif
     if(command=="saved-start"){
         bool saved=false;if(!launch->mixed || !StartUsesSavedWorld(saved))return false;
         output=saved?"1":"0";return true;

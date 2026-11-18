@@ -71,12 +71,42 @@ int main(){
     input=Input();input.name=std::wstring(L"a\0b",3);Check(!accept(input));
     input=Input();input.profile=std::wstring(L"Z:\\a\0b",6);Check(!accept(input));
     Crossplay::Digest zero{};Check(!Parse(Input(),Edition::Gold,zero,Profile,output) && !output.mixed);
+    for(const auto local:{Edition::Gold,Edition::UbisoftHistory,Edition::SteamHistory}){
+        RoomLaunchInput room;
+        room.activation=L"1";
+        room.slot=L"2";room.host_slot=L"2";room.generation=L"42";
+        room.map=L"Maps/Skirmish/Monhaim";room.map_slots=L"413";room.capacity=L"4";
+        room.common=Input();
+        room.common.activation.clear();room.common.role.clear();room.common.peer.clear();
+        if(local!=Edition::Gold){
+            room.common.gold_auth_port.clear();room.common.gold_config_port.clear();
+        }
+        Check(ParseRoom(room,local,executable,Profile,output) && output.IsRoom() && output.host
+            && output.room.channel.member_count==3 && output.room.channel.slot==2 && output.room.map_slots[0]==4);
+        room.host_slot=L"1";
+        Check(ParseRoom(room,local,executable,Profile,output) && output.IsRoom() && !output.host);
+        for(const auto bad:{L"414",L"415",L"40",L"4",L"123456789"}){
+            auto changed=room;changed.map_slots=bad;
+            Check(!ParseRoom(changed,local,executable,Profile,output) && !output.mixed);
+        }
+        auto changed=room;changed.map=L"../Maps";
+        Check(!ParseRoom(changed,local,executable,Profile,output));
+        changed=room;changed.host_slot=L"4";
+        Check(!ParseRoom(changed,local,executable,Profile,output));
+        changed=room;changed.generation=L"4294967296";
+        Check(!ParseRoom(changed,local,executable,Profile,output));
+        changed=room;changed.common.role=L"guest";
+        Check(!ParseRoom(changed,local,executable,Profile,output));
+    }
     for(const auto& invalid:{L"00000080000000000000000000000000",L"01000000010000000000000000000000",L"00000000010000000000000000000000"}){
         input=Input();input.identity=invalid;Check(!accept(input));
     }
     // Exercise actual Windows environment semantics, including empty/present,
     // invalid activation and error preservation, without changing game state.
     Check(SetEnvironmentVariableW(L"WEPLAY_CROSSPLAY_V1",nullptr)!=FALSE);
+    Check(SetEnvironmentVariableW(L"WEPLAY_CROSSPLAY_ROOM_V2",L"1")!=FALSE);
+    Check(!ReadLaunch(Edition::Gold,executable,Profile,output) && !output.mixed);
+    Check(SetEnvironmentVariableW(L"WEPLAY_CROSSPLAY_ROOM_V2",nullptr)!=FALSE);
     SetLastError(1701);Check(ReadLaunch(Edition::Gold,executable,Profile,output) && !output.mixed && GetLastError()==1701);
     Check(SetEnvironmentVariableW(L"WEPLAY_CROSSPLAY_V1",L"2")!=FALSE);
     Check(!ReadLaunch(Edition::Gold,executable,Profile,output) && !output.mixed);

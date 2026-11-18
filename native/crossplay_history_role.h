@@ -37,13 +37,38 @@ inline bool Writable(const void* pointer,size_t size) {
     return access==PAGE_READWRITE || access==PAGE_WRITECOPY
         || access==PAGE_EXECUTE_READWRITE || access==PAGE_EXECUTE_WRITECOPY;
 }
-}
-inline bool ProjectHistoryGuestHost(Crossplay::Edition edition,ParticipantEvent& binding,LobbyAdmission& admission) {
+inline bool SetGuestHost(Crossplay::Edition edition,uintptr_t lobby,uint32_t own,uint32_t host) {
     using CrossplayNativeCodec::Detail::Readable;
-    if(edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)return false;
+    if((edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)
+        || !lobby || own==UINT32_MAX || host==UINT32_MAX || own==host)return false;
     const bool steam=edition==Crossplay::Edition::SteamHistory;
     const uintptr_t backend_pointer=steam?0x1376f04:0x1379e14,session_vt=steam?0x113e3ac:0x113fe90;
     const uintptr_t set_host=steam?0x65e490:0x65e8b0,role=steam?0xecb1f0:0xecbb00;
+    const unsigned char setter[]={0x55,0x8b,0xec,0x51,0x89,0x4d,0xfc,0x8b,0x45,0xfc,0x8b,0x4d,0x08,0x89,0x48,0x24,0x8b,0xe5,0x5d,0xc2,0x04,0x00};
+    const unsigned char getter[]={0x55,0x8b,0xec,0x51,0x89,0x4d,0xfc,0xe8,0x24,0x70,0x00,0x00,0x8b,0xc8,0xe8,0xdd,0x6f,0x00,0x00,0x8b,0xe5,0x5d,0xc3};
+    if(!HistoryRoleDetail::Methods(edition) || !Readable(reinterpret_cast<void*>(backend_pointer),4) || !Readable(reinterpret_cast<void*>(set_host),sizeof(setter))
+        || memcmp(reinterpret_cast<void*>(set_host),setter,sizeof(setter))
+        || !Readable(reinterpret_cast<void*>(role),sizeof(getter)) || memcmp(reinterpret_cast<void*>(role),getter,sizeof(getter)))return false;
+    const auto* backend=*reinterpret_cast<const unsigned char* const*>(backend_pointer);
+    if(!Readable(backend,0xa50))return false;
+    auto* session=*reinterpret_cast<unsigned char* const*>(backend+0xa4c);
+    if(!Readable(session,0x28) || !HistoryRoleDetail::Writable(session+0x24,4) || *reinterpret_cast<const uintptr_t*>(session)!=session_vt
+        || *reinterpret_cast<const uint32_t*>(session+0x20)!=own
+        || *reinterpret_cast<const uint32_t*>(session+0x24)!=own)return false;
+    if(!reinterpret_cast<bool (__thiscall*)(void*)>(role)(reinterpret_cast<void*>(lobby)))return false;
+    // The authenticated common session elected this foreign native CID as host.
+    // Preserve the local CID and invoke the original host setter; no Storm
+    // handle, backend principal, Connected flag or acknowledgement is created.
+    reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(set_host)(session,host);
+    return *reinterpret_cast<const unsigned char* const*>(backend_pointer)==backend
+        && *reinterpret_cast<unsigned char* const*>(backend+0xa4c)==session
+        && *reinterpret_cast<const uint32_t*>(session+0x20)==own
+        && *reinterpret_cast<const uint32_t*>(session+0x24)==host
+        && !reinterpret_cast<bool (__thiscall*)(void*)>(role)(reinterpret_cast<void*>(lobby));
+}
+}
+inline bool ProjectHistoryGuestHost(Crossplay::Edition edition,ParticipantEvent& binding,LobbyAdmission& admission) {
+    if(edition!=Crossplay::Edition::UbisoftHistory && edition!=Crossplay::Edition::SteamHistory)return false;
     if(admission.GetState()!=AdmissionState::RosterBound || !admission.Poll())return false;
     ParticipantEvent identity;
     if(!identity.Bind(edition))return false;
@@ -57,28 +82,18 @@ inline bool ProjectHistoryGuestHost(Crossplay::Edition edition,ParticipantEvent&
         if(!member.player.local && member.player.host && member.player.slot==1
             && member.player.connection==admission.PeerLocalConnection())host=&member.player;
     }
-    if(!local || !host || local->connection==host->connection)return false;
-    const unsigned char setter[]={0x55,0x8b,0xec,0x51,0x89,0x4d,0xfc,0x8b,0x45,0xfc,0x8b,0x4d,0x08,0x89,0x48,0x24,0x8b,0xe5,0x5d,0xc2,0x04,0x00};
-    const unsigned char getter[]={0x55,0x8b,0xec,0x51,0x89,0x4d,0xfc,0xe8,0x24,0x70,0x00,0x00,0x8b,0xc8,0xe8,0xdd,0x6f,0x00,0x00,0x8b,0xe5,0x5d,0xc3};
-    if(!HistoryRoleDetail::Methods(edition) || !Readable(reinterpret_cast<void*>(backend_pointer),4) || !Readable(reinterpret_cast<void*>(set_host),sizeof(setter))
-        || memcmp(reinterpret_cast<void*>(set_host),setter,sizeof(setter))
-        || !Readable(reinterpret_cast<void*>(role),sizeof(getter)) || memcmp(reinterpret_cast<void*>(role),getter,sizeof(getter)))return false;
-    const auto* backend=*reinterpret_cast<const unsigned char* const*>(backend_pointer);
-    if(!Readable(backend,0xa50))return false;
-    auto* session=*reinterpret_cast<unsigned char* const*>(backend+0xa4c);
-    if(!Readable(session,0x28) || !HistoryRoleDetail::Writable(session+0x24,4) || *reinterpret_cast<const uintptr_t*>(session)!=session_vt
-        || *reinterpret_cast<const uint32_t*>(session+0x20)!=local->connection
-        || *reinterpret_cast<const uint32_t*>(session+0x24)!=local->connection)return false;
-    if(!reinterpret_cast<bool (__thiscall*)(void*)>(role)(reinterpret_cast<void*>(snapshot.instance)))return false;
-    // The authenticated common session elected this foreign native CID as host.
-    // Preserve the local CID and invoke the original host setter; no Storm
-    // handle, backend principal, Connected flag or acknowledgement is created.
-    reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(set_host)(session,host->connection);
-    return *reinterpret_cast<const unsigned char* const*>(backend_pointer)==backend
-        && *reinterpret_cast<unsigned char* const*>(backend+0xa4c)==session
-        && *reinterpret_cast<const uint32_t*>(session+0x20)==local->connection
-        && *reinterpret_cast<const uint32_t*>(session+0x24)==host->connection
-        && !reinterpret_cast<bool (__thiscall*)(void*)>(role)(reinterpret_cast<void*>(snapshot.instance));
+    return local && host && HistoryRoleDetail::SetGuestHost(edition,snapshot.instance,local->connection,host->connection);
+}
+inline bool ProjectHistoryRoomGuestHost(ParticipantEvent& binding,const RoomLobbyAdmission& admission,
+        unsigned char local_slot,unsigned char host_slot) {
+    RoomRoute own,host;
+    if(!admission.Resolve(local_slot,false,own) || !own.local || own.host
+        || !admission.Resolve(host_slot,false,host) || host.local || !host.host
+        || own.receiver!=host.receiver)return false;
+    ParticipantEvent identity;
+    LobbySnapshot lobby;
+    return identity.Bind(own.receiver) && binding.CaptureLobby(lobby) && !lobby.host && lobby.local_slot==own.player_slot
+        && HistoryRoleDetail::SetGuestHost(own.receiver,lobby.instance,own.receiver_cid,host.receiver_cid);
 }
 inline bool ProjectUbisoftGuestHost(ParticipantEvent& binding,LobbyAdmission& admission) {
     return ProjectHistoryGuestHost(Crossplay::Edition::UbisoftHistory,binding,admission);

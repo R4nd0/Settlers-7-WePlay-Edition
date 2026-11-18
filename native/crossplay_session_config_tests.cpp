@@ -1,4 +1,5 @@
 #include "crossplay_session_config.h"
+#include "crossplay_room_configuration_frame.h"
 #include "crossplay_connection.h"
 #include <cstdio>
 #include <cstdlib>
@@ -138,6 +139,19 @@ int main() {
         std::vector<unsigned char> result;
         Check(InspectRoom(original,from,room_layout),"three humans and an AI with the actual host slot");
         Check(ProjectRoom(original,from,to,result) && InspectRoom(result,to,room_layout),"map original routing to another edition");
+        std::vector<unsigned char> offer,receipt,offered;
+        RoomConnections authenticated;
+        Check(CrossplayRoomConfiguration::Encode(from,original,offer),"encode guarded host group map");
+        Check(CrossplayRoomConfiguration::Decode(offer,authenticated,offered) && offered==original
+            && authenticated.stations==from.stations && authenticated.host==from.host,"host routing table and original bytes preserved");
+        Check(CrossplayRoomConfiguration::Acknowledge(offer,to,result,receipt)
+            && CrossplayRoomConfiguration::MatchesReceipt(offer,receipt),"guest readback agrees across all room stations");
+        auto bad_receipt=receipt;bad_receipt.back()^=1;
+        Check(!CrossplayRoomConfiguration::MatchesReceipt(offer,bad_receipt),"changed receipt may not complete setup");
+        auto early=result;early[room_layout.slots_at]^=1;
+        Check(!CrossplayRoomConfiguration::Acknowledge(offer,to,early,receipt),"unapplied Ready value does not acknowledge the offer");
+        auto bad_offer=offer;bad_offer[8]=2;
+        Check(!CrossplayRoomConfiguration::Decode(bad_offer,authenticated,offered),"ambiguous room capacity rejected");
         for(size_t at=0;at<original.size();++at){
             bool routing=at>=8 && at<12;
             for(size_t i:{0u,1u,3u}){

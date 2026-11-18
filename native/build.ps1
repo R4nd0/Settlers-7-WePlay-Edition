@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalThreeLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
-      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics, [switch]$PlatformIndependent)
+      [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics, [switch]$PlatformIndependent,
+      [switch]$CrossplayRoomLobbyLab)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -17,6 +18,10 @@ foreach ($line in $compilerEnvironment) {
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS')
 $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
+if ($CrossplayRoomLobbyLab) {
+    if (!$PlatformIndependent) { throw 'CrossplayRoomLobbyLab requires the original standalone executable guard.' }
+    $common += '/DS7_CROSSPLAY_ROOM_LOBBY_LAB'
+}
 $standaloneSources = @()
 if ($PlatformIndependent) {
     if ($LocalPairLab -or $NeoFifoLab) { throw 'Standalone release builds accept original executable fingerprints only.' }
