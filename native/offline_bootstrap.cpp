@@ -1420,7 +1420,7 @@ bool WritePatch(const Patch& patch, bool restore) {
 #ifdef S7_PLATFORM_INDEPENDENT
 #include "../tools/platform-standalone/steam_local_facade.h"
 #endif
-bool Install() {
+bool Install([[maybe_unused]] bool mixed_crossplay = false) {
 #ifdef S7_LOCAL_NETWORK_PUMP
     if (local_connect_probe && memcmp(Native<const void*>(0x795967), PriorityNextEntryGuard,
             sizeof(PriorityNextEntryGuard)) != 0) {
@@ -1444,7 +1444,10 @@ bool Install() {
     if (local_connect_probe) selected.push_back(&DirectoryConsolePatch);
 #endif
 #ifdef S7_NEO_LOGISTICS
-    if(local_connect_probe) {
+    // Mixed rooms have a separately negotiated logistics policy whose hooks
+    // require the original comparator. The local platform is active in both.
+    const bool install_history_neo = local_connect_probe && !mixed_crossplay;
+    if(install_history_neo) {
         if(!InitializeNeoMapPatches()) {SetError(ChangedCallsite);return false;}
         for(const auto& patch:NeoMapPatches)selected.push_back(&patch);
 #ifndef S7_GAME_DIRECTORY
@@ -1509,9 +1512,9 @@ bool Install() {
             SetError(PatchFailure); return false;
         }
     }
- #ifdef S7_NEO_LOGISTICS
-    neo_map_installed=local_connect_probe;
- #endif
+#ifdef S7_NEO_LOGISTICS
+    neo_map_installed = install_history_neo;
+#endif
     return true;
 }
 }
@@ -1545,7 +1548,7 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
     lan_game = config.lan_game;
     developer_mode = config.developer_mode;
     bootstrap_thread = GetCurrentThreadId();
-    if (!Install()) {
+    if (!Install(config.mixed_crossplay)) {
         SecureZeroMemory(local_ticket, sizeof(local_ticket));
         return false;
     }

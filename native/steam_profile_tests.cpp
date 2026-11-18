@@ -82,6 +82,18 @@ int main() {
     };
     local_connect_probe = true; developer_mode = true; lan_game = false;
     reset(); check(Install());
+#ifdef S7_NEO_LOGISTICS
+    check(neo_map_installed);
+    reset(); check(Install(true) && !neo_map_installed);
+    for (const auto& patch : NeoMapPatches)
+        check(patch.pointer_slot
+            ? *reinterpret_cast<uint32_t*>(PatchAddress(patch)) == OriginalPointer(patch)
+            : memcmp(PatchAddress(patch), OriginalBytes(patch), patch.raw_length ? patch.raw_length : 5) == 0);
+#ifndef S7_GAME_DIRECTORY
+    check(*reinterpret_cast<uint32_t*>(PatchAddress(NeoMapConsolePatch)) == OriginalPointer(NeoMapConsolePatch));
+#endif
+    check(memcmp(PatchAddress(ConnectPatches[0]), OriginalBytes(ConnectPatches[0]), 5) != 0);
+#endif
     for (const auto* patch : selected) check(WritePatch(*patch, true));
     for (const auto* patch : selected) {
         check(patch->pointer_slot

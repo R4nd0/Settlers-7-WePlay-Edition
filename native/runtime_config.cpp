@@ -8,6 +8,9 @@
 #include "local_platform.h"
 #include "offline_bootstrap.h"
 #include "runtime_config.h"
+#if defined(S7_PLATFORM_INDEPENDENT) && defined(S7_NEO_LOGISTICS)
+#include "crossplay_production_context.h"
+#endif
 
 namespace {
 // Bundle-local public configuration. No launcher/account/cache lookup occurs.
@@ -77,9 +80,14 @@ bool InitializeOfflineBootstrap(uint32_t application_id) {
         unsigned value = 0;
         for (char c : port) { if (c < '0' || c > '9') return false; value = value * 10 + c - '0'; }
         if (!value || value > 65535 || fields.at("ticket") != "local-s7:" + fields.at("profile_id")) return false;
+        OfflineBootstrapConfig config{static_cast<unsigned short>(value), fields.at("public_key").c_str(), fields.at("ticket").c_str()};
+#if defined(S7_PLATFORM_INDEPENDENT) && defined(S7_NEO_LOGISTICS)
+        const auto* launch = CrossplayProduction::CurrentLaunch();
+        if (!launch) { ReportLocalStatus("history-standalone-launch-context-unavailable"); return false; }
+        config.mixed_crossplay = launch->mixed;
+#endif
         if (!InitializeLocalPlatform((root + L"\\saves").c_str(), fields.at("profile_id").c_str(),
             fields.at("display_name").c_str(), fields.at("ticket").c_str())) return false;
-        OfflineBootstrapConfig config{static_cast<unsigned short>(value), fields.at("public_key").c_str(), fields.at("ticket").c_str()};
         config.application_id = application_id;
         config.local_connect_probe = fields.count("connect_probe") && fields.at("connect_probe") == "1";
         config.server_address = fields.at("address").c_str();

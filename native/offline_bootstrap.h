@@ -13,6 +13,7 @@ struct OfflineBootstrapConfig {
     bool lan_game = false;
     bool developer_mode = false;
     unsigned int application_id = 11788;
+    bool mixed_crossplay = false;
 };
 
 // Startup only, before the relevant game constructors execute. Copies inputs.

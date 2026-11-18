@@ -1200,6 +1200,9 @@ int main() {
     DWORD old = 0;
     if (!VirtualProtect(memory, ExpectedImageSize, PAGE_READONLY, &old)) return 2;
     check(Install());
+#ifdef S7_NEO_LOGISTICS
+    check(neo_map_installed);
+#endif
     for (const auto* patch : selected) {
         auto* at = PatchAddress(*patch);
         const size_t length = patch->pointer_slot ? 4 : (patch->raw_length ? patch->raw_length : 5);
@@ -1216,6 +1219,18 @@ int main() {
         if (patch->pointer_slot) { memcpy(&actual, at, 4); check(actual == OriginalPointer(*patch)); }
         else check(memcmp(at, patch->original, length) == 0);
     }
+#ifdef S7_NEO_LOGISTICS
+    check(Install(true) && !neo_map_installed);
+    for (const auto& patch : NeoMapPatches)
+        check(patch.pointer_slot
+            ? *reinterpret_cast<uint32_t*>(PatchAddress(patch)) == OriginalPointer(patch)
+            : memcmp(PatchAddress(patch), OriginalBytes(patch), patch.raw_length ? patch.raw_length : 5) == 0);
+#ifndef S7_GAME_DIRECTORY
+    check(*reinterpret_cast<uint32_t*>(PatchAddress(NeoMapConsolePatch)) == OriginalPointer(NeoMapConsolePatch));
+#endif
+    check(memcmp(PatchAddress(ConnectPatches[0]), OriginalBytes(ConnectPatches[0]), 5) != 0);
+    for (const auto* patch : selected) check(WritePatch(*patch, true));
+#endif
 #ifdef S7_LOCAL_NETWORK_PUMP
     // A changed loop target must reject before any selected site is modified.
     auto* priority_next = Native<unsigned char*>(0x795967);

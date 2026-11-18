@@ -41,6 +41,16 @@ mapped in Ubisoft (`0x78ff25`, `0x78ff8e`), Steam (`0x78fcf5`, `0x78fd5e`)
 and Gold (`0x91b531`, `0x91b564`).
 [History trajectory and remaining test](SUPPORT-HISTORY-CRASH-20261117.md)
 
+The History road-distance handoff runs under the dedicated History NEO mode
+on Ubisoft and Steam. The negotiated mixed mode enables FIFO, request intent
+and priority commands (mask `19`). The History startup uses the verified
+standalone launch context to leave the dedicated History NEO hooks inactive
+in mixed rooms, even with the local platform active. The mixed History adapter
+then checks the original comparator before installing its own hooks. Gold,
+Ubisoft and Steam retain their native handoff in the mixed mode. The final mixed world test
+still needs a shipment with an eligible intermediate warehouse to exercise
+this difference before and after reload. [Mixed feature selection](../native/crossplay_neo_selection.h) · [History startup](../native/offline_bootstrap.cpp) · [Mixed History hook guard](../native/crossplay_logistics_active.h)
+
 Fresh and saved mixed worlds share a local-edition check for the Gold native
 bridges, independent of the machine hosting the match. The ordinary adapter
 still rejects mixed admission, and the current WPX2 laboratory work reaches
