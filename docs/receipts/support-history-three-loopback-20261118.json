@@ -192,5 +192,29 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_carrier_caller_trace": {
+    "saved_logic_turn": 27001,
+    "first_different_captured_animation_transition_turn": 35607,
+    "native_class": "CCarrier",
+    "actor_id": 65562,
+    "native_ubisoft_call": "0x7eaf33",
+    "native_ubisoft_return": "0x7eaf38",
+    "previous_and_requested_animation": [3, 2],
+    "same_carrier_home_storehouse_id": "0x10009",
+    "original_carrier_state": 13,
+    "original_carrier_destination": "0x10022",
+    "snapshot_current_and_next_state_host_first_guest_second_guest": [6, 14, 6],
+    "snapshot_destination_host_first_guest_second_guest": ["0x1000f", "0x1000e", "0x1000f"],
+    "trigger_identified": false,
+    "recorded_checksums": [9115, 8607, 9115],
+    "shared_checksums": 8607,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 2,
+    "exits": [0, 0, 0],
+    "restoration_verified": true,
+    "earlier_attempt_lobby_exit": "0xc0000374",
+    "earlier_attempt_produced_replay": false,
+    "earlier_attempt_restoration_verified": true
+  },
   "restoration_verified": true
 }

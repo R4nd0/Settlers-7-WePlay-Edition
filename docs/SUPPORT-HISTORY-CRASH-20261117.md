@@ -121,6 +121,31 @@ identified. This third reproduction had two differing replay checksums at
 ordinals 8,605 and 8,606. All three clients produced desync snapshots, exited
 normally and passed exact restoration.
 
+The next caller trace identifies the missed weighted draw as the native
+`CCarrier` animation transition from 3 to 2 at Ubisoft call `0x7eaf33`
+(return `0x7eaf38`). The local class table and the animation component
+offset were confirmed against the original executable. The host and second
+guest make this call. The first guest's next captured carrier draw uses a
+different dispatcher, which all three clients enter, but its counter is
+already one behind. The two carrier dispatchers and saved state layouts
+have independently mapped counterparts in Steam History and Gold.
+
+The three snapshots identify carrier 65,562 with the same home storehouse.
+The host and second guest have current, next and UI state 6 and destination
+`0x1000f`. The first guest has state 14 and destination `0x1000e`. The
+original Ubisoft dispatcher reaches the omitted animation branch from
+state 6. In the original autosave the same carrier starts in state 13 with
+destination `0x10022`. The first difference in the transition or
+destination assignment still needs a trace before the desync. The
+reproduced run matched 8,605 checksums before the first of two mismatches
+and restored the three test copies exactly after exit.
+
+An earlier attempt in the same test window ended while the guests were
+still joining the lobby. The first guest returned Windows status
+`0xc0000374` and produced no replay. After verified restoration, the
+reproduction transferred the save to each guest in sequence before starting
+the world. This isolates the animation trace from the earlier lobby failure.
+
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
 Ready action, the host finished draining its native send queue, and each
