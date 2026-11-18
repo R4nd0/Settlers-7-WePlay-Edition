@@ -38,4 +38,31 @@ installed package. Separate pairs no longer satisfy the updated requirement;
 see [the version-3 release gate](RC4-RELOAD-RELEASE-GATE.md).
 Private experimental DLLs are not release inputs.
 
+## Ubisoft History resume and desync fixes, 2026-11-18
+
+The final RC4.00 package must include the verified fix for the reported
+three-client Ubisoft History desync. Its implementation and regression
+evidence are pending. The existing three-client History lab (`9cb60ea`) is
+for reproducing and verifying the fix. Build release payloads from ordinary
+production sources and keep lab binaries and private saves out of the package.
+
+The current package source includes `18eab7f`. That commit fixes the standard
+History resume path for multiplayer Empire mode and preserves the saved co-op
+setting. Both reported saves reached the original resume lobby in the verified
+run. The existing RC4.00 Candidate1 installer was built from `7af4454` before
+that change. The current standalone History DLL pin also predates the fix, so
+copying the old adapter into a new build would leave the native NEO correction
+out. [Mode 3 verification](receipts/support-resume-mode3-20261117.json)
+
+After the desync fix is verified, rebuild the ordinary standalone History DLL
+with the release's directory and NEO settings using `native/build_standalone.ps1`.
+Supply it as `--adapter` to `tools/desktop/build_rc2.py` and update the matching
+production `HISTORY_PINS` entry for that verified build. The package builder
+takes the corrected History resume Lua from the checkout. Preparation composes
+it into `Base/BBA/Interface.bba` and checks the result against the selected
+archive fingerprint. Verify the native payload and all Lua/archive fingerprints
+against the same source revision before final installer qualification. Keep
+the Ubisoft History regression from the reported case in addition to the mixed
+three-edition reload tests required by the release gate.
+
 [Migration verification receipt](receipts/rc400-adapter-migration-20261116.json).

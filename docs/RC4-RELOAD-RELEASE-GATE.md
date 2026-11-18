@@ -11,6 +11,12 @@ three-edition roster. All clients must come from the exact final installed packa
 Existing native pair results, authored fixtures, a visible lobby and a successful
 installer build remain intermediate evidence, not release qualification.
 
+RC4.00 also includes the verified fix for the reported three-client Ubisoft
+History desync. Verify its regression using the final production payload,
+including the existing History mode 3 resume correction, before publication.
+The package inputs and current status are recorded in
+[RC4 adapter migration](RC4-ADAPTER-MIGRATION.md).
+
 The maintainer signer enforces this specific release as technical version
 `2.0.0-rc4.0`, sequence `29`, tag `v2.0.0-rc4.00`. Its checks run before signing-key
 selection or any signing subprocess. Existing earlier releases keep their
