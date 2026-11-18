@@ -1,5 +1,21 @@
 # History multiplayer crash report, 2026-11-17
 
+## NEO6 verification, 2026-11-18
+
+Three isolated Ubisoft History clients loaded each supplied original save with
+the saved AI and active NEO Logistics. Each run continued for 20 minutes and
+10 seconds. Test rendering was capped at 30 FPS with the original simulation
+speed setting.
+
+| Original save | Last common observed turn | Matching shared native replay checksums |
+| --- | ---: | ---: |
+| Autosave `s1001` | 37,421 | 10,760 |
+| Manual `s1009` | 30,237 | 12,353 |
+
+The autosave passed both prior failure turns, 30,195 and 35,607. Both runs
+exited normally and all test copies and profiles passed restoration.
+[Three-client loopback receipt](receipts/support-history-three-loopback-20261118.json)
+
 ## Shared three-client reloads, 2026-11-18
 
 Both supplied saves loaded into one live session with three Ubisoft History
@@ -19,7 +35,7 @@ host and second guest retained matching checksums across all 3,505 records
 they shared, including after the first guest departed. The host wrote a new
 autosave at logic turn 30,002. That gives an earlier checkpoint for the next
 investigation. The test establishes the order of the save and divergence.
-The cause of the divergence remains open.
+The first loopback run did not yet identify the cause.
 
 All three native desync saves record logic turn 30,195. Between the last
 matching checksum and the first differing checksum, the replays contain no
@@ -49,8 +65,8 @@ reported NEO off and continued together for 20:39, through replay turn 34,758.
 All 7,893 common replay checksums matched, and the copies and profiles were
 verified restored after normal exit. The NEO-on and NEO-off runs already have
 different replay checksums at record 23. This control verifies a different
-simulation path through the failure window. The offending operation in the
-NEO-on path remains open.
+simulation path through the failure window. The NEO-on trace below identifies
+the affected operations.
 
 The native checksum trace reproduced the same failure. All 42 directly
 recorded inputs agree across the three clients. On turn 30,195, the first
@@ -173,6 +189,30 @@ storehouse's available stock for the requested good. The captured run
 reached 8,608 common checksum records, with the first mismatch at record
 8,605 (zero-based). All three clients closed normally and the test profiles
 and deployed files were restored and verified.
+
+The focused rerun captured all 38 requests in the temporary list and the
+same five source lists on each client. The first guest encountered those
+consumers in a different order. The eligible requests for `0x1000e` and
+`0x1000f` were both ordinary NEO requests created on turn 32,266. FIFO
+treated them as equal and the stable merge preserved their incoming order.
+Each client's eligibility check accepted whichever of those requests came
+first. The first differing post-sort position was index 21. The original
+autosave again yielded a differing native checksum at record 8,605. The
+three clients closed normally and the isolated payloads and profiles were
+verified restored. The diagnostic used a 30 FPS rendering cap and observed
+approximately ten simulation turns per second.
+
+The candidate combines both corrections. Warehouse distance comparisons read
+the road graph without modifying native search state. The temporary consumer
+sort uses the full consumer ID to break equal FIFO keys across consumers. It
+keeps the existing order within each consumer and leaves the main warehouse
+sort and the early cutoff on the existing comparator.
+
+The three Ubisoft clients resumed the original autosave with the saved AI and
+NEO active for 20 minutes and 10 seconds. They passed both prior failure turns
+and reached turn 37,421 together. All 10,760 shared native replay checksums
+matched. The 30 FPS rendering cap kept the 3D load within the workstation's
+capacity. All three clients exited normally and strict restoration passed.
 
 An earlier attempt in the same test window ended while the guests were
 still joining the lobby. The first guest returned Windows status
@@ -413,11 +453,11 @@ resume-lobby setup. The original save files were used unchanged.
 2. Determine whether each failing load was started as multiplayer resume or
    single player, and whether the same host was used. The logs alone do not map
    the three later failures to a particular save or UI action.
-3. Isolate the first guest's divergence near replay turn 30,197. The retained
-   host autosave from logic turn 30,002 makes a shorter reproduction possible.
-4. Compare the bounded loopback departure with the original mid-match report.
-   Further verification needs stable three-client play from the autosave and
-   a test on separate machines with the intended release.
+3. Rebuild the normal RC4.00 adapters from the verified source and qualify the
+   installed mixed builds in both host directions described in the
+   [RC4 reload gate](RC4-RELOAD-RELEASE-GATE.md).
+4. Compare the isolated loopback results with a separate-machine run of the
+   intended release when that setup is available.
 
 Private inputs, extracted saves, replays, dumps and native inspection artifacts
 remain under the ignored `work/support-desync-20261117/` directory. No account

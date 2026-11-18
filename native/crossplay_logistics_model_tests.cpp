@@ -31,7 +31,13 @@ int Scenario(Crossplay::Edition edition) {
  SetLastError(0xabcdef12);REQUIRE(ledger.Compare(world,left,right)==1 && GetLastError()==0xabcdef12);REQUIRE(ledger.Compare(world,right,left)==0);
  // Same public History comparator: ordinary FIFO ignores native ranks/groups.
  neo_fifo::Key a{},b{};REQUIRE(ledger.Key(left,a)&&ledger.Key(right,b));REQUIRE(a.group_order==0&&!a.grouped&&neo_fifo::Before(a,b));
- tasks[1][0x2c/4]=200;REQUIRE(capture());REQUIRE(ledger.Compare(world,left,right)==0&&ledger.Compare(world,right,left)==0);tasks[1][0x2c/4]=201;REQUIRE(capture());
+ tasks[1][0x2c/4]=200;REQUIRE(capture());REQUIRE(ledger.Compare(world,left,right)==0&&ledger.Compare(world,right,left)==0);
+ records[0][3]=records[1][3]=15;records[0][4]=65551;records[1][4]=65550;
+ REQUIRE(ledger.Compare(world,left,right,true)==0&&ledger.Compare(world,right,left,true)==1);
+ REQUIRE(ledger.Compare(world,left,right)==0&&ledger.Compare(world,right,left)==0);
+ records[0][4]=65550;
+ REQUIRE(ledger.Compare(world,left,right,true)==0&&ledger.Compare(world,right,left,true)==0);
+ tasks[1][0x2c/4]=201;REQUIRE(capture());
  REQUIRE(ledger.Mark(right.id,neo_fifo::Intent::Prefer));REQUIRE(ledger.Compare(world,left,right)==0&&ledger.Compare(world,right,left)==1);
  REQUIRE(ledger.Mark(right.id,neo_fifo::Intent::Defer));REQUIRE(ledger.Compare(world,left,right)==1);
  REQUIRE(!ledger.Mark(right.id,neo_fifo::Intent::Ordinary));REQUIRE(!ledger.Mark(right.id^65536,neo_fifo::Intent::Prefer));

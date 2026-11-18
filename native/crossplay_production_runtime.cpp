@@ -259,7 +259,7 @@ struct Runtime {
             if(GoldLogisticsSort::entry!=0x91ad00 || GoldLogisticsSort::resume!=0x91ad05 || GoldLogisticsSort::caller!=0x93b5f3
                 || GoldLogisticsSort::owner!=owner || GoldLogisticsInline::owner!=owner
                 || GoldLogisticsSort::ready!=&NeoWorldReady || GoldLogisticsInline::ready!=&NeoWorldReady
-                || GoldLogisticsSort::policy!=&CrossplayLogisticsActive::Gold || GoldLogisticsInline::policy!=&CrossplayLogisticsActive::Gold
+                || GoldLogisticsSort::policy!=&CrossplayLogisticsActive::CompareGold || GoldLogisticsInline::policy!=&CrossplayLogisticsActive::Gold
                 || GoldLogisticsSort::original!=reinterpret_cast<uintptr_t>(&GoldLogisticsSort::Replay)
                 || GoldLogisticsInline::resume!=GoldLogisticsInline::Resume)return false;
         }else if(CrossplayLogisticsActive::history_entry!=expected.compare || CrossplayLogisticsActive::history_resume!=expected.compare+5

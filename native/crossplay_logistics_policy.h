@@ -61,9 +61,15 @@ struct Ledger {
   // remain equivalent so the native stable sort retains arrival order.
   output={intent,static_cast<int32_t>(actual.priority),static_cast<int32_t>(actual.birth),actual.id,actual.reservation,false,0};return true;
  }
- uint32_t Compare(const World& candidate,const Request& left,const Request& right)const {
+ uint32_t Compare(const World& candidate,const Request& left,const Request& right,bool consumer_sort=false)const {
   CrossplayLogisticsBinding::ErrorScope error;neo_fifo::Key a{},b{};
   if(!enabled || !Live(candidate) || !Key(left,a) || !Key(right,b))return 2;
+  if(consumer_sort){
+   uint32_t category_a=0,category_b=0,target_a=0,target_b=0;
+   if(!CrossplayLogisticsBinding::Word(left.record+0xc,category_a) || !CrossplayLogisticsBinding::Word(right.record+0xc,category_b)
+      || !CrossplayLogisticsBinding::Word(left.record+0x10,target_a) || !CrossplayLogisticsBinding::Word(right.record+0x10,target_b))return 2;
+   return neo_fifo::BeforeConsumer(a,b,neo_fifo::Consumer(category_a,target_a),neo_fifo::Consumer(category_b,target_b))?1u:0u;
+  }
   return neo_fifo::Before(a,b)?1u:0u;
  }
  bool Snapshot(const World& candidate,uint32_t next_turn,neo_logistics::SavedState& output)const {

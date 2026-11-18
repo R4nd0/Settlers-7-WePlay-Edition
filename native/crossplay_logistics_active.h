@@ -57,29 +57,34 @@ inline bool Advance(){
  }
  if(!ledger.Advance(world,clock.turn)){pending_reason=6;return false;}return true;
 }
-inline uint32_t Decide(const CrossplayLogisticsBinding::World& world,const CrossplayLogisticsBinding::Request& left,const CrossplayLogisticsBinding::Request& right){
+inline uint32_t Decide(const CrossplayLogisticsBinding::World& world,const CrossplayLogisticsBinding::Request& left,const CrossplayLogisticsBinding::Request& right,bool consumer_sort=false){
 #ifdef S7_CROSSPLAY_LOGISTICS_TESTING
  if(test_decision)return test_decision(world,left,right);
 #endif
  if(!begun && !resume_armed)return 2;
  if(!Advance()){if(resume_armed && !resume_restored)++resume_unrestored_comparisons;return 2;}
  if(!ledger.enabled)return 2;
- const auto result=ledger.Compare(world,left,right);if(result>1){++excluded;return 2;}
+ const auto result=ledger.Compare(world,left,right,consumer_sort);if(result>1){++excluded;return 2;}
  ++comparisons;if((result!=0)!=(static_cast<int32_t>(left.priority)<static_cast<int32_t>(right.priority)))++changes;return result;
 }
-inline uint32_t Gold(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request& left,const GoldLogisticsBinding::Request& right){
+inline uint32_t CompareGold(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request& left,const GoldLogisticsBinding::Request& right,bool consumer_sort){
  CrossplayLogisticsBinding::ErrorScope error;CrossplayLogisticsBinding::World world{};CrossplayLogisticsBinding::Request a{},b{};
  if(!CrossplayLogisticsBinding::CaptureWorld(world) || !CrossplayLogisticsBinding::CaptureRequest(world,left.reservation,a) || !CrossplayLogisticsBinding::CaptureRequest(world,right.reservation,b)){++excluded;return 2;}
- return Decide(world,a,b);
+ return Decide(world,a,b,consumer_sort);
+}
+inline uint32_t Gold(const GoldLogisticsBinding::World& world,const GoldLogisticsBinding::Request& left,const GoldLogisticsBinding::Request& right){
+ return CompareGold(world,left,right,false);
 }
 inline void __stdcall PrepareHistory(const uint32_t* frame,uint32_t* output){
  CrossplayLogisticsBinding::ErrorScope error;*output=2;
  if(owner!=GetCurrentThreadId() || !ready || !ready() || (!begun && !resume_armed))return;
  ULONG_PTR low=0,high=0;GetCurrentThreadStackLimits(&low,&high);
- const auto at=reinterpret_cast<uintptr_t>(frame);if(at<low || at>high-64 || frame[3]!=at+32)return;
+ const auto at=reinterpret_cast<uintptr_t>(frame);if(at<low || at>high-64 || frame[3]!=at+32 || frame[2]!=at+52)return;
  CrossplayLogisticsBinding::World world{};CrossplayLogisticsBinding::Request a{},b{};
  if(!CrossplayLogisticsBinding::CaptureWorld(world) || !CrossplayLogisticsBinding::CaptureRecord(world,frame[6],a) || !CrossplayLogisticsBinding::CaptureRecord(world,frame[5],b)){++excluded;return;}
- *output=Decide(world,a,b);
+ const auto* bridge=reinterpret_cast<const uintptr_t*>(frame[2]);
+ const bool consumer_sort=neo_consumer_sort::History(edition==Crossplay::Edition::SteamHistory,0x400000,bridge[2],bridge[0],frame[4]);
+ *output=Decide(world,a,b,consumer_sort);
 }
 __declspec(naked) inline void HistoryReplay(){__asm{
  mov eax,dword ptr [history_global]
@@ -134,7 +139,7 @@ inline bool Install(Crossplay::Edition value,DWORD thread,bool (*predicate)()){
  if(value==Crossplay::Edition::Gold){
   if(!GoldLogisticsSort::Install(thread,predicate))return false;
   if(!GoldLogisticsInline::Install(thread,predicate)){GoldLogisticsSort::Rollback();return false;}
-  GoldLogisticsSort::policy=&Gold;GoldLogisticsInline::policy=&Gold;
+  GoldLogisticsSort::policy=&CompareGold;GoldLogisticsInline::policy=&Gold;
  }else{
   history_entry=CrossplayLogisticsBinding::pin.compare;history_resume=history_entry+5;history_global=CrossplayLogisticsBinding::pin.global;history_original=reinterpret_cast<uintptr_t>(&HistoryReplay);
   unsigned char expected[5]={0xa1};memcpy(expected+1,&history_global,4);

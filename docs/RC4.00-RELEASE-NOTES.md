@@ -58,7 +58,7 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 | ReShade-Effekte ohne GUI/Overlay | Ja | Ja | Ja |
 | LAN, private EasyTier-Räume, öffentliche Lobby | Nein | Ja | Ja |
 | Eigene Burgen und Multiplayer-Speichern/Laden | Nein | Ja, Grenzen unten | Ja, Grenzen unten |
-| Optionale vollständige History-NEO5-Logistik | Nein | Ja | Ja |
+| Optionale vollständige History-NEO6-Logistik | Nein | Ja | Ja |
 | Gold ↔ History Crossplay | Nicht ausgeliefert | Nicht ausgeliefert | Nicht ausgeliefert |
 
 ## Vorgesehener RC4.00-Umfang nach Paketnachweis
@@ -148,8 +148,10 @@ NEO verwendet für unterstützte Lager-Transportaufträge das Erstellungsalter
 (FIFO). **Gruppenprioritäten** sind deaktiviert; ausdrückliche **Einzelprioritäten
 von Spielern und KI bleiben wirksam** und werden mitgespeichert. „Transport
 priorities removed“ bedeutet daher nicht, dass sämtliche Prioritäten verschwinden.
-History-NEO5 umfasst außerdem geeignete Lagerübergaben nach nutzbarer Straßen-
-Gesamtdistanz und die Werkstatt-Abholkorrektur. Es gibt keine zugesagte
+History-NEO6 umfasst außerdem geeignete Lagerübergaben nach nutzbarer Straßen-
+Gesamtdistanz und die Werkstatt-Abholkorrektur. Die Verbrauchervorauswahl
+entscheidet Gleichstände zwischen Verbrauchern anhand ihrer vollständigen ID.
+Es gibt keine zugesagte
 Lieferbeschleunigung oder neue x20-Qualifikation.
 
 ## Interface & Startup
@@ -307,7 +309,7 @@ saving, a fresh shared reload and stable continued play at normal speed. The
 previously requested Gold and Steam History host directions remain; each final
 case uses this three-edition roster from the same final installed package.
 Separate pair tests cannot substitute for it. Mixed FIFO/individual
-priorities use feature mask 19, separate from full History NEO5. Final bilingual
+priorities use feature mask 19, separate from full History NEO6. Final bilingual
 feature images must match that qualified scope; earlier solo and two-human/two-AI
 drafts are obsolete.
 
@@ -322,8 +324,9 @@ History also retains **Fixes for several issues causing undelivered goods or
 stalled production** and **Optional NEO Logistics: FIFO job processing with
 transport priorities removed**. NEO starts off and is selected by the host before
 the match. Group priorities are removed; explicit individual player/AI priorities
-remain effective and are saved. Full History NEO5 includes road-distance handoffs
-and the workshop pickup correction. The older Gold solo candidate has no NEO
+remain effective and are saved. Full History NEO6 includes road-distance handoffs
+and the workshop pickup correction. Consumer preselection uses the full consumer
+ID to resolve ties between consumers. The older Gold solo candidate has no NEO
 option. The intended mixed RC4.00 path uses the separately qualified FIFO and
 individual-priority mask 19; its production UI still requires verification.
 

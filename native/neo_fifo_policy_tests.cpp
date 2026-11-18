@@ -13,6 +13,15 @@ int main() {
     young.intent=Intent::Defer;check(neo_fifo::Before(old,young));
     auto rebooked=old;rebooked.reservation=0x90001;
     young.intent=Intent::Ordinary;check(neo_fifo::Before(rebooked,young));
+    const Key same_turn_a{Intent::Ordinary,235,32266,5570609,2557261};
+    const Key same_turn_b{Intent::Ordinary,236,32266,3671438,7865553};
+    check(!neo_fifo::Before(same_turn_a,same_turn_b) && !neo_fifo::Before(same_turn_b,same_turn_a));
+    check(neo_fifo::BeforeConsumer(same_turn_b,same_turn_a,65550,65551));
+    check(!neo_fifo::BeforeConsumer(same_turn_a,same_turn_b,65551,65550));
+    check(!neo_fifo::BeforeConsumer(same_turn_a,same_turn_b,65550,65550));
+    check(neo_fifo::BeforeConsumer(old,young,65551,65550));
+    auto priority=same_turn_a;priority.intent=Intent::Prefer;
+    check(neo_fifo::BeforeConsumer(priority,same_turn_b,65551,65550));
     uint32_t normal[8]={0,1,2,3,4,5,6,7},changed[8]={1,0,2,3,4,5,6,7};
     check(neo_fifo::GroupOrder(1,normal,true)==-1);
     check(neo_fifo::GroupOrder(1,changed,false)==-1);

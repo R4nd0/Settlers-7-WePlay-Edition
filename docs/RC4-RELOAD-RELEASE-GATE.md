@@ -86,7 +86,7 @@ package and these observed cases. Show all three editions together with three
 human players plus one AI opponent, and actual save/reload continuation. Old
 two-human/two-AI posters and pair-only feature text are superseded. Describe only the admitted player/map scope,
 actual save/reload behavior and NEO features. Keep mixed NEO19 separate from
-History-only NEO5. The existing single-player draft poster is not a final RC4.00
+History-only NEO6. The existing single-player draft poster is not a final RC4.00
 asset. No release tag, signed update metadata or publication is permitted while
 any required final case is missing. Internal gate, test and development text does
 not belong on the customer-facing posters.

@@ -27,6 +27,15 @@ inline bool Before(const Key& a, const Key& b) {
     // their existing arrival order, including after a reservation is rebooked.
     return false;
 }
+inline bool BeforeConsumer(const Key& a, const Key& b, uint32_t consumer_a, uint32_t consumer_b) {
+    // The temporary consumer list concatenates independent input lists. Use
+    // their stable destination identity for ties and retain order within each.
+    if (Before(a,b)) return true;
+    return consumer_a < consumer_b && !Before(b,a);
+}
+inline uint32_t Consumer(uint32_t category,uint32_t target) {
+    return category==15?target:0;
+}
 // An unchanged order has no explicit preference. A deliberate permutation is
 // honored as a whole, so moving several groups cannot reverse its relations.
 inline int GroupOrder(unsigned group, const uint32_t (&order)[8], bool deliberate) {

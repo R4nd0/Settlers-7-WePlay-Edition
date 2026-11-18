@@ -14,7 +14,7 @@ __declspec(align(16)) float vector[4]={1.25f,2.5f,3.75f,5.f};
 double fp_seed=3.14159;
 void Set(uint32_t* object,unsigned offset,uintptr_t value){object[offset/4]=static_cast<uint32_t>(value);}
 bool Ready(){return authenticated;}
-uint32_t Policy(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request& left,const GoldLogisticsBinding::Request& right){
+uint32_t Policy(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request& left,const GoldLogisticsBinding::Request& right,bool){
  ++policy_calls;if(left.id!=65536 || right.id!=65537)abort();SetLastError(0xdeadbeef);return decision;
 }
 void __cdecl Capture(){++original_calls;captured_error=GetLastError();SetLastError(0x12345678);}

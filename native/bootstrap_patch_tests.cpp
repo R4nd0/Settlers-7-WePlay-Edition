@@ -2,6 +2,9 @@
 // No game file is loaded and no native game function is ever called.
 #define S7_RNG_TRACE_TESTING
 #include "offline_bootstrap.cpp"
+#ifdef S7_NEO_LOGISTICS
+#include "neo_road_guard_fixture.h"
+#endif
 #include <algorithm>
 #include <cstdio>
 std::vector<const char*> diagnostic_events;
@@ -1146,7 +1149,7 @@ int main() {
     memcpy(Native<void*>(0x79dd10),NeoWorkshopAdmissionGuard,sizeof(NeoWorkshopAdmissionGuard));
     memcpy(Native<void*>(0x79d6e0),steam_history?NeoWorkshopSelectorSteamGuard:NeoWorkshopSelectorUbiGuard,sizeof(NeoWorkshopSelectorUbiGuard));
     memcpy(reinterpret_cast<void*>(NativeVA(0x7e3fa8)+5),NeoWorkshopPickupGuard,sizeof(NeoWorkshopPickupGuard));
-    memcpy(Native<void*>(0x787bb0),NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard));
+    SetUpNeoRoadQueryGuards();
     memcpy(Native<void*>(0x6f6c20),NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard));
     memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
 #endif

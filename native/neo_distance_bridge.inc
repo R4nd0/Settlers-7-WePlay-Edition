@@ -7,27 +7,88 @@ uint64_t neo_distance_choices=0,neo_distance_changes=0,neo_distance_errors=0;
 bool neo_distance_control=false;
 #endif
 
-// 787BB0 uses ECX/EDX for output/profile and caller-cleans three stack words.
-// A uniform native movement profile makes BOTH its edge cost and admissible
-// straight-line heuristic measure road length. Native access checks still run.
+// The native pathfinder modifies shared work buffers and graph nodes. Read
+// the compressed road graph and reuse only the native read-only access tests.
+uint32_t __cdecl NeoRoadSector(uint32_t sector,uint32_t) { return sector; }
+
 bool NeoRoadDistance(uint32_t start,uint32_t end,uint32_t player,float& distance) {
     if (!start || !end || player>=25) return false;
-    float profile[27];for(auto& value:profile)value=1.0f;
-    const auto target=NativeVA(0x787bb0);
-    const auto output=&distance;
-    uint32_t result=0;distance=-1;
-    __asm {
-        push player
-        push end
-        push start
-        lea edx,profile
-        mov ecx,output
-        call target
-        add esp,12
-        movzx eax,al
-        mov result,eax
+    const auto logic=LabPriorityWord(NativeVA(0x13a5220));
+    const auto search=LabPriorityWord(logic+0x144);
+    if (search<0x10000 || LabPriorityWord(search+0xc3550)<0x10000 ||
+        !LabPriorityWord(search+0xc3558)) return false;
+    const auto graph=LabPriorityWord(search+0xc3560);
+    if (graph<0x10000 || LabPriorityWord(graph)!=NativeVA(0x1141564)) return false;
+
+    const auto node_begin=LabPriorityWord(graph+0x44),node_end=LabPriorityWord(graph+0x48);
+    const auto road_begin=LabPriorityWord(graph+0x54),road_end=LabPriorityWord(graph+0x58);
+    const auto valid=[](uintptr_t begin,uintptr_t end) {
+        return begin>=0x10000 && end>=begin && (end-begin)%8==0 && (end-begin)/8<=65536;
+    };
+    if (!valid(node_begin,node_end) || !valid(road_begin,road_end)) return false;
+    const auto lookup=[](uintptr_t begin,uintptr_t end,uint32_t id) -> uintptr_t {
+        const auto index=id&0xffffu;
+        if (!id || index>=(end-begin)/8 || LabPriorityWord(begin+index*8)!=id) return 0;
+        return LabPriorityWord(begin+index*8+4);
+    };
+    const auto compressed=[](uintptr_t node) {
+        return node>=0x10000 && LabPriorityWord(node)==NativeVA(0x1141600);
+    };
+    if (!compressed(lookup(node_begin,node_end,start)) || !compressed(lookup(node_begin,node_end,end))) return false;
+
+    // The sector reader calls the supplied callback and returns its EAX.
+    // Give it a private context so the game never changes its access table.
+    uintptr_t context[0x8c/4]{};
+    context[0x88/4]=reinterpret_cast<uintptr_t>(&NeoRoadSector);
+    const auto sector_of=Native<uint32_t(__thiscall*)(void*,const void*,const void*,const void*)>(0x9a0cd0);
+    const auto has_access=Native<bool(__fastcall*)(uint32_t,uint32_t)>(0x6ff010);
+    bool accessible[64]{};
+    for (uint32_t sector=0;sector<64;++sector) accessible[sector]=has_access(player,sector);
+
+    struct Step {
+        double distance;
+        uint32_t node;
+        bool operator>(const Step& other) const {
+            return distance!=other.distance ? distance>other.distance : node>other.node;
+        }
+    };
+    std::vector<double> distances((node_end-node_begin)/8,std::numeric_limits<double>::infinity());
+    std::priority_queue<Step,std::vector<Step>,std::greater<Step>> frontier;
+    distances[start&0xffffu]=0;
+    frontier.push({0,start});
+    while (!frontier.empty()) {
+        const auto step=frontier.top();
+        frontier.pop();
+        if (step.distance!=distances[step.node&0xffffu]) continue;
+        if (step.node==end) {
+            distance=static_cast<float>(step.distance);
+            return std::isfinite(distance);
+        }
+        const auto node=lookup(node_begin,node_end,step.node);
+        if (!compressed(node)) return false;
+        const auto edges_begin=LabPriorityWord(node+0x28),edges_end=LabPriorityWord(node+0x2c);
+        if (edges_begin==edges_end) continue;
+        if (edges_begin<0x10000 || edges_end<edges_begin || (edges_end-edges_begin)%16 || edges_end-edges_begin>65536) return false;
+        for (auto edge=edges_begin;edge<edges_end;edge+=16) {
+            const auto target=LabPriorityWord(edge+8);
+            const auto next=lookup(node_begin,node_end,target);
+            const auto street=lookup(road_begin,road_end,LabPriorityWord(edge+4));
+            const auto length=*reinterpret_cast<const float*>(edge+12);
+            if (!compressed(next) || street<0x10000 || LabPriorityWord(street)!=NativeVA(0x1142e00) ||
+                !std::isfinite(length) || length<0) return false;
+            const auto sector=sector_of(reinterpret_cast<void*>(search),context,
+                reinterpret_cast<const void*>(street),reinterpret_cast<const void*>(next+8));
+            if (sector>=64) return false;
+            if (!accessible[sector]) continue;
+            const auto alternative=step.distance+length;
+            auto& target_distance=distances[target&0xffffu];
+            if (alternative<target_distance) {
+                target_distance=alternative;
+                frontier.push({alternative,target});
+            }
+        }
     }
-    return result && std::isfinite(distance) && distance>=0;
+    return false;
 }
 bool NeoDistanceStore(uintptr_t logic,uintptr_t object,uint32_t player,uint32_t& id,uint32_t& node) {
     if(object<0x10000 || LabPriorityWord(object)!=NativeVA(0x1143264)
@@ -54,7 +115,6 @@ bool NeoDistanceProfileAllowsUniform(uintptr_t carrier) {
 }
 uint32_t __cdecl ChooseNeoDistance(uintptr_t frame,uintptr_t candidate) {
     const auto error=GetLastError();uint32_t decision=2; // native comparator
-    bool queried=false;
     __try {
         uint32_t turn=0;const auto priority=NeoFifoOwner()?NeoFifoWorld(turn):0;
         if(priority) {
@@ -80,7 +140,6 @@ uint32_t __cdecl ChooseNeoDistance(uintptr_t frame,uintptr_t candidate) {
                     // same owner, carriers present, reachable/progressing route,
                     // and the original total-cost/slack bound.
                     neo_distance::Route proposed{},previous{};
-                    queried=true;
                     if(NeoDistanceRoute(source_node,destination_node,candidate_node,candidate_id,player,proposed)
                         && (!best || NeoDistanceRoute(source_node,destination_node,best_node,best_id,player,previous))) {
                         decision=neo_distance::Before(proposed,previous)?1u:0u;++neo_distance_choices;
@@ -97,15 +156,12 @@ uint32_t __cdecl ChooseNeoDistance(uintptr_t frame,uintptr_t candidate) {
                             memcpy(record.bytes,line,static_cast<size_t>(n));record.length=static_cast<DWORD>(n);
                         }
 #endif
-                    } else {++neo_distance_errors;decision=0;}
+                    } else ++neo_distance_errors;
                 } else ++neo_distance_errors;
             }
         }
     } __except(EXCEPTION_EXECUTE_HANDLER) {
         ++neo_distance_errors;
-        // A native search mutates its own scratch graph. Never continue a world
-        // after an exceptional exit with possibly incomplete search cleanup.
-        if(queried)Stop(NativeGameObjectMismatch);
         decision=2;
     }
     SetLastError(error);return decision;

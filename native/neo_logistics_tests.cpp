@@ -1,4 +1,7 @@
 #include "offline_bootstrap.cpp"
+#ifdef S7_NEO_LOGISTICS
+#include "neo_road_guard_fixture.h"
+#endif
 #include <cstdio>
 void ReportLocalStatus(const char*) {}
 namespace {
@@ -33,6 +36,12 @@ void Stub(uintptr_t at,const void* target) {
     auto* p=reinterpret_cast<unsigned char*>(at);p[0]=0xe9;
     const auto displacement=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(target)-(at+5));memcpy(p+1,&displacement,4);
 }
+void ConsumerSortFixtureCall(uintptr_t returned,uintptr_t target) {
+    auto* call=reinterpret_cast<unsigned char*>(neo_consumer_sort::Address(image_base,returned)-5);
+    const auto displacement=static_cast<int32_t>(target)-static_cast<int32_t>(returned);
+    call[0]=0xe8;
+    memcpy(call+1,&displacement,sizeof(displacement));
+}
 void CallGroup(uintptr_t returned,uintptr_t self) {
     auto* code=reinterpret_cast<unsigned char*>(returned-14);
     code[0]=0x6a;code[1]=4;code[2]=0x6a;code[3]=0;code[4]=0xb9;memcpy(code+5,&self,4);
@@ -48,6 +57,44 @@ int main() {
     image_base=reinterpret_cast<uintptr_t>(image);initialization=2;local_connect_probe=true;bootstrap_thread=GetCurrentThreadId();neo_map_installed=true;
     auto addr=[](const void* p){return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));};
     auto put=[](uintptr_t p,uint32_t v){memcpy(reinterpret_cast<void*>(p),&v,4);};
+    uint32_t sort_stack[192]{};
+    const neo_consumer_sort::Stack bounds{addr(sort_stack),addr(sort_stack+_countof(sort_stack))};
+    const auto va=[](uintptr_t address){return neo_consumer_sort::Address(image_base,address);};
+    const auto merge_frame=bounds.low+0x20,sort_frame=merge_frame+0x30,carrier_frame=bounds.low+0x180;
+    for (const auto& sites : {neo_consumer_sort::Ubisoft,neo_consumer_sort::Steam}) {
+        ConsumerSortFixtureCall(sites.compare_return,sites.compare);
+        ConsumerSortFixtureCall(sites.recurse_left,sites.sort);
+        ConsumerSortFixtureCall(sites.recurse_right,sites.sort);
+        ConsumerSortFixtureCall(sites.preselection,sites.sort);
+        put(merge_frame,sort_frame);put(merge_frame+4,va(sites.recurse_left));
+        put(sort_frame,carrier_frame);put(sort_frame+4,va(sites.preselection));
+        const auto list=carrier_frame-0x100;
+        const auto caller=va(sites.compare_return);
+        check(neo_consumer_sort::History(sites,image_base,caller,merge_frame,list,bounds));
+        put(merge_frame+4,va(sites.recurse_right));
+        check(neo_consumer_sort::History(sites,image_base,caller,merge_frame,list,bounds));
+        check(!neo_consumer_sort::History(sites,image_base,caller,merge_frame,list+4,bounds));
+        check(!neo_consumer_sort::History(sites,image_base,caller+4,merge_frame,list,bounds));
+        check(!neo_consumer_sort::History(sites,image_base,caller,bounds.high-4,list,bounds));
+        *reinterpret_cast<unsigned char*>(va(sites.preselection)-5)^=1;
+        check(!neo_consumer_sort::History(sites,image_base,caller,merge_frame,list,bounds));
+        ConsumerSortFixtureCall(sites.preselection,sites.sort);
+        put(sort_frame+4,va(sites.preselection)+4);
+        check(!neo_consumer_sort::History(sites,image_base,caller,merge_frame,list,bounds));
+    }
+    ConsumerSortFixtureCall(0x91b536,0x930e80);
+    ConsumerSortFixtureCall(0x93b5f3,0x91ad00);
+    const auto gold_bridge=bounds.low+0x20,gold_merge=gold_bridge+0x24,gold_sort=gold_merge+0x17c;
+    put(gold_bridge,gold_merge);put(gold_bridge+8,va(0x93b5f3));
+    put(gold_merge,gold_sort);put(gold_merge+0x10,44);
+    put(gold_sort+4,va(0x91b536));put(gold_sort+8,gold_sort+0xd0);put(gold_sort+12,44);
+    for (const auto returned : {0x930f62u,0x930fb2u,0x93102eu}) {
+        ConsumerSortFixtureCall(returned,0x93b5b0);
+        put(gold_merge+4,va(returned));
+        check(neo_consumer_sort::Gold(image_base,gold_bridge,gold_merge+0x10,bounds));
+    }
+    put(gold_sort+4,va(0x91b6b3));
+    check(!neo_consumer_sort::Gold(image_base,gold_bridge,gold_merge+0x10,bounds));
     for(bool steam:{false,true}) for(const uint32_t multiplayer_mode:{2u,3u}) {
         steam_history=steam;
         Stub(NativeVA(0x6679e0),&WriteWord);Stub(NativeVA(0x667a10),&ReadWord);Stub(NativeVA(0xcb16d0),&VisitField);
@@ -79,6 +126,17 @@ int main() {
         check(!command("begin:1")); // no mid-match toggle
         replay[11]=0;check(command("begin:1"));check(command("ready"));replay[11]=100;
         check(CompareNeoFifoTransfers(addr(rec_a),addr(rec_b))==1); // no laboratory warmup
+        const auto& sort_sites=steam?neo_consumer_sort::Steam:neo_consumer_sort::Ubisoft;
+        put(merge_frame,sort_frame);put(merge_frame+4,va(sort_sites.recurse_left));
+        put(sort_frame,carrier_frame);put(sort_frame+4,va(sort_sites.preselection));
+        req_b[0x2c/4]=req_a[0x2c/4];
+        rec_a[3]=rec_b[3]=15;rec_a[4]=65551;rec_b[4]=65550;
+        check(CompareNeoFifoTransfers(addr(rec_b),addr(rec_a),merge_frame,va(sort_sites.compare_return),carrier_frame-0x100)==1);
+        check(CompareNeoFifoTransfers(addr(rec_a),addr(rec_b),merge_frame,va(sort_sites.compare_return),carrier_frame-0x100)==0);
+        check(CompareNeoFifoTransfers(addr(rec_b),addr(rec_a))==0);
+        put(sort_frame+4,va(steam?0x78ff11:0x790141));
+        check(CompareNeoFifoTransfers(addr(rec_b),addr(rec_a),merge_frame,va(sort_sites.compare_return),carrier_frame-0x100)==0);
+        req_b[0x2c/4]=20;rec_a[3]=rec_b[3]=0;rec_a[4]=rec_b[4]=0;
         uint32_t head[3]{},na[3]{},nb[3]{};
         head[0]=addr(na);head[1]=addr(nb);na[0]=addr(nb);na[1]=addr(head);na[2]=addr(root_a);nb[0]=addr(head);nb[1]=addr(na);nb[2]=addr(root_b);
         const auto list=addr(priority)+4*0xac+4*8;put(list+0x1c,addr(head));put(list+0x20,2);
@@ -126,6 +184,9 @@ int main() {
         TestStream oldPickup{{0x344f454e},0,false};VisitNeoWire(&oldPickup,false);check(oldPickup.result<0);
         TestStream oldPickupLobby{{0x344f454e,1,0},0,false};VisitNeoWire(&oldPickupLobby,true);
         check(oldPickupLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
+        TestStream oldRoute{{0x354f454e},0,false};VisitNeoWire(&oldRoute,false);check(oldRoute.result<0);
+        TestStream oldRouteLobby{{0x354f454e,1,0},0,false};VisitNeoWire(&oldRouteLobby,true);
+        check(oldRouteLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
         TestStream oldLobby{{0x334f454e,1,0},0,false};VisitNeoWire(&oldLobby,true);
         check(oldLobby.result<0 && neo_wire_received==2 && !neo_wire_confirmed);
         neo_wire_received=1;check(ConstructNeoJoin(message,nullptr)==message && neo_wire_received==2);
@@ -180,7 +241,7 @@ int main() {
         memcpy(Native<void*>(0x79dd10),NeoWorkshopAdmissionGuard,sizeof(NeoWorkshopAdmissionGuard));
         memcpy(Native<void*>(0x79d6e0),steam_history?NeoWorkshopSelectorSteamGuard:NeoWorkshopSelectorUbiGuard,sizeof(NeoWorkshopSelectorUbiGuard));
         memcpy(reinterpret_cast<void*>(NativeVA(0x7e3fa8)+5),NeoWorkshopPickupGuard,sizeof(NeoWorkshopPickupGuard));
-        memcpy(Native<void*>(0x787bb0),steam?NeoDistanceQuerySteamGuard:NeoDistanceQueryUbiGuard,sizeof(NeoDistanceQueryUbiGuard));
+        SetUpNeoRoadQueryGuards();
         memcpy(Native<void*>(0x6f6c20),steam?NeoDistanceProfileSteamGuard:NeoDistanceProfileUbiGuard,sizeof(NeoDistanceProfileUbiGuard));
         memcpy(reinterpret_cast<void*>(NativeVA(0x79ed92)+5),NeoDistanceTailGuard,sizeof(NeoDistanceTailGuard));
         const unsigned char tail[]={0x56,0x57,0x8b,0xfa,0x8b,0x80,0x4c,0x01,0x00,0x00};
@@ -189,8 +250,8 @@ int main() {
             auto* byte=Native<unsigned char*>(0x79ed92)+5+i;*byte^=1;
             check(!InitializeNeoMapPatches());*byte^=1;
         }
-        for(size_t i=0;i<sizeof(NeoDistanceQueryUbiGuard);++i) {
-            auto* byte=Native<unsigned char*>(0x787bb0)+i;*byte^=1;
+        for(size_t i=0;i<sizeof(NeoRoadSectorEntryGuard);++i) {
+            auto* byte=Native<unsigned char*>(0x9a0cd0)+i;*byte^=1;
             check(!InitializeNeoMapPatches());*byte^=1;
         }
         for(size_t i=0;i<sizeof(NeoDistanceProfileUbiGuard);++i) {

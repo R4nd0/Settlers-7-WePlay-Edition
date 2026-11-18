@@ -1,10 +1,11 @@
 #pragma once
 #include "crossplay_gold_logistics_binding.h"
+#include "neo_consumer_sort.h"
 namespace GoldLogisticsSort {
 using namespace CrossplayNativeCodec;
 inline uintptr_t entry=0x91ad00,resume=0x91ad05,caller=0x93b5f3;
 inline DWORD owner=0;inline bool (*ready)()=nullptr;
-inline uint32_t (*policy)(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request&,const GoldLogisticsBinding::Request&)=nullptr;
+inline uint32_t (*policy)(const GoldLogisticsBinding::World&,const GoldLogisticsBinding::Request&,const GoldLogisticsBinding::Request&,bool)=nullptr;
 inline unsigned observed=0,excluded=0;inline bool installed=false;
 inline bool Guard();
 __declspec(naked) inline void Replay() {
@@ -29,7 +30,10 @@ inline void __stdcall Prepare(const uint32_t* frame,uint32_t* decision) {
    && GoldLogisticsBinding::Word(native+12,right)
    && GoldLogisticsBinding::CaptureSort(frame[7],frame[5],right,world,left,other)) {
    ++observed;
-   if(policy){const uint32_t value=policy(world,left,other);if(value<=2)*decision=value;}
+   if(policy){
+    const bool consumer_sort=neo_consumer_sort::Gold(0x400000,native,frame[7],{low,high});
+    const uint32_t value=policy(world,left,other,consumer_sort);if(value<=2)*decision=value;
+   }
 
   }else {++excluded;}
  }

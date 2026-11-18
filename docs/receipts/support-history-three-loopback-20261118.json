@@ -250,5 +250,58 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_focused_consumer_preselection": {
+    "saved_logic_turn": 27001,
+    "first_observed_different_preselection_turn": 35585,
+    "consumer_source_lists_equal_by_consumer": true,
+    "consumer_source_order_host_first_guest_second_guest": [
+      [65556, 65552, 65555, 65551, 65550],
+      [65550, 65552, 65555, 65551, 65556],
+      [65556, 65552, 65555, 65551, 65550]
+    ],
+    "temporary_queue_membership_and_request_fields_equal": true,
+    "temporary_queue_entries": 38,
+    "first_different_sorted_index_zero_based": 21,
+    "competing_ordinary_requests_created_turn": 32266,
+    "preferred_target_host_first_guest_second_guest": [65551, 65550, 65551],
+    "preferred_request_accepted_by_native_eligibility": [true, true, true],
+    "render_limit_fps": 30,
+    "recorded_checksums": [8606, 8606, 8607],
+    "shared_checksums": 8606,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 1,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
+  "neo6_candidate_acceptance": {
+    "renderer_fps_limit": 30,
+    "clients": 3,
+    "ai_opponents": 1,
+    "neo_logistics_enabled": true,
+    "autosave": {
+      "save_slot": 1001,
+      "continued_wall_seconds": 1210.01,
+      "first_confirmed_replay_turn": 27031,
+      "last_confirmed_common_replay_turn": 37421,
+      "recorded_checksums": [10760, 10761, 10761],
+      "shared_matching_checksums": 10760,
+      "mismatches": 0,
+      "average_continued_turns_per_second": 8.59,
+      "exits": [0, 0, 0],
+      "restoration_verified": true
+    },
+    "manual_save": {
+      "save_slot": 1009,
+      "continued_wall_seconds": 1210.01,
+      "first_confirmed_replay_turn": 18133,
+      "last_confirmed_common_replay_turn": 30237,
+      "recorded_checksums": [12353, 12353, 12354],
+      "shared_matching_checksums": 12353,
+      "mismatches": 0,
+      "average_continued_turns_per_second": 10.0,
+      "exits": [0, 0, 0],
+      "restoration_verified": true
+    }
+  },
   "restoration_verified": true
 }

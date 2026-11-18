@@ -7,10 +7,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <vector>
+#include <queue>
+#include <limits>
 #include <atomic>
 #include <string>
 #include <cstdio>
 #ifdef S7_NEO_LOGISTICS
+#include "neo_consumer_sort.h"
 #include "neo_distance_policy.h"
 #endif
 #ifdef S7_NEO_LOGISTICS

@@ -171,7 +171,11 @@ neo_fifo::Key NeoFifoKey(uintptr_t priority,uintptr_t transfers,uintptr_t record
     }
     key.intent=intent;return key;
 }
-uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right) {
+uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right
+#ifdef S7_NEO_LOGISTICS
+    , uintptr_t frame=0, uintptr_t caller=0, uintptr_t list=0
+#endif
+) {
 #ifdef S7_NEO_LOGISTICS
     const DWORD error=GetLastError();uint32_t decision=2; // execute original comparator
 #else
@@ -193,6 +197,13 @@ uint32_t __cdecl CompareNeoFifoTransfers(uintptr_t left,uintptr_t right) {
                     if(neo_fifo_enabled && neo_fifo_fresh && turn>=NeoFifoStartTurn) {
                         const auto ka=NeoFifoKey(priority,transfers,left,a),kb=NeoFifoKey(priority,transfers,right,b);
                         decision=neo_fifo::Before(ka,kb)?1u:0u;
+#ifdef S7_NEO_LOGISTICS
+                        if (!decision && neo_consumer_sort::History(steam_history,image_base,caller,frame,list)) {
+                            const auto left_consumer=neo_fifo::Consumer(LabPriorityWord(left+0xc),LabPriorityWord(left+0x10));
+                            const auto right_consumer=neo_fifo::Consumer(LabPriorityWord(right+0xc),LabPriorityWord(right+0x10));
+                            decision=neo_fifo::BeforeConsumer(ka,kb,left_consumer,right_consumer)?1u:0u;
+                        }
+#endif
                         if(ka.intent!=neo_fifo::Intent::Ordinary || kb.intent!=neo_fifo::Intent::Ordinary || ka.grouped || kb.grouped)++neo_fifo_explicit;
                         if((decision!=0)!=original) {
                             ++neo_fifo_changed;
