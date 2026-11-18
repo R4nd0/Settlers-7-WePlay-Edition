@@ -101,5 +101,27 @@
     "exits": [null, null, null],
     "restoration_verified": true
   },
+  "autosave_route_state_guard_comparison": {
+    "first_mismatch_record_zero_based": 3193,
+    "shared_checksums": 3196,
+    "mismatches": 3,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
+  "autosave_control_neo_with_native_handoff": {
+    "saved_logic_turn": 27001,
+    "original_autosave": true,
+    "saved_neo_state_restored_on_all_three": true,
+    "native_handoff_confirmed_on_all_three": true,
+    "observed_wall_seconds": 1230.21,
+    "end_monitored_replay_turns": [39166, 39166, 39167],
+    "shared_checksums": 13098,
+    "mismatches": 0,
+    "first_cross_variant_mismatch_record_zero_based": 23,
+    "matching_storehouse_distance_samples": 20,
+    "matching_native_checksum_passes": 22,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }

@@ -68,9 +68,19 @@ compared. The harness was interrupted after recording the divergence. The
 three payloads and profile fingerprints were verified after recovery. Exit
 codes were unavailable.
 
-The next control preserves NEO and runs the original warehouse handoff
-comparator. Its adapter built successfully. The runner stopped at the
-existing system-memory preflight before launching any client.
+An experimental adapter preserved the native access mask around each NEO
+route query and returned to the original comparator if the shared search was
+busy. The three-client autosave reproduced the same checksum failure at
+record 3,193 with this adapter. The experiment was removed from the checkout.
+
+A separate control preserved NEO and used the original warehouse handoff
+comparator. After the initial memory preflight delay, it loaded the original
+autosave, restored NEO on all three clients and ran for 20:30 through replay
+turn 39,166. All 13,098 common replay checksums matched. All 20 recorded
+storehouse-distance samples and the 22 native checksum passes around the
+previous failure also matched across the three clients. This control changes
+the simulation from replay record 23 and leaves the NEO handoff policy to be
+fixed. All three test processes exited normally and exact restoration passed.
 
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
