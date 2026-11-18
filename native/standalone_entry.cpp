@@ -3,6 +3,9 @@
 #include "standalone_profile.h"
 #include "crossplay_production_context.h"
 #include "crossplay_production_ui.h"
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#include "crossplay_room_instance.h"
+#endif
 #include <vector>
 
 bool InstallOfflineNetworkGuard();
@@ -29,6 +32,26 @@ bool ContextValid(const Context* context) {
         && context->pid == GetCurrentProcessId() && context->tid == GetCurrentThreadId()
         && context->image == reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) && StandaloneLaunchGate();
 }
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+bool IsolateRoomInstance(const Context& context,Crossplay::Edition edition) {
+    using namespace CrossplayProduction;
+    const auto rva=RoomInstanceNameRva(edition);
+    if(!rva)return false;
+    auto* literal=reinterpret_cast<char*>(context.image+rva);
+    MEMORY_BASIC_INFORMATION page{};
+    if(VirtualQuery(literal,&page,sizeof(page))!=sizeof(page)
+        || reinterpret_cast<uintptr_t>(page.AllocationBase)!=context.image || page.Type!=MEM_IMAGE
+        || page.State!=MEM_COMMIT || (page.Protect&(PAGE_GUARD|PAGE_NOACCESS))
+        || page.RegionSize<sizeof(CommonInstanceName)
+        || reinterpret_cast<uintptr_t>(literal)-reinterpret_cast<uintptr_t>(page.BaseAddress)>page.RegionSize-sizeof(CommonInstanceName)
+        || memcmp(literal,CommonInstanceName,sizeof(CommonInstanceName)))return false;
+    const auto name=RoomInstanceName(context.pid);
+    DWORD before=0,unused=0;
+    if(!VirtualProtect(literal,name.size(),PAGE_READWRITE,&before))return false;
+    memcpy(literal,name.data(),name.size());
+    return VirtualProtect(literal,name.size(),before,&unused)!=FALSE;
+}
+#endif
 }
 extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* opaque) {
     if (InterlockedCompareExchange(&entered,1,0)) return 0;
@@ -82,7 +105,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     // handoff must never silently launch the existing solo/History-only path.
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
     if(CrossplayProduction::CurrentLaunch()->mixed
-        && (!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7))return 0;
+        && (!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7
+            || !IsolateRoomInstance(*context,channel_edition)))return 0;
 #else
     if(CrossplayProduction::CurrentLaunch()->mixed)return 0;
 #endif

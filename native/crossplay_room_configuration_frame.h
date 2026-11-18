@@ -5,6 +5,7 @@
 namespace CrossplayRoomConfiguration {
 inline constexpr unsigned char Offer[]={ 'S','7','R','C','F','G',0,1 };
 inline constexpr unsigned char Applied[]={ 'S','7','R','C','F','G',1,1 };
+inline constexpr unsigned char Committed[]={ 'S','7','R','C','F','G',2,1 };
 constexpr size_t Header=8+1+4+4*CrossplaySessionConfig::Slots;
 using Connections=CrossplaySessionConfig::RoomConnections;
 
@@ -51,9 +52,23 @@ inline bool Acknowledge(const std::vector<unsigned char>& offer,const Connection
     std::copy(std::begin(Applied),std::end(Applied),receipt.begin());
     return true;
 }
-inline bool MatchesReceipt(const std::vector<unsigned char>& offer,const std::vector<unsigned char>& frame) {
+inline bool Matches(const std::vector<unsigned char>& offer,const std::vector<unsigned char>& frame,
+        const unsigned char (&kind)[8]) {
     return offer.size()>=Header && frame.size()==offer.size()
-        && !memcmp(offer.data(),Offer,8) && !memcmp(frame.data(),Applied,8)
+        && !memcmp(offer.data(),Offer,8) && !memcmp(frame.data(),kind,8)
         && std::equal(frame.begin()+8,frame.end(),offer.begin()+8);
+}
+inline bool MatchesReceipt(const std::vector<unsigned char>& offer,const std::vector<unsigned char>& frame) {
+    return Matches(offer,frame,Applied);
+}
+inline bool Commit(const std::vector<unsigned char>& offer,const std::vector<unsigned char>& checked,
+        std::vector<unsigned char>& frame) {
+    if(!MatchesReceipt(offer,checked))return false;
+    frame=checked;
+    std::copy(std::begin(Committed),std::end(Committed),frame.begin());
+    return true;
+}
+inline bool MatchesCommit(const std::vector<unsigned char>& offer,const std::vector<unsigned char>& frame) {
+    return Matches(offer,frame,Committed);
 }
 }

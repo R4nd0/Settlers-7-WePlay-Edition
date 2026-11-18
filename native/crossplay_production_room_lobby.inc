@@ -3,7 +3,7 @@
     CrossplaySessionConfig::RoomConnections room_local_routes;
     std::vector<unsigned char> room_offer,room_expected_guest;
     unsigned room_receipts=0;
-    bool room_consumer_seen=false,room_configuration_complete=false;
+    bool room_consumer_seen=false,room_guest_receipt_sent=false,room_configuration_complete=false;
     ULONGLONG room_configuration_started=0;
 
     bool ValidateRoomSnapshot(const std::vector<unsigned char>& wire) {
@@ -58,9 +58,11 @@
                 room_receipts|=1u<<(event.source_slot-1);
             }
             if(room_receipts!=(1u<<room.member_count)-1)return true;
-            std::vector<unsigned char> verified;
+            std::vector<unsigned char> verified,commit;
             if(!ReadRoomSnapshot(readback)
-                || !CrossplayRoomConfiguration::Acknowledge(room_offer,room_local_routes,readback,verified))return false;
+                || !CrossplayRoomConfiguration::Acknowledge(room_offer,room_local_routes,readback,verified)
+                || !CrossplayRoomConfiguration::Commit(room_offer,verified,commit)
+                || !channel.BroadcastRoom(commit))return false;
             room_configuration_complete=true;
             return true;
         }
@@ -77,11 +79,19 @@
             event.bytes=std::move(wire);
             return CrossplayNativeCodec::EnqueueRoomSessionConfig(room_admission,event,source,launch.room.capacity,launch.room.map);
         }
+        if(room_guest_receipt_sent){
+            Crossplay::RoomEvent event;
+            if(!channel.ReceiveRoom(event))return true;
+            if(event.source_slot!=room.host_slot || !CrossplayRoomConfiguration::MatchesCommit(room_offer,event.bytes)
+                || !ReadRoomSnapshot(readback) || readback!=room_expected_guest)return false;
+            room_configuration_complete=true;
+            return true;
+        }
         if(!room_consumer_seen || !ReadRoomSnapshot(readback) || readback!=room_expected_guest)return true;
         std::vector<unsigned char> receipt;
         if(!CrossplayRoomConfiguration::Acknowledge(room_offer,room_local_routes,readback,receipt)
             || !channel.SendRoom(receipt,room.host_slot))return false;
-        room_configuration_complete=true;
+        room_guest_receipt_sent=true;
         return true;
     }
 

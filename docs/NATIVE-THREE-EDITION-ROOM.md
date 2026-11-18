@@ -106,10 +106,26 @@ The room runtime starts from each client's original local lobby. After native
 admission, it reads the host's actual configuration cache, projects the human
 station IDs and observes each guest's original configuration consumer.
 Each guest acknowledges the matching cache readback. A read-only test query
-reports when the host also observed every guest's acknowledgement.
+reports completion after the host verified every guest's acknowledgement and
+rechecked its own cache. The host then sends a distinct commit message.
 
-The Gold and History builds compile and the component fixtures pass. The
-implementation covers lobby admission and configuration readback. The
-original clients still need a live DXVK test for those stages. Group AI
+## Original-client startup results
+
+In the first three-edition run, all three original executables passed native
+initialization and authenticated to the room. Ubisoft History sent its
+original lobby offer to both peers. Steam History then displayed the original
+single-instance error. The clients closed with exit codes Gold 0, Ubisoft 0
+and Steam 1. The test copies and profiles were restored.
+
+The lobby test build applies a private, per-process mutex name in memory after
+checking the original image and the exact edition-specific data slot. Each
+original executable remains byte-identical on disk. On the retry, Ubisoft
+History and Steam History both reached DXVK 3.1.1 in the same run. Gold
+timed out before the native starter reported success. The runner can start
+Gold first and start the History clients after Gold passes that handshake.
+Neither run completed native group admission or the configuration exchange.
+
+The Gold and History test builds compile and the component fixtures pass.
+The complete original-client lobby run remains unverified. Group AI
 preparation, Ready, setup agreement, NEO, world start and save/reload remain
 open. The installed launch gate continues to require its existing qualification.

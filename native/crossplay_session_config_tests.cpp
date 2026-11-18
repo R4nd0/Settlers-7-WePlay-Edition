@@ -146,8 +146,14 @@ int main() {
             && authenticated.stations==from.stations && authenticated.host==from.host,"host routing table and original bytes preserved");
         Check(CrossplayRoomConfiguration::Acknowledge(offer,to,result,receipt)
             && CrossplayRoomConfiguration::MatchesReceipt(offer,receipt),"guest readback agrees across all room stations");
+        std::vector<unsigned char> committed;
+        Check(CrossplayRoomConfiguration::Commit(offer,receipt,committed)
+            && CrossplayRoomConfiguration::MatchesCommit(offer,committed)
+            && !CrossplayRoomConfiguration::MatchesReceipt(offer,committed)
+            && !CrossplayRoomConfiguration::MatchesCommit(offer,receipt),"commit and receipt are separate phases");
         auto bad_receipt=receipt;bad_receipt.back()^=1;
-        Check(!CrossplayRoomConfiguration::MatchesReceipt(offer,bad_receipt),"changed receipt may not complete setup");
+        Check(!CrossplayRoomConfiguration::MatchesReceipt(offer,bad_receipt)
+            && !CrossplayRoomConfiguration::Commit(offer,bad_receipt,committed),"changed receipt may not complete setup");
         auto early=result;early[room_layout.slots_at]^=1;
         Check(!CrossplayRoomConfiguration::Acknowledge(offer,to,early,receipt),"unapplied Ready value does not acknowledge the offer");
         auto bad_offer=offer;bad_offer[8]=2;

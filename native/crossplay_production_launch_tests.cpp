@@ -2,6 +2,7 @@
 #define S7_PRODUCTION_UI_TESTING
 #include <windows.h>
 #include "crossplay_production_launch.h"
+#include "crossplay_room_instance.h"
 #include "crossplay_production_context.h"
 #include "crossplay_production_runtime.h"
 #include "crossplay_production_ui.h"
@@ -32,6 +33,10 @@ int main(){
     Crossplay::Digest executable{};executable[0]=7;Launch output;
     auto accept=[&](const LaunchInput& in,Edition local=Edition::Gold){return Parse(in,local,executable,Profile,output);};
     Check(accept({}) && !output.mixed);
+    Check(RoomInstanceName(0x12345678)==std::array<char,17>{'L','o','c','a','l','\\','S','7','1','2','3','4','5','6','7','8',0});
+    Check(RoomInstanceName(0x12345679)!=RoomInstanceName(0x12345678));
+    Check(RoomInstanceNameRva(Edition::Gold)==0xb24fc4 && RoomInstanceNameRva(Edition::UbisoftHistory)==0xd10c24
+        && RoomInstanceNameRva(Edition::SteamHistory)==0xd0ec54 && !RoomInstanceNameRva(static_cast<Edition>(0)));
     auto input=Input();Check(accept(input) && output.mixed && output.host && output.channel.slot==1
         && output.channel.port==32100 && output.channel.executable==executable && output.name=="WePlay Host");
     input.peer=L"3";Check(accept(input) && output.channel.expected_peer==Edition::SteamHistory);
