@@ -56,7 +56,13 @@ out. [Mode 3 verification](receipts/support-resume-mode3-20261117.json)
 
 After the desync fix is verified, rebuild the ordinary standalone History DLL
 with the release's directory and NEO settings using `native/build_standalone.ps1`.
-Supply it as `--adapter` to `tools/desktop/build_rc2.py` and update the matching
+Build from a revision that includes `6cb82be`, which installs the dedicated
+History NEO hooks only for History sessions and leaves the original comparator
+available to mixed NEO. Build the Gold adapter from a revision that includes
+`e6be812` for the Gold workshop, movement and saved-world corrections.
+[Edition-specific coverage](RC4-DESYNC-COVERAGE.md)
+
+Supply the History DLL as `--adapter` to `tools/desktop/build_rc2.py` and update the matching
 production `HISTORY_PINS` entry for that verified build. The package builder
 takes the corrected History resume Lua from the checkout. Preparation composes
 it into `Base/BBA/Interface.bba` and checks the result against the selected
