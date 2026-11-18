@@ -415,8 +415,7 @@ bool ProfilePatches(std::vector<Patch>& patches) {
         const auto* instruction = reinterpret_cast<const unsigned char*>(image + rva);
         if (*instruction != 0x68 || !AddBytes(patches, rva + 1, &original, &replacement, 4)) return false;
     }
-    constexpr char old_mutex[] = "Global\\Settlers7";
-    return AddBytes(patches, 0xb24fc4, old_mutex, profile_names.mutex.data(), sizeof(old_mutex));
+    return AddBytes(patches, 0xb24fc4, GoldProfile::OriginalMutex, profile_names.mutex.data(), profile_names.mutex.size());
 }
 bool ProfileNames() {
     wchar_t path[32768]{};

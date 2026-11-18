@@ -228,7 +228,8 @@ bool ProfileIsolation() {
     for (const auto& patch:patches) if (!Write(patch,true)) return false;
     for (uintptr_t rva : {0x133fdeu,0x1352fbu,0x135600u})
         if (*reinterpret_cast<uintptr_t*>(image+rva+1)!=reinterpret_cast<uintptr_t>(profile_names.suffix.data())) return false;
-    if (memcmp(reinterpret_cast<void*>(image+0xb24fc4),profile_names.mutex.data(),16)) return false;
+    if (profile_names.mutex.size()!=sizeof(mutex)
+        || memcmp(reinterpret_cast<void*>(image+0xb24fc4),profile_names.mutex.data(),sizeof(mutex))) return false;
     for (const auto& patch:patches) if (!Write(patch,false)) return false;
     for (uintptr_t rva : {0x133fdeu,0x1352fbu,0x135600u}) {
         auto* instruction=reinterpret_cast<unsigned char*>(image+rva);

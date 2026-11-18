@@ -3,7 +3,7 @@
 #include "standalone_profile.h"
 #include "crossplay_production_context.h"
 #include "crossplay_production_ui.h"
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#if defined(S7_CROSSPLAY_ROOM_LOBBY_LAB) && !defined(S7_GOLD_STARTUP)
 #include "crossplay_room_instance.h"
 #endif
 #include <vector>
@@ -32,10 +32,10 @@ bool ContextValid(const Context* context) {
         && context->pid == GetCurrentProcessId() && context->tid == GetCurrentThreadId()
         && context->image == reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) && StandaloneLaunchGate();
 }
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
-bool IsolateRoomInstance(const Context& context,Crossplay::Edition edition) {
+#if defined(S7_CROSSPLAY_ROOM_LOBBY_LAB) && !defined(S7_GOLD_STARTUP)
+bool IsolateHistoryRoomInstance(const Context& context,Crossplay::Edition edition) {
     using namespace CrossplayProduction;
-    const auto rva=RoomInstanceNameRva(edition);
+    const auto rva=HistoryRoomInstanceNameRva(edition);
     if(!rva)return false;
     auto* literal=reinterpret_cast<char*>(context.image+rva);
     MEMORY_BASIC_INFORMATION page{};
@@ -111,9 +111,13 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     // handoff must never silently launch the existing solo/History-only path.
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
     stage = 15;
-    if(CrossplayProduction::CurrentLaunch()->mixed
-        && (!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7
-            || !IsolateRoomInstance(*context,channel_edition)))return 0;
+    if(CrossplayProduction::CurrentLaunch()->mixed) {
+        if(!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7)return 0;
+#ifndef S7_GOLD_STARTUP
+        if(!IsolateHistoryRoomInstance(*context,channel_edition))return 0;
+#endif
+        // GoldInitialize applies the existing per-copy mutex in ProfilePatches.
+    }
 #else
     if(CrossplayProduction::CurrentLaunch()->mixed)return 0;
 #endif

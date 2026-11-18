@@ -3,9 +3,8 @@
 
 namespace CrossplayProduction {
 inline constexpr char CommonInstanceName[]="Global\\Settlers7";
-inline constexpr uintptr_t RoomInstanceNameRva(Crossplay::Edition edition) {
+inline constexpr uintptr_t HistoryRoomInstanceNameRva(Crossplay::Edition edition) {
     switch(edition) {
-    case Crossplay::Edition::Gold:return 0xb24fc4;
     case Crossplay::Edition::UbisoftHistory:return 0xd10c24;
     case Crossplay::Edition::SteamHistory:return 0xd0ec54;
     default:return 0;
