@@ -1,3 +1,4 @@
+#define S7_TEST_WORLD_QUEUE
 #include "crossplay_world_event_queue.h"
 #include <cstdio>
 #include <cstdlib>
@@ -83,5 +84,48 @@ int main(){
         Check(!inbox.Deliver(receiver,42,81,1,[](Kind,const auto&){Check(false);return true;}));Check(inbox.Size()==2);
     }
     Inbox unknown;Check(!unknown.Push(std::vector<unsigned char>(95,0)));
+    {
+        Inbox room;
+        const auto first=Frame(Kind::Build,1,1);
+        sender.local_id[0]=3;
+        const auto guest_turn=Frame(Kind::Turn,1,3);
+        const auto guest_next=Frame(Kind::Turn,2,3);
+        sender.local_id[0]=1;
+        const auto host_turn=Frame(Kind::Turn,1,1);
+        Check(!room.PushRoom({0,first}));
+        Check(!room.PushRoom({9,first}));
+        Check(room.PushRoom({1,first}));
+        Check(!room.Push(host_turn));
+        Check(!room.Deliver(receiver,42,81,1,[](Kind,const auto&){return true;}));
+        Check(room.PushRoom({3,guest_turn}));
+        Check(room.PushRoom({1,host_turn}));
+        Check(room.PushRoom({3,guest_next}));
+
+        auto resolve=[&](unsigned char slot,CrossplayNative::RoomRoute& route){
+            if(slot!=1 && slot!=3)return false;
+            route.player_slot=slot;
+            route.peer=receiver;
+            route.peer.remote_id[0]=slot;
+            route.source_cid=42; // two original processes can use the same outgoing CID
+            route.receiver_cid=80u+slot;
+            return true;
+        };
+        const unsigned char slots[]={1,3,1,3};
+        const Kind kinds[]={Kind::Build,Kind::Turn,Kind::Turn,Kind::Turn};
+        size_t delivered=0;
+        auto dispatch=[&](unsigned char slot,Kind kind,const std::vector<unsigned char>& wire){
+            Check(delivered<4 && slot==slots[delivered] && kind==kinds[delivered]);
+            Check(CrossplayChat::Word(wire.data()+8)==80u+slot);
+            if(kind==Kind::Turn)Check(CrossplayChat::Word(wire.data()+25)==80u+slot);
+            ++delivered;return true;
+        };
+        Check(!room.TestDeliverRoom(resolve,[](unsigned char,Kind,const auto&){return false;}));
+        Check(room.Size()==4 && !room.Received(Kind::Build,1));
+        while(!room.Empty())Check(room.TestDeliverRoom(resolve,dispatch));
+        Check(delivered==4 && room.Received(Kind::Turn,1)==1 && room.Received(Kind::Turn,3)==2);
+        Check(room.PushRoom({1,guest_next})); // a valid guest frame must not execute under the host's CID
+        Check(!room.TestDeliverRoom(resolve,dispatch));
+        Check(room.Size()==1 && room.Received(Kind::Turn,1)==1);
+    }
     printf("PASS %u ordered world-event checks: commands/EOT order, exact opaque scalars, both players, rejected native delivery, replay/identity/schema and bounded backlog. Synthetic only.\n",checks);return 0;
 }

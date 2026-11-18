@@ -18,5 +18,15 @@ try{
  if($LASTEXITCODE){throw 'Group roster fixture failed'}
  & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $PSScriptRoot 'crossplay_channel.cpp') (Join-Path $PSScriptRoot 'crossplay_channel_tests.cpp') /Fe:crossplay_channel_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
  if($LASTEXITCODE){throw 'Crossplay channel fixture did not compile'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $PSScriptRoot 'crossplay_admission_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_participant.cpp') (Join-Path $PSScriptRoot 'crossplay_channel.cpp') /Fe:crossplay_admission_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
+ if($LASTEXITCODE){throw 'Native admission fixture did not compile'}
+ & ./crossplay_admission_tests.exe
+ if($LASTEXITCODE){throw 'Native admission fixture failed'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $PSScriptRoot 'crossplay_world_event_queue_tests.cpp') /Fe:crossplay_world_event_queue_tests.exe /link /DYNAMICBASE /NXCOMPAT
+ if($LASTEXITCODE){throw 'World event queue fixture did not compile'}
+ & ./crossplay_world_event_queue_tests.exe
+ if($LASTEXITCODE){throw 'World event queue fixture failed'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX (Join-Path $PSScriptRoot 'crossplay_room_admission_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_admission.cpp') (Join-Path $PSScriptRoot 'crossplay_channel.cpp') /Fe:crossplay_room_admission_tests.exe /link ws2_32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT
+ if($LASTEXITCODE){throw 'Room admission protocol fixture did not compile'}
 }finally{Pop-Location}
 Write-Output 'Room roster verified. Run tests/crossplay_channel_tests.py against the built channel fixture for loopback coverage.'

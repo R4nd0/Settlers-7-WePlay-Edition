@@ -39,7 +39,7 @@ struct RoomMember {
     Id id{}, native_identity{}, in_local_namespace{};
 };
 struct RoomSnapshot {
-    unsigned char host_slot = 0, member_count = 0;
+    unsigned char host_slot = 0, member_count = 0, local_slot = 0;
     uint32_t generation = 0;
     Id session{};
     Digest content{};

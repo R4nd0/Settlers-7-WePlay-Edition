@@ -2,8 +2,8 @@
 
 The RC4 target is one actual session containing original Gold, Ubisoft History
 and Steam History clients, three humans and one AI opponent, with common original
-save/reload and continued stable simulation. Gold-host and Steam-host ownership
-are required separately. The [release gate](RC4-RELOAD-RELEASE-GATE.md) defines
+save/reload and continued stable simulation. The native path must work with
+any edition as host. The [release gate](RC4-RELOAD-RELEASE-GATE.md) defines
 the actual-game/package evidence. Existing two-client pairs remain component
 evidence and cannot qualify the new target.
 
@@ -61,11 +61,29 @@ loopback connections. They cover two through eight connections, repeated
 editions, hosts from all three editions, directed delivery, broadcast and
 malformed membership. They also run the existing WPX1 pair scenarios.
 
-## Integration still required
+## Native admission and turn routing
 
-The game runtime still uses the pair admission transaction and the History
-connection projection for one remote peer. Group admission needs distinct
-original native connections on every client. The group path must then use the
-existing original setup, Ready, NEO, start, ordered commands, CRC and save
-routines with agreement from the complete roster. Actual mixed world runs are
-still required to qualify those stages and the installed package.
+`RoomLobbyAdmission` uses the original participant event constructors and
+clone queue. It starts from an observed local native lobby and exchanges the
+original participant metadata and castle strings over WPX2. It requires
+agreement on the same map slots before enqueuing member events. The host is
+chosen by its authenticated transport slot, independently of edition.
+
+Per receiver, the group adapter retains the original local CID and gives each
+remote its own route. Gold uses the authenticated numeric aliases. History
+assigns candidate CIDs from the receiver's numeric space. An assignment becomes
+usable only on matching original roster readback and acknowledgements from the
+entire room. Before resolving a world route, the adapter checks the original
+started session and its complete roster again.
+
+The ordered inbox tracks sequences by sender and event type. It translates typed
+source fields through the resolved native route and preserves turn and CRC
+values. The group turn codec reuses the original reader and local queue and
+checks the started roster before and after decoding.
+
+The loopback integration fixture covers eleven complete admission sequences,
+including each of the three hosts, repeated editions and delayed readback from
+one client. Its game callbacks are modeled. The regular game entry path still
+uses pair admission, setup and start. Group map setup, AI preparation, Ready,
+NEO, world start and save/reload need wiring into the original game entry path
+and verification in actual mixed games at normal speed with DXVK.

@@ -86,7 +86,7 @@ struct Channel::Impl {
             || body[3] || Get(body+4,4)!=room_generation
             || memcmp(body+8,config.content.data(),config.content.size()))return false;
 
-        RoomSnapshot candidate{room_host,room_count,room_generation,config.session,config.content,{}};
+        RoomSnapshot candidate{room_host,room_count,config.slot,room_generation,config.session,config.content,{}};
         unsigned next_guest_slot=2;
         for(size_t i=0;i<room_count;++i) {
             auto& member=candidate.members[i];

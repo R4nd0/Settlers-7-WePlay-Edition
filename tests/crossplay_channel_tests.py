@@ -97,7 +97,7 @@ class AlteredRoomBroker(CrossplayRoomBroker):
                 raise ValueError('Unknown mutation')
         return bytes(body)
 
-def run_room(executable, editions, host_slot, mutation=None):
+def run_room(executable, editions, host_slot, mutation=None, *, admission=False):
     launches=tuple(Launch(int(edition), secrets.token_bytes(32),
                           bytes([42+i])+bytes(15) if edition=='1' else bytes([42+i])*16,
                           bytes([0x51])*32)
@@ -122,7 +122,8 @@ def run_room(executable, editions, host_slot, mutation=None):
                 _,errors=child.communicate(timeout=1)
                 if child.returncode:
                     raise RuntimeError('Native room test failed: '+errors.decode('utf-8',errors='replace'))
-                expected=len(editions)*(len(editions)-1)+1
+                relay_count=len(editions)*(len(editions)-1)
+                expected=2*relay_count if admission else relay_count+1
                 if mutation is None and (broker.relayed!=expected or broker.rejections):
                     raise RuntimeError('Unexpected room relay or rejection count')
             finally:
@@ -133,6 +134,7 @@ def run_room(executable, editions, host_slot, mutation=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('native_test_executable', type=Path)
+    parser.add_argument('--room-admission', type=Path)
     args = parser.parse_args()
     executable = args.native_test_executable.resolve()
     for edition in (2, 3):
@@ -150,6 +152,10 @@ def main():
     for mutation in mutations:
         run_room(executable,'123',2,mutation)
     print(f'PASS 20 pair and {len(cases)+len(mutations)} room native/broker scenarios; no game executed.')
+    if args.room_admission:
+        for editions,host in cases:
+            run_room(args.room_admission.resolve(),editions,host,admission=True)
+        print(f'PASS {len(cases)} complete room admissions through WPX2 with modeled game callbacks.')
 
 
 if __name__ == '__main__':

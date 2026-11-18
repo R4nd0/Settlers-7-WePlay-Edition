@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <bcrypt.h>
 #include "crossplay_admission.h"
 #include "crossplay_connection.h"
 #include <algorithm>
@@ -211,5 +212,275 @@ bool LobbyAdmission::CapturePeerSetup(Participant& peer,CrossplayCastleSetup::Va
     std::vector<unsigned char> checked;
     if(!CrossplayCastleSetup::Encode(value,checked))return false;
     peer=impl->remote;castle=std::move(value);extra=impl->remote_hello.extra;return true;
+}
+
+namespace {
+using RoomSlots=std::array<unsigned char,CrossplayGroupRoster::Members>;
+constexpr unsigned char RoomHelloMagic[8]={'S','7','G','J','O','I','N',1};
+constexpr unsigned char RoomAppliedMagic[8]={'S','7','G','B','O','U','N',1};
+
+bool ValidRoomSlots(const Crossplay::RoomSnapshot& room, const RoomSlots& slots) {
+    if(room.member_count<2 || room.member_count>slots.size() || !room.host_slot
+        || room.host_slot>room.member_count)return false;
+    unsigned occupied=0;
+    for(size_t i=0;i<slots.size();++i) {
+        if(i>=room.member_count) {
+            if(slots[i])return false;
+            continue;
+        }
+        if(!slots[i] || slots[i]>slots.size() || (occupied&(1u<<slots[i])))return false;
+        occupied|=1u<<slots[i];
+    }
+    return true;
+}
+
+std::vector<unsigned char> RoomHelloHeader(const Crossplay::RoomSnapshot& room,
+    const RoomSlots& slots,unsigned char source_slot) {
+    std::vector<unsigned char> frame(RoomHelloMagic,RoomHelloMagic+8);
+    Word(frame,room.generation);
+    frame.insert(frame.end(),room.session.begin(),room.session.end());
+    const auto& sender=room.members[source_slot-1].id;
+    frame.insert(frame.end(),sender.begin(),sender.end());
+    frame.insert(frame.end(),slots.begin(),slots.end());
+    frame.resize(FrameHeader);
+    return frame;
+}
+
+bool ReadRoomHello(const Crossplay::RoomSnapshot& room,const RoomSlots& slots,
+    const Crossplay::RoomEvent& event,Hello& hello) {
+    hello={};
+    if(!event.source_slot || event.source_slot>room.member_count
+        || event.bytes.size()<FrameHeader || event.bytes.size()>MaximumFrame)return false;
+    const auto header=RoomHelloHeader(room,slots,event.source_slot);
+    return std::equal(header.begin(),header.end(),event.bytes.begin())
+        && ReadHello(event.bytes,room.members[event.source_slot-1].edition,hello);
+}
+
+bool Digest(const std::vector<unsigned char>& bytes,Crossplay::Digest& output) {
+    output={};
+    BCRYPT_ALG_HANDLE algorithm=nullptr;
+    if(bytes.empty() || BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)return false;
+    const bool okay=BCryptHash(algorithm,nullptr,0,const_cast<PUCHAR>(bytes.data()),
+        static_cast<ULONG>(bytes.size()),output.data(),static_cast<ULONG>(output.size()))>=0;
+    BCryptCloseAlgorithmProvider(algorithm,0);
+    return okay;
+}
+
+bool RoomReadbackPending(const LobbySnapshot& snapshot,
+    const std::array<Participant,CrossplayGroupRoster::Members>& players,size_t count) {
+    if(snapshot.members.size()>count)return false;
+    for(const auto& observed:snapshot.members) {
+        const auto end=players.begin()+count;
+        const auto assigned=std::find_if(players.begin(),end,[&](const auto& player) {
+            return player.connection==observed.player.connection;
+        });
+        if(assigned==end || (observed.status!=1 && observed.status!=2))return false;
+        if(observed.status==2 && !observed.player.local && !SameMember(observed.player,*assigned))return false;
+    }
+    return true;
+}
+}
+
+struct RoomLobbyAdmission::Impl {
+    DWORD owner=GetCurrentThreadId();
+    Crossplay::Channel* channel=nullptr;
+    Crossplay::RoomSnapshot room{};
+    ParticipantEvent native;
+    AdmissionState state=AdmissionState::New;
+    ULONGLONG started=0;
+    uintptr_t instance=0;
+    unsigned char local=0;
+    RoomSlots slots{};
+    Participant own;
+    std::array<Hello,CrossplayGroupRoster::Members> offers{};
+    std::array<Participant,CrossplayGroupRoster::Members> players{};
+    std::array<std::vector<unsigned char>,CrossplayGroupRoster::Members> receipts{};
+    std::array<CrossplayGroupRoster::Binding,CrossplayGroupRoster::Members> bindings{};
+    CrossplayGroupRoster::Value roster;
+    std::vector<unsigned char> receipt;
+    unsigned offered=0,applied=0;
+
+    bool Owned() const {return owner==GetCurrentThreadId();}
+    unsigned AllMembers() const {return (1u<<room.member_count)-1;}
+    bool Connected() const {
+        if(!channel || channel->GetState()!=Crossplay::State::Connected)return false;
+        const auto* current=channel->GetRoom();
+        return current && current->session==room.session && current->generation==room.generation
+            && current->host_slot==room.host_slot && current->member_count==room.member_count;
+    }
+    bool Fail() {
+        state=AdmissionState::Failed;
+        if(channel)channel->Close();
+        return false;
+    }
+    bool Matches(const LobbySnapshot& snapshot) const {
+        return snapshot.instance==instance
+            && CrossplayGroupRoster::MatchesNative(roster,room.members[local-1].id,bindings,snapshot);
+    }
+    bool Prepare();
+    bool Apply();
+    bool Record(const Crossplay::RoomEvent& event);
+};
+
+bool RoomLobbyAdmission::Impl::Prepare() {
+    std::array<uint32_t,CrossplayGroupRoster::Members> cids;
+    if(!PlanRoomConnections(room,local,own.connection,cids))return false;
+    roster={room.session,room.generation,room.content,{}};
+    std::vector<unsigned char> transcript;
+    for(size_t i=0;i<room.member_count;++i) {
+        const auto& source=offers[i];
+        const bool is_local=i+1==local;
+        const bool host=i+1==room.host_slot;
+        auto& player=players[i];
+        player={cids[i],slots[i],source.principal,is_local?own.station:cids[i],source.name,host,is_local};
+        for(size_t j=0;j<i;++j)if(!DistinctPlayers(player,players[j]))return false;
+        Crossplay::Digest castle_hash{};
+        std::vector<unsigned char> castle;
+        if(!CrossplayCastleSetup::Encode({source.castle,source.castle_type},castle) || !Digest(castle,castle_hash))return false;
+        roster.members.push_back({room.members[i].id,room.members[i].edition,player.slot,source.name,castle_hash});
+        auto hello=RoomHelloHeader(room,slots,static_cast<unsigned char>(i+1));
+        if(!AppendHello(hello,source))return false;
+        Word(transcript,static_cast<uint32_t>(hello.size()));
+        transcript.insert(transcript.end(),hello.begin(),hello.end());
+    }
+    std::swap(roster.members[0],roster.members[room.host_slot-1]);
+    std::sort(roster.members.begin()+1,roster.members.end(),[](const auto& a,const auto& b){return a.slot<b.slot;});
+    if(!CrossplayGroupRoster::MatchesRoom(roster,room))return false;
+    for(size_t i=0;i<roster.members.size();++i) {
+        const auto slot=roster.members[i].slot;
+        const auto player=std::find_if(players.begin(),players.begin()+room.member_count,
+            [slot](const auto& candidate){return candidate.slot==slot;});
+        if(player==players.begin()+room.member_count)return false;
+        bindings[i]={roster.members[i].peer,player->connection,player->principal,player->station};
+    }
+    std::vector<unsigned char> encoded;
+    Crossplay::Digest digest{};
+    if(!CrossplayGroupRoster::Encode(roster,encoded) || !Digest(transcript,digest))return false;
+    receipt.assign(RoomAppliedMagic,RoomAppliedMagic+8);
+    receipt.insert(receipt.end(),digest.begin(),digest.end());
+    receipt.insert(receipt.end(),encoded.begin(),encoded.end());
+    for(size_t i=0;i<room.member_count;++i)
+        if(!receipts[i].empty() && receipts[i]!=receipt)return false;
+    return true;
+}
+
+bool RoomLobbyAdmission::Impl::Apply() {
+    // Verify the original owner and sole local participant again before
+    // queuing the externally observed members into this lobby.
+    LobbySnapshot current;
+    if(!native.CaptureLobby(current) || current.instance!=instance || !current.host
+        || current.members.size()!=1 || current.members[0].status!=2
+        || !SameMember(current.members[0].player,own))return false;
+    const auto confirm=[this](size_t i) {
+        const auto& source=offers[i];
+        return native.ConstructConfirmedSetup(players[i],{source.castle,source.castle_type},source.extra)
+            && native.EnqueueLocal() && native.Reset();
+    };
+    if(!SameMember(players[local-1],own) && !confirm(local-1))return false;
+    for(size_t i=0;i<room.member_count;++i) {
+        const auto& player=players[i];
+        if(player.local)continue;
+        if(!native.Construct(Change::Added,player) || !native.EnqueueLocal() || !native.Reset() || !confirm(i))return false;
+    }
+    state=AdmissionState::Applying;
+    return true;
+}
+
+bool RoomLobbyAdmission::Impl::Record(const Crossplay::RoomEvent& event) {
+    if(!event.source_slot || event.source_slot>room.member_count || event.source_slot==local
+        || event.bytes.size()<8)return false;
+    const size_t i=event.source_slot-1;
+    const auto bit=1u<<i;
+    if(!memcmp(event.bytes.data(),RoomAppliedMagic,8)) {
+        if(!(offered&bit) || (applied&bit) || event.bytes.size()>40+CrossplayGroupRoster::Maximum
+            || (!receipt.empty() && receipt!=event.bytes))return false;
+        receipts[i]=event.bytes;
+        applied|=bit;
+        return true;
+    }
+    if((offered&bit) || !ReadRoomHello(room,slots,event,offers[i]))return false;
+    offered|=bit;
+    return true;
+}
+
+RoomLobbyAdmission::RoomLobbyAdmission():impl(new Impl) {}
+RoomLobbyAdmission::~RoomLobbyAdmission()=default;
+
+bool RoomLobbyAdmission::Begin(Crossplay::Channel& channel,unsigned char local,
+    const RoomSlots& slots,const void* castle,uint32_t extra) {
+    auto& s=*impl;
+    if(!s.Owned() || s.state!=AdmissionState::New)return false;
+    const auto* room=channel.GetRoom();
+    if(!room || channel.GetState()!=Crossplay::State::Connected
+        || !ValidRoomSlots(*room,slots) || !local || local!=room->local_slot)return s.Fail();
+    s.channel=&channel;
+    s.room=*room;
+    s.slots=slots;
+    s.local=local;
+    LobbySnapshot lobby;
+    CrossplayCastleSetup::Value setup;
+    if(!s.native.Bind(room->members[local-1].edition) || !s.native.CaptureLobby(lobby)
+        || !lobby.host || lobby.members.size()!=1 || lobby.members[0].status!=2
+        || !lobby.members[0].player.local || !lobby.members[0].player.host
+        || !s.native.CaptureCastleSetup(castle,setup))return s.Fail();
+    s.own=lobby.members[0].player;
+    s.instance=lobby.instance;
+    auto& hello=s.offers[local-1];
+    hello={s.own.connection,extra,s.own.principal,s.own.name,std::move(setup.design),std::move(setup.serialized_type)};
+    auto frame=RoomHelloHeader(*room,slots,local);
+    if(!AppendHello(frame,hello) || !channel.BroadcastRoom(frame))return s.Fail();
+    s.offered=1u<<(local-1);
+    s.started=GetTickCount64();
+    s.state=AdmissionState::AwaitingPeer;
+    return true;
+}
+
+bool RoomLobbyAdmission::Poll() {
+    auto& s=*impl;
+    if(!s.Owned() || s.state==AdmissionState::New || s.state==AdmissionState::Failed)return false;
+    if(!s.channel->Poll() || !s.Connected())return s.Fail();
+    LobbySnapshot snapshot;
+    if(!s.native.CaptureLobby(snapshot) || snapshot.instance!=s.instance)return s.Fail();
+    if(s.state==AdmissionState::RosterBound)return s.Matches(snapshot) || s.Fail();
+    if(GetTickCount64()-s.started>120000)return s.Fail();
+    if(s.state==AdmissionState::Applying) {
+        if(!RoomReadbackPending(snapshot,s.players,s.room.member_count))return s.Fail();
+        if(s.Matches(snapshot)) {
+            if(!s.channel->BroadcastRoom(s.receipt))return s.Fail();
+            s.applied|=1u<<(s.local-1);
+            s.state=AdmissionState::AwaitingCommit;
+        }
+    } else if(s.state==AdmissionState::AwaitingCommit && !s.Matches(snapshot))return s.Fail();
+    Crossplay::RoomEvent event;
+    for(unsigned i=0;i<16 && s.state!=AdmissionState::RosterBound;++i) {
+        if(s.state==AdmissionState::AwaitingCommit && s.applied==s.AllMembers()) {
+            s.state=AdmissionState::RosterBound;
+            break;
+        }
+        if(!s.channel->ReceiveRoom(event))break;
+        if(!s.Record(event))return s.Fail();
+    }
+    if(s.state==AdmissionState::AwaitingPeer && s.offered==s.AllMembers()
+        && (!s.Prepare() || !s.Apply()))return s.Fail();
+    return true;
+}
+
+AdmissionState RoomLobbyAdmission::GetState() const {return impl->Owned()?impl->state:AdmissionState::Failed;}
+
+bool RoomLobbyAdmission::Resolve(unsigned char source_slot,bool started,RoomRoute& route) const {
+    route={};
+    const auto& s=*impl;
+    if(!s.Owned() || s.state!=AdmissionState::RosterBound || !s.Connected()
+        || !source_slot || source_slot>s.room.member_count)return false;
+    LobbySnapshot snapshot;
+    if(!(started?s.native.CaptureStartedSession(snapshot):s.native.CaptureLobby(snapshot))
+        || !s.Matches(snapshot))return false;
+    const size_t i=source_slot-1;
+    const auto& sender=s.room.members[i];
+    route={s.offers[i].connection,s.players[i].connection,s.players[i].slot,s.players[i].host,
+        source_slot==s.local,s.room.members[s.local-1].edition,
+        {sender.edition,s.room.members[s.local-1].id,sender.id,sender.native_identity,
+         sender.in_local_namespace,{}}};
+    return true;
 }
 }

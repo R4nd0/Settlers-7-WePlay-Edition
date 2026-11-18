@@ -89,6 +89,70 @@ int main() {
     Check(!admission.Begin(channel,Crossplay::Edition::Gold,true,nullptr,0)
         && admission.GetState()==AdmissionState::Failed,"unauthenticated channel cannot begin native admission");
     Check(!admission.Poll(),"failed admission does not pump native callbacks");
+    {
+        const auto editions=std::array{Crossplay::Edition::Gold,Crossplay::Edition::SteamHistory,Crossplay::Edition::UbisoftHistory};
+        Crossplay::RoomSnapshot room;
+        room.member_count=3;
+        room.generation=19;
+        room.session.fill(0x75);
+        room.content.fill(0x52);
+        for(unsigned i=0;i<room.member_count;++i) {
+            room.members[i].edition=editions[i];
+            room.members[i].id.fill(static_cast<unsigned char>(i+1));
+            room.members[i].in_local_namespace[0]=static_cast<unsigned char>(42+i);
+        }
+        for(unsigned char host=1;host<=room.member_count;++host) {
+            room.host_slot=host;
+            RoomSlots slots{3,5,7};
+            slots[host-1]=1;
+            Check(ValidRoomSlots(room,slots),"any transport member can host with reserved AI slots");
+            auto bad=slots;bad[1]=bad[0];
+            Check(!ValidRoomSlots(room,bad),"duplicate map slot rejected");
+            bad=slots;bad[3]=2;
+            Check(!ValidRoomSlots(room,bad),"unused slot entry rejected");
+            for(unsigned char self=1;self<=room.member_count;++self) {
+                std::array<uint32_t,CrossplayGroupRoster::Members> routes;
+                for(uint32_t local_cid:{1u,2u,9u,101u}) {
+                    Check(PlanRoomConnections(room,self,local_cid,routes) && routes[self-1]==local_cid,"original local CID preserved");
+                    Check(routes[0]!=routes[1] && routes[0]!=routes[2] && routes[1]!=routes[2],"one distinct receiver route per member");
+                    if(self==1)Check(routes[1]==43 && routes[2]==44,"authenticated Gold alias respected");
+                }
+                Check(PlanRoomConnections(room,self,0,routes)==(self!=1),"History zero CID, Gold nonzero CID");
+                Crossplay::RoomEvent event{self,RoomHelloHeader(room,slots,self)};
+                Hello offered=hello;offered.connection=7;
+                Check(AppendHello(event.bytes,offered),"reuse both native castle strings");
+                Check(ReadRoomHello(room,slots,event,offered),"read authenticated group member");
+                auto changed=event;changed.source_slot=self%room.member_count+1;
+                Check(!ReadRoomHello(room,slots,changed,offered),"cannot attribute data to another transport slot");
+                auto displaced=slots;std::swap(displaced[0],displaced[1]);
+                Check(!ReadRoomHello(room,displaced,event,offered),"all peers must agree to the same map slots");
+                ++room.generation;
+                Check(!ReadRoomHello(room,slots,event,offered),"old room generation rejected");
+                --room.generation;
+            }
+        }
+        std::array<uint32_t,CrossplayGroupRoster::Members> routes;
+        Check(!PlanRoomConnections(room,1,43,routes),"a remote alias may not reuse the original local CID");
+        room.members[2].in_local_namespace=room.members[1].in_local_namespace;
+        Check(!PlanRoomConnections(room,1,9,routes),"duplicate remote alias rejected");
+        const std::array<Participant,CrossplayGroupRoster::Members> players{{
+            {0,1,10,0,"Host",true,false},
+            {2,2,20,2,"Self",false,true},
+            {1,3,30,1,"Peer",false,false},
+        }};
+        LobbySnapshot pending{123,2,false,{{players[1],2},{players[0],1}}};
+        Check(RoomReadbackPending(pending,players,3),"original added member can still be pending");
+        pending.members[1].player.connection=99;
+        Check(!RoomReadbackPending(pending,players,3),"foreign original route fails");
+        pending.members[1]={players[0],2};
+        pending.members[1].player.name="Changed";
+        Check(!RoomReadbackPending(pending,players,3),"changed confirmed member fails");
+        RoomLobbyAdmission group;
+        RoomRoute route;
+        Check(!group.Begin(channel,1,{},nullptr,0) && group.GetState()==AdmissionState::Failed,
+            "group admission requires authenticated ownership");
+        Check(!group.Resolve(1,false,route) && !group.Resolve(1,true,route),"unbound lobby and world routes unavailable");
+    }
     for(bool host:{false,true}) {
         const Participant own{0,host?1u:2u,0,0,"Local",host,true};
         const Participant remote{1,host?2u:1u,2,1,"Remote",!host,false};

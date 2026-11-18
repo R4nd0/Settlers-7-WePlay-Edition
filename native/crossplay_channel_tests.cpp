@@ -79,7 +79,7 @@ int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject) {
     for(size_t i=0;i<count;++i) {
         const auto& client=*clients[i];
         const auto* room=client.GetRoom();
-        Check(room && room->host_slot==host && room->member_count==count);
+        Check(room && room->host_slot==host && room->member_count==count && room->local_slot==i+1);
         Check(room->generation==7 && room->session==session && room->content==configs[i].content);
         Check(!client.GetPeer());
         for(size_t j=0;j<count;++j) {
