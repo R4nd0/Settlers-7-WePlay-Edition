@@ -31,7 +31,21 @@
     "host_and_remaining_guest_shared_checksums": 3505,
     "host_and_remaining_guest_mismatches": 0,
     "new_host_autosave_logic_turn": 30002,
+    "native_desync_save_logic_turns": [30195, 30195, 30195],
+    "recorded_events_between_last_match_and_first_mismatch": 0,
+    "ai_storehouse_collection_entries": [4398, 0, 4398],
     "exits": [0, 0, 0]
+  },
+  "new_host_checkpoint_reload": {
+    "saved_logic_turn": 30002,
+    "saved_neo_state_restored_on_all_three": true,
+    "host_victory_display_game_seconds": 3000,
+    "guest_stall_replay_turns": [30004, 30004],
+    "recorded_checksums": [1473, 1, 1],
+    "shared_checksums": 1,
+    "mismatches": 0,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
   },
   "restoration_verified": true
 }

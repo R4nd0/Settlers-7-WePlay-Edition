@@ -68,6 +68,11 @@ files from the *same* reload using `tools/local-pair/replay_crc.py`. A session
 at the same loaded turn without independently advancing turns and shared
 replay checksums is incomplete.
 
+Pass `--min-common-checksums` to require coverage through a known failure
+point. For the reported History autosave at turn 27,001, set the minimum
+to 3,195 to require all three clients to cover both failing records. Measure
+continued live play separately from the replay comparison.
+
 ## Local artifacts
 
 Under the current repository's ignored `work/` directory:

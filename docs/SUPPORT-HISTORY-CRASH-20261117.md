@@ -21,6 +21,21 @@ autosave at logic turn 30,002. That gives an earlier checkpoint for the next
 investigation. The test establishes the order of the save and divergence.
 The cause of the divergence remains open.
 
+All three native desync saves record logic turn 30,195. Between the last
+matching checksum and the first differing checksum, the replays contain no
+additional serialized event. The host and second guest have identical sets
+of 4,398 coordinate records in the AI `Storehouse` collection. The first guest's
+collection is empty. Other world fields also differ. This locates a difference
+in the snapshots taken at detection. It does not establish where the first
+simulation difference started.
+
+The newly written host checkpoint at turn 30,002 loaded on all three clients
+and all three restored NEO. The host displayed a victory at 50:00 of game
+time and a departure notice. Both guests stalled at replay turn 30,004 while
+the host advanced. The three replays shared only one checksum, and all three
+clients exited normally with verified restoration. Use the supplied turn-27,001
+save to compare coverage through the original failure.
+
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
 Ready action, the host finished draining its native send queue, and each

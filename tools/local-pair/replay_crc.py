@@ -47,10 +47,14 @@ def compare(paths):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('replays', nargs=3, type=Path)
+    parser.add_argument('--min-common-checksums', type=int, default=1,
+                        help='Minimum shared checksum records needed for a passing comparison')
     args = parser.parse_args()
+    if args.min_common_checksums < 1:
+        parser.error('--min-common-checksums must be positive')
     result = compare(args.replays)
     print(json.dumps(result, indent=2))
-    return int(result['common_checksums'] == 0 or result['mismatches'] != 0)
+    return int(result['common_checksums'] < args.min_common_checksums or result['mismatches'] != 0)
 
 
 if __name__ == '__main__':
