@@ -6,7 +6,7 @@ sys.path.insert(0,str(ROOT/'work/lua-test-runtime'))
 from lupa.lua51 import LuaRuntime
 
 class AIRosterTests(unittest.TestCase):
-    def model(self):
+    def model(self,human_count=None):
         lua=LuaRuntime()
         c=lua.execute('''
 local C={now=0,slots=4,host=true,session=true,localSlot=1,calls={},reports={},
@@ -42,7 +42,10 @@ setmetatable(M,{__index=function()error('Unexpected map operation')end})
 C.G=G;C.report=function(phase)C.reports[#C.reports+1]=phase end
 return C
 ''')
-        opts=lua.table_from({'difficulty':2})
+        options={'difficulty':2}
+        if human_count is not None:
+            options['human_count']=human_count
+        opts=lua.table_from(options)
         module=lua.execute((ROOT/'tools/gold/pair_ai_roster.lua').read_text(),c.G,opts,c.report)
         return lua,c,opts,module
 
@@ -118,5 +121,18 @@ return C
         c.names=lua.table_from([lua.table_from({'profileID':11}),lua.table_from({'profileID':12})])
         self.assertFalse(m.tick());self.assertTrue(m.tick())
         self.assertEqual((c.profiles[7],c.profiles[8]),(11,12))
+
+    def test_three_humans_configure_only_the_fourth_map_slot(self):
+        lua,c,opts,m=self.model(3)
+        self.assertFalse(m.tick())
+        self.assertEqual(m.state(),'waiting')
+        self.assertEqual(len(c.calls),0)
+        c.states[3]=3
+        self.assertFalse(m.tick())
+        calls=[tuple(c.calls[i][j] for j in (1,2,3)) for i in range(1,len(c.calls)+1)]
+        self.assertEqual(calls,[('profile',4,'native-ai-a'),('difficulty',8,2),('peaceful',8,False),
+            ('state',4,4),('network-profile',4,'native-ai-a')])
+        self.assertTrue(m.tick())
+        self.assertEqual((c.states[1],c.states[2],c.states[3]),(3,3,3))
 
 if __name__=='__main__':unittest.main()
