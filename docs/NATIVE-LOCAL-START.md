@@ -1,5 +1,16 @@
 # Experimental native local start, 2026-10-26
 
+On 2026-11-19, the isolated Gold-hosted room with both History editions and
+one AI completed 197 consecutive original turns with matching checksums under
+DXVK 3.1.1. The original replay clock was 100 ms on all three clients. Gold
+selected NEO through the host checkbox, and all three engines compared native
+transport requests with NEO enabled. At logic turn 120 Gold wrote an original
+save whose archive contains the three human seats, one AI and an enabled NEO
+snapshot for replay turn 121. The same session kept running after the save.
+All clients exited with code zero and their test files were restored. The
+shared reload, both History host roles and the installed-package runs remain
+open.
+
 On 2026-11-18, an isolated DXVK 3.1.1 room with Gold hosting both History
 editions and one AI reached the native started session on all three clients.
 Each client delivered original initial end-of-turn events from both peers.

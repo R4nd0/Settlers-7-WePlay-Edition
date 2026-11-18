@@ -51,7 +51,7 @@ function G.UI.WriteToConsole(command)
  end
  if cmd:sub(1,14)=='save-snapshot:' then
   C.snapshots=(C.snapshots or 0)+1
-  if C.mode~='host' or not C.readyAccepted or not C.worldAvailable then return false end
+  if (C.mode~='host' and C.mode~='room-host') or not C.readyAccepted or not C.worldAvailable then return false end
   if C.snapshot~=nil then return C.snapshot end
   return C.selection=='1' and 'NEO2\n11\n10\n0\n' or 'NEO0\n'
  end
@@ -80,7 +80,7 @@ class MixedRuntimeTests(unittest.TestCase):
     def setUp(self):self.build()
 
     def test_explicit_mixed_roles_use_only_the_new_capability_and_preserve_state_strings(self):
-        for mode in ('host','guest'):
+        for mode in ('host','guest','room-host','room-guest'):
             with self.subTest(mode=mode):
                 self.build(mode);self.assertTrue(self.m.available())
                 for state in ('0','1'):
@@ -189,6 +189,14 @@ R={saved=function()C.savedCalls=C.savedCalls+1;return true end,lookup=function()
         for slot in (-1,1.5,4294967295,float('nan'),float('inf'),'1000',True):
             self.build('host');self.c.fileAck='1'
             self.assertFalse(self.m.selectSaved(slot));self.assertIsNone(self.c.fileSelections)
+
+    def test_room_host_can_export_live_save_metadata(self):
+        for role in ('room-host','room-guest'):
+            self.build(role)
+            self.assertTrue(self.m.acceptNetworkStart())
+            self.p.startNetwork()
+            self.assertEqual(self.m.save(self.lua.globals().J),role=='room-host')
+            self.assertEqual(self.c.snapshots,1 if role=='room-host' else None)
 
     def test_saved_start_rejects_noncanonical_native_load_or_restore_ack(self):
         for ack in (False,True,0,1,'0','true','',None):

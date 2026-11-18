@@ -25,6 +25,7 @@ C.G={require=function(name) assert(name=="local.ui.optionsGroup");return O end,
  UI={Anchor={}},font={small=1},system={getScreenSize=function()return C.width,1080 end},
  Network={IsHost=function()return C.host end},ui={enable=function(widget,value)assert(widget==17);C.enabled=value end,isEnabled=function()return C.enabled end}}
 C.G.UI.WriteToConsole=function(command)
+ if command=="weplay-crossplay-v1:mode" then return C.roomMode end
  if C.mixed then
   assert(command:sub(1,24)=="weplay-crossplay-neo-v1:")
   command=command:sub(25)
@@ -110,6 +111,16 @@ return C
 
 class MixedNeoLobbyTests(NeoLobbyTests):
     mixed = True
+
+    def test_room_host_uses_network_checkbox_without_explicit_flag(self):
+        self.c.roomMode = 'room-host'
+        panel = self.lua.eval('{create=function() end, update=function() end, destroy=function() end}')
+        self.lua.execute(Path(__file__).with_name('neo_lobby.lua').read_text(encoding='utf-8'),
+                         self.c.G, panel, self.lua.eval('function(c)return function()return c.State end end')(self.c))
+        panel.create()
+        self.assertTrue(panel.weplaySelectNEO(True))
+        self.assertTrue(self.c.selected)
+        self.assertEqual(self.c.commands[1], 'stage:1')
 
     def test_only_selectable_native_host_initializes_default_once(self):
         self.c.Panel.destroy()

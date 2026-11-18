@@ -36,7 +36,7 @@ def replacements(archive):
         raise ValueError('Gold NEO original host panel mismatch')
     host = host[:-len('return d\n')] + (
         ';(function(...)\n' + (HERE / 'neo_lobby.lua').read_text(encoding='utf-8') +
-        '\nend)(n,d,function() return e end,n.UI.WriteToConsole("weplay-crossplay-v1:mode")=="host")\nreturn d\n')
+        '\nend)(n,d,function() return e end)\nreturn d\n')
     return {SETTINGS: settings.encode(), GAME: game.encode(), HOST: host.encode()}
 
 

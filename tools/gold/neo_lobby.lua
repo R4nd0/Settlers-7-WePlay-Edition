@@ -3,6 +3,10 @@ local G, Panel, getState, mixed = ...
 local Options = G.require("local.ui.optionsGroup")
 local create, update, destroy = Panel.create, Panel.update, Panel.destroy
 local group, item, syncing, defaultRequested
+if mixed == nil then
+    local mode = G.UI.WriteToConsole("weplay-crossplay-v1:mode")
+    mixed = mode == "host" or mode == "guest" or mode == "room-host" or mode == "room-guest"
+end
 local function bridge(command)
     if mixed then
         local prefix="weplay-crossplay-neo-v1:"

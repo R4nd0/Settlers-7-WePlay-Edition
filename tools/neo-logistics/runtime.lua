@@ -7,13 +7,14 @@ local restoredMixed=false
 -- Resolve this process-local mode once. Start/world calls must not consult
 -- preparation, phase or applied-lobby objects after the native world transition.
 local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
-local mixed=mode=="host" or mode=="guest"
+local mixedHost=mode=="host" or mode=="room-host"
+local mixed=mixedHost or mode=="guest" or mode=="room-guest"
 local mixedQueries={capabilities=true,selection=true,["network-state"]=true,status=true}
 local mixedActions={["stage:0"]=true,["stage:1"]=true,["start-event"]=true,
     ["begin:0"]=true,["begin:1"]=true,ready=true,load=true,["restore-network"]=true}
 local function bridge(command)
     if mixed then
-        local snapshot=mode=="host" and command:match("^save%-snapshot:%d+$")
+        local snapshot=mixedHost and command:match("^save%-snapshot:%d+$")
         local selectedFile=mode=="host" and command:sub(1,12)=="select-file:"
         if not mixedQueries[command] and not mixedActions[command] and not snapshot and not selectedFile then return false end
         local result=G.UI.WriteToConsole("weplay-crossplay-neo-v1:"..command)
@@ -135,7 +136,7 @@ function M.restore(jar)
     return true
 end
 function M.save(jar)
-    if mixed and (mode~="host" or bridge("status")~=(active and "1" or "0")) then return failed() end
+    if mixed and (not mixedHost or bridge("status")~=(active and "1" or "0")) then return failed() end
     local turn=G.Game.GetCurrentTurn()
     if mixed and (_G.type(turn)~="number" or turn<0 or turn>4294967294 or turn~=_G.math.floor(turn)) then return failed() end
     local payload = bridge("save-snapshot:" .. turn)
