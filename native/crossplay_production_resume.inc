@@ -253,24 +253,19 @@
             bool changed=false;if(!SharedEngineMode::Prepare(launch.channel.edition,owner,changed) || !ResumeNativeReady())return false;
             world_mode_prepared=true;
         }
-        if(!SharedEngineMode::Verify(launch.channel.edition,owner))return false;
-        if(!world_math_installed){
-            if(launch.host && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
-                || !GoldMovementWrapper::Install(owner,&NeoWorldReady) || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
-                || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
-            world_math_installed=true;
-        }
+        if(!SharedEngineMode::Verify(launch.channel.edition,owner) || !InstallWorldMath())return false;
         if(!resume_neo_armed){
             if(!resume_checkpoint.enabled || !CrossplayLogisticsActive::ArmResume(resume_payload))return false;
             CrossplayLogisticsActive::selected=resume_checkpoint.enabled;resume_neo_armed=true;
         }
         neo_world_session=session;world_bound=true;resume_world_prepared=true;
-        if(launch.host && !CrossplayGoldResume::installed
+        if(launch.channel.edition==Crossplay::Edition::Gold && !CrossplayGoldResume::installed
             && !CrossplayGoldResume::Install(launch.channel.edition,owner,resume_checkpoint.logic_turn,&SavedPostloadAuthority,&SavedPostloadReport))return false;
         return true;
     }
     static bool SavedPostloadAuthority(){
-        return current && current->Owned() && current->launch.host && current->bootstrap.saved
+        return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
+            && current->bootstrap.saved
             && current->phase==Phase::RosterBound && current->resume_world_prepared && current->resume_neo_armed
             && current->resume_bound && CrossplayResumeTransfer::Valid(current->resume_checkpoint)
             && current->channel.GetState()==Crossplay::State::Connected;

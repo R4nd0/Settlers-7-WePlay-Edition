@@ -30,11 +30,11 @@ try{
     if($LASTEXITCODE){throw 'Ordered world event fixture did not compile'}
     & (Join-Path $out 'crossplay_world_event_queue_tests.exe')
     if($LASTEXITCODE){throw 'Ordered world event fixture failed'}
-    foreach($fixture in @('crossplay_gold_animal_movement_time','crossplay_gold_animal_path_points')){
+    foreach($fixture in @('crossplay_gold_animal_movement_time','crossplay_gold_animal_path_points','crossplay_gold_workshop_angles')){
         & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /Oy- ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot ($fixture+'_tests.cpp')) ('/Fe:'+ $fixture+'_tests.exe') /link /DYNAMICBASE /NXCOMPAT
-        if($LASTEXITCODE){throw "Original animal arithmetic bridge did not compile: $fixture"}
+        if($LASTEXITCODE){throw "Gold parity bridge did not compile: $fixture"}
         & (Join-Path $out ($fixture+'_tests.exe'))
-        if($LASTEXITCODE){throw "Original animal arithmetic bridge failed: $fixture"}
+        if($LASTEXITCODE){throw "Gold parity bridge failed: $fixture"}
     }
     $runtimeSources=@('crossplay_production_runtime.cpp','crossplay_channel.cpp','crossplay_participant.cpp','crossplay_admission.cpp') | ForEach-Object {Join-Path $PSScriptRoot $_}
     & cl.exe /nologo /c /TC /O2 /MT /W3 (Join-Path $PSScriptRoot 'third_party/puff/puff.c') /Fo:crossplay_resume_puff.obj

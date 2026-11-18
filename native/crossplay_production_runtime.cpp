@@ -35,6 +35,7 @@
 #include "crossplay_turn_batch_codec.h"
 #include "crossplay_desync_turn_codec.h"
 #include "crossplay_gold_building_math.h"
+#include "crossplay_gold_workshop_angles.h"
 #include "crossplay_gold_resource_math.h"
 #include "crossplay_road_command_codec.h"
 #include "crossplay_priority_command_codec.h"

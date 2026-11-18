@@ -16,6 +16,9 @@ History desync. Verify its regression using the final production payload,
 including the existing History mode 3 resume correction, before publication.
 The package inputs and current status are recorded in
 [RC4 adapter migration](RC4-ADAPTER-MIGRATION.md).
+The [edition-by-edition desync audit](RC4-DESYNC-COVERAGE.md) records earlier
+failure mechanisms, the installed correction or equivalent original behavior,
+and which cases still require evidence from this package.
 
 The maintainer signer enforces this specific release as technical version
 `2.0.0-rc4.0`, sequence `29`, tag `v2.0.0-rc4.00`. Its checks run before signing-key

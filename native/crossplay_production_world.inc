@@ -80,6 +80,18 @@
         if(!CrossplayNativeObserver::GoldLocalObserver::Release())return false;gold_local_installed=false;
         return true;
     }
+    bool InstallWorldMath(){
+        if(world_math_installed)return true;
+        if(launch.channel.edition==Crossplay::Edition::Gold
+            && (!GoldWorkshopAngles::Install(owner,&WorldMathReady)
+                || !GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
+                || !GoldMovementWrapper::Install(owner,&NeoWorldReady)
+                // Path-point guards include the original movement-time routine.
+                || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
+                || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
+        world_math_installed=true;
+        return true;
+    }
     bool PrepareWorldModules(){
         // Install/check local arithmetic before creating the short-lived world
         // checkpoint. These hooks remain inactive until their existing owned
@@ -90,18 +102,7 @@
             if(!SharedEngineMode::Prepare(launch.channel.edition,owner,changed) || !FreshWorldRoot())return false;
             world_mode_prepared=true;
         }
-        if(!SharedEngineMode::Verify(launch.channel.edition,owner))return false;
-        if(!world_math_installed){
-            if(launch.channel.edition==Crossplay::Edition::Gold
-                && (!GoldBuildingMath::Install(owner,&WorldMathReady) || !GoldResourceMath::Install(owner,&WorldMathReady)
-                    || !GoldMovementWrapper::Install(owner,&NeoWorldReady)
-                    // Path-point guards include the original movement-time
-                    // routine; retain installation order before map loading.
-                    || !GoldAnimalPathPoints::Install(owner,&NeoWorldReady)
-                    || !GoldAnimalMovementTime::Install(owner,&NeoWorldReady)))return false;
-            world_math_installed=true;
-        }
-        return FreshWorldRoot();
+        return SharedEngineMode::Verify(launch.channel.edition,owner) && InstallWorldMath() && FreshWorldRoot();
     }
     bool PumpWorldStart(){
         if(neo_world_queued || !setup_roots_verified[0] || !setup_roots_verified[1])return true;
