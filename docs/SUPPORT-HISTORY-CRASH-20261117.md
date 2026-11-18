@@ -140,6 +140,25 @@ destination assignment still needs a trace before the desync. The
 reproduced run matched 8,605 checksums before the first of two mismatches
 and restored the three test copies exactly after exit.
 
+The full carrier trajectory found the first differing gameplay value
+22 turns before the checksum error. Carrier 65,562 matches on all three
+clients through turn 35,584. At turn 35,585 only its destination ID differs.
+The first guest is assigned consumer `0x1000e`; the other two are assigned
+`0x1000f`. Both consumers have valid native entries on every client. At
+this point the carrier is still moving to the same home storehouse with
+the same position, path and speed. All seven recorded NEO intermediate
+warehouse comparisons for this carrier agree across the three clients.
+The last was at turn 34,915.
+
+The original state-8 callback requests another job from the home storehouse
+when the carrier is empty. The native selector sorts that store's transfer
+requests before assigning the consumer. Ubisoft, Steam History and Gold map
+to independently verified consumer-selection and destination-write sites.
+The native History comparator is strict on numeric task priority, and the
+native merge preserves list order for equal priorities. The same comparison
+also bounds continued selection. The actual queue order and the exact
+consumer-acceptance predicate at turn 35,585 remain to be traced.
+
 An earlier attempt in the same test window ended while the guests were
 still joining the lobby. The first guest returned Windows status
 `0xc0000374` and produced no replay. After verified restoration, the

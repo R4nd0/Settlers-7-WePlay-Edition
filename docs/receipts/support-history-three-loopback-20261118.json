@@ -216,5 +216,24 @@
     "earlier_attempt_produced_replay": false,
     "earlier_attempt_restoration_verified": true
   },
+  "autosave_read_only_distance_carrier_trajectory": {
+    "saved_logic_turn": 27001,
+    "actor_id": 65562,
+    "matching_carrier_state_through_replay_turn": 35584,
+    "first_different_carrier_state_replay_turn": 35585,
+    "only_different_recorded_carrier_field_at_first_split": "destination_id",
+    "destination_host_first_guest_second_guest": [65551, 65550, 65551],
+    "both_destination_consumers_present_on_all_three": true,
+    "same_carrier_home_storehouse": 65545,
+    "matching_neo_intermediate_warehouse_comparisons_for_carrier": 7,
+    "last_neo_intermediate_warehouse_comparison_for_carrier_turn": 34915,
+    "turns_from_assignment_split_to_checksum_split": 22,
+    "recorded_checksums": [9047, 8607, 9048],
+    "shared_checksums": 8607,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 2,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }

@@ -27,6 +27,15 @@ History builds use an animation component at object offset `0x198`. Gold uses
 `0x1a4` and a different dispatcher ABI. The upstream trigger still lacks a
 verified correction. [Historical movement tests](GOLD-HISTORY-AUTOMATED-START.md#animal-movement-time-correction-2026-11-14) · [Current History report](SUPPORT-HISTORY-CRASH-20261117.md)
 
+Carrier 65,562 first receives a different consumer at turn 35,585, before
+any measured change in its route or animation. The independently mapped
+destination writes are `0x79198d / 0x791993` in Ubisoft, `0x79175d /
+0x791763` in Steam and `0x91caaa / 0x91cab2` in Gold. The History sort
+comparison and the comparison for a lower-priority early stop use the same
+native function. A change to sort ties must preserve or explicitly verify the
+behavior of that second caller, plus Gold's independent selection ABI.
+[History trajectory and remaining test](SUPPORT-HISTORY-CRASH-20261117.md)
+
 Fresh and saved mixed worlds share a local-edition check for the Gold native
 bridges, independent of the machine hosting the match. The ordinary adapter
 still rejects mixed admission, and the current WPX2 laboratory work reaches
