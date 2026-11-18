@@ -703,6 +703,13 @@ bool RoomTeamsConfirmed(){
     return false;
 #endif
 }
+bool RoomSetupConfirmed(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    return RoomTeamsConfirmed() && current->room_root_phase==Runtime::RoomRootPhase::Confirmed;
+#else
+    return false;
+#endif
+}
 std::string BootstrapMap(){
     return current && current->Owned() && !current->launch.host && current->bootstrap_received
         && current->phase!=Phase::Failed && current->phase!=Phase::Closed?current->bootstrap.map:std::string();

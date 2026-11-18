@@ -289,8 +289,10 @@
         return true;
     }
 
+#include "crossplay_production_room_root.inc"
+
     bool PumpRoomReady(const Crossplay::RoomSnapshot& room) {
-        if(room_team_phase==TeamPhase::Confirmed)return true;
+        if(room_team_phase==TeamPhase::Confirmed)return !room_ai_slot || PumpRoomRoot(room);
         if(room_team_phase!=TeamPhase::Idle)return PumpRoomTeams(room);
         if(!GoldHostedReadyRoom(room))return true;
         Crossplay::RoomEvent event;

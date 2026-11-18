@@ -13,6 +13,7 @@ bool RoomGuestReadyActionAvailable();
 bool RoomAllHumansReadyObserved();
 bool RoomSynchronizeTeams();
 bool RoomTeamsConfirmed();
+bool RoomSetupConfirmed();
 std::string RoomStartCaptureState();
 std::string BootstrapMap();
 bool BootstrapChoices(uint32_t& flags,std::string& map_template);
