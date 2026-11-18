@@ -83,7 +83,17 @@ checks the started roster before and after decoding.
 
 The loopback integration fixture covers eleven complete admission sequences,
 including each of the three hosts, repeated editions and delayed readback from
-one client. Its game callbacks are modeled. The regular game entry path still
-uses pair admission, setup and start. Group map setup, AI preparation, Ready,
-NEO, world start and save/reload need wiring into the original game entry path
-and verification in actual mixed games at normal speed with DXVK.
+one client. Its game callbacks are modeled.
+
+The group session-configuration codec reads station IDs from that roster and
+translates only the host event's routing ID and each human's station ID. It
+keeps AI and vacant records, Ready, privacy and the map data intact. The receive
+path checks the authenticated sender is the host, verifies the bound roster
+and passes the translated configuration to the original reader and local
+queue. The configuration fixture covers three humans with a separate AI
+position and each of the human positions as host.
+
+The regular game entry path still uses pair admission, setup and start.
+The group codecs need to run in the original clients' lifecycle with actual
+AI preparation, Ready, setup agreement, NEO, world start and save/reload.
+Actual mixed games at normal speed with DXVK remain the test for those stages.

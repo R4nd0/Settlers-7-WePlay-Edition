@@ -483,4 +483,20 @@ bool RoomLobbyAdmission::Resolve(unsigned char source_slot,bool started,RoomRout
          sender.in_local_namespace,{}}};
     return true;
 }
+
+bool RoomLobbyAdmission::CaptureConfigurationRoutes(unsigned char capacity,CrossplaySessionConfig::RoomConnections& routes) const {
+    routes={};
+    const auto& s=*impl;
+    if(!s.Owned() || s.state!=AdmissionState::RosterBound || !s.Connected())return false;
+    LobbySnapshot snapshot;
+    if(!s.native.CaptureLobby(snapshot) || !s.Matches(snapshot))return false;
+    CrossplaySessionConfig::RoomConnections candidate;
+    candidate.capacity=capacity;
+    candidate.host=s.players[s.room.host_slot-1].connection;
+    for(size_t i=0;i<s.room.member_count;++i)
+        candidate.stations[s.players[i].slot-1]=s.players[i].connection;
+    if(!CrossplaySessionConfig::ValidRoomConnections(candidate))return false;
+    routes=candidate;
+    return true;
+}
 }

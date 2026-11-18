@@ -118,5 +118,44 @@ int main() {
     projection.fill(0);Check(!CrossplayNative::ProjectConnection(Crossplay::Edition::Gold,42,projection,projected),"zero Gold alias excluded");
     Check(!CrossplayNative::ProjectConnection(static_cast<Crossplay::Edition>(99),42,projection,projected),"unknown edition excluded");
     Check(!CrossplayNative::ProjectConnection(Crossplay::Edition::SteamHistory,UINT32_MAX,projection,projected),"sentinel receiver CID excluded");
+    for(size_t host_slot:{0u,1u,3u}){
+        RoomConnections from,to;
+        from.capacity=to.capacity=4;
+        from.stations={11,0,UINT32_MAX,12,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX};
+        to.stations={71,72,UINT32_MAX,0,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX};
+        from.host=from.stations[host_slot];to.host=to.stations[host_slot];
+        auto original=Config({from.host,99});
+        Layout room_layout;
+        Check(ReadLayout(original,from.host,room_layout),"read original four-position layout");
+        for(size_t i=0;i<Slots;++i){
+            auto* row=original.data()+room_layout.slots_at+i*SlotBytes;
+            row[0]=i<4?1:0;
+            CrossplayChat::Put(row+1,i<4?static_cast<uint32_t>(i+1):UINT32_MAX);
+            row[5]=i==1?1:0;
+            CrossplayChat::Put(row+6,from.stations[i]==UINT32_MAX?0:from.stations[i]);
+            row[10]=i<4?4:5;
+        }
+        std::vector<unsigned char> result;
+        Check(InspectRoom(original,from,room_layout),"three humans and an AI with the actual host slot");
+        Check(ProjectRoom(original,from,to,result) && InspectRoom(result,to,room_layout),"map original routing to another edition");
+        for(size_t at=0;at<original.size();++at){
+            bool routing=at>=8 && at<12;
+            for(size_t i:{0u,1u,3u}){
+                const auto station=room_layout.slots_at+i*SlotBytes+6;
+                if(at>=station && at<station+4)routing=true;
+            }
+            if(!routing)Check(original[at]==result[at],"AI records and nonrouting fields unchanged");
+        }
+        Check(ProjectRoom(result,to,from,result) && original==result,"in-place projection roundtrip");
+        auto bad=to;bad.host=to.stations[(host_slot==0)?1:0];
+        Check(!ProjectRoom(original,from,bad,result) && result.empty(),"host position may not change during CID translation");
+        bad=to;bad.stations[2]=93;
+        Check(!ProjectRoom(original,from,bad,result),"AI position may not turn into a human");
+        bad=to;bad.stations[1]=bad.stations[0];
+        Check(!ProjectRoom(original,from,bad,result),"one connection may not own two positions");
+        auto changed_cpu=original;
+        CrossplayChat::Put(changed_cpu.data()+room_layout.slots_at+2*SlotBytes+6,93);
+        Check(!ProjectRoom(changed_cpu,from,to,result),"AI may not carry a human station");
+    }
     std::printf("PASS %u bounded session-config framing/namespace checks; no game code executed\n",checks);
 }

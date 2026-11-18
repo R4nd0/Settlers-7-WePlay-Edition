@@ -1,5 +1,6 @@
 #pragma once
 #include "crossplay_chat.h"
+#include <algorithm>
 #include <string>
 
 // Experimental two-human fresh lobby configuration only. Original ready,
@@ -10,6 +11,13 @@ constexpr uint32_t Class=0xbcffb9e9,Type=7u|(25u<<16);
 constexpr size_t Header=44,MaximumPath=255,Slots=8,SlotBytes=11,MaximumWire=13+2*(8+MaximumPath+1)+4+Slots*SlotBytes;
 struct Connections {uint32_t host=UINT32_MAX,guest=UINT32_MAX;};
 struct Layout {size_t slots_at=0;std::string map;};
+struct RoomConnections {
+    uint32_t host=UINT32_MAX;
+    uint8_t capacity=0;
+    // Indexed by map slot minus one. UINT32_MAX marks AI or an unused slot.
+    std::array<uint32_t,Slots> stations{
+        UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX};
+};
 inline bool Distinct(Connections ids) {return ids.host!=UINT32_MAX && ids.guest!=UINT32_MAX && ids.host!=ids.guest;}
 inline bool SlotValid(size_t index,unsigned ready,unsigned privacy,uint32_t slot,uint32_t station,uint32_t state,
                       Connections ids,bool local_snapshot=false) {
@@ -46,21 +54,81 @@ inline bool RelativeMap(const std::string& path) {
     }
     return true;
 }
-inline bool Inspect(const std::vector<unsigned char>& wire,Connections ids,Layout& result,bool local_snapshot=false) {
+inline bool ReadLayout(const std::vector<unsigned char>& wire,uint32_t host,Layout& result) {
     result={};
-    if(!Distinct(ids) || wire.size()<13 || wire.size()>MaximumWire
+    if(host==UINT32_MAX || wire.size()<13 || wire.size()>MaximumWire
         || CrossplayChat::Word(wire.data())!=Class || CrossplayChat::Word(wire.data()+4)!=Type
-        || CrossplayChat::Word(wire.data()+8)!=ids.host || wire[12]!=1)return false;
+        || CrossplayChat::Word(wire.data()+8)!=host || wire[12]!=1)return false;
     size_t at=13;std::string map,save;
     if(!String(wire,at,map) || !RelativeMap(map) || !String(wire,at,save) || !save.empty()
         || wire.size()-at!=4+Slots*SlotBytes || CrossplayChat::Word(wire.data()+at)!=Slots)return false;
-    at+=4;Layout layout;layout.map=std::move(map);layout.slots_at=at;
+    result={at+4,std::move(map)};
+    return true;
+}
+inline bool Inspect(const std::vector<unsigned char>& wire,Connections ids,Layout& result,bool local_snapshot=false) {
+    result={};Layout layout;
+    if(!Distinct(ids) || !ReadLayout(wire,ids.host,layout))return false;
+    size_t at=layout.slots_at;
     for(size_t i=0;i<Slots;++i,at+=SlotBytes) {
         const auto ready=wire[at],private_slot=wire[at+5],state=wire[at+10];
         const uint32_t slot=CrossplayChat::Word(wire.data()+at+1),station=CrossplayChat::Word(wire.data()+at+6);
         if(!SlotValid(i,ready,private_slot,slot,station,state,ids,local_snapshot))return false;
     }
     result=std::move(layout);return true;
+}
+inline bool ValidRoomConnections(const RoomConnections& room) {
+    if(room.host==UINT32_MAX || room.capacity<2 || room.capacity>Slots)return false;
+    size_t humans=0;
+    bool found_host=false;
+    for(size_t i=0;i<Slots;++i) {
+        const auto cid=room.stations[i];
+        if(cid==UINT32_MAX)continue;
+        if(i>=room.capacity || std::find(room.stations.begin(),room.stations.begin()+i,cid)
+            !=room.stations.begin()+i)return false;
+        ++humans;
+        if(cid==room.host)found_host=true;
+    }
+    return humans>=2 && found_host;
+}
+inline bool RoomSlotValid(size_t index,unsigned ready,unsigned privacy,uint32_t slot,uint32_t station,
+        uint32_t state,const RoomConnections& room,bool local_snapshot=false) {
+    if(index>=Slots || ready>1 || privacy>1)return false;
+    const auto cid=room.stations[index];
+    if(cid!=UINT32_MAX)return index<room.capacity && slot==index+1 && (state==3 || state==4)
+        && (station==cid || (local_snapshot && !station));
+    if(station)return false;
+    if(state==4)return index<room.capacity && ready==1 && !privacy && slot==index+1;
+    if(state==2)return index<room.capacity && ready==1 && slot==index+1;
+    return (state==0 || (state==1 && index<room.capacity) || state==5) && !ready && slot==UINT32_MAX;
+}
+inline bool InspectRoom(const std::vector<unsigned char>& wire,const RoomConnections& room,Layout& result,
+        bool local_snapshot=false) {
+    result={};Layout layout;
+    if(!ValidRoomConnections(room) || !ReadLayout(wire,room.host,layout))return false;
+    size_t at=layout.slots_at;
+    for(size_t i=0;i<Slots;++i,at+=SlotBytes) {
+        if(!RoomSlotValid(i,wire[at],wire[at+5],CrossplayChat::Word(wire.data()+at+1),
+                CrossplayChat::Word(wire.data()+at+6),wire[at+10],room,local_snapshot))return false;
+    }
+    result=std::move(layout);return true;
+}
+// Translate only the original sender and each human's StationID. Keep a
+// zero CID valid and copy AI/open/closed records without touching their bytes.
+inline bool ProjectRoom(const std::vector<unsigned char>& input,const RoomConnections& source,
+        const RoomConnections& target,std::vector<unsigned char>& output,bool local_snapshot=false) {
+    Layout layout;
+    if(!InspectRoom(input,source,layout,local_snapshot) || !ValidRoomConnections(target)
+        || source.capacity!=target.capacity){output.clear();return false;}
+    auto result=input;
+    for(size_t i=0;i<Slots;++i) {
+        const bool human=source.stations[i]!=UINT32_MAX;
+        if(human!=(target.stations[i]!=UINT32_MAX)
+            || (human && (source.stations[i]==source.host)!=(target.stations[i]==target.host))){output.clear();return false;}
+        if(human)CrossplayChat::Put(result.data()+layout.slots_at+i*SlotBytes+6,target.stations[i]);
+    }
+    CrossplayChat::Put(result.data()+8,target.host);
+    if(!InspectRoom(result,target,layout)){output.clear();return false;}
+    output=std::move(result);return true;
 }
 inline bool BindSource(const std::vector<unsigned char>& snapshot,Connections ids,std::vector<unsigned char>& wire) {
     wire.clear();Layout layout;

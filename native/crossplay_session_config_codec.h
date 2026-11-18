@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_event_codec.h"
 #include "crossplay_session_config.h"
+#include "crossplay_admission.h"
 
 namespace CrossplayNativeCodec {
 namespace SessionConfigDetail {
@@ -56,9 +57,10 @@ inline bool NativeString(const unsigned char* object,std::string& result) {
     for(uint32_t i=0;i<s.length;++i)if(static_cast<unsigned char>(s.data[i])<32 || static_cast<unsigned char>(s.data[i])>126)return false;
     result.assign(s.data,s.length);return true;
 }
-inline bool Fields(const Detail::Profile& p,const unsigned char* map_field,const unsigned char* save_field,const unsigned char* container,
-                   CrossplaySessionConfig::Connections ids) {
-    if(!CrossplaySessionConfig::Distinct(ids) || !Detail::Readable(map_field,16) || !Detail::Readable(save_field,16)
+template<class SlotCheck>
+inline bool FieldsChecked(const Detail::Profile& p,const unsigned char* map_field,const unsigned char* save_field,
+                          const unsigned char* container,SlotCheck check) {
+    if(!Detail::Readable(map_field,16) || !Detail::Readable(save_field,16)
         || !Detail::Readable(container,p.gold?16:12))return false;
     std::string map,save;
     if(!NativeString(map_field,map) || !CrossplaySessionConfig::RelativeMap(map) || !NativeString(save_field,save) || !save.empty())return false;
@@ -69,15 +71,33 @@ inline bool Fields(const Detail::Profile& p,const unsigned char* map_field,const
     for(size_t i=0;i<CrossplaySessionConfig::Slots;++i) {
         const auto* row=reinterpret_cast<const unsigned char*>(vector[0]+i*0x18);
         const uint32_t state=CrossplayChat::Word(row),slot=CrossplayChat::Word(row+8),station=CrossplayChat::Word(row+0x10);
-        if(!CrossplaySessionConfig::SlotValid(i,row[4],row[0xc],slot,station,state,ids,true))return false;
+        if(!check(i,row[4],row[0xc],slot,station,state))return false;
     }
     return true;
+}
+inline bool Fields(const Detail::Profile& p,const unsigned char* map_field,const unsigned char* save_field,const unsigned char* container,
+                   CrossplaySessionConfig::Connections ids) {
+    return CrossplaySessionConfig::Distinct(ids)
+        && FieldsChecked(p,map_field,save_field,container,[&](size_t i,unsigned ready,unsigned privacy,uint32_t slot,uint32_t station,uint32_t state) {
+            return CrossplaySessionConfig::SlotValid(i,ready,privacy,slot,station,state,ids,true);
+        });
 }
 inline bool Source(const Detail::Profile& p,const void* event,CrossplaySessionConfig::Connections ids) {
     const auto* data=static_cast<const unsigned char*>(event);
     return Detail::Readable(data,p.gold?0x40:0x3c) && *reinterpret_cast<const uintptr_t*>(data)==p.event_vt
         && CrossplayChat::Word(data+4)==CrossplaySessionConfig::Type && CrossplayChat::Word(data+8)==ids.host && data[12]==1
         && Fields(p,data+0x10,data+0x20,data+0x30,ids);
+}
+inline bool RoomSource(const Detail::Profile& p,const void* event,const CrossplaySessionConfig::RoomConnections& routes) {
+    const auto* data=static_cast<const unsigned char*>(event);
+    return CrossplaySessionConfig::ValidRoomConnections(routes)
+        && Detail::Readable(data,p.gold?0x40:0x3c) && *reinterpret_cast<const uintptr_t*>(data)==p.event_vt
+        && CrossplayChat::Word(data+4)==CrossplaySessionConfig::Type
+        && CrossplayChat::Word(data+8)==routes.host && data[12]==1
+        && FieldsChecked(p,data+0x10,data+0x20,data+0x30,[&](size_t i,unsigned ready,unsigned privacy,
+                uint32_t slot,uint32_t station,uint32_t state){
+            return CrossplaySessionConfig::RoomSlotValid(i,ready,privacy,slot,station,state,routes,true);
+        });
 }
 inline void* GoldConstruct(uintptr_t address,const void* map,void* output,uint32_t source,const void* save,const void* slots) {
     void* result=nullptr;
@@ -130,9 +150,10 @@ struct ConfigLock {
     }
     ~ConfigLock(){if(acquired)LeaveCriticalSection(section);}
 };
-inline bool Decode(Crossplay::Edition edition,const std::vector<unsigned char>& wire,CrossplaySessionConfig::Connections ids) {
-    CrossplaySessionConfig::Layout layout;
-    if(!CrossplaySessionConfig::Inspect(wire,ids,layout) || !Methods(edition))return false;
+template<class SourceCheck,class OwnershipCheck>
+inline bool DecodeChecked(Crossplay::Edition edition,const std::vector<unsigned char>& wire,
+        SourceCheck check,OwnershipCheck owned) {
+    if(!Methods(edition))return false;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
     Detail::Visitor reader{p.reader_vt,1,&stream.value,0};const char* name="WePlayEvent";
@@ -140,12 +161,18 @@ inline bool Decode(Crossplay::Edition edition,const std::vector<unsigned char>& 
         reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,name,0);
     if(!decoded || !Detail::Readable(decoded,p.gold?0x40:0x3c) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
-    bool okay=stream.value.position==wire.size() && Source(p,decoded,ids) && Detail::Encode(p,decoded,repeated) && wire==repeated;
+    bool okay=stream.value.position==wire.size() && check(p,decoded) && Detail::Encode(p,decoded,repeated)
+        && wire==repeated && owned();
     uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);
     else okay=false;
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
     return okay;
+}
+inline bool Decode(Crossplay::Edition edition,const std::vector<unsigned char>& wire,CrossplaySessionConfig::Connections ids) {
+    CrossplaySessionConfig::Layout layout;
+    return CrossplaySessionConfig::Inspect(wire,ids,layout)
+        && DecodeChecked(edition,wire,[&](const auto& p,const void* event){return Source(p,event,ids);},[]{return true;});
 }
 }
 inline bool CaptureGoldSessionConfig(const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,
@@ -177,5 +204,45 @@ inline bool EncodeSessionConfig(Crossplay::Edition edition,const CrossplayNative
 inline bool EnqueueSessionConfig(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                                  CrossplaySessionConfig::Connections ids,const std::vector<unsigned char>& wire) {
     return SessionConfigDetail::Roster(binding,ids,false) && SessionConfigDetail::Decode(edition,wire,ids);
+}
+inline bool EncodeRoomSessionConfig(const CrossplayNative::RoomLobbyAdmission& admission,unsigned char own_slot,
+        unsigned char capacity,const std::string& map,const void* event,CrossplaySessionConfig::RoomConnections& routes,
+        std::vector<unsigned char>& wire) {
+    wire.clear();
+    routes={};
+    CrossplayNative::RoomRoute own;
+    CrossplaySessionConfig::RoomConnections current;
+    if(!admission.Resolve(own_slot,false,own) || !own.local || !own.host
+        || !admission.CaptureConfigurationRoutes(capacity,current) || !SessionConfigDetail::Methods(own.receiver))return false;
+    const auto p=SessionConfigDetail::Pin(own.receiver);
+    CrossplaySessionConfig::Layout layout;
+    std::vector<unsigned char> snapshot;
+    if(!SessionConfigDetail::RoomSource(p,event,current) || !Detail::Encode(p,event,snapshot)
+        || !CrossplaySessionConfig::InspectRoom(snapshot,current,layout,true) || layout.map!=map
+        || !CrossplaySessionConfig::ProjectRoom(snapshot,current,current,wire,true))return false;
+    routes=current;
+    return true;
+}
+
+// source routes accompany the observed host snapshot in the group setup
+// protocol. Validate the authenticated sender and the local roster before
+// asking the original engine to decode that configuration.
+inline bool EnqueueRoomSessionConfig(const CrossplayNative::RoomLobbyAdmission& admission,const Crossplay::RoomEvent& event,
+        const CrossplaySessionConfig::RoomConnections& source,unsigned char capacity,const std::string& map) {
+    CrossplayNative::RoomRoute host;
+    CrossplaySessionConfig::RoomConnections current;
+    CrossplaySessionConfig::Layout layout;
+    if(!admission.Resolve(event.source_slot,false,host) || !host.host || host.local
+        || source.host!=host.source_cid || !admission.CaptureConfigurationRoutes(capacity,current)
+        || !CrossplaySessionConfig::InspectRoom(event.bytes,source,layout) || layout.map!=map)return false;
+    std::vector<unsigned char> wire;
+    if(!CrossplaySessionConfig::ProjectRoom(event.bytes,source,current,wire))return false;
+    return SessionConfigDetail::DecodeChecked(host.receiver,wire,
+        [&](const auto& p,const void* decoded){return SessionConfigDetail::RoomSource(p,decoded,current);},
+        [&]{
+            CrossplaySessionConfig::RoomConnections fresh;
+            return admission.CaptureConfigurationRoutes(capacity,fresh) && fresh.host==current.host
+                && fresh.stations==current.stations;
+        });
 }
 }

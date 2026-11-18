@@ -170,6 +170,14 @@ int main(int argc,char** argv) {
             ++known;
         }
         Check(known==count,"every player has a route");
+        CrossplaySessionConfig::RoomConnections config;
+        Check(admissions[i].CaptureConfigurationRoutes(static_cast<unsigned char>(count),config),
+            "capture map routing from the complete original-shaped roster");
+        RoomRoute host_route;
+        Check(admissions[i].Resolve(static_cast<unsigned char>(host),false,host_route)
+            && config.host==host_route.receiver_cid && config.stations[0]==config.host,"configuration follows the chosen host");
+        Check(!admissions[i].CaptureConfigurationRoutes(static_cast<unsigned char>(count-1),config),
+            "human outside the map limit rejects the configuration");
         models[i].started=true;
         RoomRoute route;
         Check(admissions[i].Resolve(static_cast<unsigned char>(host),true,route),"separate started phase requires native readback");

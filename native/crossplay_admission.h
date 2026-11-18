@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_participant.h"
 #include "crossplay_group_roster.h"
+#include "crossplay_session_config.h"
 
 namespace CrossplayNative {
 enum class AdmissionState { New, AwaitingPeer, Applying, AwaitingCommit, RosterBound, Failed };
@@ -55,6 +56,7 @@ public:
     // A route is usable only in the original session whose full roster still
     // matches. A started session is verified separately from lobby phase.
     bool Resolve(unsigned char source_slot,bool started,RoomRoute& route) const;
+    bool CaptureConfigurationRoutes(unsigned char capacity,CrossplaySessionConfig::RoomConnections& routes) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;
