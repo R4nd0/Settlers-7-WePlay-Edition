@@ -157,5 +157,22 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_rng_trace": {
+    "saved_logic_turn": 27001,
+    "first_different_rng_replay_turn": 35607,
+    "identical_observed_rng_operations_within_failing_turn_before_split": 288,
+    "incoming_rng_seed_equal_at_split": true,
+    "first_diverging_original_rng_site": {
+      "host_and_second_guest": "0x57b4f4",
+      "first_guest": "0x72f2fa"
+    },
+    "recorded_checksums": [8770, 8607, 8771],
+    "shared_checksums": 8607,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 2,
+    "desync_snapshot_copies": 3,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }

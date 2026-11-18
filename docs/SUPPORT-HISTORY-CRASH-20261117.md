@@ -96,10 +96,18 @@ turn 35,580 through 35,606. At turn 35,607, the first guest has consumed
 one more value from the simulation random stream. Its random counter and seed
 are the only recorded direct checksum inputs that differ. Both recorded AI
 inputs still match. All 49 observed handoff comparisons and five sampled
-storehouse-distance evaluations per client match. The extra random draw's
-caller remains to be identified. The first guest returned to the browser,
-each participant wrote a desync snapshot, and all three exited normally with
-verified restoration.
+storehouse-distance evaluations per client match. The first guest returned
+to the browser, each participant wrote a desync snapshot, and all three
+exited normally with verified restoration.
+
+A second NEO6 run traced the original random operations and reproduced the
+same replay mismatch. At turn 35,607 the streams agree for the first 288
+recorded operations. Host and second guest then enter the native weighted
+choice at 0x57b4f4. The first guest enters the native spawn-point calculation
+at 0x72f2fa with the same incoming seed. Both paths use the original random
+generator. This identifies the first differing operation. The specific
+animal and the earlier movement state that led to the split still need to
+be confirmed. All three closed normally with exact restoration again.
 
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first

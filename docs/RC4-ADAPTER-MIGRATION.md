@@ -67,11 +67,13 @@ three-edition reload tests required by the release gate.
 
 For that Ubisoft History regression, load the original autosave from logic turn
 27,001 with the final production payload. Compare the three original replay files
-from the same reload using `tools/local-pair/replay_crc.py --min-common-checksums 3195`.
-Require zero mismatches and verify separately that all three clients continue to
-advance together through the original failure at turn 30,195. The turn-30,002
-control yielded only one shared checksum and failed to continue on both guests.
-Keep the saves and replays in the private test workspace.
+from the same reload using `tools/local-pair/replay_crc.py --min-common-checksums 8608`.
+Require zero mismatches and verify 20 minutes of continued play from the
+shared restart. The replay and live turn evidence must cover both observed
+failures, at turns 30,195 and 35,607. The later failure first differs at
+zero-based checksum ordinal 8,605. Repeat the 20-minute continuation with the
+original manual save and compare its three native replays. Keep the saves and
+replays in the private test workspace.
 [Regression evidence](SUPPORT-HISTORY-CRASH-20261117.md)
 
 [Migration verification receipt](receipts/rc400-adapter-migration-20261116.json).
