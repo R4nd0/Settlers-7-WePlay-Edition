@@ -65,4 +65,13 @@ against the same source revision before final installer qualification. Keep
 the Ubisoft History regression from the reported case in addition to the mixed
 three-edition reload tests required by the release gate.
 
+For that Ubisoft History regression, load the original autosave from logic turn
+27,001 with the final production payload. Compare the three original replay files
+from the same reload using `tools/local-pair/replay_crc.py --min-common-checksums 3195`.
+Require zero mismatches and verify separately that all three clients continue to
+advance together through the original failure at turn 30,195. The turn-30,002
+control yielded only one shared checksum and failed to continue on both guests.
+Keep the saves and replays in the private test workspace.
+[Regression evidence](SUPPORT-HISTORY-CRASH-20261117.md)
+
 [Migration verification receipt](receipts/rc400-adapter-migration-20261116.json).
