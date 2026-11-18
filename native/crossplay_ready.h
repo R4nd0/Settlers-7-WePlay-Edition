@@ -12,9 +12,10 @@ inline bool Validate(const std::vector<unsigned char>& wire,uint32_t guest) {
         && CrossplayChat::Word(wire.data())==Class && CrossplayChat::Word(wire.data()+4)==Type
         && CrossplayChat::Word(wire.data()+8)==guest && wire[12]==1;
 }
-inline bool NativeState(const std::vector<unsigned char>& wire,uint32_t guest) {
-    return wire.size()==NativeStateSize && Validate(std::vector<unsigned char>(wire.begin(),wire.begin()+WireSize),guest)
-        && CrossplayChat::Word(wire.data()+13)==2 && wire[17]<=1;
+inline bool NativeState(const std::vector<unsigned char>& wire,uint32_t guest,uint32_t expected_slot=2) {
+    return expected_slot && expected_slot<=Crossplay::RoomSnapshot::MaximumMembers
+        && wire.size()==NativeStateSize && Validate(std::vector<unsigned char>(wire.begin(),wire.begin()+WireSize),guest)
+        && CrossplayChat::Word(wire.data()+13)==expected_slot && wire[17]<=1;
 }
 inline bool Encode(const Crossplay::Peer& peer,const std::vector<unsigned char>& wire,
                    uint32_t guest,std::vector<unsigned char>& frame) {

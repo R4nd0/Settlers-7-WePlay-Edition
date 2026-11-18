@@ -47,20 +47,21 @@ inline bool GoldStateMethods() {
     }
     return hash==0x60c9979341fde4a4ull;
 }
-inline bool NativeStateSource(const Detail::Profile& p,const void* event,uint32_t guest) {
+inline bool NativeStateSource(const Detail::Profile& p,const void* event,uint32_t guest,uint32_t expected_slot) {
     const auto* bytes=static_cast<const unsigned char*>(event);
     return Source(p,event,guest) && Detail::Readable(bytes,0x18)
-        && CrossplayChat::Word(bytes+0x10)==2 && bytes[0x14]<=1;
+        && CrossplayChat::Word(bytes+0x10)==expected_slot && bytes[0x14]<=1;
 }
-inline bool EnqueueState(Crossplay::Edition edition,const std::vector<unsigned char>& wire,uint32_t guest) {
-    if(edition!=Crossplay::Edition::Gold || !CrossplayReady::NativeState(wire,guest) || !Methods(edition) || !GoldStateMethods())return false;
+inline bool EnqueueState(Crossplay::Edition edition,const std::vector<unsigned char>& wire,uint32_t guest,uint32_t expected_slot) {
+    if(edition!=Crossplay::Edition::Gold || !CrossplayReady::NativeState(wire,guest,expected_slot) || !Methods(edition) || !GoldStateMethods())return false;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
     Detail::Visitor reader{p.reader_vt,1,&stream.value,0};const char* name="WePlayEvent";
     void* decoded=Detail::GoldRead(p.read,&reader,name);
     if(!decoded || !Detail::Readable(decoded,0x18) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
-    bool okay=stream.value.position==wire.size() && NativeStateSource(p,decoded,guest) && Detail::Encode(p,decoded,repeated) && wire==repeated;
+    bool okay=stream.value.position==wire.size() && NativeStateSource(p,decoded,guest,expected_slot)
+        && Detail::Encode(p,decoded,repeated) && wire==repeated;
     uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);
     else okay=false;
@@ -109,7 +110,7 @@ inline bool EnqueueReadyToggle(Crossplay::Edition edition,const CrossplayNative:
     const auto before=slot[4];const auto after=static_cast<unsigned char>(!before);
     std::vector<unsigned char> state=wire;state.resize(CrossplayReady::NativeStateSize);
     CrossplayChat::Put(state.data()+13,2);state[17]=after;
-    if(!ReadyDetail::EnqueueState(edition,state,ids.guest))return false;
+    if(!ReadyDetail::EnqueueState(edition,state,ids.guest,2))return false;
     pending={reinterpret_cast<uintptr_t>(config),session,ids,before,after};return true;
 }
 inline ReadyObservation ObserveReadyToggle(const CrossplayNative::ParticipantEvent& binding,const PendingReadyToggle& pending) {

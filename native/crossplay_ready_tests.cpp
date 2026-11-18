@@ -40,6 +40,12 @@ int main() {
                 CrossplayChat::Put(native.data()+13,slot);
                 Check(!CrossplayReady::NativeState(native,guest),"Gold receiver cannot target another native slot");
             }
+            for(uint32_t slot=1;slot<=Crossplay::RoomSnapshot::MaximumMembers;++slot) {
+                CrossplayChat::Put(native.data()+13,slot);
+                for(uint32_t expected_slot=0;expected_slot<=Crossplay::RoomSnapshot::MaximumMembers+1;++expected_slot)
+                    Check(CrossplayReady::NativeState(native,guest,expected_slot)==(expected_slot==slot),
+                        "Gold native state requires the exact authenticated map slot");
+            }
         }
         Check(CrossplayReady::Encode(sender,original,guest,frame),"fresh frame after rejections");
         frame.push_back(0);Check(!CrossplayReady::Decode(receiver,frame,guest,17,decoded),"trailing bytes excluded");

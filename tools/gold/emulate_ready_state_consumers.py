@@ -1,6 +1,7 @@
-"""Execute original History Ready consumers on bounded synthetic guest objects.
+"""Execute original Ready consumers on bounded synthetic lobby objects.
 
 The original Confirmed-data consumer and preparation Ready setter execute.
+The optional Gold probe executes the original configuration Ready write.
 The guest-role callback and Win32 lock imports are modeled. No queue dispatcher,
 backend join, game process, socket or mixed world is executed.
 """
@@ -57,9 +58,69 @@ def execute(image,imports,consumer,setter,main_at,manager_at,slot,ready):
     expected=bytearray(original_rows);expected[slot*0x5a8+0x71]=ready
     if bytes(u.mem_read(ROWS,len(expected)))!=expected or bytes(u.mem_read(EVENT,0xa0))!=original_event or word(CONFIG+0xc)!=2:raise RuntimeError('Native target/source ownership mismatch')
 
+
+def execute_gold(image, slot, ready):
+    # Run the original configuration write and its lock calls. Stop before
+    # the following notification and automatic-session-start branch.
+    entry, done = 0x98e303, 0x98e346
+    uc = Uc(UC_ARCH_X86, UC_MODE_32)
+    uc.mem_map(image.base, (image.size+4095)&~4095)
+    uc.mem_write(image.base, image.mapped)
+    uc.mem_map(S, 0x20000)
+    uc.mem_map(STACK, 0x10000)
+
+    def write_word(address, value):
+        uc.mem_write(address, struct.pack('<I', value))
+
+    def read_word(address):
+        return struct.unpack('<I', uc.mem_read(address, 4))[0]
+
+    write_word(CONFIG+8, HOLDER)
+    write_word(HOLDER+4, HOLDER+0x80)
+    write_word(CONFIG+0x48, SLOTS)
+    write_word(EVENT+0x10, slot)
+    uc.mem_write(EVENT+0x14, bytes((ready,)))
+    write_word(0xebf04c, ENTER)
+    write_word(0xebf064, LEAVE)
+    original = bytearray(8*0x18)
+    for index in range(8):
+        original[index*0x18+4] = 1-ready
+    uc.mem_write(SLOTS, bytes(original))
+    stack = STACK+0xf000
+    uc.reg_write(UC_X86_REG_ESP, stack)
+    uc.reg_write(UC_X86_REG_EBX, CONFIG)
+    uc.reg_write(UC_X86_REG_EDI, EVENT)
+    locks = []
+
+    def code(cpu,address,_size,_data):
+        if address in (ENTER, LEAVE):
+            sp = cpu.reg_read(UC_X86_REG_ESP)
+            if read_word(sp+4)!=HOLDER+0x80:
+                raise RuntimeError('Gold used a foreign configuration lock')
+            locks.append(address)
+            cpu.reg_write(UC_X86_REG_EIP,read_word(sp))
+            cpu.reg_write(UC_X86_REG_ESP,sp+8)
+        elif not entry<=address<done:
+            raise RuntimeError('Execution left the original Gold Ready write')
+
+    ready_at = (slot-1)*0x18+4
+    def write(_cpu,_access,address,size,_value,_data):
+        if not (STACK<=address<=address+size<=STACK+0x10000 or (address,size)==(SLOTS+ready_at,1)):
+            raise RuntimeError('Gold wrote outside the selected Ready field')
+
+    uc.hook_add(UC_HOOK_CODE, code)
+    uc.hook_add(UC_HOOK_MEM_WRITE, write)
+    uc.emu_start(entry, done, count=1000, timeout=2000000)
+    original[ready_at] = ready
+    if (uc.reg_read(UC_X86_REG_EIP)!=done or uc.reg_read(UC_X86_REG_ESP)!=stack
+            or locks!=[ENTER,LEAVE] or bytes(uc.mem_read(SLOTS,len(original)))!=original):
+        raise RuntimeError('Original Gold Ready write did not update precisely the selected slot')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for label in ('ubisoft','steam_analysis'):parser.add_argument('--'+label.replace('_','-'),type=Path,required=True)
+    parser.add_argument('--gold',type=Path)
     parser.add_argument('output',type=Path);args=parser.parse_args();root=Path(__file__).resolve().parents[2];out=args.output.resolve()
     if not out.is_relative_to((root/'work').resolve()) or out.exists() or not out.parent.is_dir():parser.error('Use a fresh file under repository work')
     native.EVENTS=();results={}
@@ -73,7 +134,25 @@ def main():
         results[label]=cases
         print(json.dumps({'profile':label,'original_consumer_and_setter_cases':cases}),flush=True)
         del image;gc.collect()
-    receipt={'cases':sum(results.values()),'profiles':results,'original_confirmed_data_consumer_executed':True,'original_preparation_setter_executed':True,'modeled_guest_role_and_lock_imports':True,'native_queue_dispatcher_executed':False,'game_process_started':False,'mixed_gameplay_qualified':False}
+    if args.gold:
+        image=native.Image('gold',args.gold)
+        for slot in range(1,9):
+            for ready in (0,1):
+                execute_gold(image,slot,ready)
+        results['gold']=16
+        print(json.dumps({'profile':'gold','original_ready_write_cases':16}),flush=True)
+        del image;gc.collect()
+    receipt={
+        'cases':sum(results.values()),
+        'profiles':results,
+        'original_confirmed_data_consumer_executed':True,
+        'original_preparation_setter_executed':True,
+        'original_gold_ready_write_executed':bool(args.gold),
+        'modeled_guest_role_and_lock_imports':True,
+        'native_queue_dispatcher_executed':False,
+        'game_process_started':False,
+        'mixed_gameplay_qualified':False,
+    }
     with out.open('x') as stream:json.dump(receipt,stream,indent=2)
     print(json.dumps(receipt))
 if __name__=='__main__':main()

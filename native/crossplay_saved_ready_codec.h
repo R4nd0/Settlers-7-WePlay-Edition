@@ -28,7 +28,7 @@ inline bool Enqueue(const CrossplayNative::ParticipantEvent& original,DWORD owne
     const auto before=guest[4],after=static_cast<unsigned char>(!before);
     std::vector<unsigned char> state=wire;state.resize(CrossplayReady::NativeStateSize);
     CrossplayChat::Put(state.data()+13,2);state[17]=after;
-    if(!ReadyDetail::EnqueueState(Crossplay::Edition::Gold,state,ids.guest))return false;
+    if(!ReadyDetail::EnqueueState(Crossplay::Edition::Gold,state,ids.guest,2))return false;
     pending={reinterpret_cast<uintptr_t>(cache),session,ids,before,after};return true;
 }
 inline ReadyObservation Observe(const CrossplayNative::ParticipantEvent& original,DWORD owner,
