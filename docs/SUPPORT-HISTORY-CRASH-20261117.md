@@ -36,6 +36,22 @@ the host advanced. The three replays shared only one checksum, and all three
 clients exited normally with verified restoration. Use the supplied turn-27,001
 save to compare coverage through the original failure.
 
+The original autosave reproduced the same failure on a second cold start.
+All three desync snapshots again identify turn 30,195, the first guest
+diverged at replay record 3,193, and the same AI coordinate collection was
+empty only on that guest. The native random state read on all three clients
+at replay turn 30,196 was equal. The two runs produced identical per-client
+checksums through the two failing records.
+
+A private control loaded the same native world bytes with NEO Logistics
+disabled in the save cache and the matching lobby fixture. All three clients
+reported NEO off and continued together for 20:39, through replay turn 34,758.
+All 7,893 common replay checksums matched, and the copies and profiles were
+verified restored after normal exit. The NEO-on and NEO-off runs already have
+different replay checksums at record 23. This control verifies a different
+simulation path through the failure window. The offending operation in the
+NEO-on path remains open.
+
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
 Ready action, the host finished draining its native send queue, and each

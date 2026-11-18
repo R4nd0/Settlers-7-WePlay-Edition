@@ -47,5 +47,32 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_repeat_neo_on": {
+    "saved_logic_turn": 27001,
+    "native_desync_save_logic_turns": [30195, 30195, 30195],
+    "first_mismatch_record_zero_based": 3193,
+    "recorded_checksums": [3725, 3195, 3667],
+    "shared_checksums": 3195,
+    "mismatches": 2,
+    "per_client_checksums_identical_to_first_run_through_record": 3194,
+    "ai_storehouse_collection_entries": [4398, 0, 4398],
+    "identical_random_state_observed_at_replay_turn": 30196,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
+  "autosave_control_neo_off": {
+    "saved_logic_turn": 27001,
+    "native_world_and_save_info_byte_identical": true,
+    "changed_saved_feature_choice": "NEO Logistics off",
+    "disabled_state_observed_on_all_three": true,
+    "observed_wall_seconds": 1239.88,
+    "end_monitored_replay_turns": [34760, 34760, 34758],
+    "recorded_checksums": [8023, 7893, 7962],
+    "shared_checksums": 7893,
+    "mismatches": 0,
+    "first_cross_variant_mismatch_record_zero_based": 23,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }
