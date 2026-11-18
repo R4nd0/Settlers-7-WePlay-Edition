@@ -269,7 +269,7 @@ void LabSendResult(const sockaddr* address, int size, bool allowed, bool bound, 
             if (port == 6200) LabOnce(128, "lab-game-send-target-port-6200");
             if (port == 9103) LabOnce(256, "lab-game-send-target-port-9103");
             if (ip == local_pair_bind.load()) LabOnce(512, "lab-game-send-target-self");
-            else if (ip == 0x7f000002u || ip == 0x7f000003u) LabOnce(1024, "lab-game-send-target-other-slot");
+            else if (IsLocalLabSlot(ip)) LabOnce(1024, "lab-game-send-target-other-slot");
             else if ((ip >> 24) == 127) LabOnce(2048, "lab-game-send-target-other-loopback");
             else LabOnce(4096, "lab-game-send-target-nonloopback");
             if (result >= 0) LabOnce(8192, "lab-game-datagram-sent");
@@ -283,7 +283,7 @@ void LabSendResult(const sockaddr* address, int size, bool allowed, bool bound, 
                 else LabOnce(524288, "lab-join-target-other-nonloopback");
             }
         }
-        if ((ip == 0x7f000002u || ip == 0x7f000003u) && ntohs(target->sin_port) == 3074) {
+        if (IsLocalLabSlot(ip) && ntohs(target->sin_port) == 3074) {
             if (result >= 0) LabOnce(4, "lab-game-peer-datagram-sent");
             else if (error == WSA_IO_PENDING) LabOnce(8, "lab-game-peer-datagram-pending");
             else LabOnce(16, "lab-game-peer-datagram-send-failed");
@@ -297,7 +297,7 @@ int WSAAPI LabRecvFrom(SOCKET socket, char* buffer, int length, int flags, socka
     if (result >= 0 && address && size && *size >= sizeof(sockaddr_in) && address->sa_family == AF_INET) {
         const auto* source = reinterpret_cast<const sockaddr_in*>(address);
         auto ip = ntohl(source->sin_addr.s_addr);
-        if ((ip == 0x7f000002u || ip == 0x7f000003u) && ntohs(source->sin_port) == 3074)
+        if (IsLocalLabSlot(ip) && ntohs(source->sin_port) == 3074)
             LabOnce(32, "lab-game-peer-datagram-received");
     }
     WSASetLastError(error); return result;

@@ -93,8 +93,13 @@ int main() {
         Check(!lab_address_table::Project(nullptr, 0x7f000002u), "lab null table rejected");
         Check(!lab_address_table::Project(table, 0xc0a80a0au)
             && memcmp(&fixture, &original, sizeof(fixture)) == 0, "lab physical slot rejected without mutation");
-        for (uint32_t slot : {0x7f000002u, 0x7f000003u}) {
+        for (uint32_t slot : {0x7f000002u, 0x7f000003u, 0x7f000004u}) {
             fixture = original;
+            if (!IsLocalLabSlot(slot)) {
+                Check(!lab_address_table::Project(table, slot)
+                    && memcmp(&fixture,&original,sizeof(fixture)) == 0, "two-client build rejects a third slot");
+                continue;
+            }
             Check(lab_address_table::Project(table, slot) && table->NumEntries == 1
                 && ntohl(table->Table[0].Address.Ipv4.sin_addr.s_addr) == slot
                 && table->Table[0].Address.Ipv4.sin_port == 0
@@ -272,6 +277,22 @@ int main() {
     Check(sendto(automatic, "pair", 4, 0, reinterpret_cast<sockaddr*>(&left_address), sizeof(left_address)) == 4, "lab unbound send");
     sockaddr_in automatic_address{};
     Check(Bound(automatic, automatic_address) == 0 && ntohl(automatic_address.sin_addr.s_addr) == 0x7f000003, "lab automatic source address");
+#ifdef S7_LOCAL_THREE_LAB
+    Check(recv(left, lab_buffer, sizeof(lab_buffer), 0) == 4 && memcmp(lab_buffer, "pair", 4) == 0,
+        "drain the earlier automatic-binding datagram");
+    S7TestLabAddress(0x7f000004u);
+    SOCKET third = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    Check(bind(third, reinterpret_cast<sockaddr*>(&bind_address), sizeof(bind_address)) == 0,
+        "three simultaneous same-port loopback binds");
+    sockaddr_in third_address{};
+    Check(Bound(third, third_address) == 0 && ntohl(third_address.sin_addr.s_addr) == 0x7f000004u,
+        "third owned address");
+    Check(sendto(third, "third", 5, 0, reinterpret_cast<sockaddr*>(&left_address), sizeof(left_address)) == 5,
+        "third slot sends through guarded loopback");
+    Check(recv(left, lab_buffer, sizeof(lab_buffer), 0) == 5 && memcmp(lab_buffer, "third", 5) == 0,
+        "first slot receives the third slot datagram");
+    closesocket(third);
+#endif
     closesocket(automatic); closesocket(right); closesocket(left);
     S7TestLabAddress(0x7f000001);
 #endif

@@ -37,6 +37,37 @@ service ignores the environment flag and keeps its original ownership policy.
 
 Do not use laboratory binaries in production bundles or PC 2 update packages.
 
+## Three Ubisoft clients on loopback
+
+Add `-LocalThreeLab` to a separate `-LocalPairLab` native build. It accepts the
+three Ubisoft laboratory variants E, F and G, using the fixed addresses
+`127.0.0.2`, `127.0.0.3` and `127.0.0.4`. The fixed variants derive from the
+verified original Ubisoft image using `lab_executable.derive(original, slot,
+three_clients=True)`. The same fully checked mutex, profile and length fields
+are the only bytes changed in each image. The pair build continues to accept
+its existing A/B variants and rejects E/F/G.
+
+```powershell
+native/build.ps1 -OutputDirectory work/native-three-history-lab -LocalPairLab `
+    -LocalThreeLab -LocalNetworkPump -GameDirectory -ResumeCatchup -NeoLogistics
+```
+
+Use independent game copies under `work/` and require all three resolved
+Documents profiles `work/E`, `work/F` and `work/G` to be absent before starting.
+Record the original per-copy payload hashes and profile paths before staging.
+Use one shared `S7_LOCAL_PAIR_LAB` service on loopback, independent profile
+identities, DXVK, and the same verified patched Interface archive on all
+copies. Start the host and both guests in the original UI. For a supplied
+resume, wait until both guests really occupy the saved human places before
+pressing Ready. Observe the host's transfer completion and the original
+loading indicators on all three processes before timing continued play.
+
+After closing the test processes, restore the staged files and retain the
+isolated profiles under the run directory. Compare the three original replay
+files from the *same* reload using `tools/local-pair/replay_crc.py`. A session
+at the same loaded turn without independently advancing turns and shared
+replay checksums is incomplete.
+
 ## Local artifacts
 
 Under the current repository's ignored `work/` directory:

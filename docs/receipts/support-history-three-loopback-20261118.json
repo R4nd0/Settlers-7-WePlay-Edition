@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-18",
+  "scope": "isolated three-client Ubisoft History DXVK loopback reloads",
+  "base_source_commit": "18eab7f",
+  "clients": 3,
+  "native_ai_slots": 1,
+  "local_endpoints": ["127.0.0.2", "127.0.0.3", "127.0.0.4"],
+  "observed_game_udp_ports_at_each_endpoint": [3074, 6200, 9103],
+  "isolated_laboratory_executable_variants": true,
+  "saved_neo_state_restored_on_all_three": true,
+  "manual": {
+    "saved_logic_turn": 18103,
+    "monitored_wall_seconds": 1200,
+    "first_monitored_replay_turns": [18127, 18128, 18126],
+    "end_monitored_replay_turns": [18598, 18599, 18598],
+    "recorded_checksums": [532, 516, 506],
+    "shared_checksums": 506,
+    "mismatches": 0,
+    "exits": [0, 0, 0]
+  },
+  "autosave": {
+    "saved_logic_turn": 27001,
+    "wall_seconds_to_departure_sample": 405.82,
+    "last_shared_live_replay_turn": 30197,
+    "recorded_checksums": [3515, 3195, 3505],
+    "shared_checksums": 3195,
+    "matching_prefix": 3193,
+    "first_mismatch_record_zero_based": 3193,
+    "mismatches": 2,
+    "divergent_client": "first guest",
+    "host_and_remaining_guest_shared_checksums": 3505,
+    "host_and_remaining_guest_mismatches": 0,
+    "new_host_autosave_logic_turn": 30002,
+    "exits": [0, 0, 0]
+  },
+  "restoration_verified": true
+}

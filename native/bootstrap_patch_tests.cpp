@@ -462,6 +462,23 @@ int main() {
             digest[i] ^= 1; check(!AcceptExecutableDigest(digest)); digest[i] ^= 1;
         }
     }
+    const char* three_digests[] = {
+        "76f30551e6fb91c3862064cf09faff01a252af88b78087e3c2e881822ed0ae9b",
+        "1e87f3d7844faac6704a4855324da46c92463207854ce044941cf610d9f0f4f4",
+        "2d329f7b4fdfe861a0af346cb3f01a8e508c535842e35465900433bf61682778",
+    };
+    for (unsigned int slot = 0; slot < _countof(three_digests); ++slot) {
+        for (int i = 0; i < 32; ++i) {
+            char hex[3] = {three_digests[slot][i*2], three_digests[slot][i*2+1], 0};
+            digest[i] = static_cast<unsigned char>(strtoul(hex, nullptr, 16));
+        }
+#ifdef S7_LOCAL_THREE_LAB
+        check(AcceptExecutableDigest(digest) && local_pair_bind.load() == 0x7f000002u + slot);
+#else
+        check(!AcceptExecutableDigest(digest));
+#endif
+        digest[0] ^= 1; check(!AcceptExecutableDigest(digest));
+    }
     auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, ExpectedImageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     if (!memory) return 2;
     image_base = reinterpret_cast<uintptr_t>(memory);
@@ -944,12 +961,15 @@ int main() {
         memcpy(address, &kind, sizeof(kind));
         const auto original_slot = local_pair_bind.load();
         local_pair_bind.store(0x7f000002u);
-        for (uint32_t candidate : {0x7f000001u, 0x7f000002u, 0x7f000003u, 0xc0a80a01u, 0u}) {
-            const auto ip = _byteswap_ulong(candidate); memcpy(address + 0x1e, &ip, sizeof(ip));
-            check(AcceptLabLocalInterface(address, nullptr) == (candidate == 0x7f000002u)
-                && GetLastError() == 6789);
-            const char* reason = nullptr;
-            check(!AcceptLabLocalInterface(address, &reason) && !reason);
+        for (uint32_t slot : {0x7f000002u, 0x7f000004u}) {
+            local_pair_bind.store(slot);
+            for (uint32_t candidate : {0x7f000001u, 0x7f000002u, 0x7f000003u, 0x7f000004u, 0xc0a80a01u, 0u}) {
+                const auto ip = _byteswap_ulong(candidate); memcpy(address + 0x1e, &ip, sizeof(ip));
+                check(AcceptLabLocalInterface(address, nullptr) == (IsLocalLabSlot(slot) && candidate == slot)
+                    && GetLastError() == 6789);
+                const char* reason = nullptr;
+                check(!AcceptLabLocalInterface(address, &reason) && !reason);
+            }
         }
         check(!AcceptLabLocalInterface(nullptr, nullptr));
         lab_interface_original = true;

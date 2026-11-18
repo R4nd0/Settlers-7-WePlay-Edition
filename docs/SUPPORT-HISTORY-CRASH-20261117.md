@@ -1,5 +1,36 @@
 # History multiplayer crash report, 2026-11-17
 
+## Shared three-client reloads, 2026-11-18
+
+Both supplied saves loaded into one live session with three Ubisoft History
+laboratory clients and the original AI. The host confirmed both guest
+admissions. All three clients restored the saved NEO state and advanced the
+game. Each process bound the native UDP ports on its own loopback address.
+The laboratory variants differ from the original executable only in the
+fingerprinted instance and profile isolation fields.
+
+| Save | Time after the monitored start | Native replay evidence | Observed outcome |
+| --- | --- | --- | --- |
+| Manual, saved turn 18,103 | 20:00 | 506 common checksums, all equal | Three clients continued and closed normally |
+| Autosave, saved turn 27,001 | 6:46 to the departure sample | First 3,193 equal, then two differences on the first guest | The first guest returned to the browser, and the host reported a player departure |
+
+The last common live autosave sample was at native replay turn 30,197. The
+host and second guest retained matching checksums across all 3,505 records
+they shared, including after the first guest departed. The host wrote a new
+autosave at logic turn 30,002. That gives an earlier checkpoint for the next
+investigation. The test establishes the order of the save and divergence.
+The cause of the divergence remains open.
+
+An earlier autosave attempt started before the second guest could restore its
+world. In the two completed reloads, both guests joined before the first
+Ready action, the host finished draining its native send queue, and each
+participant advanced beyond the loaded turn. The manual save advanced
+slower than real time under the three-client load. The timer above measures
+wall time, and the replay counts give the actual simulation coverage.
+
+Both decisive runs exited 0/0/0. The test payloads, local data and shared
+Windows profiles were verified restored. [Three-client loopback receipt](receipts/support-history-three-loopback-20261118.json)
+
 ## Both supplied saves reach the restored lobby
 
 The original Ubisoft History game now opens a resume lobby from each supplied
@@ -7,8 +38,8 @@ save with the corrected Lua and native NEO bridge. The lobby shows the saved
 host configuration, the normal AI in slot 2, two open human slots, and NEO
 Logistics on. The same process returned to the browser between the autosave
 and manual save attempts, then closed normally. The local comparison used one
-host and the private, validated resume-index import described below. Loading
-the world with all three players and continued play remain to be tested.
+host and the private, validated resume-index import described below. The later
+three-client results are recorded above.
 [Runtime and build verification](receipts/support-resume-mode3-20261117.json)
 
 Both saves reproduce the same rejection after the original `ChangeSavegame`
@@ -223,10 +254,11 @@ resume-lobby setup. The original save files were used unchanged.
 2. Determine whether each failing load was started as multiplayer resume or
    single player, and whether the same host was used. The logs alone do not map
    the three later failures to a particular save or UI action.
-3. Qualify both supplied saves with three Ubisoft History clients, matching
-   native turns and checksums, AI and NEO activity, and a subsequent save/reload.
-4. Investigate the original mid-match departure separately. The reproduced
-   failure explains the reload crash but leaves the match interruption open.
+3. Isolate the first guest's divergence near replay turn 30,197. The retained
+   host autosave from logic turn 30,002 makes a shorter reproduction possible.
+4. Compare the bounded loopback departure with the original mid-match report.
+   Further verification needs stable three-client play from the autosave and
+   a test on separate machines with the intended release.
 
 Private inputs, extracted saves, replays, dumps and native inspection artifacts
 remain under the ignored `work/support-desync-20261117/` directory. No account

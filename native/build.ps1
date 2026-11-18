@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
+param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalThreeLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
       [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics, [switch]$PlatformIndependent)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
@@ -27,6 +27,10 @@ if ($PlatformIndependent) {
     $standaloneSources += '/DS7_KERNEL_PROBE_LIBRARY'
 }
 if ($LocalPairLab) { $common += '/DS7_LOCAL_PAIR_LAB' }
+if ($LocalThreeLab) {
+    if (!$LocalPairLab -or $PlatformIndependent) { throw 'LocalThreeLab requires the separate LocalPairLab build.' }
+    $common += '/DS7_LOCAL_THREE_LAB'
+}
 if ($NeoFifoLab) {
     if ($NeoLogistics) { throw 'NeoFifoLab and NeoLogistics are different candidates; select one.' }
     if (!$LocalPairLab -or $GameDirectory) { throw 'NeoFifoLab requires an isolated LocalPairLab build without GameDirectory.' }

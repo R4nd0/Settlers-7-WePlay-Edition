@@ -4,12 +4,13 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <cstdint>
+#include "local_pair_lab.h"
 namespace lab_address_table {
 // The lab binds real game sockets to distinct loopback slots. Storm also
 // exchanges the OS unicast table directly, bypassing catalogue projection.
 // Project only this process's returned table, never OS configuration or peers.
 inline bool Project(MIB_UNICASTIPADDRESS_TABLE* table, uint32_t slot) {
-    if (!table || (slot != 0x7f000002u && slot != 0x7f000003u)
+    if (!table || !IsLocalLabSlot(slot)
         || table->NumEntries == 0 || table->NumEntries > 4096) return false;
     for (ULONG i = 0; i < table->NumEntries; ++i) {
         const auto& row = table->Table[i];
