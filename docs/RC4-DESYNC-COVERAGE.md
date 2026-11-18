@@ -58,7 +58,7 @@ bridges, independent of the machine hosting the match. The ordinary adapter
 still rejects mixed admission, and the current WPX2 laboratory work reaches
 lobby configuration. A successful build, lobby or previous pair cannot
 establish that the final three-edition path executes these hooks. The normal
-installed builds and both native save directions remain the release boundary.
+installed builds and native save and reload tests with each edition as host remain the release boundary.
 [World setup](../native/crossplay_production_world.inc) · [Saved setup](../native/crossplay_production_resume.inc) · [Release gate](RC4-RELOAD-RELEASE-GATE.md)
 
 Gold's workshop creates the same type of AI search and uses a different

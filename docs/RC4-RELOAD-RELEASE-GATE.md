@@ -4,9 +4,9 @@ The user's updated release requirement (2026-11-17) is one simultaneous mixed
 session containing **original Gold, original Ubisoft History and original Steam
 History, three human clients plus one AI opponent**, with genuine saving, loading
 and stable continued play. Separate two-client pairs do not satisfy it, even when
-both History editions have independently passed. The previously requested Gold
-and Steam History host directions remain required; each now uses this same
-three-edition roster. All clients must come from the exact final installed package.
+both History editions have independently passed. Each edition must host this
+same three-edition roster in its own test. All clients must come from the exact
+final installed package and use DXVK for both launches.
 
 Existing native pair results, authored fixtures, a visible lobby and a successful
 installer build remain intermediate evidence, not release qualification.
@@ -34,21 +34,21 @@ optional `--crossplay-catalog` input enables that capability only through the
 existing approved catalog and shipped-adapter validation. It cannot promote a
 development DLL or a self-generated compatibility digest.
 
-After installing this exact Setup and completing both three-client host cases, retain
+After installing this exact Setup and completing all three host cases, retain
 these reviewed, sanitized receipts beside it:
 
 | Receipt | Purpose |
 | --- | --- |
-| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and both case-receipt hashes |
+| `Setup.mixed-reload.json` | Exact final Setup hash/size, source commit, package ID, approved catalog hash and all three case-receipt hashes |
 | `Setup.mixed-reload-gold-host.json` | Gold host, original Ubisoft History and Steam History guests, one AI opponent |
+| `Setup.mixed-reload-ubisoft-host.json` | Original Ubisoft History host, Gold and original Steam History guests, one AI opponent |
 | `Setup.mixed-reload-steam-host.json` | Original Steam History host, Gold and original Ubisoft History guests, one AI opponent |
 
-The aggregate and case formats are version 3. Both records and cases carry strict
-integer `host_edition` fields, ordered Gold (1), Steam History (3). Every case has
+The aggregate and case formats are version 4. Both records and cases carry strict
+integer `host_edition` fields, ordered Gold (1), Ubisoft History (2), Steam History (3). Every case has
 exactly three `participants`, ordered by edition 1/2/3, with one host and two
-guests, `human_players=3` and `ai_opponents=1`. Version-1 and version-2 pair schemas
-are rejected. The Steam-host case must use that host's actual new save; repeating
-a Gold-host run cannot substitute for it.
+guests, `human_players=3` and `ai_opponents=1`. Older schemas are rejected.
+Each host case must use that host's actual new save.
 
 The exact schemas and checks are in
 [`mixed_release_gate.py`](../tools/updates/mixed_release_gate.py). Each case binds
@@ -59,7 +59,8 @@ digest. This save digest identifies source provenance; it does not assume that
 edition-specific local save containers have byte-identical wrappers.
 
 All three must actually load through their original loader, observe continued
-logistics and the AI opponent, retain NEO state and exit normally. Common original
+logistics and the AI opponent, retain active NEO19 state and exit normally.
+Each participant records DXVK for both `renderer` and `reload_renderer`. Common original
 native checksum blocks must cover all three editions both before saving and
 after reload, with no mismatches or synthetic turns. The measured post-reload
 duration and reviewed stability result are retained. Normal speed is mandatory;
@@ -96,7 +97,8 @@ not belong on the customer-facing posters.
 Eleven authored gate tests cover missing/duplicate clients, separate session/save
 identities, wrong AI/human counts, old pair schemas, missing shared three-client
 CRCs, unreviewed continuation, wrong installed payloads, abnormal exits and the
-Steam-host case. They also retain rejection before signing-key access or signing
+three host cases, the renderer of both launches and active NEO. They also retain
+rejection before signing-key access or signing
 subprocesses. These are invented fixtures, not three-client gameplay evidence.
 The actual earlier single-player candidate remains ineligible. No production key
 or release metadata is accessed to perform these gate tests.

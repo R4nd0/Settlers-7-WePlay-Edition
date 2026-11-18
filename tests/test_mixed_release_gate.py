@@ -21,7 +21,7 @@ class MixedReleaseGateTests(unittest.TestCase):
         self.build=dict(format='weplay-main-package-release-v1',platform_isolation=release_policy.CONTRACT,
             setup_sha256=sha,setup_bytes=self.setup.stat().st_size,source_commit='1'*40,
             package_id='2'*64,source_tree_dirty=False,crossplay_mixed=True)
-        self.proof=dict(format='weplay-final-mixed-reload-v3',version=gate.VERSION,sequence=gate.SEQUENCE,
+        self.proof=dict(format='weplay-final-mixed-reload-v4',version=gate.VERSION,sequence=gate.SEQUENCE,
             tag=gate.TAG,setup_sha256=sha,setup_bytes=self.setup.stat().st_size,source_commit='1'*40,
             package_id='2'*64,catalog_sha256='3'*64,cases=[])
         self.cases={}
@@ -37,8 +37,8 @@ class MixedReleaseGateTests(unittest.TestCase):
                 installed_from_setup_sha256=sha,installed_package_id='2'*64,
                 session_sha256=session,reload_session_sha256=reload,loaded_host_save_sha256='6'*64,
                 original_save_loader_used=True,continued_logistics_observed=True,ai_opponent_observed=True,
-                neo_state_preserved=True,exit_code=0) for edition in gate.EDITIONS]
-            self.cases[name]=dict(format='weplay-final-mixed-reload-case-v3',host_edition=host,
+                neo_state_preserved=True,renderer='dxvk',reload_renderer='dxvk',exit_code=0) for edition in gate.EDITIONS]
+            self.cases[name]=dict(format='weplay-final-mixed-reload-case-v4',host_edition=host,
                 installed_from_setup_sha256=sha,installed_package_id='2'*64,source_commit='1'*40,catalog_sha256='3'*64,
                 participants=participants,human_players=3,ai_opponents=1,all_clients_simultaneous=True,
                 session_sha256=session,reload_session_sha256=reload,host_save_sha256='6'*64,normal_speed=True,
@@ -70,7 +70,7 @@ class MixedReleaseGateTests(unittest.TestCase):
     def test_signer_rejects_missing_proof_before_any_key_or_signing_process(self):
         self.setup.with_suffix('.mixed-reload.json').unlink()
         with patch.object(signer.subprocess,'run') as process:
-            with self.assertRaisesRegex(ValueError,'simultaneous original'):
+            with self.assertRaisesRegex(ValueError,'each edition as host'):
                 signer.build(self.setup,self.root/'weplay-update.json',version=gate.VERSION,
                     sequence=gate.SEQUENCE,tag=gate.TAG,key_path=self.root/'nonexistent-fixture-key')
         process.assert_not_called();self.assertFalse((self.root/'weplay-update.json').exists())
@@ -78,7 +78,7 @@ class MixedReleaseGateTests(unittest.TestCase):
 
     def test_missing_duplicate_or_swapped_host_cases_and_changed_setup_fail(self):
         original=copy.deepcopy(self.proof['cases'])
-        for records in (original[:1],original[1:],original[::-1],[original[0]]*2):
+        for records in (original[:1],original[1:],original[::2],original[::-1],[original[0]]*3):
             self.proof['cases']=records;self.setup.with_suffix('.mixed-reload.json').write_text(json.dumps(self.proof))
             with self.assertRaises(ValueError):self.check()
         self.write();self.setup.write_bytes(b'MZ different final installer')
@@ -126,6 +126,7 @@ class MixedReleaseGateTests(unittest.TestCase):
                            {'reload_session_sha256':'a'*64},{'loaded_host_save_sha256':'b'*64},
                            {'original_save_loader_used':False},{'continued_logistics_observed':False},
                            {'ai_opponent_observed':False},{'neo_state_preserved':False},
+                           {'renderer':'legacy'},{'reload_renderer':'legacy'},
                            {'exit_code':True},{'exit_code':7}):
                 self.cases['gold-host']=copy.deepcopy(original)
                 self.cases['gold-host']['participants'][index].update(change);self.write()
@@ -139,7 +140,7 @@ class MixedReleaseGateTests(unittest.TestCase):
             {'shared_crc_blocks_after_reload':True},{'post_reload_duration_ms':0},
             {'post_reload_duration_ms':True},{'stability_review_passed':False},{'normal_speed':False},
             {'crc_mismatches':1},{'synthetic_turns':1},{'original_crc_source':'synthetic'},{'neo_features':5},
-            {'neo_enabled':1},{'neo_state_preserved':False},{'forced_termination':True},
+            {'neo_enabled':1},{'neo_enabled':False},{'neo_state_preserved':False},{'forced_termination':True},
             {'restoration_verified':False},{'native_lab_features':True},{'reviewed_evidence_sha256':'0'*64})
         for change in changes:
             self.cases['gold-host']=dict(original,**change);self.write()
@@ -158,13 +159,13 @@ class MixedReleaseGateTests(unittest.TestCase):
         (self.root/'Setup.mixed-reload-steam-host.json').unlink()
         with self.assertRaises(ValueError):self.check()
 
-    def test_both_older_pair_schemas_are_rejected_even_when_hashes_are_current(self):
-        for version in (1,2):
+    def test_older_schemas_are_rejected_even_when_hashes_are_current(self):
+        for version in (1,2,3):
             self.proof['format']='weplay-final-mixed-reload-v'+str(version)
             self.setup.with_suffix('.mixed-reload.json').write_text(json.dumps(self.proof))
             with self.assertRaises(ValueError):self.check()
-        self.proof['format']='weplay-final-mixed-reload-v3'
-        for version in (1,2):
+        self.proof['format']='weplay-final-mixed-reload-v4'
+        for version in (1,2,3):
             self.cases['gold-host']['format']='weplay-final-mixed-reload-case-v'+str(version);self.write()
             with self.assertRaises(ValueError):self.check()
 

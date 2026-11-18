@@ -7,12 +7,12 @@
 > Die nachfolgende Matrix beschreibt den bisherigen Produktionsstand und wird
 > nach diesem Nachweis überarbeitet. Downloadziele sind für den Release reserviert.
 
-> **Verbindliches RC4.00-Ziel, aktualisiert am 17.11.2026:** Gold, originales
+> **Verbindliches RC4.00-Ziel, aktualisiert am 18.11.2026:** Gold, originales
 > Ubisoft History und originales Steam History spielen in derselben Sitzung,
 > mit drei Menschen und einem KI-Gegner. Nach echtem Speichern und gemeinsamem
-> Neuladen muss das Spiel stabil weiterlaufen. Die beauftragten Hostrichtungen
-> Gold und Steam History bleiben erhalten; beide werden mit diesem Dreier-Roster
-> aus demselben final installierten Paket geprüft. Getrennte Paartests reichen
+> Neuladen muss das Spiel unter DXVK bei Normaltempo und mit aktivem NEO stabil
+> weiterlaufen. Jede der drei Editionen muss dieses Dreier-Roster aus demselben
+> final installierten Paket hosten. Getrennte Paartests reichen
 > dafür nicht. Ein Solo-Paket wird nicht als
 > RC4.00 veröffentlicht. Signierung und Veröffentlichung bleiben bis zu diesen
 > Nachweisen gesperrt. [Bindung an den finalen Installer](RC4-RELOAD-RELEASE-GATE.md).
@@ -65,9 +65,9 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 
 | Gemischte Sitzung | Vorgesehener Umfang |
 | --- | --- |
-| Host / Gäste | Gold mit beiden originalen History-Ausgaben; außerdem Steam History mit Gold und Ubisoft History |
+| Host / Gäste | Jede der drei Editionen als Host mit den beiden übrigen Editionen als Gäste |
 | Karte und Spieler | Monhaim Valley; Gold, Ubisoft History und Steam History gleichzeitig, drei Menschen plus ein KI-Gegner |
-| Speichern / erneutes Laden | Neuer Save des tatsächlichen Hosts, Neustart aller drei Clients, gemeinsamer Reload und stabiler Weiterlauf in beiden Hostrichtungen |
+| Speichern / erneutes Laden | Neuer Save des tatsächlichen Hosts, Neustart aller drei Clients, gemeinsamer Reload und stabiler Weiterlauf mit jeder Edition als Host |
 | Logistik | Optionale gemischte FIFO-/Einzelprioritäten-Funktionen, Maske 19; gespeicherter Zustand bleibt erhalten |
 | Freigabe | Erst nach Original-CRC-Vergleich, fortgesetzter Logistik und regulärem Beenden im finalen Paket |
 
@@ -305,9 +305,9 @@ RC4.00 publication waits for integration of the qualified mixed-reload path.
 That older solo candidate will not ship as RC4.00. The updated release requirement
 is one simultaneous session containing original Gold, Ubisoft History and Steam
 History: three human clients plus one AI opponent on Monhaim Valley, actual host
-saving, a fresh shared reload and stable continued play at normal speed. The
-previously requested Gold and Steam History host directions remain; each final
-case uses this three-edition roster from the same final installed package.
+saving, a fresh shared reload and stable continued play under DXVK at normal
+speed with active NEO. Each edition must host this three-edition roster from
+the same final installed package.
 Separate pair tests cannot substitute for it. Mixed FIFO/individual
 priorities use feature mask 19, separate from full History NEO6. Final bilingual
 feature images must match that qualified scope; earlier solo and two-human/two-AI

@@ -15,9 +15,9 @@ import platform_standalone
 VERSION='2.0.0-rc4.0'
 TAG='v2.0.0-rc4.00'
 SEQUENCE=29
-CASES=((1,'gold-host'),(3,'steam-host'))
+CASES=((1,'gold-host'),(2,'ubisoft-host'),(3,'steam-host'))
 EDITIONS=(1,2,3)
-ERROR='RC4.00 signing requires simultaneous original Gold, Ubisoft History and Steam History clients plus one AI opponent, with saved reload and stable continuation in this exact final installed package.'
+ERROR='RC4.00 signing requires Gold, Ubisoft History and Steam History together under DXVK with one AI opponent, active NEO, and a stable shared reload from each edition as host in this exact final installed package.'
 
 
 def digest(value,size=64):
@@ -56,7 +56,7 @@ def check(setup,build,*,version,sequence,tag):
         proof,_=read(setup.with_suffix('.mixed-reload.json'))
         expected={'format','version','sequence','tag','setup_sha256','setup_bytes','source_commit',
                   'package_id','catalog_sha256','cases'}
-        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v3'
+        if (set(proof)!=expected or proof['format']!='weplay-final-mixed-reload-v4'
                 or proof['version']!=VERSION or type(proof['sequence']) is not int
                 or proof['sequence']!=SEQUENCE or proof['tag']!=TAG
                 or type(proof['setup_bytes']) is not int or proof['setup_bytes']!=setup.stat().st_size
@@ -87,7 +87,7 @@ def check(setup,build,*,version,sequence,tag):
             checks=('normal_production_launch','fresh_host_save_written','mixed_reload_completed',
                     'continued_logistics_observed','neo_state_preserved','restoration_verified',
                     'fresh_reload_processes','all_clients_simultaneous','normal_speed','stability_review_passed')
-            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v3'
+            if (set(case)!=keys or case['format']!='weplay-final-mixed-reload-case-v4'
                     or type(case['host_edition']) is not int or case['host_edition']!=host
                     or case['installed_from_setup_sha256']!=proof['setup_sha256']
                     or case['installed_package_id']!=proof['package_id']
@@ -106,7 +106,7 @@ def check(setup,build,*,version,sequence,tag):
                     or any(type(case[key]) is not int or case[key]!=0 for key in
                            ('crc_mismatches','synthetic_turns'))
                     or type(case['neo_features']) is not int or case['neo_features']!=19
-                    or type(case['neo_enabled']) is not bool or case['forced_termination'] is not False
+                    or case['neo_enabled'] is not True or case['forced_termination'] is not False
                     or case['native_lab_features'] is not False or not digest(case['reviewed_evidence_sha256'])):
                 raise ValueError(ERROR)
             participants=case['participants']
@@ -116,7 +116,7 @@ def check(setup,build,*,version,sequence,tag):
                 participant_keys={'edition','role','exe_sha256','adapter_sha256','installed_from_setup_sha256',
                                   'installed_package_id','session_sha256','reload_session_sha256','loaded_host_save_sha256',
                                   'original_save_loader_used','continued_logistics_observed','ai_opponent_observed',
-                                  'neo_state_preserved','exit_code'}
+                                  'neo_state_preserved','renderer','reload_renderer','exit_code'}
                 if (not isinstance(participant,dict) or set(participant)!=participant_keys
                         or type(participant['edition']) is not int or participant['edition']!=edition
                         or participant['role']!=('host' if edition==host else 'guest')
@@ -127,6 +127,7 @@ def check(setup,build,*,version,sequence,tag):
                         or participant['installed_package_id']!=proof['package_id']
                         or any(participant[key]!=case[key] for key in ('session_sha256','reload_session_sha256'))
                         or participant['loaded_host_save_sha256']!=case['host_save_sha256']
+                        or participant['renderer']!='dxvk' or participant['reload_renderer']!='dxvk'
                         or any(participant[key] is not True for key in
                                ('original_save_loader_used','continued_logistics_observed','ai_opponent_observed','neo_state_preserved'))
                         or type(participant['exit_code']) is not int or participant['exit_code']!=0):
