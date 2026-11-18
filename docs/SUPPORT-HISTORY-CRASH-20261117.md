@@ -105,9 +105,21 @@ same replay mismatch. At turn 35,607 the streams agree for the first 288
 recorded operations. Host and second guest then enter the native weighted
 choice at 0x57b4f4. The first guest enters the native spawn-point calculation
 at 0x72f2fa with the same incoming seed. Both paths use the original random
-generator. This identifies the first differing operation. The specific
-animal and the earlier movement state that led to the split still need to
-be confirmed. All three closed normally with exact restoration again.
+generator. All three closed normally with exact restoration again.
+
+A subsequent run identified the affected wild boar and the earlier call
+that changes its random input. All three clients have the same measured boar
+state from replay turn 27,002 through 35,606. On turn 35,607 they enter the
+same spawn-point call for that boar with matching position, path cursor and
+movement state. The independently observed terrain cell and update flags
+also agree before that call. The first guest has already skipped one weighted
+animation draw on a different controller. The next weighted draw for actor
+65,550 still happens on all three clients, but with different incoming seeds.
+The resulting spawn-point draw produces a different path for the boar on the
+first guest. The parent animation caller for the skipped draw remains to be
+identified. This third reproduction had two differing replay checksums at
+ordinals 8,605 and 8,606. All three clients produced desync snapshots, exited
+normally and passed exact restoration.
 
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first

@@ -174,5 +174,23 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_animal_trace": {
+    "saved_logic_turn": 27001,
+    "same_boar_state_replay_turn_range": [27002, 35606],
+    "boar_actor_id": 65646,
+    "first_different_boar_path_replay_turn": 35607,
+    "same_spawn_point_return_address": "0x7c26c2",
+    "source_terrain_cell_and_flags_match_before_spawn": true,
+    "same_animation_draw_actor_id": 65550,
+    "first_guest_skips_earlier_weighted_animation_draw": true,
+    "earlier_animation_draw_controller_identified": false,
+    "recorded_checksums": [9208, 8607, 9208],
+    "shared_checksums": 8607,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 2,
+    "desync_snapshot_copies": 3,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }
