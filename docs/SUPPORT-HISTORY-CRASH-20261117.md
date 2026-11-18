@@ -52,6 +52,26 @@ different replay checksums at record 23. This control verifies a different
 simulation path through the failure window. The offending operation in the
 NEO-on path remains open.
 
+The native checksum trace reproduced the same failure. All 42 directly
+recorded inputs agree across the three clients. On turn 30,195, the first
+accumulator difference follows the original addition of the per-player AI
+checksums. Only the AI checksum for player ID 3 differs on the first guest.
+Both AI checksums and every recorded intermediate value agree from replay
+turns 30,186 through 30,194.
+
+A further trace located the first difference in the AI goal list. At turn
+30,195, the host and second guest add `Storehouse.xml` as the fifth goal for
+player ID 3. The first guest retains the previous six goals in the same
+order. The original goal evaluates `MaxStorehouseDistance` and uses the
+storehouse placement helper. Its activation input still needs to be
+compared. The harness was interrupted after recording the divergence. The
+three payloads and profile fingerprints were verified after recovery. Exit
+codes were unavailable.
+
+The next control preserves NEO and runs the original warehouse handoff
+comparator. Its adapter built successfully. The runner stopped at the
+existing system-memory preflight before launching any client.
+
 An earlier autosave attempt started before the second guest could restore its
 world. In the two completed reloads, both guests joined before the first
 Ready action, the host finished draining its native send queue, and each

@@ -74,5 +74,32 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_native_checksum_trace": {
+    "saved_logic_turn": 27001,
+    "matching_replay_turn_range": [30186, 30194],
+    "first_native_difference_replay_turn": 30195,
+    "direct_checksum_scalar_count": 42,
+    "different_direct_checksum_scalars_at_first_difference": 0,
+    "first_different_accumulator_before_input_zero_based": 39,
+    "divergent_ai_player_id": 3,
+    "divergent_client": "first guest",
+    "recorded_checksums": [3944, 3196, 3878],
+    "shared_checksums": 3196,
+    "mismatches": 3,
+    "first_mismatch_record_zero_based": 3193,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
+  "autosave_ai_goal_trace": {
+    "first_different_replay_turn": 30195,
+    "ai_player_id": 3,
+    "goal": "Storehouse.xml",
+    "goal_sequence_lengths": [7, 6, 7],
+    "goal_index_zero_based_on_host_and_second_guest": 4,
+    "goal_activation_input_confirmed": false,
+    "harness_interrupted_after_observation": true,
+    "exits": [null, null, null],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }
