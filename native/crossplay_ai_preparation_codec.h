@@ -103,10 +103,11 @@ inline bool Capture(const CrossplayNative::ParticipantEvent& binding,CrossplaySe
  if(!Detail::Rows(Crossplay::Edition::Gold,binding,ids,true,slot,next,after) || next!=rows || !CrossplayAIProfile::Same(context,after))return false;
  out=value;return true;
 }
-inline bool Apply(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,const Value& value,unsigned& stage) {
+template<class ReadRows>
+inline bool ApplyBound(Crossplay::Edition edition,const Value& value,ReadRows read_rows,unsigned& stage) {
  stage=1;Detail::Pin pin{};if(!Valid(value) || !Detail::Methods(edition,pin))return false;
  unsigned char* rows=nullptr;CrossplayAIProfile::ContextSnapshot context{};stage=2;
- if(!Detail::Rows(edition,binding,ids,false,value.slot,rows,context))return false;
+ if(!read_rows(rows,context))return false;
  auto* row=rows+value.slot*0x5a8;
  if(CrossplayChat::Word(row+0x5c)!=UINT32_MAX || CrossplayChat::Word(row+0x64)!=1 || !Detail::Writable(row,0x5a8))return false;
  const unsigned char* globals=nullptr;const unsigned char* text=nullptr;uint32_t team=0;Crossplay::Digest digest{};stage=3;
@@ -121,7 +122,7 @@ inline bool Apply(Crossplay::Edition edition,const CrossplayNative::ParticipantE
  reinterpret_cast<void (__thiscall*)(void*,bool)>(pin.peaceful)(row,value.peaceful!=0);
  stage=5;std::vector<unsigned char> observed;unsigned char* next=nullptr;CrossplayAIProfile::ContextSnapshot after{};
  const uintptr_t pointer=edition==Crossplay::Edition::SteamHistory?0x13a2304:0x13a5214;
- if(*reinterpret_cast<const unsigned char* const*>(pointer)!=globals || !Detail::Rows(edition,binding,ids,false,value.slot,next,after)
+ if(*reinterpret_cast<const unsigned char* const*>(pointer)!=globals || !read_rows(next,after)
   || next!=rows || !CrossplayAIProfile::Same(context,after) || !Detail::Methods(edition,pin)
   || !Detail::Text(row+0x1c,observed) || observed!=name || CrossplayChat::Word(row+0x18)!=value.profile
   || CrossplayChat::Word(row+0x30)!=team || CrossplayChat::Word(row+0x5c)!=value.slot || CrossplayChat::Word(row+0x64)!=2
@@ -131,6 +132,11 @@ inline bool Apply(Crossplay::Edition edition,const CrossplayNative::ParticipantE
   else if(memcmp(before.data()+i*0x5a8,rows+i*0x5a8,0x5a8))return false;
  }
  stage=0;return true;
+}
+inline bool Apply(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,CrossplaySessionConfig::Connections ids,const Value& value,unsigned& stage) {
+ return ApplyBound(edition,value,[&](unsigned char*& rows,CrossplayAIProfile::ContextSnapshot& context){
+  return Detail::Rows(edition,binding,ids,false,value.slot,rows,context);
+ },stage);
 }
 // Scoped original-root eligibility, bound to both actual AI records.
 // It grants no world permission: native checkpoints, full roots, reader and mutual start receipts remain required.

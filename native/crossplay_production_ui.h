@@ -15,6 +15,9 @@ inline bool UiCommand(const std::string& command,std::string& output){
         if(command=="room-configured"){output=RoomConfigurationApplied()?"1":"0";return true;}
         if(command=="room-ready-action"){output=RoomGuestReadyActionAvailable()?"1":"0";return true;}
         if(command=="room-all-ready"){output=RoomAllHumansReadyObserved()?"1":"0";return true;}
+        if(command=="room-start-capture"){output=RoomStartCaptureState();return true;}
+        if(command=="room-sync-teams"){output=RoomSynchronizeTeams()?"1":"0";return true;}
+        if(command=="room-teams-confirmed"){output=RoomTeamsConfirmed()?"1":"0";return true;}
         if(command!="phase")return false;
     }
 #endif

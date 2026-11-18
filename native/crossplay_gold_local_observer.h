@@ -70,6 +70,29 @@ struct GoldLocalObserver {
         candidate.session=snapshot.instance;candidate.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);
         return host!=UINT32_MAX && Root(candidate);
     }
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    static bool CaptureRoomHost(const CrossplayNative::ParticipantEvent& binding,
+        const CrossplayNative::RoomLobbyAdmission& admission,unsigned char local_transport_slot,
+        State& candidate,uint32_t& host) {
+        candidate={};host=UINT32_MAX;
+        const auto* launch=CrossplayProduction::CurrentLaunch();
+        CrossplayNative::RoomRoute route;
+        CrossplayNative::LobbySnapshot snapshot;
+        uintptr_t send=0;
+        auto* manager=CrossplayNativeCodec::Detail::Transport(Crossplay::Edition::Gold,send);
+        if(!launch || !launch->IsRoom() || !launch->host || launch->channel.edition!=Crossplay::Edition::Gold
+            || !admission.Resolve(local_transport_slot,false,route) || !route.local || !route.host
+            || route.receiver!=Crossplay::Edition::Gold || !manager || send!=0xa4e430 || !binding.CaptureLobby(snapshot)
+            || !snapshot.host || snapshot.local_slot!=route.player_slot || !snapshot.instance)return false;
+        if(CrossplayProduction::OutgoingObserver::installed
+            && (CrossplayProduction::OutgoingObserver::owner!=GetCurrentThreadId()
+                || CrossplayProduction::OutgoingObserver::manager!=reinterpret_cast<uintptr_t>(manager)))return false;
+        host=route.receiver_cid;
+        candidate.owner=GetCurrentThreadId();candidate.manager=reinterpret_cast<uintptr_t>(manager);
+        candidate.session=snapshot.instance;candidate.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);
+        return host!=UINT32_MAX && Root(candidate);
+    }
+#endif
     static bool InstallFor(const CrossplayNative::ParticipantEvent& binding,Callback callback,CrossplayNative::LobbyAdmission* admission) {
         const DWORD incoming=GetLastError();auto& state=Current();
         if(state.installed || !callback || !OriginalMethods())return false;

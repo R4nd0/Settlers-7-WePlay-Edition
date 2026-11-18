@@ -1,5 +1,7 @@
 #include "crossplay_configuration_receipt.h"
 #include "crossplay_configuration_readiness.h"
+#include "crossplay_room_teams.h"
+#include "crossplay_room_ai.h"
 #include <cstdio>
 #include <cstdlib>
 namespace {
@@ -40,6 +42,39 @@ std::vector<unsigned char> RoomWire(const CrossplaySessionConfig::RoomConnection
 int main(){
     using namespace CrossplayConfigurationReceipt;
     const Interval own{7,0x10000,0x20000};const CrossplaySessionConfig::Connections ids{1,0};const auto wire=Wire();
+    {
+        CrossplaySessionConfig::RoomConnections routes;
+        routes.capacity=4;
+        routes.host=0;
+        routes.stations[0]=0;
+        routes.stations[1]=25;
+        routes.stations[2]=31;
+        Crossplay::Digest config{};config[0]=1;
+        CrossplayRoomTeams::Teams teams{1,2,2},decoded{};
+        std::vector<unsigned char> frame;
+        Check(CrossplayRoomTeams::Frame(CrossplayRoomTeams::Offer,config,routes,teams,frame));
+        Check(CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,frame,config,routes,decoded) && decoded==teams);
+        Check(!CrossplayRoomTeams::Decode(CrossplayRoomTeams::Applied,frame,config,routes,decoded));
+        auto other=config;other[0]=2;
+        Check(!CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,frame,other,routes,decoded));
+        frame.back()=1;
+        Check(!CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,frame,config,routes,decoded));
+        teams[2]=0;
+        Check(!CrossplayRoomTeams::Frame(CrossplayRoomTeams::Offer,config,routes,teams,frame));
+        teams={1,2,2,2};
+        Check(CrossplayRoomTeams::Frame(CrossplayRoomTeams::Offer,config,routes,teams,frame,4));
+        Check(!CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,frame,config,routes,decoded));
+        Check(CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,frame,config,routes,decoded,4) && decoded==teams);
+        const auto cpu_config=RoomWire(routes,1);
+        uint32_t ai_slot=0;
+        Check(CrossplayRoomAI::Seat(cpu_config,routes,ai_slot) && ai_slot==4);
+        CrossplayRoomAI::Value selected{4,9,2,0,{}},native{};
+        selected.catalog[0]=3;
+        Check(CrossplayRoomAI::Frame(selected,config,frame));
+        Check(CrossplayRoomAI::Decode(frame,config,ai_slot,native) && CrossplayRoomAI::Same(native,selected));
+        Check(!CrossplayRoomAI::Decode(frame,config,3,native));
+        Check(!CrossplayRoomAI::Decode(frame,other,ai_slot,native));
+    }
     Receipt initial;Check(initial.Observe(own,wire,0)==Observation::Invalid);
     for(unsigned flags=0;flags<4;++flags){
         const auto selected=Wire(flags);Receipt receipt;

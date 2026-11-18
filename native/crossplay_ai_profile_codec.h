@@ -101,15 +101,16 @@ inline bool Capture(const CrossplayNative::ParticipantEvent& binding,CrossplaySe
     }
     return true;
 }
-inline bool Deliver(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
-                    CrossplaySessionConfig::Connections ids,const std::vector<unsigned char>& wire,ContextSnapshot& snapshot,unsigned* stage=nullptr) {
+template<class ReadContext>
+inline bool DeliverBound(Crossplay::Edition edition,uint32_t host,const std::vector<unsigned char>& wire,
+                         ContextSnapshot& snapshot,ReadContext context,unsigned* stage=nullptr) {
     using namespace CrossplayNativeCodec;snapshot={};Value value{};ContextSnapshot before{},after{};
     if(stage)*stage=1;
-    if(edition==Crossplay::Edition::Gold || !Wire(wire,ids.host,value))return false;
+    if(edition==Crossplay::Edition::Gold || !Wire(wire,host,value))return false;
     if(stage)*stage=2;
     if(!Methods(edition))return false;
     unsigned context_stage=0;
-    if(!Context(edition,binding,ids,false,before,&context_stage)){if(stage)*stage=100+context_stage;return false;}
+    if(!context(before,&context_stage)){if(stage)*stage=100+context_stage;return false;}
     if(stage)*stage=200;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());
@@ -121,7 +122,7 @@ inline bool Deliver(Crossplay::Edition edition,const CrossplayNative::Participan
     std::vector<unsigned char> repeated;
     if(stage)*stage=202;
     bool okay=stream.value.position==wire.size() && Detail::Encode(p,decoded,repeated) && repeated==wire;
-    if(okay){if(stage)*stage=203;okay=Context(edition,binding,ids,false,after) && Same(before,after);}
+    if(okay){if(stage)*stage=203;okay=context(after,nullptr) && Same(before,after);}
     uintptr_t sender=0;void* transport=okay?Detail::Transport(edition,sender):nullptr;
     if(okay && stage)*stage=204;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(sender)(transport,decoded,0,0,0,0);
@@ -130,8 +131,14 @@ inline bool Deliver(Crossplay::Edition edition,const CrossplayNative::Participan
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
     if(!okay)return false;
     if(stage)*stage=205;
-    if(!Context(edition,binding,ids,false,after) || !Same(before,after))return false;
+    if(!context(after,nullptr) || !Same(before,after))return false;
     snapshot=after;if(stage)*stage=999;return true;
+}
+inline bool Deliver(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+                    CrossplaySessionConfig::Connections ids,const std::vector<unsigned char>& wire,ContextSnapshot& snapshot,unsigned* stage=nullptr) {
+    return DeliverBound(edition,ids.host,wire,snapshot,[&](ContextSnapshot& view,unsigned* context_stage){
+        return Context(edition,binding,ids,false,view,context_stage);
+    },stage);
 }
 inline bool CpuObserved(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                         CrossplaySessionConfig::Connections ids,uint32_t slot,const ContextSnapshot& expected) {

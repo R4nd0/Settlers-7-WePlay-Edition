@@ -18,6 +18,8 @@
 #include "crossplay_configuration_native.h"
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
 #include "crossplay_room_configuration_frame.h"
+#include "crossplay_room_teams.h"
+#include "crossplay_room_ai.h"
 #endif
 #include "crossplay_configuration_readiness.h"
 #include "crossplay_history_choices.h"
@@ -62,6 +64,9 @@ void CaptureConfiguration(void* cache,const unsigned char* event);
 void CaptureOutgoing(void* manager,const void* event,uint32_t mode,uint32_t target);
 void __stdcall CaptureGoldLocal(void* manager,const void* event,uint32_t mode);
 bool __stdcall CaptureGoldStart(void* manager,const void* event);
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+bool __stdcall CaptureRoomGoldStart(void* manager,const void* event);
+#endif
 bool NeoWorldReady();
 bool WorldMathReady();
 void CALLBACK Tick(HWND,UINT,UINT_PTR,DWORD);
@@ -569,6 +574,12 @@ void __stdcall CaptureGoldLocal(void* manager,const void* event,uint32_t mode){
 bool __stdcall CaptureGoldStart(void* manager,const void* event){
     if(current)try{return current->HoldGoldStart(manager,event);}catch(...){current->Fail();}return false;
 }
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+bool __stdcall CaptureRoomGoldStart(void*,const void* event){
+    if(current)try{return current->HoldRoomGoldStart(event);}catch(...){current->Fail();}
+    return false;
+}
+#endif
 bool NeoWorldReady(){
     return current && current->Owned() && current->phase==Phase::RosterBound && current->neo_world_queued
         && current->neo_world_agreement.Ready() && current->NeoModules()
@@ -663,6 +674,31 @@ bool RoomAllHumansReadyObserved(){
     for(size_t i=0;i<routes.capacity;++i)
         if(routes.stations[i]!=UINT32_MAX && wire[layout.slots_at+i*CrossplaySessionConfig::SlotBytes]!=1)return false;
     return true;
+#else
+    return false;
+#endif
+}
+std::string RoomStartCaptureState(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(RoomConfigurationApplied() && current->launch.host && current->start_hold_installed)
+        return current->room_held_start.empty()?"armed":"captured";
+#endif
+    return "waiting";
+}
+bool RoomSynchronizeTeams(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    if(!RoomConfigurationApplied())return false;
+    const auto* room=current->channel.GetRoom();
+    return room && current->GoldHostedReadyRoom(*room) && current->BeginRoomTeams(*room);
+#else
+    return false;
+#endif
+}
+bool RoomTeamsConfirmed(){
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    CrossplayRoomTeams::Teams observed;
+    return RoomConfigurationApplied() && current->room_team_phase==Runtime::TeamPhase::Confirmed
+        && current->RoomSetupConfigurationCurrent() && current->ReadRoomTeams(observed) && observed==current->room_teams;
 #else
     return false;
 #endif

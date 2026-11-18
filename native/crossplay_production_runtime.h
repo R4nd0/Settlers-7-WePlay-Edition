@@ -11,6 +11,9 @@ Phase RuntimePhase();
 bool RoomConfigurationApplied();
 bool RoomGuestReadyActionAvailable();
 bool RoomAllHumansReadyObserved();
+bool RoomSynchronizeTeams();
+bool RoomTeamsConfirmed();
+std::string RoomStartCaptureState();
 std::string BootstrapMap();
 bool BootstrapChoices(uint32_t& flags,std::string& map_template);
 // Actual owned History values after exact configuration application. This is

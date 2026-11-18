@@ -2,6 +2,9 @@
 #include "crossplay_preparation_capture.h"
 #include "crossplay_setup_root_dependencies.h"
 #include "crossplay_setup_root_writer.h"
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#include "crossplay_ai_preparation_source.h"
+#endif
 
 // Original enclosing-write diagnostic only. No remote setup reader, content
 // permission, world event, NEO command or save acknowledgement is supplied.
@@ -18,6 +21,24 @@ inline uintptr_t ProfilePointer(Crossplay::Edition edition) {
     if(edition==Crossplay::Edition::UbisoftHistory)return 0x13a5214;
     if(edition==Crossplay::Edition::SteamHistory)return 0x13a2304;
     return 0;
+}
+inline bool Serialize(Crossplay::Edition edition,const CrossplaySetupRootWriter::Pin& writer,void* root,
+                      uint32_t version,std::vector<unsigned char>& output,unsigned* diagnostic=nullptr) {
+    using namespace CrossplayNativeCodec;
+    const auto profile=Detail::Pin(edition);
+    output.clear();
+    if(diagnostic)*diagnostic=412;
+    Detail::OwnedStream stream(profile);
+    if(!stream.initialized)return false;
+    Detail::Writer visitor{profile.writer_vt,0,&stream.value,0};
+    CrossplaySetupRootWriter::Detail::Write(edition,writer,root,&visitor,version);
+    const auto& s=stream.value;
+    if(diagnostic)*diagnostic=413;
+    if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>131072 || s.position!=s.length
+        || s.capacity<s.length || visitor.flags || !Detail::Readable(s.bytes,s.length))return false;
+    const auto* data=static_cast<const unsigned char*>(s.bytes);
+    output.assign(data,data+s.length);
+    return true;
 }
 inline bool Capture(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
                     CrossplaySessionConfig::Connections ids,bool host,Snapshot& result,uint32_t version=1,unsigned* diagnostic=nullptr) {
@@ -47,17 +68,9 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
     const size_t row_bytes=25*(profile.gold?0x5c4:0x5a8);
     if(!Readable(rows,row_bytes) || (version==2 && !CrossplayNative::HistoryRoleDetail::Writable(root+(profile.gold?0x64:0x58),4)))return false;
     const std::vector<unsigned char> original_rows(rows,rows+row_bytes);
-    stage(412);CrossplayNativeCodec::Detail::OwnedStream stream(profile);if(!stream.initialized)return false;
-    CrossplayNativeCodec::Detail::Writer visitor{profile.writer_vt,0,&stream.value,0};
-    CrossplaySetupRootWriter::Detail::Write(edition,writer,root,&visitor,version);
-    const auto& s=stream.value;
-    stage(413);
-    if(s.vt!=profile.stream_vt || s.external || !s.length || s.length>131072 || s.position!=s.length
-        || s.capacity<s.length || visitor.flags || !Readable(s.bytes,s.length))return false;
-    const auto* data=static_cast<const unsigned char*>(s.bytes);
-    captured.serialized.assign(data,data+s.length);
+    if(!Serialize(edition,writer,root,version,captured.serialized,diagnostic))return false;
     if(!CrossplaySetupSignatureNative::Hash(captured.serialized,captured.complete.digest))return false;
-    captured.complete.bytes=s.length;
+    captured.complete.bytes=static_cast<uint32_t>(captured.serialized.size());
     stage(414);Crossplay::Digest dependencies{},positions{},players{};CrossplaySetupCheckpoint::Snapshot owner{};
     if(*reinterpret_cast<const unsigned char* const*>(rules.manager)!=manager || manager[4]!=mode
         || *reinterpret_cast<const unsigned char* const*>(pointer)!=globals
@@ -71,4 +84,42 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
         || !CrossplaySetupRootWriter::Methods(edition,writer))return false;
     captured.format_version=version;result=std::move(captured);stage(0);return true;
 }
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+template<class Owned>
+inline bool CaptureRoom(Crossplay::Edition edition,unsigned capacity,Owned owned,std::vector<unsigned char>& output) {
+    using namespace CrossplayNativeCodec;
+    output.clear();
+    CrossplaySetupRootWriter::Pin writer{};
+    CrossplaySetupSignatureNative::Pin rules{};
+    CrossplayAIPreparationSource::View view;
+    unsigned stage=0;
+    if(!owned() || !CrossplaySetupRootWriter::Layout(edition,writer) || !CrossplaySetupRootWriter::Methods(edition,writer)
+        || !CrossplaySetupSignatureNative::Layout(edition,rules)
+        || !CrossplayAIPreparationSource::CaptureView(edition,capacity,view,stage) || view.getrows!=view.rows)return false;
+    const bool gold=edition==Crossplay::Edition::Gold;
+    auto* root=const_cast<unsigned char*>(view.buffer+0x34);
+    const auto* profile_slot=reinterpret_cast<const unsigned char* const*>(ProfilePointer(edition));
+    if(!Detail::Readable(root,rules.root_size) || !Detail::Readable(profile_slot,4)
+        || CrossplayChat::Word(root+(gold?0x70:0x64))!=reinterpret_cast<uintptr_t>(view.writer)
+        || !CrossplayNative::HistoryRoleDetail::Writable(root+(gold?0x64:0x58),4))return false;
+    const auto* profile=*profile_slot;
+    Crossplay::Digest rules_before{},players_before{},positions_before{};
+    if(!CrossplaySetupRootDependencies::Capture(root,profile,gold,rules_before)
+        || !CrossplayActiveSetupCapture::Detail::Dependencies(view.rows,gold,players_before)
+        || !CrossplayPreparationCapture::Detail::Positions(view.rows,gold,positions_before))return false;
+    const size_t extent=25*view.row_size;
+    if(!Detail::Readable(view.rows,extent))return false;
+    const std::vector<unsigned char> original(view.rows,view.rows+extent);
+    std::vector<unsigned char> serialized;
+    if(!Serialize(edition,writer,root,2,serialized) || !owned() || !view.Stable()
+        || *profile_slot!=profile || !Detail::Readable(view.rows,extent)
+        || memcmp(view.rows,original.data(),extent))return false;
+    Crossplay::Digest rules_after{},players_after{},positions_after{};
+    if(!CrossplaySetupRootDependencies::Capture(root,profile,gold,rules_after) || rules_after!=rules_before
+        || !CrossplayActiveSetupCapture::Detail::Dependencies(view.rows,gold,players_after) || players_after!=players_before
+        || !CrossplayPreparationCapture::Detail::Positions(view.rows,gold,positions_after) || positions_after!=positions_before)return false;
+    output=std::move(serialized);
+    return true;
+}
+#endif
 }

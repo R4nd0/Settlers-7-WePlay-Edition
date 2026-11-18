@@ -47,11 +47,11 @@ struct GoldStartHold {
         }
         SetLastError(error);
     }
-    static bool InstallFor(const CrossplayNative::ParticipantEvent& binding,Callback callback,CrossplayNative::LobbyAdmission* admission) {
-        const DWORD incoming=GetLastError();auto& s=Current();if(s.roots.installed || !callback || !Methods()
+private:
+    static bool InstallPrepared(State next,DWORD incoming) {
+        auto& s=Current();
+        if(s.roots.installed || !next.callback || !Methods()
             || !CrossplayNativeCodec::GameStartDetail::Methods(Crossplay::Edition::Gold))return false;
-        State next;next.callback=callback;
-        if(!CrossplayNativeObserver::GoldLocalObserver::CaptureHost(binding,admission,next.roots,next.host))return false;
         auto* at=reinterpret_cast<unsigned char*>(0xa35f64);unsigned char old[6]{};memcpy(old,at,6);
         unsigned char patch[6]={0xe9,0,0,0,0,0x90};
         const int32_t relative=static_cast<int32_t>(reinterpret_cast<uintptr_t>(&GoldStartBridge)-(0xa35f64+5));memcpy(patch+1,&relative,4);
@@ -70,8 +70,24 @@ struct GoldStartHold {
         }
         SetLastError(incoming);return true;
     }
+public:
+    static bool InstallFor(const CrossplayNative::ParticipantEvent& binding,Callback callback,CrossplayNative::LobbyAdmission* admission) {
+        const DWORD incoming=GetLastError();State next;next.callback=callback;
+        return !Current().roots.installed && callback
+            && CrossplayNativeObserver::GoldLocalObserver::CaptureHost(binding,admission,next.roots,next.host)
+            && InstallPrepared(next,incoming);
+    }
     static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback){return InstallFor(binding,callback,nullptr);}
     static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,Callback callback){return InstallFor(binding,callback,&admission);}
+#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    static bool InstallRoomBound(const CrossplayNative::ParticipantEvent& binding,
+        const CrossplayNative::RoomLobbyAdmission& admission,unsigned char local_transport_slot,Callback callback) {
+        const DWORD incoming=GetLastError();State next;next.callback=callback;
+        return !Current().roots.installed && callback
+            && CrossplayNativeObserver::GoldLocalObserver::CaptureRoomHost(binding,admission,local_transport_slot,next.roots,next.host)
+            && InstallPrepared(next,incoming);
+    }
+#endif
     static bool Release(){
         const DWORD incoming=GetLastError();auto& s=Current();constexpr uintptr_t at=0xa35f64;
         if(!s.roots.installed || s.roots.inside || s.roots.owner!=GetCurrentThreadId()
