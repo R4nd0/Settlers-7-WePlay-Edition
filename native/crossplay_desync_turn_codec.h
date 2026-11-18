@@ -42,10 +42,10 @@ inline bool Encode(Crossplay::Edition edition,const CrossplayNative::Participant
     if(Source(p,event,own) && Detail::Encode(p,event,wire) && CrossplayDesyncTurn::Inspect(wire,own))return true;
     wire.clear();return false;
 }
-inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
-                    uintptr_t session,uint32_t own,uint32_t other,const std::vector<unsigned char>& wire) {
+template<class WorldCheck>
+inline bool EnqueueBound(Crossplay::Edition edition,uint32_t other,const std::vector<unsigned char>& wire,WorldCheck current_world) {
     LoadProgressDetail::FpScope preserve;
-    if(!LoadProgressDetail::World(binding,owner,session,own,other) || !CrossplayDesyncTurn::Inspect(wire,other) || !Methods(edition))return false;
+    if(!current_world() || !CrossplayDesyncTurn::Inspect(wire,other) || !Methods(edition))return false;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());
     stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
@@ -55,11 +55,34 @@ inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::Participan
     if(!decoded || !Detail::Readable(decoded,0x14) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
     bool okay=stream.value.position==wire.size() && Source(p,decoded,other) && Detail::Encode(p,decoded,repeated)
-        && repeated==wire && LoadProgressDetail::World(binding,owner,session,own,other);
+        && repeated==wire && current_world();
     uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);
     else okay=false;
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
     return okay;
+}
+inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
+                    uintptr_t session,uint32_t own,uint32_t other,const std::vector<unsigned char>& wire) {
+    return EnqueueBound(edition,other,wire,[&]{return LoadProgressDetail::World(binding,owner,session,own,other);});
+}
+inline bool EnqueueRoom(Crossplay::Edition edition,const CrossplayNative::RoomLobbyAdmission& admission,
+                        unsigned char source_slot,const std::vector<unsigned char>& wire) {
+    CrossplayNative::RoomRoute source;
+    if(!admission.Resolve(source_slot,true,source) || source.local || source.receiver!=edition)return false;
+    return EnqueueBound(edition,source.receiver_cid,wire,[&]{
+        CrossplayNative::RoomRoute fresh;
+        return admission.Resolve(source_slot,true,fresh) && fresh.receiver_cid==source.receiver_cid;
+    });
+}
+inline bool EncodeRoom(Crossplay::Edition edition,const CrossplayNative::RoomRoute& own,
+                       const CrossplayNative::RoomRoute& target,uint32_t sequence,const void* event,
+                       std::vector<unsigned char>& frame) {
+    LoadProgressDetail::FpScope preserve;frame.clear();
+    const auto p=Pin(edition);
+    std::vector<unsigned char> wire;
+    return own.local && !target.local && own.receiver==edition && target.receiver==edition
+        && Methods(edition) && Source(p,event,own.receiver_cid) && Detail::Encode(p,event,wire)
+        && CrossplayDesyncTurn::Encode(target.peer,sequence,wire,own.receiver_cid,frame);
 }
 }

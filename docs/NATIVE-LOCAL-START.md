@@ -1,5 +1,14 @@
 # Experimental native local start, 2026-10-26
 
+On 2026-11-18, an isolated DXVK 3.1.1 room with Gold hosting both History
+editions and one AI reached the native started session on all three clients.
+Each client delivered original initial end-of-turn events from both peers.
+Gold rendered the map and displayed the original waiting-for-players panel.
+The trace contained no finished-turn CRCs. The three clients exited with code
+zero and their test files were restored. The room world adapter requires the
+explicit `CrossplayRoomWorldLab` build option. The RC4 production gate still
+requires installed-package results for all three hosts.
+
 Latest normal-adapter saved-world milestone (2026-11-17): real original Gold
 host saves now load and continue with active shared NEO19 and original easy-AI
 construction goods against **each original History edition**, standalone under

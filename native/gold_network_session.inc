@@ -54,16 +54,24 @@ bool NetworkLocalReadyAllowed() {
         if (!handle || handle == 0xffffffffu) return false;
     }
     const auto local = *reinterpret_cast<unsigned int*>(session + 0xc);
-    if (local != 1 && local != 2) return false;
     const uintptr_t setup = *reinterpret_cast<uintptr_t*>(image + 0xcf834c);
     bool mixed=false;
+    unsigned int expected_humans = 6;
+    bool room = false;
 #ifdef S7_PLATFORM_INDEPENDENT
     const auto* launch=CrossplayProduction::CurrentLaunch();
     if(launch && launch->mixed){
         if(!CrossplayProduction::GoldWorldOwnsStartedSession(session))return false;
         mixed=true;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        if(launch->IsRoom()){
+            expected_humans=CrossplayProduction::GoldWorldHumanSeats(session);
+            room=true;
+        }
+#endif
     }
 #endif
+    if(!local || local>8 || !(expected_humans & (1u << local)))return false;
     GoldNetworkRowsView view;
     if(!NetworkPlayingRows(setup,mixed,view))return false;
     const uintptr_t rows=view.rows;
@@ -81,7 +89,8 @@ bool NetworkLocalReadyAllowed() {
         if (kind == 2 && !local_peer_leave_enabled) return false;
         if (*reinterpret_cast<unsigned int*>(player + 0x60) != 3) return false;
         const auto index = *reinterpret_cast<unsigned int*>(player + 0x5c);
-        if ((index != 1 && index != 2) || (indices & (1u << index))) return false;
+        if (!index || index>8 || !(expected_humans & (1u << index))
+            || (room && (row!=index || kind!=1)) || (indices & (1u << index))) return false;
         indices |= 1u << index;
         if (kind == 1) ++humans; else ++computers;
         if (index == local) {
@@ -89,7 +98,7 @@ bool NetworkLocalReadyAllowed() {
             ++own; own_row = row;
         } else peer_row = row;
     }
-    if (indices != 6 || own != 1 || humans + computers != 2) return false;
+    if (indices != expected_humans || own != 1 || (!room && humans + computers != 2)) return false;
 #ifdef S7_PLATFORM_INDEPENDENT
     if(mixed && admitted_ai!=CrossplayProduction::GoldWorldExpectedAIPlayers(session))return false;
 #endif
@@ -102,6 +111,7 @@ bool NetworkLocalReadyAllowed() {
             || after.rows!=view.rows || after.mode!=view.mode)return false;
     }
 #endif
+    if (room) return !computers;
     if (!local_peer_leave_enabled) return humans == 2;
     const uintptr_t world = *reinterpret_cast<uintptr_t*>(image + 0xcf83f0);
     if (!ValidRange(reinterpret_cast<void*>(world), 0x30)

@@ -176,7 +176,7 @@ struct Channel::Impl {
         peer=candidate;
         return true;
     }
-    bool Poll() {
+    bool Poll(long connect_wait_us=0) {
         if(!Owned() || state==State::New || state==State::Closed)return false;
         if(state==State::Draining) {
             if(!Accept() || !CompleteEofInput())return false;
@@ -185,7 +185,7 @@ struct Channel::Impl {
         if(state!=State::Connected && GetTickCount64()-started>60000)return false;
         if(state==State::Connecting) {
             fd_set writes,errors;FD_ZERO(&writes);FD_ZERO(&errors);FD_SET(socket,&writes);FD_SET(socket,&errors);
-            timeval timeout{};const int ready=select(0,nullptr,&writes,&errors,&timeout);
+            timeval timeout{0,connect_wait_us};const int ready=select(0,nullptr,&writes,&errors,&timeout);
             if(ready==SOCKET_ERROR || FD_ISSET(socket,&errors))return false;
             if(!FD_ISSET(socket,&writes))return true;
             int error=0,size=sizeof(error);
@@ -256,7 +256,11 @@ bool Channel::StartRoom(const RoomConfig& config) {
     impl->room_host=config.host_slot;
     impl->room_count=config.member_count;
     impl->room_generation=config.generation;
-    return impl->Open();
+    if(!impl->Open())return false;
+    // Send the local authenticated hello during initialization. Engine startup
+    // can delay its first timer tick while the broker is already waiting.
+    if(impl->Poll(100000))return true;
+    impl->Close();return false;
 }
 bool Channel::Impl::Open() {
     WSADATA data{};if(WSAStartup(MAKEWORD(2,2),&data)){Close();return false;}winsock=true;

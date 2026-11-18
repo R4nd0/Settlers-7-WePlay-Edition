@@ -14,6 +14,7 @@ bool RoomAllHumansReadyObserved();
 bool RoomSynchronizeTeams();
 bool RoomTeamsConfirmed();
 bool RoomSetupConfirmed();
+std::string RoomWorldState();
 std::string RoomStartCaptureState();
 std::string BootstrapMap();
 bool BootstrapChoices(uint32_t& flags,std::string& map_template);
@@ -34,6 +35,9 @@ bool StartUsesSavedWorld(bool& saved);
 // exact original world tears down; event and NEO authority do not. This does
 // not compute or acknowledge native Ready.
 bool GoldWorldOwnsStartedSession(uintptr_t session);
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+unsigned GoldWorldHumanSeats(uintptr_t session);
+#endif
 // Exact AI rows admitted by the original chooser and common complete root.
 // This predicate does not replace the original Ready result.
 bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row);

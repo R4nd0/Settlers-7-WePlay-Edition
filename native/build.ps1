@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [switch]$LocalPairLab, [switch]$LocalThreeLab, [switch]$LocalNetworkPump, [switch]$CastlePrototype, [switch]$CastleWirePrototype=$true,
       [ValidateSet(2,4)][int]$MaximumPhysicalCores=4, [switch]$GameDirectory, [switch]$ResumeCatchup, [switch]$NeoFifoLab, [switch]$NeoLogistics, [switch]$PlatformIndependent,
-      [switch]$CrossplayRoomLobbyLab)
+      [switch]$CrossplayRoomLobbyLab, [switch]$CrossplayRoomWorldLab)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -21,6 +21,10 @@ $common += "/DS7_MAX_PHYSICAL_CORES=$MaximumPhysicalCores"
 if ($CrossplayRoomLobbyLab) {
     if (!$PlatformIndependent) { throw 'CrossplayRoomLobbyLab requires the original standalone executable guard.' }
     $common += '/DS7_CROSSPLAY_ROOM_LOBBY_LAB'
+}
+if ($CrossplayRoomWorldLab) {
+    if (!$CrossplayRoomLobbyLab) { throw 'CrossplayRoomWorldLab requires CrossplayRoomLobbyLab.' }
+    $common += '/DS7_CROSSPLAY_ROOM_WORLD_LAB'
 }
 $standaloneSources = @()
 if ($PlatformIndependent) {

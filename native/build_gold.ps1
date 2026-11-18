@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$IsolatedLabExecutable,
       [switch]$LocalSimulation, [switch]$LocalLogin, [switch]$AccountLogin, [switch]$PlatformIndependent,
-      [switch]$CrossplayRoomLobbyLab)
+      [switch]$CrossplayRoomLobbyLab, [switch]$CrossplayRoomWorldLab)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -21,6 +21,10 @@ $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_W
 if ($CrossplayRoomLobbyLab) {
     if (!$PlatformIndependent) { throw 'CrossplayRoomLobbyLab requires the original standalone executable guard.' }
     $common += '/DS7_CROSSPLAY_ROOM_LOBBY_LAB'
+}
+if ($CrossplayRoomWorldLab) {
+    if (!$CrossplayRoomLobbyLab) { throw 'CrossplayRoomWorldLab requires CrossplayRoomLobbyLab.' }
+    $common += '/DS7_CROSSPLAY_ROOM_WORLD_LAB'
 }
 if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
 if ($LocalLogin -or $AccountLogin) { $common += '/DS7_GOLD_LOCAL_LOGIN' }

@@ -352,7 +352,12 @@ struct Runtime {
     void Outgoing(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
-        if(launch.IsRoom()){RoomOutgoing(manager,event,mode,target);return;}
+        if(launch.IsRoom()){
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+            if(room_world_queued){OutgoingRoomWorld(manager,event,mode,target);return;}
+#endif
+            RoomOutgoing(manager,event,mode,target);return;
+        }
 #endif
         if(OutgoingWorld(manager,event,mode,target))return;
         if(OutgoingSaved(manager,event,mode,target))return;
@@ -581,12 +586,23 @@ bool __stdcall CaptureRoomGoldStart(void*,const void* event){
 }
 #endif
 bool NeoWorldReady(){
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current && current->launch.IsRoom())return current->RoomStarted() && current->NeoModules();
+#endif
     return current && current->Owned() && current->phase==Phase::RosterBound && current->neo_world_queued
         && current->neo_world_agreement.Ready() && current->NeoModules()
         && CrossplayNativeCodec::LoadProgressDetail::World(current->original,current->owner,current->neo_world_session,
             current->admission.OwnConnection(),current->admission.PeerLocalConnection());
 }
 bool WorldMathReady(){
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current && current->launch.IsRoom())
+        return current->Owned() && current->phase==Phase::RosterBound
+            && (current->room_world_arming || current->room_world_queued)
+            && current->room_root_phase==Runtime::RoomRootPhase::Confirmed
+            && current->launch.channel.edition==Crossplay::Edition::Gold
+            && current->channel.GetState()==Crossplay::State::Connected;
+#endif
     return current && current->Owned() && current->phase==Phase::RosterBound
         && current->launch.channel.edition==Crossplay::Edition::Gold && current->world_bound
         && (current->bootstrap.saved
@@ -710,6 +726,18 @@ bool RoomSetupConfirmed(){
     return false;
 #endif
 }
+std::string RoomWorldState(){
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    const auto* room=current && current->Owned()?current->channel.GetRoom():nullptr;
+    if(room && current->phase==Phase::RosterBound && current->room_world_queued){
+        if(!current->RoomStarted())return "queued";
+        for(unsigned char slot=1;slot<=room->member_count;++slot)
+            if(slot!=room->local_slot && !current->room_world_events.Received(CrossplayWorldEvents::Kind::Turn,slot))return "started";
+        return "turn-events";
+    }
+#endif
+    return "waiting";
+}
 std::string BootstrapMap(){
     return current && current->Owned() && !current->launch.host && current->bootstrap_received
         && current->phase!=Phase::Failed && current->phase!=Phase::Closed?current->bootstrap.map:std::string();
@@ -760,6 +788,9 @@ bool GuestReadyActionAvailable(){
 }
 bool StartUsesSavedWorld(bool& saved){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;saved=false;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current && current->launch.IsRoom())return current->RoomStarted();
+#endif
     if(!current || !current->Owned() || current->phase!=Phase::RosterBound || !current->neo_world_queued
         || !current->world_bound || !current->neo_world_agreement.Ready() || !current->NeoModules()
         || !CrossplayNativeCodec::LoadProgressDetail::World(current->original,current->owner,current->neo_world_session,
@@ -774,13 +805,26 @@ bool StartUsesSavedWorld(bool& saved){
 }
 bool GoldWorldOwnsStartedSession(uintptr_t session){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current && current->launch.IsRoom())
+        return current->launch.channel.edition==Crossplay::Edition::Gold && session && current->session==session
+            && current->RoomStarted();
+#endif
     return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
         && session && current->neo_world_session==session && current->StartedWorldObservation();
 }
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+unsigned GoldWorldHumanSeats(uintptr_t session){
+    if(!GoldWorldOwnsStartedSession(session) || !current->launch.IsRoom())return 0;
+    unsigned seats=0;
+    const auto& routes=current->room_local_routes;
+    for(unsigned i=0;i<routes.capacity;++i)if(routes.stations[i]!=UINT32_MAX)seats|=1u<<(i+1);
+    return seats;
+}
+#endif
 bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
-    if(!GoldWorldOwnsStartedSession(session) || row<3 || row>4
-        || (current->bootstrap.saved?!(current->resume_source.ai_mask&(1u<<row)):!current->ai_layout)
+    if(!GoldWorldOwnsStartedSession(session) || row<3 || row>4 || !(GoldWorldExpectedAIPlayers(session)&(1u<<row))
         || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<const void*>(rows),25*0x5c4))return false;
     using CrossplayNativeCodec::Detail::Readable;
     if(!Readable(reinterpret_cast<const void*>(0x10f834c),4))return false;
@@ -789,7 +833,12 @@ bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
     const auto mode=manager[4];const auto* reference=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(manager+mode*0xd4+0xa4));
     if(!Readable(reference,4) || CrossplayChat::Word(reference)!=rows)return false;
     const auto* player=reinterpret_cast<const unsigned char*>(rows)+row*0x5c4;
-    const bool expected=current->bootstrap.saved
+    bool expected=false;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current->launch.IsRoom())expected=CrossplayAIPreparation::GoldPlayingRow(player,0x5c4,current->room_ai);
+    else
+#endif
+    expected=current->bootstrap.saved
         ?CrossplaySavedAI::Playing(player,0x5c4,current->resume_source.ai[row-3])
         :(current->ai_values[row-3].slot==row && CrossplayAIPreparation::GoldPlayingRow(player,0x5c4,current->ai_values[row-3]));
     return expected
@@ -800,11 +849,17 @@ bool GoldWorldAIPlayer(uintptr_t session,uintptr_t rows,unsigned row){
 unsigned GoldWorldExpectedAIPlayers(uintptr_t session){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     if(!GoldWorldOwnsStartedSession(session))return 0;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current->launch.IsRoom())return current->room_ai_slot?1u<<current->room_ai_slot:0;
+#endif
     return current->bootstrap.saved?current->resume_source.ai_mask:(current->ai_layout?24u:0u);
 }
 bool NeoCommand(const std::string& command,std::string& output){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;output.clear();
     if(!current || !current->Owned() || current->phase==Phase::Failed || current->phase==Phase::Closed)return false;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(current->launch.IsRoom())return current->RoomNeoCommand(command,output);
+#endif
     if(command.compare(0,12,"select-file:")==0){
         if(current->phase!=Phase::Connecting || current->lobby_captured || current->bootstrap_sent || !current->launch.host)return false;
         CrossplayResumeSource::ArchiveIdentity identity{};std::string token;
