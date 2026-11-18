@@ -1,6 +1,23 @@
 """Small x86 entry bridge shared by the three fingerprint-bound starters."""
 import struct
 
+FAILURE_EXIT_BASE = 0xe0537080
+STAGES = {
+    1: 'Adapter laden',
+    2: 'Initialisierungsexport auflösen',
+    3: 'Nativer Initialisierungseinstieg',
+    4: 'Auf Startfreigabe warten',
+    10: 'Spielabbild prüfen',
+    11: 'Windows-Netzisolation prüfen',
+    12: 'Isoliertes Profil vorbereiten',
+    13: 'Native Startparameter prüfen',
+    14: 'Netzschutz vorbereiten',
+    15: 'Parallele Testinstanz isolieren',
+    16: 'Nativer Gold-Startadapter',
+    17: 'Native Bedienoberfläche anbinden',
+    18: 'Nativer Lobbyadapter',
+}
+
 
 def bridge(remote, image, status, dll, imports, *, initializer='WePlayInitializeStandalone'):
     data = bytearray(4096)
@@ -22,12 +39,18 @@ def bridge(remote, image, status, dll, imports, *, initializer='WePlayInitialize
     def iat(name): emit(0xff, 0x15); word(image + imports[name])
     def fail_if(condition):
         emit(0x0f, condition); failures.append(len(code)); word(0)
+    def set_stage(stage):
+        emit(0xc7, 5); word(status + 4); word(stage)
 
     emit(0x9c, 0x60)  # Preserve entry flags and every original register.
+    set_stage(1)
     push(constants['dll']); iat('LoadLibraryW'); emit(0x85, 0xc0); fail_if(0x84)
+    set_stage(2)
     push(constants['init']); emit(0x50); iat('GetProcAddress'); emit(0x85, 0xc0); fail_if(0x84)
+    set_stage(3)
     push(status + 32); emit(0xff, 0xd0, 0x85, 0xc0); fail_if(0x84)
     emit(0xa3); word(status + 8)  # Initializer supplies the verified native OEP.
+    set_stage(4)
     emit(0xc7, 5); word(status); word(1)
     iat('GetTickCount'); emit(0x89, 0xc6)
     labels['wait'] = len(code)
@@ -40,7 +63,9 @@ def bridge(remote, image, status, dll, imports, *, initializer='WePlayInitialize
     emit(0x61, 0x9d, 0xff, 0x25); word(status + 8)
     failure = len(code)
     emit(0xc7, 5); word(status); word(2)
-    push(0xe0537020); emit(0x6a, 0xff); iat('TerminateProcess'); emit(0xcc)
+    emit(0xa1); word(status + 4)  # Preserve the failure stage in the exit code.
+    emit(0x05); word(FAILURE_EXIT_BASE); emit(0x50, 0x6a, 0xff)
+    iat('TerminateProcess'); emit(0xcc)
     for position in failures:
         struct.pack_into('<i', code, position, failure - position - 4)
     struct.pack_into('<i', code, released, labels['released'] - released - 4)

@@ -7,7 +7,7 @@ import struct
 import subprocess
 import time
 
-from standalone_entry import bridge
+from standalone_entry import FAILURE_EXIT_BASE, STAGES, bridge
 
 
 class ProcessEntry(C.Structure):
@@ -372,13 +372,27 @@ def _launch(executable, dll, expected, profile, environment, arguments,*,on_init
         if k.ResumeThread(child.thread) != 1:
             raise RuntimeError('Der primäre Startthread wurde verändert.')
         deadline = time.monotonic() + 25
+        state = stage = 0
         while time.monotonic() < deadline and owned.poll() is None:
-            state = struct.unpack('<I', read(status, 4))[0]
-            if state in (1, 2): break
+            try:
+                state, stage = struct.unpack('<II', read(status, 8))
+            except OSError:
+                # The bridge may terminate between the wait and memory read.
+                if k.WaitForSingleObject(child.process, 100) != 0:
+                    raise
+                break
+            if state == 1: break
             time.sleep(.02)
-        else:
-            raise RuntimeError('Der native Starter wurde nicht rechtzeitig erreicht.')
-        if state != 1 or struct.unpack('<I', read(status+8, 4))[0] != image + target_rva or read(entry, 5) != jump:
+        if state != 1:
+            last_stage = STAGES.get(stage, 'Windows-Programmstart')
+            exit_code = owned.poll()
+            if exit_code is not None:
+                failed_stage = STAGES.get(exit_code - FAILURE_EXIT_BASE)
+                if failed_stage:
+                    raise RuntimeError(f'Der native Starter ist in der Stufe „{failed_stage}“ fehlgeschlagen.')
+                raise RuntimeError(f'Der Spielprozess wurde mit Exitcode 0x{exit_code:08X} beendet. Letzte Startstufe „{last_stage}“.')
+            raise RuntimeError(f'Zeitlimit beim nativen Starter. Letzte Stufe „{last_stage}“.')
+        if struct.unpack('<I', read(status+8, 4))[0] != image + target_rva or read(entry, 5) != jump:
             raise RuntimeError('Der native Adapter hat die Initialisierung abgelehnt.')
         kernel_probe=struct.unpack('<I',read(status+20,4))[0]
         if edition!=99 and (not kernel_probe&1 or kernel_probe&~7):

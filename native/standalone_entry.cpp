@@ -57,6 +57,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     if (InterlockedCompareExchange(&entered,1,0)) return 0;
     const auto* context = static_cast<const Context*>(opaque);
     if (!ContextValid(context)) return 0;
+    auto& stage = *reinterpret_cast<volatile DWORD*>(reinterpret_cast<uintptr_t>(context)-28);
+    stage = 10; // Entry bridge status page, offset 4.
     wchar_t path[MAX_PATH]{};
     DWORD length = GetModuleFileNameW(nullptr,path,MAX_PATH);
     if (!length || length >= MAX_PATH) return 0;
@@ -90,13 +92,17 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
         verified_hash="8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410";
     } else return 0;
 #endif
+    stage = 11;
     const DWORD kernel_probe=ProbeStandaloneKernelIsolation();
     if (!(kernel_probe&1)) return 0;
     *reinterpret_cast<DWORD*>(reinterpret_cast<uintptr_t>(context)-12)=kernel_probe;
+    stage = 12;
     if (!StandaloneProfile::Prepare(path,edition,module)) return 0;
+    stage = 13;
     Crossplay::Digest executable{};
     if(!verified_hash || !CrossplayProduction::Hex(std::wstring(verified_hash,verified_hash+64),executable)
         || !CrossplayProduction::PrepareLaunch(channel_edition,executable,StandaloneProfile::ProfileDirectory()))return 0;
+    stage = 14;
 #ifdef S7_GOLD_STARTUP
     if(CrossplayProduction::CurrentLaunch()->mixed && !ConfigureGoldLoopbackGuard(2))return 0;
 #endif
@@ -104,6 +110,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     // Fail closed until the normal session runtime is attached. A valid mixed
     // handoff must never silently launch the existing solo/History-only path.
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    stage = 15;
     if(CrossplayProduction::CurrentLaunch()->mixed
         && (!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7
             || !IsolateRoomInstance(*context,channel_edition)))return 0;
@@ -111,11 +118,14 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     if(CrossplayProduction::CurrentLaunch()->mixed)return 0;
 #endif
 #ifdef S7_GOLD_STARTUP
+    stage = 16;
     if (GoldInitialize(nullptr) != 1) return 0;
 #endif
+    stage = 17;
     CrossplayNative::ParticipantEvent ui_binding;
     if(!ui_binding.Bind(channel_edition) || !CrossplayProduction::UiConsole::Install(channel_edition,GetCurrentThreadId()))return 0;
 #ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+    stage = 18;
     if(CrossplayProduction::CurrentLaunch()->IsRoom() && !CrossplayProduction::PrepareRuntime())return 0;
 #endif
     return context->image+entry;

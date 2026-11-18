@@ -29,6 +29,8 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     if (!StandaloneLaunchGate() || !context || context[0] != 0x37535057 || context[1] != 1
         || context[2] != 32 || context[3] != GetCurrentProcessId() || context[4] != GetCurrentThreadId()
         || context[5] != reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) || context[7] != 99) return 0;
+    wchar_t reject[2]{};
+    if (GetEnvironmentVariableW(L"WEPLAY_TEST_REJECT_ENTRY",reject,2)) return 0;
     if (!MilesForwarders()) return 0;
     ready = true;
     return context[5]+context[6];

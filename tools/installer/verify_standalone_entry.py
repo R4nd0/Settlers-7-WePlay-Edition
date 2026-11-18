@@ -54,6 +54,16 @@ def main():
     if child.wait(timeout=15) != 0 or not child.native_initialized:
         raise RuntimeError('Native entry fixture failed: '+str(child.returncode))
     if initialized!=[child.pid]:raise RuntimeError('Initialization callback was not invoked exactly once')
+    rejected_environment = dict(environment, WEPLAY_TEST_REJECT_ENTRY='1')
+    try:
+        unexpected = owner._launch(executable, dll, owner.digest(executable), profile, rejected_environment, ())
+    except RuntimeError as error:
+        if 'Nativer Initialisierungseinstieg' not in str(error):
+            raise
+    else:
+        unexpected.wait(timeout=15)
+        raise RuntimeError('Native starter did not report the rejected initialization stage')
+    print('PASS the bridge reports the rejected native initialization stage.')
     # A normal/direct load cannot pass the release DLL's startup gate.
     import subprocess
     subprocess.run([str(executable), '--direct'], cwd=root, check=True, timeout=15)
