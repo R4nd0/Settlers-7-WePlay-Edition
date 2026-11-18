@@ -40,11 +40,13 @@ Private experimental DLLs are not release inputs.
 
 ## Ubisoft History resume and desync fixes, 2026-11-18
 
-The final RC4.00 package must include the verified fix for the reported
-three-client Ubisoft History desync. Its implementation and regression
-evidence are pending. The existing three-client History lab (`9cb60ea`) is
-for reproducing and verifying the fix. Build release payloads from ordinary
-production sources and keep lab binaries and private saves out of the package.
+The final RC4.00 package must include the desync fix in `897124e`. Three Ubisoft
+History clients with active NEO and the saved AI continued for 20 minutes and
+10 seconds from each original save. The autosave passed both prior failure
+turns with 10,760 matching shared CRCs. The manual save reached 12,353 matching
+shared CRCs. Both runs used isolated History lab builds. Build the installers
+from ordinary production sources and keep lab binaries and private saves out
+of the package. [Regression results](SUPPORT-HISTORY-CRASH-20261117.md#neo6-verification-2026-11-18)
 
 The current package source includes `18eab7f`. That commit fixes the standard
 History resume path for multiplayer Empire mode and preserves the saved co-op
@@ -54,16 +56,18 @@ that change. The current standalone History DLL pin also predates the fix, so
 copying the old adapter into a new build would leave the native NEO correction
 out. [Mode 3 verification](receipts/support-resume-mode3-20261117.json)
 
-After the desync fix is verified, rebuild the ordinary standalone History DLL
-with the release's directory and NEO settings using `native/build_standalone.ps1`.
-Build from a revision that includes `6cb82be`, which installs the dedicated
+Rebuild both ordinary standalone adapters from `897124e` or a later qualified
+revision using the release settings in `native/build_standalone.ps1`.
+This baseline includes `6cb82be`, which installs the dedicated
 History NEO hooks only for History sessions and leaves the original comparator
-available to mixed NEO. Build the Gold adapter from a revision that includes
-`e6be812` for the Gold workshop, movement and saved-world corrections.
+available to mixed NEO. It also includes `e6be812` for the Gold workshop,
+movement and saved-world corrections.
 [Edition-specific coverage](RC4-DESYNC-COVERAGE.md)
 
-Supply the History DLL as `--adapter` to `tools/desktop/build_rc2.py` and update the matching
-production `HISTORY_PINS` entry for that verified build. The package builder
+Supply the History DLL as `--adapter` and the Gold DLL as `--gold-adapter` to
+`tools/desktop/build_rc2.py`. Update the production hashes for both verified
+builds. Update `neo_wire_revision` to 6 when selecting the new dedicated History
+NEO adapter. Mixed NEO still uses feature mask 19. The package builder
 takes the corrected History resume Lua from the checkout. Preparation composes
 it into `Base/BBA/Interface.bba` and checks the result against the selected
 archive fingerprint. Verify the native payload and all Lua/archive fingerprints

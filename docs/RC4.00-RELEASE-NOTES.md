@@ -58,7 +58,7 @@ Speicher-/Ladepfads veröffentlicht. Die Matrix unten beschreibt weiterhin den
 | ReShade-Effekte ohne GUI/Overlay | Ja | Ja | Ja |
 | LAN, private EasyTier-Räume, öffentliche Lobby | Nein | Ja | Ja |
 | Eigene Burgen und Multiplayer-Speichern/Laden | Nein | Ja, Grenzen unten | Ja, Grenzen unten |
-| Optionale vollständige History-NEO6-Logistik | Nein | Ja | Ja |
+| Optionale History-NEO5-Logistik | Nein | Ja | Ja |
 | Gold ↔ History Crossplay | Nicht ausgeliefert | Nicht ausgeliefert | Nicht ausgeliefert |
 
 ## Vorgesehener RC4.00-Umfang nach Paketnachweis
