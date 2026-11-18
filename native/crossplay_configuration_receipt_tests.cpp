@@ -19,6 +19,23 @@ std::vector<unsigned char> Wire(unsigned flags=0){
     }
     return result;
 }
+std::vector<unsigned char> RoomWire(const CrossplaySessionConfig::RoomConnections& ids,unsigned ready_flag){
+    auto result=Wire();
+    CrossplaySessionConfig::Layout layout;
+    Check(CrossplaySessionConfig::ReadLayout(result,1,layout));
+    CrossplayChat::Put(result.data()+8,ids.host);
+    for(size_t i=0;i<CrossplaySessionConfig::Slots;++i){
+        auto* row=result.data()+layout.slots_at+i*CrossplaySessionConfig::SlotBytes;
+        const auto cid=ids.stations[i];
+        const bool human=cid!=UINT32_MAX;
+        const bool computer=!human && i<ids.capacity;
+        row[0]=static_cast<unsigned char>(computer || (human && cid==ids.host && ready_flag));
+        CrossplayChat::Put(row+1,human || computer?static_cast<uint32_t>(i+1):UINT32_MAX);
+        CrossplayChat::Put(row+6,human?cid:0);
+        row[10]=static_cast<unsigned char>(human?3:computer?4:5);
+    }
+    return result;
+}
 }
 int main(){
     using namespace CrossplayConfigurationReceipt;
@@ -79,6 +96,32 @@ int main(){
         Check(CrossplayConfigurationReadiness::Compare(selected,selected,{0,1},ready)==Difference::Invalid);
         other=selected;other[layout.slots_at]=2;
         Check(CrossplayConfigurationReadiness::Compare(selected,other,ids,ready)==Difference::Invalid);
+    }
+    for(unsigned char capacity=2;capacity<=CrossplaySessionConfig::Slots;++capacity){
+        for(size_t host=0;host<capacity;++host){
+            CrossplaySessionConfig::RoomConnections room;
+            room.capacity=capacity;
+            room.host=0;
+            room.stations[host]=room.host;
+            room.stations[(host+1)%capacity]=101;
+            if(capacity>=3)room.stations[(host+2)%capacity]=303;
+            using CrossplayConfigurationReadiness::CompareRoom;
+            using CrossplayConfigurationReadiness::Difference;
+            CrossplayConfigurationReadiness::RoomHostReady ready;
+            for(unsigned flag:{0u,1u}){
+                const auto original=RoomWire(room,flag);
+                CrossplaySessionConfig::Layout layout;
+                Check(CrossplaySessionConfig::InspectRoom(original,room,layout));
+                const size_t ready_at=layout.slots_at+host*CrossplaySessionConfig::SlotBytes;
+                Check(CompareRoom(original,original,room,ready)==Difference::Equal && !ready.player_slot);
+                for(size_t at=0;at<original.size();++at){
+                    auto readback=original;readback[at]^=1;
+                    const auto difference=CompareRoom(original,readback,room,ready);
+                    if(at==ready_at)Check(difference==Difference::HostOnly && ready.player_slot==host+1 && ready.value==flag);
+                    else Check(difference==Difference::Invalid && !ready.player_slot);
+                }
+            }
+        }
     }
     // The original History cache retains zero station placeholders. Canonical
     // routing comparison still needs the exact consumed event and must retain

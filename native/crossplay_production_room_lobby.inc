@@ -3,6 +3,7 @@
     CrossplaySessionConfig::RoomConnections room_local_routes;
     std::vector<unsigned char> room_offer,room_expected_guest;
     unsigned room_receipts=0;
+    CrossplayNativeCodec::PendingHistoryRoomReady room_host_ready;
     bool room_consumer_seen=false,room_guest_receipt_sent=false,room_configuration_complete=false;
     ULONGLONG room_configuration_started=0;
 
@@ -87,7 +88,24 @@
             room_configuration_complete=true;
             return true;
         }
-        if(!room_consumer_seen || !ReadRoomSnapshot(readback) || readback!=room_expected_guest)return true;
+        if(!room_consumer_seen || !ReadRoomSnapshot(readback))return true;
+        using namespace CrossplayNativeCodec;
+        if(room_host_ready.session) {
+            const auto status=ObserveHistoryRoomHostReady(launch.channel.edition,original,room_admission,
+                room_local_routes,room_host_ready);
+            if(status==ReadyObservation::Invalid)return false;
+            if(status!=ReadyObservation::Applied || readback!=room_expected_guest)return true;
+        } else if(readback!=room_expected_guest) {
+            // Reuse History's original confirmed-setup event and Ready setter
+            // only for the authenticated host row, after native consumption.
+            // A different guest, map, slot or AI byte still blocks the receipt.
+            CrossplayConfigurationReadiness::RoomHostReady ready;
+            if(launch.channel.edition==Crossplay::Edition::Gold
+                || CrossplayConfigurationReadiness::CompareRoom(room_expected_guest,readback,room_local_routes,ready)
+                    !=CrossplayConfigurationReadiness::Difference::HostOnly)return true;
+            return ApplyHistoryRoomHostReady(launch.channel.edition,original,room_admission,room_local_routes,
+                ready.player_slot,ready.value,room_host_ready);
+        }
         std::vector<unsigned char> receipt;
         if(!CrossplayRoomConfiguration::Acknowledge(room_offer,room_local_routes,readback,receipt)
             || !channel.SendRoom(receipt,room.host_slot))return false;

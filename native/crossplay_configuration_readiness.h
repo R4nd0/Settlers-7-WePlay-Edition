@@ -6,6 +6,7 @@
 // exact original configuration consumer in the same owned native interval.
 namespace CrossplayConfigurationReadiness {
 enum class Difference { Invalid, Equal, HostOnly };
+struct RoomHostReady {unsigned char player_slot=0, value=0;};
 inline Difference Compare(const std::vector<unsigned char>& expected,const std::vector<unsigned char>& actual,
                           CrossplaySessionConfig::Connections ids,CrossplayReadyState::Snapshot& observed){
     observed={};CrossplaySessionConfig::Layout source,cache;
@@ -19,6 +20,20 @@ inline Difference Compare(const std::vector<unsigned char>& expected,const std::
     // One initial projection per fresh configuration transaction. This revision
     // is local bookkeeping; it is not a network Ready command or start token.
     observed={1,expected[source.slots_at],actual[cache.slots_at+CrossplaySessionConfig::SlotBytes]};
+    return Difference::HostOnly;
+}
+inline Difference CompareRoom(const std::vector<unsigned char>& expected,const std::vector<unsigned char>& actual,
+                              const CrossplaySessionConfig::RoomConnections& ids,RoomHostReady& observed) {
+    observed={};
+    CrossplaySessionConfig::Layout source,cache;
+    if(expected.size()!=actual.size() || !CrossplaySessionConfig::InspectRoom(expected,ids,source)
+        || !CrossplaySessionConfig::InspectRoom(actual,ids,cache) || source.slots_at!=cache.slots_at)return Difference::Invalid;
+    const auto host=static_cast<size_t>(std::find(ids.stations.begin(),ids.stations.end(),ids.host)-ids.stations.begin());
+    const size_t ready_at=source.slots_at+host*CrossplaySessionConfig::SlotBytes;
+    for(size_t i=0;i<expected.size();++i)
+        if(i!=ready_at && expected[i]!=actual[i])return Difference::Invalid;
+    if(expected[ready_at]==actual[ready_at])return Difference::Equal;
+    observed={static_cast<unsigned char>(host+1),expected[ready_at]};
     return Difference::HostOnly;
 }
 }

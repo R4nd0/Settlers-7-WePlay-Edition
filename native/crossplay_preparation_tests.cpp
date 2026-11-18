@@ -18,6 +18,12 @@ struct Fixture {
         const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
         for(size_t i=0;i<sizeof(value);++i)memory[at+static_cast<uint32_t>(i)]=bytes[i];
     }
+    void PutMember(const CrossplayNative::Participant& p) {
+        const uint32_t row=rows+p.slot*0x5a8,name=0x230000+p.slot*0x100;
+        Put(row+0x18,p.principal);Put(row+0x5c,p.slot);Put<uint32_t>(row+0x60,3);Put<uint32_t>(row+0x64,1);
+        Put(row+0x1c,name);Put<uint32_t>(row+0x20,static_cast<uint32_t>(p.name.size()+1));Put<uint32_t>(row+0x24,static_cast<uint32_t>(p.name.size()));
+        for(size_t i=0;i<=p.name.size();++i)Put<char>(name+static_cast<uint32_t>(i),p.name.c_str()[i]);
+    }
     Fixture(Crossplay::Edition edition,uint8_t mode) {
         Check(CrossplayNative::HistoryPreparationDetail::LayoutFor(edition,pin),"known History layout");
         snapshot.instance=0x260000;snapshot.host=false;snapshot.local_slot=2;
@@ -30,12 +36,7 @@ struct Fixture {
         pointer_offset=((static_cast<uint32_t>(mode)-1)&1)*0xc4+0x98;
         Put(pin.manager_pointer,manager);Put(manager,pin.manager_type);Put(manager+4,mode);Put(manager+pointer_offset,configuration);
         Put(configuration,rows);Put(configuration+4,rows);Put<uint8_t>(rows+0x8db8,4);
-        for(uint32_t slot=1;slot<=2;++slot) {
-            const auto& p=snapshot.members[slot-1].player;const uint32_t row=rows+slot*0x5a8,name=0x230000+slot*0x100;
-            Put(row+0x18,p.principal);Put(row+0x5c,slot);Put<uint32_t>(row+0x60,3);Put<uint32_t>(row+0x64,1);
-            Put(row+0x1c,name);Put<uint32_t>(row+0x20,static_cast<uint32_t>(p.name.size()+1));Put<uint32_t>(row+0x24,static_cast<uint32_t>(p.name.size()));
-            for(size_t i=0;i<=p.name.size();++i)Put<char>(name+static_cast<uint32_t>(i),p.name.c_str()[i]);
-        }
+        for(const auto& member:snapshot.members)PutMember(member.player);
         Put(pin.backend_pointer,backend);Put(backend+0xa4c,session);Put(session,pin.session_type);
         Put(session+0x20,snapshot.members[1].player.connection);Put(session+0x24,snapshot.members[0].player.connection);
     }
@@ -47,6 +48,10 @@ struct Fixture {
         return true;
     }
     bool Match() const {return CrossplayNative::HistoryPreparationDetail::Matches(pin,snapshot,[&](uint32_t a,void* o,size_t n){return Read(a,o,n);});}
+    bool MatchRoom(unsigned capacity,uint32_t& output,bool host_only=false) const {
+        return CrossplayNative::HistoryPreparationDetail::MatchGuestRows(pin,snapshot,capacity,
+            [&](uint32_t a,void* o,size_t n){return Read(a,o,n);},output,host_only);
+    }
 };
 }
 int main() {
@@ -85,6 +90,28 @@ int main() {
         Check(!CrossplayNative::HistoryPreparationDetail::Matches(base.pin,base.snapshot,[&](uint32_t at,void* out,size_t size){
             if(at==base.pin.manager_pointer && ++seen==2)return false;return base.Read(at,out,size);
         }),"ownership root changing before completion excluded");
+        for(uint8_t capacity:{uint8_t(4),uint8_t(8)}) {
+            Fixture room=base;
+            auto& host=room.snapshot.members.front().player;
+            host.slot=capacity;
+            room.PutMember(host);
+            CrossplayNative::LobbyMember third{{103,3,203,103,"Third guest",false,false},2};
+            room.PutMember(third.player);
+            room.snapshot.members.push_back(third);
+            room.Put<uint8_t>(Fixture::rows+0x8db8,capacity);
+            uint32_t rows=0;
+            Check(room.MatchRoom(capacity,rows) && rows==Fixture::rows,"room guest accepts authenticated host in another map slot");
+            Check(!room.Match(),"pair preparation rejects a group roster");
+            Check(!room.MatchRoom(3,rows) && rows==0,"room capacity must match the native buffer");
+            room.snapshot.members.back().player.host=true;
+            Check(!room.MatchRoom(capacity,rows) && rows==0,"two alleged hosts rejected");
+            room.snapshot.members.back().player.host=false;
+            room.Put<uint32_t>(Fixture::rows+3*0x5a8+0x18,202);
+            Check(!room.MatchRoom(capacity,rows) && rows==0,"the other guest's native row must also match");
+            Check(room.MatchRoom(capacity,rows,true) && rows==Fixture::rows,"host-only operation validates its target preparation row");
+            room.Put<uint32_t>(Fixture::rows+capacity*0x5a8+0x18,203);
+            Check(!room.MatchRoom(capacity,rows,true) && rows==0,"host-only operation rejects a mismatched target row");
+        }
     }
     std::printf("PASS %u History preparation ownership/read-only checks; no game code executed\n",checks);
 }

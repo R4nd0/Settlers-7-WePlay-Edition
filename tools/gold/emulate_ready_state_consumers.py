@@ -66,9 +66,13 @@ def main():
     for label,consumer,setter,main_at,manager_at in (('ubisoft',0x841c70,0x5862c0,0x13a5210,0x13a5218),('steam_analysis',0x841a40,0x585d80,0x13a230c,0x13a2300)):
         path=getattr(args,label);image=native.Image(label,path);pe=pefile.PE(str(path))
         imports=[(imp.name.decode() if imp.name else '',imp.address) for lib in pe.DIRECTORY_ENTRY_IMPORT for imp in lib.imports];del pe
-        for slot in (1,2):
+        cases=0
+        for slot in range(1,9):
             for ready in (0,1):execute(image,imports,consumer,setter,main_at,manager_at,slot,ready)
-        results[label]=4;print(json.dumps({'profile':label,'original_consumer_and_setter_cases':4}),flush=True);del image;gc.collect()
+            cases+=2
+        results[label]=cases
+        print(json.dumps({'profile':label,'original_consumer_and_setter_cases':cases}),flush=True)
+        del image;gc.collect()
     receipt={'cases':sum(results.values()),'profiles':results,'original_confirmed_data_consumer_executed':True,'original_preparation_setter_executed':True,'modeled_guest_role_and_lock_imports':True,'native_queue_dispatcher_executed':False,'game_process_started':False,'mixed_gameplay_qualified':False}
     with out.open('x') as stream:json.dump(receipt,stream,indent=2)
     print(json.dumps(receipt))
