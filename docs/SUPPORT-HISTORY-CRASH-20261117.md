@@ -156,8 +156,23 @@ requests before assigning the consumer. Ubisoft, Steam History and Gold map
 to independently verified consumer-selection and destination-write sites.
 The native History comparator is strict on numeric task priority, and the
 native merge preserves list order for equal priorities. The same comparison
-also bounds continued selection. The actual queue order and the exact
-consumer-acceptance predicate at turn 35,585 remain to be traced.
+also bounds continued selection. At turn 35,585 all 35 entries of the home
+storehouse's main list matched on all three clients before and after sorting,
+including their order, full IDs, task ranks and creation turns. When the
+main list was compared with the earlier preferred request, that preferred
+request already differed. Its target was `0x1000e` on the first guest and
+`0x1000f` on the host and second guest. Neither preferred request was in
+the main list.
+
+The preferred request is drawn from a separate temporary list of requests
+from connected consumers. Independently mapped native code in all three
+editions checks other carriers' assignments before adding a consumer's
+requests, sorts the result, and chooses the first eligible request. The
+eligibility check reads the assigned carrier, two task flags and the home
+storehouse's available stock for the requested good. The captured run
+reached 8,608 common checksum records, with the first mismatch at record
+8,605 (zero-based). All three clients closed normally and the test profiles
+and deployed files were restored and verified.
 
 An earlier attempt in the same test window ended while the guests were
 still joining the lobby. The first guest returned Windows status

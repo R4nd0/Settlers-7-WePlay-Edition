@@ -34,6 +34,11 @@ destination writes are `0x79198d / 0x791993` in Ubisoft, `0x79175d /
 comparison and the comparison for a lower-priority early stop use the same
 native function. A change to sort ties must preserve or explicitly verify the
 behavior of that second caller, plus Gold's independent selection ABI.
+The three-Ubisoft trace finds identical main storehouse queues at the split.
+The separate consumer preselection has already picked different requests.
+The original sort and first-eligible checks for that list are independently
+mapped in Ubisoft (`0x78ff25`, `0x78ff8e`), Steam (`0x78fcf5`, `0x78fd5e`)
+and Gold (`0x91b531`, `0x91b564`).
 [History trajectory and remaining test](SUPPORT-HISTORY-CRASH-20261117.md)
 
 Fresh and saved mixed worlds share a local-edition check for the Gold native

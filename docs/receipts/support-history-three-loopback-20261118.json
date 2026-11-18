@@ -235,5 +235,20 @@
     "exits": [0, 0, 0],
     "restoration_verified": true
   },
+  "autosave_read_only_distance_carrier_consumer_choice": {
+    "saved_logic_turn": 27001,
+    "first_observed_different_preferred_consumer_turn": 35585,
+    "main_storehouse_queue_entries_before_and_after_sort": 35,
+    "main_storehouse_queue_membership_order_rank_and_creation_equal": true,
+    "preferred_request_host_first_guest_second_guest": [2557261, 7865553, 2557261],
+    "preferred_target_host_first_guest_second_guest": [65551, 65550, 65551],
+    "preferred_request_outside_main_storehouse_queue": true,
+    "recorded_checksums": [9005, 8608, 9005],
+    "shared_checksums": 8608,
+    "first_mismatch_record_zero_based": 8605,
+    "mismatches": 3,
+    "exits": [0, 0, 0],
+    "restoration_verified": true
+  },
   "restoration_verified": true
 }
