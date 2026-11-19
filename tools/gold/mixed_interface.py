@@ -42,6 +42,10 @@ def main_fragment(edition):
              '(function(...)\n'+fragment('mixed_guest_prepare.lua')+'\nend)(e)')
     present=('function()return false end' if edition=='gold' else
              '(function(...)\n'+fragment('mixed_guest_lobby.lua')+'\nend)(e,l)')
+    gold_room_ai = ('\nif l and e.UI.WriteToConsole("weplay-crossplay-v1:mode")=="room-guest" then\n'
+                    ' if not l.weplayGoldRoomAI then\n'
+                    '  l.weplayGoldRoomAI=(function(...)\n' + fragment('room_ai_guest.lua') +
+                    '\nend)(e)\n end\n l.weplayGoldRoomAI()\nend\n') if edition=='gold' else ''
     return '''
 if l and not l.weplayMixedMenuBuilding then
  if not l.weplayMixedMenu then
@@ -55,7 +59,7 @@ end,'''+prepare+''','''+present+''')
  end
  l.weplayMixedMenu.tick()
 end
-'''
+'''+gold_room_ai
 
 
 def saved_start_fragment():

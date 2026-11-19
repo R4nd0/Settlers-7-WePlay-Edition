@@ -1,5 +1,19 @@
 # Experimental native local start, 2026-10-26
 
+On 2026-11-19, Steam History hosted Gold and Ubisoft History with one AI under
+DXVK 3.1.1. The room held the original History Start until all three clients
+confirmed Ready, teams, and the same setup. Gold used its original events to
+restore Ready after confirming its human players and castle data. All three
+original engines started the world, enabled the NEO ledger, and matched 207
+consecutive finished-turn checksums over 269.556 seconds. Read-only samples of
+all three original replay clocks showed a 100-ms turn duration.
+
+The Steam host reached the original save action. The WePlay resume metadata
+check stopped it before an archive was written. All three processes exited
+with code zero and the isolated copies were restored. Steam-hosted reload,
+Ubisoft-hosted world tests, and all final installed-package runs remain open.
+[Measured Steam host result](receipts/steam-host-mixed-fresh-world-20261119.json)
+
 An isolated Steam-hosted room verified the original Gold and Ubisoft
 guest Ready actions and the original Steam host's readback on all three
 clients. The History guard checks the exact installed resume-sender patches

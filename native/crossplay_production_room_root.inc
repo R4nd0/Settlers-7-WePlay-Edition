@@ -70,8 +70,11 @@
 
     bool PumpRoomRoot(const Crossplay::RoomSnapshot& room) {
         if(room_root_phase==RoomRootPhase::Confirmed)return true;
-        if(room_root_phase==RoomRootPhase::Idle && launch.host)
-            return room_held_start.empty() || SendRoomRoot(room);
+        if(room_root_phase==RoomRootPhase::Idle && launch.host){
+            if(room_held_start.empty())return true;
+            if(room_held_setup.empty() && !CaptureCurrentRoomRoot(room_held_setup))return false;
+            return SendRoomRoot(room);
+        }
         if(room_root_phase!=RoomRootPhase::Idle
             && GetTickCount64()-room_root_started>CrossplaySetupCheckpoint::Lifetime)return false;
         Crossplay::RoomEvent event;

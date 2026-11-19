@@ -20,6 +20,8 @@ inline bool UiCommand(const std::string& command,std::string& output){
         if(command=="room-teams-confirmed"){output=RoomTeamsConfirmed()?"1":"0";return true;}
         if(command=="room-setup-confirmed"){output=RoomSetupConfirmed()?"1":"0";return true;}
         if(command=="room-world-state"){output=RoomWorldState();return true;}
+        if(command=="room-gold-ai-choice")return RoomGoldAIChoice(output);
+        if(command=="room-ai-configured"){output=RoomAIConfigured()?"1":"0";return true;}
         if(command=="room-saved-state"){output=RoomSavedState();return true;}
         if(command!="phase" && command!="saved-start")return false;
     }

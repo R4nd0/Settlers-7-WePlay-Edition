@@ -6,7 +6,45 @@
     ULONGLONG room_start_started=0,room_world_queued_at=0;
     bool room_world_arming=false,room_world_queued=false,room_world_running=false;
     bool room_neo_selected=false,room_neo_offer_received=false;
+    Crossplay::Digest room_lobby_neo_context{};
+    CrossplayNeoSelection::Value room_lobby_neo_choice;
+    bool room_lobby_neo_context_bound=false;
     static constexpr uint32_t RoomNeoFeatures=CrossplayNeoSelection::Features;
+
+    bool BindRoomLobbyNeo(){
+        if(room_lobby_neo_context_bound)return true;
+        if(room_offer.empty() || !CrossplaySetupSignatureNative::Hash(room_offer,room_lobby_neo_context))return false;
+        room_lobby_neo_context_bound=true;
+        return true;
+    }
+
+    bool SendRoomLobbyNeo(const Crossplay::RoomSnapshot& room){
+        if(!BindRoomLobbyNeo())return false;
+        if(!launch.host || (room_lobby_neo_choice.revision && room_lobby_neo_choice.enabled==neo_choice))return true;
+        if(room_lobby_neo_choice.revision==UINT32_MAX || !NeoModules())return false;
+        const CrossplayNeoSelection::Value next{room_lobby_neo_choice.revision+1,neo_choice,
+            launch.channel.content,room_lobby_neo_context};
+        for(unsigned char slot=1;slot<=room.member_count;++slot){
+            if(slot==room.local_slot)continue;
+            CrossplayNative::RoomRoute guest;
+            std::vector<unsigned char> frame;
+            if(!room_admission.Resolve(slot,false,guest) || guest.local || guest.host
+                || !CrossplayNeoSelection::Encode(guest.peer,next,frame) || !channel.SendRoom(frame,slot))return false;
+        }
+        room_lobby_neo_choice=next;
+        return true;
+    }
+
+    bool ReceiveRoomLobbyNeo(const Crossplay::RoomSnapshot& room,const Crossplay::RoomEvent& event){
+        CrossplayNative::RoomRoute host;
+        CrossplayNeoSelection::Value next;
+        if(launch.host || event.source_slot!=room.host_slot || !BindRoomLobbyNeo()
+            || !room_admission.Resolve(room.host_slot,false,host) || host.local || !host.host
+            || !CrossplayNeoSelection::Decode(host.peer,event.bytes,room_lobby_neo_choice.revision,
+                launch.channel.content,room_lobby_neo_context,next))return false;
+        room_lobby_neo_choice=next;
+        return true;
+    }
 
     bool RoomStarted() const {
         const auto* room=channel.GetRoom();
@@ -44,8 +82,13 @@
                 || (launch.host?!RoomSavedHostCurrent():!room_saved_guest_prepared || !resume_neo_admitted))return false;
             output=room_saved_checkpoint.enabled?"1":"0";return true;
         }
-        if(!room_world_queued && launch.host && command=="selection" && RoomConfigurationApplied()){
+        if(!room_world_queued && launch.host && (command=="network-state" || command=="selection")
+            && RoomConfigurationApplied()){
             output=neo_choice?"1":"0";return true;
+        }
+        if(!room_world_queued && !launch.host && (command=="network-state" || command=="selection")
+            && RoomConfigurationApplied() && room_lobby_neo_choice.revision){
+            output=room_lobby_neo_choice.enabled?"1":"0";return true;
         }
         if(!RoomStarted() || !NeoModules())return false;
         if(command=="network-state" || command=="selection") {output=room_neo_selected?"1":"0";return true;}
@@ -100,6 +143,7 @@
             uint32_t kind=0;
             CrossplayNeo::Selection offer;
             if(slot!=room.host_slot || !CrossplayNeo::Decode(remote.peer,event.bytes,kind,offer) || kind!=1
+                || !room_lobby_neo_choice.revision || offer.enabled!=room_lobby_neo_choice.enabled
                 || !CrossplayNeo::Same(offer,RoomNeoSelection(offer.enabled)) || !OfferRoomNeo(slot,remote,offer.enabled))return false;
             room_neo_offer_received=true;
         }
@@ -133,10 +177,24 @@
     }
 
     bool QueueRoomWorld(const std::vector<unsigned char>& wire,bool neo_enabled) {
-        const auto& hold=CrossplayNativeStart::GoldStartHold::Current();
-        if(launch.host && (!start_hold_installed || !hold.attempted || !hold.captured || hold.failed
-            || hold.roots.owner!=owner || hold.roots.session!=session || hold.host!=room_local_routes.host
-            || !CrossplayNativeStart::GoldStartHold::Release()))return false;
+        if(room_gold_sdk_ready_installed){
+            if(launch.host || !CrossplayNativeReady::GoldSdkReadyHold::Release())return false;
+            room_gold_sdk_ready_installed=false;
+        }
+        if(launch.host){
+            if(!start_hold_installed)return false;
+            if(launch.channel.edition==Crossplay::Edition::Gold){
+                const auto& hold=CrossplayNativeStart::GoldStartHold::Current();
+                if(!hold.attempted || !hold.captured || hold.failed || hold.roots.owner!=owner
+                    || hold.roots.session!=session || hold.host!=room_local_routes.host)return false;
+            }else{
+                const auto& hold=CrossplayNativeStart::HistoryStartHold::Current();
+                if(!hold.attempted || !hold.captured || hold.failed || hold.owner!=owner
+                    || hold.roots.session!=session || hold.host_connection!=room_local_routes.host
+                    || hold.room!=&room_admission)return false;
+            }
+            if(!ReleaseStartHold())return false;
+        }
         start_hold_installed=false;
         room_neo_selected=neo_enabled;
         CrossplayLogisticsActive::selected=neo_enabled;

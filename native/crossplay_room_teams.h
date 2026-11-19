@@ -1,5 +1,6 @@
 #pragma once
 #include "crossplay_ai_preparation_source.h"
+#include "crossplay_room_gold_preparation.h"
 #include "crossplay_player_option_codec.h"
 
 namespace CrossplayRoomTeams {

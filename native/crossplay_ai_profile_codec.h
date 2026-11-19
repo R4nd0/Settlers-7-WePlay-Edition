@@ -103,10 +103,10 @@ inline bool Capture(const CrossplayNative::ParticipantEvent& binding,CrossplaySe
 }
 template<class ReadContext>
 inline bool DeliverBound(Crossplay::Edition edition,uint32_t host,const std::vector<unsigned char>& wire,
-                         ContextSnapshot& snapshot,ReadContext context,unsigned* stage=nullptr) {
+                         ContextSnapshot& snapshot,ReadContext context,unsigned* stage=nullptr,bool gold_room=false) {
     using namespace CrossplayNativeCodec;snapshot={};Value value{};ContextSnapshot before{},after{};
     if(stage)*stage=1;
-    if(edition==Crossplay::Edition::Gold || !Wire(wire,host,value))return false;
+    if((edition==Crossplay::Edition::Gold && !gold_room) || !Wire(wire,host,value))return false;
     if(stage)*stage=2;
     if(!Methods(edition))return false;
     unsigned context_stage=0;
@@ -116,7 +116,8 @@ inline bool DeliverBound(Crossplay::Edition edition,uint32_t host,const std::vec
     stream.value.bytes=const_cast<unsigned char*>(wire.data());
     stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
     Detail::Visitor reader{p.reader_vt,1,&stream.value,0};
-    void* decoded=reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,"WePlayEvent",0);
+    void* decoded=p.gold?Detail::GoldRead(p.read,&reader,"WePlayEvent"):
+        reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,"WePlayEvent",0);
     if(stage)*stage=201;
     if(!decoded || !Detail::Readable(decoded,0x18) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;

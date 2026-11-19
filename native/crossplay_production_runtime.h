@@ -15,6 +15,8 @@ bool RoomSynchronizeTeams();
 bool RoomTeamsConfirmed();
 bool RoomSetupConfirmed();
 std::string RoomWorldState();
+bool RoomGoldAIChoice(std::string& output);
+bool RoomAIConfigured();
 std::string RoomSavedState();
 std::string RoomStartCaptureState();
 std::string BootstrapMap();

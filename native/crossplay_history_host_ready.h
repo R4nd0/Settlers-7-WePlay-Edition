@@ -2,6 +2,7 @@
 #include "crossplay_history_host_configuration.h"
 #include "crossplay_configuration_observer.h"
 #include "crossplay_ai_preparation_source.h"
+#include "crossplay_history_claim.h"
 
 // Reverse-path primitive only. Queue an actual Gold guest toggle intent through
 // the original Steam host constructor/consumer. Never supply an achieved Ready.
@@ -15,17 +16,22 @@ inline Profile Pin(Crossplay::Edition edition){
         {0x690e10,42,0x76e5d96dc804c8ecull},{0x690d60,44,0x1654c334e566fd53ull},{0x656e40,58,0x8316408d56fd74cbull}}}};
     return {};
 }
-inline bool Methods(Crossplay::Edition edition=Crossplay::Edition::SteamHistory){
+inline bool Methods(Crossplay::Edition edition=Crossplay::Edition::SteamHistory,unsigned* stage=nullptr){
     const auto profile=Pin(edition);
-    if(!profile.preparation || !CrossplayNativeCodec::ReadyDetail::Methods(edition)
-        || !CrossplayProduction::ConfigurationObserver::Methods(edition))return false;
+    if(stage)*stage=11;
+    if(!profile.preparation || !CrossplayNativeCodec::ReadyDetail::Methods(edition))return false;
+    if(stage)*stage=12;
+    if(!CrossplayProduction::ConfigurationObserver::Methods(edition))return false;
+    unsigned part=13;
     for(const auto& region:profile.methods){
+        if(stage)*stage=part++;
         const auto* code=reinterpret_cast<const unsigned char*>(region.at);
         if(!CrossplayNativeCodec::Detail::Readable(code,region.bytes))return false;
         uint64_t hash=14695981039346656037ull;
         for(size_t i=0;i<region.bytes;++i)hash=(hash^code[i])*1099511628211ull;
         if(hash!=region.hash)return false;
     }
+    if(stage)*stage=0;
     return true;
 }
 inline void* ConstructWith(uintptr_t address,void* output,uint32_t source){
@@ -122,5 +128,67 @@ inline CrossplayNativeCodec::ReadyObservation Observe(const CrossplayNative::Par
     const CrossplayReadyState::Snapshot state{revision,slots[4],slots[0x1c]};
     if(!CrossplayReadyState::Valid(state))return ReadyObservation::Invalid;
     output=state;return ReadyObservation::Applied;
+}
+
+inline bool EnqueueRoom(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
+                        const CrossplayNative::RoomLobbyAdmission& admission,unsigned char local_slot,
+                        unsigned char source_slot,const CrossplaySessionConfig::RoomConnections& routes,
+                        const std::vector<unsigned char>& intent,unsigned* stage=nullptr,const std::string& save_token={}) {
+    using namespace CrossplayNativeCodec;
+    using namespace CrossplayNative::HistoryClaimDetail;
+    LoadProgressDetail::FpScope preserve;
+    CrossplayNative::RoomRoute local,guest;
+    CrossplayNative::LobbySnapshot lobby;
+    CrossplaySessionConfig::RoomConnections current;
+    if(stage)*stage=1;
+    if(!Methods(edition,stage))return false;
+    if(stage)*stage=2;
+    if(!admission.Resolve(local_slot,false,local) || !local.local || !local.host
+        || !admission.Resolve(source_slot,false,guest) || guest.local || guest.host || guest.receiver!=edition
+        || !binding.CaptureLobby(lobby) || !lobby.host || !CrossplayReady::Validate(intent,guest.receiver_cid)
+        || !admission.CaptureConfigurationRoutes(routes.capacity,current) || current.host!=routes.host
+        || current.stations!=routes.stations || local.receiver_cid!=routes.host)return false;
+    if(stage)*stage=3;
+    auto* cache=ReadyStateDetail::HistoryConfiguration(edition);
+    if(!cache)return false;
+    CrossplayAIProfile::CacheLock lock(edition,cache);
+    if(!lock.acquired || !SessionConfigDetail::FieldsChecked(SessionConfigDetail::Pin(edition),
+        cache+0x24,cache+0x34,cache+0x44,[&](size_t index,unsigned ready,unsigned privacy,uint32_t slot,uint32_t station,uint32_t state){
+            return CrossplaySessionConfig::RoomSlotValid(index,ready,privacy,slot,station,state,routes,true);
+        },save_token))return false;
+    CrossplayNative::HistoryClaimDetail::Pin preparation;
+    Interval prepared;
+    CrossplayNative::Participant target;
+    CrossplayCastleSetup::Value castle;
+    uint32_t extra=0;
+    if(stage)*stage=4;
+    if(!guest.player_slot || guest.player_slot>routes.capacity || !Layout(edition,preparation)
+        || !Capture(preparation,lobby,prepared,routes.capacity)
+        || !admission.CaptureMemberSetup(guest.player_slot,target,castle,extra)
+        || target.connection!=guest.receiver_cid || target.local || target.host)return false;
+    const auto* row=reinterpret_cast<const unsigned char*>(prepared.rows)+guest.player_slot*0x5a8;
+    if(stage)*stage=5;
+    if(CrossplayChat::Word(row+0x5c)==UINT32_MAX
+        && (!CrossplayNative::HistoryClaimDetail::Methods(edition)
+            || !ClaimOpenHumanRow(preparation,prepared,target)))return false;
+    if(CrossplayChat::Word(row+0x5c)!=guest.player_slot || CrossplayChat::Word(row+0x60)!=3
+        || CrossplayChat::Word(row+0x64)!=1 || row[0x71]>1)return false;
+    OwnedEvent event;
+    if(stage)*stage=6;
+    const auto pin=ReadyDetail::Pin(edition);
+    auto* result=ConstructWith(CrossplayHistoryHostReady::Pin(edition).methods[0].at,event.bytes,guest.receiver_cid);
+    event.table=pin.event_vt;
+    event.initialized=CrossplayChat::Word(event.bytes)==pin.event_vt;
+    if(!event.initialized || result!=event.bytes || !ReadyDetail::Source(pin,event.bytes,guest.receiver_cid))return false;
+    CrossplayNative::RoomRoute target_now;
+    if(stage)*stage=7;
+    if(!admission.Resolve(source_slot,false,target_now) || target_now.receiver_cid!=guest.receiver_cid
+        || target_now.player_slot!=guest.player_slot || ReadyStateDetail::HistoryConfiguration(edition)!=cache)return false;
+    uintptr_t send=0;
+    void* transport=Detail::Transport(edition,send);
+    if(!transport)return false;
+    reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,event.bytes,0,0,0,0);
+    if(stage)*stage=0;
+    return true;
 }
 }
