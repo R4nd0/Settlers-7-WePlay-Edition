@@ -1,8 +1,8 @@
 # Settlers 7: WePlay Edition
 
-**[Windows x64 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
+**[Windows x64 — rc4.02](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.02/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
 
-[Release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.01) · [SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
+[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.02) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.02/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
 WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubisoft History Edition and Steam History Edition**. One Windows installer prepares a separate game copy with its own profile. You supply the original game files.
 
@@ -34,7 +34,7 @@ copy, and prepare a new folder. Install Wine 11 with 32-bit support and a
 
 ## Deutsch
 
-Mit **[Setup.exe für rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
+Mit **[Setup.exe für rc4.02](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.02/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
 
 Schließe WePlay und das Spiel vor dem Update. Wähle im Installer den bisherigen WePlay-Ordner oder den vollständigen Standalone-Export. Im Launcher kannst du die vorhandene Kopie über **Aktualisieren / reparieren** übernehmen. Bei einem zu langen Zielpfad wähle über **Ändern…** einen kürzeren Ordner. **Hilfe / Diagnose** steht direkt in der Einrichtung.
 

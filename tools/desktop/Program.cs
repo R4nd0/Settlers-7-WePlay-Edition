@@ -15,6 +15,7 @@ internal static class Program
         string value=version.Split('+')[0];
         if(value=="2.0.0-rc4.0")return "rc4.00";
         if(value=="2.0.0-rc4.1")return "rc4.01";
+        if(value=="2.0.0-rc4.2")return "rc4.02";
         int marker=value.IndexOf("-rc",StringComparison.OrdinalIgnoreCase);
         return marker>=0?value[(marker+1)..].ToLowerInvariant():value;
     }
@@ -1155,7 +1156,7 @@ internal sealed partial class MainForm : Form
                     consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
-                if(form.releaseVersion.Text!="rc4.01"||Program.ReleaseVersion!="rc4.01")throw new Exception("Release version label must be exactly rc4.01");
+                if(form.releaseVersion.Text!="rc4.02"||Program.ReleaseVersion!="rc4.02")throw new Exception("Release version label must be exactly rc4.02");
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.TestStandaloneEdition(json.RootElement,folder,language);
@@ -1366,9 +1367,9 @@ internal sealed partial class MainForm : Form
                 using(var supportImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
                 form.updatesSupported=true;
-                using(var offered=JsonDocument.Parse("""{"available":true,"version":"2.0.0-rc4.0","sequence":29,"notes":"UI fixture","reason":"available"}"""))form.ShowUpdateResult(offered.RootElement);
+                using(var offered=JsonDocument.Parse("""{"available":true,"version":"2.0.0-rc4.2","sequence":31,"notes":"UI fixture","reason":"available"}"""))form.ShowUpdateResult(offered.RootElement);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
-                if(!form.homeUpdateInstall.Visible||!form.homeUpdateInstall.Enabled||!form.homeUpdateNotice.Text.Contains("rc4.00")||form.homeUpdateNotice.Text.Contains("2.0.0")||form.globalUpdateLink.Text.Contains("2.0.0"))throw new Exception("Update notice must display rc4.00 without a technical prefix");
+                if(!form.homeUpdateInstall.Visible||!form.homeUpdateInstall.Enabled||!form.homeUpdateNotice.Text.Contains("rc4.02")||form.homeUpdateNotice.Text.Contains("2.0.0")||form.globalUpdateLink.Text.Contains("2.0.0"))throw new Exception("Update notice must display rc4.02 without a technical prefix");
                 form.SetBusy(true);if(form.homeUpdateInstall.Enabled)throw new Exception("Update enabled during another operation");form.SetBusy(false);
                 using(var updateImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(updateImage,new Rectangle(0,0,form.Width,form.Height));updateImage.Save(Path.Combine(folder,language+"-update-found.png"));}
@@ -1383,7 +1384,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc401_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","native_gpu_filter_disabled",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc402_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
