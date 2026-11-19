@@ -32,6 +32,9 @@ copy, and prepare a new folder. Install Wine 11 with 32-bit support and a
 
 [LAN guide](docs/LAN-PLAYERS.md) · [Internet multiplayer](docs/RC3-INTERNET.md) · [Graphics help](docs/GRAPHICS-START.md) · [Multiplayer saves](docs/RC3.11-MULTIPLAYER-SAVES.md)
 
+**Modding:** [S7Packer 1.2](tools/s7packer/README.md) unpacks and rebuilds `.bba`
+archives, including maps, for editing the contained files.
+
 ## Deutsch
 
 Mit **[Setup.exe für rc4.02](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.02/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.

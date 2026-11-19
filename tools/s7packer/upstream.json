@@ -1,0 +1,27 @@
+{
+  "repository": "https://github.com/Eisenmonoxid/S7Packer",
+  "commit": "2ccf4cb8f2d24013841a28b587a6052dad1ab88b",
+  "commit_date": "2026-11-15",
+  "commit_subject": "Enable Map Editing",
+  "release": "1.2",
+  "windows_asset": {
+    "url": "https://github.com/Eisenmonoxid/S7Packer/releases/download/1.2/Windows-x64.zip",
+    "sha256": "f387b1c7fe74ac0dbee6394b6d7ff6e04a41dd7ca3932a027e3dc442acca953c",
+    "executable_sha256": "70d5e256e9ff078518d8da2dffd662ec588a25cd8b8347a9a713a5fc0d6cdeff"
+  },
+  "source_sha256": {
+    "favicon.ico": "97ace5918aa09c1b7a261ea635a18f56f24774a6b4c7847a68fb57553a1980f7",
+    "LICENSE.txt": "7cac501ca0de99a40ef01f6e722a5aea8ecab530730a12d1f5ea616829aef701",
+    "README.md": "0f87b1c65b5e2c2366044de4f789ec320c5de360660535354cff1614f2ef9505",
+    "S7Packer.csproj": "2d78769926bdbde090fa6e98908167b6ebb47209379e394ee1cddcdb46b15c5d",
+    "Source/BBAArchive.cs": "e0a70159afac3786235df5bd98a0f331d267844c1f85b248265b3246239097b4",
+    "Source/BBADataEntry.cs": "45ed9345100b911846756a8e1d265f804c68a720dc9ddcb1ea6accc1121d4a0f",
+    "Source/BBADirectory.cs": "42f8f3398a382f27c4bcce74ce2697229a5f9f4a737d88a0dca2d347c0bf8581",
+    "Source/BBADirectoryHeader.cs": "3c5bdf1fdaa203433c02c8e788ce08eaa2e12ccf53fe017c7416ac4d9e99c038",
+    "Source/BBAFileHashTable.cs": "a41bd100136ce5a7a20a64347e67a2c4210a28f3c8e64261099a32d85e19e5a3",
+    "Source/BBAHeader.cs": "6b51ebc451bcb40cf66b96f54fef86df8c7d3dbdd8b7fccb8d711e06915576dc",
+    "Source/Crypt.cs": "57ebb834f7ff2ef26cd7ee2fd39f0c4be5eacdeca8d6f0e7723182ecec1688c9",
+    "Source/Program.cs": "cfa333611ab34c8b4c42c44fd57d1330db1020877dccab1a7a2f9b4286c24d17",
+    "Source/Utility.cs": "81d93428b532b27aa094fdee1cc380dbe17e30f8171e1fc4db8adcdc3085c865"
+  }
+}

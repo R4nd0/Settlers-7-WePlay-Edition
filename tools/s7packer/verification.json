@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-19",
+  "release": "1.2",
+  "commit": "2ccf4cb8f2d24013841a28b587a6052dad1ab88b",
+  "executable_sha256": "70d5e256e9ff078518d8da2dffd662ec588a25cd8b8347a9a713a5fc0d6cdeff",
+  "status": "PASS",
+  "source_files_matched_to_git_blobs": 13,
+  "official_zip_digest_matched": true,
+  "execution": "Official self-contained Windows binary in a PTY; all four operations reported no errors and exited zero after keypress",
+  "synthetic_only": true,
+  "operations": [
+    "create new archive",
+    "extract and compare every byte",
+    "edit XML, add Lua, remove BIK",
+    "create second new archive",
+    "extract and compare every byte again"
+  ],
+  "file_count_each_archive": 7,
+  "payloads": [
+    "compressed XML/Lua",
+    "empty compressed file",
+    "incompressible binary larger than 1 MiB",
+    "raw BIK",
+    "13-byte TEA MP3",
+    "TEA MP3 larger than 1 MiB with unaligned tail"
+  ],
+  "independent_reader": {
+    "implementation": "tools/lan/bba.py",
+    "directory_crc_and_entry_structure": "PASS for both archives",
+    "file_sets": "PASS for both archives",
+    "payload_size_crc_and_contents_checked": 10,
+    "scope": "Compressed and raw payloads; odd-length TEA checked by upstream extraction only"
+  },
+  "game_archives_accessed": false,
+  "game_processes_started": false,
+  "in_game_map_loading_verified": false,
+  "multiplayer_verified": false
+}

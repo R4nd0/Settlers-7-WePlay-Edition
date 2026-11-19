@@ -12,6 +12,8 @@ keep The Settlers 7 alive.
 - [S7Packer](https://github.com/Eisenmonoxid/S7Packer): the archive-format and
   cryptography implementation followed by our archive tools. Its MIT license
   is included at [tools/lan/LICENSE.S7Packer.txt](tools/lan/LICENSE.S7Packer.txt).
+  The standalone 1.2 tool with map archive support is also retained, with its
+  current MIT license, under [tools/s7packer](tools/s7packer/README.md).
 
 Upstream copyright and MIT terms remain in [LICENSE](LICENSE). WePlay additions
 are maintained by R4nd0 and community contributors.
