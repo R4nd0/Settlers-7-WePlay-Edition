@@ -20,6 +20,7 @@ import linux_runtime
 
 
 def prepare(package, source, destination, *, emit=print, progress=None):
+    import graphics_profile
     import install
     linux_runtime.require_linux_filesystem(Path(destination).absolute().parent)
     manifest = install.package_manifest(package)
@@ -33,7 +34,13 @@ def prepare(package, source, destination, *, emit=print, progress=None):
         result = install.prepare(package, source, destination, emit=emit, progress=progress,
                                  managed=managed, publish_starters=False)
         incomplete = result / 'INSTALLATION-INCOMPLETE.txt'
-        incomplete.write_text('Linux setup is still completing.\n',encoding='utf-8')
+        # The renderer verifies the complete base copy before changing its
+        # files. Keep launches locked until the Linux preparation marker is set.
+        with graphics_profile.session_lock(result):
+            try:
+                graphics_profile._change_locked(result, True, dxvk_source(result, package))
+            finally:
+                incomplete.write_text('Linux setup is still completing.\n', encoding='utf-8')
         if native_update:
             import linux_profiles
             linux_profiles.migrate(source,result)
@@ -58,6 +65,7 @@ def prepare(package, source, destination, *, emit=print, progress=None):
 def play(root, mode='solo', *, check_only=False, player_name='LocalPlayer', **options):
     if not check_only and os.geteuid()==0:
         raise ValueError('Start WePlay as your normal user, without sudo')
+    linux_runtime.graphics_environment(root)
     if check_only and mode == 'solo':
         return linux_runtime.run_local(root, check_only=check_only)
     if check_only:
@@ -86,7 +94,7 @@ def gui(package=None, bundle=None):
     cancelled = threading.Event(); private_invitation = [None]; pending_game = [None]
     frame = ttk.Frame(window, padding=24); frame.pack(fill='both', expand=True)
     ttk.Label(frame, text='SETTLERS 7 · WEPLAY', font=('Sans', 23, 'bold')).pack(anchor='w')
-    ttk.Label(frame, text='Linux · Wine / Proton · WePlay Community').pack(anchor='w', pady=(4, 18))
+    ttk.Label(frame, text='rc4.01 · Linux · Wine / Proton · DXVK').pack(anchor='w', pady=(4, 18))
     status = tk.StringVar(value=str(bundle) if bundle else 'Select your own History Edition to prepare a separate copy.')
     ttk.Label(frame, textvariable=status, wraplength=690).pack(anchor='w', pady=8)
     controls = ttk.Frame(frame); controls.pack(fill='x', pady=10)
@@ -177,22 +185,8 @@ def gui(package=None, bundle=None):
         operation(lambda: (linux_runtime.configure(selected, runner=kind, executable=program, steam=steam),
                            'Runner saved.')[1])
 
-    def renderer_settings():
-        if current[0] is None: return
-        dxvk = messagebox.askyesnocancel('Renderer',
-            'Use the bundled DXVK renderer?\nYes: DXVK (Vulkan driver required)\nNo: WineD3D')
-        if dxvk is None: return
-        selected = current[0]
-        def save():
-            import graphics_profile
-            if dxvk: graphics_profile.install(selected, dxvk_source(selected, package))
-            else: graphics_profile.restore(selected)
-            return 'Renderer saved.'
-        operation(save)
-
-    for text, callback in [('Wine / Proton', runner_settings), ('Renderer', renderer_settings)]:
-        button = ttk.Button(settings_controls, text=text, command=callback)
-        button.pack(side='left', padx=(0, 7)); buttons.append(button)
+    runner_button = ttk.Button(settings_controls, text='Wine / Proton', command=runner_settings)
+    runner_button.pack(side='left', padx=(0, 7)); buttons.append(runner_button)
 
     for text, callback in [('Solo', lambda: launch('solo')), ('LAN', lambda: launch('lan')),
                            ('Verify / Prüfen', lambda: launch('solo', True)), ('Open copy / Kopie öffnen', choose)]:
@@ -262,6 +256,7 @@ def gui(package=None, bundle=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--version', action='version', version='rc4.01')
     parser.add_argument('--package', type=Path)
     parser.add_argument('--bundle', type=Path)
     commands = parser.add_subparsers(dest='action')
@@ -277,7 +272,7 @@ def main():
     configuration = commands.add_parser('runner')
     configuration.add_argument('--kind', choices=('wine', 'proton'), default='wine')
     configuration.add_argument('--executable', required=True); configuration.add_argument('--steam', type=Path)
-    graphics = commands.add_parser('graphics'); graphics.add_argument('renderer', choices=('wined3d', 'dxvk'))
+    graphics = commands.add_parser('graphics'); graphics.add_argument('renderer', choices=('dxvk',))
     graphics.add_argument('--dll', type=Path)
     args = parser.parse_args()
     if sys.platform != 'linux':
@@ -318,9 +313,7 @@ def main():
             linux_runtime.configure(bundle, runner=args.kind, executable=args.executable, steam=args.steam); return 0
         if args.action == 'graphics':
             import graphics_profile
-            if args.renderer == 'dxvk':
-                graphics_profile.install(bundle, dxvk_source(bundle, package, args.dll))
-            else: graphics_profile.restore(bundle)
+            graphics_profile.install(bundle, dxvk_source(bundle, package, args.dll))
             return 0
     except KeyboardInterrupt: return 130
     except (OSError, ValueError, RuntimeError, TimeoutError, http.client.HTTPException) as error:

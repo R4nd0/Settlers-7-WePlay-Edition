@@ -1,6 +1,6 @@
 # Settlers 7: WePlay Edition
 
-**[Download rc4.01 for Windows — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/Setup.exe)**
+**[Windows x64 — Setup.exe](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
 
 [Release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.01) · [SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
@@ -8,11 +8,21 @@ WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubis
 
 ## Install or update
 
+### Windows
+
 1. Close WePlay and the game, then run **Setup.exe**.
 2. For an update, select your existing WePlay folder. For a standalone export, select the entire export folder or its **App** folder.
 3. In WePlay, select your original game or existing WePlay copy. Use **Install game** or **Update / repair**. If setup reports a long path, use **Change…** to select a shorter writable location. **Help / diagnostics** is available on the setup screen.
 
 Requires Windows 10 build 19045 or newer, or Windows 11, on x64. DXVK is required and needs a Vulkan-capable graphics driver. Allow about 7 GB for each game copy and extra space during repair.
+
+### Linux
+
+Extract the Linux archive to a Linux filesystem, then run `./WePlay.sh`.
+Choose your original Ubisoft or Steam History Edition or an existing WePlay
+copy, and prepare a new folder. Install Wine 11 with 32-bit support and a
+32-bit Vulkan driver for DXVK. Linux multiplayer uses matching Linux copies.
+[Linux setup and compatibility](docs/LINUX.md)
 
 ## Play
 
@@ -32,8 +42,10 @@ Benötigt werden Windows 10 ab Build 19045 oder Windows 11 (x64), ein Vulkan-fä
 
 [LAN auf Deutsch](docs/LAN-SPIELER.md) · [Update und Wiederherstellung](docs/UPDATE-RECOVERY.md)
 
-## Other downloads and credits
+**Linux:** Das [rc4.01-Linux-Paket](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz) entpacken und `./WePlay.sh` starten. Es unterstützt History Edition unter Wine oder Proton. Die gemischten Gold-/History-Räume sind eine Windows-Funktion. [Linux-Anleitung](docs/LINUX.md)
 
-The Windows downloads above are for rc4.01. The separate [Linux x64 package](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/WePlay-RC3.25-Linux-x64.tar.gz) is from RC3.25. [Linux setup](docs/LINUX.md) · [Release archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases)
+## Credits
+
+[Release archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases)
 
 Thanks to **[Eisenmonoxid](https://github.com/Eisenmonoxid)** for [S7Patcher](https://github.com/Eisenmonoxid/S7Patcher) and [S7Packer](https://github.com/Eisenmonoxid/S7Packer). An independent community project maintained by **R4nd0 / WePlay Community**. [Credits and third-party notices](CREDITS.md) · [MIT license](LICENSE)

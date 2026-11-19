@@ -1,15 +1,14 @@
-# Native Linux tools · RC3.19 preview
+# WePlay rc4.01 for Linux
 
-RC3.19 retains RC3.17's native Linux tools and the
-[RC3.18 logistics and Internet corrections](RC3.18-LOGISTICS-INTERNET.md),
-and includes the matching new lighting resources. Use RC3.19 on every peer.
-The new recommended profile and ReShade controls are Windows launcher features;
-new Linux graphics gameplay has not been qualified. Earlier Linux gameplay
-measurements below describe RC3.17; later NEO changes used local Windows clients.
-Actual game qualification used Ubisoft History Edition on Ubuntu 24.04 under
-WSL2/WSLg, WineHQ 11 and WineD3D. Mint, Linux Steam/Proton and hardware Vulkan
-gameplay remain unqualified. See the measured results below and the
-[machine-readable verification receipt](verification/linux-20261106.json).
+The Linux package uses the current History resume fixes, deterministic NEO6
+logistics and DXVK. It prepares **Ubisoft History Edition or Steam History
+Edition**. Gold and the Windows mixed room feature are outside this Linux
+package's scope. Multiplayer participants need the same Linux package and
+game content. The Windows and Linux rc4.01 adapters differ.
+
+Earlier Linux game tests used Ubisoft History Edition on Ubuntu 24.04 under
+WSL2/WSLg, WineHQ 11 and WineD3D. Those runs describe the earlier renderer and
+build. [Historical verification](verification/linux-20261106.json)
 
 The installer, launcher, local service and join-cryptography helper run as Linux
 processes. The original 32-bit History Edition and the fingerprinted native
@@ -30,10 +29,8 @@ is needed. The public package contains no game installation, profile or saves.
   independent copy. Steam retains its genuine client and ownership checks.
   The Proton path requires the real Linux Steam installation; live Steam/Proton
   qualification is still pending.
-- WineD3D is the default renderer. Optional DXVK uses the same pinned x32 DLL
-  as Windows and requires a suitable Vulkan driver. Include the distribution's
-  32-bit OpenGL/EGL libraries with Wine; a working 64-bit desktop alone does
-  not prove that the 32-bit renderer is available.
+- DXVK is installed when you prepare or update a copy. Install a Vulkan driver
+  with 32-bit support and the distribution's 32-bit Vulkan loader for Wine.
 
 Extract the complete Linux tar archive onto a Linux filesystem, then run
 `./WePlay.sh`. Select your supported game directory and an existing parent
@@ -56,7 +53,6 @@ CLI examples, with paths quoted:
 /games/WePlay/WePlay.sh runner --kind wine --executable /opt/wine-stable/bin/wine
 /games/WePlay/WePlay.sh play --mode solo
 /games/WePlay/WePlay.sh play --mode lan --player-name Player
-/games/WePlay/WePlay.sh graphics dxvk
 ```
 
 The CLI also exposes private/public Internet modes with explicit
@@ -98,8 +94,8 @@ The full local inventory still checks **Base, Server and Launcher**. The v2
 network contract identifies all gameplay files under Base, together with the
 explicit service/carrier protocol revision. Linux ELF helpers and Windows host
 helpers can therefore differ without changing the game identity. Their local
-integrity remains checked. There is no fallback to the old network ID: all
-participants need RC3.19 and the same renderer/content profile.
+integrity remains checked. The rc4.01 Linux adapter changes the game identity,
+so use matching rc4.01 Linux copies for multiplayer.
 
 Windows CPython uses zlib-ng 2.2.4, whose compressed streams differ from system
 zlib on Linux. The Linux package therefore includes a hash-pinned native
@@ -131,11 +127,12 @@ The transport additionally requires Rust stable, its
 directory under work. It applies the existing patches and runs the relevant
 packet-filter unit suites. Ship the matching corresponding-source archive and
 all dependency notices with any distributed transport binary.
-The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/v2.0.0-rc3.25/EasyTier-corresponding-source.zip)
+The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/EasyTier-corresponding-source.zip)
 contains both Linux and Windows build recipes and the reviewed patches.
 
-`tools/linux/build_package.py` accepts the verified patch package, native server
-publish directory and optional pinned native transport. It writes a new stage
+`tools/linux/build_package.py` accepts the verified patch package, the pinned
+Wine-compatible History adapter, the native server publish directory and the
+optional pinned native transport. It writes a new stage
 and optionally a tar archive with explicit executable permissions. It never
 uploads a release or includes a prepared game copy. The two Ubuntu CI jobs
 exercise Python 3.10/3.12, native builds and the independent OpenSSL peer.

@@ -28,6 +28,7 @@ STEAM_ADAPTER_SHA256 = '28a4d90a97e816b02f7f4d6fbba074fb1c5a6564bf2402712e400e7f
 DIRECTORY_ADAPTER_SHA256 = '78cc5c8843ee3a8095b9b282551907765f6a0c237962c19b3c3cb0a332d39e97'
 NEO_ADAPTER_SHA256 = '5015ea8747324d5fb703bf85cb9d9b2a60a059d3ab7dca71770b16dd65de64c2'
 NEO_DIRECTORY_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe'
+LINUX_NEO6_ADAPTER_SHA256 = 'b82a02c149fd3cff6dd3a28d106b168ea6d000f70c98ac85a763df5322825e4b'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
     ('graphics_profile.py', 'graphics_choice.py', 'gold_graphics.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
@@ -255,17 +256,21 @@ def package_manifest(root):
         raise ValueError('Unbekannte Steam-Adapterversion.')
     independent=manifest.get('platform_independent',False)
     required_adapter=adapter_fingerprint(manifest.get('game_directory',False),manifest.get('neo_logistics',False),independent)
+    accepted_adapters = (required_adapter,)
+    if manifest.get('linux_native') and not independent and manifest.get('game_directory') and manifest.get('neo_logistics'):
+        accepted_adapters += (LINUX_NEO6_ADAPTER_SHA256,)
+    shipped_adapter = expected.get('payload/uplay_r1_loader.dll')
     if independent:
         from platform_standalone import PAYLOAD,tool_sources
         if manifest.get('linux_native',False) or any(expected.get('payload/platform/'+name)!=digest for name,digest in PAYLOAD.items()) or any(('tools/'+original).lower() not in expected for original,_ in tool_sources()):
             raise ValueError('Die Plattformisolation im Paket ist unvollständig oder ungeprüft.')
     if manifest.get('neo_logistics',False) and (not manifest.get('multiplayer_resume',False)
-            or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
+            or shipped_adapter not in accepted_adapters
             or any(('tools/'+name).lower() not in expected for name in NEO_LOGISTICS_TOOLS)):
         raise ValueError('Die NEO-Logistics-Integration im Paket ist unvollstaendig.')
-    if manifest.get('steam_history',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
+    if manifest.get('steam_history',False) and shipped_adapter not in accepted_adapters:
         raise ValueError('Der Steam-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
-    if manifest.get('multiplayer_castles',False) and expected.get('payload/uplay_r1_loader.dll') != required_adapter:
+    if manifest.get('multiplayer_castles',False) and shipped_adapter not in accepted_adapters:
         raise ValueError('Der Castle-Adapter im Paket stimmt nicht mit dem geprueften Build ueberein.')
     if manifest.get('discord_directory',False) and (not manifest.get('desktop_launcher',False) or
             not manifest.get('internet_easytier',False) or any(('tools/'+name).lower() not in expected for name in DISCORD_PACKAGE_TOOLS)):
@@ -279,7 +284,7 @@ def package_manifest(root):
             raise ValueError('Die nativen Linux-Werkzeuge im Paket sind unvollstaendig.')
     if manifest.get('game_directory',False) and ((not manifest.get('linux_native',False) and
             (not manifest.get('discord_directory',False) or not manifest.get('windows_helpers',False)))
-            or not manifest.get('multiplayer_resume',False) or expected.get('payload/uplay_r1_loader.dll')!=required_adapter
+            or not manifest.get('multiplayer_resume',False) or shipped_adapter not in accepted_adapters
             or any(('tools/'+name).lower() not in expected for name in DIRECTORY_PACKAGE_TOOLS)):
         raise ValueError('Das gemeinsame Spieleverzeichnis im Paket ist unvollstaendig.')
     if manifest.get('public_game_directory',False) and (not manifest.get('game_directory',False) or

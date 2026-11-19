@@ -17,9 +17,18 @@ import compatibility
 import install
 
 
-def build(patch_package, server, output, *, compression, easytier=None, version='2.0.0-rc3.25'):
-    patch_package, server, output = map(compatibility.plain, (patch_package, server, output))
+def build(patch_package, server, output, *, compression, history_adapter, easytier=None):
+    from build_package import MIDSUMMER_DIRECTORY_ARCHIVE_SHA256
+    from graphics_profile import DXVK_SHA256
+    patch_package, server, output, history_adapter = map(
+        compatibility.plain, (patch_package, server, output, history_adapter))
     source = install.package_manifest(patch_package)
+    if not all(source.get(flag) for flag in ('midsummer_profile', 'game_directory', 'neo_logistics')):
+        raise ValueError('Supply the verified Midsummer and NEO patch package')
+    if compatibility.digest(history_adapter) != install.LINUX_NEO6_ADAPTER_SHA256:
+        raise ValueError('Supply the pinned Wine-compatible NEO6 History adapter')
+    if source['files'].get('payload/graphics/d3d9.dll') != DXVK_SHA256:
+        raise ValueError('Supply the verified 32-bit DXVK for rc4.01')
     compression=compatibility.plain(compression)
     lock=json.loads((ROOT/'tools/lan/compression-runtime.json').read_text(encoding='utf-8'))
     if (lock.get('format')!='weplay-canonical-compressor-v1' or lock.get('version')!='2.2.4'
@@ -34,7 +43,7 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
         if not (easytier / 'easytier-core').is_file():
             raise ValueError('Supply the pinned native Linux transport')
     from build_package import check_output_location
-    check_output_location(ROOT, output, (patch_package, server))
+    check_output_location(ROOT, output, (patch_package, server, history_adapter))
     if output.exists() or not output.parent.is_dir():
         raise ValueError('Output must be a new directory in an existing parent')
     apphost = server / 'S7Patcher'
@@ -46,15 +55,19 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
     # Validate every input before creating the user-facing stage.
     compatibility.inventory(server, ('.',))
     output.mkdir()
-    shutil.copytree(patch_package / 'Payload', output / 'Payload', ignore=shutil.ignore_patterns('Server', 'Helpers', 'S7GraphicsProbe.exe'))
+    shutil.copytree(patch_package / 'Payload', output / 'Payload', ignore=shutil.ignore_patterns(
+        'Server', 'Helpers', 'Gold', 'Platform', 'Crossplay', 'S7GraphicsProbe.exe'))
+    shutil.copyfile(history_adapter, output / 'Payload/uplay_r1_loader.dll')
     shutil.copytree(server, output / 'Payload/Server')
     shutil.copytree(patch_package / 'Tools', output / 'Tools')
     # Refresh only public source files already in the verified package. Patch
     # recipes, adapter, graphics DLL and license bytes retain their fixed pins.
-    for path in (output / 'Tools').rglob('*.py'):
+    for path in (output / 'Tools').rglob('*'):
+        if not path.is_file() or path.suffix not in ('.py', '.lua', '.json'):
+            continue
         original = ROOT / 'tools' / path.relative_to(output / 'Tools')
         if original.is_file(): shutil.copyfile(original, path)
-    for name in ('portable_lock.py', 'host_runtime.py', 'desktop_settings.py'):
+    for name in ('portable_lock.py', 'host_runtime.py', 'desktop_settings.py', 'release_policy.py'):
         shutil.copyfile(ROOT / 'tools/installer' / name, output / 'Tools/installer' / name)
     for name in ('canonical_deflate.py','compression-runtime.json'):
         shutil.copyfile(ROOT/'tools/lan'/name,output/'Tools/lan'/name)
@@ -74,21 +87,20 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
                                      'Python 3.10+ and Tk are supplied by the Linux distribution.\n', encoding='utf-8')
     manifest = dict(source)
     manifest.update(linux_native=True, windows_helpers=False, desktop_launcher=False, standalone_export=False,
-                    update_patcher=False, discord_directory=False, internet_easytier=easytier is not None)
+                    update_patcher=False, discord_directory=False, internet_easytier=easytier is not None,
+                    platform_independent=False, main_package=False, gold_standalone=False, crossplay_mixed=False,
+                    patched_archive_sha256=MIDSUMMER_DIRECTORY_ARCHIVE_SHA256)
     manifest['files'] = compatibility.inventory(output, ('Payload', 'Runtime', 'Tools'))
     install.write_json(output / 'package.json', manifest)
     install.package_manifest(output)
-    verification = ROOT / 'docs/verification/rc325-20261109.json'
-    install.write_json(output / 'linux-release.json', dict(format='weplay-linux-release-v1',version=version,
+    install.write_json(output / 'linux-release.json', dict(format='weplay-linux-release-v1',version='2.0.0-rc4.1',
+        display_version='rc4.01', neo_wire_revision=6, renderer='dxvk', crossplay_mixed=False,
         network_revision=9,content_contract=compatibility.NETWORK_FORMAT,game_bits=32,host='linux-x64',
-        game_runtime='Wine/Proton',gameplay_qualified=False,
-        qualification_scope='Ubuntu 24.04 WSL2, WineHQ 11 win32, Ubisoft History Edition',
-        verification='verification.json' if verification.is_file() else None))
-    if verification.is_file(): shutil.copyfile(verification, output / 'verification.json')
+        game_runtime='Wine/Proton',gameplay_qualified=False))
     shutil.copyfile(ROOT / 'LICENSE', output / 'LICENSE.txt')
     credits = (ROOT / 'CREDITS.md').read_text(encoding='utf-8')
     credits = re.sub(r'\]\((?!https?://|#)([^)]+)\)',
-                     lambda match: '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/v' + version + '/' + match[1] + ')',
+                     lambda match: '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/rc4.01/' + match[1] + ')',
                      credits)
     (output / 'CREDITS.md').write_text(credits, encoding='utf-8', newline='\n')
     starter = output / 'WePlay.sh'
@@ -98,7 +110,10 @@ def build(patch_package, server, output, *, compression, easytier=None, version=
     starter.chmod(0o755)
     if (ROOT / 'docs/LINUX.md').is_file():
         guide = (ROOT / 'docs/LINUX.md').read_text(encoding='utf-8')
-        (output / 'README.md').write_text(guide.replace('verification/linux-20261106.json', 'verification.json'),
+        guide = re.sub(r'\]\((?!https?://|#)([^)]+)\)',
+                       lambda match: '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/main/docs/' + match[1] + ')',
+                       guide)
+        (output / 'README.md').write_text(guide,
                                          encoding='utf-8', newline='\n')
     return output
 
@@ -127,7 +142,8 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--easytier',type=Path)
-    parser.add_argument('--version',default='2.0.0-rc3.25')
+    parser.add_argument('--history-adapter',type=Path,required=True)
     args = parser.parse_args()
-    result = build(args.patch_package,args.server,args.output,compression=args.compression,easytier=args.easytier,version=args.version)
+    result = build(args.patch_package,args.server,args.output,compression=args.compression,
+                   easytier=args.easytier,history_adapter=args.history_adapter)
     print(json.dumps({'stage': str(result), 'archive_sha256': archive(result, args.archive) if args.archive else None}))

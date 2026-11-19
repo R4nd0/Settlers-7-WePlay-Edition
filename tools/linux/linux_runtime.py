@@ -101,15 +101,9 @@ def configure(root, *, runner='wine', executable='/usr/bin/wine', steam=None):
 
 def graphics_environment(root):
     import graphics_profile
-    environment = clean_environment()
-    if (Path(root) / graphics_profile.STATE).exists():
-        return graphics_profile.launch_environment(root, environment)
-    if (Path(root) / 'Base/Bin/d3d9.dll').exists():
-        raise ValueError('Unknown renderer DLL; repair the copy before starting')
-    for key in list(environment):
-        if key.startswith('DXVK_'):
-            del environment[key]
-    return environment
+    if not (Path(root) / graphics_profile.STATE).is_dir():
+        raise ValueError('rc4.01 requires DXVK. Install or update this copy from the Linux package.')
+    return graphics_profile.launch_environment(root, clean_environment())
 
 
 def initial_documents(root, home, runner):
@@ -142,9 +136,7 @@ def game_command(root, arguments=(), inherited=None):
     # invoking user's existing documents/profile directory.
     environment.update(HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
                        XDG_DATA_HOME=str(home / '.local/share'), XDG_CACHE_HOME=str(home / '.cache'),
-                       WINEDEBUG='-all,err+all', WINEDLLOVERRIDES='uplay_r1_loader=n,b;mscoree,mshtml=')
-    if (root / 'Base/Bin/d3d9.dll').exists():
-        environment['WINEDLLOVERRIDES'] += ';d3d9=n,b'
+                       WINEDEBUG='-all,err+all', WINEDLLOVERRIDES='uplay_r1_loader=n,b;d3d9=n;mscoree,mshtml=')
     exe = root / 'Base/Bin/Settlers7R.exe'
     if value['runner'] == 'wine':
         prefix = compatibility.plain(root / 'WinePrefix')

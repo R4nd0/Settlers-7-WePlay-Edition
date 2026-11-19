@@ -8,4 +8,19 @@ RC4.01 fixes an upgrade and repair issue with WePlay copies stored in deeply nes
 
 **Help / diagnostics** is available directly from setup and displays the details when setup stops.
 
+### Linux x64
+
+Das Linux-Paket bringt die History-Editionen auf rc4.01 mit NEO6, den
+Korrekturen beim Wiederaufnehmen von Multiplayer-Spielständen und festem DXVK.
+Archiv entpacken und `./WePlay.sh` starten. Linux-Multiplayer verwendet
+übereinstimmende Linux-Kopien. Gemischte Gold-/History-Räume bleiben Windows
+vorbehalten.
+
+The Linux package updates History Edition to rc4.01 with NEO6, multiplayer
+resume fixes and DXVK. Extract the archive and run `./WePlay.sh`. Linux
+multiplayer requires matching Linux copies. Mixed Gold/History rooms are a
+Windows feature.
+
+[Linux x64 download](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz) · [Linux setup and compatibility](LINUX.md)
+
 [Grafikeinstellungen / graphics settings](VISUAL-QUALITY.md) · [Grafikmessungen / graphics measurements](GRAPHICS-RC319-MEASUREMENTS.md) · [Internet-Verbindung / Internet join](RC3.21-INTERNET-JOIN.md)
