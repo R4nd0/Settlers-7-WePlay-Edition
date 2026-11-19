@@ -57,7 +57,18 @@ function Game.IsSaveGameCacheKey(k) return C.cache[k]~=nil end
 function Game.GetCachedSaveGameValue(k) return C.cache[k] end
 function Game.SaveGameExists(slot) return C.saved[slot]~=nil end
 function Game.GetSaveGames(slot,count) return C.saved[slot] and {C.saved[slot]} or {} end
-C.G={Network=N,MapSetup=A,Game=Game}
+local UI={}
+function UI.WriteToConsole(command)
+    if command=="weplay-crossplay-v1:mode" then return C.roomMode end
+    if command=="weplay-crossplay-v1:room-world-state" then return C.roomPhase end
+    if command=="weplay-crossplay-v1:room-map" then return C.roomMap end
+    if command=="weplay-crossplay-v1:room-history-save-roster" then return C.roomRoster end
+    if command=="weplay-crossplay-v1:room-history-save-roster:confirmed" and C.roomRoster=="pending" then
+        C.roomRoster="ready"
+        return C.roomRoster
+    end
+end
+C.G={Network=N,MapSetup=A,Game=Game,UI=UI}
 function C.store() C.stores=C.stores+1 end
 function C.finishSave(slot,name,date) C.saved[slot]={slot=slot,name=name,date=date,map="Twin Peaks"} end
 return C
@@ -88,6 +99,53 @@ class ResumeRuntimeTests(unittest.TestCase):
         self.assertEqual([result.players[i].team for i in range(1, 5)], [1, 1, 2, 2])
         self.assertEqual(result.players[3].profile, 123456789)
         self.assertEqual(result.players[4].profile, 4294967295)
+
+    def test_history_room_can_save_after_native_start_skips_the_host_menu(self):
+        self.context.roomMode = "room-host"
+        self.context.roomRoster = "pending"
+        self.context.roomMap = self.context.map
+        self.context.players[3].state = 11
+        self.assertIsNone(self.context.settings.weplayMPResumeCurrent)
+        self.assertTrue(self.runtime.rememberRoomLobby())
+        self.assertEqual(self.context.roomRoster, "ready")
+        self.assertIsNotNone(self.context.settings.weplayMPResumeCurrent)
+        self.runtime = self.load()
+        self.context.G.MapSetup.GetActivePlayers = self.lua.eval("function() return nil end")
+        self.context.G.Game.GetCurrentMapData = self.lua.eval("function() return nil end")
+        self.context.roomPhase = "turn-events"
+        self.assertTrue(self.runtime.cacheSave(1009, "Mixed room"))
+        record = self.runtime.decode(self.context.cache[self.runtime.cacheKey])
+        self.assertEqual([record.players[i].role for i in range(1, 5)], [1, 1, 1, 2])
+        self.context.finishSave(1009, "Mixed room", "2026-11-19 12:00:00")
+        self.assertTrue(self.runtime.saved(1009, "Mixed room"))
+
+    def test_native_room_map_must_match_the_recorded_lobby(self):
+        self.context.roomMode = "room-host"
+        self.context.roomRoster = "pending"
+        self.context.roomMap = "Maps/Skirmish/other"
+        self.assertFalse(self.runtime.rememberRoomLobby())
+        self.assertEqual(self.context.roomRoster, "pending")
+        self.context.roomMap = self.context.map
+        self.assertTrue(self.runtime.rememberRoomLobby())
+        self.context.roomPhase = "started"
+        self.context.roomMap = "Maps/Skirmish/other"
+        self.assertFalse(self.runtime.cacheSave(1009, "Mixed room"))
+        self.assertEqual(self.context.writes, 0)
+
+    def test_started_room_does_not_accept_unconfirmed_persisted_metadata(self):
+        self.assertTrue(self.runtime.rememberLobby())
+        self.context.roomMode = "room-host"
+        self.context.roomPhase = "started"
+        self.context.roomMap = self.context.map
+        self.assertFalse(self.runtime.cacheSave(1009, "Mixed room"))
+        self.assertEqual(self.context.writes, 0)
+
+    def test_room_without_original_world_cannot_reuse_stale_lobby_metadata(self):
+        self.assertTrue(self.runtime.rememberLobby())
+        self.context.roomMode = "room-host"
+        self.context.roomPhase = "queued"
+        self.assertFalse(self.runtime.cacheSave(1009, "Mixed room"))
+        self.assertEqual(self.context.writes, 0)
 
     def test_original_empire_multiplayer_mode_keeps_host_authority_for_roster(self):
         record = self.runtime.captureLobby()

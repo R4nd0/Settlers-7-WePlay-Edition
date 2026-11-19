@@ -768,6 +768,24 @@ std::string RoomWorldState(){
 #endif
     return "waiting";
 }
+bool RoomHistorySaveRoster(bool confirm,std::string& output){
+    output.clear();
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+    if(!current || !current->Owned() || !current->launch.IsRoom() || !current->launch.host
+        || current->launch.channel.edition==Crossplay::Edition::Gold || current->room_saved_started)return false;
+    if(!confirm && current->room_history_save_roster && current->RoomStarted()){
+        output="ready";return true;
+    }
+    if(!RoomConfigurationApplied() || current->room_world_queued || current->room_held_start.empty()
+        || current->room_root_phase!=Runtime::RoomRootPhase::Idle || !RoomTeamsConfirmed())return false;
+    if(confirm)current->room_history_save_roster=true;
+    output=current->room_history_save_roster?"ready":"pending";
+    return true;
+#else
+    (void)confirm;
+    return false;
+#endif
+}
 bool RoomGoldAIChoice(std::string& output){
     output.clear();
 #ifdef S7_CROSSPLAY_ROOM_WORLD_LAB

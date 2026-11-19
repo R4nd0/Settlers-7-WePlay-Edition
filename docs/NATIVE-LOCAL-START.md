@@ -1,5 +1,16 @@
 # Experimental native local start, 2026-10-26
 
+The follow-up Steam History host run wrote an original multiplayer save at
+logic turn 60 and kept the session running. The History host menu stores the confirmed
+roster before releasing the original Start. The save uses that roster and the
+native room's map across the switch from the lobby to the world. An independent
+archive reader verified replay turn 61, three human seats, one AI and enabled
+NEO. The three DXVK 3.1.1 clients matched 252 consecutive native checksums over
+271.677 seconds. Their original clocks still reported 100 ms after the save.
+All three exited with code zero and the isolated copies were restored. The shared
+reload from this file and final installed-package tests are pending.
+[Measured Steam host save](receipts/steam-host-mixed-save-20261119.json)
+
 On 2026-11-19, Steam History hosted Gold and Ubisoft History with one AI under
 DXVK 3.1.1. The room held the original History Start until all three clients
 confirmed Ready, teams, and the same setup. Gold used its original events to

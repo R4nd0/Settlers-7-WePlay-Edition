@@ -2,6 +2,9 @@
 local G, Panel, getState = ...
 local pending, pendingAt, resumeRecord, refreshAt
 local Resume = G.require("local.tools.settings").weplayMPResume
+local console = G.UI and G.UI.WriteToConsole
+local mixedRoomHost = _G.type(console) == "function" and console("weplay-crossplay-v1:mode") == "room-host"
+local roomRosterRemembered = false
 local originalUpdate, originalDestroy, originalSlots = Panel.update, Panel.destroy, Panel.updatePlayerSlots
 local function cancelResume()
     pending, pendingAt, resumeRecord, refreshAt = nil, nil, nil, nil
@@ -37,6 +40,9 @@ function Panel.update()
     -- Do not cancel work belonging to a newly created replacement page.
     if getState() ~= State then return end
     if not ownsLobby(State) then stopResume(State); return end
+    if mixedRoomHost and not roomRosterRemembered and not pending and not resumeRecord then
+        roomRosterRemembered = Resume.rememberRoomLobby()
+    end
     if pending then
         G.ui.enable(State.startButton, false)
         if G.Game.GetRunTime() >= pendingAt and G.Network.SessionIsInSession()

@@ -15,6 +15,7 @@ bool RoomSynchronizeTeams();
 bool RoomTeamsConfirmed();
 bool RoomSetupConfirmed();
 std::string RoomWorldState();
+bool RoomHistorySaveRoster(bool confirm,std::string& output);
 bool RoomGoldAIChoice(std::string& output);
 bool RoomAIConfigured();
 std::string RoomSavedState();

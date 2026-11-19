@@ -147,6 +147,23 @@ function M.rememberLobby()
     store()
     return encoded ~= nil
 end
+function M.rememberRoomLobby()
+    local console = G.UI and G.UI.WriteToConsole
+    if type(console) ~= "function" or console("weplay-crossplay-v1:room-history-save-roster") ~= "pending" then
+        return false
+    end
+    local record = M.captureLobby()
+    if not record or mapKey(record.map) ~= mapKey(console("weplay-crossplay-v1:room-map")) then return false end
+    local encoded = M.encode(record)
+    if not encoded then return false end
+    local previous = settings.weplayMPResumeCurrent
+    settings.weplayMPResumeCurrent = encoded
+    store()
+    if console("weplay-crossplay-v1:room-history-save-roster:confirmed") == "ready" then return true end
+    settings.weplayMPResumeCurrent = previous
+    store()
+    return false
+end
 local function saveName(slot, name)
     if slot == 1001 and name == nil then return "" end
     return name
@@ -155,11 +172,25 @@ function M.cacheSave(slot, name)
     name = saveName(slot, name)
     -- Native automatic saves intentionally have an empty name.
     if not host() or not slotValid(slot) or not text(name, 128, slot == 1001) then return false end
-    local record = M.decode(settings.weplayMPResumeCurrent)
-    local map = Game.GetCurrentMapData()
-    if not record or type(map) ~= "table" or mapKey(map.FilePath) ~= mapKey(record.map) then return false end
+    local console = G.UI and G.UI.WriteToConsole
+    local roomHost = type(console) == "function" and console("weplay-crossplay-v1:mode") == "room-host"
+    local record, map
+    if roomHost then
+        local phase = console("weplay-crossplay-v1:room-world-state")
+        if phase ~= "started" and phase ~= "turn-events" then return false end
+        if console("weplay-crossplay-v1:room-history-save-roster") ~= "ready" then return false end
+        record = M.decode(settings.weplayMPResumeCurrent)
+        map = console("weplay-crossplay-v1:room-map")
+    else
+        record = M.decode(settings.weplayMPResumeCurrent)
+        local current = Game.GetCurrentMapData()
+        map = type(current) == "table" and current.FilePath
+    end
+    if not record or mapKey(map) ~= mapKey(record.map) then return false end
     record.name = name
     local encoded = M.encode(record)
+    if not encoded then return false end
+    if roomHost then settings.weplayMPResumeCurrent = encoded end
     Game.CacheSaveGameValue(M.cacheKey, encoded)
     return true
 end

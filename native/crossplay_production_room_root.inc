@@ -4,6 +4,7 @@
     Crossplay::Digest room_root_digest{};
     unsigned room_root_receipts=0;
     ULONGLONG room_root_started=0;
+    bool room_history_save_roster=false;
     inline static constexpr unsigned char RoomRootApplied[]={'S','7','R','R','O','K',0,1};
     inline static constexpr unsigned char RoomRootCommitted[]={'S','7','R','R','O','K',1,1};
 
@@ -72,6 +73,10 @@
         if(room_root_phase==RoomRootPhase::Confirmed)return true;
         if(room_root_phase==RoomRootPhase::Idle && launch.host){
             if(room_held_start.empty())return true;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+            if(launch.channel.edition!=Crossplay::Edition::Gold && !room_history_save_roster)
+                return GetTickCount64()-room_team_started<=10000;
+#endif
             if(room_held_setup.empty() && !CaptureCurrentRoomRoot(room_held_setup))return false;
             return SendRoomRoot(room);
         }
