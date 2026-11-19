@@ -20,7 +20,7 @@ EXECUTABLE_EDITIONS = {
 # solo/History-only fingerprints never become mixed-capable by migration.
 _HISTORY_ROOM_ADAPTER = '6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14'
 ADAPTER_PINS = {
-    1: ('a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148',),
+    1: ('6b3b597138f223275c2dd3e02857b77e4e86ac653ab92b7318f2d03c0fa7e405',),
     2: (_HISTORY_ROOM_ADAPTER,),
     3: (_HISTORY_ROOM_ADAPTER,),
 }

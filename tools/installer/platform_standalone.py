@@ -20,11 +20,12 @@ HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
                 (True,True):'6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14'}
-GOLD = 'a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148'
+GOLD = '6b3b597138f223275c2dd3e02857b77e4e86ac653ab92b7318f2d03c0fa7e405'
 # Known previous release adapters remain readable for safe upgrade/repair.
 # New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
 LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',)
-LEGACY_GOLD_PINS = ('fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2',)
+LEGACY_GOLD_PINS = ('fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2',
+                    'a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148')
 STEAM_API = '2e9836aeb19373dc1cc0743a9d8bdd5f322fbb426d077ea2718005c5a4bef140'
 MILES_GATE = 'ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63'
 MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf'

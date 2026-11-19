@@ -16,7 +16,7 @@ MAX_FILES = 30000
 # and reproducible mixed menus. The RC4 signer separately requires installed
 # gameplay receipts for this exact package and every host edition.
 APPROVED_DIGESTS = frozenset({
-    '64c300b34c4e9bb9a638ae3a0de51c6910ada2c2948e1c54dab77d0047c176aa',
+    '9e4ef80d47c4544d09785efd4e8d800f7c609432ce81b9ed136366f65ba1798a',
 })
 PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {

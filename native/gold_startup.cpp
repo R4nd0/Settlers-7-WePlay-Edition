@@ -301,8 +301,20 @@ __declspec(noinline) bool __fastcall LocalReady(void* outer, void*, unsigned int
     unsigned char* ready, unsigned int delay, bool network) {
     const DWORD error = GetLastError();
     if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != image + 0x1a6a98
-        || (network && !NetworkLocalReadyAllowed()) || delay != 18
-        || !ValidRange(ready, 1, true) || local_step_active.exchange(1)) Stop();
+        || delay != 18 || !ValidRange(ready, 1, true)) Stop();
+    if (network && !NetworkLocalReadyAllowed()) {
+#ifdef S7_CROSSPLAY_ROOM_WORLD
+        // A previously admitted room can end between two original frame
+        // calls. Leave the ready byte and native simulation untouched while
+        // the original window and game teardown proceed.
+        if (!local_step_active.load() && NetworkLocalRoomEnded()) {
+            SetLastError(error);
+            return false;
+        }
+#endif
+        Stop();
+    }
+    if (local_step_active.exchange(1)) Stop();
     const uintptr_t core = LocalCore(outer);
     // The same local preparation performed by History's message-handler entry.
     // Native Gold still computes the result, processes its queues and reports

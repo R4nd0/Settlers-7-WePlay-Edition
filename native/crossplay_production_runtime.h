@@ -41,6 +41,7 @@ bool StartUsesSavedWorld(bool& saved);
 bool GoldWorldOwnsStartedSession(uintptr_t session);
 #ifdef S7_CROSSPLAY_ROOM_WORLD
 unsigned GoldWorldHumanSeats(uintptr_t session);
+bool GoldRoomSessionEnded(uintptr_t session);
 #endif
 // Exact AI rows admitted by the original chooser and common complete root.
 // This predicate does not replace the original Ready result.

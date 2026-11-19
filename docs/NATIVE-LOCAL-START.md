@@ -1,5 +1,15 @@
 # Experimental native local start, 2026-10-26
 
+The repeated Ubisoft-hosted reload restored active NEO and matched 202
+native checksums over 98.622 seconds before the Steam guest left. An earlier
+controlled departure had identified a late Gold Ready call after its room
+ended. Gold stayed responsive after the guest left in the repeat, and all
+three isolated clients then exited with code zero. The three original
+100-ms clocks had advanced beyond the saved replay turn and restoration
+verified the test copies. The repeat did not capture the late Ready
+diagnostic marker. Exact installed-package gameplay remains pending.
+[Measured room departure](receipts/gold-mixed-room-departure-20261119.json)
+
 The Ubisoft History host continued its original save with Gold and Steam
 History as guests. Each guest received 2,961 original packets and verified
 24,251,006 resident bytes against the saved digest. The three original loaders
@@ -7,8 +17,7 @@ restored NEO and compared real transport requests. The original clocks
 advanced beyond the saved replay turn at 100 ms and matched 885 consecutive
 finished-turn checksums over 440.166 seconds with zero mismatches. The
 watchdog terminated all three test processes and the isolated profiles and
-assets were restored. The final installed-package run and a clean
-Ubisoft-hosted reload exit are pending.
+assets were restored.
 [Measured Ubisoft host reload](receipts/ubisoft-host-mixed-reload-20261119.json)
 
 Ubisoft History hosted Gold and Steam History with one AI at normal speed

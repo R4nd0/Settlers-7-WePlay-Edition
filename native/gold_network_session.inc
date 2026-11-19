@@ -17,6 +17,23 @@ struct GoldNetworkRowsView {
     uintptr_t setup=0,reference=0,rows=0;
     unsigned char mode=0;
 };
+#ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
+uintptr_t LocalNetworkSession() {
+    const auto main = *reinterpret_cast<const uintptr_t*>(image + 0xcf83dc);
+    if (!ValidRange(reinterpret_cast<const void*>(main), 0x28)
+        || *reinterpret_cast<const uintptr_t*>(main) != image + 0xb55600) return 0;
+    const auto session = *reinterpret_cast<const uintptr_t*>(main + 0x14);
+    if (!ValidRange(reinterpret_cast<const void*>(session), 0x44)
+        || *reinterpret_cast<const uintptr_t*>(session) != image + 0xb569bc) return 0;
+    return session;
+}
+#endif
+#ifdef S7_CROSSPLAY_ROOM_WORLD
+bool NetworkLocalRoomEnded() {
+    return local_multiplayer_enabled && GetCurrentThreadId() == owner_thread.load()
+        && CrossplayProduction::GoldRoomSessionEnded(LocalNetworkSession());
+}
+#endif
 // Select a bounded original preparation view only. The caller independently
 // authorizes mixed-world ownership before requesting the active-buffer view.
 bool NetworkPlayingRows(uintptr_t setup,bool mixed,GoldNetworkRowsView& result){
@@ -40,13 +57,8 @@ bool NetworkLocalReadyAllowed() {
 #ifdef S7_GOLD_NATIVE_SESSION_PROVIDER
     if (!local_multiplayer_enabled || GetCurrentThreadId() != owner_thread.load()
         || !AccountLocalSceneAllowed()) return false;
-    const uintptr_t main = *reinterpret_cast<uintptr_t*>(image + 0xcf83dc);
-    if (!ValidRange(reinterpret_cast<void*>(main), 0x28)
-        || *reinterpret_cast<uintptr_t*>(main) != image + 0xb55600) return false;
-    const uintptr_t session = *reinterpret_cast<uintptr_t*>(main + 0x14);
-    if (!ValidRange(reinterpret_cast<void*>(session), 0x44)
-        || *reinterpret_cast<uintptr_t*>(session) != image + 0xb569bc
-        || !AccountIsService(session)
+    const auto session = LocalNetworkSession();
+    if (!session || !AccountIsService(session)
         || *reinterpret_cast<unsigned int*>(session + 0x10) != 2
         || *reinterpret_cast<unsigned int*>(session + 0x30) != 2) return false;
     for (unsigned int offset : {0x3cu, 0x40u}) {

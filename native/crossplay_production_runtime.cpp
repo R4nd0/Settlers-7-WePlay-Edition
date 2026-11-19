@@ -913,6 +913,13 @@ bool GoldWorldOwnsStartedSession(uintptr_t session){
         && session && current->neo_world_session==session && current->StartedWorldObservation();
 }
 #ifdef S7_CROSSPLAY_ROOM_WORLD
+bool GoldRoomSessionEnded(uintptr_t session){
+    return current && current->Owned() && current->launch.IsRoom()
+        && current->launch.channel.edition==Crossplay::Edition::Gold
+        && current->room_world_running && current->phase==Phase::Failed
+        && current->channel.GetState()==Crossplay::State::Closed
+        && session && current->session==session;
+}
 unsigned GoldWorldHumanSeats(uintptr_t session){
     if(!GoldWorldOwnsStartedSession(session) || !current->launch.IsRoom())return 0;
     unsigned seats=0;

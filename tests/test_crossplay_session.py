@@ -202,14 +202,15 @@ class CrossplaySessionTests(unittest.TestCase):
                     platform.launch(self.root, crossplay=supplied, lan=lan)
             run.assert_not_called()
 
-    def test_existing_release_adapters_have_no_mixed_launch_permission(self):
+    def test_legacy_gold_adapters_have_no_mixed_launch_permission(self):
         adapter = self.root / 'Launcher/adapter.dll'
-        descriptor = {'edition': 'gold', 'files': {'Launcher/adapter.dll': platform.GOLD}}
-        with patch.object(platform, 'load', return_value=(descriptor, self.exe, adapter)), \
-                patch.object(platform.subprocess, 'run') as run:
-            with self.assertRaisesRegex(ValueError, 'adapter_unavailable'):
-                platform.launch(self.root, crossplay=binding())
-            run.assert_not_called()
+        for digest in platform.LEGACY_GOLD_PINS:
+            descriptor = {'edition': 'gold', 'files': {'Launcher/adapter.dll': digest}}
+            with patch.object(platform, 'load', return_value=(descriptor, self.exe, adapter)), \
+                    patch.object(platform.subprocess, 'run') as run:
+                with self.assertRaisesRegex(ValueError, 'adapter_unavailable'):
+                    platform.launch(self.root, crossplay=binding())
+                run.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

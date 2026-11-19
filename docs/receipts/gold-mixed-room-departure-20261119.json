@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-19",
+  "scope": "controlled guest departure after an isolated native shared reload",
+  "host_edition": "Ubisoft History",
+  "guest_editions": ["Gold", "Steam History"],
+  "renderer": "DXVK 3.1.1",
+  "human_players": 3,
+  "ai_opponents": 1,
+  "archive_sha256": "043b4e24c27dea359f2d1b298ff88ef4c60d5c0d6bcd5fe25b3420438b8e247a",
+  "original_file_packets_per_guest": 2961,
+  "native_replay_turns_sampled_after_reload": {"Gold": 189, "Ubisoft History": 189, "Steam History": 190},
+  "normal_turn_duration_ms": 100,
+  "neo_restored_and_compared_real_requests": {"Gold": true, "Ubisoft History": true, "Steam History": true},
+  "original_finished_turns": {
+    "first": 0,
+    "last": 201,
+    "common_consecutive_count": 202,
+    "crc_mismatches": 0,
+    "measurement_seconds": 98.622
+  },
+  "previous_gold_failure_after_guest_departure": "original Ready call rejected the ended native room",
+  "gold_stayed_responsive_after_guest_departure": true,
+  "gold_late_ready_branch_marker_observed": false,
+  "watchdog_needed": false,
+  "exit_codes": {"Gold": 0, "Ubisoft History": 0, "Steam History": 0},
+  "test_copies_restored": true,
+  "final_installed_package_qualified": false,
+  "source_checkpoint_sha256": "e6bd17135c39468137df5e5766026014f18afc5feafc5ef761f65e8a74873c9d"
+}
