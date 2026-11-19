@@ -2,7 +2,7 @@
 #include "crossplay_preparation_capture.h"
 #include "crossplay_setup_root_dependencies.h"
 #include "crossplay_setup_root_writer.h"
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
 #include "crossplay_ai_preparation_source.h"
 #endif
 
@@ -84,7 +84,7 @@ inline bool Capture(Crossplay::Edition edition,const CrossplayNative::Participan
         || !CrossplaySetupRootWriter::Methods(edition,writer))return false;
     captured.format_version=version;result=std::move(captured);stage(0);return true;
 }
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
 template<class Owned>
 inline bool CaptureRoom(Crossplay::Edition edition,unsigned capacity,Owned owned,std::vector<unsigned char>& output) {
     using namespace CrossplayNativeCodec;

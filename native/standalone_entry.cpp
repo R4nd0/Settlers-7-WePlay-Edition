@@ -3,7 +3,7 @@
 #include "standalone_profile.h"
 #include "crossplay_production_context.h"
 #include "crossplay_production_ui.h"
-#if defined(S7_CROSSPLAY_ROOM_LOBBY_LAB) && !defined(S7_GOLD_STARTUP)
+#if defined(S7_CROSSPLAY_ROOM_LOBBY) && !defined(S7_GOLD_STARTUP)
 #include "crossplay_room_instance.h"
 #endif
 #include <vector>
@@ -32,7 +32,7 @@ bool ContextValid(const Context* context) {
         && context->pid == GetCurrentProcessId() && context->tid == GetCurrentThreadId()
         && context->image == reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) && StandaloneLaunchGate();
 }
-#if defined(S7_CROSSPLAY_ROOM_LOBBY_LAB) && !defined(S7_GOLD_STARTUP)
+#if defined(S7_CROSSPLAY_ROOM_LOBBY) && !defined(S7_GOLD_STARTUP)
 bool IsolateHistoryRoomInstance(const Context& context,Crossplay::Edition edition) {
     using namespace CrossplayProduction;
     const auto rva=HistoryRoomInstanceNameRva(edition);
@@ -109,7 +109,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     if(!InstallOfflineNetworkGuard())return 0;
     // Fail closed until the normal session runtime is attached. A valid mixed
     // handoff must never silently launch the existing solo/History-only path.
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
     stage = 15;
     if(CrossplayProduction::CurrentLaunch()->mixed) {
         if(!CrossplayProduction::CurrentLaunch()->IsRoom() || kernel_probe!=7)return 0;
@@ -128,7 +128,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     stage = 17;
     CrossplayNative::ParticipantEvent ui_binding;
     if(!ui_binding.Bind(channel_edition) || !CrossplayProduction::UiConsole::Install(channel_edition,GetCurrentThreadId()))return 0;
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
     stage = 18;
     if(CrossplayProduction::CurrentLaunch()->IsRoom() && !CrossplayProduction::PrepareRuntime())return 0;
 #endif

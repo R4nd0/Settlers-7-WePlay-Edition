@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$IsolatedLabExecutable,
       [switch]$LocalSimulation, [switch]$LocalLogin, [switch]$AccountLogin, [switch]$PlatformIndependent,
-      [switch]$CrossplayRoomLobbyLab, [switch]$CrossplayRoomWorldLab)
+      [switch]$CrossplayRoomLobbyLab, [switch]$CrossplayRoomWorldLab, [switch]$CrossplayRoom)
 $ErrorActionPreference = 'Stop'
 $nativeSource = $PSScriptRoot
 $nativeOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -18,14 +18,14 @@ foreach ($line in $compilerEnvironment) {
     if ($position -gt 0) { [Environment]::SetEnvironmentVariable($line.Substring(0,$position), $line.Substring($position+1), 'Process') }
 }
 $common = @('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/D_CRT_SECURE_NO_WARNINGS','/D_WINSOCK_DEPRECATED_NO_WARNINGS','/DS7_GOLD_STARTUP')
-if ($CrossplayRoomLobbyLab) {
-    if (!$PlatformIndependent) { throw 'CrossplayRoomLobbyLab requires the original standalone executable guard.' }
-    $common += '/DS7_CROSSPLAY_ROOM_LOBBY_LAB'
+if (($CrossplayRoom -or $CrossplayRoomLobbyLab) -and !$PlatformIndependent) {
+    throw 'Crossplay rooms require the original standalone executable guard.'
 }
-if ($CrossplayRoomWorldLab) {
-    if (!$CrossplayRoomLobbyLab) { throw 'CrossplayRoomWorldLab requires CrossplayRoomLobbyLab.' }
-    $common += '/DS7_CROSSPLAY_ROOM_WORLD_LAB'
+if ($CrossplayRoomWorldLab -and !$CrossplayRoomLobbyLab) {
+    throw 'CrossplayRoomWorldLab requires CrossplayRoomLobbyLab.'
 }
+if ($CrossplayRoom -or $CrossplayRoomLobbyLab) { $common += '/DS7_CROSSPLAY_ROOM_LOBBY' }
+if ($CrossplayRoom -or $CrossplayRoomWorldLab) { $common += '/DS7_CROSSPLAY_ROOM_WORLD' }
 if ($LocalSimulation) { $common += '/DS7_GOLD_LOCAL_SIMULATION' }
 if ($LocalLogin -or $AccountLogin) { $common += '/DS7_GOLD_LOCAL_LOGIN' }
 if ($AccountLogin) { $common += '/DS7_GOLD_ACCOUNT_LOGIN' }

@@ -39,7 +39,7 @@ bool StartUsesSavedWorld(bool& saved);
 // exact original world tears down; event and NEO authority do not. This does
 // not compute or acknowledge native Ready.
 bool GoldWorldOwnsStartedSession(uintptr_t session);
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
 unsigned GoldWorldHumanSeats(uintptr_t session);
 #endif
 // Exact AI rows admitted by the original chooser and common complete root.

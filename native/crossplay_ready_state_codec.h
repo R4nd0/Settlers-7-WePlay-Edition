@@ -2,7 +2,7 @@
 #include "crossplay_ready_state.h"
 #include "crossplay_ready_codec.h"
 #include "crossplay_history_preparation.h"
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
 #include "crossplay_history_claim.h"
 #endif
 
@@ -111,7 +111,7 @@ inline ReadyObservation ObserveHistoryReadySnapshot(Crossplay::Edition edition,c
     return begin[4]==pending.value.host && begin[0x1c]==pending.value.guest
         && rows[0x5a8+0x71]==pending.value.host && rows[2*0x5a8+0x71]==pending.value.guest?ReadyObservation::Applied:ReadyObservation::Pending;
 }
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
 struct PendingHistoryRoomReady {uintptr_t session=0,row=0;unsigned char slot=0,value=0;};
 namespace ReadyStateDetail {
 inline bool RoomReadyRow(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,

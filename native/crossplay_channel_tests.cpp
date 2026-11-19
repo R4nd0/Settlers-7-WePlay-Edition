@@ -31,7 +31,7 @@ std::vector<unsigned char> Message(unsigned int index,unsigned int direction) {
     return bytes;
 }
 
-int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject) {
+int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject,bool delay) {
     const auto count=std::strlen(editions);
     Check(count>=2 && count<=RoomSnapshot::MaximumMembers && host>=1 && host<=count);
     const auto session=EnvironmentHex<16>("WEPLAY_CROSSPLAY_TEST_SESSION");
@@ -60,6 +60,7 @@ int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject) {
         configs.push_back(config);
     }
 
+    if(delay)Sleep(61000); // Hold the owner before its first engine frame.
     const auto deadline=GetTickCount64()+10000;
     while(GetTickCount64()<deadline) {
         size_t connected=0;
@@ -133,10 +134,12 @@ int RunRoom(uint16_t port,const char* editions,unsigned char host,bool reject) {
 }
 }
 int main(int argc,char** argv) {
-    if(argc==5 && (!std::strcmp(argv[4],"room") || !std::strcmp(argv[4],"room-reject"))) {
+    if(argc==5 && (!std::strcmp(argv[4],"room") || !std::strcmp(argv[4],"room-reject")
+            || !std::strcmp(argv[4],"room-delayed"))) {
         const auto port=std::strtol(argv[1],nullptr,10),host=std::strtol(argv[3],nullptr,10);
         Check(port>0 && port<=65535 && host>0 && host<=8);
-        return RunRoom(static_cast<uint16_t>(port),argv[2],static_cast<unsigned char>(host),!std::strcmp(argv[4],"room-reject"));
+        return RunRoom(static_cast<uint16_t>(port),argv[2],static_cast<unsigned char>(host),
+            !std::strcmp(argv[4],"room-reject"),!std::strcmp(argv[4],"room-delayed"));
     }
     Check(argc==4);char* end=nullptr;const long port=std::strtol(argv[1],&end,10);
     Check(end && !*end && port>0 && port<=65535);

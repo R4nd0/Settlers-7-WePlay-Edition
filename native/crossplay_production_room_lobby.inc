@@ -189,7 +189,7 @@
             || !CrossplaySetupSignatureNative::Hash(room_offer,room_team_config)
             || !CrossplayRoomTeams::Decode(CrossplayRoomTeams::Offer,event.bytes,room_team_config,room_local_routes,room_teams,room_ai_slot))return false;
         room_team_started=GetTickCount64();
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(launch.channel.edition==Crossplay::Edition::Gold){
             if(!CrossplayRoomGoldPreparation::Apply(original,room_admission,room_local_routes,session))return false;
             room_team_phase=TeamPhase::GoldConfirmingPlayers;
@@ -199,7 +199,7 @@
         return DeliverRoomTeams();
     }
 
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
     bool PumpGoldTeamReady(){
         std::vector<unsigned char> observed;
         CrossplaySessionConfig::Layout layout;
@@ -230,7 +230,7 @@
 
     bool PumpRoomTeams(const Crossplay::RoomSnapshot& room) {
         if(GetTickCount64()-room_team_started>10000)return false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(room_team_phase==TeamPhase::GoldConfirmingPlayers || room_team_phase==TeamPhase::GoldRestoringReady)
             return PumpGoldTeamReady();
 #endif
@@ -271,7 +271,7 @@
     bool ReadyRoomSupported(const Crossplay::RoomSnapshot& room) const {
         if(!room.host_slot || room.host_slot>room.member_count)return false;
         const auto edition=room.members[room.host_slot-1].edition;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(edition!=Crossplay::Edition::Gold)
             return edition==Crossplay::Edition::SteamHistory || edition==Crossplay::Edition::UbisoftHistory;
 #else
@@ -351,7 +351,7 @@
         CrossplayNative::RoomRoute own,host;
         if(!room_admission.Resolve(room->local_slot,false,own) || !own.local || own.host
             || !room_admission.Resolve(room->host_slot,false,host) || host.local || !host.host)return false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(room_saved_started)return CaptureRoomSavedReady(*room,manager,event,2,host.receiver_cid,true);
 #endif
         if(!room_primed || !ReadyRoomSupported(*room))return false;
@@ -437,7 +437,7 @@
             || !ValidateRoomSnapshot(expected))return false;
         uint32_t cpu=0;
         if(!CrossplayRoomAI::Seat(expected,room_local_routes,cpu))return false;
-#ifndef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifndef S7_CROSSPLAY_ROOM_WORLD
         if(cpu && (room.members[room.host_slot-1].edition!=Crossplay::Edition::Gold
                   || launch.channel.edition==Crossplay::Edition::Gold))return false;
 #endif
@@ -468,13 +468,13 @@
 
     bool HoldRoomGoldStart(const void* event) {
         using namespace CrossplayNativeCodec;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(room_saved_started)return HoldRoomSavedStart(event);
 #endif
         if(!launch.host || !room_held_start.empty())return false;
         bool deferred=false;
         if(!RoomAllHumansReadyObserved()){
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
             // History can produce its original start as soon as the final
             // Ready is consumed, before the room commits the new roster.
             std::vector<unsigned char> ready;
@@ -495,7 +495,7 @@
         std::vector<unsigned char> wire;
         if(!GameStartDetail::Source(p,event,room_local_routes.host)
             || !Detail::Encode(p,event,wire) || !CrossplayGameStart::Inspect(wire,room_local_routes.host))return false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         const bool needs_root=true;
 #else
         const bool needs_root=room_ai_slot!=0;
@@ -507,28 +507,28 @@
     }
 
 #include "crossplay_production_room_root.inc"
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
 #include "crossplay_production_room_world.inc"
 #include "crossplay_production_room_saved.inc"
 #endif
 
     bool PumpRoomReady(const Crossplay::RoomSnapshot& room) {
         if(room_team_phase==TeamPhase::Confirmed){
-#ifndef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifndef S7_CROSSPLAY_ROOM_WORLD
             if(!room_ai_slot)return true;
 #endif
             if(!PumpRoomRoot(room))return false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
             if(room_root_phase==RoomRootPhase::Confirmed)return PumpRoomStart(room);
 #endif
             return true;
         }
         if(room_team_phase!=TeamPhase::Idle)return PumpRoomTeams(room);
         if(!ReadyRoomSupported(room))return true;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!PrepareRoomHistoryHostRows())return false;
 #endif
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!SendRoomLobbyNeo(room))return false;
 #endif
         if(launch.host && (!OfferAddedRoomAI(room) || !room_configuration_complete))
@@ -545,7 +545,7 @@
                 outgoing_installed=true;
             }
             if(!channel.ReceiveRoom(event))return true;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
             if(Magic(event.bytes,CrossplayNeoSelection::Magic))return ReceiveRoomLobbyNeo(room,event);
 #endif
             if(event.bytes.size()>=sizeof(CrossplayRoomTeams::Offer)
@@ -602,7 +602,7 @@
         if(!room_configuration_started)room_configuration_started=now;
         if(room_configuration_complete)return true;
         bool saved=false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         saved=room_saved_started || (launch.host && !resume_ui_token.empty());
 #endif
         if(!saved && now-room_configuration_started>10000)return false;
@@ -612,7 +612,7 @@
             if(!room_admission.CaptureConfigurationRoutes(launch.room.capacity,room_local_routes))return false;
             room_configuration_interval={owner,session,reinterpret_cast<uintptr_t>(cache)};
         }
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(saved)return PumpRoomSaved(room);
 #endif
         std::vector<unsigned char> readback;
@@ -620,7 +620,7 @@
             if(room_offer.empty()) {
                 if(!ReadRoomSnapshot(readback))return true;
                 if(!CrossplayRoomAI::Seat(readback,room_local_routes,room_ai_slot))return false;
-#ifndef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifndef S7_CROSSPLAY_ROOM_WORLD
                 if(room_ai_slot && launch.channel.edition!=Crossplay::Edition::Gold)return false;
 #endif
                 if(room_ai_slot && !CrossplayRoomAI::ReadSelected(launch.channel.edition,room_local_routes.capacity,room_ai_slot,room_ai))return true;
@@ -661,7 +661,7 @@
         if(room_offer.empty()) {
             Crossplay::RoomEvent event;
             if(!channel.ReceiveRoom(event))return true;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
             if(Magic(event.bytes,RoomSavedOffer))return ReceiveRoomSavedConfiguration(event);
 #endif
             return ReceiveRoomOffer(event,room);
@@ -711,7 +711,7 @@
     }
 
     bool PumpRoomLobby() {
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(room_world_queued)return PumpRoomWorld();
 #endif
         const auto* snapshot=channel.GetRoom();
@@ -728,7 +728,7 @@
         phase=Phase::RosterBound;
         snapshot=channel.GetRoom();
         if(!snapshot)return false;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!neo_installed && !InstallNeo())return false;
 #endif
         if(!launch.host && launch.channel.edition!=Crossplay::Edition::Gold && !backend_projected){

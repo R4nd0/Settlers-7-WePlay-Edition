@@ -35,7 +35,7 @@ values together with the normal launcher/native contract. RC4 publication still
 requires all three original editions in the same session, three human clients
 plus one AI opponent, saving/loading and stable continuation from the final
 installed package. Separate pairs no longer satisfy the updated requirement;
-see [the version-3 release gate](RC4-RELOAD-RELEASE-GATE.md).
+see [the version-4 release gate](RC4-RELOAD-RELEASE-GATE.md).
 Private experimental DLLs are not release inputs.
 
 ## Ubisoft History resume and desync fixes, 2026-11-18
@@ -57,7 +57,11 @@ copying the old adapter into a new build would leave the native NEO correction
 out. [Mode 3 verification](receipts/support-resume-mode3-20261117.json)
 
 Rebuild both ordinary standalone adapters from `897124e` or a later qualified
-revision using the release settings in `native/build_standalone.ps1`.
+revision using `native/build_standalone.ps1 -Target All -GameDirectory
+-NeoLogistics -CrossplayRoom`. Supply the original verified Miles DLL and a
+fresh output directory. The room switch enables the ordinary native lobby and
+world code under the original standalone executable guard. The private game
+diagnostics are absent from this build.
 This baseline includes `6cb82be`, which installs the dedicated
 History NEO hooks only for History sessions and leaves the original comparator
 available to mixed NEO. It also includes `e6be812` for the Gold workshop,
@@ -74,6 +78,13 @@ archive fingerprint. Verify the native payload and all Lua/archive fingerprints
 against the same source revision before final installer qualification. Keep
 the Ubisoft History regression from the reported case in addition to the mixed
 three-edition reload tests required by the release gate.
+
+The installed helpers include `crossplay_room.LocalRoom` for an authenticated
+loopback room with distinct verified standalone roots. The same launcher
+checks the pinned adapter and full approved compatibility catalog for each
+participant. The room keeps all local platform services alive until the last
+attached game exits. The existing EasyTier pair path continues to use its own
+invitation and launcher operation.
 
 For that Ubisoft History regression, load the original autosave from logic turn
 27,001 with the final production payload. Compare the three original replay files

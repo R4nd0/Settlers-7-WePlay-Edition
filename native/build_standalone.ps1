@@ -1,7 +1,10 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory, [string]$MilesOriginal,
-      [switch]$GameDirectory,[switch]$NeoLogistics,
+      [switch]$GameDirectory,[switch]$NeoLogistics,[switch]$CrossplayRoom,
       [ValidateSet('ImageTests','PolicyTests','History','Gold','All')][string]$Target='ImageTests')
 $ErrorActionPreference = 'Stop'
+if ($CrossplayRoom -and $Target -in @('ImageTests','PolicyTests')) {
+    throw 'CrossplayRoom requires a standalone game adapter target.'
+}
 $source = $PSScriptRoot
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $destination) { throw 'Use a fresh standalone build directory.' }
@@ -50,12 +53,20 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Original Miles export verification failed.' }
         Compile-Standalone @('/LD','/DS7_PLATFORM_INDEPENDENT',(Join-Path $source '../tools/platform-standalone/steam_local_api.cpp'),
             '/Fe:steam_api.dll','/link',"/DEF:$(Join-Path $source '../tools/platform-standalone/steam_local_api.def')")
+        # Each adapter initializes its own toolchain environment. Keep the
+        # first adapter's vcvars changes out of the second adapter's process.
+        $adapterPowerShell = (Get-Process -Id $PID).Path
+        $roomOptions = @()
+        if ($CrossplayRoom) { $roomOptions += '-CrossplayRoom' }
         if ($Target -in @('History','All')) {
-            & (Join-Path $source 'build.ps1') -OutputDirectory (Join-Path $destination 'History') -PlatformIndependent -MaximumPhysicalCores 4 -GameDirectory:$GameDirectory -NeoLogistics:$NeoLogistics
+            $historyOptions = $roomOptions
+            if ($GameDirectory) { $historyOptions += '-GameDirectory' }
+            if ($NeoLogistics) { $historyOptions += '-NeoLogistics' }
+            & $adapterPowerShell -NoProfile -File (Join-Path $source 'build.ps1') -OutputDirectory (Join-Path $destination 'History') -PlatformIndependent -MaximumPhysicalCores 4 @historyOptions
             if ($LASTEXITCODE -ne 0) { throw 'Standalone History build failed.' }
         }
         if ($Target -in @('Gold','All')) {
-            & (Join-Path $source 'build_gold.ps1') -OutputDirectory (Join-Path $destination 'Gold') -PlatformIndependent -LocalSimulation
+            & $adapterPowerShell -NoProfile -File (Join-Path $source 'build_gold.ps1') -OutputDirectory (Join-Path $destination 'Gold') -PlatformIndependent -LocalSimulation @roomOptions
             if ($LASTEXITCODE -ne 0) { throw 'Standalone Gold build failed.' }
         }
     }

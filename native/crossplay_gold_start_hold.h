@@ -79,7 +79,7 @@ public:
     }
     static bool Install(const CrossplayNative::ParticipantEvent& binding,Callback callback){return InstallFor(binding,callback,nullptr);}
     static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,Callback callback){return InstallFor(binding,callback,&admission);}
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
     static bool InstallRoomBound(const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,unsigned char local_transport_slot,Callback callback) {
         const DWORD incoming=GetLastError();State next;next.callback=callback;

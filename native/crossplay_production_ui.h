@@ -6,7 +6,7 @@ namespace CrossplayProduction {
 // start permission and expose no identity, profile, endpoint or secret.
 inline bool UiCommand(const std::string& command,std::string& output){
     output.clear();const auto* launch=CurrentLaunch();if(!launch)return false;
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
     if(launch->IsRoom()){
         if(command=="mode"){output=launch->host?"room-host":"room-guest";return true;}
         if(command=="room-map"){output=launch->room.map;return true;}

@@ -182,8 +182,9 @@ struct Channel::Impl {
             if(!Accept() || !CompleteEofInput())return false;
             return !incoming.empty() || !input.empty();
         }
-        if(state!=State::Connected && GetTickCount64()-started>60000)return false;
+        const bool expired=GetTickCount64()-started>60000;
         if(state==State::Connecting) {
+            if(expired)return false;
             fd_set writes,errors;FD_ZERO(&writes);FD_ZERO(&errors);FD_SET(socket,&writes);FD_SET(socket,&errors);
             timeval timeout{0,connect_wait_us};const int ready=select(0,nullptr,&writes,&errors,&timeout);
             if(ready==SOCKET_ERROR || FD_ISSET(socket,&errors))return false;
@@ -222,7 +223,11 @@ struct Channel::Impl {
             input.insert(input.end(),buffer.begin(),buffer.begin()+length);
             if(!Accept())return false;
         }
-        return Accept() && (state!=State::Draining || CompleteEofInput());
+        // Engine startup can suspend the owner after StartRoom has sent its
+        // hello. Consume any authenticated reply already waiting in the
+        // socket before timing out an incomplete handshake.
+        return Accept() && (state!=State::Authenticating || !expired)
+            && (state!=State::Draining || CompleteEofInput());
     }
     bool CompleteEofInput() const {
         // A bounded Accept may leave additional complete frames for the next

@@ -70,7 +70,7 @@ struct GoldLocalObserver {
         candidate.session=snapshot.instance;candidate.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);
         return host!=UINT32_MAX && Root(candidate);
     }
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
     static bool CaptureRoomHost(const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,unsigned char local_transport_slot,
         State& candidate,uint32_t& host) {

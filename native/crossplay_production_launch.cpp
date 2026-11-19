@@ -15,7 +15,7 @@ bool Read(const wchar_t* key,size_t maximum,std::wstring& value,bool& present){
     if(!size || size+1!=needed)return false;
     buffer.resize(size);value=std::move(buffer);return true;
 }
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
 bool ReadRoom(const std::wstring& activation,Crossplay::Edition edition,const Crossplay::Digest& executable,
               const std::wstring& profile,Launch& output) {
     RoomLaunchInput input;
@@ -51,7 +51,7 @@ bool ReadLaunch(Crossplay::Edition edition,const Crossplay::Digest& executable,
     if(!Read(L"WEPLAY_CROSSPLAY_ROOM_V2",1,room_activation,room_present))return false;
     if(!Read(L"WEPLAY_CROSSPLAY_V1",1,input.activation,present))return false;
     if(room_present){
-#ifdef S7_CROSSPLAY_ROOM_LOBBY_LAB
+#ifdef S7_CROSSPLAY_ROOM_LOBBY
         return !present && ReadRoom(room_activation,edition,executable,actual_profile,output);
 #else
         return false;

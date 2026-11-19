@@ -11,6 +11,7 @@ FORMAT = 'weplay-platform-independent-v1'
 RECORD = 'Launcher/platform-standalone.json'
 TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py','network_elevation.py','network_peer_policy.py',
          'crossplay_session.py', 'crossplay_content.py', 'crossplay_broker.py', 'crossplay_runtime.py',
+         'crossplay_room.py', 'crossplay_room_broker.py',
          'crossplay_invitation.py', 'crossplay_host.py', 'crossplay_network.py', 'history_session.py', 'internet_room.py', 'lobby_directory.py')
 GOLD_SERVICE_TOOLS = ('gold_session.py', 'login_server.py', 'account_config.py', 'account_profile.py',
                       'local_gatherings.py', 'gathering_codec.py', 'nat_traversal.py', 'easytier_gateway.py')

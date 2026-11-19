@@ -264,7 +264,7 @@
         return true;
     }
     static bool SavedPostloadAuthority(){
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(current && current->launch.IsRoom())
             return current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
                 && current->phase==Phase::RosterBound && current->room_saved_world_prepared

@@ -1,5 +1,13 @@
 # Experimental native local start, 2026-10-26
 
+Ubisoft History hosted Gold and Steam History with one AI at normal speed
+under DXVK 3.1.1. Its original save at logic turn 60 contains all four
+participants and enabled NEO. All three clients continued after saving and
+matched 522 consecutive finished-turn checksums over 257.184 seconds. The
+three original clocks reported 100 ms and all three processes exited with
+code zero. Restoration verified the isolated copies.
+[Measured Ubisoft host save](receipts/ubisoft-host-mixed-save-20261119.json)
+
 The Steam History host reloaded its original multiplayer save with Gold and
 Ubisoft History as guests. Each guest verified 23,683 original file packets
 against the saved world digest. All three started through the original saved

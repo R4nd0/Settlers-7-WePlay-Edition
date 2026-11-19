@@ -73,7 +73,7 @@
         if(room_root_phase==RoomRootPhase::Confirmed)return true;
         if(room_root_phase==RoomRootPhase::Idle && launch.host){
             if(room_held_start.empty())return true;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
             if(launch.channel.edition!=Crossplay::Edition::Gold && !room_history_save_roster)
                 return GetTickCount64()-room_team_started<=10000;
 #endif

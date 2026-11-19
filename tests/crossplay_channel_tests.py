@@ -97,7 +97,7 @@ class AlteredRoomBroker(CrossplayRoomBroker):
                 raise ValueError('Unknown mutation')
         return bytes(body)
 
-def run_room(executable, editions, host_slot, mutation=None, *, admission=False):
+def run_room(executable, editions, host_slot, mutation=None, *, admission=False, delay=False):
     launches=tuple(Launch(int(edition), secrets.token_bytes(32),
                           bytes([42+i])+bytes(15) if edition=='1' else bytes([42+i])*16,
                           bytes([0x51])*32)
@@ -110,11 +110,11 @@ def run_room(executable, editions, host_slot, mutation=None, *, admission=False)
         for slot,launch in enumerate(launches,1):
             environment[f'WEPLAY_CROSSPLAY_ROOM_KEY_{slot}']=launch.key.hex()
             environment[f'WEPLAY_CROSSPLAY_ROOM_EXE_{slot}']=PINS[launch.edition].hex()
-        with subprocess.Popen([str(executable),str(broker.port),editions,str(host_slot),
-                               'room-reject' if mutation else 'room'],
+        scenario = 'room-delayed' if delay else 'room-reject' if mutation else 'room'
+        with subprocess.Popen([str(executable),str(broker.port),editions,str(host_slot),scenario],
                               env=environment,stderr=subprocess.PIPE) as child:
             try:
-                deadline=time.monotonic()+15
+                deadline=time.monotonic()+(76 if delay else 15)
                 while child.poll() is None and time.monotonic()<deadline:
                     broker.pump(.01)
                 if child.poll() is None:
@@ -135,6 +135,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('native_test_executable', type=Path)
     parser.add_argument('--room-admission', type=Path)
+    parser.add_argument('--delayed-room', action='store_true')
     args = parser.parse_args()
     executable = args.native_test_executable.resolve()
     for edition in (2, 3):
@@ -152,6 +153,9 @@ def main():
     for mutation in mutations:
         run_room(executable,'123',2,mutation)
     print(f'PASS 20 pair and {len(cases)+len(mutations)} room native/broker scenarios; no game executed.')
+    if args.delayed_room:
+        run_room(executable,'123',2,delay=True)
+        print('PASS queued authenticated room reply after a delayed owner frame.')
     if args.room_admission:
         for editions,host in cases:
             run_room(args.room_admission.resolve(),editions,host,admission=True)

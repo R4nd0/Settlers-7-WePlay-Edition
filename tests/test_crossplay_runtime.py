@@ -37,6 +37,36 @@ class RuntimeTests(unittest.TestCase):
         broker.close.assert_called_once(); gold.close.assert_called_once()
         game.terminate.assert_not_called(); game.kill.assert_not_called()
 
+    def test_room_keeps_services_until_every_attached_game_exits(self):
+        broker = self.endpoint()
+        services = tuple(self.endpoint() for _ in range(3))
+        games = tuple(Mock() for _ in range(3))
+        for game in games:
+            game.poll.return_value = None
+        owner = SessionPump(broker=broker, services=services, game_limit=3)
+        self.addCleanup(owner.close)
+        for game in games:
+            owner.attach(game)
+        with self.assertRaises(ValueError):
+            owner.attach(Mock())
+
+        reached = threading.Event()
+        services[-1].pump.side_effect = lambda *_: reached.set()
+        games[0].poll.return_value = 0
+        owner.start()
+        self.assertTrue(reached.wait(2))
+        self.assertFalse(owner.closed)
+
+        for game in games[1:]:
+            game.poll.return_value = 0
+        owner.thread.join(timeout=2)
+        self.assertTrue(owner.closed)
+        owner.check()
+        for service in (broker, *services):
+            service.close.assert_called_once()
+        for game in games:
+            game.terminate.assert_not_called()
+
     def test_history_service_failure_closes_gateway_without_terminating_the_game(self):
         history,gateway=self.endpoint(),self.endpoint()
         history.pump.side_effect=RuntimeError('fixture private local service failure')

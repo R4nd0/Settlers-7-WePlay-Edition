@@ -63,7 +63,7 @@ bool NetworkLocalReadyAllowed() {
     if(launch && launch->mixed){
         if(!CrossplayProduction::GoldWorldOwnsStartedSession(session))return false;
         mixed=true;
-#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+#ifdef S7_CROSSPLAY_ROOM_WORLD
         if(launch->IsRoom()){
             expected_humans=CrossplayProduction::GoldWorldHumanSeats(session);
             room=true;
