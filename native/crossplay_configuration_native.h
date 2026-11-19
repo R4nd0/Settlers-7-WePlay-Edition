@@ -72,7 +72,8 @@ inline bool Snapshot(Crossplay::Edition edition,const CrossplayNative::Participa
 }
 inline bool SnapshotRoom(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,
         const CrossplayNative::RoomLobbyAdmission& admission,const CrossplaySessionConfig::RoomConnections& ids,
-        CrossplayConfigurationReceipt::Interval interval,std::vector<unsigned char>& wire){
+        CrossplayConfigurationReceipt::Interval interval,std::vector<unsigned char>& wire,
+        const std::string& save_token={}){
     using namespace CrossplayNativeCodec;
     const auto owned=[&]{
         CrossplayNative::LobbySnapshot lobby;
@@ -84,7 +85,9 @@ inline bool SnapshotRoom(Crossplay::Edition edition,const CrossplayNative::Parti
     return SnapshotChecked(edition,ids.host,interval,owned,[&](const auto& p,const auto* map,const auto* save,const auto* rows){
         return SessionConfigDetail::FieldsChecked(p,map,save,rows,[&](size_t i,unsigned ready,unsigned privacy,uint32_t slot,uint32_t station,uint32_t state){
             return CrossplaySessionConfig::RoomSlotValid(i,ready,privacy,slot,station,state,ids,true);
-        });
-    },[&](const auto& snapshot,auto& output){return CrossplaySessionConfig::ProjectRoom(snapshot,ids,ids,output,true);},wire);
+        },save_token);
+    },[&](const auto& snapshot,auto& output){
+        return CrossplaySessionConfig::RoomDetail::Project(snapshot,ids,ids,output,true,save_token);
+    },wire);
 }
 }

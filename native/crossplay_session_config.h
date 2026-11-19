@@ -54,13 +54,14 @@ inline bool RelativeMap(const std::string& path) {
     }
     return true;
 }
-inline bool ReadLayout(const std::vector<unsigned char>& wire,uint32_t host,Layout& result) {
+inline bool ReadLayout(const std::vector<unsigned char>& wire,uint32_t host,Layout& result,
+                       const std::string& save_token={}) {
     result={};
     if(host==UINT32_MAX || wire.size()<13 || wire.size()>MaximumWire
         || CrossplayChat::Word(wire.data())!=Class || CrossplayChat::Word(wire.data()+4)!=Type
         || CrossplayChat::Word(wire.data()+8)!=host || wire[12]!=1)return false;
     size_t at=13;std::string map,save;
-    if(!String(wire,at,map) || !RelativeMap(map) || !String(wire,at,save) || !save.empty()
+    if(!String(wire,at,map) || !RelativeMap(map) || !String(wire,at,save) || save!=save_token
         || wire.size()-at!=4+Slots*SlotBytes || CrossplayChat::Word(wire.data()+at)!=Slots)return false;
     result={at+4,std::move(map)};
     return true;
@@ -101,10 +102,11 @@ inline bool RoomSlotValid(size_t index,unsigned ready,unsigned privacy,uint32_t 
     if(state==2)return index<room.capacity && ready==1 && slot==index+1;
     return (state==0 || (state==1 && index<room.capacity) || state==5) && !ready && slot==UINT32_MAX;
 }
-inline bool InspectRoom(const std::vector<unsigned char>& wire,const RoomConnections& room,Layout& result,
-        bool local_snapshot=false) {
+namespace RoomDetail {
+inline bool Inspect(const std::vector<unsigned char>& wire,const RoomConnections& room,Layout& result,
+                    bool local_snapshot,const std::string& save_token) {
     result={};Layout layout;
-    if(!ValidRoomConnections(room) || !ReadLayout(wire,room.host,layout))return false;
+    if(!ValidRoomConnections(room) || !ReadLayout(wire,room.host,layout,save_token))return false;
     size_t at=layout.slots_at;
     for(size_t i=0;i<Slots;++i,at+=SlotBytes) {
         if(!RoomSlotValid(i,wire[at],wire[at+5],CrossplayChat::Word(wire.data()+at+1),
@@ -114,10 +116,10 @@ inline bool InspectRoom(const std::vector<unsigned char>& wire,const RoomConnect
 }
 // Translate only the original sender and each human's StationID. Keep a
 // zero CID valid and copy AI/open/closed records without touching their bytes.
-inline bool ProjectRoom(const std::vector<unsigned char>& input,const RoomConnections& source,
-        const RoomConnections& target,std::vector<unsigned char>& output,bool local_snapshot=false) {
+inline bool Project(const std::vector<unsigned char>& input,const RoomConnections& source,
+        const RoomConnections& target,std::vector<unsigned char>& output,bool local_snapshot,const std::string& save_token) {
     Layout layout;
-    if(!InspectRoom(input,source,layout,local_snapshot) || !ValidRoomConnections(target)
+    if(!Inspect(input,source,layout,local_snapshot,save_token) || !ValidRoomConnections(target)
         || source.capacity!=target.capacity){output.clear();return false;}
     auto result=input;
     for(size_t i=0;i<Slots;++i) {
@@ -127,8 +129,17 @@ inline bool ProjectRoom(const std::vector<unsigned char>& input,const RoomConnec
         if(human)CrossplayChat::Put(result.data()+layout.slots_at+i*SlotBytes+6,target.stations[i]);
     }
     CrossplayChat::Put(result.data()+8,target.host);
-    if(!InspectRoom(result,target,layout)){output.clear();return false;}
+    if(!Inspect(result,target,layout,false,save_token)){output.clear();return false;}
     output=std::move(result);return true;
+}
+}
+inline bool InspectRoom(const std::vector<unsigned char>& wire,const RoomConnections& room,Layout& result,
+        bool local_snapshot=false) {
+    return RoomDetail::Inspect(wire,room,result,local_snapshot,{});
+}
+inline bool ProjectRoom(const std::vector<unsigned char>& input,const RoomConnections& source,
+        const RoomConnections& target,std::vector<unsigned char>& output,bool local_snapshot=false) {
+    return RoomDetail::Project(input,source,target,output,local_snapshot,{});
 }
 inline bool BindSource(const std::vector<unsigned char>& snapshot,Connections ids,std::vector<unsigned char>& wire) {
     wire.clear();Layout layout;

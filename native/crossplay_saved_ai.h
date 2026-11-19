@@ -13,11 +13,13 @@ inline bool Same(const Row& a,const Row& b){
 inline bool Valid(const Row& row){return row.slot>=3 && row.slot<=4 && row.profile>=1 && row.profile<=255 && row.difficulty<=2 && row.peaceful<=1;}
 // AI authority comes from the retained file's actual saved players. A newly
 // created lobby has closed slots and unrelated default preparation profiles.
-inline bool FromArchive(const CrossplaySavedPlayers::Snapshot& source,unsigned& mask,std::array<Row,2>& rows){
+inline bool FromArchive(const CrossplaySavedPlayers::Snapshot& source,unsigned& mask,std::array<Row,2>& rows,
+                        unsigned human_mask=6){
     mask=0;rows={};if(!source.bytes)return false;unsigned observed=0;std::array<Row,2> result{};
+    if(!human_mask || (human_mask&~0x1feu))return false;
     for(unsigned slot=0;slot<25;++slot){
         const auto& value=source.rows[slot];
-        if(slot==1 || slot==2){if(value.kind!=1 || value.controller!=3 || value.index!=slot)return false;continue;}
+        if(human_mask&(1u<<slot)){if(value.kind!=1 || value.controller!=3 || value.index!=slot)return false;continue;}
         if(value.kind==2){
             Row row{slot,value.profile,value.difficulty,value.peaceful};
             if(!Valid(row) || value.controller!=1 || value.index!=slot)return false;

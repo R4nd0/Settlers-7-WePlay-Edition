@@ -59,11 +59,12 @@ inline bool NativeString(const unsigned char* object,std::string& result) {
 }
 template<class SlotCheck>
 inline bool FieldsChecked(const Detail::Profile& p,const unsigned char* map_field,const unsigned char* save_field,
-                          const unsigned char* container,SlotCheck check) {
+                          const unsigned char* container,SlotCheck check,const std::string& save_token={}) {
     if(!Detail::Readable(map_field,16) || !Detail::Readable(save_field,16)
         || !Detail::Readable(container,p.gold?16:12))return false;
     std::string map,save;
-    if(!NativeString(map_field,map) || !CrossplaySessionConfig::RelativeMap(map) || !NativeString(save_field,save) || !save.empty())return false;
+    if(!NativeString(map_field,map) || !CrossplaySessionConfig::RelativeMap(map)
+        || !NativeString(save_field,save) || save!=save_token)return false;
     const auto* vector=reinterpret_cast<const uintptr_t*>(container+(p.gold?4:0));
     constexpr size_t bytes=CrossplaySessionConfig::Slots*0x18;
     if(vector[1]<vector[0] || vector[1]-vector[0]!=bytes || vector[2]<vector[1]
@@ -88,7 +89,8 @@ inline bool Source(const Detail::Profile& p,const void* event,CrossplaySessionCo
         && CrossplayChat::Word(data+4)==CrossplaySessionConfig::Type && CrossplayChat::Word(data+8)==ids.host && data[12]==1
         && Fields(p,data+0x10,data+0x20,data+0x30,ids);
 }
-inline bool RoomSource(const Detail::Profile& p,const void* event,const CrossplaySessionConfig::RoomConnections& routes) {
+inline bool RoomSource(const Detail::Profile& p,const void* event,const CrossplaySessionConfig::RoomConnections& routes,
+                       const std::string& save_token={}) {
     const auto* data=static_cast<const unsigned char*>(event);
     return CrossplaySessionConfig::ValidRoomConnections(routes)
         && Detail::Readable(data,p.gold?0x40:0x3c) && *reinterpret_cast<const uintptr_t*>(data)==p.event_vt
@@ -97,7 +99,7 @@ inline bool RoomSource(const Detail::Profile& p,const void* event,const Crosspla
         && FieldsChecked(p,data+0x10,data+0x20,data+0x30,[&](size_t i,unsigned ready,unsigned privacy,
                 uint32_t slot,uint32_t station,uint32_t state){
             return CrossplaySessionConfig::RoomSlotValid(i,ready,privacy,slot,station,state,routes,true);
-        });
+        },save_token);
 }
 inline void* GoldConstruct(uintptr_t address,const void* map,void* output,uint32_t source,const void* save,const void* slots) {
     void* result=nullptr;

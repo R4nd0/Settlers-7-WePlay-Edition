@@ -1,5 +1,13 @@
 # Experimental native local start, 2026-10-26
 
+The three-edition saved-session experiment subsequently transferred the
+Gold host's original world stream to both History clients. Each original
+receiver processed 2,961 packets and exposed a 24,252,669-byte resident
+stream with the source digest. Both guests verified the saved NEO metadata.
+The test copies were restored after all three clients exited normally.
+The launch path is still experimental. The original guest Ready sequence,
+saved-world start and synchronized continuation need separate proof.
+
 On 2026-11-19, the isolated Gold-hosted room with both History editions and
 one AI completed 197 consecutive original turns with matching checksums under
 DXVK 3.1.1. The original replay clock was 100 ms on all three clients. Gold

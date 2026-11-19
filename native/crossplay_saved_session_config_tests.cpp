@@ -84,6 +84,39 @@ int main(){
     REQUIRE(R::Encode(a,next,source,map,save,wire,frame));
     REQUIRE(R::Discover(b,checkpoint.content,source,target,map,frame,discovered,token,decoded));
     REQUIRE(discovered.logic_turn==700 && discovered.file==next.file && discovered.neo==next.neo);
+    const auto pair=frame;
+    CrossplaySessionConfig::RoomConnections room_source,room_target;
+    room_source.capacity=room_target.capacity=4;
+    room_source.host=42;room_target.host=82;
+    room_source.stations[0]=44;room_source.stations[1]=42;room_source.stations[2]=46;
+    room_target.stations[0]=86;room_target.stations[1]=82;room_target.stations[2]=0;
+    auto room_wire=wire;
+    for(unsigned i=0;i<4;++i){
+        auto* row=room_wire.data()+at+i*CrossplaySessionConfig::SlotBytes;
+        CrossplayChat::Put(row+6,i<3?room_source.stations[i]:0);
+        row[10]=i<3?3:4;
+    }
+    REQUIRE(!CrossplaySessionConfig::InspectRoom(room_wire,room_source,layout));
+    REQUIRE(R::EncodeRoom(a,checkpoint,room_source,map,save,room_wire,frame));
+    REQUIRE(R::DecodeRoom(b,checkpoint,room_source,room_target,map,save,frame,decoded));
+    expected=room_wire;
+    CrossplayChat::Put(expected.data()+8,room_target.host);
+    for(unsigned i=0;i<3;++i)CrossplayChat::Put(expected.data()+at+i*CrossplaySessionConfig::SlotBytes+6,room_target.stations[i]);
+    REQUIRE(decoded==expected);
+    REQUIRE(R::DiscoverRoom(b,checkpoint.content,room_source,room_target,map,frame,discovered,token,decoded));
+    REQUIRE(token==save && discovered.file==checkpoint.file && decoded==expected);
+    REQUIRE(!R::DecodeRoom(b,checkpoint,room_source,room_target,map,save,pair,decoded));
+    REQUIRE(!R::DiscoverRoom(b,checkpoint.content,room_source,room_target,map,pair,discovered,token,decoded));
+    REQUIRE(!R::Decode(b,checkpoint,source,target,map,save,frame,decoded));
+    REQUIRE(!R::DecodeRoom(b,checkpoint,room_source,room_target,map,"s1000",frame,decoded));
+    REQUIRE(!R::DecodeRoom(b,checkpoint,room_source,room_target,"Maps/Other",save,frame,decoded));
+    REQUIRE(!R::DecodeRoom(a,checkpoint,room_source,room_target,map,save,frame,decoded));
+    REQUIRE(!R::DecodeRoom(b,invalid,room_source,room_target,map,save,frame,decoded));
+    auto wrong_host=room_target;wrong_host.host=wrong_host.stations[0];
+    REQUIRE(!R::DecodeRoom(b,checkpoint,room_source,wrong_host,map,save,frame,decoded));
+    auto incomplete=room_target;incomplete.stations[2]=UINT32_MAX;
+    REQUIRE(!R::DecodeRoom(b,checkpoint,room_source,incomplete,map,save,frame,decoded));
+    REQUIRE(!R::EncodeRoom(a,checkpoint,room_source,map,"Z:/Savegames/s1009",room_wire,frame));
     printf("PASS %u saved configuration checks: checkpoint/map/cache-token/peer binding, original Ready and AI bytes preserved, three routing CIDs projected; synthetic transport only, no file admission or reload claim.\n",checks);
     return 0;
 }

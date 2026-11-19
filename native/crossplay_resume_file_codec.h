@@ -92,12 +92,11 @@ inline bool Encode(Crossplay::Edition edition,const CrossplayNative::Participant
         && CrossplayResumeTransfer::Inspect(wire,ids.host,total))return true;
     wire.clear();return false;
 }
-inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
-                    uintptr_t session,CrossplaySessionConfig::Connections ids,uint32_t total,
-                    const std::vector<unsigned char>& wire) {
+template<class FileContext>
+inline bool EnqueueBound(Crossplay::Edition edition,uint32_t host,uint32_t total,
+                         const std::vector<unsigned char>& wire,FileContext context) {
     LoadProgressDetail::FpScope preserve;
-    if(!Owner(binding,owner,session,ids,false) || !Methods(edition)
-        || !CrossplayResumeTransfer::Inspect(wire,ids.host,total))return false;
+    if(!context() || !Methods(edition) || !CrossplayResumeTransfer::Inspect(wire,host,total))return false;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());
     stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
@@ -106,8 +105,8 @@ inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::Participan
         reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,name,0);
     if(!decoded || !Detail::Readable(decoded,0x20) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
-    bool okay=stream.value.position==wire.size() && Source(p,decoded,ids.host,total)
-        && Detail::Encode(p,decoded,repeated) && repeated==wire && Owner(binding,owner,session,ids,false);
+    bool okay=stream.value.position==wire.size() && Source(p,decoded,host,total)
+        && Detail::Encode(p,decoded,repeated) && repeated==wire && context();
     uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport && OwnershipMethods(edition,send)){
         reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);
@@ -120,5 +119,10 @@ inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::Participan
     // Destroy our event object only. Its payload now belongs to the native queue.
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
     return okay;
+}
+inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
+                    uintptr_t session,CrossplaySessionConfig::Connections ids,uint32_t total,
+                    const std::vector<unsigned char>& wire) {
+    return EnqueueBound(edition,ids.host,total,wire,[&]{return Owner(binding,owner,session,ids,false);});
 }
 }
