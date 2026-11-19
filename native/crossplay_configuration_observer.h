@@ -1,6 +1,7 @@
 #pragma once
 #include "crossplay_production_observer.h"
 #include "crossplay_session_config_codec.h"
+#include <array>
 
 // Observe the build-specific original configuration consumer after it returns.
 // A queued clone or a pre-existing matching map alone is not this receipt.
@@ -21,6 +22,8 @@ inline void (*capture)(void*,const unsigned char*)=nullptr;
 inline bool host_closed=false;
 inline uintptr_t closed_event=0;
 inline void (*capture_closed)(void*,const unsigned char*)=nullptr;
+using DispatcherNormalizer=bool (*)(Crossplay::Edition,uintptr_t,unsigned char*,size_t);
+inline DispatcherNormalizer normalize_installed_resume=nullptr;
 inline bool Methods(Crossplay::Edition edition){
     using CrossplayNativeCodec::Detail::Readable;const auto p=Pin(edition);
     if(!p.table || !Readable(reinterpret_cast<void*>(p.table+4),4)
@@ -29,6 +32,13 @@ inline bool Methods(Crossplay::Edition edition){
     uint64_t hash=14695981039346656037ull;
     const auto* code=reinterpret_cast<const unsigned char*>(p.dispatcher);
     for(size_t i=0;i<p.method_bytes;++i)hash=(hash^code[i])*1099511628211ull;
+    if(hash==p.fingerprint)return true;
+    std::array<unsigned char,0xc10> original{};
+    if(!normalize_installed_resume || p.method_bytes>original.size())return false;
+    memcpy(original.data(),code,p.method_bytes);
+    if(!normalize_installed_resume(edition,p.dispatcher,original.data(),p.method_bytes))return false;
+    hash=14695981039346656037ull;
+    for(size_t i=0;i<p.method_bytes;++i)hash=(hash^original[i])*1099511628211ull;
     return hash==p.fingerprint;
 }
 #ifdef S7_PRODUCTION_CONFIGURATION_OBSERVER_TESTING

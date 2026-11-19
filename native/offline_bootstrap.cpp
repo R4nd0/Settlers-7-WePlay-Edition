@@ -26,6 +26,9 @@
 #endif
 #include <intrin.h>
 #include "offline_bootstrap.h"
+#if defined(S7_PLATFORM_INDEPENDENT) && defined(S7_LOCAL_NETWORK_PUMP)
+#include "crossplay_configuration_observer.h"
+#endif
 #include "ai_catalog_unlock.h"
 #include "runtime_config.h"
 #include "local_connect_policy.h"
@@ -1396,16 +1399,42 @@ uint32_t OriginalPointer(const Patch& patch) {
     return static_cast<uint32_t>(image_base + preferred - PreferredBase);
 }
 
+void EncodePatchCall(const Patch& patch,const unsigned char* at,unsigned char (&bytes)[5]) {
+    bytes[0]=0xe8;
+    const uint32_t relative=static_cast<uint32_t>(reinterpret_cast<uintptr_t>(patch.replacement))
+        -static_cast<uint32_t>(reinterpret_cast<uintptr_t>(at)+5);
+    memcpy(bytes+1,&relative,sizeof(relative));
+}
+
+#if defined(S7_PLATFORM_INDEPENDENT) && defined(S7_LOCAL_NETWORK_PUMP)
+bool NormalizeResumeDispatcher(Crossplay::Edition edition,uintptr_t start,unsigned char* bytes,size_t size) {
+    const auto actual=steam_history?Crossplay::Edition::SteamHistory:Crossplay::Edition::UbisoftHistory;
+    if(edition!=actual || !bytes || !local_connect_probe || initialization!=2
+        || GetCurrentThreadId()!=bootstrap_thread.load(std::memory_order_acquire))return false;
+    for(const auto& patch:ResumeChunkPatches){
+        const auto* address=PatchAddress(patch);
+        const auto at=reinterpret_cast<uintptr_t>(address);
+        const size_t length=patch.raw_length?patch.raw_length:5;
+        if(at<start || at-start>size || length>size-(at-start))return false;
+        unsigned char call[5]{};
+        EncodePatchCall(patch,address,call);
+        const auto* expected=patch.raw_length?static_cast<const unsigned char*>(patch.replacement):call;
+        auto* candidate=bytes+(at-start);
+        if(memcmp(candidate,expected,length))return false;
+        memcpy(candidate,OriginalBytes(patch),length);
+    }
+    return true;
+}
+#endif
+
 bool WritePatch(const Patch& patch, bool restore) {
     if (patch.raw_length > sizeof(patch.original) || (patch.raw_length && patch.pointer_slot)) return false;
     unsigned char* at = PatchAddress(patch);
     DWORD old_protection = 0;
     const size_t length = patch.pointer_slot ? 4 : (patch.raw_length ? patch.raw_length : 5);
     if (!VirtualProtect(at, length, patch.pointer_slot ? PAGE_READWRITE : PAGE_EXECUTE_READWRITE, &old_protection)) return false;
-    unsigned char bytes[5] = {0xe8,0,0,0,0};
-    uint32_t relative = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(patch.replacement)) -
-                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(at) + 5);
-    memcpy(bytes + 1, &relative, sizeof(relative));
+    unsigned char bytes[5]{};
+    EncodePatchCall(patch,at,bytes);
     if (patch.pointer_slot) {
         uint32_t value = restore ? OriginalPointer(patch) : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(patch.replacement));
         memcpy(at, &value, sizeof(value));
@@ -1567,6 +1596,9 @@ bool InitializeOfflineBootstrap(const OfflineBootstrapConfig& config) {
     ReportLocalStatus("local-cpu-four-physical-cores-no-smt");
 #endif
     InterlockedExchange(&initialization, 2);
+#if defined(S7_PLATFORM_INDEPENDENT) && defined(S7_LOCAL_NETWORK_PUMP)
+    if(local_connect_probe)CrossplayProduction::ConfigurationObserver::normalize_installed_resume=&NormalizeResumeDispatcher;
+#endif
     SetError(None);
     return true;
 }

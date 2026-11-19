@@ -1,5 +1,11 @@
 # Experimental native local start, 2026-10-26
 
+An isolated Steam-hosted room verified the original Gold and Ubisoft
+guest Ready actions and the original Steam host's readback on all three
+clients. The History guard checks the exact installed resume-sender patches
+before reconstructing its original dispatcher fingerprint in a detached
+copy. This result covers the native lobby before AI selection and world load.
+
 The three-edition Gold-hosted saved-session experiment used the original
 save at logic turn 120. Each History client processed 2,961 original packets
 and exposed a 24,252,669-byte resident stream with the source digest. Both

@@ -17,6 +17,9 @@ struct GoldSdkReadyHold {
         CrossplayNativeObserver::GoldLocalObserver::State roots{};
         const CrossplayNative::ParticipantEvent* binding=nullptr;CrossplayNative::LobbyAdmission* admission=nullptr;
         const CrossplayNative::GoldGuestRowClaim* claim=nullptr;const CrossplayNative::GoldGuestIdentity* identity=nullptr;
+        const CrossplayNative::RoomLobbyAdmission* room=nullptr;
+        unsigned char room_slot=0;
+        uint32_t room_connection=UINT32_MAX;
         Callback callback=nullptr;unsigned patched=0,captured=0,failure=0;bool inside=false,failed=false;
     };
     static State& Current(){static State state;return state;}
@@ -49,12 +52,23 @@ struct GoldSdkReadyHold {
     }
     static bool Bound(const State& state){
         const auto* launch=CrossplayProduction::CurrentLaunch();
-        return launch && launch->mixed && !launch->host && launch->channel.edition==Crossplay::Edition::Gold
-            && launch->channel.expected_peer==Crossplay::Edition::SteamHistory && state.roots.owner==GetCurrentThreadId()
-            && state.binding && state.admission && state.claim && state.identity
-            && CrossplayNativeObserver::GoldLocalObserver::Root(state.roots)
-            && CrossplayGoldGuestReady::Context(*state.binding,*state.admission,*state.claim,*state.identity,
-                {state.admission->PeerLocalConnection(),state.admission->OwnConnection()});
+        if(!launch || !launch->mixed || launch->host || launch->channel.edition!=Crossplay::Edition::Gold
+            || state.roots.owner!=GetCurrentThreadId() || !state.binding
+            || !CrossplayNativeObserver::GoldLocalObserver::Root(state.roots))return false;
+        if(state.room){
+            CrossplayNative::RoomRoute local;
+            CrossplayNative::LobbySnapshot lobby;
+            const auto* native=reinterpret_cast<const unsigned char*>(state.roots.session);
+            return launch->IsRoom() && launch->room.channel.slot==state.room_slot
+                && state.room->Resolve(state.room_slot,false,local) && local.local && !local.host
+                && local.receiver==Crossplay::Edition::Gold && local.receiver_cid==state.room_connection
+                && state.binding->CaptureLobby(lobby) && lobby.instance==state.roots.session
+                && !lobby.host && lobby.local_slot==local.player_slot
+                && CrossplayNativeCodec::Detail::Readable(native,0x34) && CrossplayChat::Word(native+0x30)==2;
+        }
+        return launch->channel.expected_peer==Crossplay::Edition::SteamHistory
+            && state.admission && state.claim && state.identity && CrossplayGoldGuestReady::Context(
+                *state.binding,*state.admission,*state.claim,*state.identity,{state.admission->PeerLocalConnection(),state.admission->OwnConnection()});
     }
 #ifdef S7_GOLD_SDK_READY_HOLD_TESTING
     inline static void (__cdecl* probe)(void*,void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t,uintptr_t)=nullptr;
@@ -82,7 +96,8 @@ struct GoldSdkReadyHold {
         if(continuation!=0xaa819d && continuation!=0xaa8277){Reject(5);return;}
         if(!Methods()){Reject(6);return;}
         if(!Bound(state)){Reject(7);return;}
-        const unsigned invalid=NotificationFailure(event,state.admission->OwnConnection(),continuation);
+        const auto connection=state.room?state.room_connection:state.admission->OwnConnection();
+        const unsigned invalid=NotificationFailure(event,connection,continuation);
         if(invalid){Reject(invalid);return;}
         state.inside=true;bool accepted=false;
         try{accepted=state.callback(manager,event);}catch(...){Reject(11);}
@@ -98,14 +113,12 @@ struct GoldSdkReadyHold {
         const bool restored=VirtualProtect(at,5,protection,&unused)!=FALSE;
         if(!flushed || !restored)__fastfail(7);return true;
     }
-    static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,
-                             const CrossplayNative::GoldGuestRowClaim& claim,const CrossplayNative::GoldGuestIdentity& identity,Callback callback){
-        struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
-        auto& state=Current();if(state.roots.installed || !callback || !Methods())return false;
+private:
+    static bool InstallPrepared(State next){
+        auto& state=Current();if(state.roots.installed || !next.binding || !next.callback || !Methods())return false;
         CrossplayNative::LobbySnapshot lobby;uintptr_t send=0;
         auto* manager=CrossplayNativeCodec::Detail::Transport(Crossplay::Edition::Gold,send);
-        if(!manager || send!=0xa4e430 || !binding.CaptureLobby(lobby))return false;
-        State next;next.binding=&binding;next.admission=&admission;next.claim=&claim;next.identity=&identity;next.callback=callback;
+        if(!manager || send!=0xa4e430 || !next.binding->CaptureLobby(lobby))return false;
         next.roots.owner=GetCurrentThreadId();next.roots.manager=reinterpret_cast<uintptr_t>(manager);next.roots.session=lobby.instance;
         next.roots.main=*reinterpret_cast<const uintptr_t*>(0x10f83dc);
         if(!Bound(next))return false;
@@ -123,6 +136,21 @@ struct GoldSdkReadyHold {
             state.patched|=1u<<i;
         }
         return true;
+    }
+public:
+    static bool InstallBound(const CrossplayNative::ParticipantEvent& binding,CrossplayNative::LobbyAdmission& admission,
+                             const CrossplayNative::GoldGuestRowClaim& claim,const CrossplayNative::GoldGuestIdentity& identity,Callback callback){
+        struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
+        State next;next.binding=&binding;next.admission=&admission;next.claim=&claim;next.identity=&identity;
+        next.callback=callback;return InstallPrepared(next);
+    }
+    static bool InstallRoomBound(const CrossplayNative::ParticipantEvent& binding,const CrossplayNative::RoomLobbyAdmission& admission,
+                                 unsigned char slot,Callback callback){
+        struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
+        CrossplayNative::RoomRoute local;
+        if(!admission.Resolve(slot,false,local) || !local.local || local.host || local.receiver!=Crossplay::Edition::Gold)return false;
+        State next;next.binding=&binding;next.room=&admission;next.room_slot=slot;
+        next.room_connection=local.receiver_cid;next.callback=callback;return InstallPrepared(next);
     }
     static bool Release(){
         struct ErrorScope {DWORD value=GetLastError();~ErrorScope(){SetLastError(value);}} error;
