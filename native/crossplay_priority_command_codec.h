@@ -52,7 +52,7 @@ inline Detail::Profile Pin(Crossplay::Edition edition){return BuildCommandDetail
 inline bool Methods(Crossplay::Edition edition){const auto p=Pin(edition);return Guard(edition) && Detail::Methods(p) && Detail::Tables(p,edition);}
 inline bool Source(Crossplay::Edition edition,const void* event,uint32_t source,uint32_t player){
  const auto p=Pin(edition);const auto* b=static_cast<const unsigned char*>(event);
- if(!p.event_vt || !Table(edition) || (player!=1 && player!=2) || source==UINT32_MAX || !Detail::Readable(b,0x1c)
+ if(!p.event_vt || !Table(edition) || !CrossplayPriorityCommand::PlayerSlot(player) || source==UINT32_MAX || !Detail::Readable(b,0x1c)
   || CrossplayChat::Word(b)!=p.event_vt || CrossplayChat::Word(b+4)!=CrossplayPriorityCommand::Type || CrossplayChat::Word(b+8)!=source || b[12]>1 || CrossplayChat::Word(b+20)!=player || b[24]>1)return false;
  const auto* nested=reinterpret_cast<const unsigned char*>(CrossplayChat::Word(b+16));
  if(!Detail::Readable(nested,0x14) || CrossplayChat::Word(nested)!=Table(edition) || CrossplayChat::Word(nested+4)!=CrossplayPriorityCommand::PriorityType || nested[8]!=player)return false;
@@ -62,14 +62,16 @@ inline bool Source(Crossplay::Edition edition,const void* event,uint32_t source,
 inline bool Encode(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
                    uintptr_t session,uint32_t own,uint32_t other,uint32_t player,const void* event,std::vector<unsigned char>& wire) {
     SharedEngineMode::ErrorScope error;LoadProgressDetail::FpScope fp;wire.clear();
-    if(!LoadProgressDetail::World(binding,owner,session,own,other) || !Methods(edition) || !Source(edition,event,own,player))return false;
+    if((player!=1 && player!=2) || !LoadProgressDetail::World(binding,owner,session,own,other)
+        || !Methods(edition) || !Source(edition,event,own,player))return false;
     if(Detail::Encode(Pin(edition),event,wire) && CrossplayPriorityCommand::Inspect(wire,own,player))return true;
     wire.clear();return false;
 }
-inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
-                    uintptr_t session,uint32_t own,uint32_t other,uint32_t player,const std::vector<unsigned char>& wire) {
+template<class WorldCheck>
+inline bool EnqueueBound(Crossplay::Edition edition,uint32_t other,uint32_t player,
+                         const std::vector<unsigned char>& wire,WorldCheck current_world) {
     SharedEngineMode::ErrorScope error;LoadProgressDetail::FpScope fp;
-    if(!LoadProgressDetail::World(binding,owner,session,own,other) || !CrossplayPriorityCommand::Inspect(wire,other,player) || !Methods(edition))return false;
+    if(!current_world() || !CrossplayPriorityCommand::Inspect(wire,other,player) || !Methods(edition))return false;
     const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
     Detail::Visitor reader{p.reader_vt,1,&stream.value,0};const char* name="WePlayEvent";
@@ -77,9 +79,35 @@ inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::Participan
     if(!decoded || !Detail::Readable(decoded,0x1c) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
     bool okay=stream.value.position==wire.size() && Source(edition,decoded,other,player) && Detail::Encode(p,decoded,repeated)
-        && repeated==wire && LoadProgressDetail::World(binding,owner,session,own,other);
+        && repeated==wire && current_world();
     uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);else okay=false;
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);return okay;
+}
+inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
+                    uintptr_t session,uint32_t own,uint32_t other,uint32_t player,const std::vector<unsigned char>& wire) {
+    return (player==1 || player==2) && EnqueueBound(edition,other,player,wire,[&]{
+        return LoadProgressDetail::World(binding,owner,session,own,other);
+    });
+}
+inline bool EnqueueRoom(Crossplay::Edition edition,const CrossplayNative::RoomLobbyAdmission& admission,
+                        unsigned char source_slot,const std::vector<unsigned char>& wire) {
+    CrossplayNative::RoomRoute source;
+    if(!admission.Resolve(source_slot,true,source) || source.local || source.receiver!=edition)return false;
+    return EnqueueBound(edition,source.receiver_cid,source.player_slot,wire,[&]{
+        CrossplayNative::RoomRoute fresh;
+        return admission.Resolve(source_slot,true,fresh) && fresh.receiver_cid==source.receiver_cid
+            && fresh.player_slot==source.player_slot;
+    });
+}
+inline bool EncodeRoom(Crossplay::Edition edition,const CrossplayNative::RoomRoute& own,
+                       const CrossplayNative::RoomRoute& target,uint32_t sequence,const void* event,
+                       std::vector<unsigned char>& frame) {
+    SharedEngineMode::ErrorScope error;LoadProgressDetail::FpScope fp;frame.clear();
+    std::vector<unsigned char> wire;
+    return own.local && !target.local && own.receiver==edition && target.receiver==edition
+        && Methods(edition) && Source(edition,event,own.receiver_cid,own.player_slot)
+        && Detail::Encode(Pin(edition),event,wire)
+        && CrossplayPriorityCommand::Encode(target.peer,sequence,wire,own.receiver_cid,own.player_slot,frame);
 }
 }

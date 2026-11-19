@@ -4,7 +4,7 @@
 local G,slot=...
 if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return slot end
 local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
-if mode~="host" and mode~="guest" then return slot end
+if mode~="host" and mode~="guest" and mode~="room-host" and mode~="room-guest" then return slot end
 local saved=G.UI.WriteToConsole("weplay-crossplay-v1:saved-start")
 _G.assert(saved=="0" or saved=="1","WePlay original start context unavailable")
 if saved=="1" then

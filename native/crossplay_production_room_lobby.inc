@@ -274,6 +274,9 @@
 
     bool HoldRoomGoldStart(const void* event) {
         using namespace CrossplayNativeCodec;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        if(room_saved_started)return HoldRoomSavedStart(event);
+#endif
         if(!launch.host || !room_held_start.empty() || !RoomAllHumansReadyObserved())return false;
         if(room_team_phase!=TeamPhase::Idle){
             CrossplayRoomTeams::Teams actual;
@@ -292,6 +295,7 @@
 #include "crossplay_production_room_root.inc"
 #ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
 #include "crossplay_production_room_world.inc"
+#include "crossplay_production_room_saved.inc"
 #endif
 
     bool PumpRoomReady(const Crossplay::RoomSnapshot& room) {
@@ -361,13 +365,20 @@
         const auto now=GetTickCount64();
         if(!room_configuration_started)room_configuration_started=now;
         if(room_configuration_complete)return true;
-        if(now-room_configuration_started>10000)return false;
+        bool saved=false;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        saved=room_saved_started || (launch.host && !resume_ui_token.empty());
+#endif
+        if(!saved && now-room_configuration_started>10000)return false;
         if(!room_configuration_interval.cache) {
             const auto cache=CrossplayConfigurationNative::Cache(launch.channel.edition);
-            if(!cache)return true;
+            if(!cache)return now-room_configuration_started<=10000;
             if(!room_admission.CaptureConfigurationRoutes(launch.room.capacity,room_local_routes))return false;
             room_configuration_interval={owner,session,reinterpret_cast<uintptr_t>(cache)};
         }
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        if(saved)return PumpRoomSaved(room);
+#endif
         std::vector<unsigned char> readback;
         if(launch.host) {
             if(room_offer.empty()) {
@@ -411,7 +422,11 @@
         }
         if(room_offer.empty()) {
             Crossplay::RoomEvent event;
-            return !channel.ReceiveRoom(event) || ReceiveRoomOffer(event,room);
+            if(!channel.ReceiveRoom(event))return true;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+            if(Magic(event.bytes,RoomSavedOffer))return ReceiveRoomSavedConfiguration(event);
+#endif
+            return ReceiveRoomOffer(event,room);
         }
         if(room_guest_receipt_sent){
             Crossplay::RoomEvent event;

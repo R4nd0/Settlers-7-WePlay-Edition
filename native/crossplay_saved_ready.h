@@ -9,7 +9,7 @@
 namespace CrossplaySavedReady {
 inline constexpr unsigned char Magic[8]={'S','7','R','S','R','D','Y',1};
 constexpr size_t Header=CrossplayResumeTransfer::ContextHeader;
-enum class Kind:uint32_t {Request=1,Observed=2};
+enum class Kind:uint32_t {Request=1,Observed=2,RoomObserved=3,RoomApplied=4};
 inline bool Prefix(const Crossplay::Peer& peer,const CrossplayResumeTransfer::Checkpoint& cp,
                    uint32_t revision,Kind kind,std::vector<unsigned char>& frame){
     frame.clear();if(!CrossplayResumeTransfer::Valid(cp) || !revision || revision==UINT32_MAX)return false;
@@ -48,5 +48,19 @@ inline bool DecodeObserved(const Crossplay::Peer& peer,const CrossplayResumeTran
     state={};if(previous>=UINT32_MAX-1 || previous>=requested || !Context(peer,cp,previous+1,Kind::Observed,frame,2))return false;
     CrossplayReadyState::Snapshot value{previous+1,frame[Header],frame[Header+1]};
     if(!CrossplayReadyState::Valid(value))return false;state=value;return true;
+}
+inline bool RoomSeatMask(unsigned seats){return !(seats&~0x1feu) && (seats&(seats-1));}
+inline bool EncodeRoomReady(const Crossplay::Peer& peer,const CrossplayResumeTransfer::Checkpoint& cp,
+                            Kind kind,unsigned seats,std::vector<unsigned char>& frame){
+    frame.clear();
+    if((kind!=Kind::RoomObserved && kind!=Kind::RoomApplied) || !RoomSeatMask(seats)
+        || !Prefix(peer,cp,1,kind,frame))return false;
+    frame.resize(Header+4);
+    CrossplayChat::Put(frame.data()+Header,seats);return true;
+}
+inline bool DecodeRoomReady(const Crossplay::Peer& peer,const CrossplayResumeTransfer::Checkpoint& cp,Kind kind,
+                            unsigned seats,const std::vector<unsigned char>& frame){
+    return (kind==Kind::RoomObserved || kind==Kind::RoomApplied) && RoomSeatMask(seats)
+        && Context(peer,cp,1,kind,frame,4) && CrossplayChat::Word(frame.data()+Header)==seats;
 }
 }

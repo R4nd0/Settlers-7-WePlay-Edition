@@ -39,5 +39,17 @@ int main(){
     for(unsigned char a=0;a<3;++a)for(unsigned char b=0;b<3;++b){
         state={3,a,b};REQUIRE(S::EncodeObserved(host,cp,state,frame)==(a<=1 && b<=1));
     }
+    using Kind=S::Kind;
+    REQUIRE(S::EncodeRoomReady(host,cp,Kind::RoomObserved,14,frame));
+    REQUIRE(S::DecodeRoomReady(guest,cp,Kind::RoomObserved,14,frame));
+    REQUIRE(!S::DecodeObserved(guest,cp,0,1,frame,observed));
+    REQUIRE(!S::DecodeRoomReady(host,cp,Kind::RoomObserved,14,frame));
+    REQUIRE(!S::DecodeRoomReady(guest,changed,Kind::RoomObserved,14,frame));
+    REQUIRE(!S::DecodeRoomReady(guest,cp,Kind::RoomApplied,14,frame));
+    REQUIRE(!S::DecodeRoomReady(guest,cp,Kind::RoomObserved,6,frame));
+    REQUIRE(S::EncodeRoomReady(guest,cp,Kind::RoomApplied,14,frame));
+    REQUIRE(S::DecodeRoomReady(host,cp,Kind::RoomApplied,14,frame));
+    for(unsigned invalid:{0u,2u,15u,512u})
+        REQUIRE(!S::EncodeRoomReady(host,cp,Kind::RoomObserved,invalid,frame));
     printf("PASS %u checkpoint-bound saved Ready checks: exact original request/CID projection, observed state revisions, namespace/source/hash/replay/bounds; synthetic only, no native Ready supplied.\n",checks);
 }

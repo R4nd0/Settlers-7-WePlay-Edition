@@ -72,6 +72,37 @@ inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::Participan
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
     return okay;
 }
+inline bool ReceiveRoom(const CrossplayNative::RoomLobbyAdmission& admission,const Crossplay::RoomEvent& event,
+                         const CrossplaySessionConfig::RoomConnections& source,const Crossplay::Digest& content,
+                         unsigned char capacity,const std::string& map,CrossplayResumeTransfer::Checkpoint& checkpoint,
+                         std::string& save,unsigned* stage=nullptr,std::vector<unsigned char>* projected=nullptr) {
+    LoadProgressDetail::FpScope preserve;
+    checkpoint={};save.clear();
+    if(projected)projected->clear();
+    if(stage)*stage=1;
+    CrossplayNative::RoomRoute host;
+    CrossplaySessionConfig::RoomConnections target;
+    if(!admission.Resolve(event.source_slot,false,host) || !host.host || host.local
+        || host.receiver==Crossplay::Edition::Gold || host.source_cid!=source.host
+        || !admission.CaptureConfigurationRoutes(capacity,target))return false;
+    std::vector<unsigned char> wire;
+    CrossplayResumeTransfer::Checkpoint offered;
+    std::string token;
+    if(stage)*stage=2;
+    if(!CrossplaySavedSessionConfig::DiscoverRoom(host.peer,content,source,target,map,event.bytes,offered,token,wire))return false;
+    checkpoint=offered;save=token;
+    if(stage)*stage=3;
+    if(!SessionConfigDetail::DecodeChecked(host.receiver,wire,[&](const auto& pin,const void* native){
+            return SessionConfigDetail::RoomSource(pin,native,target,token);
+        },[&]{
+            CrossplaySessionConfig::RoomConnections fresh;
+            return admission.CaptureConfigurationRoutes(capacity,fresh) && fresh.host==target.host
+                && fresh.stations==target.stations;
+        })){checkpoint={};save.clear();return false;}
+    if(stage)*stage=0;
+    if(projected)*projected=std::move(wire);
+    return true;
+}
 inline bool PendingFileMetadata(const unsigned char* pending) {
     // Original constructors copy three native strings and a scalar. This is
     // file metadata, not the saved setup event or its vector of player slots.

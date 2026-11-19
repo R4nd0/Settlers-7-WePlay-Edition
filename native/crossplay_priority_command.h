@@ -7,8 +7,9 @@ namespace CrossplayPriorityCommand {
 inline constexpr uint32_t Class=0xdda00d09,Type=7u|(11u<<16),NestedClass=0x18904619,PriorityType=2u|(22u<<16);
 inline constexpr size_t Header=48,WireSize=35,FrameSize=Header+WireSize;
 inline constexpr unsigned char Magic[8]={'S','7','P','R','I','O',0,1};
+inline bool PlayerSlot(uint32_t player){return player>=1 && player<=8;}
 inline bool Inspect(const std::vector<unsigned char>& wire,uint32_t source,uint32_t player){
-    if(source==UINT32_MAX || (player!=1 && player!=2) || wire.size()!=WireSize)return false;
+    if(source==UINT32_MAX || !PlayerSlot(player) || wire.size()!=WireSize)return false;
     const auto* p=wire.data();const auto id=CrossplayChat::Word(p+22),relative=CrossplayChat::Word(p+26);
     return CrossplayChat::Word(p)==Class && CrossplayChat::Word(p+4)==Type && CrossplayChat::Word(p+8)==source && p[12]<=1
         && CrossplayChat::Word(p+13)==NestedClass && CrossplayChat::Word(p+17)==PriorityType && p[21]==player

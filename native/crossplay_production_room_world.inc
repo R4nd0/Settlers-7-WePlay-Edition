@@ -1,11 +1,12 @@
     std::array<CrossplayFreshStart::Barrier,Crossplay::RoomSnapshot::MaximumMembers> room_start_barriers;
     std::array<CrossplayNeo::Agreement,Crossplay::RoomSnapshot::MaximumMembers> room_neo_agreements;
-    std::array<std::array<uint32_t,4>,Crossplay::RoomSnapshot::MaximumMembers> room_world_sent{};
+    static constexpr auto RoomWorldKinds=static_cast<unsigned>(CrossplayWorldEvents::Kind::Priority)+1;
+    std::array<std::array<uint32_t,RoomWorldKinds>,Crossplay::RoomSnapshot::MaximumMembers> room_world_sent{};
     CrossplayWorldEvents::Inbox room_world_events;
     ULONGLONG room_start_started=0,room_world_queued_at=0;
     bool room_world_arming=false,room_world_queued=false,room_world_running=false;
     bool room_neo_selected=false,room_neo_offer_received=false;
-    static constexpr uint32_t RoomNeoFeatures=CrossplayNeo::Fifo|CrossplayNeo::Intent;
+    static constexpr uint32_t RoomNeoFeatures=CrossplayNeoSelection::Features;
 
     bool RoomStarted() const {
         const auto* room=channel.GetRoom();
@@ -38,14 +39,30 @@
             if(!RoomNeoSelectable())return false;
             neo_choice=command.back()=='1';output="1";return true;
         }
+        if(!room_world_queued && room_saved_started && (command=="network-state" || command=="selection")){
+            if(!CrossplayResumeTransfer::Valid(room_saved_checkpoint)
+                || (launch.host?!RoomSavedHostCurrent():!room_saved_guest_prepared || !resume_neo_admitted))return false;
+            output=room_saved_checkpoint.enabled?"1":"0";return true;
+        }
         if(!room_world_queued && launch.host && command=="selection" && RoomConfigurationApplied()){
             output=neo_choice?"1":"0";return true;
         }
         if(!RoomStarted() || !NeoModules())return false;
         if(command=="network-state" || command=="selection") {output=room_neo_selected?"1":"0";return true;}
         if(command=="start-event") {output="1";return true;}
+        if(command=="load"){
+            if(!room_saved_started || !room_saved_world_prepared)return false;
+            world_lua_begin=true;output="1";return true;
+        }
+        if(command=="restore-network"){
+            if(!room_saved_started || !room_saved_world_prepared || !world_lua_begin
+                || !CrossplayLogisticsActive::Advance() || !CrossplayLogisticsActive::begun
+                || !CrossplayLogisticsActive::resume_restored || CrossplayLogisticsActive::resume_unrestored_comparisons
+                || CrossplayLogisticsActive::ledger.enabled!=room_neo_selected)return false;
+            world_lua_ready=true;output="1";return true;
+        }
         if(command=="begin:0" || command=="begin:1"){
-            if((command.back()=='1')!=room_neo_selected)return false;
+            if(room_saved_started || (command.back()=='1')!=room_neo_selected)return false;
             world_lua_begin=true;output="1";return true;
         }
         if(command=="ready" && world_lua_begin && CrossplayLogisticsActive::Advance()
@@ -201,12 +218,17 @@
         if(table==LoadProgressDetail::Pin(edition).event_vt)kind=Kind::Progress;
         else if(table==TurnBatchDetail::Pin(edition).event_vt)kind=Kind::Turn;
         else if(table==DesyncTurnDetail::Pin(edition).event_vt)kind=Kind::Desync;
-        if(kind==Kind::Unknown)return;
+        const bool logic=table==PriorityCommandDetail::Pin(edition).event_vt;
+        if(kind==Kind::Unknown && !logic)return;
         uintptr_t send=0;
         const auto* room=channel.GetRoom();
         CrossplayNative::RoomRoute own;
         if(!room || manager!=Detail::Transport(edition,send)
             || !room_admission.Resolve(room->local_slot,true,own) || !own.local){Fail();return;}
+        if(logic){
+            if(!PriorityCommandDetail::Source(edition,event,own.receiver_cid,own.player_slot))return;
+            kind=Kind::Priority;
+        }
         for(unsigned char slot=1;slot<=room->member_count;++slot){
             if(slot==room->local_slot)continue;
             CrossplayNative::RoomRoute remote;
@@ -221,6 +243,8 @@
                 encoded=TurnBatchDetail::EncodeRoom(edition,room_admission,room->local_slot,slot,sequence+1,event,frame);
             if(kind==Kind::Desync && sequence<CrossplayDesyncTurn::MaxSequence)
                 encoded=DesyncTurnDetail::EncodeRoom(edition,own,remote,sequence+1,event,frame);
+            if(kind==Kind::Priority && sequence<UINT32_MAX)
+                encoded=PriorityCommandDetail::EncodeRoom(edition,own,remote,sequence+1,event,frame);
             if(!encoded || !channel.SendRoom(frame,slot)){Fail();return;}
             ++sequence;
         }
@@ -244,6 +268,7 @@
                 case Kind::Progress:return LoadProgressDetail::EnqueueRoom(edition,room_admission,source,wire);
                 case Kind::Turn:return TurnBatchDetail::EnqueueRoom(edition,room_admission,source,wire);
                 case Kind::Desync:return DesyncTurnDetail::EnqueueRoom(edition,room_admission,source,wire);
+                case Kind::Priority:return PriorityCommandDetail::EnqueueRoom(edition,room_admission,source,wire);
                 default:return false;
                 }
             }))return false;

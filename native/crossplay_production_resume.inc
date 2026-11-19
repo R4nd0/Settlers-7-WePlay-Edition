@@ -264,6 +264,14 @@
         return true;
     }
     static bool SavedPostloadAuthority(){
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        if(current && current->launch.IsRoom())
+            return current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
+                && current->phase==Phase::RosterBound && current->room_saved_world_prepared
+                && (current->room_world_arming || current->room_world_queued)
+                && CrossplayResumeTransfer::Valid(current->room_saved_checkpoint)
+                && current->channel.GetState()==Crossplay::State::Connected;
+#endif
         return current && current->Owned() && current->launch.channel.edition==Crossplay::Edition::Gold
             && current->bootstrap.saved
             && current->phase==Phase::RosterBound && current->resume_world_prepared && current->resume_neo_armed
