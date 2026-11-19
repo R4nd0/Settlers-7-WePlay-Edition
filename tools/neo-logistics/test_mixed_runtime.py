@@ -178,14 +178,16 @@ R={saved=function()C.savedCalls=C.savedCalls+1;return true end,lookup=function()
             self.assertEqual(self.c.legacyReads,0)
 
     def test_saved_ui_selection_is_host_only_and_requires_exact_native_file_ack(self):
-        for ack in (False,True,0,1,'0','true','',None,'1'):
-            self.build('host');self.c.fileAck=ack
-            self.lua.execute("G.Game.GetSaveGameFileName=function(slot)assert(slot==1000);return 'Z:/Owned/Profiles/Savegames/s1000.s7s' end")
-            self.assertEqual(self.m.selectSaved(1000),ack=='1')
-            self.assertEqual(self.c.started,0);self.assertEqual(self.c.begins,0)
-        self.build('guest');self.c.fileAck='1'
-        self.lua.execute("G.Game.GetSaveGameFileName=function()error('Guest must not select a host file')end")
-        self.assertFalse(self.m.selectSaved(1000));self.assertIsNone(self.c.fileSelections)
+        for mode in ('host','room-host'):
+            for ack in (False,True,0,1,'0','true','',None,'1'):
+                self.build(mode);self.c.fileAck=ack
+                self.lua.execute("G.Game.GetSaveGameFileName=function(slot)assert(slot==1000);return 'Z:/Owned/Profiles/Savegames/s1000.s7s' end")
+                self.assertEqual(self.m.selectSaved(1000),ack=='1')
+                self.assertEqual(self.c.started,0);self.assertEqual(self.c.begins,0)
+        for mode in ('guest','room-guest'):
+            self.build(mode);self.c.fileAck='1'
+            self.lua.execute("G.Game.GetSaveGameFileName=function()error('Guest must not select a host file')end")
+            self.assertFalse(self.m.selectSaved(1000));self.assertIsNone(self.c.fileSelections)
         for slot in (-1,1.5,4294967295,float('nan'),float('inf'),'1000',True):
             self.build('host');self.c.fileAck='1'
             self.assertFalse(self.m.selectSaved(slot));self.assertIsNone(self.c.fileSelections)

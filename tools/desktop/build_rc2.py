@@ -62,6 +62,20 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     gold_package=content.plain(gold_package or old/'Payload/Gold')
     gold_support.verify_source_package(gold_package,source_root=REPO)
     gold_adapter=gold_support.adapter_input(gold_package,gold_adapter)
+    catalog=None
+    if crossplay_catalog is not None:
+        import crossplay_content
+        catalog=crossplay_content.read(crossplay_catalog)
+        if catalog.digest.hex() not in crossplay_content.APPROVED_DIGESTS:
+            raise ValueError('crossplay_catalog_unapproved')
+        mixed_history=(build_package.MIXED_MIDSUMMER_ARCHIVE_SHA256 if midsummer_profile
+                       else build_package.MIXED_DIRECTORY_ARCHIVE_SHA256)
+        mixed_gold=gold_support.module(gold_package,source_root=REPO).gold.MIXED_MENU_SHA256
+        gold_files,ubisoft_files,steam_files=map(dict,catalog.profiles)
+        if (gold_files.get('Data/Base/BBA/Interface.bba')!=mixed_gold
+                or any(profile.get('Base/BBA/Interface.bba')!=mixed_history
+                       for profile in (ubisoft_files,steam_files))):
+            raise ValueError('crossplay_content_changed')
     stage.mkdir();output.mkdir(parents=True,exist_ok=True)
     app=stage/'App';app.mkdir()
     for path in desktop_publish.iterdir():
@@ -83,15 +97,15 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         dxvk_license=dxvk_license or REPO/'work/dxvk-3.1.1-x32/LICENSE',graphics_probe=probe,
         memory_scanner=memory_scanner or old/'Tools/d3d11/memory_scan.dll',
         easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,quiet_reshade=quiet_reshade,platform_runtime=platform_runtime)
-    gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,quiet_reshade=quiet_reshade,adapter=gold_adapter)
+    gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,
+                        quiet_reshade=quiet_reshade,adapter=gold_adapter,mixed_room=catalog is not None)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
     package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
-    if crossplay_catalog is not None:
-        import crossplay_content
-        catalog=crossplay_content.read(crossplay_catalog)
+    if catalog is not None:
         target=app/'Package'/crossplay_content.PACKAGE_CATALOG
         target.parent.mkdir(parents=True);target.write_bytes(catalog.canonical)
         package_record['crossplay_mixed']=True
+        package_record['patched_archive_sha256']=mixed_history
     package_record['files']=content.inventory(app/'Package',('Payload','Runtime','Tools'))
     (app/'Package/package.json').write_text(json.dumps(package_record,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(app/'Package')
@@ -109,7 +123,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     release={'format':'s7-desktop-release-v1','release':'RC4.00 Unified Gold and History','network_revision':9,'game_bits':32,
              'version':'2.0.0-rc4.0','display_version':'rc4.00','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
-             'neo_logistics':neo_logistics,'neo_wire_revision':5 if neo_logistics else None,'platform_independent':platform_runtime is not None,
+             'neo_logistics':neo_logistics,'neo_wire_revision':6 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',

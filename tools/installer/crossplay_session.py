@@ -18,7 +18,12 @@ EXECUTABLE_EDITIONS = {
 }
 # Filled only for production adapters that implement the contract. Previous
 # solo/History-only fingerprints never become mixed-capable by migration.
-ADAPTER_PINS = {}
+_HISTORY_ROOM_ADAPTER = '6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14'
+ADAPTER_PINS = {
+    1: ('a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148',),
+    2: (_HISTORY_ROOM_ADAPTER,),
+    3: (_HISTORY_ROOM_ADAPTER,),
+}
 
 
 def clean_environment(inherited):

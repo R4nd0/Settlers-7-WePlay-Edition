@@ -2,8 +2,9 @@
 -- own lastDiscoveryFinished and the idle state; no session or Ready is created.
 local G, Panel, State, states = ...
 function Panel.weplayCanPrepareMixedGuest()
- if not G.UI or _G.type(G.UI.WriteToConsole)~="function"
-  or G.UI.WriteToConsole("weplay-crossplay-v1:mode")~="guest"
+ if not G.UI or _G.type(G.UI.WriteToConsole)~="function" then return false end
+ local mode=G.UI.WriteToConsole("weplay-crossplay-v1:mode")
+ if (mode~="guest" and mode~="room-guest")
   or not State.frame or State.lastDiscoveryFinished~=true
   or State.sessionListState~=states.idle or not G.Network.IsLoggedIn()
   or G.Network.SessionIsInSession() then return false end

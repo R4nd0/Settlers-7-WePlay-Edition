@@ -46,7 +46,9 @@ def adapter_input(source, adapter=None):
     return path
 
 
-def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None):
+def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None,mixed_room=False):
+    if type(mixed_room) is not bool or (mixed_room and source_root is None):
+        raise ValueError('Mixed-room tools require an explicit trusted source tree.')
     source,target=map(content.plain,(source,target))
     value=verify_source_package(source,source_root=source_root) if source_root is not None else verify_package(source)
     if target.exists():raise ValueError('Gold payload destination exists')
@@ -87,7 +89,16 @@ def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None):
         for name in ('profile.py','archive_append.py','camera_preferences.lua','runtime.lua'):
             shutil.copyfile(content.plain(repo/'tools/midsummer'/name),content.plain(shared/name))
         runtime=module(target)
-        value['menu_sha256']=runtime.gold.MENU_SHA256
+        if mixed_room:
+            for name in runtime.GOLD_ROOM_MENU_TOOLS:
+                shutil.copyfile(content.plain(repo/'tools/gold'/name),content.plain(target/'Tools/gold'/name))
+            neo=target/'Tools/neo-logistics'
+            neo.mkdir(exist_ok=True)
+            shutil.copyfile(content.plain(repo/'tools/neo-logistics/runtime.lua'),content.plain(neo/'runtime.lua'))
+            value['mixed_room']=True
+        else:
+            value.pop('mixed_room',None)
+        value['menu_sha256']=runtime.gold.MIXED_MENU_SHA256 if mixed_room else runtime.gold.MENU_SHA256
         value['files']=runtime.inventory(target,('Tools','Runtime','Payload','Definitions','Licenses'))
         (target/'package.json').write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
     if payload is not None:

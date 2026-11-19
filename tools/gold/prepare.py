@@ -20,6 +20,7 @@ DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
 INTERFACE = Path('Data/Base/BBA/Interface.bba')
 INTERFACE_SHA256 = '5f335b7ebdf0707079009abda7334ecf5d83cfd3039776d2e775f39718255215'
 MENU_SHA256 = '9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928'
+MIXED_MENU_SHA256 = 'f359895ae98539946aac80258512e22fcabe41616a876fc6e25ee8c7cdaeb2fb'
 SHARED = Path('Data/Base/BBA/Shr.bba')
 SHARED_SOURCE_SHA256 = '736077c195660aa90edc601049672b64ac335dcc10870c78c2ddf93901a26655'
 SHARED_SHA256 = '01278322bb7750d52f01ea56a173d180a6809b936077995053e2b9fdc589c69f'
@@ -188,13 +189,18 @@ def inspect(source, definitions=DEFINITIONS, *, originals=None):
             'profile_changes': False, 'game_launched': False}
 
 
-def menu_bytes(raw):
+def menu_bytes(raw, *, mixed_room=False):
     spec = importlib.util.spec_from_file_location('gold_release_menu', Path(__file__).with_name('release_interface.py'))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     result = module.build(raw)
     if sha256(result) != MENU_SHA256:
         raise ValueError('Gold cleaned interface output fingerprint differs.')
+    if mixed_room:
+        import mixed_interface
+        result = mixed_interface.build(result, 'gold')
+        if sha256(result) != MIXED_MENU_SHA256:
+            raise ValueError('Gold mixed-room interface output fingerprint differs.')
     return result
 
 
@@ -207,7 +213,8 @@ def shared_bytes(raw):
 
 
 def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
-            originals=None, source_files=None, on_created=None, tracker=None, progress=None):
+            originals=None, source_files=None, on_created=None, tracker=None, progress=None,
+            mixed_room=False):
     source, destination = (plain(source) if originals is not None else source_root(source)), plain(destination)
     # Both directions matter: a target ancestor could otherwise consume source data.
     if destination.is_relative_to(source) or source.is_relative_to(destination):
@@ -216,7 +223,9 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
         raise ValueError('The Gold destination already exists; select a new directory.')
     report = inspect(source, definitions) if originals is None else inspect(source, definitions, originals=originals)
     patched = unlock_bytes(originals[EXE.as_posix()] if originals is not None else plain(source / EXE).read_bytes(), plain(definitions).read_bytes())
-    interface = menu_bytes(originals[INTERFACE.as_posix()] if originals is not None else plain(source / INTERFACE).read_bytes())
+    interface = menu_bytes(originals[INTERFACE.as_posix()] if originals is not None else plain(source / INTERFACE).read_bytes(),
+                           mixed_room=mixed_room)
+    report['menu_interface_sha256'] = MIXED_MENU_SHA256 if mixed_room else MENU_SHA256
     if dxvk is not None and digest(dxvk) != DXVK_SHA256:
         raise ValueError('The selected DXVK DLL fingerprint does not match the pinned x86 build.')
     destination.mkdir(parents=True, exist_ok=False)
@@ -264,7 +273,7 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
         raise ValueError('Gold interface changed during preparation.')
     shutil.copy2(copied_interface, backup.with_name('Interface.original.bba'))
     copied_interface.write_bytes(interface)
-    if digest(copied_interface) != MENU_SHA256:
+    if digest(copied_interface) != report['menu_interface_sha256']:
         raise ValueError('Gold cleaned interface copy verification failed.')
     shared=plain(destination/SHARED)
     shared_raw=shared.read_bytes()

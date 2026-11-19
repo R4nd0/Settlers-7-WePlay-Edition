@@ -1,5 +1,16 @@
 # Experimental native local start, 2026-10-26
 
+The Ubisoft History host continued its original save with Gold and Steam
+History as guests. Each guest received 2,961 original packets and verified
+24,251,006 resident bytes against the saved digest. The three original loaders
+restored NEO and compared real transport requests. The original clocks
+advanced beyond the saved replay turn at 100 ms and matched 885 consecutive
+finished-turn checksums over 440.166 seconds with zero mismatches. The
+watchdog terminated all three test processes and the isolated profiles and
+assets were restored. The final installed-package run and a clean
+Ubisoft-hosted reload exit are pending.
+[Measured Ubisoft host reload](receipts/ubisoft-host-mixed-reload-20261119.json)
+
 Ubisoft History hosted Gold and Steam History with one AI at normal speed
 under DXVK 3.1.1. Its original save at logic turn 60 contains all four
 participants and enabled NEO. All three clients continued after saving and

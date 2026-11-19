@@ -12,7 +12,12 @@ import crossplay_session
 FORMAT = 'weplay-crossplay-content-v1'
 MAX_BYTES = 16 * 1024 * 1024
 MAX_FILES = 30000
-APPROVED_DIGESTS = frozenset()
+# Exact official-input inventory with the independently built room adapters
+# and reproducible mixed menus. The RC4 signer separately requires installed
+# gameplay receipts for this exact package and every host edition.
+APPROVED_DIGESTS = frozenset({
+    '64c300b34c4e9bb9a638ae3a0de51c6910ada2c2948e1c54dab77d0047c176aa',
+})
 PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {
     1: ('Data/Base/_Dbg/Bin/Release/Settlers7R.exe', 'Launcher/weplay_gold_startup.dll'),

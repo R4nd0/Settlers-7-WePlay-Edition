@@ -659,6 +659,18 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         resources=destination/'Base/BBA/shr.bba'
         resources.write_bytes(midsummer_module('profile').build(resources.read_bytes()))
         if tracker:tracker(resources,content.digest(resources))
+    if manifest.get('crossplay_mixed',False):
+        target=destination/'Base/BBA/Interface.bba'
+        composer=package/'Payload/Gold/Tools/gold/mixed_interface.py'
+        spec=importlib.util.spec_from_file_location('s7_mixed_room_interface',composer)
+        mixed=importlib.util.module_from_spec(spec)
+        previous=sys.path[:]
+        try:
+            spec.loader.exec_module(mixed)
+            target.write_bytes(mixed.build(target.read_bytes(),'history',history_decoder=resume))
+        finally:
+            sys.path[:]=previous
+        record_archive()
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')
     def copy_payload(source,target):

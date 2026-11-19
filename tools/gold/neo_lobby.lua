@@ -3,9 +3,40 @@ local G, Panel, getState, mixed = ...
 local Options = G.require("local.ui.optionsGroup")
 local create, update, destroy = Panel.create, Panel.update, Panel.destroy
 local group, item, syncing, defaultRequested
+local teamsRequested, startReady, savedSource
+local mode = G.UI.WriteToConsole("weplay-crossplay-v1:mode")
 if mixed == nil then
-    local mode = G.UI.WriteToConsole("weplay-crossplay-v1:mode")
     mixed = mode == "host" or mode == "guest" or mode == "room-host" or mode == "room-guest"
+end
+local function syncRoomStart()
+    if mode ~= "room-host" then return end
+    local state = getState()
+    if not state or not state.startButton or not G.Network.IsHost() then return end
+    local prefix = "weplay-crossplay-v1:"
+    local saved = G.UI.WriteToConsole(prefix .. "room-saved-state")
+    if saved == "selection-available" and savedSource then
+        local source = savedSource
+        savedSource = nil
+        local result = G.Network.ChangeSavegame(source)
+        if not result or result == "" then
+            G.Network.SessionLeave()
+            G.ui.messageBox("WePlay", "Der Mehrspieler-Spielstand konnte nicht geladen werden.")
+        end
+        return
+    end
+    local ready = saved == "ready-verified"
+    if saved == "waiting" then
+        if not teamsRequested and G.UI.WriteToConsole(prefix .. "room-all-ready") == "1" then
+            teamsRequested = G.UI.WriteToConsole(prefix .. "room-sync-teams") == "1"
+        end
+        ready = G.UI.WriteToConsole(prefix .. "room-teams-confirmed") == "1"
+    end
+    if not ready then
+        G.ui.enable(state.startButton, false)
+    elseif not startReady then
+        Panel.updatePlayerSlots()
+    end
+    startReady = ready
 end
 local function bridge(command)
     if mixed then
@@ -60,6 +91,7 @@ end
 function Panel.update(...)
     update(...)
     refresh()
+    syncRoomStart()
 end
 -- Pair automation uses the same host action as the visible checkbox.
 function Panel.weplaySelectNEO(value)
@@ -68,7 +100,13 @@ function Panel.weplaySelectNEO(value)
     refresh()
     return okay
 end
+function Panel.weplayPrepareSavedRoom(source)
+    if mode ~= "room-host" or savedSource or _G.type(source) ~= "string" or source == "" then return false end
+    savedSource = source
+    return true
+end
 function Panel.destroy(...)
     group, item, syncing, defaultRequested = nil, nil, nil, nil
+    teamsRequested, startReady, savedSource = nil, nil, nil
     return destroy(...)
 end

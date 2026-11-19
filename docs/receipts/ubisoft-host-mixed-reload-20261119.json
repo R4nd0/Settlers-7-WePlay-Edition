@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-19",
+  "scope": "isolated native shared reload and continued world run",
+  "host_edition": "Ubisoft History",
+  "guest_editions": ["Gold", "Steam History"],
+  "renderer": "DXVK 3.1.1",
+  "human_players": 3,
+  "ai_opponents": 1,
+  "archive_sha256": "043b4e24c27dea359f2d1b298ff88ef4c60d5c0d6bcd5fe25b3420438b8e247a",
+  "saved_logic_turn": 60,
+  "saved_replay_turn": 61,
+  "original_file_packets_per_guest": 2961,
+  "verified_resident_bytes_per_guest": 24251006,
+  "native_replay_turns_sampled_after_reload": {"Gold": 180, "Ubisoft History": 179, "Steam History": 179},
+  "normal_turn_duration_ms": 100,
+  "neo_restored_and_compared_real_requests": {"Gold": true, "Ubisoft History": true, "Steam History": true},
+  "original_finished_turns": {
+    "first": 0,
+    "last": 884,
+    "common_consecutive_count": 885,
+    "crc_mismatches": 0,
+    "measurement_seconds": 440.166
+  },
+  "broker_rejections": 0,
+  "watchdog_needed": true,
+  "exit_codes": {"Gold": "0xe0537021", "Ubisoft History": "0xe0537021", "Steam History": "0xe0537021"},
+  "test_copies_restored": true,
+  "shared_reload_observed": true,
+  "final_installed_package_qualified": false,
+  "source_checkpoint_sha256": "e2e2e3abfdda5f3e1cd131aaca8bec202c4da74806c63ee08749a10055894662"
+}

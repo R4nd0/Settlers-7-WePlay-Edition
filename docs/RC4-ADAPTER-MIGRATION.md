@@ -86,6 +86,15 @@ participant. The room keeps all local platform services alive until the last
 attached game exits. The existing EasyTier pair path continues to use its own
 invitation and launcher operation.
 
+The unified builder checks the menu fingerprints in the selected catalog and
+ships the source transformations needed to reproduce them. Gold preparation
+adds the mixed menu to its exact standard archive. Both History preparations
+apply the corresponding mixed menu after their standard patches. The three
+menu variants passed Lua 5.1 syntax checks for all 284 members of each original
+archive. The candidate inventory binds those menus and the ordinary Gold and
+History room adapters. The exact installed-package gameplay cases remain
+required for production approval.
+
 For that Ubisoft History regression, load the original autosave from logic turn
 27,001 with the final production payload. Compare the three original replay files
 from the same reload using `tools/local-pair/replay_crc.py --min-common-checksums 8608`.

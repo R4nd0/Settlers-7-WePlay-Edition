@@ -458,4 +458,60 @@ class MixedArchiveGuardTests(unittest.TestCase):
             with self.assertRaises(ValueError):mixed_interface.build(b'not a game archive',edition)
 
 
+class RoomMenuTests(unittest.TestCase):
+    @unittest.skipIf(LuaRuntime is None, 'Lua5.1 runtime required')
+    def test_original_room_guest_preparation_waits_for_native_ownership(self):
+        lua=LuaRuntime()
+        lua.globals().source=mixed_interface.fragment('mixed_room_menu.lua')
+        lua.execute('''
+local function test(gold,saved)
+    local main,browser={},{}
+    local values={phase="connecting",["room-map"]="maps/original",["room-players"]="3"}
+    local discover,inSession,host,slot = false,false,true,1
+    local loads,creates,shown = 0,0,0
+    local State={currentPageModule=main}
+    browser.weplayCanPrepareMixedGuest=function() return discover and not inSession end
+    local G={
+      UI={WriteToConsole=function(command) return values[command:sub(#"weplay-crossplay-v1:"+1)] end},
+      require=function(path) return path:match("mainMenu$") and main or browser end,
+      map={loadSetupMapConfig=function(map,template)
+        assert(map=="maps/original" and template==nil); loads=loads+1
+      end},
+      MapSetup={GetCurrentMapData=function() return {FilePath="maps/original"} end,
+        IsValid=function() return true end, SetCoopMode=function(mode) assert(mode==0) end},
+      Network={IsLoggedIn=function() return true end, SessionIsInSession=function() return inSession end,
+        IsHost=function() return host end, GetLocalPlayerSlot=function() return slot end,
+        SetIsPrivate=function(value) assert(value==false) end,
+        SessionCreate=function(...)
+          local args={...}
+          assert(args[1]=="maps/original" and args[2]==false)
+          if gold then assert(args[3]==2 and args[4]==false)
+          else assert(args[3]==false and args[4]==3) end
+          creates=creates+1; inSession=true; return true
+        end}
+    }
+    State.actionManager={createCallbacks=function() return {
+      toSessionList=function() State.currentPageModule=browser end,
+      toHostLobby=function() assert(inSession and host) end,
+      toJoinLobby=function(choices)
+        assert(inSession and not host and slot==3)
+        assert(choices.fixedPositions==saved and choices.fixedTeams==saved)
+        shown=shown+1
+      end
+    } end}
+    local tick=assert(loadstring(source))(G,State,"room-guest",gold)
+    tick();tick();assert(loads==0)
+    discover=true;tick();tick();assert(loads==1 and creates==1 and shown==0)
+    if saved then values["room-saved-state"]="stream-verified"
+    else values["room-ready-action"]="1" end
+    tick();assert(shown==0)
+    host=false;slot=3;tick();tick()
+    assert(shown==1)
+end
+for _,gold in ipairs({true,false}) do
+    for _,saved in ipairs({true,false}) do test(gold,saved) end
+end
+''')
+
+
 if __name__=='__main__':unittest.main()

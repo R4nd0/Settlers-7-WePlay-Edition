@@ -21,6 +21,10 @@ SOURCE_MENU_PINS = ('de8b63ab6934e2231a8279647414ec9c15422febc6a23d1aa8bb3485db6
                     '98cda030b82f94bcdb9ba8333ee8494831c3cf8ed8d26d9163d93060e5f76b92')
 SOURCE_STANDALONE_TOOLS = ('platform_standalone.py', 'isolated_process.py', 'standalone_entry.py',
                            'network_elevation.py', 'network_peer_policy.py')
+ROOM_MENU_TOOLS = ('mixed_interface.py', 'mixed_main.lua', 'mixed_menu.lua', 'mixed_browser.lua',
+                   'mixed_guest_browser.lua', 'mixed_guest_prepare.lua', 'mixed_guest_lobby.lua',
+                   'mixed_saved_start.lua', 'mixed_room_menu.lua', 'room_ai_guest.lua')
+GOLD_ROOM_MENU_TOOLS = (*ROOM_MENU_TOOLS, 'neo_lobby.lua', 'neo_runtime_interface.py')
 
 
 def inventory(root, folders):
@@ -65,7 +69,11 @@ def verify_package(app, *, source_package=False):
     app = gold.plain(app)
     value = read_json(app / 'package.json')
     if type(source_package) is not bool:raise ValueError('Invalid Gold source-package selection.')
-    menus=(gold.MENU_SHA256,*SOURCE_MENU_PINS) if source_package else (gold.MENU_SHA256,)
+    room=value.get('mixed_room',False)
+    if type(room) is not bool or (room and value.get('platform_independent') is not True):
+        raise ValueError('Ungültiges Gold-Raumpaket.')
+    menu=gold.MIXED_MENU_SHA256 if room else gold.MENU_SHA256
+    menus=(menu,*SOURCE_MENU_PINS) if source_package else (menu,)
     if (value.get('format') != FORMAT or value.get('menu_sha256') not in menus
             or type(value.get('platform_independent',False)) is not bool
             or value.get('multiplayer') is not False):
@@ -73,6 +81,9 @@ def verify_package(app, *, source_package=False):
     verified_files(app, value.get('files'), ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses'))
     if inventory(app, ('Tools', 'Runtime', 'Payload', 'Definitions', 'Licenses')) != value['files']:
         raise ValueError('Gold-Paketinventar verändert.')
+    if room and (any(('Tools/gold/'+name) not in value['files'] for name in GOLD_ROOM_MENU_TOOLS)
+                 or 'Tools/neo-logistics/runtime.lua' not in value['files']):
+        raise ValueError('Gold-Raummenü unvollständig.')
     adapters=(ADAPTER_SHA256,)
     if value.get('platform_independent',False):
         import platform_standalone
@@ -109,12 +120,15 @@ def verify_root(root):
     folders=('Data','Launcher','Backup','Runtime') if value.get('network_runtime',False) else ('Data','Launcher','Backup')
     verified_files(root, value.get('files'), folders)
     adapter=ADAPTER_SHA256
+    room=value.get('mixed_room',False)
+    if type(room) is not bool or (room and value.get('platform_independent') is not True):
+        raise ValueError('Ungültige Gold-Rauminstallation.')
     if value.get('platform_independent',False):
         import platform_standalone
         platform_standalone.load(root)
         adapter=platform_standalone.GOLD
     for name, expected in ((gold.EXE.as_posix(), EXE_SHA256),
-                           (gold.INTERFACE.as_posix(), gold.MENU_SHA256),
+                           (gold.INTERFACE.as_posix(), gold.MIXED_MENU_SHA256 if room else gold.MENU_SHA256),
                            (gold.SHARED.as_posix(), gold.SHARED_SHA256),
                            ('Launcher/weplay_gold_startup.dll', adapter),
                            (gold.EXE.with_name('d3d9.dll').as_posix(), gold.DXVK_SHA256)):
@@ -169,7 +183,8 @@ def prepare_copy(app, source, target, *, managed=False, on_created=None, tracker
         originals,files=repair_inputs(source)
         options=dict(originals=originals,source_files=files)
     report=gold.prepare(source,target,definitions=app/'Definitions/Definitions.bin',dxvk=app/'Payload/d3d9.dll',
-                        on_created=on_created,tracker=tracker,progress=progress,**options)
+                        mixed_room=package.get('mixed_room',False),on_created=on_created,
+                        tracker=tracker,progress=progress,**options)
     (target/'Launcher').mkdir()
     shutil.copyfile(app/'Payload/weplay_gold_startup.dll',target/'Launcher/weplay_gold_startup.dll')
     platform_standalone.prepare(target,app/'Payload/Platform',gold=True,tracker=tracker)
@@ -181,6 +196,7 @@ def prepare_copy(app, source, target, *, managed=False, on_created=None, tracker
     value={'format':INSTALLED,'files':inventory(target,('Data','Launcher','Backup')),'multiplayer':False,
            'platform_independent':True,'quiet_interface':True,'all_campaign_maps_selectable':True,
            'profile_isolation':'portable','source_files_verified':len(report['source_files'])}
+    if package.get('mixed_room',False):value['mixed_room']=True
     (target/'gold-install.json').write_text(json.dumps(value,indent=2)+'\n',encoding='utf-8')
     if tracker:
         for name,hashed in {**value['files'],**{n:gold.digest(target/n) for n in ('gold-install.json','gold-development.json','README.txt')}}.items():
@@ -207,7 +223,8 @@ def install(app, source, *, emit=print):
     gold.inspect(source, app / 'Definitions/Definitions.bin')
     stage = app / ('GoldPreparation-' + uuid.uuid4().hex)
     emit('Gold wird kopiert und das bereinigte Interface vorbereitet ...')
-    report = gold.prepare(source, stage, definitions=app / 'Definitions/Definitions.bin', dxvk=app / 'Payload/d3d9.dll')
+    report = gold.prepare(source, stage, definitions=app / 'Definitions/Definitions.bin',
+                          dxvk=app / 'Payload/d3d9.dll', mixed_room=package.get('mixed_room',False))
     launcher = stage / 'Launcher'
     launcher.mkdir()
     shutil.copy2(app / 'Payload/weplay_gold_startup.dll', launcher / 'weplay_gold_startup.dll')
@@ -229,6 +246,7 @@ def install(app, source, *, emit=print):
     value = {'format': INSTALLED, 'files': files, 'multiplayer': False,'platform_independent':independent,
              'quiet_interface': True, 'all_campaign_maps_selectable': True,
              'profile_isolation': 'portable' if independent else 'native-path-derived', 'source_files_verified': len(report['source_files'])}
+    if package.get('mixed_room',False):value['mixed_room']=True
     (stage / 'gold-install.json').write_text(json.dumps(value, indent=2) + '\n', encoding='utf8')
     ensure_closed(app)
     stage.rename(target)

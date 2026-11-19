@@ -2,6 +2,8 @@
 -- and its private state; saved roles come exclusively from validated metadata.
 local G, Panel, getState = ...
 local Resume = G.require("local.tools.settings").weplayMPResume
+local console = G.UI and G.UI.WriteToConsole
+local mixedRoomHost = _G.type(console) == "function" and console("weplay-crossplay-v1:mode") == "room-host"
 local dialog
 local originalCreate, originalUpdate, originalDestroy = Panel.create, Panel.update, Panel.destroy
 local function closeDialog()
@@ -39,7 +41,7 @@ local function loadSlot(slot)
     for _, player in _G.ipairs(record.players) do if player.role == 1 then humans = humans + 1 end end
     local State = getState()
     local filter = State.sessionsFilterList.getSelectedItemData()
-    if not G.Network.SessionCreate(record.map, false, filter.lan, humans, true, true, record.template, record.coop == 1) then
+    if not G.Network.SessionCreate(record.map, false, not mixedRoomHost and filter.lan, humans, true, true, record.template, record.coop == 1) then
         G.ui.messageBox("WePlay", "Die Lobby konnte nicht erstellt werden.")
         return
     end
@@ -48,7 +50,7 @@ local function loadSlot(slot)
     G.MapSetup.SetCoopMode(record.coop)
     local function applyResume()
         local loaded = G.Network.ChangeSavegame(savePath)
-        if not loaded or loaded == "" or not Resume.applyRoster(record) then
+        if not loaded or loaded == "" or (not mixedRoomHost and not Resume.applyRoster(record)) then
             G.Network.SessionLeave()
             G.ui.messageBox("WePlay", "Der Mehrspieler-Spielstand konnte nicht wiederhergestellt werden.")
             return false

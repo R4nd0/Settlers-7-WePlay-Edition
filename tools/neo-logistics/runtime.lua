@@ -15,7 +15,7 @@ local mixedActions={["stage:0"]=true,["stage:1"]=true,["start-event"]=true,
 local function bridge(command)
     if mixed then
         local snapshot=mixedHost and command:match("^save%-snapshot:%d+$")
-        local selectedFile=mode=="host" and command:sub(1,12)=="select-file:"
+        local selectedFile=mixedHost and command:sub(1,12)=="select-file:"
         if not mixedQueries[command] and not mixedActions[command] and not snapshot and not selectedFile then return false end
         local result=G.UI.WriteToConsole("weplay-crossplay-neo-v1:"..command)
         if mixedActions[command] or selectedFile then return result=="1" end
@@ -31,7 +31,7 @@ function M.networkReady()
 end
 function M.selectSaved(slot)
     if mixed then
-        if mode~="host" or _G.type(slot)~="number" or slot<0 or slot>4294967294 or slot~=_G.math.floor(slot)
+        if not mixedHost or _G.type(slot)~="number" or slot<0 or slot>4294967294 or slot~=_G.math.floor(slot)
             or _G.type(G.Game.GetSaveGameFileName)~="function" then return false end
         local path=G.Game.GetSaveGameFileName(slot)
         if _G.type(path)~="string" or #path==0 or #path>32767 or path:find("%z") then return false end
@@ -206,7 +206,7 @@ end
 if Resume then
     local saved=Resume.saved
     Resume.saved=function(slot,name)
-        if mixed then return false end
+        if mixed and mode~="room-host" then return false end
         local okay=saved(slot,name)
         if okay then
             settings.weplayMPResumeSlots[_G.tostring(slot)].neoLogistics=active

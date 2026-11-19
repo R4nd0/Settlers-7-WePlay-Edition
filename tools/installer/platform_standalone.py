@@ -19,8 +19,8 @@ HISTORY = '3e400b5d108ec99ca05105fb7d9149e2a4978435691ba2d9143fc68078f55aac'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
-                (True,True):'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112'}
-GOLD = 'fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2'
+                (True,True):'6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14'}
+GOLD = 'a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148'
 # Known previous release adapters remain readable for safe upgrade/repair.
 # New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
 LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',)
