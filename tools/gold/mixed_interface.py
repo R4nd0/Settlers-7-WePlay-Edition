@@ -17,6 +17,7 @@ SOURCES={
 HISTORY_MIDSUMMER = '1b9e17d711d3ee7b4e36f72d690e89e3b789d1174148a9337c7cbdd67af75e67'
 MAIN='Script/local/menu/panel/menu/control/mainState.lua'
 BROWSER='Script/local/menu/panel/menu/play/multiplayer/sessionList.lua'
+GAME_MENU='Script/local/menu/panel/gameMenu.lua'
 
 
 def fragment(name):
@@ -63,6 +64,15 @@ def saved_start_fragment():
     return '\nl=(function(...)\n'+fragment('mixed_saved_start.lua')+'\nend)(e,l)\n'
 
 
+def gold_game_menu(raw):
+    solo=('if e["Network"]["GetGameMode"]()==1then\n'
+          'f,l=o(i,l,"SAVE GAME",t["actions"]["save"])f,l=o(i,l,"LOAD GAME",t["actions"]["load"])u=true\n')
+    return insert(raw,gold_decode,solo,
+        'elseif e.Network.IsHost() and e.UI.WriteToConsole("weplay-crossplay-v1:mode")=="room-host"\n'
+        ' and e.UI.WriteToConsole("weplay-crossplay-v1:room-world-state")=="turn-events" then\n'
+        ' f,l=o(i,l,"SAVE GAME",t["actions"]["save"])u=true\n',after=True)
+
+
 def build(raw,edition,*,history_decoder=None):
     expected=(SOURCES['history'],HISTORY_MIDSUMMER) if edition=='history' else (SOURCES.get(edition),)
     if hashlib.sha256(raw).hexdigest() not in expected:
@@ -88,6 +98,7 @@ def build(raw,edition,*,history_decoder=None):
         changes[BROWSER]=insert(archive.read(BROWSER),decode,'return f\n',
             '\n;(function(...)\n'+fragment('mixed_browser.lua')+'\nend)(e,f,l,h,D)\n'
             '\n;(function(...)\n'+fragment('mixed_guest_browser.lua')+'\nend)(e,f,l,h)\n')
+        changes[GAME_MENU]=gold_game_menu(archive.read(GAME_MENU))
     else:
         changes[BROWSER]=insert(archive.read(BROWSER),decode,'return a\n',
             '\n;(function(...)\n'+fragment('mixed_guest_browser.lua')+'\nend)(e,a,l,r)\n')

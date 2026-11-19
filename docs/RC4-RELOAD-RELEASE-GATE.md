@@ -80,6 +80,20 @@ production adapter invalidates the binding. A new final package requires its own
 installed qualification. The gate checks evidence identity and completeness; it
 does not establish that the game ran or replace review of native diagnostics.
 
+## Gold-host diagnostic, 2026-11-19
+
+In an isolated diagnostic run, both History clients displayed and used their
+original Ready controls. Gold used the original Save dialog to write the
+shared game at logic turn 168. A new three-client session loaded that save
+through the original Gold browser and transferred the native world to both
+History clients. With all three clocks at 100 ms, the clients produced 352
+consecutive matching native checksums over 242.6 seconds. A second Gold save
+at logic turn 493 contained all three human players, Maid Marielle and active
+NEO. All three clients exited normally and the test copies were restored.
+The run temporarily substituted the corrected adapters and Gold menu archive
+into the earlier installed candidate. Final installed host receipts are still
+required.
+
 ## Release text and assets
 
 Generate the final bilingual notes and release graphics from the qualified

@@ -10,7 +10,7 @@ import platform_standalone as platform
 EXE = 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
 INTERFACE = 'Data/Base/BBA/Interface.bba'
 INTERFACE_SHA256 = '9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928'
-MIXED_INTERFACE_SHA256 = 'f359895ae98539946aac80258512e22fcabe41616a876fc6e25ee8c7cdaeb2fb'
+MIXED_INTERFACE_SHA256 = '6188cf2a999eabb93427fa1df236f01226b47a61d6d3bd3c29df5d6556006734'
 OPTIONS = ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
 
 

@@ -18,9 +18,9 @@ EXECUTABLE_EDITIONS = {
 }
 # Filled only for production adapters that implement the contract. Previous
 # solo/History-only fingerprints never become mixed-capable by migration.
-_HISTORY_ROOM_ADAPTER = '597803dccfc37885a7d60f0530f36130cfcb0c3adeef259c22aaa5ff853b0ed4'
+_HISTORY_ROOM_ADAPTER = '847378000abeabd83b1d7a459db19e54b734c84b5694a9b3b797704ef4225017'
 ADAPTER_PINS = {
-    1: ('537385bff398cd9251e74ef769caf70aa6f86afcecab0fb52542d3149ac7a430',),
+    1: ('a5e511148b04f99d05b99ea1605f435c805988ab1f2a1fc23d250769ae9d3453',),
     2: (_HISTORY_ROOM_ADAPTER,),
     3: (_HISTORY_ROOM_ADAPTER,),
 }

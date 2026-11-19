@@ -8,7 +8,7 @@
     bool room_primed=false;
     bool room_gold_sdk_ready_installed=false;
     bool room_gold_ready_enqueued=false;
-    bool room_history_host_rows_confirmed=false;
+    bool room_history_rows_confirmed=false;
     ULONGLONG room_configuration_started=0;
     unsigned char room_changed_ready_slot=0;
     std::deque<Crossplay::RoomEvent> room_ready_requests;
@@ -289,33 +289,40 @@
         return true;
     }
 
-    bool PrepareRoomHistoryHostRows(){
+    bool PrepareRoomHistoryRows(bool saved=false){
         using namespace CrossplayNative;
         using namespace CrossplayNative::HistoryClaimDetail;
         const auto edition=launch.channel.edition;
-        if(!launch.host || edition==Crossplay::Edition::Gold || room_history_host_rows_confirmed)return true;
+        if(edition==Crossplay::Edition::Gold || room_history_rows_confirmed)return true;
         Pin pin;
         Interval preparation;
         LobbySnapshot lobby;
         CrossplaySessionConfig::Layout layout;
         std::vector<unsigned char> configuration;
-        if(!Layout(edition,pin) || !Methods(edition) || !original.CaptureLobby(lobby) || !lobby.host
+        if(!Layout(edition,pin) || !Methods(edition) || !original.CaptureLobby(lobby) || lobby.host!=launch.host
             || lobby.instance!=session || !HistoryClaimDetail::Capture(pin,lobby,preparation,room_local_routes.capacity)
-            || !ReadRoomSnapshot(configuration) || !CrossplaySessionConfig::InspectRoom(configuration,room_local_routes,layout))return false;
+            || (saved?(launch.host || !resume_stream_observed)
+                :(!ReadRoomSnapshot(configuration) || !CrossplaySessionConfig::InspectRoom(configuration,room_local_routes,layout))))return false;
         ParticipantEvent confirmed;
-        if(!confirmed.Bind(edition))return false;
+        if(!saved && !confirmed.Bind(edition))return false;
         for(const auto& member:lobby.members){
-            if(member.player.local)continue;
+            if(member.player.host)continue;
             const auto slot=member.player.slot;
             Participant player;
             CrossplayCastleSetup::Value castle;
             uint32_t member_extra=0;
-            if(!room_admission.CaptureMemberSetup(slot,player,castle,member_extra) || player.local || player.host
+            if(!room_admission.CaptureMemberSetup(slot,player,castle,member_extra) || player.host
+                || player.local!=member.player.local
                 || player.connection!=member.player.connection)return false;
             const auto* row=reinterpret_cast<const unsigned char*>(preparation.rows)+slot*0x5a8;
             if(CrossplayChat::Word(row+0x5c)==UINT32_MAX && !ClaimOpenHumanRow(pin,preparation,player))return false;
             if(CrossplayChat::Word(row+0x5c)!=slot || CrossplayChat::Word(row+0x60)!=3
-                || CrossplayChat::Word(row+0x64)!=1 || CrossplayChat::Word(row+0x18)!=(player.principal?player.principal:slot))return false;
+                || CrossplayChat::Word(row+0x64)!=1)return false;
+            // Saved castles and player identities come from the resident
+            // archive. The lobby may bind an open native row for its controls,
+            // while a previously populated saved row keeps its saved data.
+            if(saved)continue;
+            if(CrossplayChat::Word(row+0x18)!=(player.principal?player.principal:slot))return false;
             const bool ready=configuration[layout.slots_at+(slot-1)*CrossplaySessionConfig::SlotBytes]!=0;
             if(!confirmed.ConstructConfirmedSetup(player,castle,member_extra,ready) || !confirmed.EnqueueLocal() || !confirmed.Reset())return false;
         }
@@ -323,7 +330,7 @@
         Interval owned;
         if(!original.CaptureLobby(after) || !HistoryClaimDetail::Capture(pin,after,owned,room_local_routes.capacity)
             || !Same(preparation,owned))return false;
-        room_history_host_rows_confirmed=true;return true;
+        room_history_rows_confirmed=true;return true;
     }
 
     bool RoomGoldReadyIntent(uint32_t source,uint32_t original_slot,const void* event,std::vector<unsigned char>& wire){
@@ -533,7 +540,7 @@
         if(room_team_phase!=TeamPhase::Idle)return PumpRoomTeams(room);
         if(!ReadyRoomSupported(room))return true;
 #ifdef S7_CROSSPLAY_ROOM_WORLD
-        if(!PrepareRoomHistoryHostRows())return false;
+        if(!PrepareRoomHistoryRows())return false;
 #endif
 #ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!SendRoomLobbyNeo(room))return false;

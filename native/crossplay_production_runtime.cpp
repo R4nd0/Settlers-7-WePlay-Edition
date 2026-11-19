@@ -709,6 +709,7 @@ bool RoomGuestReadyActionAvailable(){
     return room && RoomConfigurationApplied() && !current->launch.host
 #ifdef S7_CROSSPLAY_ROOM_WORLD
         && current->room_lobby_neo_choice.revision
+        && (current->launch.channel.edition==Crossplay::Edition::Gold || current->room_history_rows_confirmed)
 #endif
         && current->outgoing_installed && current->ReadyRoomSupported(*room);
 #else

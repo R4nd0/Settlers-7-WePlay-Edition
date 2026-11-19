@@ -2,6 +2,7 @@
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/gold'))
@@ -456,6 +457,40 @@ class MixedArchiveGuardTests(unittest.TestCase):
     def test_builder_rejects_unknown_edition_and_unpinned_archive(self):
         for edition in ('gold','history','steam','unknown',None):
             with self.assertRaises(ValueError):mixed_interface.build(b'not a game archive',edition)
+
+    @unittest.skipUnless(LuaRuntime,'Lua 5.1 test runtime is required')
+    def test_gold_save_menu_uses_native_action_for_owned_running_room_host(self):
+        normal=b'''return function(mode,host,role,world)
+local items={}
+local f,l,i,u=0,0,0,false
+local t={actions={save=7,load=8}}
+local function o(_,position,label,action)
+ items[#items+1]=label..":"..action
+ return 0,position
+end
+local e={Network={GetGameMode=function()return mode end,IsHost=function()return host end},
+ UI={WriteToConsole=function(command)
+ if command=="weplay-crossplay-v1:mode" then return role end
+ if command=="weplay-crossplay-v1:room-world-state" then return world end
+end}}
+if e["Network"]["GetGameMode"]()==1 then
+f,l=o(i,l,"SAVE GAME",t["actions"]["save"])f,l=o(i,l,"LOAD GAME",t["actions"]["load"])u=true
+end
+return table.concat(items,",")
+end
+'''
+        def decoded(raw):
+            source=raw.decode()
+            space=source.index('==1 then')+3
+            return source,source[:space]+source[space+1:],[i for i in range(len(source)+1) if i!=space]
+        with patch.object(mixed_interface,'gold_decode',side_effect=decoded):
+            configured=mixed_interface.gold_game_menu(normal)
+        menu=LuaRuntime().execute(configured.decode())
+        self.assertEqual(menu(1,False,'solo','waiting'),'SAVE GAME:7,LOAD GAME:8')
+        self.assertEqual(menu(0,True,'room-host','turn-events'),'SAVE GAME:7')
+        self.assertEqual(menu(0,False,'room-guest','turn-events'),'')
+        self.assertEqual(menu(0,True,'room-host','waiting'),'')
+        self.assertEqual(menu(0,True,'solo','turn-events'),'')
 
 
 class RoomMenuTests(unittest.TestCase):
