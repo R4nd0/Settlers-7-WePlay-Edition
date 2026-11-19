@@ -4,6 +4,7 @@
 #ifndef Output
   #error Output must point to an existing output directory
 #endif
+#define WePlayDisplayVersion "rc4.02"
 
 [Setup]
 #ifdef InstallerTest
@@ -13,12 +14,12 @@ Uninstallable=no
 AppId={{B66B3FA3-165A-4B0E-ACAA-771C64367317}
 #endif
 AppName=Settlers 7: WePlay Edition
-AppVersion=rc4.02
+AppVersion={#WePlayDisplayVersion}
 VersionInfoVersion=2.0.0.31
 #ifdef InstallerTest
-AppVerName=WePlay Installer TEST - RC4.00
+AppVerName=WePlay Installer TEST - {#WePlayDisplayVersion}
 #else
-AppVerName=Settlers 7: WePlay Edition RC4.00
+AppVerName=Settlers 7: WePlay Edition {#WePlayDisplayVersion}
 #endif
 AppPublisher=WePlay Community
 AppPublisherURL=https://github.com/R4nd0/Settlers-7-WePlay-Edition
