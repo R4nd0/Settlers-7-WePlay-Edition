@@ -59,7 +59,7 @@ internal sealed partial class MainForm
         var publisherTitle=Label("directoryPublisherTitle");publisherTitle.Font=discordSection.Font;Add(discord,publisherTitle);
         Add(discord,Label("directoryPublisherInfo"));Add(discord,discordNotice);
         Bind(discordPublish,"discordPublish");Add(discord,discordPublish);
-        Bind(discordOptions,"discordOptions");Add(discord,Buttons(Button("discordFindPlayers",()=>{Community.OpenDiscord();return Task.CompletedTask;}),discordOptions));
+        Bind(discordOptions,"discordOptions");Add(discord,Buttons(OpenDiscordButton("discordFindPlayers"),discordOptions));
         discordOptionsPanel=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Top,ColumnCount=1 };discordOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         accessibleFields[discordOptionsPanel]="discordOptions";
         Add(discordOptionsPanel,Label("discordSetupSteps"));
@@ -168,7 +168,6 @@ internal sealed partial class MainForm
         var accept=new Button {Text=Lang.T("directoryConnect"),Left=410,Top=196,Width=220,Height=38,DialogResult=DialogResult.OK};
         var cancel=new Button {Text=Lang.T("cancel"),Left=250,Top=196,Width=150,Height=38,DialogResult=DialogResult.Cancel};
         dialog.Controls.AddRange([explanation,code,accept,cancel]);dialog.AcceptButton=accept;dialog.CancelButton=cancel;
-        ConfigureDiscordSymbols(dialog,discordSymbol);
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         string secret=code.Text;code.Clear();using var channel=new InternetChannel();Task pump=channel.Run(secret,_=>{});secret="";
         JsonElement result;

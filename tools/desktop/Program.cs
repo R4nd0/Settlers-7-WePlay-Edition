@@ -271,7 +271,11 @@ internal sealed partial class MainForm : Form
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
-            Padding=new Padding(16,0,0,0), AccessibleDescription=Community.DiscordUrl };
+            AccessibleDescription=Community.DiscordUrl };
+        var discordCommunity=new TableLayoutPanel { AutoSize=true,Dock=DockStyle.Fill,ColumnCount=2,Margin=new Padding(10,0,0,0) };
+        discordCommunity.Controls.Add(new PictureBox { Image=discordSymbol,Size=new Size(22,22),SizeMode=PictureBoxSizeMode.CenterImage,
+            Anchor=AnchorStyles.Left,Margin=Padding.Empty },0,0);
+        discordCommunity.Controls.Add(discordLink,1,0);
         Bind(discordLink,"discordOpen");discordLink.LinkClicked+=(_,_)=>
         {try{Community.OpenDiscord();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
         var coffeeLink=new LinkLabel { Text="Buy me a coffee",AutoSize=true,Dock=DockStyle.Fill,
@@ -284,7 +288,7 @@ internal sealed partial class MainForm : Form
         globalUpdateLink=new LinkLabel { AutoSize=true,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,Padding=new Padding(12,0,0,0),Visible=false };
         globalUpdateLink.LinkClicked+=async (_,_)=>await Guard(InstallUpdate);
         footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,4);
-        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordLink,2,1);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordCommunity,2,1);
         footer.Controls.Add(coffeeLink,3,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
@@ -292,7 +296,6 @@ internal sealed partial class MainForm : Form
         cancelButton=new Button {AutoSize=true,MinimumSize=new Size(150,38)};Bind(cancelButton,"cancel");cancelButton.Visible=false;
         cancelButton.Click+=(_,_)=>RequestCancellation();
         BuildSetup(); BuildTabs(); BuildSettingsRecovery();
-        ConfigureDiscordSymbols(this,discordSymbol);
         tabs.SelectedIndexChanged += (_,_) => { if(IsHandleCreated) BeginInvoke((Action)FitMenuHeight); };
         ResizeBegin += (_,_) => automaticMenuHeight=false;
         tabs.Visible=false;
@@ -501,7 +504,7 @@ internal sealed partial class MainForm : Form
         Add(h,Label("discordTitle"));Add(h,Label("discordInfo"));
         var discordCode=new TextBox { Text=Community.DiscordCode,ReadOnly=true,Dock=DockStyle.Fill };
         Add(h,Field("discordSuggestedCode",discordCode));
-        Add(h,Buttons(Button("discordOpen",()=>{Community.OpenDiscord();return Task.CompletedTask;}),
+        Add(h,Buttons(OpenDiscordButton("discordOpen"),
             Button("discordCopyLink",()=>{try{Clipboard.SetText(Community.DiscordUrl);status.Text=Lang.T("discordLinkCopied");}
                 catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardFailed","");}return Task.CompletedTask;})));
         var updateScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };updatesPage.Controls.Add(updateScroll);var u=Stack(updateScroll);
@@ -940,7 +943,6 @@ internal sealed partial class MainForm : Form
         var accept=new Button {Text=Lang.T("discordConnect"),Left=410,Top=226,Width=220,Height=38,DialogResult=DialogResult.OK};
         var cancel=new Button {Text=Lang.T("cancel"),Left=250,Top=226,Width=150,Height=38,DialogResult=DialogResult.Cancel};
         dialog.Controls.AddRange([explanation,code,accept,cancel]);dialog.AcceptButton=accept;dialog.CancelButton=cancel;
-        ConfigureDiscordSymbols(dialog,discordSymbol);
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         string secret=code.Text;code.Clear();using var channel=new InternetChannel();
         Task pump=channel.Run(secret,_=>{});secret="";
@@ -1348,7 +1350,19 @@ internal sealed partial class MainForm : Form
                 }
                 if(form.playModes.Any(x=>!x.Card.TextFits()))throw new Exception("Mode card text clips at the minimum window width");
                 form.Size=normalSize;form.automaticMenuHeight=true;
-                form.tabs.SelectedTab=form.helpPage;var helpScroll=(Panel)form.helpPage.Controls[0];helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
+                var discordButtons = Descendants(form).OfType<ButtonBase>().Where(button => ReferenceEquals(button.Image, form.discordSymbol))
+                    .Select(button => form.labels[button]).OrderBy(key => key, StringComparer.Ordinal).ToArray();
+                var discordMarks = Descendants(form).OfType<PictureBox>().Where(mark => ReferenceEquals(mark.Image, form.discordSymbol)).ToArray();
+                if(discordMarks.Length != 1 || discordMarks[0].Parent != form.discordLink.Parent
+                    ||!discordButtons.SequenceEqual(new[]{"discordFindPlayers","discordOpen"})
+                    ||Descendants(form).OfType<Label>().Any(label => ReferenceEquals(label.Image,form.discordSymbol))
+                    ||form.labels.Any(item => (item.Value is "startGuide" or "roomGuide" or "invitationGuide") && item.Key.Padding.Left != 0))
+                    throw new Exception("Discord symbols must appear only on controls that open Discord");
+                form.tabs.SelectedTab=form.helpPage;
+                var helpScroll=(Panel)form.helpPage.Controls[0];
+                helpScroll.AutoScrollPosition=Point.Empty;
+                Application.DoEvents();Capture("help-start-guide");
+                helpScroll.AutoScrollPosition=new Point(0,helpScroll.DisplayRectangle.Height);Application.DoEvents();
                 using(var supportImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(supportImage,new Rectangle(0,0,form.Width,form.Height));supportImage.Save(Path.Combine(folder,language+"-help-community.png"));}
                 form.updatesSupported=true;
@@ -1372,7 +1386,7 @@ internal sealed partial class MainForm : Form
                 passed=true,checks=new[]{"translation_keys","release_version_exact_rc401_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
-                    "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
+                    "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
                     "mode_card_accessibility_and_text_fit","four_modes_visible_at_minimum_size","public_hosting_without_discord_and_optional_listing",
                     "ingame_invitation_run_and_role_guards","invitation_clipboard_failure_and_private_public_separation",
                     "graphics_draft_save_discard_cancel","hardware_refresh_preserves_draft","local_refresh_stale_and_obsolete_results",

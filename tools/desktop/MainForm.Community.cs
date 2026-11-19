@@ -22,44 +22,15 @@ internal sealed partial class MainForm
         return result;
     }
 
-    private static void ConfigureDiscordSymbols(Control root,Image symbol)
+    private Button OpenDiscordButton(string key)
     {
-        // Follow the actual translated text, including changing connection and
-        // status messages. Editable fields and copied invitations stay plain text.
-        foreach(var control in Descendants(root))
+        var button = Button(key, () =>
         {
-            if(control is PlayModeCard || (control is not System.Windows.Forms.Label && control is not ButtonBase))continue;
-            // The BMAC link has its own symbol and is never a Discord control.
-            if(control.AccessibleDescription==Community.CoffeeUrl)continue;
-            Padding original=control.Padding;
-            bool show=false;
-            if(control is System.Windows.Forms.Label caption)
-                caption.Paint+=(_,args)=>
-                {
-                    if(!show)return;
-                    int y=caption.TextAlign is ContentAlignment.MiddleLeft or ContentAlignment.MiddleRight
-                        ?(caption.Height-symbol.Height)/2:original.Top;
-                    // Label.Image uses the same padded rectangle as its text.
-                    // Paint in the reserved gutter so multiline text cannot overlap.
-                    args.Graphics.DrawImage(symbol,original.Left,y);
-                };
-            void RefreshSymbol()
-            {
-                show=control.Text.Contains("Discord",StringComparison.OrdinalIgnoreCase);
-                if(control is System.Windows.Forms.Label label)
-                {
-                    label.Padding=show?new Padding(original.Left+30,original.Top,original.Right,original.Bottom):original;
-                    label.Invalidate();
-                }
-                else if(control is ButtonBase button)
-                {
-                    button.Image=show?symbol:null;
-                    button.TextImageRelation=TextImageRelation.ImageBeforeText;
-                    if(button is CheckBox)button.ImageAlign=ContentAlignment.MiddleLeft;
-                }
-            }
-            control.TextChanged+=(_,_)=>RefreshSymbol();
-            RefreshSymbol();
-        }
+            Community.OpenDiscord();
+            return Task.CompletedTask;
+        });
+        button.Image = discordSymbol;
+        button.TextImageRelation = TextImageRelation.ImageBeforeText;
+        return button;
     }
 }

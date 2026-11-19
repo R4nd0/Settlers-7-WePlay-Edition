@@ -19,7 +19,6 @@ internal sealed class PlayModeCard : Button
     private bool compact;
     private readonly Color accent;
     private static readonly Image EasyTier = ReadImage("WePlay.EasyTier.png");
-    private static readonly Image Discord = ReadImage("WePlay.Discord.png");
 
     public PlayModeCard(PlayMode mode)
     {
@@ -101,7 +100,7 @@ internal sealed class PlayModeCard : Button
         if(!compact)TextRenderer.DrawText(g,Summary,Font,new Rectangle(S(20),S(96),Width-S(40),S(56)),ink,
             TextFormatFlags.WordBreak|TextFormatFlags.NoPrefix);
         DrawFeature(g,FeatureOne,S(compact?39:163),Mode is PlayMode.PrivateInternet or PlayMode.PublicInternet?EasyTier:null,ink,mark);
-        DrawFeature(g,FeatureTwo,S(compact?61:200),Mode==PlayMode.PublicInternet?Discord:null,ink,mark);
+        DrawFeature(g,FeatureTwo,S(compact?61:200),null,ink,mark);
         using var line=new Pen(contrast?SystemColors.WindowText:Color.FromArgb(229,234,240));
         g.DrawLine(line,S(20),Height-S(compact?29:48),Width-S(20),Height-S(compact?29:48));
         using var actionFont=new Font(Font,FontStyle.Bold);
