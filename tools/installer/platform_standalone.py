@@ -70,7 +70,7 @@ def layout(root, *, gold=False):
 def validate_location(root,*,gold=False):
     profile=Path(root)/'LocalData/ProfileRoot'/('Profiles' if gold else 'THE SETTLERS 7 - History Edition')
     if len(str(profile).encode('utf-16le'))//2+64>=260:
-        raise ValueError('Der Zielpfad ist für die Spielstände zu lang. Einen kürzeren lokalen Zielordner wählen.')
+        raise ValueError('destination_too_long')
 
 
 def marker(executable):

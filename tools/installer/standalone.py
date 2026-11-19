@@ -16,6 +16,7 @@ import sys
 import uuid
 
 FORMAT = 'weplay-private-standalone-v1'
+MANAGED_FORMAT = 'weplay-managed-standalone-v1'
 RECORD = 'standalone.json'
 PREFLIGHT_BUSY = 3
 
@@ -32,7 +33,7 @@ def descriptor(root):
         raise ValueError('Standalone-Manifest ist zu gross.')
     value = json.loads(path.read_text(encoding='utf-8'))
     if (not isinstance(value, dict) or set(value) != {'format', 'instance', 'package_id'}
-            or value['format'] != FORMAT
+            or value['format'] not in (FORMAT, MANAGED_FORMAT)
             or not isinstance(value['instance'], str)
             or not re.fullmatch('[0-9a-f]{32}', value['instance'])
             or not isinstance(value['package_id'], str)
@@ -119,6 +120,16 @@ def bind(root):
     with desktop.lock(), verification:
         if hasattr(desktop,'recover_publication'):desktop.recover_publication()
         value = descriptor(root)
+        if value['format'] == MANAGED_FORMAT:
+            # A deliberate move to shorter storage uses the already owned
+            # installation. It is bound to this app and cannot be relocated
+            # or re-adopted from a stale portable descriptor.
+            installed = desktop.installed()
+            if (installed is None or installed['container'] == str(desktop.app / 'Instances')
+                    or installed['current'] != value['instance']
+                    or installed['package_id'] != value['package_id']):
+                raise ValueError('Standalone: missing or invalid managed storage.')
+            return desktop
         game = backend.graphics._plain(desktop.app / 'Instances' / value['instance'])
         # Ordinary already-bound snapshots are display-only. Full verification
         # is retained below for adoption/relocation and at every game start.

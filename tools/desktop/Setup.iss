@@ -13,8 +13,8 @@ Uninstallable=no
 AppId={{B66B3FA3-165A-4B0E-ACAA-771C64367317}
 #endif
 AppName=Settlers 7: WePlay Edition
-AppVersion=rc4.00
-VersionInfoVersion=2.0.0.29
+AppVersion=rc4.01
+VersionInfoVersion=2.0.0.30
 #ifdef InstallerTest
 AppVerName=WePlay Installer TEST - RC4.00
 #else

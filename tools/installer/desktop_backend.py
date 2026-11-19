@@ -398,6 +398,12 @@ class Desktop:
         else:selected['choice']=None
         return selected
 
+    def standalone_descriptor(self, record):
+        import standalone
+        bundled = Path(record['container']) == self.app/'Instances'
+        return {'format': standalone.FORMAT if bundled else standalone.MANAGED_FORMAT,
+                'instance': record['current'], 'package_id': record['package_id']}
+
     def recover_publication(self):
         """Recover the metadata pair under the desktop operation lock."""
         path=self.state/'installation-transaction.json';journal=self.read(path)
@@ -412,9 +418,7 @@ class Desktop:
         db,da=journal['descriptor_before'],journal['descriptor_after']
         if (db is None)!=(da is None):raise ValueError('installation_invalid')
         for value,record in ((db,before),(da,after)):
-            if value is not None and (not isinstance(value,dict) or record is None or
-                    value!={'format':'weplay-private-standalone-v1','instance':record['current'],'package_id':record['package_id']}
-                    or Path(record['container'])!=self.app/'Instances'):
+            if value is not None and (record is None or value != self.standalone_descriptor(record)):
                 raise ValueError('installation_invalid')
         current=self.read(self.state/'installation.json')
         portable=self.read(descriptor,limit=4096) if db is not None else None
@@ -439,10 +443,9 @@ class Desktop:
         db=self.read(descriptor,limit=4096) if descriptor.is_file() else None
         da=None
         if db is not None:
-            if (before is None or Path(record['container'])!=self.app/'Instances' or
-                    db!={'format':'weplay-private-standalone-v1','instance':before['current'],'package_id':before['package_id']}):
+            if before is None or db != self.standalone_descriptor(before):
                 raise ValueError('standalone_invalid')
-            da={'format':db['format'],'instance':record['current'],'package_id':record['package_id']}
+            da=self.standalone_descriptor(record)
         journal=self.state/'installation-transaction.json'
         self.write(journal,{'format':'weplay-install-publication-v1','owner':self.owner,
             'before':before,'after':record,'descriptor_before':db,'descriptor_after':da})
@@ -570,9 +573,12 @@ class Desktop:
             raise ValueError('destination_invalid')
         if base.is_relative_to(self.package) or self.package.is_relative_to(base):
             raise ValueError('destination_invalid')
-        base.mkdir(parents=True,exist_ok=True)
         instance=uuid.uuid4().hex
         root=base/instance
+        if manifest.get('platform_independent',False):
+            from platform_standalone import validate_location
+            validate_location(root,gold=gold)
+        base.mkdir(parents=True,exist_ok=True)
         self.progress('source')
         old=self.game() if previous else None
         if old is None and repairable:old=source
@@ -1446,7 +1452,7 @@ def error_code(error):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
-        'renderer_unsupported','destination_invalid','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
+        'renderer_unsupported','destination_invalid','destination_too_long','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',

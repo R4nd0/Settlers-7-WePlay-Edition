@@ -14,6 +14,7 @@ internal static class Program
     {
         string value=version.Split('+')[0];
         if(value=="2.0.0-rc4.0")return "rc4.00";
+        if(value=="2.0.0-rc4.1")return "rc4.01";
         int marker=value.IndexOf("-rc",StringComparison.OrdinalIgnoreCase);
         return marker>=0?value[(marker+1)..].ToLowerInvariant():value;
     }
@@ -188,6 +189,10 @@ internal sealed partial class MainForm : Form
     private readonly ComboBox source = Combo();
     private readonly TextBox destination = new() { ReadOnly = true, Dock = DockStyle.Fill };
     private readonly Label setupNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
+    private readonly TextBox setupDetails = new() { Multiline = true, ReadOnly = true, Height = 108,
+        ScrollBars = ScrollBars.Vertical, Visible = false };
+    private Button setupHelp = null!;
+    private string? setupErrorCode;
     private readonly Button installButton, cancelButton;
     private readonly Label homeTitle = new() { AutoSize = true, Font = new Font("Segoe UI",22,FontStyle.Bold) };
     private readonly Label homeInfo = new() { AutoSize = true, MaximumSize = new Size(850,0) };
@@ -378,7 +383,29 @@ internal sealed partial class MainForm : Form
         Add(stack,Field("source",source,Button("browseSource",BrowseSource)));
         Add(stack,Field("destination",destination,Button("change",BrowseDestination)));
         Add(stack,Label("storagePolicy"));
-        Add(stack,Label("installInfo")); Add(stack,setupNotice); Add(stack,Buttons(installButton,cancelButton));
+        setupHelp = Button("setupHelp", ToggleSetupHelp);
+        accessibleFields[setupDetails] = "details";
+        Add(stack,Label("installInfo")); Add(stack,setupNotice);
+        Add(stack,Buttons(installButton,cancelButton,setupHelp));
+        Add(stack,setupDetails);
+    }
+
+    private Task ToggleSetupHelp()
+    {
+        setupDetails.Visible = !setupDetails.Visible;
+        if (setupDetails.Visible)
+        {
+            RefreshSetupDetails();
+            setupDetails.Focus();
+        }
+        return Task.CompletedTask;
+    }
+
+    private void RefreshSetupDetails()
+    {
+        setupDetails.Text = setupErrorCode is string code
+            ? $"{Lang.T(code)}{Environment.NewLine}{code}{Environment.NewLine}{lastError}"
+            : Lang.T("setupHelpIntro");
     }
     private void BuildTabs()
     {
@@ -491,6 +518,7 @@ internal sealed partial class MainForm : Form
     private void ApplyLanguage()
     {
         foreach (var item in labels) item.Key.Text = Lang.T(item.Value);
+        RefreshSetupDetails();
         ApplyPlayModeLanguage();UpdateMaintenanceNotice();
         UpdateGraphicsPresets();ApplyEditionCapabilities();if(recoveryVisible)ShowSettingsRecovery(recoveryStatus);
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
@@ -528,8 +556,9 @@ internal sealed partial class MainForm : Form
         {
             if(!await TryShowSettingsRecovery(error))
             {
-                ShowError(error);setup.Visible=true;tabs.Visible=false;installButton.Enabled=true;
+                setup.Visible=true;tabs.Visible=false;installButton.Enabled=true;
                 if(error is BackendError portableFailure&&portableFailure.Code=="standalone_invalid")setup.Visible=false;
+                ShowError(error);
                 if(error is BackendError failure&&failure.Code=="installation_invalid"){recoverState=true;Bind(installButton,"restartSetup");}
             }
         }
@@ -679,6 +708,7 @@ internal sealed partial class MainForm : Form
             LoadSnapshot(await Backend.Run("reset-installation",new {},Receive));recoverState=false;await ShowSetup();return;
         }
         if(source.SelectedItem is not Item item)throw new BackendError("source_missing","");
+        setupErrorCode=null;RefreshSetupDetails();
         var result=await Backend.Run("install",new {source=item.Key,container=destination.Text},Receive);
         LoadSnapshot(result);if(!testing)Shortcuts.Create();ShowMain();
     }
@@ -1066,6 +1096,13 @@ internal sealed partial class MainForm : Form
     private void ShowError(Exception error)
     {
         string code=error is BackendError backend?backend.Code:"operation_failed";lastError=error.Message;details.Text=lastError;
+        if(setup.Visible)
+        {
+            setupErrorCode=code;
+            RefreshSetupDetails();
+            setupDetails.Visible=true;
+            if(setupDetails.Parent?.Parent is Panel scroll)scroll.ScrollControlIntoView(setupDetails);
+        }
         status.Text=Lang.T(code);if(!testing)MessageBox.Show(this,Lang.T(code),Lang.T("errorTitle"),MessageBoxButtons.OK,MessageBoxIcon.Warning);
     }
     private void RestoreWindow(){ShowInTaskbar=true;WindowState=FormWindowState.Normal;tray.Visible=false;Show();}
@@ -1116,7 +1153,7 @@ internal sealed partial class MainForm : Form
                     consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
-                if(form.releaseVersion.Text!="rc4.00"||Program.ReleaseVersion!="rc4.00")throw new Exception("Release version label must be exactly rc4.00");
+                if(form.releaseVersion.Text!="rc4.01"||Program.ReleaseVersion!="rc4.01")throw new Exception("Release version label must be exactly rc4.01");
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.TestStandaloneEdition(json.RootElement,folder,language);
@@ -1322,12 +1359,17 @@ internal sealed partial class MainForm : Form
                 using(var updateImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(updateImage,new Rectangle(0,0,form.Width,form.Height));updateImage.Save(Path.Combine(folder,language+"-update-found.png"));}
                 form.tabs.Visible=false;form.setup.Visible=true;form.source.Items.Add(new Item("C:\\Fixture\\Original","C:\\Fixture\\Original"));form.source.SelectedIndex=0;form.setupNotice.Text=Lang.T("found");Application.DoEvents();
+                if(!form.setupHelp.Visible||!form.setupHelp.Enabled)throw new Exception("Setup help is unreachable");
+                form.setupHelp.PerformClick();Application.DoEvents();
+                if(!form.setupDetails.Visible||form.setupDetails.Text!=Lang.T("setupHelpIntro"))throw new Exception("Setup help requires a successful install");
+                form.ShowError(new BackendError("operation_failed","Repair diagnostic fixture"));
+                if(!form.setupDetails.Visible||!form.setupDetails.Text.Contains("Repair diagnostic fixture"))throw new Exception("Setup error details are hidden");
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
                 form.DiscardGraphicsDraft();form.Close();
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc400_and_update_prefix_hidden","borderless_native_resolution","native_gpu_filter_disabled",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc401_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","native_gpu_filter_disabled",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

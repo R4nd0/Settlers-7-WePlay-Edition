@@ -15,8 +15,9 @@ import build_package
 import compatibility as content
 import install
 
-RELEASE_GUIDE = REPO/'docs/RC4.00-RELEASE-NOTES.md'
-RELEASE_TAG = 'v2.0.0-rc4.00'
+RELEASE_GUIDE = REPO/'docs/RC4.01-RELEASE-NOTES.md'
+RELEASE_TAG = 'v2.0.0-rc4.01'
+UPDATE_SEQUENCE = 30
 
 
 def public_document(source,*,revision=None):
@@ -45,7 +46,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=29,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=UPDATE_SEQUENCE,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -120,8 +121,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC4.00 Unified Gold and History','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc4.0','display_version':'rc4.00','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC4.01 Setup and repair hotfix','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc4.1','display_version':'rc4.01','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':6 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
@@ -190,7 +191,7 @@ if __name__=='__main__':
     parser.add_argument('--easytier-runtime',required=True)
     parser.add_argument('--easytier-source',required=True)
     parser.add_argument('--windows-helpers',required=True)
-    parser.add_argument('--update-sequence',type=int,default=29)
+    parser.add_argument('--update-sequence',type=int,default=UPDATE_SEQUENCE)
     parser.add_argument('--game-directory',action='store_true')
     parser.add_argument('--neo-logistics',action='store_true')
     parser.add_argument('--midsummer-profile',action='store_true')

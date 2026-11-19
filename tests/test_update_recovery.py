@@ -161,14 +161,41 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse((self.d.state/'installation-transaction.json').exists());cleanup.assert_not_called()
         self.assertTrue((self.f.game/'Base/Bin/Settlers7R.exe').is_file())
 
-    def interrupt(self,after_descriptor=False):
+    def test_shorter_storage_repairs_bound_export_and_preserves_save(self):
+        saves = self.f.game / 'LocalData/saves'
+        saves.mkdir(parents=True, exist_ok=True)
+        (saves / 'keep.s7s').write_bytes(b'checkpoint')
+        target = self.f.fixture.root / 'short-storage'
+        with patch.object(self.d, 'clean_old', return_value={'cleaned': 0}):
+            self.d.install_game(self.f.game, target)
+        current = self.d.game()
+        self.assertEqual(current.parent, target)
+        self.assertEqual((current/'LocalData/saves/keep.s7s').read_bytes(), b'checkpoint')
+        self.assertEqual((saves/'keep.s7s').read_bytes(), b'checkpoint')
+        self.assertEqual(standalone.descriptor(self.f.root)['format'], standalone.MANAGED_FORMAT)
+        self.assertEqual(standalone.bind(self.f.root).game(), current)
+        moved = self.move_export('moved-managed')
+        with self.assertRaises(ValueError):
+            standalone.bind(moved)
+        self.assertEqual((current/'LocalData/saves/keep.s7s').read_bytes(), b'checkpoint')
+
+    def test_long_target_has_specific_error_before_allocation(self):
+        target = self.f.fixture.root / ('deep-' * 32)
+        with patch.object(self.d, 'package_manifest', return_value={'platform_independent': True}):
+            with self.assertRaisesRegex(ValueError, '^destination_too_long$'):
+                self.d.install_game(self.f.game, target)
+        self.assertFalse(target.exists())
+        self.assertEqual(self.d.installed(), self.before)
+        self.assertEqual(backend.error_code(ValueError('destination_too_long')), 'destination_too_long')
+
+    def interrupt(self,after_descriptor=False,container=None):
         real=self.d.write
         def write(path,value):
             real(path,value)
             target=self.f.root/'standalone.json' if after_descriptor else self.d.state/'installation.json'
             if path==target:raise OSError('simulated process interruption')
         with patch.object(self.d,'write',side_effect=write),patch.object(self.d,'recover_publication'),patch.object(self.d,'clean_old'):
-            with self.assertRaises(OSError):self.d.install_game(self.f.game)
+            with self.assertRaises(OSError):self.d.install_game(self.f.game,container)
         self.assertTrue((self.d.state/'installation-transaction.json').exists())
 
     def test_startup_recovers_interruption_between_metadata_writes(self):
@@ -177,6 +204,12 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.d.installed(),self.before)
         self.assertEqual(standalone.descriptor(self.f.root),self.descriptor)
         self.assertFalse((self.d.state/'installation-transaction.json').exists())
+
+    def test_external_storage_switch_rolls_back_between_metadata_writes(self):
+        self.interrupt(container=self.f.fixture.root/'short-storage')
+        self.d.recover_publication()
+        self.assertEqual(self.d.installed(),self.before)
+        self.assertEqual(standalone.descriptor(self.f.root),self.descriptor)
 
     def test_complete_pair_survives_interruption_before_journal_removal(self):
         self.interrupt(after_descriptor=True)
