@@ -164,7 +164,7 @@ class CrossplaySessionTests(unittest.TestCase):
             'editions': editions}, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode())
         game = SimpleNamespace()
         with patch.object(platform, 'load', return_value=(descriptor, self.exe, adapter)), \
-                patch.object(platform.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), \
+                patch.object(platform.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as check_policy, \
                 patch.dict(session.ADAPTER_PINS, {1: (digest,)}), \
                 patch.object(content, 'APPROVED_DIGESTS', frozenset((catalog.digest.hex(),))), \
                 patch('isolated_process.launch', return_value=game) as launch:
@@ -172,8 +172,11 @@ class CrossplaySessionTests(unittest.TestCase):
             result = platform.launch(self.root, crossplay=supplied, crossplay_catalog=catalog,
                                      environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
             room = replace(room_binding(), content=catalog.digest)
+            def before_spawn():
+                self.assertEqual(check_policy.call_count, 2)
+                self.assertEqual(launch.call_count, 1)
             room_result = platform.launch(self.root, crossplay=room, crossplay_catalog=catalog,
-                                          environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
+                                          environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'},before_spawn=before_spawn)
             with self.assertRaisesRegex(ValueError, 'content_changed'):
                 platform.launch(self.root, crossplay=binding(), crossplay_catalog=catalog)
             with self.assertRaisesRegex(ValueError, 'catalog_invalid'):

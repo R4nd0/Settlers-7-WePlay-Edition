@@ -1,5 +1,21 @@
 # Experimental native local start, 2026-10-26
 
+An installed three-edition startup exposed a 191-second difference between
+the first and last original process start. The first handshake expired
+before the other copies were verified. With the coordinated launcher,
+each copy completed the catalog and Windows isolation checks before any
+process started. In the diagnostic repeat the original start times were
+four seconds apart, and all three clients authenticated and entered the
+Gold-hosted Monhaim Valley lobby.
+
+Maid Marielle was selectable in the original Gold chooser. Opening the
+chooser temporarily closes its unused seat. The room now keeps its
+previous committed roster during that exact transition and waits for the
+original choice to finish before handling Ready. The new native fixture
+exercises the temporary slot, cancellation, CPU selection and rejection
+of changes to another slot. The installed repeat reached the chooser.
+The three final installed gameplay cases remain pending.
+
 The repeated Ubisoft-hosted reload restored active NEO and matched 202
 native checksums over 98.622 seconds before the Steam guest left. An earlier
 controlled departure had identified a late Gold Ready call after its room

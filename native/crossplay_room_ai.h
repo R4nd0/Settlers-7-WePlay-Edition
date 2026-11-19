@@ -40,6 +40,22 @@ inline bool AddedSeat(const std::vector<unsigned char>& before,const std::vector
     slot=current;return true;
 }
 
+inline bool ChoosingSeat(const std::vector<unsigned char>& before,const std::vector<unsigned char>& after,
+                         const CrossplaySessionConfig::RoomConnections& routes) {
+    using namespace CrossplaySessionConfig;
+    Layout old_layout,new_layout;
+    if(before.size()!=after.size() || !InspectRoom(before,routes,old_layout)
+        || !InspectRoom(after,routes,new_layout) || old_layout.slots_at!=new_layout.slots_at)return false;
+    for(size_t seat=2;seat<routes.capacity && seat<4;++seat){
+        if(routes.stations[seat]!=UINT32_MAX)continue;
+        const auto at=old_layout.slots_at+seat*SlotBytes;
+        if(before[at+10]!=1 || after[at+10]!=2 || before[at+5]!=after[at+5])continue;
+        return std::equal(before.begin(),before.begin()+at,after.begin())
+            && std::equal(before.begin()+at+SlotBytes,before.end(),after.begin()+at+SlotBytes);
+    }
+    return false;
+}
+
 inline bool Frame(const Value& value,const Crossplay::Digest& config,std::vector<unsigned char>& frame) {
     frame.clear();
     if(!CrossplayAIPreparation::Valid(value))return false;

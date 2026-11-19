@@ -1,6 +1,7 @@
 """Installed-room launcher fixtures. No game or platform process is started."""
 from pathlib import Path
 import sys
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -70,6 +71,52 @@ class LocalRoomTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'configuration_invalid'):
                     room.launch(2)
             game.terminate.assert_not_called()
+
+    def test_batch_waits_for_the_slowest_copy_before_any_spawn(self):
+        room=rooms.LocalRoom.__new__(rooms.LocalRoom)
+        room.players=self.players
+        room.closed=False
+        room.runtime=Mock(closed=False)
+        ready=threading.Event()
+        permit=threading.Event()
+        spawned=[]
+        def launch(slot,*,before_spawn):
+            if slot==2:
+                ready.set()
+                if not permit.wait(4):raise TimeoutError('fixture preflight')
+            before_spawn()
+            spawned.append(slot)
+            return slot
+        room.launch=launch
+        results=[]
+        worker=threading.Thread(target=lambda:results.extend(room.launch_all(({}, {}, {}))))
+        worker.start()
+        try:
+            self.assertTrue(ready.wait(3))
+            self.assertEqual(spawned,[])
+        finally:
+            permit.set()
+            worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual([future.result() for future in results],[1,2,3])
+        self.assertEqual(sorted(spawned),[1,2,3])
+
+    def test_batch_failure_releases_waiting_peers_without_spawning(self):
+        room=rooms.LocalRoom.__new__(rooms.LocalRoom)
+        room.players=self.players
+        room.closed=False
+        room.runtime=Mock(closed=False)
+        spawned=[]
+        def launch(slot,*,before_spawn):
+            if slot==2:raise ValueError('crossplay_content_changed')
+            before_spawn()
+            spawned.append(slot)
+        room.launch=launch
+        results=room.launch_all(({}, {}, {}))
+        self.assertEqual(spawned,[])
+        self.assertIsInstance(results[0].exception(),threading.BrokenBarrierError)
+        self.assertRegex(str(results[1].exception()),'crossplay_content_changed')
+        self.assertIsInstance(results[2].exception(),threading.BrokenBarrierError)
 
 
 if __name__ == '__main__':

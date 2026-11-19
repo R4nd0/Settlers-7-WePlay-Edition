@@ -86,7 +86,8 @@
             && CrossplayRoomAI::Same(selected,room_ai);
     }
 
-    bool OfferAddedRoomAI(const Crossplay::RoomSnapshot& room) {
+    bool OfferAddedRoomAI(const Crossplay::RoomSnapshot& room,bool& choosing) {
+        choosing=false;
         if(!launch.host || room_ai_slot || !room_ready_requests.empty() || !room_ready_after.empty())return true;
         CrossplaySessionConfig::RoomConnections source;
         std::vector<unsigned char> before,actual;
@@ -94,6 +95,12 @@
             || source.host!=room_local_routes.host || source.stations!=room_local_routes.stations)return false;
         if(!ReadRoomSnapshot(actual))return true;
         if(actual==before)return true;
+        // The original chooser closes its neutral seat while the dialog is
+        // open. Keep the last committed roster until Cancel or a native CPU
+        // selection. Ready events must not apply to those provisional bytes.
+        if(CrossplayRoomAI::ChoosingSeat(before,actual,room_local_routes)){
+            choosing=true;return true;
+        }
         uint32_t slot=0;
         if(!CrossplayRoomAI::AddedSeat(before,actual,room_local_routes,slot))return false;
         const auto now=GetTickCount64();
@@ -531,8 +538,11 @@
 #ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!SendRoomLobbyNeo(room))return false;
 #endif
-        if(launch.host && (!OfferAddedRoomAI(room) || !room_configuration_complete))
-            return !room_configuration_complete;
+        if(launch.host){
+            bool choosing=false;
+            if(!OfferAddedRoomAI(room,choosing))return false;
+            if(choosing || !room_configuration_complete)return true;
+        }
         Crossplay::RoomEvent event;
         if(!launch.host) {
             if(launch.channel.edition==Crossplay::Edition::Gold && !room_gold_sdk_ready_installed){

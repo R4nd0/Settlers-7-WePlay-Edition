@@ -19,13 +19,15 @@ HISTORY = '3e400b5d108ec99ca05105fb7d9149e2a4978435691ba2d9143fc68078f55aac'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
-                (True,True):'6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14'}
-GOLD = '6b3b597138f223275c2dd3e02857b77e4e86ac653ab92b7318f2d03c0fa7e405'
+                (True,True):'597803dccfc37885a7d60f0530f36130cfcb0c3adeef259c22aaa5ff853b0ed4'}
+GOLD = '537385bff398cd9251e74ef769caf70aa6f86afcecab0fb52542d3149ac7a430'
 # Known previous release adapters remain readable for safe upgrade/repair.
 # New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
-LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',)
+LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',
+                       '6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14')
 LEGACY_GOLD_PINS = ('fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2',
-                    'a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148')
+                    'a6cdbd62c35eac039cf692de70b31fa9efed981ca5e0f1faa44f7fd5dcc18148',
+                    '6b3b597138f223275c2dd3e02857b77e4e86ac653ab92b7318f2d03c0fa7e405')
 STEAM_API = '2e9836aeb19373dc1cc0743a9d8bdd5f322fbb426d077ea2718005c5a4bef140'
 MILES_GATE = 'ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63'
 MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf'
@@ -170,7 +172,7 @@ def options_path(root):
 
 
 def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None,
-           crossplay=None,crossplay_catalog=None):
+           crossplay=None,crossplay_catalog=None,before_spawn=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
     environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
@@ -195,6 +197,8 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
     if result.returncode and lan is None:
         print('Windows-Netzisolation für diese Kopie wird eingerichtet ...',flush=True)
         configure(root,'install')
+    if before_spawn is not None:
+        before_spawn()
     import isolated_process
     scope=None
     try:

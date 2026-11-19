@@ -16,7 +16,7 @@ MAX_FILES = 30000
 # and reproducible mixed menus. The RC4 signer separately requires installed
 # gameplay receipts for this exact package and every host edition.
 APPROVED_DIGESTS = frozenset({
-    '9e4ef80d47c4544d09785efd4e8d800f7c609432ce81b9ed136366f65ba1798a',
+    '4a4f95fe290638fdf71177589a80ead006bfbd35747a97c0c705082d2644f007',
 })
 PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {
@@ -129,7 +129,7 @@ class Catalog:
         object.__setattr__(self, 'digest', hashlib.sha256(encoded).digest())
         object.__setattr__(self, 'profiles', tuple(profiles))
 
-    def verify(self, root, edition):
+    def admitted_files(self, edition):
         if self.digest.hex() not in APPROVED_DIGESTS:
             raise ValueError('crossplay_catalog_unapproved')
         if type(edition) is not int or edition not in (1, 2, 3):
@@ -138,6 +138,10 @@ class Catalog:
         adapter = dict(files)[REQUIRED[edition][1]]
         if adapter not in crossplay_session.ADAPTER_PINS.get(edition, ()):
             raise ValueError('crossplay_adapter_unavailable')
+        return files
+
+    def verify(self, root, edition):
+        files = self.admitted_files(edition)
         try:
             root=plain_asset(root)
             expected={name.casefold() for name,_ in files

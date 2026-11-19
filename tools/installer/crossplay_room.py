@@ -1,4 +1,5 @@
 """Own the local transport and platform services of a verified mixed room."""
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,10 +47,10 @@ class LocalRoom:
         session = secrets.token_bytes(16)
         launches = []
         for player in self.players:
+            catalog.admitted_files(player.edition)
             platform_standalone.load(player.root)
-            digest = catalog.verify(player.root, player.edition)
             launches.append(Launch(player.edition, secrets.token_bytes(32),
-                                   native_identity(player.edition), digest))
+                                   native_identity(player.edition), catalog.digest))
 
         with ExitStack() as resources:
             broker = resources.enter_context(CrossplayRoomBroker(tuple(launches),
@@ -74,7 +75,8 @@ class LocalRoom:
             self.bindings = tuple(bindings)
             self.resources = resources.pop_all()
 
-    def launch(self, slot, *, environment=None, arguments=(), graphics_options=None, on_initialized=None):
+    def launch(self, slot, *, environment=None, arguments=(), graphics_options=None,
+               on_initialized=None, before_spawn=None):
         with self.lock:
             if self.closed or self.runtime.closed:
                 raise ValueError('crossplay_service_closed')
@@ -90,7 +92,36 @@ class LocalRoom:
 
         return platform_standalone.launch(self.players[slot - 1].root, environment=environment,
             arguments=arguments, graphics_options=graphics_options, on_initialized=initialized,
-            crossplay=self.bindings[slot - 1], crossplay_catalog=self.catalog)
+            crossplay=self.bindings[slot - 1], crossplay_catalog=self.catalog,
+            before_spawn=before_spawn)
+
+    def launch_all(self, options):
+        """Validate every copy first and return one completed launch future per seat."""
+        if (type(options) is not tuple or len(options) != len(self.players)
+                or any(type(value) is not dict or 'before_spawn' in value for value in options)):
+            raise ValueError('crossplay_configuration_invalid')
+        barrier = threading.Barrier(len(options))
+
+        def start_together():
+            barrier.wait()
+            if self.closed or self.runtime.closed:
+                raise ValueError('crossplay_service_closed')
+            self.runtime.check()
+
+        def launch_player(slot, settings):
+            try:
+                return self.launch(slot, before_spawn=start_together, **settings)
+            except BaseException:
+                barrier.abort()
+                raise
+
+        with ThreadPoolExecutor(max_workers=len(options)) as workers:
+            try:
+                return tuple(workers.submit(launch_player, slot, settings)
+                             for slot, settings in enumerate(options, 1))
+            except BaseException:
+                barrier.abort()
+                raise
 
     def close(self):
         if self.closed:
