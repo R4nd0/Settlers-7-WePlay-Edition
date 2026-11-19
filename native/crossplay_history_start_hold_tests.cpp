@@ -8,8 +8,13 @@
 namespace CrossplayProduction {const Launch* CurrentLaunch(){return nullptr;}}
 using CrossplayNativeStart::HistoryStartHold;
 using CrossplayNativeStart::HistoryStartBridge;
+using CrossplayNativeStart::HistoryStartEntry;
+using CrossplayNativeStart::history_start_resume;
 namespace {
 unsigned checks=0,probes=0;bool arguments=false,fp=false,direction=false;
+bool enter_from_producer=false;
+uintptr_t bridge_target=0;
+uintptr_t mock_dispatcher[]={0,0,0,0,0,0xeda9f0};
 uint32_t seen_ax=0,seen_cx=0,seen_dx=0,seen_flags=0;unsigned char event[0x20]{};
 __declspec(align(16)) unsigned char saved_fp[512]{};
 void Check(bool ok){++checks;if(!ok){printf("FAIL History start hold check %u\n",checks);std::exit(1);}}
@@ -36,10 +41,17 @@ __declspec(naked) void CallBridge(){__asm{
     push 3
     push 2
     push offset event
+    cmp enter_from_producer,0
+    jne producer
     push offset continued
-    mov ecx,0x12345678
     mov edx,0xeda9f0
     mov eax,0xabcddcba
+    jmp common
+producer:
+    mov history_start_resume,offset continued
+    mov eax,offset mock_dispatcher
+common:
+    mov ecx,0x12345678
     cmp direction,0
     je forward
     push 0x646
@@ -48,7 +60,7 @@ forward:
     push 0x246
 selected:
     popfd
-    jmp HistoryStartBridge
+    jmp dword ptr [bridge_target]
 continued:
     mov seen_ax,eax
     mov seen_cx,ecx
@@ -64,6 +76,7 @@ continued:
 void Run(){
     uintptr_t before=0,after=1;uint32_t seen_bx=0,seen_si=0,seen_di=0;
     const unsigned short control=0x27f;const uint32_t mxcsr=0x3f80,xmm=0x3fa00000;const double value=7.25;
+    bridge_target=reinterpret_cast<uintptr_t>(enter_from_producer?&HistoryStartEntry:&HistoryStartBridge);
     HistoryStartHold::Current()={};SetLastError(1973);probes=0;arguments=fp=false;
     __asm {
         fxsave saved_fp
@@ -90,29 +103,34 @@ void Run(){
         fxrstor saved_fp
     }
     Check(before==after);Check(seen_bx==0x11112222 && seen_si==0x33334444 && seen_di==0x55556666);
-    Check(seen_ax==0xabcddcba && seen_cx==0x12345678 && seen_dx==0xeda9f0);
+    const auto expected_ax=enter_from_producer?reinterpret_cast<uintptr_t>(mock_dispatcher):0xabcddcba;
+    Check(seen_ax==expected_ax && seen_cx==0x12345678 && seen_dx==0xeda9f0);
     Check((seen_flags&0xcd5)==(direction?0x444u:0x44u));Check(fp);Check(arguments && probes==1);
     const auto& state=HistoryStartHold::Current();Check(GetLastError()==1973);
     Check(state.failed && state.failure==1 && !state.attempted && !state.captured);
 }
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionHistoryStartHoldGuardOracle(uint32_t edition){
-    return edition==3 && HistoryStartHold::Methods()?1u:0u;
+    return (edition==2 || edition==3) && HistoryStartHold::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionHistoryStartEntryOracle(uint32_t edition){
-    return edition==3?static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&CrossplayNativeStart::HistoryStartEntry)):0u;
+    return (edition==2 || edition==3)?static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&CrossplayNativeStart::HistoryStartEntry)):0u;
 }
 // Offline only, on modeled original pages: require original bytes first, then
 // check exact ownership normalization and restore those same bytes afterward.
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionHistoryStartHeldGuardOracle(uint32_t edition){
-    if(edition!=3 || !HistoryStartHold::Methods())return 0;
-    auto* at=reinterpret_cast<unsigned char*>(HistoryStartHold::Site);unsigned char before[5]{};memcpy(before,at,5);
-    const int32_t delta=static_cast<int32_t>(reinterpret_cast<uintptr_t>(&CrossplayNativeStart::HistoryStartEntry)-(HistoryStartHold::Site+5));
-    at[0]=0xe9;memcpy(at+1,&delta,4);HistoryStartHold::Current().installed=true;
-    const bool accepted=HistoryStartHold::Methods();memcpy(at,before,5);HistoryStartHold::Current()={};return accepted?1u:0u;
+    const auto profile=static_cast<Crossplay::Edition>(edition);
+    if((edition!=2 && edition!=3) || !HistoryStartHold::Methods(profile))return 0;
+    const auto site=HistoryStartHold::Pin(profile).site;
+    auto* at=reinterpret_cast<unsigned char*>(site);unsigned char before[5]{};memcpy(before,at,5);
+    const int32_t delta=static_cast<int32_t>(reinterpret_cast<uintptr_t>(&CrossplayNativeStart::HistoryStartEntry)-(site+5));
+    at[0]=0xe9;memcpy(at+1,&delta,4);HistoryStartHold::Current().edition=profile;HistoryStartHold::Current().installed=true;
+    const bool accepted=HistoryStartHold::Methods(profile);memcpy(at,before,5);HistoryStartHold::Current()={};return accepted?1u:0u;
 }
 int main(){
-    HistoryStartHold::probe=&Probe;Run();direction=true;Run();HistoryStartHold::probe=nullptr;
+    HistoryStartHold::probe=&Probe;Run();direction=true;Run();
+    enter_from_producer=true;Run();direction=false;Run();
+    history_start_resume=0;HistoryStartHold::probe=nullptr;
     Check(!HistoryStartHold::Release());Check(GetLastError()==1973);
     CrossplayNative::ParticipantEvent binding;CrossplayNative::LobbyAdmission admission;
     Check(!HistoryStartHold::InstallBound(binding,admission,"",nullptr));

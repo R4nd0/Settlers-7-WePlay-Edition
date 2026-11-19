@@ -23,7 +23,7 @@ __declspec(naked) void Original(){__asm{
 }}
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl ProductionHistoryHostReadyGuardOracle(uint32_t edition){
-    return edition==3 && CrossplayHistoryHostReady::Methods()?1u:0u;
+    return (edition==2 || edition==3) && CrossplayHistoryHostReady::Methods(static_cast<Crossplay::Edition>(edition))?1u:0u;
 }
 int main(){
     using namespace CrossplayHistoryHostReady;
