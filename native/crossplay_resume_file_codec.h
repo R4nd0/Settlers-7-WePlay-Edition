@@ -2,6 +2,7 @@
 #include "crossplay_session_config_codec.h"
 #include "crossplay_load_progress_codec.h"
 #include "crossplay_resume_transfer.h"
+#include "crossplay_gold_local_observer.h"
 
 // Opt-in lobby primitive. Callers separately admit the saved checkpoint and
 // observe the original native file consumer before permitting a resumed start.
@@ -35,9 +36,7 @@ inline bool Methods(Crossplay::Edition edition) {
 }
 inline bool OwnershipMethods(Crossplay::Edition edition,uintptr_t send) {
     const auto index=static_cast<unsigned>(edition)-1;if(index>=3)return false;
-    // Qualified direction is Gold host to either original History receiver.
-    // Gold's local path has a separate observer bridge and is not admitted here.
-    if(edition==Crossplay::Edition::Gold)return false;
+    const bool gold=edition==Crossplay::Edition::Gold;
     const auto p=Pin(edition);
     const uintptr_t destructors[]={0x99c100,0x849f30,0x849d00};
     const uintptr_t clones[]={0x99c0a0,0x849ee0,0x849cb0};
@@ -55,7 +54,12 @@ inline bool OwnershipMethods(Crossplay::Edition edition,uintptr_t send) {
         if(!Detail::Readable(reinterpret_cast<void*>(at),length))return false;
         for(size_t i=0;i<length;++i)hash=(hash^reinterpret_cast<const unsigned char*>(at)[i])*1099511628211ull;
     }
-    if(hash!=expected[index] || !Detail::Readable(reinterpret_cast<void*>(send),265))return false;
+    if(hash!=expected[index])return false;
+    // Gold has a distinct mode-zero queue boundary. The complete original
+    // dispatcher fingerprint and its native local-queue callsite are owned
+    // by the existing Gold observer guard.
+    if(gold)return CrossplayNativeObserver::GoldLocalObserver::OriginalMethods();
+    if(!Detail::Readable(reinterpret_cast<void*>(send),265))return false;
     hash=14695981039346656037ull;
     // Exact original mode-zero routing, both clone/queue alternatives, locking,
     // and return. The mode-one/two branches have separately guarded outgoing
@@ -123,6 +127,7 @@ inline bool EnqueueBound(Crossplay::Edition edition,uint32_t host,uint32_t total
 inline bool Enqueue(Crossplay::Edition edition,const CrossplayNative::ParticipantEvent& binding,DWORD owner,
                     uintptr_t session,CrossplaySessionConfig::Connections ids,uint32_t total,
                     const std::vector<unsigned char>& wire) {
-    return EnqueueBound(edition,ids.host,total,wire,[&]{return Owner(binding,owner,session,ids,false);});
+    return edition!=Crossplay::Edition::Gold && EnqueueBound(edition,ids.host,total,wire,
+        [&]{return Owner(binding,owner,session,ids,false);});
 }
 }

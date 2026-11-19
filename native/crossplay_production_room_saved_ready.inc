@@ -15,11 +15,14 @@
     }
 
     bool ReadRoomSavedConfiguration(std::vector<unsigned char>& wire){
+        auto interval=room_configuration_interval;
+        if(!launch.host && room_saved_resident_cache)interval.cache=room_saved_resident_cache;
         return CrossplayConfigurationNative::SnapshotRoom(launch.channel.edition,original,room_admission,
-            room_local_routes,room_configuration_interval,wire,launch.host?room_saved_token:"Savegames/MPSave");
+            room_local_routes,interval,wire,launch.host?room_saved_token:"Savegames/MPSave");
     }
 
-    bool CaptureRoomSavedReady(const Crossplay::RoomSnapshot& room,void* manager,const void* event,uint32_t mode,uint32_t target){
+    bool CaptureRoomSavedReady(const Crossplay::RoomSnapshot& room,void* manager,const void* event,uint32_t mode,uint32_t target,
+                               bool private_gold=false){
         using namespace CrossplayNativeCodec;
         CrossplayNative::RoomRoute host,own;
         uintptr_t send=0;
@@ -27,7 +30,9 @@
             || !RoomSavedRoute(room,room.host_slot,host) || !room_admission.Resolve(room.local_slot,false,own)
             || !own.local || own.host || manager!=Detail::Transport(launch.channel.edition,send)
             || (mode!=2 && (mode!=1 || target!=host.receiver_cid)))return false;
-        return ReadyDetail::EncodeIntent(launch.channel.edition,own.receiver_cid,event,room_saved_guest_ready);
+        return launch.channel.edition==Crossplay::Edition::Gold
+            ?RoomGoldReadyIntent(own.receiver_cid,private_gold?1u:own.player_slot,event,room_saved_guest_ready)
+            :ReadyDetail::EncodeIntent(launch.channel.edition,own.receiver_cid,event,room_saved_guest_ready);
     }
 
     bool ReceiveRoomSavedReady(const Crossplay::RoomSnapshot& room,const Crossplay::RoomEvent& event){
@@ -72,16 +77,21 @@
             const auto& event=room_saved_ready_requests.front();
             CrossplayNative::RoomRoute guest;
             const auto* lobby=reinterpret_cast<const unsigned char*>(session);
-            if(!RoomSavedRoute(room,event.source_slot,guest) || !Detail::Readable(lobby,0x34)
-                || CrossplayChat::Word(lobby+0x30)!=2 || !RoomSavedHostCurrent()
+            const auto edition=launch.channel.edition;
+            if(!RoomSavedRoute(room,event.source_slot,guest)
+                || (edition==Crossplay::Edition::Gold && (!Detail::Readable(lobby,0x34) || CrossplayChat::Word(lobby+0x30)!=2))
+                || !RoomSavedHostCurrent()
                 || !guest.player_slot || guest.player_slot>room_local_routes.capacity)return false;
             const auto at=layout.slots_at+(guest.player_slot-1)*CrossplaySessionConfig::SlotBytes;
             room_saved_ready_before=actual;
             room_saved_ready_after=std::move(actual);
             room_saved_ready_after[at]=static_cast<unsigned char>(!room_saved_ready_before[at]);
-            auto native=event.bytes;native.resize(CrossplayReady::NativeStateSize);
-            CrossplayChat::Put(native.data()+13,guest.player_slot);native[17]=room_saved_ready_after[at];
-            if(!ReadyDetail::EnqueueState(Crossplay::Edition::Gold,native,guest.receiver_cid,guest.player_slot))return false;
+            if(edition==Crossplay::Edition::Gold){
+                auto native=event.bytes;native.resize(CrossplayReady::NativeStateSize);
+                CrossplayChat::Put(native.data()+13,guest.player_slot);native[17]=room_saved_ready_after[at];
+                if(!ReadyDetail::EnqueueState(edition,native,guest.receiver_cid,guest.player_slot))return false;
+            }else if(!CrossplayHistoryHostReady::EnqueueRoom(edition,original,room_admission,room.local_slot,event.source_slot,
+                room_local_routes,event.bytes,nullptr,room_saved_token))return false;
             room_saved_ready_requests.pop_front();room_saved_ready_pending_at=GetTickCount64();
             return true;
         }
@@ -102,6 +112,7 @@
     bool PumpRoomSavedGuestRows(bool initial){
         using namespace CrossplayNativeCodec;
         const auto edition=launch.channel.edition;
+        if(edition==Crossplay::Edition::Gold)return PumpRoomSavedGoldRows(initial);
         if(room_saved_ready_projection.session){
             const auto observed=ObserveHistoryRoomReady(edition,original,room_admission,room_local_routes,room_saved_ready_projection);
             if(observed==ReadyObservation::Invalid)return false;
@@ -119,6 +130,29 @@
             return ApplyHistoryRoomReady(edition,original,room_admission,room_local_routes,room_saved_ready_slot,
                                          static_cast<unsigned char>(value),
                                          room_saved_ready_projection);
+        }
+        return true;
+    }
+
+    bool PumpRoomSavedGoldRows(bool initial){
+        using namespace CrossplayNativeCodec;
+        std::vector<unsigned char> actual;
+        CrossplaySessionConfig::Layout stored,live;
+        if(!ReadRoomSavedConfiguration(actual)
+            || !CrossplaySessionConfig::RoomDetail::Inspect(actual,room_local_routes,live,false,"Savegames/MPSave")
+            || (initial && !CrossplaySessionConfig::RoomDetail::Inspect(room_saved_initial_config,room_local_routes,
+                    stored,false,room_saved_token)))return false;
+        for(;room_saved_ready_slot<=room_local_routes.capacity;++room_saved_ready_slot){
+            const auto seat=room_saved_ready_slot-1;
+            const auto source=room_local_routes.stations[seat];
+            if(source==UINT32_MAX)continue;
+            const auto value=initial?room_saved_initial_config[stored.slots_at+seat*CrossplaySessionConfig::SlotBytes]:1u;
+            if(actual[live.slots_at+seat*CrossplaySessionConfig::SlotBytes]==value){
+                room_saved_ready_pending_at=0;continue;
+            }
+            if(room_saved_ready_pending_at)return GetTickCount64()-room_saved_ready_pending_at<=10000;
+            if(!EnqueueRoomGoldReadyState(source,room_saved_ready_slot,static_cast<unsigned char>(value)))return false;
+            room_saved_ready_pending_at=GetTickCount64();return true;
         }
         return true;
     }

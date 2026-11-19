@@ -50,17 +50,19 @@ inline bool HostFileContext(const CrossplayNative::ParticipantEvent& binding,DWO
     return Detail::Readable(*reinterpret_cast<const void* const*>(stream),0x24);
 }
 template<class FileContext>
-inline bool EnqueueGoldBound(uint32_t guest,const std::vector<unsigned char>& wire,FileContext context) {
+inline bool EnqueueBound(Crossplay::Edition edition,uint32_t guest,const std::vector<unsigned char>& wire,FileContext context) {
     LoadProgressDetail::FpScope preserve;
-    if(!context() || !Methods(Crossplay::Edition::Gold) || !CrossplayResumeRequest::Inspect(wire,guest))return false;
-    const auto p=Pin(Crossplay::Edition::Gold);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
+    if(!context() || !Methods(edition) || !CrossplayResumeRequest::Inspect(wire,guest))return false;
+    const auto p=Pin(edition);Detail::OwnedStream stream(p);if(!stream.initialized)return false;
     stream.value.bytes=const_cast<unsigned char*>(wire.data());stream.value.capacity=stream.value.length=static_cast<uint32_t>(wire.size());stream.value.external=1;
-    Detail::Visitor reader{p.reader_vt,1,&stream.value,0};void* decoded=Detail::GoldRead(p.read,&reader,"WePlayEvent");
+    Detail::Visitor reader{p.reader_vt,1,&stream.value,0};
+    void* decoded=p.gold?Detail::GoldRead(p.read,&reader,"WePlayEvent"):
+        reinterpret_cast<void* (__thiscall*)(void*,const char*,uint32_t)>(p.read)(&reader,"WePlayEvent",0);
     if(!decoded || !Detail::Readable(decoded,16) || *static_cast<const uintptr_t*>(decoded)!=p.event_vt)return false;
     std::vector<unsigned char> repeated;
     bool okay=stream.value.position==wire.size() && Source(p,decoded,guest) && Detail::Encode(p,decoded,repeated)
         && repeated==wire && context();
-    uintptr_t send=0;void* transport=okay?Detail::Transport(Crossplay::Edition::Gold,send):nullptr;
+    uintptr_t send=0;void* transport=okay?Detail::Transport(edition,send):nullptr;
     if(transport)reinterpret_cast<void (__thiscall*)(void*,const void*,uint32_t,uint32_t,uint32_t,uint32_t)>(send)(transport,decoded,0,0,0,0);
     else okay=false;
     reinterpret_cast<void (__thiscall*)(void*,uint32_t)>(*reinterpret_cast<const uintptr_t*>(p.event_vt))(decoded,1);
@@ -69,6 +71,6 @@ inline bool EnqueueGoldBound(uint32_t guest,const std::vector<unsigned char>& wi
 inline bool EnqueueGold(const CrossplayNative::ParticipantEvent& binding,DWORD owner,uintptr_t session,
                         CrossplaySessionConfig::Connections ids,const std::string& map,const std::string& save,
                         const std::vector<unsigned char>& wire) {
-    return EnqueueGoldBound(ids.guest,wire,[&]{return HostFileContext(binding,owner,session,ids,map,save);});
+    return EnqueueBound(Crossplay::Edition::Gold,ids.guest,wire,[&]{return HostFileContext(binding,owner,session,ids,map,save);});
 }
 }

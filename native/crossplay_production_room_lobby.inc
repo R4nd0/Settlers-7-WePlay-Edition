@@ -351,6 +351,9 @@
         CrossplayNative::RoomRoute own,host;
         if(!room_admission.Resolve(room->local_slot,false,own) || !own.local || own.host
             || !room_admission.Resolve(room->host_slot,false,host) || host.local || !host.host)return false;
+#ifdef S7_CROSSPLAY_ROOM_WORLD_LAB
+        if(room_saved_started)return CaptureRoomSavedReady(*room,manager,event,2,host.receiver_cid,true);
+#endif
         if(!room_primed || !ReadyRoomSupported(*room))return false;
         uintptr_t send=0;
         std::vector<unsigned char> intent,frame;

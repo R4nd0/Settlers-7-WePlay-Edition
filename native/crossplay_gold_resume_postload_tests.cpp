@@ -9,6 +9,7 @@ bool allow=true;unsigned failures=0;const char* last_error=nullptr;bool Authorit
 void Setup(){
  using namespace CrossplayGoldResume;
  memset(saved.data(),0,sizeof(saved));memset(task,0,sizeof(task));memset(registry,0,sizeof(registry));memset(frame,0,sizeof(frame));invalid=attempted=validated=false;installed=true;owner=GetCurrentThreadId();saved_count=1;checkpoint_turn=300;
+ allow_history_guest_reset=false;original_request_resets.fill(0);verified_original_resets=0;
  global_logic=reinterpret_cast<uintptr_t>(logic);logic[0]=0xf317e0;logic[0x14c/4]=reinterpret_cast<uintptr_t>(main_data);
  main_data[0]=0xf4bb0c;main_data[1]=reinterpret_cast<uintptr_t>(priority_data);main_data[2]=reinterpret_cast<uintptr_t>(transfers);priority_data[0]=0xf4beb4;
  priority_data[0x164c/4]=reinterpret_cast<uintptr_t>(registry);priority_data[0x1650/4]=reinterpret_cast<uintptr_t>(registry+30);
@@ -128,6 +129,30 @@ int main(){
  Setup();task[0]=0xf4c74c;check(!CrossplayGoldResume::Preserve(frame));check(!failures);
  Setup();CrossplayGoldResume::installed=false;check(!CrossplayGoldResume::Preserve(frame));check(!failures);
  Setup();check(CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ Setup();CrossplayGoldResume::saved_count=0;CrossplayGoldResume::saved[12]={};
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ registry[24]=registry[25]=0;
+ check(CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ priority_data[0x164c/4]=0;
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ priority_data[0x1650/4]=0;
+ check(CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ CrossplayGoldResume::saved_count=1;
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ Setup();task[1]=CrossplayGoldResume::saved[12].state=6;task[6]=CrossplayGoldResume::saved[12].wait=13;
+ CrossplayGoldResume::ObserveOriginalReset(reinterpret_cast<uintptr_t>(task));
+ task[1]=1;task[6]=0;
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ CrossplayGoldResume::allow_history_guest_reset=true;
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ task[1]=6;task[6]=13;
+ CrossplayGoldResume::ObserveOriginalReset(reinterpret_cast<uintptr_t>(task));
+ check(task[1]==6&&task[6]==13);
+ task[1]=1;task[6]=0;
+ check(CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
+ check(CrossplayGoldResume::verified_original_resets==1&&task[1]==1&&!task[6]);
+ task[5]^=1;
+ check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
  Setup();task[6]++;check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)));
  Setup();check(!CrossplayGoldResume::Validate(reinterpret_cast<uintptr_t>(main_data)+4));
  Setup();frame[10]=reinterpret_cast<uintptr_t>(main_data);uint32_t unchanged[32]{};memcpy(unchanged,task,sizeof(task));

@@ -1,14 +1,16 @@
     struct RoomSavedFileSend {
-        CrossplayResumeTransfer::FileDigest digest;
-        std::deque<std::vector<unsigned char>> frames;
-        std::vector<uint32_t> ends{0};
-        uint32_t checksum=0,sent=0,credited=0;
-        size_t buffered=0;
-        bool info_captured=false,info_sent=false;
+        uint32_t sent=0,credited=0;
+        bool info_sent=false;
     };
     std::array<std::vector<unsigned char>,Crossplay::RoomSnapshot::MaximumMembers> room_saved_request_wires;
     std::array<uint32_t,Crossplay::RoomSnapshot::MaximumMembers> room_saved_neo_offsets{},room_saved_neo_sequences{};
     std::unique_ptr<RoomSavedFileSend> room_saved_send;
+    CrossplayResumeTransfer::FileDigest room_saved_file_digest;
+    std::vector<unsigned char> room_saved_file_info;
+    std::vector<std::vector<unsigned char>> room_saved_file_packets;
+    std::vector<uint32_t> room_saved_file_ends{0};
+    uint32_t room_saved_file_checksum=0;
+    size_t room_saved_file_buffered=0;
     unsigned char room_saved_sending=0;
     unsigned room_saved_sent=0,room_saved_resident=0;
     uintptr_t room_saved_resident_cache=0;
@@ -25,9 +27,9 @@
     bool RoomSavedHostCurrent() {
         using namespace CrossplayNativeCodec;
         const auto edition=launch.channel.edition;
-        if(!launch.host || edition!=Crossplay::Edition::Gold || !room_saved_source.lease
+        if(!launch.host || !room_saved_source.lease
             || room_saved_source.lease->value==INVALID_HANDLE_VALUE)return false;
-        auto* cache=SessionConfigDetail::GoldConfiguration();
+        auto* cache=CrossplayConfigurationNative::Cache(edition);
         if(!cache || reinterpret_cast<uintptr_t>(cache)!=room_configuration_interval.cache)return false;
         std::string map,save;
         if(!SessionConfigDetail::NativeString(cache+0x24,map) || map!=launch.room.map
@@ -41,7 +43,7 @@
     bool RoomSavedHostFile() {
         using namespace CrossplayNativeCodec;
         if(!RoomSavedHostCurrent())return false;
-        auto* cache=SessionConfigDetail::GoldConfiguration();
+        auto* cache=CrossplayConfigurationNative::Cache(launch.channel.edition);
         if(reinterpret_cast<uintptr_t>(cache)!=room_configuration_interval.cache)return false;
         const auto* pending=*reinterpret_cast<const unsigned char* const*>(cache+0x18);
         const auto* stream=*reinterpret_cast<const unsigned char* const*>(cache+0x1c);
@@ -51,11 +53,13 @@
 
     bool StartRoomSavedFile(const Crossplay::RoomSnapshot& room,unsigned char slot){
         CrossplayNative::RoomRoute guest;
-        if(room_saved_send || room_saved_sending || !RoomSavedRoute(room,slot,guest) || !RoomSavedHostFile())return false;
-        auto sender=std::make_unique<RoomSavedFileSend>();
-        if(!sender->digest.Bind(room_saved_checkpoint))return false;
-        room_saved_send=std::move(sender);room_saved_sending=slot;
-        return CrossplayNativeCodec::ResumeRequestDetail::EnqueueGoldBound(guest.receiver_cid,room_saved_request_wires[slot-1],[&]{
+        if(room_saved_send || room_saved_sending || !RoomSavedRoute(room,slot,guest) || !RoomSavedHostCurrent())return false;
+        const bool captured=room_saved_file_digest.Verified();
+        if(!captured && (!RoomSavedHostFile() || !room_saved_file_info.empty() || !room_saved_file_packets.empty()
+            || !room_saved_file_digest.Bind(room_saved_checkpoint)))return false;
+        room_saved_send=std::make_unique<RoomSavedFileSend>();room_saved_sending=slot;
+        if(captured)return true;
+        return CrossplayNativeCodec::ResumeRequestDetail::EnqueueBound(launch.channel.edition,guest.receiver_cid,room_saved_request_wires[slot-1],[&]{
             CrossplayNative::RoomRoute current_route;
             return RoomSavedRoute(room,slot,current_route) && current_route.receiver_cid==guest.receiver_cid && RoomSavedHostFile();
         });
@@ -69,31 +73,34 @@
         uintptr_t transport=0;
         if(!room_saved_send || mode!=1 || !RoomSavedRoute(room,room_saved_sending,guest)
             || target!=guest.receiver_cid || manager!=Detail::Transport(edition,transport) || !RoomSavedHostFile())return false;
-        auto& sender=*room_saved_send;
         const auto& checkpoint=room_saved_checkpoint;
         const auto host=room_local_routes.host;
-        std::vector<unsigned char> wire,frame;
+        std::vector<unsigned char> wire;
+        if(room_saved_file_digest.Verified())return false;
         if(info){
             const auto pin=ResumeInfoDetail::Pin(edition);
-            if(sender.info_captured || !ResumeInfoDetail::Methods(edition) || !ResumeInfoDetail::Source(pin,event,host)
-                || !Detail::Encode(pin,event,wire) || !CrossplayResumeInfo::Encode(guest.peer,checkpoint,host,wire,frame))return false;
-            sender.info_captured=true;
+            if(!room_saved_file_info.empty() || !ResumeInfoDetail::Methods(edition) || !ResumeInfoDetail::Source(pin,event,host)
+                || !Detail::Encode(pin,event,wire) || !CrossplayResumeInfo::Inspect(wire,host))return false;
+            room_saved_file_buffered=wire.size()+CrossplayResumeInfo::Header;
+            room_saved_file_info=std::move(wire);
         }else{
             const auto pin=ResumeFileDetail::Pin(edition);
-            if(!sender.info_captured || sender.digest.Verified() || !ResumeFileDetail::Methods(edition)
+            if(room_saved_file_info.empty() || !ResumeFileDetail::Methods(edition)
                 || !ResumeFileDetail::Source(pin,event,host,checkpoint.bytes) || !Detail::Encode(pin,event,wire)
                 || !CrossplayResumeTransfer::Inspect(wire,host,checkpoint.bytes))return false;
-            const auto sequence=static_cast<uint32_t>(sender.ends.size()),offset=sender.ends.back();
+            const auto sequence=static_cast<uint32_t>(room_saved_file_ends.size()),offset=room_saved_file_ends.back();
             const auto amount=CrossplayChat::Word(wire.data()+13),checksum=CrossplayChat::Word(wire.data()+21);
-            if(sequence>65537 || (sequence>1 && checksum!=sender.checksum) || (!amount && offset!=checkpoint.bytes)
-                || !CrossplayResumeTransfer::Encode(guest.peer,checkpoint,sequence,host,wire,frame,offset)
-                || !sender.digest.Add(wire,host))return false;
-            sender.checksum=checksum;
-            sender.ends.push_back(offset+amount);
+            constexpr size_t maximum=CrossplayResumeTransfer::MaximumFileBytes+16u*1024u*1024u;
+            const size_t frame_size=wire.size()+CrossplayResumeTransfer::Header;
+            if(sequence>65537 || (sequence>1 && checksum!=room_saved_file_checksum) || (!amount && offset!=checkpoint.bytes)
+                || offset>checkpoint.bytes || amount>checkpoint.bytes-offset
+                || frame_size>maximum-room_saved_file_buffered || !room_saved_file_digest.Add(wire,host))return false;
+            room_saved_file_checksum=checksum;
+            room_saved_file_buffered+=frame_size;
+            room_saved_file_ends.push_back(offset+amount);
+            room_saved_file_packets.push_back(std::move(wire));
         }
-        sender.buffered+=frame.size();
-        if(sender.buffered>CrossplayResumeTransfer::MaximumFileBytes+16u*1024u*1024u)return false;
-        sender.frames.push_back(std::move(frame));return true;
+        return true;
     }
 
     bool SendRoomSavedFile(const Crossplay::RoomSnapshot& room){
@@ -106,17 +113,24 @@
             return true;
         }
         auto& sender=*room_saved_send;
-        if(!sender.digest.Verified() || channel.HasPendingWrites())return true;
-        if(!RoomSavedHostCurrent())return false;
+        if(!room_saved_file_digest.Verified() || channel.HasPendingWrites())return true;
+        CrossplayNative::RoomRoute guest;
+        if(!RoomSavedHostCurrent() || !RoomSavedRoute(room,room_saved_sending,guest))return false;
+        const auto host=room_local_routes.host;
+        std::vector<unsigned char> frame;
         if(!sender.info_sent){
-            if(sender.frames.empty() || !channel.SendRoom(sender.frames.front(),room_saved_sending))return false;
-            sender.buffered-=sender.frames.front().size();sender.frames.pop_front();sender.info_sent=true;
+            if(!CrossplayResumeInfo::Encode(guest.peer,room_saved_checkpoint,host,room_saved_file_info,frame)
+                || !channel.SendRoom(frame,room_saved_sending))return false;
+            sender.info_sent=true;
         }
-        for(unsigned budget=0;budget<8 && !sender.frames.empty() && sender.sent-sender.credited<32;++budget){
-            if(!channel.SendRoom(sender.frames.front(),room_saved_sending))return false;
-            sender.buffered-=sender.frames.front().size();sender.frames.pop_front();++sender.sent;
+        for(unsigned budget=0;budget<RoomSavedFrameBudget && sender.sent<room_saved_file_packets.size()
+            && sender.sent-sender.credited<32;++budget){
+            if(!CrossplayResumeTransfer::Encode(guest.peer,room_saved_checkpoint,sender.sent+1,host,
+                room_saved_file_packets[sender.sent],frame,room_saved_file_ends[sender.sent])
+                || !channel.SendRoom(frame,room_saved_sending))return false;
+            ++sender.sent;
         }
-        if(sender.frames.empty() && sender.sent==sender.credited){
+        if(sender.sent==room_saved_file_packets.size() && sender.sent==sender.credited){
             room_saved_sent|=1u<<(room_saved_sending-1);
             room_saved_send.reset();room_saved_sending=0;
         }
@@ -128,8 +142,8 @@
         auto& sender=*room_saved_send;
         uint32_t sequence=0,bytes=0;
         if(!CrossplayResumeCredit::Decode(guest.peer,room_saved_checkpoint,event.bytes,sequence,bytes)
-            || sequence<=sender.credited || sequence>sender.sent || sequence>=sender.ends.size()
-            || sender.ends[sequence]!=bytes)return false;
+            || sequence<=sender.credited || sequence>sender.sent || sequence>=room_saved_file_ends.size()
+            || room_saved_file_ends[sequence]!=bytes)return false;
         sender.credited=sequence;return true;
     }
 
@@ -219,6 +233,15 @@
             || actual!=room_saved_checkpoint.file || CrossplayConfigurationNative::Cache(launch.channel.edition)!=cache
             || *reinterpret_cast<const unsigned char* const*>(cache+0x1c)!=stream
             || *reinterpret_cast<const unsigned char* const*>(stream+4)!=bytes)return pending(5);
+        if(launch.channel.edition==Crossplay::Edition::Gold){
+            const auto length=(std::min)(static_cast<size_t>(room_saved_checkpoint.bytes),CrossplaySavedPlayers::Detail::MaximumPrefix);
+            const std::vector<unsigned char> prefix(bytes,bytes+length);
+            CrossplaySavedPlayers::Snapshot players;
+            if(!CrossplaySavedPlayers::Read(prefix,players)
+                || !CrossplaySavedAI::FromArchive(players,room_saved_ai_mask,room_saved_ai,RoomHumanSeats())
+                || *reinterpret_cast<const unsigned char* const*>(cache+0x1c)!=stream
+                || *reinterpret_cast<const unsigned char* const*>(stream+4)!=bytes)return false;
+        }
         std::vector<unsigned char> receipt;
         if(!CrossplayResumeAdmission::Encode(host.peer,room_saved_checkpoint,CrossplayResumeAdmission::Kind::Prepared,receipt)
             || !channel.SendRoom(receipt,room.host_slot))return false;

@@ -83,7 +83,7 @@ inline bool ReceiveRoom(const CrossplayNative::RoomLobbyAdmission& admission,con
     CrossplayNative::RoomRoute host;
     CrossplaySessionConfig::RoomConnections target;
     if(!admission.Resolve(event.source_slot,false,host) || !host.host || host.local
-        || host.receiver==Crossplay::Edition::Gold || host.source_cid!=source.host
+        || host.source_cid!=source.host
         || !admission.CaptureConfigurationRoutes(capacity,target))return false;
     std::vector<unsigned char> wire;
     CrossplayResumeTransfer::Checkpoint offered;

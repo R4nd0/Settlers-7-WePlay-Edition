@@ -1,4 +1,5 @@
     inline static constexpr unsigned char RoomSavedOffer[]={'S','7','R','S','A','V',0,1};
+    static constexpr unsigned RoomSavedFrameBudget=16;
     CrossplayResumeSource::Selected room_saved_source;
     CrossplayResumeTransfer::Checkpoint room_saved_checkpoint;
     std::string room_saved_token;
@@ -12,22 +13,32 @@
 #include "crossplay_production_room_saved_start.inc"
 
     bool CaptureRoomSavedSource(){
-        if(!launch.host || launch.channel.edition!=Crossplay::Edition::Gold || resume_ui_token.empty()
-            || !CrossplayGoldChoices::Methods())return false;
+        if(!launch.host || resume_ui_token.empty())return false;
+        const auto edition=launch.channel.edition;
+        const bool gold=edition==Crossplay::Edition::Gold;
         CrossplayGoldChoices::Cache cache;
+        if(gold && (!CrossplayGoldChoices::Methods()
+            || CrossplayGoldChoices::Snapshot(cache)!=CrossplayGoldChoices::Observation::Captured
+            || cache.map!=launch.room.map || cache.save!=resume_ui_token))return false;
         std::wstring path;
-        if(CrossplayGoldChoices::Snapshot(cache)!=CrossplayGoldChoices::Observation::Captured
-            || cache.map!=launch.room.map || cache.save!=resume_ui_token
-            || !CrossplaySelectedSavedSource::Path(launch.profile,cache.save,path)
-            || !CrossplayResumeSource::CaptureSelected(path,launch.channel.content,cache.map,room_saved_source)
+        std::vector<unsigned char> before,after_configuration;
+        CrossplaySessionConfig::Layout layout;
+        if(!CrossplayConfigurationNative::SnapshotRoom(edition,original,room_admission,room_local_routes,
+                room_configuration_interval,before,resume_ui_token)
+            || !CrossplaySessionConfig::RoomDetail::Inspect(before,room_local_routes,layout,false,resume_ui_token)
+            || layout.map!=launch.room.map
+            || !CrossplaySelectedSavedSource::Path(launch.profile,resume_ui_token,path)
+            || !CrossplayResumeSource::CaptureSelected(path,launch.channel.content,layout.map,room_saved_source)
             || room_saved_source.archive.bytes!=resume_ui_archive.bytes
             || room_saved_source.archive.sha256!=resume_ui_archive.sha256
             || !room_saved_source.players_observed)return false;
         if(!CrossplaySavedAI::FromArchive(room_saved_source.players,room_saved_ai_mask,room_saved_ai,RoomHumanSeats()))return false;
         CrossplayGoldChoices::Cache after;
-        if(CrossplayGoldChoices::Snapshot(after)!=CrossplayGoldChoices::Observation::Captured
-            || !CrossplayGoldChoices::Same(cache,after))return false;
-        room_saved_token=cache.save;
+        if(gold && (CrossplayGoldChoices::Snapshot(after)!=CrossplayGoldChoices::Observation::Captured
+            || !CrossplayGoldChoices::Same(cache,after)))return false;
+        if(!CrossplayConfigurationNative::SnapshotRoom(edition,original,room_admission,room_local_routes,
+            room_configuration_interval,after_configuration,resume_ui_token) || before!=after_configuration)return false;
+        room_saved_token=resume_ui_token;
         room_saved_checkpoint=room_saved_source.checkpoint;
         return true;
     }
@@ -39,7 +50,12 @@
             outgoing_installed=true;
         }
         if(!start_hold_installed){
-            if(!CrossplayNativeStart::GoldStartHold::InstallRoomBound(original,room_admission,room.local_slot,&CaptureRoomGoldStart))return false;
+            const auto edition=launch.channel.edition;
+            const bool installed=edition==Crossplay::Edition::Gold
+                ?CrossplayNativeStart::GoldStartHold::InstallRoomBound(original,room_admission,room.local_slot,&CaptureRoomGoldStart)
+                :CrossplayNativeStart::HistoryStartHold::InstallRoomBound(original,room_admission,room.local_slot,
+                    room_local_routes.capacity,launch.room.map,&CaptureRoomGoldStart,edition,room_saved_token);
+            if(!installed)return false;
             start_hold_installed=true;
         }
         std::vector<unsigned char> captured;
@@ -70,6 +86,12 @@
             if(!OutgoingObserver::Install(launch.channel.edition,owner,&CaptureOutgoing))return false;
             outgoing_installed=true;
         }
+        if(launch.channel.edition==Crossplay::Edition::Gold && !room_gold_sdk_ready_installed){
+            const auto* room=channel.GetRoom();
+            if(!room || !CrossplayNativeReady::GoldSdkReadyHold::InstallRoomBound(original,room_admission,room->local_slot,
+                &CaptureRoomGoldSdkReady))return false;
+            room_gold_sdk_ready_installed=true;
+        }
         room_saved_started=GetTickCount64();
         event.bytes=std::move(bound);
         return CrossplayNativeCodec::SavedSessionConfigDetail::ReceiveRoom(room_admission,event,source,
@@ -82,16 +104,20 @@
             if(!launch.host)return false;
             const auto now=GetTickCount64();
             if(!room_saved_selection_wait)room_saved_selection_wait=now;
-            CrossplayGoldChoices::Cache cache;
-            const auto observed=CrossplayGoldChoices::Snapshot(cache);
-            if(observed!=CrossplayGoldChoices::Observation::Captured || cache.save.empty())
+            using namespace CrossplayNativeCodec;
+            auto* cache=CrossplayConfigurationNative::Cache(launch.channel.edition);
+            std::string token;
+            if(!cache || !SessionConfigDetail::NativeString(cache+0x34,token) || token.empty())
                 return now-room_saved_selection_wait<=30000;
+            if(token!=resume_ui_token)return false;
             return SendRoomSavedConfiguration(room);
         }
-        constexpr ULONGLONG timeout=240000;
+        // The original sender prepares each guest's resident stream in
+        // sequence. Every guest shares the budget for those transfers.
+        const ULONGLONG timeout=240000ull*(room.member_count-1);
         Crossplay::RoomEvent event;
         if(!launch.host){
-            for(unsigned budget=0;budget<16 && channel.ReceiveRoom(event);++budget){
+            for(unsigned budget=0;budget<RoomSavedFrameBudget && channel.ReceiveRoom(event);++budget){
                 if(CrossplayWorldEvents::Identify(event.bytes)!=CrossplayWorldEvents::Kind::Unknown){
                     if(!BufferSavedWorldEvent(room,event))return false;
                 }else if(Magic(event.bytes,CrossplayResumeStart::Magic)){
@@ -104,7 +130,7 @@
                 && PumpRoomSavedReadyGuest(room)
                 && (room_saved_ready_acked || GetTickCount64()-room_saved_started<=timeout);
         }
-        for(unsigned budget=0;budget<16 && channel.ReceiveRoom(event);++budget){
+        for(unsigned budget=0;budget<RoomSavedFrameBudget && channel.ReceiveRoom(event);++budget){
             CrossplayNative::RoomRoute guest;
             std::vector<unsigned char> wire;
             if(!RoomSavedRoute(room,event.source_slot,guest))return false;
@@ -123,7 +149,7 @@
                     room_saved_start_receipts|=bit;continue;
                 }
                 const bool credited=(room_saved_sent&bit) || (room_saved_send && room_saved_sending==event.source_slot
-                    && room_saved_send->digest.Verified() && room_saved_send->frames.empty()
+                    && room_saved_file_digest.Verified() && room_saved_send->sent==room_saved_file_packets.size()
                     && room_saved_send->sent==room_saved_send->credited);
                 if(!credited || (room_saved_resident&bit)
                     || room_saved_neo_offsets[event.source_slot-1]!=room_saved_source.serialized.size())return false;
@@ -144,7 +170,7 @@
 
     void OutgoingRoomSaved(void* manager,const void* event,uint32_t mode,uint32_t target){
         using namespace CrossplayNativeCodec;
-        if(!Owned() || !room_saved_started || !Detail::Readable(event,4))return;
+        if(!Owned() || phase!=Phase::RosterBound || room_world_queued || !room_saved_started || !Detail::Readable(event,4))return;
         const auto edition=launch.channel.edition;
         const auto table=*static_cast<const uintptr_t*>(event);
         const auto* room=channel.GetRoom();

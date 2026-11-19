@@ -14,11 +14,14 @@ inline std::array<Saved,65536> saved{};
 inline uint32_t saved_count=0,checkpoint_turn=0,first_pass=0,second_pass=0;
 inline DWORD owner=0;
 inline bool installed=false,invalid=false,attempted=false,validated=false;
+inline bool allow_history_guest_reset=false;
+inline std::array<uintptr_t,65536> original_request_resets{};
+inline unsigned verified_original_resets=0;
 inline bool (*authority)()=nullptr;
 inline void (*report)(bool,const char*)=nullptr;
 inline uintptr_t predicate_resume=0,scheduler_resume=0;
-struct Hook {uintptr_t at=0,target=0;unsigned size=0;unsigned char before[6]{},after[6]{};};
-inline std::array<Hook,3> hooks{};
+struct Hook {uintptr_t at=0,target=0;unsigned size=0;unsigned char before[7]{},after[7]{};};
+inline std::array<Hook,4> hooks{};
 inline bool Known(uint32_t table){return table==0xf4c684 || table==0xf4c74c || table==0xf4c7e4;}
 inline bool Read(uintptr_t object,Saved& row){
     uint32_t flags=0,player=0;
@@ -33,6 +36,23 @@ inline bool Same(const Saved& a,const Saved& b){
     return a.table==b.table && a.id==b.id && a.state==b.state && a.base==b.base && a.cached==b.cached && a.priority==b.priority
         && a.wait==b.wait && a.group==b.group && a.bucket==b.bucket && a.parent==b.parent && a.flags==b.flags
         && a.birth==b.birth && a.last==b.last && a.player==b.player;
+}
+inline bool MatchesOriginalReset(const Saved& source,const Saved& live,uintptr_t object){
+    if(!allow_history_guest_reset || !object || source.table!=0xf4c684 || source.state!=6 || !source.wait
+        || original_request_resets[source.id&65535u]!=object)return false;
+    Saved original_result=source;
+    original_result.state=1;original_result.wait=0;
+    return Same(original_result,live);
+}
+inline void __cdecl ObserveOriginalReset(uintptr_t object){
+    ErrorScope error;
+    if(!installed || !allow_history_guest_reset || attempted || invalid || GetCurrentThreadId()!=owner
+        || !authority || !authority())return;
+    Saved live;GoldLogisticsBinding::World world;uint32_t bound=0;
+    if(!Read(object,live) || live.table!=0xf4c684 || live.state!=6 || !live.wait
+        || !GoldLogisticsBinding::CaptureWorld(world) || !GoldLogisticsBinding::Task(world,live.id,bound)
+        || bound!=object || !Same(saved[live.id&65535u],live))return;
+    original_request_resets[live.id&65535u]=object;
 }
 inline void Reject(const char* reason){invalid=true;if(report)report(false,reason);}
 inline void __cdecl Capture(const uint32_t* frame){
@@ -98,19 +118,28 @@ inline bool __cdecl Preserve(const uint32_t* frame){
 }
 inline bool Validate(uint32_t expected_main){
     GoldLogisticsBinding::World world;uint32_t begin=0,end=0;
-    if(invalid || !saved_count || !authority || !authority() || !GoldLogisticsBinding::CaptureWorld(world)
-        || world.main!=expected_main || !Word(world.priority+0x164c,begin) || !Word(world.priority+0x1650,end)
-        || begin<0x10000 || begin>end || (end-begin)%8 || (end-begin)/8>65536)return false;
-    uint32_t matched=0;
+    if(invalid || !authority || !authority() || !GoldLogisticsBinding::CaptureWorld(world)
+        || world.main!=expected_main || !Word(world.priority+0x164c,begin) || !Word(world.priority+0x1650,end))return false;
+    // An early original save can have an empty or unallocated registry.
+    if(!begin && !end)return saved_count==0;
+    if(begin<0x10000 || begin>end || (end-begin)%8 || (end-begin)/8>65536)return false;
+    uint32_t matched=0,original_resets=0;
     for(uint32_t at=begin;at<end;at+=8){
         uint32_t id=0,object=0,bound=0;if(!Word(at,id) || !Word(at+4,object))return false;
         if(!object)continue;
         Saved live;
+        const auto& source=saved[id&65535u];
         if(!Read(object,live) || live.id!=id || !GoldLogisticsBinding::Task(world,id,bound) || bound!=object
-            || !saved[id&65535u].id || !Same(saved[id&65535u],live))return false;
+            || !source.id)return false;
+        if(!Same(source,live)){
+            if(!MatchesOriginalReset(source,live,object))return false;
+            ++original_resets;
+        }
         ++matched;
     }
-    return matched==saved_count;
+    if(matched!=saved_count)return false;
+    verified_original_resets=original_resets;
+    return true;
 }
 inline void __cdecl BeforeScheduler(const uint32_t* frame){
     ErrorScope error;
@@ -118,8 +147,28 @@ inline void __cdecl BeforeScheduler(const uint32_t* frame){
     attempted=true;
     try{validated=Validate(frame[10]);}catch(...){validated=false;}
     if(!validated)return Reject("saved-request-postload-full-registry-excluded");
-    if(report)report(true,"saved-request-postload-original-state-preserved-before-scheduler");
+    if(report)report(true,verified_original_resets?"saved-request-postload-exact-original-resets-verified":
+                                                 "saved-request-postload-original-state-preserved-before-scheduler");
 }
+__declspec(naked) inline void OriginalResetEntry(){__asm{
+    pushfd
+    pushad
+    cld
+    mov edi,esp
+    sub esp,528
+    and esp,0xfffffff0
+    fxsave [esp]
+    push ebx
+    call ObserveOriginalReset
+    add esp,4
+    fxrstor [esp]
+    mov esp,edi
+    popad
+    popfd
+    mov dword ptr [ebx+4],1
+    push 0x91b978
+    ret
+}}
 __declspec(naked) inline void SerializerExit(){__asm{
     pushfd
     pushad
@@ -210,29 +259,43 @@ inline bool Patch(uintptr_t at,const unsigned char* before,const unsigned char* 
     if(!flushed || !restored || memcmp(reinterpret_cast<void*>(at),after,size))__fastfail(7);
     return true;
 }
-inline bool Install(Crossplay::Edition edition,DWORD thread,uint32_t turn,bool (*authorized)(),void (*notice)(bool,const char*)){
+inline unsigned HookCount(){return allow_history_guest_reset?4u:3u;}
+inline bool Install(Crossplay::Edition edition,DWORD thread,uint32_t turn,bool (*authorized)(),void (*notice)(bool,const char*),
+                    bool history_guest=false){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     if(edition!=Crossplay::Edition::Gold)return edition==Crossplay::Edition::UbisoftHistory || edition==Crossplay::Edition::SteamHistory;
     if(installed || thread!=GetCurrentThreadId() || !authorized || !notice || !Methods())return false;
+    if(history_guest){
+        constexpr unsigned char expected[]={0xc7,0x43,4,1,0,0,0,0xc7,0x43,0x18,0,0,0,0};
+        const auto* site=reinterpret_cast<const unsigned char*>(0x91b971);
+        if(!CrossplayNativeCodec::Detail::Readable(site,sizeof(expected)) || memcmp(site,expected,sizeof(expected)))return false;
+    }
+    allow_history_guest_reset=history_guest;
     hooks={{{0x94688a,reinterpret_cast<uintptr_t>(&SerializerExit),6,{},{}},
         {0x901300,reinterpret_cast<uintptr_t>(&SchedulerEntry),5,{},{}},
-        {0x949a90,reinterpret_cast<uintptr_t>(&Predicate),5,{},{}}}};
-    for(auto& hook:hooks){
+        {0x949a90,reinterpret_cast<uintptr_t>(&Predicate),5,{},{}},
+        {0x91b971,reinterpret_cast<uintptr_t>(&OriginalResetEntry),7,{},{}}}};
+    for(unsigned i=0;i<HookCount();++i){
+        auto& hook=hooks[i];
         memcpy(hook.before,reinterpret_cast<void*>(hook.at),hook.size);hook.after[0]=0xe9;
         const auto displacement=static_cast<int32_t>(hook.target-hook.at-5);memcpy(hook.after+1,&displacement,4);
-        if(hook.size==6)hook.after[5]=0x90;
+        for(unsigned byte=5;byte<hook.size;++byte)hook.after[byte]=0x90;
     }
     owner=thread;checkpoint_turn=turn;authority=authorized;report=notice;predicate_resume=0x949a95;scheduler_resume=0x901305;
-    for(size_t i=0;i<3;++i)if(!Patch(hooks[i].at,hooks[i].before,hooks[i].after,hooks[i].size)){
+    for(size_t i=0;i<HookCount();++i)if(!Patch(hooks[i].at,hooks[i].before,hooks[i].after,hooks[i].size)){
         while(i){--i;if(!Patch(hooks[i].at,hooks[i].after,hooks[i].before,hooks[i].size))__fastfail(7);}
+        allow_history_guest_reset=false;
         return false;
     }
     installed=true;return true;
 }
 inline bool OwnsHooks(){
-    for(const auto& hook:hooks)if(!hook.at || hook.size<5 || hook.size>6
-        || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(hook.at),hook.size)
-        || memcmp(reinterpret_cast<void*>(hook.at),hook.after,hook.size))return false;
+    for(unsigned i=0;i<HookCount();++i){
+        const auto& hook=hooks[i];
+        if(!hook.at || hook.size<5 || hook.size>sizeof(hook.after)
+            || !CrossplayNativeCodec::Detail::Readable(reinterpret_cast<void*>(hook.at),hook.size)
+            || memcmp(reinterpret_cast<void*>(hook.at),hook.after,hook.size))return false;
+    }
     return true;
 }
 // Call on the same owner after native world/session teardown. Never restore over
@@ -240,11 +303,12 @@ inline bool OwnsHooks(){
 inline bool Release(){
     ErrorScope error;CrossplayNativeCodec::LoadProgressDetail::FpScope fp;
     if(!installed || owner!=GetCurrentThreadId() || !OwnsHooks())return false;
-    for(size_t i=0;i<hooks.size();++i)if(!Patch(hooks[i].at,hooks[i].after,hooks[i].before,hooks[i].size)){
+    for(size_t i=0;i<HookCount();++i)if(!Patch(hooks[i].at,hooks[i].after,hooks[i].before,hooks[i].size)){
         while(i){--i;if(!Patch(hooks[i].at,hooks[i].before,hooks[i].after,hooks[i].size))__fastfail(7);}
         return false;
     }
     installed=false;owner=0;authority=nullptr;report=nullptr;
+    allow_history_guest_reset=false;verified_original_resets=0;original_request_resets.fill(0);
     invalid=attempted=validated=false;checkpoint_turn=saved_count=first_pass=second_pass=0;
     memset(saved.data(),0,sizeof(saved));hooks={};predicate_resume=scheduler_resume=0;
     return true;

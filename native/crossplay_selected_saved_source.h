@@ -30,7 +30,7 @@ inline bool Path(const std::wstring& profile,const std::string& token,std::wstri
 inline bool SelectFile(const CrossplayProduction::Launch& launch,const std::string& argument,
                        CrossplayResumeSource::ArchiveIdentity& identity,std::string& token){
     ErrorScope error;identity={};token.clear();
-    if(!launch.mixed || !launch.host || launch.channel.edition!=Crossplay::Edition::Gold
+    if(!launch.mixed || !launch.host || (launch.channel.edition!=Crossplay::Edition::Gold && !launch.IsRoom())
         || argument.empty() || argument.size()>32767 || argument.find('\0')!=std::string::npos)return false;
     std::wstring expected;std::string source_token;
     if(CrossplayResumeStart::SlotName(argument)){

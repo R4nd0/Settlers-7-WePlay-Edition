@@ -1,19 +1,22 @@
     bool room_saved_world_prepared=false;
-    ULONGLONG room_saved_start_at=0;
+    ULONGLONG room_saved_start_held_at=0,room_saved_start_at=0;
     unsigned room_saved_start_receipts=0;
+
+    bool ReadRoomSavedHostReady(std::vector<unsigned char>& actual){
+        CrossplaySessionConfig::Layout layout;
+        if(!RoomSavedHostCurrent() || !ReadRoomSavedConfiguration(actual)
+            || !CrossplaySessionConfig::RoomDetail::Inspect(actual,room_local_routes,layout,false,room_saved_token))return false;
+        for(unsigned i=0;i<room_local_routes.capacity;++i)
+            if(room_local_routes.stations[i]!=UINT32_MAX && !actual[layout.slots_at+i*CrossplaySessionConfig::SlotBytes])return false;
+        return true;
+    }
 
     bool RoomSavedStartReady(const Crossplay::RoomSnapshot& room){
         if(!room_saved_started || room_world_queued || !NeoModules()
             || !CrossplayResumeTransfer::Valid(room_saved_checkpoint) || !room_saved_checkpoint.enabled)return false;
         if(!launch.host)return room_saved_ready_acked && resume_stream_observed && resume_neo_admitted;
-        if(room_saved_ready_applied!=((1u<<room.member_count)-1) || !RoomSavedHostCurrent())return false;
         std::vector<unsigned char> actual;
-        CrossplaySessionConfig::Layout layout;
-        if(!ReadRoomSavedConfiguration(actual)
-            || !CrossplaySessionConfig::RoomDetail::Inspect(actual,room_local_routes,layout,false,room_saved_token))return false;
-        for(unsigned i=0;i<room_local_routes.capacity;++i)
-            if(room_local_routes.stations[i]!=UINT32_MAX && !actual[layout.slots_at+i*CrossplaySessionConfig::SlotBytes])return false;
-        return true;
+        return room_saved_ready_applied==((1u<<room.member_count)-1) && ReadRoomSavedHostReady(actual);
     }
 
     bool RoomSavedStreamCurrent(){
@@ -41,24 +44,44 @@
         bool changed=false;
         if(!SharedEngineMode::Prepare(edition,owner,changed) || !SharedEngineMode::Verify(edition,owner)
             || !InstallWorldMath() || !CrossplayLogisticsActive::ArmResume(launch.host?room_saved_source.payload:resume_payload))return false;
-        if(edition==Crossplay::Edition::Gold && (!launch.host
-            || !CrossplayGoldResume::Install(edition,owner,room_saved_checkpoint.logic_turn,&SavedPostloadAuthority,&SavedPostloadReport)))return false;
+        const bool history_guest=!launch.host && room.members[room.host_slot-1].edition!=Crossplay::Edition::Gold;
+        if(edition==Crossplay::Edition::Gold
+            && !CrossplayGoldResume::Install(edition,owner,room_saved_checkpoint.logic_turn,
+                &SavedPostloadAuthority,&SavedPostloadReport,history_guest))return false;
+        room_saved_file_packets.clear();
+        room_saved_file_info.clear();
+        room_saved_file_ends.clear();
         room_saved_world_prepared=true;return true;
     }
 
     bool HoldRoomSavedStart(const void* event){
         using namespace CrossplayNativeCodec;
         const auto* room=channel.GetRoom();
-        if(!launch.host || !room || !room_held_start.empty() || !RoomSavedStartReady(*room))return false;
+        if(!launch.host || !room || !room_held_start.empty())return false;
+        if(!RoomSavedStartReady(*room)){
+            // The original History sender can run while the room is still
+            // collecting the guest receipts for the last native Ready.
+            const unsigned guests=((1u<<room->member_count)-1)&~(1u<<(room->local_slot-1));
+            std::vector<unsigned char> actual;
+            if(launch.channel.edition==Crossplay::Edition::Gold || !room_saved_started || room_world_queued
+                || !NeoModules() || !CrossplayResumeTransfer::Valid(room_saved_checkpoint) || !room_saved_checkpoint.enabled
+                || room_saved_resident!=guests || room_saved_ready_requested!=guests || room_saved_ready_after.empty()
+                || !ReadRoomSavedHostReady(actual) || actual!=room_saved_ready_after)return false;
+        }
         const auto pin=GameStartDetail::Pin(launch.channel.edition);
-        return GameStartDetail::Source(pin,event,room_local_routes.host) && Detail::Encode(pin,event,room_held_start)
-            && CrossplayResumeStart::Inspect(room_held_start,room_local_routes.host,room_saved_token);
+        std::vector<unsigned char> wire;
+        if(!GameStartDetail::Source(pin,event,room_local_routes.host) || !Detail::Encode(pin,event,wire)
+            || !CrossplayResumeStart::Inspect(wire,room_local_routes.host,room_saved_token))return false;
+        room_held_start=std::move(wire);
+        room_saved_start_held_at=GetTickCount64();
+        return true;
     }
 
     bool PumpRoomSavedStart(const Crossplay::RoomSnapshot& room){
         if(!launch.host || room_held_start.empty())return true;
         if(!room_saved_start_at){
-            if(!RoomSavedStartReady(room))return false;
+            if(!RoomSavedStartReady(room))
+                return GetTickCount64()-room_saved_start_held_at<=CrossplayFreshStart::Lifetime;
             for(unsigned char slot=1;slot<=room.member_count;++slot){
                 if(slot==room.local_slot)continue;
                 CrossplayNative::RoomRoute guest;

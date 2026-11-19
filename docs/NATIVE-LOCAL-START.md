@@ -1,5 +1,16 @@
 # Experimental native local start, 2026-10-26
 
+The Steam History host reloaded its original multiplayer save with Gold and
+Ubisoft History as guests. Each guest verified 23,683 original file packets
+against the saved world digest. All three started through the original saved
+session path, restored active NEO, and compared real transport requests.
+After loading, their original 100-ms clocks advanced past the saved
+replay turn, and 357 consecutive finished-turn checksums agreed over
+172.630 seconds. The diagnostic watchdog ultimately terminated all three
+isolated processes, and restoration verified the test copies. The
+final installed-package run and a clean Steam-hosted reload exit are pending.
+[Measured Steam host reload](receipts/steam-host-mixed-reload-20261119.json)
+
 The follow-up Steam History host run wrote an original multiplayer save at
 logic turn 60 and kept the session running. The History host menu stores the confirmed
 roster before releasing the original Start. The save uses that roster and the
@@ -7,8 +18,7 @@ native room's map across the switch from the lobby to the world. An independent
 archive reader verified replay turn 61, three human seats, one AI and enabled
 NEO. The three DXVK 3.1.1 clients matched 252 consecutive native checksums over
 271.677 seconds. Their original clocks still reported 100 ms after the save.
-All three exited with code zero and the isolated copies were restored. The shared
-reload from this file and final installed-package tests are pending.
+All three exited with code zero and the isolated copies were restored.
 [Measured Steam host save](receipts/steam-host-mixed-save-20261119.json)
 
 On 2026-11-19, Steam History hosted Gold and Ubisoft History with one AI under
