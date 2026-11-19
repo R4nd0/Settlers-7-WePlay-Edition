@@ -22,6 +22,16 @@ def binding(edition=1, peer=3, role='host'):
         b'c' * 32, 'WePlay Player', 12346 if edition == 1 else None, 12347 if edition == 1 else None)
 
 
+def room_binding():
+    local = binding()
+    return session.RoomBinding(
+        edition=local.edition, port=local.port, session=local.session, key=local.key,
+        identity=local.identity, content=local.content, name=local.name,
+        slot=1, host_slot=3, generation=17, map_path='Maps/Skirmish/Monhaim',
+        map_slots=(2, 3, 1), capacity=4, gold_auth_port=local.gold_auth_port,
+        gold_config_port=local.gold_config_port)
+
+
 class CrossplaySessionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(dir=ROOT / 'work')
@@ -47,6 +57,32 @@ class CrossplaySessionTests(unittest.TestCase):
                         continue
                     with self.subTest(local=local, peer=peer, role=role), self.assertRaises(ValueError):
                         binding(local, peer, role)
+
+    def test_room_handoff_supports_each_host_and_uses_the_owned_profile(self):
+        for host, seats in ((1, (1, 2, 3)), (2, (2, 1, 3)), (3, (2, 3, 1))):
+            supplied = replace(room_binding(), host_slot=host, map_slots=seats)
+            parent = {'PATH': 'authored', 'WEPLAY_CROSSPLAY_V1_KEY': 'stale', 'WEPLAY_CROSSPLAY_ROOM_V2_OLD': 'stale'}
+            result = supplied.environment(self.root, self.exe, parent)
+            prefix = 'WEPLAY_CROSSPLAY_ROOM_V2'
+            self.assertEqual(result[prefix], '1')
+            self.assertEqual(result[prefix + '_HOST_SLOT'], str(host))
+            self.assertEqual(result[prefix + '_MAP_SLOTS'], ''.join(map(str, seats)))
+            self.assertEqual(result[prefix + '_PROFILE'], str(self.profile))
+            self.assertEqual(result[prefix + '_KEY'], supplied.key.hex())
+            self.assertNotIn('WEPLAY_CROSSPLAY_V1_KEY', result)
+            self.assertNotIn(prefix + '_OLD', result)
+            self.assertNotIn(supplied.key.hex(), repr(supplied))
+            self.assertEqual(parent['WEPLAY_CROSSPLAY_V1_KEY'], 'stale')
+
+    def test_room_rejects_invalid_seats_paths_and_epochs(self):
+        invalid = [{'host_slot': 4}, {'slot': True}, {'capacity': 2},
+                   {'map_slots': (1, 1, 2)}, {'map_slots': (0, 2, 3)}, {'map_slots': (1, 2, 5)},
+                   {'generation': 0}, {'generation': 1 << 32}, {'generation': True}]
+        invalid += [{'map_path': path} for path in
+                    ('', '/Map', 'Maps//Map', 'Maps/../Map', 'Maps\\.\\Map', 'C:\\Map', 'Maps/Ü')]
+        for change in invalid:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                replace(room_binding(), **change)
 
     def test_rejects_malformed_authentication_names_and_ports(self):
         good = binding()
@@ -135,18 +171,26 @@ class CrossplaySessionTests(unittest.TestCase):
             supplied = replace(binding(), content=catalog.digest)
             result = platform.launch(self.root, crossplay=supplied, crossplay_catalog=catalog,
                                      environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
+            room = replace(room_binding(), content=catalog.digest)
+            room_result = platform.launch(self.root, crossplay=room, crossplay_catalog=catalog,
+                                          environment={'WEPLAY_CROSSPLAY_V1_KEY': 'stale'})
             with self.assertRaisesRegex(ValueError, 'content_changed'):
                 platform.launch(self.root, crossplay=binding(), crossplay_catalog=catalog)
             with self.assertRaisesRegex(ValueError, 'catalog_invalid'):
                 platform.launch(self.root, crossplay=supplied)
-            self.assertEqual(launch.call_count, 1)
+            self.assertEqual(launch.call_count, 2)
         self.assertIs(result, game)
-        arguments = launch.call_args.kwargs
+        self.assertIs(room_result, game)
+        arguments, room_arguments = (call.kwargs for call in launch.call_args_list)
         self.assertIsNone(game.network_policy)
         self.assertEqual(arguments['environment']['WEPLAY_CROSSPLAY_V1_PROFILE'], str(self.profile))
         self.assertEqual(arguments['environment']['DXVK_CONFIG_FILE'], str(self.exe.with_name('dxvk.conf')))
         self.assertEqual(arguments['dll_sha256'], digest)
         self.assertEqual(arguments['policy_sha256'], platform.POLICY)
+        self.assertEqual(room_arguments['environment']['WEPLAY_CROSSPLAY_ROOM_V2_PROFILE'], str(self.profile))
+        self.assertEqual(room_arguments['environment']['WEPLAY_CROSSPLAY_ROOM_V2_HOST_SLOT'], '3')
+        self.assertNotIn('WEPLAY_CROSSPLAY_V1_KEY', room_arguments['environment'])
+        self.assertEqual(room_arguments['policy_sha256'], platform.POLICY)
 
     def test_invalid_handoff_cannot_reach_policy_or_process_creation(self):
         adapter = self.root / 'Launcher/adapter.dll'

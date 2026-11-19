@@ -174,7 +174,7 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
     environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
     if crossplay is not None:
         import crossplay_session
-        if type(crossplay) is not crossplay_session.Binding or lan is not None:
+        if type(crossplay) not in (crossplay_session.Binding, crossplay_session.RoomBinding) or lan is not None:
             raise ValueError('crossplay_configuration_invalid')
         if value['files'][adapter.relative_to(root).as_posix()] not in crossplay_session.ADAPTER_PINS.get(crossplay.edition, ()):
             raise ValueError('crossplay_adapter_unavailable')
