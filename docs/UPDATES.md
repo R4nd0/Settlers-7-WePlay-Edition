@@ -1,5 +1,12 @@
 # WePlay signed update patcher
 
+The public download for rc4.01 is
+[`rc4.01`](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.01).
+Its installer is byte-identical to the signed sequence-30 download. Existing
+launchers retain the original signed URL for sequence 30 because changing a
+signed URL at the same sequence invalidates the update on clients that cached
+the earlier offer.
+
 RC4.00 uses technical version `2.0.0-rc4.0`, tag `v2.0.0-rc4.00` and update
 sequence **29**. Launcher versions and update notices display **rc4.00** without
 the technical prefix. The common installer covers Gold, Steam History and Ubisoft

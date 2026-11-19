@@ -16,7 +16,7 @@ import compatibility as content
 import install
 
 RELEASE_GUIDE = REPO/'docs/RC4.01-RELEASE-NOTES.md'
-RELEASE_TAG = 'v2.0.0-rc4.01'
+RELEASE_TAG = 'rc4.01'
 UPDATE_SEQUENCE = 30
 
 
