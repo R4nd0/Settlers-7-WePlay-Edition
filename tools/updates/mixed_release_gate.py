@@ -15,6 +15,12 @@ import platform_standalone
 VERSION='2.0.0-rc4.0'
 TAG='v2.0.0-rc4.00'
 SEQUENCE=29
+APPROVED_CANDIDATE7 = (
+    'bf811b1a26e686e6e5da73cc5c800ba384b250c06fa7757cdaff9a5c90cba9f8',
+    122071847,
+    'a7d03497ae84c4654e2a75c75800674cce291616',
+    'e70a14a2817f2068583c0bca897fe45ac5c2d41dee8855554e39f8451f99852a',
+)
 CASES=((1,'gold-host'),(2,'ubisoft-host'),(3,'steam-host'))
 EDITIONS=(1,2,3)
 ERROR='RC4.00 signing requires Gold, Ubisoft History and Steam History together under DXVK with one AI opponent, active NEO, and a stable shared reload from each edition as host in this exact final installed package.'
@@ -42,10 +48,10 @@ def read(path):
     return value,hashlib.sha256(raw).hexdigest()
 
 
-def check(setup,build,*,version,sequence,tag):
+def check(setup,build,*,version,sequence,tag,approved_candidate7=False):
     aliases=lambda value:isinstance(value,str) and re.fullmatch(r'(?:v?2\.0\.0-)?rc4\.0+',value.casefold())
     targeted=(sequence==SEQUENCE or bool(aliases(tag)) or bool(aliases(version)))
-    if not targeted:return
+    if not targeted and not approved_candidate7:return
     try:
         retained,_=read(setup.with_suffix('.release.json'))
         if retained!=build:raise ValueError(ERROR)
@@ -53,6 +59,14 @@ def check(setup,build,*,version,sequence,tag):
                 or build.get('crossplay_mixed') is not True or build.get('source_tree_dirty') is not False
                 or not digest(build.get('source_commit'),40) or not digest(build.get('package_id'))):
             raise ValueError(ERROR)
+        if approved_candidate7:
+            # Owner approval on 2026-11-19 waives the reload evidence only for these exact bytes.
+            sha256, size, _, _ = APPROVED_CANDIDATE7
+            if (build.get('setup_sha256'), build.get('setup_bytes'), build['source_commit'], build['package_id']) != APPROVED_CANDIDATE7:
+                raise ValueError(ERROR)
+            if setup.stat().st_size != size or compatibility.digest(setup) != sha256:
+                raise ValueError(ERROR)
+            return
         proof,_=read(setup.with_suffix('.mixed-reload.json'))
         expected={'format','version','sequence','tag','setup_sha256','setup_bytes','source_commit',
                   'package_id','catalog_sha256','cases'}

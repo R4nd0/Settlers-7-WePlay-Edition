@@ -67,6 +67,21 @@ class MixedReleaseGateTests(unittest.TestCase):
         path=self.root/'Setup.mixed-reload-gold-host.json';path.write_bytes(path.read_bytes()+b' ')
         with self.assertRaisesRegex(ValueError,'exact final installed'):self.check()
 
+    def test_candidate7_exception_requires_opt_in_and_exact_build(self):
+        self.setup.with_suffix('.mixed-reload.json').unlink()
+        allowed = tuple(self.build[key] for key in
+                        ('setup_sha256', 'setup_bytes', 'source_commit', 'package_id'))
+        with patch.object(gate, 'APPROVED_CANDIDATE7', allowed):
+            self.check(approved_candidate7=True)
+            with self.assertRaises(ValueError):
+                self.check()
+            with self.assertRaises(ValueError):
+                self.check(approved_candidate7=True, tag='v2.0.0-rc3.25')
+            original = self.setup.read_bytes()
+            self.setup.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+            with self.assertRaises(ValueError):
+                self.check(approved_candidate7=True)
+
     def test_signer_rejects_missing_proof_before_any_key_or_signing_process(self):
         self.setup.with_suffix('.mixed-reload.json').unlink()
         with patch.object(signer.subprocess,'run') as process:

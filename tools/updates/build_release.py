@@ -16,7 +16,7 @@ import update_client
 import release_policy
 import mixed_release_gate
 
-def build(setup,output,*,version,sequence,tag,notes='',key_path=None):
+def build(setup,output,*,version,sequence,tag,notes='',key_path=None,approved_candidate7=False):
     setup,output=map(compatibility.plain,(setup,output))
     if not setup.is_file() or setup.name!='Setup.exe' or output.exists() or not output.parent.is_dir():raise ValueError('Use a completed Setup.exe and a new manifest output path.')
     isolated=output.with_name(update_client.ISOLATED_MANIFEST)
@@ -25,7 +25,8 @@ def build(setup,output,*,version,sequence,tag,notes='',key_path=None):
     if (proof.get('format')!='weplay-main-package-release-v1' or not release_policy.valid(proof.get('platform_isolation'))
             or proof.get('setup_sha256')!=compatibility.digest(setup) or proof.get('setup_bytes')!=setup.stat().st_size):
         raise ValueError('Signing requires the completed isolated main package and its matching build receipt.')
-    mixed_release_gate.check(setup,proof,version=version,sequence=sequence,tag=tag)
+    mixed_release_gate.check(setup,proof,version=version,sequence=sequence,tag=tag,
+                             approved_candidate7=approved_candidate7)
     value={'format':'weplay-update-v1','repository':update_client.REPOSITORY,'channel':'preview','sequence':sequence,
            'version':version,'tag':tag,'notes':notes,'platform_isolation':release_policy.CONTRACT,'setup':{'name':'Setup.exe',
            'url':'https://github.com/'+update_client.REPOSITORY+'/releases/download/'+tag+'/Setup.exe',
@@ -57,6 +58,9 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('setup','output','version','tag'):parser.add_argument('--'+name,required=True)
     parser.add_argument('--sequence',required=True,type=int);parser.add_argument('--notes-file',type=Path);parser.add_argument('--key',type=Path)
+    parser.add_argument('--approved-candidate7', action='store_true',
+                        help='Use the exact MixedCandidate7 exception approved on 2026-11-19.')
     args=parser.parse_args()
     notes=args.notes_file.read_text(encoding='utf-8') if args.notes_file else ''
-    print(json.dumps(build(args.setup,args.output,version=args.version,sequence=args.sequence,tag=args.tag,notes=notes,key_path=args.key),indent=2))
+    print(json.dumps(build(args.setup,args.output,version=args.version,sequence=args.sequence,tag=args.tag,
+                           notes=notes,key_path=args.key,approved_candidate7=args.approved_candidate7),indent=2))

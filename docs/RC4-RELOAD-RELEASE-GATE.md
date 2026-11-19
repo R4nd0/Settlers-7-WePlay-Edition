@@ -1,5 +1,10 @@
 # RC4.00 final installed mixed reload gate
 
+On 2026-11-19 the maintainer approved publication of the exact MixedCandidate7
+installer from `a7d0349` before the three installed reload tests were complete.
+The signing exception is opt-in and bound to the exact installer SHA-256,
+size, source commit and package ID. The qualification procedure is recorded below.
+
 The user's updated release requirement (2026-11-17) is one simultaneous mixed
 session containing **original Gold, original Ubisoft History and original Steam
 History, three human clients plus one AI opponent**, with genuine saving, loading
@@ -101,10 +106,9 @@ package and these observed cases. Show all three editions together with three
 human players plus one AI opponent, and actual save/reload continuation. Old
 two-human/two-AI posters and pair-only feature text are superseded. Describe only the admitted player/map scope,
 actual save/reload behavior and NEO features. Keep mixed NEO19 separate from
-History-only NEO6. The existing single-player draft poster is not a final RC4.00
-asset. No release tag, signed update metadata or publication is permitted while
-any required final case is missing. Internal gate, test and development text does
-not belong on the customer-facing posters.
+History-only NEO6. Release artifacts outside the exact MixedCandidate7 exception
+require the complete final evidence. Internal gate, test and development text
+does not belong on the customer-facing posters.
 
 ## Gate verification
 

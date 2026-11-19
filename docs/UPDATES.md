@@ -1,11 +1,11 @@
 # WePlay signed update patcher
 
-The pending RC4.00 uses technical version `2.0.0-rc4.0`, tag `v2.0.0-rc4.00` and update
+RC4.00 uses technical version `2.0.0-rc4.0`, tag `v2.0.0-rc4.00` and update
 sequence **29**. Launcher versions and update notices display **rc4.00** without
 the technical prefix. The common installer covers Gold, Steam History and Ubisoft
-History with the existing mandatory platform-isolation contract. Publication is
-gated on proven mixed-session reload against both History editions and its
-production integration. Protected copies require the isolated signed manifest.
+History with the existing mandatory platform-isolation contract. The maintainer
+approved the exact MixedCandidate7 installer for this preview with the three
+mixed reload tests still open. Protected copies require the isolated signed manifest.
 [RC4.00 installation and compatibility](RC4.00-RELEASE-NOTES.md).
 [Current/legacy adapter migration and builder inputs](RC4-ADAPTER-MIGRATION.md).
 
