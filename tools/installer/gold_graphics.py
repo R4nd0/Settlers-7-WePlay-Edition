@@ -10,6 +10,7 @@ import platform_standalone as platform
 EXE = 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
 INTERFACE = 'Data/Base/BBA/Interface.bba'
 INTERFACE_SHA256 = '9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928'
+MIXED_INTERFACE_SHA256 = 'f359895ae98539946aac80258512e22fcabe41616a876fc6e25ee8c7cdaeb2fb'
 OPTIONS = ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
 
 
@@ -22,11 +23,14 @@ def checked_root(root):
     value,exe,_=platform.load(root)
     if value['edition']!='gold':raise ValueError('gold_graphics_invalid')
     record=graphics._json(graphics._read(root/'gold-install.json',graphics.MAX_JSON))
-    expected={INTERFACE:INTERFACE_SHA256,EXE:'76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab',
-              exe.with_name('d3d9.dll').relative_to(root).as_posix():graphics.DXVK_SHA256}
+    mixed_room=record.get('mixed_room',False)
     if (record.get('format')!='weplay-gold-install-v1' or record.get('multiplayer') is not False
             or record.get('platform_independent') is not True or not isinstance(record.get('files'),dict)
-            or (root/'PREPARATION-INCOMPLETE.txt').exists()):raise ValueError('gold_graphics_invalid')
+            or type(mixed_room) is not bool or (root/'PREPARATION-INCOMPLETE.txt').exists()):
+        raise ValueError('gold_graphics_invalid')
+    expected={INTERFACE:MIXED_INTERFACE_SHA256 if mixed_room else INTERFACE_SHA256,
+              EXE:'76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab',
+              exe.with_name('d3d9.dll').relative_to(root).as_posix():graphics.DXVK_SHA256}
     for name,digest in expected.items():
         if record['files'].get(name)!=digest or graphics.content.digest(graphics._plain(root/name))!=digest:
             raise ValueError('gold_graphics_invalid')

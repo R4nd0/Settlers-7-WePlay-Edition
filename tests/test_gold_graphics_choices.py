@@ -1,6 +1,7 @@
 """Shared choices, independent Gold pins and bounded child-only application."""
 from pathlib import Path
 import importlib.util
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -45,6 +46,26 @@ class GoldChoicesTests(unittest.TestCase):
         with patch.object(gold,'is_gold',return_value=True),patch.object(gold,'checked_root',return_value=self.root):
             self.assertEqual(choice._renderer(self.root,{'kept':'value'}),('dxvk',{'kept':'value'}))
         self.assertEqual(choice.validate_choice(dict(self.selected,extended_detail=True))['extended_detail'],True)
+
+    def test_mixed_room_graphics_checks_the_exact_room_interface(self):
+        root=self.root.resolve()
+        executable=root/gold.EXE
+        files={gold.EXE:'76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab',
+               executable.with_name('d3d9.dll').relative_to(root).as_posix():gold.graphics.DXVK_SHA256}
+        with patch.object(platform,'load',return_value=({'edition':'gold'},executable,None)), \
+                patch.object(gold.graphics,'_read') as read, \
+                patch.object(gold.graphics.content,'digest',side_effect=lambda path:files[path.relative_to(root).as_posix()]):
+            for room,menu in ((False,gold.INTERFACE_SHA256),(True,gold.MIXED_INTERFACE_SHA256)):
+                files[gold.INTERFACE]=menu
+                record=dict(format='weplay-gold-install-v1',platform_independent=True,
+                            multiplayer=False,mixed_room=room,files=files)
+                read.return_value=json.dumps(record).encode()
+                self.assertEqual(gold.checked_root(root),root)
+            for room in (False,1):
+                record['mixed_room']=room
+                read.return_value=json.dumps(record).encode()
+                with self.assertRaisesRegex(ValueError,'gold_graphics_invalid'):
+                    gold.checked_root(root)
 
     def test_child_config_overrides_old_fixed_anisotropy_without_rewriting_it(self):
         exe=self.root/gold.EXE
