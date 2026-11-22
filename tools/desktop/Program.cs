@@ -609,8 +609,9 @@ internal sealed partial class MainForm : Form
         activeRenderer.Text=Lang.T("activeRenderer")+": DXVK (Vulkan)";
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
-        foreach(var item in value.GetProperty("probe").GetProperty("devices").EnumerateArray())gpu.Items.Add(new Item(item.GetString()!,item.GetString()!));
-        modernGraphicsAvailable=gpu.Items.Count>1;
+        var graphicsProbe=value.GetProperty("probe");
+        foreach(var item in graphicsProbe.GetProperty("devices").EnumerateArray())gpu.Items.Add(new Item(item.GetString()!,item.GetString()!));
+        graphicsProbeFailure=graphicsProbe.TryGetProperty("failure",out var failure)?failure.GetString():null;
         gpu.SelectedIndex=0;for(int i=1;i<gpu.Items.Count;i++)if(gpu.Items[i] is Item option&&option.Key==oldGpu)gpu.SelectedIndex=i;
         var selected=value.GetProperty("choice").TryGetProperty("display",out var found)?found:default;
         string? oldDisplay=replaceFields&&selected.ValueKind==JsonValueKind.Object?selected.GetProperty("device").GetString():(monitor.SelectedItem as Item)?.Key;
@@ -790,10 +791,10 @@ internal sealed partial class MainForm : Form
         UpdateGraphicsPresets();
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
         gpu.Enabled=!busy&&gpu.Items.Count>1;
-        anisotropicFiltering.Enabled=!busy&&modernGraphicsAvailable;
+        anisotropicFiltering.Enabled=!busy;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
         ultraShadows.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&modernGraphicsAvailable&&midsummerToneAvailable;
+        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&midsummerToneAvailable;
         bool maximumVisible=!singlePlayerOnly||MaximumGraphicsAvailable;
         maximumFx.Visible=maximumVisible;
         foreach(var item in labels.Where(x=>x.Value=="maximumFxInfo"))item.Key.Visible=maximumVisible;
@@ -808,7 +809,6 @@ internal sealed partial class MainForm : Form
     }
     private void ApplyRecommendedGraphics()
     {
-        if(!modernGraphicsAvailable)throw new BackendError("renderer_unsupported","");
         DisplayEnabled();
         ApplyQualityPreset(true);
         extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;

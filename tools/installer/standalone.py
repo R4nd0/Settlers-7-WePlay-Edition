@@ -232,7 +232,10 @@ def bind(root):
         if backend.content.inventory(game, ('Runtime',)) != backend.content.inventory(desktop.package, ('Runtime',)):
             raise ValueError('Die mitgelieferte Spiellaufzeit ist beschaedigt.')
         # Renderer transactions acquire their own game lock.
-        probe = desktop.probe(refresh=True)
+        # An incoming preflight can still run with an older installed backend.
+        # Current backends prepare DXVK without testing the physical GPU.
+        probe = (desktop.cached_graphics_probe() if hasattr(desktop, 'cached_graphics_probe')
+                 else desktop.probe(refresh=True))
         mode = desktop.renderer(game, 'dxvk', probe)
         with backend.graphics.session_lock(game):
             # Choose hardware on the destination, not the exporting PC.

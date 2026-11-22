@@ -62,10 +62,12 @@ internal sealed partial class MainForm
         finally{testUiBackend=null;LoadSnapshot(original,acceptGraphics:true);}
 
         var unavailable=JsonNode.Parse(original.GetRawText())!.AsObject();unavailable["probe"]!["devices"]=new JsonArray();
+        unavailable["probe"]!["failure"]="unsupported";
         LoadSnapshot(JsonSerializer.SerializeToElement(unavailable),acceptGraphics:true);tabs.SelectedTab=graphicsPage;
-        string before=CaptureGraphicsDraft();graphicsRecommended.PerformClick();graphicsMaximum.PerformClick();
-        if(graphicsRecommended.Enabled||graphicsMaximum.Enabled||!graphicsPresetNotice.Visible||CaptureGraphicsDraft()!=before)
-            throw new Exception("Unsupported Modern preset remains actionable or lacks an explanation");
+        if(!graphicsRecommended.Enabled||!graphicsPresetNotice.Visible
+            ||graphicsPresetNotice.Text!=Lang.T("graphicsProbeUnconfirmed")||gpu.Items.Count!=1)
+            throw new Exception("Optional probe blocked automatic DXVK settings or lacks an explanation");
+        graphicsRecommended.PerformClick();Application.DoEvents();
         LoadSnapshot(original,acceptGraphics:true);midsummerToneAvailable=true;UpdateGraphicsPresets();
         graphicsRecommended.PerformClick();Application.DoEvents();
         if(!enhancedAa.Checked)throw new Exception("Supported Recommended click failed");

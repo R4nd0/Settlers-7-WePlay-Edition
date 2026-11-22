@@ -9,16 +9,19 @@ internal sealed partial class MainForm
     private readonly LinkLabel maintenanceNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),Visible=false,Margin=new Padding(0,2,0,4)};
     private Button maintenanceCleanup=null!;
     private Button graphicsRecommended=null!,graphicsMaximum=null!;
-    private bool modernGraphicsAvailable;
+    private string? graphicsProbeFailure;
     private readonly Label graphicsPresetNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),ForeColor=SystemColors.GrayText};
     private void UpdateGraphicsPresets()
     {
         if(graphicsRecommended==null)return;
-        graphicsRecommended.Enabled=!busy&&modernGraphicsAvailable;
-        graphicsMaximum.Enabled=!busy&&modernGraphicsAvailable&&MaximumGraphicsAvailable;
+        graphicsRecommended.Enabled=!busy;
+        graphicsMaximum.Enabled=!busy&&MaximumGraphicsAvailable;
         graphicsMaximum.Visible=!singlePlayerOnly||MaximumGraphicsAvailable;
-        graphicsPresetNotice.Visible=!modernGraphicsAvailable||!midsummerToneAvailable;
-        graphicsPresetNotice.Text=Lang.T(!modernGraphicsAvailable?"graphicsModernUnavailable":"graphicsMaximumUnavailable");
+        graphicsPresetNotice.Visible=graphicsProbeFailure!=null||!midsummerToneAvailable;
+        graphicsPresetNotice.Text=Lang.T(graphicsProbeFailure switch {
+            "unsupported"=>"graphicsProbeUnconfirmed",
+            "probe_failed"=>"graphicsProbeFailed",
+            _=>"graphicsMaximumUnavailable"});
     }
     private void UpdateMaintenanceNotice()
     {

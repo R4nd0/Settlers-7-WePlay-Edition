@@ -262,6 +262,12 @@ class Desktop:
         self.write(path,value)
         return value
 
+    def cached_graphics_probe(self):
+        try:
+            return self.validate_probe(self.read(self.state/'graphics-probe.json',limit=65536))
+        except (OSError,ValueError,TypeError):
+            return {'devices':[], 'failure':None}
+
     @staticmethod
     def validate_probe(value):
         if (not isinstance(value,dict) or set(value)!={'format','probe_sha256','devices','failure','adapters'}
@@ -287,7 +293,7 @@ class Desktop:
         result={'installed':value is not None,'displays':self.displays() if displays is None else displays,
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':'dxvk',
-                'probe':self.read(self.state/'graphics-probe.json',{'devices':[],'failure':None}),
+                'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'dxvk',
                 'current':None,'update_available':False,'needs_repair':False,
@@ -337,9 +343,10 @@ class Desktop:
             except (OSError,ValueError,RuntimeError):result['needs_repair']=True
         return result
 
-    def renderer(self,root,policy,probe):
+    def renderer(self,root,policy,probe=None):
+        # Accept the optional third argument used by older standalone scripts.
+        # This installs and verifies the files. Only the game needs a real GPU.
         if policy not in ('auto','dxvk','native'):raise ValueError('request_invalid')
-        if not probe['devices']:raise ValueError('renderer_unsupported')
         if self.is_gold(root):
             import gold_graphics
             gold_graphics.checked_root(root)
@@ -386,16 +393,16 @@ class Desktop:
                 if size not in target['resolutions'] or not display._resolution(*size):
                     sizes=[s for s in target['resolutions'] if s[0]<=1920 and s[1]<=1080]
                     if sizes:size=sizes[-1];mode='windowed'
-                    else:return selected
-                selected['display']=dict(device=target['device'],width=size[0],height=size[1],mode=mode)
+                    else:size=None
+                if size:selected['display']=dict(device=target['device'],width=size[0],height=size[1],mode=mode)
         if renderer=='native':
             selected['choice']=None
             for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
                 if name in selected:selected[name]=False
-        elif target and target['adapter'] in probe['devices']:
-            if selected['choice'] not in probe['devices'] or selected['choice']!=target['adapter']:
-                selected['choice']=target['adapter']
-        else:selected['choice']=None
+        elif selected['choice'] not in probe['devices'] or (
+                target and selected['display'] is not None
+                and selected['choice'].casefold()!=target['adapter'].casefold()):
+            selected['choice']=None
         return selected
 
     def standalone_descriptor(self, record):
@@ -618,8 +625,8 @@ class Desktop:
             raise
         if old:self.transfer_preferences(old,root)
         policy='dxvk'
-        probe=self.probe()
-        mode=self.renderer(root,policy,probe)
+        probe=self.cached_graphics_probe()
+        mode=self.renderer(root,policy)
         with graphics.session_lock(root):
             selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
             choice.save_choice(root,selected)
@@ -673,7 +680,7 @@ class Desktop:
             gold_graphics.validate(root,selected)
         choice._require_visual_support(root,selected)
         player_settings.player_name(request['player_name'])
-        probe=self.probe()
+        probe=self.cached_graphics_probe()
         policy=request['renderer_policy']
         screens=self.displays()
         # Reject invalid display/GPU requests before making any profile change.
@@ -683,10 +690,6 @@ class Desktop:
             raise ValueError('renderer_unsupported')
         if selected.get('display') is not None:
             display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
-        if not probe['devices']:raise ValueError('renderer_unsupported')
-        if selected['choice'] is None:
-            target=next((s for s in screens if selected.get('display') and s['device']==selected['display']['device']),screens[0] if screens else None)
-            if target and target['adapter'] in probe['devices']:selected['choice']=target['adapter']
         with graphics.session_lock(root):
             # Validate all old user records before staging their before-images.
             choice._load_choice(root);quality.load(root);player_settings.load(root)
@@ -704,7 +707,7 @@ class Desktop:
             self.operation_state('critical');self._settings_lock_held=True
             try:
                 transaction.check()
-                self.renderer(root,policy,probe)
+                self.renderer(root,policy)
                 transaction.check()
                 choice.save_choice(root,selected)
                 transaction.check()
@@ -764,13 +767,10 @@ class Desktop:
         if self.is_gold():raise ValueError('gold_single_player_only')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
         expected=self.network_id(root);alternatives=self.alternatives(root)
-        probe=self.probe()
         rooms=directory.list_rooms(timeout=1)
         def status(room):
             if room.compatible(expected):return 'ready'
-            mode=next((key for key,value in alternatives.items() if value==room.content_id),None)
-            if mode is None:return 'different'
-            return 'switch' if mode=='native' or probe['devices'] else 'unsupported'
+            return 'switch' if room.content_id==alternatives.get('dxvk') else 'different'
         return {'networks':[{'key':i.address,'name':i.name} for i in interfaces],
                 'rooms':[{'key':r.room_id,'network':r.local_interface.address,'name':r.name,
                           'members':r.members,'capacity':r.capacity,'status':status(r)} for r in rooms]}
@@ -786,7 +786,7 @@ class Desktop:
         self.progress('lan_search')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
         # DXVK is required on this PC; discovery cannot select another pipeline.
-        self.renderer(root,self.installed()['renderer_policy'],self.probe())
+        self.renderer(root,self.installed()['renderer_policy'])
         current=self.network_id(root)
         room=discover_preferred(directory,current,
             progress=self.progress,cancel_check=lambda:self.progress('lan_search'))
@@ -1130,8 +1130,8 @@ class Desktop:
                                 if internet is not None:desktop.emit('game_finished',exit_code=game.poll())
             return GameObserver()
         # Repair saved monitor selections after a real hotplug, before launch.
-        probe=self.probe()
-        if request is None or internet is not None:mode=self.renderer(root,self.installed()['renderer_policy'],probe)
+        probe=self.cached_graphics_probe()
+        if request is None or internet is not None:mode=self.renderer(root,self.installed()['renderer_policy'])
         else:
             self.align_lan(request);mode=choice._renderer(root,{})[0]
         with graphics.session_lock(root):

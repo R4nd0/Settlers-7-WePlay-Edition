@@ -521,7 +521,7 @@ class DesktopTests(unittest.TestCase):
                 self.assertEqual(backend.Desktop.renderer(self.desktop,root,policy,self.probe),'dxvk')
                 install_profile.assert_called_once();restore.assert_not_called()
 
-    def test_removed_renderer_requests_and_unsupported_gpu_preserve_preferences(self):
+    def test_removed_renderer_requests_preserve_preferences_and_automatic_save_needs_no_probe(self):
         self.prepare();root=self.desktop.game()
         before=(self.desktop.state/'installation.json').read_bytes()
         choice_before=(root/choice.CHOICE_FILE).read_bytes()
@@ -530,11 +530,14 @@ class DesktopTests(unittest.TestCase):
         for policy in ('auto','native'):
             with self.assertRaisesRegex(ValueError,'request_invalid'):
                 self.desktop.save_settings(dict(request,renderer_policy=policy))
-        with patch.object(self.desktop,'probe',return_value=dict(self.probe,devices=[],failure='unsupported')):
-            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
-                self.desktop.save_settings(request)
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
         self.assertEqual((root/choice.CHOICE_FILE).read_bytes(),choice_before)
+        failed=dict(self.probe,devices=[],failure='unsupported')
+        self.desktop.write(self.desktop.state/'graphics-probe.json',failed)
+        with patch.object(self.desktop,'probe',side_effect=AssertionError('unexpected GPU check')):
+            self.desktop.save_settings(request)
+        self.assertIsNone(choice._load_choice(root)['choice'])
+        self.assertEqual(self.desktop.snapshot()['probe'],failed)
 
     def test_default_native_choice_keeps_native_details_and_does_not_mutate_preferences(self):
         self.prepare()
@@ -545,15 +548,36 @@ class DesktopTests(unittest.TestCase):
         self.assertTrue(all(selected[name] is False for name in effects))
         self.assertTrue(all(preferred[name] is True for name in effects))
 
-    def test_explicit_unsupported_modern_request_still_stops_before_renderer_mutation(self):
-        self.prepare()
+    def test_renderer_installs_dxvk_files_even_when_gpu_probe_has_failed(self):
+        self.prepare();root=self.desktop.game()
         with patch.object(graphics,'install') as install_profile,patch.object(graphics,'restore') as restore:
-            with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
-                backend.Desktop.renderer(self.desktop,self.desktop.game(),'dxvk',dict(self.probe,devices=[],failure='unsupported'))
-        install_profile.assert_not_called();restore.assert_not_called()
+            self.assertEqual(backend.Desktop.renderer(self.desktop,root,'dxvk',
+                dict(self.probe,devices=[],failure='unsupported')),'dxvk')
+        install_profile.assert_called_once_with(root,self.desktop.package/'Payload/Graphics/d3d9.dll')
+        restore.assert_not_called()
+
+    def test_failed_probe_never_blocks_setup_repair_or_the_actual_automatic_start(self):
+        self.desktop.write(self.desktop.state/'graphics-probe.json',dict(self.probe,devices=[],failure='probe_failed'))
+        with patch.object(self.desktop,'probe',side_effect=AssertionError('unexpected GPU check')):
+            self.assertTrue(self.prepare()['installed'])
+            old=self.desktop.game()
+            self.assertTrue(self.desktop.install_game(old)['installed'])
+            self.assertNotEqual(old,self.desktop.game())
+            with patch.object(backend.launch_local,'run',return_value=0) as launch:
+                self.assertEqual(self.desktop.play(),{'exit_code':0})
+            launch.assert_called_once()
+        self.assertIsNone(choice._load_choice(self.desktop.game())['choice'])
+
+    def test_automatic_gpu_is_not_forced_to_the_adapter_at_the_display(self):
+        self.prepare()
+        hybrid=dict(self.probe,devices=['Fixture GPU','Discrete GPU'])
+        selected=self.desktop.default_choice(self.desktop.game(),'dxvk',hybrid)
+        self.assertEqual(selected['display']['device'],self.screens[0]['device'])
+        self.assertIsNone(selected['choice'])
 
     def test_unknown_gpu_is_still_rejected_when_modern_renderer_is_supported(self):
-        self.prepare();self.probe['devices']=['Fixture GPU'];self.desktop.renderer.reset_mock()
+        self.prepare();self.desktop.write(self.desktop.state/'graphics-probe.json',self.probe)
+        self.desktop.renderer.reset_mock()
         before=(self.desktop.state/'installation.json').read_bytes()
         with self.assertRaisesRegex(ValueError,'renderer_unsupported'):
             self.desktop.save_settings(dict(renderer_policy='dxvk',
