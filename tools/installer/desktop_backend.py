@@ -137,7 +137,7 @@ class Desktop:
     def validate_installation(self,value):
         if not isinstance(value,dict):raise ValueError('installation_invalid')
         if (set(value)!={'format','source','container','current','previous','package_id','renderer_policy'}
-                or value['format'] not in (FORMAT,INSTALL_FORMAT) or value['renderer_policy'] not in ('auto','dxvk','native')
+                or value['format'] not in (FORMAT,INSTALL_FORMAT) or value['renderer_policy'] not in ('auto',*graphics.RENDERERS)
                 or not isinstance(value['source'],str) or not isinstance(value['previous'],list)
                 or len(value['previous'])>16 or not isinstance(value['package_id'],str)):
             raise ValueError('installation_invalid')
@@ -157,8 +157,10 @@ class Desktop:
             root=self.instance(item['container'],item['instance'])
             if root.name in seen:raise ValueError('installation_invalid')
             seen.add(item['instance']);references.append({'container':str(root.parent),'instance':root.name})
-        # Older records remain readable; renderer choice is no longer a policy.
-        value={**value,'format':INSTALL_FORMAT,'previous':references,'renderer_policy':'dxvk'}
+        policy=value['renderer_policy']
+        if policy=='auto' or (policy!='dxvk' and policy not in self.supported_renderers()):
+            policy='dxvk'
+        value={**value,'format':INSTALL_FORMAT,'previous':references,'renderer_policy':policy}
         return value
 
     def instance(self,container,name):
@@ -197,7 +199,7 @@ class Desktop:
         if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
         if value.get('multiplayer_resume',False):flags['multiplayer_resume']=True
-        for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed'):
+        for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers'):
             if value.get(key,False):flags[key]=True
         if value.get('platform_independent',False):
             import platform_standalone
@@ -287,15 +289,37 @@ class Desktop:
         try:return display.enumerate_displays()[:2]
         except (OSError,ValueError,RuntimeError):return []
 
+    def supported_renderers(self):
+        metadata=install.package_metadata(self.package)
+        return graphics.RENDERERS if metadata.get('alternate_renderers') is True else ('dxvk',)
+
+    def launch_renderer(self):
+        policy=self.installed()['renderer_policy']
+        return (policy,self.package) if policy!='dxvk' else None
+
+    def recover_launch_renderer(self, root=None):
+        if root is None:
+            try:root=self.game()
+            except ValueError as error:
+                if str(error) in ('not_installed','installation_invalid'):return
+                raise
+        if not graphics._plain(root/graphics.RENDERER_JOURNAL).exists():return
+        import platform_standalone
+        with graphics.session_lock(root):
+            graphics.ensure_closed()
+            _,executable,_=platform_standalone.load(root)
+            graphics.recover_launch_renderer(root,executable,self.package)
+
     def snapshot(self,*,displays=None):
         value=self.installed()
         metadata=install.package_metadata(self.package)
         result={'installed':value is not None,'displays':self.displays() if displays is None else displays,
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
-                'renderer_policy':'dxvk',
+                'renderer_policy':value['renderer_policy'] if value else 'dxvk',
+                'renderer_modes':self.supported_renderers(),
                 'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
-                'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':'dxvk',
+                'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':value['renderer_policy'] if value else 'dxvk',
                 'current':None,'update_available':False,'needs_repair':False,
                 'maintenance_pending':len(value['previous']) if value else 0,
                 'internet_available':metadata.get('internet_easytier',False) is True,
@@ -325,7 +349,7 @@ class Desktop:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
             if self.is_gold(root):
-                result.update(edition='gold',single_player_only=True,renderer='dxvk',
+                result.update(edition='gold',single_player_only=True,
                     internet_available=False,discord_available=False,directory_available=False,public_directory_available=False,
                     visual_detail_supported=False,midsummer_tone_supported=False,
                     maximum_fx_supported=False)
@@ -338,8 +362,9 @@ class Desktop:
             try:
                 result['visual_detail_supported']=choice.visual_supported(root)
                 result['midsummer_tone_supported']=(root/'Launcher/reshade_runtime.py').is_file() and (root/'Launcher/WePlay-Midsummer.fx').is_file()
+                choice._renderer(root,{})
                 result.update(choice=choice._load_choice(root),quality=quality.load(root),
-                              player_name=player_settings.load(root),renderer=choice._renderer(root,{})[0])
+                              player_name=player_settings.load(root))
             except (OSError,ValueError,RuntimeError):result['needs_repair']=True
         return result
 
@@ -351,7 +376,8 @@ class Desktop:
             import gold_graphics
             gold_graphics.checked_root(root)
             return 'dxvk'
-        # Legacy values are migration inputs, never permission to restore D3D9.
+        # Keep the installed manifest canonical. Alternative DLLs are applied
+        # only after the game and network content checks, under the session lock.
         wanted='dxvk'
         pending=graphics._plain(root/graphics.STATE/'transaction.json').exists()
         if not pending and choice._renderer(root,{})[0]==wanted:return wanted
@@ -624,12 +650,13 @@ class Desktop:
             except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
             raise
         if old:self.transfer_preferences(old,root)
-        policy='dxvk'
+        policy=previous['renderer_policy'] if previous else 'dxvk'
+        if policy not in self.supported_renderers():policy='dxvk'
         probe=self.cached_graphics_probe()
-        mode=self.renderer(root,policy)
+        mode=self.renderer(root,'dxvk')
         with graphics.session_lock(root):
             selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
-            choice.save_choice(root,selected)
+            choice.save_choice(root,selected,renderer=policy)
             self.write(root/quality.FILE,quality.load(root))
         self.progress('verify')
         verified=self.verify_instance(root)
@@ -670,7 +697,8 @@ class Desktop:
     def save_settings(self,request):
         gold=self.is_gold()
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
-        if request['renderer_policy']!='dxvk':raise ValueError('request_invalid')
+        policy=request['renderer_policy']
+        if policy not in self.supported_renderers():raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -681,19 +709,17 @@ class Desktop:
         choice._require_visual_support(root,selected)
         player_settings.player_name(request['player_name'])
         probe=self.cached_graphics_probe()
-        policy=request['renderer_policy']
         screens=self.displays()
         # Reject invalid display/GPU requests before making any profile change.
         if selected.get('display') is not None:display.resolve(selected['display'],screens)
-        expected_mode='dxvk'
-        if selected['choice'] is not None and selected['choice'] not in probe['devices']:
+        if policy=='dxvk' and selected['choice'] is not None and selected['choice'] not in probe['devices']:
             raise ValueError('renderer_unsupported')
-        if selected.get('display') is not None:
+        if policy=='dxvk' and selected.get('display') is not None:
             display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
         with graphics.session_lock(root):
             # Validate all old user records before staging their before-images.
             choice._load_choice(root);quality.load(root);player_settings.load(root)
-            if any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
+            if policy=='dxvk' and any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
                 if gold:gold_graphics.prepare_effects(root,selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
                 else:
                     import reshade_runtime
@@ -707,9 +733,9 @@ class Desktop:
             self.operation_state('critical');self._settings_lock_held=True
             try:
                 transaction.check()
-                self.renderer(root,policy)
+                self.renderer(root,'dxvk')
                 transaction.check()
-                choice.save_choice(root,selected)
+                choice.save_choice(root,selected,renderer=policy)
                 transaction.check()
                 self.write(root/quality.FILE,quality_value)
                 transaction.check()
@@ -728,7 +754,7 @@ class Desktop:
                 self._settings_lock_held=False;self.operation_state('idle')
         # The generation has committed. A failed UI refresh must not undo it.
         committed=dict(renderer_policy=policy,choice=selected,quality=quality_value,
-                       player_name=request['player_name'],renderer=expected_mode)
+                       player_name=request['player_name'],renderer=policy)
         try:result=self.snapshot(displays=screens);refresh_failed=False
         except (OSError,ValueError,RuntimeError):result={};refresh_failed=True
         return {**result,'settings_committed':True,'committed_settings':committed,'refresh_failed':refresh_failed}
@@ -786,7 +812,7 @@ class Desktop:
         self.progress('lan_search')
         root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
         # DXVK is required on this PC; discovery cannot select another pipeline.
-        self.renderer(root,self.installed()['renderer_policy'])
+        self.renderer(root,'dxvk')
         current=self.network_id(root)
         room=discover_preferred(directory,current,
             progress=self.progress,cancel_check=lambda:self.progress('lan_search'))
@@ -1000,17 +1026,19 @@ class Desktop:
         import platform_standalone,memory_guard
         environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
         environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
-        environment=choice.saved_launch_environment(root,environment)
+        renderer=self.launch_renderer()
+        policy=renderer[0] if renderer else 'dxvk'
+        environment=choice.saved_launch_environment(root,environment,renderer=policy)
         graphics_options=None
-        if owner.binding.edition==1:
+        if owner.binding.edition==1 and renderer is None:
             import gold_graphics
             graphics_options=gold_graphics.launch_options(root)
         game=observer=window=None;reported=False
         try:
             owner.check();self.progress('starting')
-            game=platform_standalone.launch(root,environment=environment,arguments=choice.game_arguments(root),
+            game=platform_standalone.launch(root,environment=environment,arguments=choice.game_arguments(root,renderer=policy),
                 graphics_options=graphics_options,crossplay=owner.binding,crossplay_catalog=catalog,
-                on_initialized=owner.attach)
+                on_initialized=owner.attach,renderer=renderer)
             self.emit('game_started',pid=game.pid,invitation_run=None);reported=True;self.operation_state('live_game')
             window=choice.start_window_mode(root,game)
             _,executable,_=platform_standalone.load(root)
@@ -1051,13 +1079,15 @@ class Desktop:
         environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
         environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
         import gold_graphics
+        renderer=self.launch_renderer()
+        policy=renderer[0] if renderer else 'dxvk'
         game=observer=window=None
         try:
             with graphics.session_lock(root):
-                environment=choice.saved_launch_environment(root,environment)
-                arguments=choice.game_arguments(root)
+                environment=choice.saved_launch_environment(root,environment,renderer=policy)
+                arguments=choice.game_arguments(root,renderer=policy)
                 game=platform_standalone.launch(root,environment=environment,arguments=arguments,
-                    graphics_options=gold_graphics.launch_options(root))
+                    graphics_options=gold_graphics.launch_options(root) if renderer is None else None,renderer=renderer)
                 window=choice.start_window_mode(root,game)
                 observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
                     memory_guard.Probe(game,root/gold_support.EXE),
@@ -1131,16 +1161,19 @@ class Desktop:
             return GameObserver()
         # Repair saved monitor selections after a real hotplug, before launch.
         probe=self.cached_graphics_probe()
-        if request is None or internet is not None:mode=self.renderer(root,self.installed()['renderer_policy'])
+        if request is None or internet is not None:mode=self.renderer(root,'dxvk')
         else:
             self.align_lan(request);mode=choice._renderer(root,{})[0]
+        renderer=self.launch_renderer()
         with graphics.session_lock(root):
-            selected=self.default_choice(root,mode,probe,choice._load_choice(root))
-            choice.save_choice(root,selected)
+            preferred=choice._load_choice(root)
+            selected=self.default_choice(root,mode,probe,preferred)
+            if renderer is not None:selected['choice']=preferred['choice']
+            choice.save_choice(root,selected,renderer=renderer[0] if renderer else 'dxvk')
         if request is None:
             args=SimpleNamespace(bundle=str(root),dotnet=str(root/'Runtime/dotnet/dotnet.exe'),
                 server=str(root/'Server/S7Patcher.dll'),local_connect_probe=True,local_session_display_probe=False,
-                launch_game=True,saved_graphics=True,before_game=before,game_monitor=monitor)
+                launch_game=True,saved_graphics=True,before_game=before,game_monitor=monitor,renderer=renderer)
             code=launch_local.run(args)
         elif internet is not None:
             import launch_internet
@@ -1166,7 +1199,7 @@ class Desktop:
                 except (OSError,ValueError,http.client.HTTPException):
                     if reporter:reporter.close()
                     raise ValueError('discord_not_connected' if internet.get('publish_discord',False) else 'directory_unavailable') from None
-            code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
+            code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,
                 switch_requested=lambda:directory_bridge[0] is not None and directory_bridge[0].pending is not None,
@@ -1175,7 +1208,7 @@ class Desktop:
                 policy_ready=lambda mode:self.emit('internet_policy',mode=mode),
                 network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
         else:
-            code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,
+            code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor))
         self.emit('game_finished',exit_code=code)
@@ -1293,7 +1326,8 @@ class Desktop:
 
     def diagnostics(self):
         root=self.game();gold=self.is_gold(root)
-        mode=choice._renderer(root,{})[0]
+        choice._renderer(root,{})
+        mode=self.installed()['renderer_policy']
         probe=self.validate_probe(self.read(self.state/'graphics-probe.json'))
         raw=self.read(root/'LocalData/desktop-memory-summary.json',{})
         fields=('samples','max_pressure','peak_private_mib','min_free_mib','min_largest_mib','monitor_failed',
@@ -1392,6 +1426,9 @@ def _dispatch(desktop,request):
                 desktop.operation_state('cancellable')
             except (OSError,ValueError,RuntimeError) as error:
                 raise ValueError('standalone_invalid') from error
+        previous=desktop.installed()
+        if previous and (desktop.game()/graphics.RENDERER_JOURNAL).exists():
+            with desktop.lock():desktop.recover_launch_renderer()
         return desktop.snapshot()
     if action=='detect' and not data:
         desktop.progress('source')
@@ -1411,6 +1448,7 @@ def _dispatch(desktop,request):
         return {'sources':sources+game_detection.detect(locations,steam_supported=supported,
             gold_package=desktop.package if desktop.package_manifest().get('gold_standalone',False) else None)}
     with desktop.lock():
+        desktop.recover_launch_renderer()
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
         if action in ('install','repair') and set(data)<= {'source','container'}:
@@ -1452,7 +1490,7 @@ def error_code(error):
         return error.code
     text=str(error)
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
-        'renderer_unsupported','destination_invalid','destination_too_long','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
+        'renderer_unsupported','renderer_payload_invalid','destination_invalid','destination_too_long','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',

@@ -15,9 +15,9 @@ import build_package
 import compatibility as content
 import install
 
-RELEASE_GUIDE = REPO/'docs/RC4.03-RELEASE-NOTES.md'
-RELEASE_TAG = 'rc4.03'
-UPDATE_SEQUENCE = 32
+RELEASE_GUIDE = REPO/'docs/RC4.04-RELEASE-NOTES.md'
+RELEASE_TAG = 'rc4.04'
+UPDATE_SEQUENCE = 33
 
 
 def public_document(source,*,revision=None):
@@ -46,7 +46,7 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
-def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=UPDATE_SEQUENCE,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None):
+def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=UPDATE_SEQUENCE,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None,alternate_renderers=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
     if not stage.is_relative_to(REPO/'work'):raise ValueError('Stage must be inside work')
@@ -102,6 +102,9 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
                         quiet_reshade=quiet_reshade,adapter=gold_adapter,mixed_room=catalog is not None)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
     package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
+    if alternate_renderers is not None:
+        build_package.bundle_alternate_renderers(app/'Package',alternate_renderers)
+        package_record['alternate_renderers']=True
     if catalog is not None:
         target=app/'Package'/crossplay_content.PACKAGE_CATALOG
         target.parent.mkdir(parents=True);target.write_bytes(catalog.canonical)
@@ -121,8 +124,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC4.03 Optional graphics check','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc4.3','display_version':'rc4.03','update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC4.04 Graphics compatibility modes','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc4.4','display_version':RELEASE_TAG,'update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':6 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
@@ -201,7 +204,8 @@ if __name__=='__main__':
     parser.add_argument('--gold-package')
     parser.add_argument('--gold-adapter')
     parser.add_argument('--crossplay-catalog')
+    parser.add_argument('--alternate-renderers',type=Path)
     values=parser.parse_args()
     build(values.stage,values.output,values.desktop_publish,values.dotnet,values.probe,values.compiler,
         base_package=values.base_package,service=values.service,adapter=values.adapter,python_zip=values.python_zip,dxvk_dll=values.dxvk_dll,dxvk_license=values.dxvk_license,memory_scanner=values.memory_scanner,
-        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package,gold_adapter=values.gold_adapter,crossplay_catalog=values.crossplay_catalog)
+        easytier_runtime=values.easytier_runtime,easytier_source=values.easytier_source,windows_helpers=values.windows_helpers,update_sequence=values.update_sequence,game_directory=values.game_directory,neo_logistics=values.neo_logistics,midsummer_profile=values.midsummer_profile,atmosphere_addon=values.atmosphere_addon,quiet_reshade=values.quiet_reshade,platform_runtime=values.platform_runtime,gold_package=values.gold_package,gold_adapter=values.gold_adapter,crossplay_catalog=values.crossplay_catalog,alternate_renderers=values.alternate_renderers)

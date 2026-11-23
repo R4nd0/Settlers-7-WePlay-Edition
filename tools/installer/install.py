@@ -155,7 +155,7 @@ def package_metadata(root):
     for name in ('join_menu_update','lan_public_creation','graphics_choice','display_selection','automatic_lan',
                  'desktop_launcher','internet_easytier','discord_directory','update_patcher','achievement_notifications_disabled',
                  'cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume',
-                 'game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','steam_history','crossplay_mixed'):
+                 'game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','steam_history','crossplay_mixed','alternate_renderers'):
         if type(value.get(name,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     return value
 
@@ -220,12 +220,20 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone','crossplay_mixed'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('alternate_renderers',False):
+        import graphics_profile
+        if not all(manifest.get(flag,False) for flag in ('platform_independent','desktop_launcher')):
+            raise ValueError('renderer_payload_invalid')
+        for mode,hashed in graphics_profile.ASYNC_RENDERERS.items():
+            prefix='payload/graphics/'+mode+'/'
+            if expected.get(prefix+'d3d9.dll')!=hashed or any(prefix+name not in expected for name in ('license','source.txt')):
+                raise ValueError('renderer_payload_invalid')
     if manifest.get('main_package',False):
         import release_policy
         release_policy.check_package(root.parent,manifest)

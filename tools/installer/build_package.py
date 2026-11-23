@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,6 +27,38 @@ NEO_DIRECTORY_ARCHIVE_SHA256='b58db2d87938727de09cd75256afccbba4e2d4932bccb2ddf0
 MIDSUMMER_DIRECTORY_ARCHIVE_SHA256='1b9e17d711d3ee7b4e36f72d690e89e3b789d1174148a9337c7cbdd67af75e67'
 MIXED_DIRECTORY_ARCHIVE_SHA256='d19fc14f4062c5b64c06d0e1fd9bf3a5c2021264f7c15619952a6054ebf3d94f'
 MIXED_MIDSUMMER_ARCHIVE_SHA256='6308bcedbe4f3399b6ab192a2a131cec9f276e00659f81e394a8c6b12e16822e'
+
+ASYNC_DISTRIBUTIONS = {
+    'async': ('dxvk-async-1.10.3', 'b99a7bac95eec6cffa68128c0f493cd6020c385ecbea2aeed6259f76e9917002',
+              '240101b852af584ded719e7335a36f9a3aae3ac816774cf3f460c00d2c88c161',
+              'https://github.com/Sporif/dxvk-async/releases/tag/1.10.3'),
+    'gplasync': ('dxvk-gplasync-v2.6.2-1', 'c645d3f2550ff66d0a51ba27a535aaa7351fd087feb7b298e7283cb2a3ee173b',
+                 'a5cb1a6ded7d2d7e92d550ba28edd21be2d1d4044662b399887351023e30ce64',
+                 'https://gitlab.com/Ph42oN/dxvk-gplasync/-/releases/v2.6.2-1'),
+}
+
+
+def bundle_alternate_renderers(package, distributions):
+    import graphics_profile
+    distributions=content.plain(distributions)
+    check_output_location(Path(__file__).resolve().parents[2],package,(distributions,))
+    for mode,(name,archive_hash,license_hash,source) in ASYNC_DISTRIBUTIONS.items():
+        archive=content.plain(distributions/(name+'.tar.gz'))
+        license_path=content.plain(distributions/(name+'.LICENSE'))
+        if content.digest(archive)!=archive_hash or content.digest(license_path)!=license_hash:
+            raise ValueError('DXVK compatibility distribution fingerprint mismatch: '+name)
+        with tarfile.open(archive,'r:gz') as tar:
+            entry=tar.getmember(name+'/x32/d3d9.dll')
+            if not entry.isfile() or not 1<=entry.size<=graphics_profile.MAX_DLL:
+                raise ValueError('DXVK compatibility distribution has no x86 renderer: '+name)
+            with tar.extractfile(entry) as stream:
+                dll=stream.read()
+        target=package/'Payload/Graphics'/mode
+        target.mkdir()
+        (target/'d3d9.dll').write_bytes(dll)
+        graphics_profile.launch_payload(package,mode)
+        shutil.copyfile(license_path,target/'LICENSE')
+        (target/'SOURCE.txt').write_text(f'{name} x32/d3d9.dll\n{source}\n',encoding='ascii')
 
 
 def check_output_location(repo, output, inputs):

@@ -103,16 +103,18 @@ def run(args, *, picker=None, network=None):
             return 0
         name = (choice['display_name'] if choice is not None else
                 player_settings.player_name(getattr(args, 'player_name', None) or player_settings.load(root)))
+        renderer=getattr(args,'renderer',None)
+        renderer_option={'renderer':renderer} if renderer is not None else {}
         if sys.platform == 'linux':
             import linux_runtime
             environment = linux_runtime.graphics_environment(root)
         else:
-            environment = (launch_local.saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
+            environment = (launch_local.saved_graphics_environment(root, **renderer_option) if getattr(args, 'saved_graphics', False)
                        else launch_local.choose_graphics_environment(root))
         if environment is None:
             return 0
         environment = launch_local.game_launch_environment(root, environment)
-        game_arguments = ('-vSynch', '-noMapInMainMenu') if sys.platform == 'linux' else launch_local.graphics_game_arguments(root)
+        game_arguments = ('-vSynch', '-noMapInMainMenu') if sys.platform == 'linux' else launch_local.graphics_game_arguments(root, **renderer_option)
         player_settings.save(root, name)
         if choice is None:
             interface = interfaces[0]  # Active private default route first.
@@ -152,7 +154,7 @@ def run(args, *, picker=None, network=None):
             if getattr(args, 'before_game', None) is not None:
                 args.before_game()
             game = launch_local.spawn_game(root,game_arguments,environment,
-                lan={'local':interface.address,'coordinator':coordinator,'group':True})
+                lan={'local':interface.address,'coordinator':coordinator,'group':True},**renderer_option)
             code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux', monitor=getattr(args, 'game_monitor', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)

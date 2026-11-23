@@ -1,8 +1,7 @@
 """Per-PC graphics selection before launch, without changing game content.
 
 The caller owns the launch/session lock. A cancel result is None and must abort
-launch. The verified DXVK profile is required; native Direct3D9 is retained only
-as an internal state understood by profile recovery, never as a launch fallback.
+launch. Desktop alternatives are applied for the lifetime of the game process.
 """
 import json
 import os
@@ -86,7 +85,7 @@ def _load_choice(root):
     return selected
 
 
-def game_arguments(root):
+def game_arguments(root, *, renderer='dxvk'):
     """Only fixed flags from the validated local bool, under the session lock.
 
     The measured low-CPU combination includes VSync. Native VSync follows the
@@ -103,7 +102,7 @@ def game_arguments(root):
     if selected.get('display') is not None:
         mode, _ = _renderer(graphics._plain(root), {})
         displays = display.enumerate_displays()
-        display.resolve(selected['display'], displays, renderer=mode, gpu=selected['choice'])
+        display.resolve(selected['display'], displays, renderer=mode, gpu=selected['choice'] if renderer=='dxvk' else None)
         arguments += display.game_arguments(selected['display'], displays)
         # Do not race another S7 copy with shared Options.ini preparation.
         graphics.ensure_closed()
@@ -157,23 +156,37 @@ def _renderer(root, inherited):
     return 'native', environment
 
 
-def saved_launch_environment(root, inherited=None):
+def saved_launch_environment(root, inherited=None, *, renderer='dxvk'):
     """Prepare saved choices without displaying UI; the caller holds the lock."""
     import gold_graphics
-    if gold_graphics.is_gold(root):return gold_graphics.launch_environment(root,inherited)
+    if gold_graphics.is_gold(root):return gold_graphics.launch_environment(root,inherited,renderer=renderer)
     root = graphics._preflight(root)
     selected = _load_choice(root)
     mode, environment = _renderer(root, inherited)
     if mode != 'dxvk':raise ValueError('renderer_unsupported')
-    environment = graphics.launch_environment(root, environment, device_name=selected['choice'],
+    gpu = selected['choice'] if renderer=='dxvk' else None
+    environment = graphics.launch_environment(root, environment, device_name=gpu,
         anisotropic_filtering=selected.get('anisotropic_filtering', False),
         extended_detail=selected.get('extended_detail', False))
     if selected.get('display') is not None:
-        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
+        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=gpu)
     if graphics._plain(root / 'LocalData/graphics-quality.json').exists():
         import quality_settings
         quality_settings.prepare(root)
-    return tone_environment(root, selected, mode, visual_environment(selected, environment))
+    environment = visual_environment(selected, environment)
+    if renderer=='dxvk':
+        return tone_environment(root, selected, mode, environment)
+    return alternate_environment(root, renderer, environment)
+
+
+def alternate_environment(root, renderer, inherited):
+    environment = {key: value for key,value in inherited.items() if not key.upper().startswith('DXVK_')}
+    if renderer in graphics.ASYNC_RENDERERS:
+        logs=graphics._plain(root / 'LocalData')
+        environment.update(DXVK_ASYNC='1',DXVK_CONFIG=graphics.SHADER_COMPATIBILITY,
+                           DXVK_LOG_PATH=str(logs), DXVK_STATE_CACHE_PATH=str(logs),
+                           DXVK_SHADER_CACHE_PATH=str(logs))
+    return environment
 
 
 def tone_environment(root, selected, mode, environment):
@@ -201,10 +214,10 @@ def visual_environment(selected, inherited):
     return result
 
 
-def save_choice(root, value):
+def save_choice(root, value, *, renderer='dxvk'):
     """The desktop frontend uses the same validator and profile checks as the GUI."""
     import gold_graphics
-    if gold_graphics.is_gold(root):return gold_graphics.save_choice(root,value)
+    if gold_graphics.is_gold(root):return gold_graphics.save_choice(root,value,renderer=renderer)
     root = graphics._preflight(root)
     selected = validate_choice(value)
     _require_visual_support(root, selected)
@@ -212,9 +225,10 @@ def save_choice(root, value):
     if mode == 'native' and selected['choice'] is not None:
         raise ValueError('Der Standardrenderer waehlt die Grafikkarte automatisch.')
     if selected.get('display') is not None:
-        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
+        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode,
+                        gpu=selected['choice'] if renderer=='dxvk' else None)
     _load_choice(root)  # Unknown/damaged preferences are never overwritten.
-    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
+    if renderer=='dxvk' and any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime

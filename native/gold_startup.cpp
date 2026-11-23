@@ -207,11 +207,33 @@ bool ModernRenderer() {
     if (!length || length >= 32768) return false;
     const auto* slash = wcsrchr(executable, L'\\');
     if (!slash) return false;
-    const std::wstring path = std::wstring(executable, static_cast<size_t>(slash - executable)) + L"\\d3d9.dll";
+    std::wstring path = std::wstring(executable, static_cast<size_t>(slash - executable)) + L"\\d3d9.dll";
+    const char* expected = GoldGraphics::RendererHash;
+    bool native = false;
+#ifdef S7_PLATFORM_INDEPENDENT
+    wchar_t mode[24]{};
+    const DWORD count_mode = GetEnvironmentVariableW(L"WEPLAY_D3D9_RENDERER", mode, 24);
+    if (count_mode >= 24) return false;
+    if (count_mode) {
+        if (!wcscmp(mode,L"async")) expected = "6998849aaec530c2e4fdae4a7ae6416e5c1157ccb45f92a143f33443989850b8";
+        else if (!wcscmp(mode,L"gplasync")) expected = "69f9138500b6d2ecaa6fa8a00fcb6fed12a84cdaf0dd4135c6e17461223db289";
+        else if (!wcscmp(mode,L"native")) {
+            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES || GetLastError() != ERROR_FILE_NOT_FOUND)
+                return false;
+            wchar_t system[MAX_PATH]{};
+            // Win32's loader reports the System32 path for the redirected
+            // 32-bit module, even on a 64-bit Windows installation.
+            const UINT size = GetSystemDirectoryW(system, MAX_PATH);
+            if (!size || size >= MAX_PATH) return false;
+            path = std::wstring(system,size) + L"\\d3d9.dll";
+            native = true;
+        } else return false;
+    }
+#endif
     char actual[65]{};
     HANDLE pinned = INVALID_HANDLE_VALUE;
-    if (!FileDigest(path.c_str(), actual, 0, &pinned)) return false;
-    if (strcmp(actual, GoldGraphics::RendererHash)) { CloseHandle(pinned); return false; }
+    if (!native && !FileDigest(path.c_str(), actual, 0, &pinned)) return false;
+    if (!native && strcmp(actual, expected)) { CloseHandle(pinned); return false; }
     // Resolve the pinned payload before the engine can select system D3D9.
     // A conflicting preloaded D3D9 module is rejected, never used as fallback.
     HMODULE module = GetModuleHandleW(L"d3d9.dll");
@@ -220,11 +242,11 @@ bool ModernRenderer() {
     wchar_t loaded[32768]{};
     const DWORD count = module ? GetModuleFileNameW(module, loaded, 32768) : 0;
     bool valid = count && count < 32768 && !_wcsicmp(path.c_str(), loaded)
-        && FileDigest(loaded, actual) && !strcmp(actual, GoldGraphics::RendererHash);
+        && (native || (FileDigest(loaded, actual) && !strcmp(actual, expected)));
     HMODULE permanent = nullptr;
     valid = valid && GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN, loaded, &permanent) && permanent == module;
     if (valid) renderer_file = pinned; // Deny file replacement for this process lifetime.
-    else CloseHandle(pinned);
+    else if (pinned != INVALID_HANDLE_VALUE) CloseHandle(pinned);
     return valid;
 }
 struct Patch { unsigned char* at; std::vector<unsigned char> before, after; };

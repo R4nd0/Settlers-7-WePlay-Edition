@@ -20,7 +20,8 @@ HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
                 (True,True):'847378000abeabd83b1d7a459db19e54b734c84b5694a9b3b797704ef4225017'}
-GOLD = 'a5e511148b04f99d05b99ea1605f435c805988ab1f2a1fc23d250769ae9d3453'
+GOLD = '72fa857ebcef73b35f611873c6daf1535dadfe24034e05b4ac3279500023b989'
+GOLD_RC403 = 'a5e511148b04f99d05b99ea1605f435c805988ab1f2a1fc23d250769ae9d3453'
 # Known previous release adapters remain readable for safe upgrade/repair.
 # New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
 LEGACY_HISTORY_PINS = ('f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',
@@ -43,7 +44,7 @@ def tool_sources():
 
 
 def adapter_pins(*, gold=False):
-    current = (GOLD,) if gold else tuple(HISTORY_PINS.values())
+    current = (GOLD,GOLD_RC403) if gold else tuple(HISTORY_PINS.values())
     legacy = LEGACY_GOLD_PINS if gold else LEGACY_HISTORY_PINS
     return tuple(dict.fromkeys((*current, *legacy)))
 
@@ -174,7 +175,7 @@ def options_path(root):
 
 
 def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,graphics_options=None,
-           crossplay=None,crossplay_catalog=None,before_spawn=None):
+           crossplay=None,crossplay_catalog=None,before_spawn=None,renderer=None):
     root = content.plain(root)
     value, executable, adapter = load(root)
     environment = launch_environment(value, executable, os.environ if environment is None else environment,graphics_options=graphics_options)
@@ -202,25 +203,45 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
     if before_spawn is not None:
         before_spawn()
     import isolated_process
-    scope=None
+    scope=restore_renderer=None
     try:
         if lan is not None:
             import network_peer_policy
             scope=network_peer_policy.Session(root,lan)
+        if renderer is not None:
+            import graphics_profile as graphics
+            mode,package=renderer
+            if mode not in (*graphics.ASYNC_RENDERERS,'native'):
+                raise ValueError('renderer_payload_invalid')
+            if value['edition']=='gold' and value['files'][adapter.relative_to(root).as_posix()]!=GOLD:
+                raise ValueError('update_required')
+            graphics.apply_launch_renderer(root,executable,package,mode)
+            restore_renderer=lambda:graphics.recover_launch_renderer(root,executable,package)
+            if mode=='native':
+                environment={key: setting for key, setting in environment.items() if not key.upper().startswith('DXVK_')}
+            else:
+                environment['DXVK_CONFIG_FILE']=str(executable.with_name('dxvk.conf'))
+                environment['DXVK_CONFIG']=graphics.SHADER_COMPATIBILITY+'; d3d9.samplerAnisotropy = -1'
+            environment[graphics.LAUNCH_RENDERER]=mode
         game=isolated_process.launch(executable, adapter,
             dll_sha256=value['files'][adapter.relative_to(root).as_posix()],
             policy=root/'Launcher/weplay_network_policy.exe', policy_sha256=POLICY,
             environment=environment, arguments=arguments,on_initialized=on_initialized)
         game.network_policy=scope
+        game.restore_renderer=restore_renderer
         return game
     except BaseException:
-        if scope:scope.close()
+        try:
+            if restore_renderer:restore_renderer()
+        finally:
+            if scope:scope.close()
         raise
 
 
 def launch_environment(value, executable, inherited, *, graphics_options=None):
     import crossplay_session
-    environment = crossplay_session.clean_environment(inherited)
+    environment = {key: setting for key, setting in crossplay_session.clean_environment(inherited).items()
+                   if key.upper() != 'WEPLAY_D3D9_RENDERER'}
     if value['edition'] == 'gold':
         # Gold changes its working directory before D3D9 initializes. DXVK's
         # relative default then misses the verified configuration beside the

@@ -203,6 +203,7 @@ class OwnedProcess:
         self.executable, self.expected, self.locks = executable, expected, locks
         self.pid, self._handle, self.returncode = child.pid, child.process, None
         self.native_initialized = False
+        self.restore_renderer = None
         self._weplay_owned=True
 
     def owned(self):
@@ -249,8 +250,13 @@ class OwnedProcess:
         self.child.thread = self.child.process = self.job = 0
         self.locks = []
         scope=getattr(self,'network_policy',None)
-        if scope:
-            scope.close();self.network_policy=None
+        try:
+            if scope:
+                scope.close();self.network_policy=None
+        finally:
+            if self.restore_renderer:
+                self.restore_renderer()
+                self.restore_renderer=None
 
 
 def launch(executable, dll, *, dll_sha256, policy, policy_sha256, environment=None, arguments=(), on_initialized=None, cpu_core_offset=0, cpu_maximum=4):

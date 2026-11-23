@@ -157,6 +157,7 @@ def bind(root):
                 if installed['package_id'] != package_id and value['package_id'] != package_id:
                     return desktop
                 if installed['package_id'] == package_id:
+                    if hasattr(desktop,'recover_launch_renderer'):desktop.recover_launch_renderer(game)
                     try:
                         backend.choice._renderer(game, {})
                     except (OSError, ValueError):
@@ -211,6 +212,7 @@ def bind(root):
         backend.graphics._bundle(game, baseline)
         if backend.content.digest(game / 'Base/Bin/Settlers7R.exe') not in accepted_executables(backend, package):
             raise ValueError('Diese History Edition wird vom Standalone-Paket nicht unterstuetzt.')
+        if hasattr(desktop,'recover_launch_renderer'):desktop.recover_launch_renderer(game)
         has_profile = (game / backend.graphics.STATE).exists()
         if has_profile and not repair_overlay:
             try:
@@ -247,11 +249,13 @@ def bind(root):
             for prior,files in previous:
                 desktop.write(prior/'desktop-files.json',{**files,'owner':desktop.owner})
                 desktop.write(prior/'desktop-owner.json',{'format':backend.FORMAT,'owner':desktop.owner,'instance':prior.name})
+            policy=raw.get('renderer_policy') if raw else 'dxvk'
+            modes=desktop.supported_renderers() if hasattr(desktop,'supported_renderers') else ('dxvk',)
             desktop.write(desktop.state / 'installation.json', {
                 'format': backend.INSTALL_FORMAT, 'source': '',
                 'container': str(game.parent), 'current': value['instance'],
                 'previous':[{'container':str(game.parent),'instance':prior.name} for prior,_ in previous],
-                'package_id': package_id, 'renderer_policy': 'dxvk'})
+                'package_id': package_id, 'renderer_policy': policy if policy in modes else 'dxvk'})
     return desktop
 
 

@@ -149,7 +149,9 @@ class Catalog:
             if asset_names(root,edition)!=expected:raise ValueError('crossplay_content_changed')
             for name,digest in files:
                 path=plain_asset(root/name);before=path.stat()
-                if not path.is_file() or compatibility.digest(path)!=digest:
+                if not path.is_file():raise ValueError('crossplay_content_changed')
+                actual=compatibility.digest(path)
+                if actual!=digest and not self.renderer_adapter(edition,name,digest,actual):
                     raise ValueError('crossplay_content_changed')
                 path=plain_asset(path);after=path.stat()
                 if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
@@ -158,6 +160,14 @@ class Catalog:
         except (OSError,ValueError):
             raise ValueError('crossplay_content_changed') from None
         return self.digest
+
+    @staticmethod
+    def renderer_adapter(edition,name,expected,actual):
+        # The renderer-only Gold rebuild retains the original room catalog ID.
+        # Admit only these two exact binaries, for this one catalog member.
+        if edition!=1 or name!=REQUIRED[1][1]:return False
+        from platform_standalone import GOLD, GOLD_RC403
+        return expected==GOLD_RC403 and actual==GOLD
 
 
 def read(path):
@@ -184,7 +194,8 @@ def package_catalog(root, manifest):
         adapter = dict(profile)[REQUIRED[edition][1]]
         payload = ('payload/gold/payload/weplay_gold_startup.dll' if edition == 1
                    else 'payload/uplay_r1_loader.dll')
+        actual=files.get(payload)
         if (adapter not in crossplay_session.ADAPTER_PINS.get(edition, ())
-                or files.get(payload) != adapter):
+                or (actual!=adapter and not catalog.renderer_adapter(edition,REQUIRED[edition][1],adapter,actual))):
             raise ValueError('crossplay_adapter_unavailable')
     return catalog

@@ -54,7 +54,7 @@ class DesktopTests(unittest.TestCase):
         self.screens=[dict(device=r'\\.\DISPLAY1',adapter='Fixture GPU',primary=True,x=0,y=0,width=1920,height=1080,
                            resolutions=[[1280,720],[1920,1080]])]
         self.probe={'format':'s7-desktop-probe-v1','probe_sha256':'a'*64,'adapters':['Fixture GPU'],'devices':['Fixture GPU'],'failure':None}
-        def save(root,value):
+        def save(root,value,*,renderer='dxvk'):
             value=choice.validate_choice(value);(root/'LocalData').mkdir(exist_ok=True)
             (root/choice.CHOICE_FILE).write_bytes(graphics.encoded(value));return value
         for target,options in [((graphics,'ensure_closed'),{}),((choice,'save_choice'),{'side_effect':save}),
@@ -574,6 +574,20 @@ class DesktopTests(unittest.TestCase):
         selected=self.desktop.default_choice(self.desktop.game(),'dxvk',hybrid)
         self.assertEqual(selected['display']['device'],self.screens[0]['device'])
         self.assertIsNone(selected['choice'])
+
+    def test_compatibility_modes_persist_and_reach_launch_with_negative_probe(self):
+        self.prepare()
+        self.desktop.write(self.desktop.state/'graphics-probe.json',dict(self.probe,devices=[],failure='unsupported'))
+        request=dict(choice=dict(format=choice.FORMAT,choice=None),quality=dict(quality.DEFAULTS),player_name='Tester')
+        with patch.object(self.desktop,'supported_renderers',return_value=graphics.RENDERERS):
+            for mode in graphics.RENDERERS:
+                with self.subTest(mode=mode):
+                    result=self.desktop.save_settings(dict(request,renderer_policy=mode))
+                    self.assertEqual(result['renderer_policy'],mode)
+                    with patch.object(backend.launch_local,'run',return_value=0) as launch:
+                        self.assertEqual(self.desktop.play(),{'exit_code':0})
+                    expected=None if mode=='dxvk' else (mode,self.desktop.package)
+                    self.assertEqual(launch.call_args.args[0].renderer,expected)
 
     def test_unknown_gpu_is_still_rejected_when_modern_renderer_is_supported(self):
         self.prepare();self.desktop.write(self.desktop.state/'graphics-probe.json',self.probe)

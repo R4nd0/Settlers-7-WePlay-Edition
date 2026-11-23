@@ -36,6 +36,13 @@ FILES = (DLL, CONF, COMPAT)
 EXE_SHA256 = '4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f'
 STEAM_EXE_SHA256 = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
+ASYNC_RENDERERS = {
+    'async': '6998849aaec530c2e4fdae4a7ae6416e5c1157ccb45f92a143f33443989850b8',
+    'gplasync': '69f9138500b6d2ecaa6fa8a00fcb6fed12a84cdaf0dd4135c6e17461223db289',
+}
+RENDERERS = ('dxvk', *ASYNC_RENDERERS, 'native')
+LAUNCH_RENDERER = 'WEPLAY_D3D9_RENDERER'
+RENDERER_JOURNAL = 'LocalData/d3d9-launch.json'
 CONFIG = b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
 # PC1 Tanholm A/B/A: Auto renders black water; Strict restores the water path.
 # Keep this fixed and child-only; the owned on-disk profile remains reversible.
@@ -350,6 +357,56 @@ def install(root, dll_source):
 def restore(root):
     """Restore the exact original compatibility manifest and remove owned files."""
     return _change(root, False)
+
+
+def launch_payload(package, mode):
+    if mode == 'native':
+        return None
+    path = _plain(Path(package) / 'Payload/Graphics' / mode / 'd3d9.dll')
+    value = _read(path, MAX_DLL)
+    if _hash(value) != ASYNC_RENDERERS[mode]:
+        raise ValueError('renderer_payload_invalid')
+    _pe32_dll(value)
+    return value
+
+
+def recover_launch_renderer(root, executable, package):
+    """Restore the canonical DLL from the package after this session ends."""
+    journal = _plain(root / RENDERER_JOURNAL)
+    if not journal.exists():
+        return
+    record = _json(_read(journal, 256))
+    mode = record.get('renderer')
+    if set(record) != {'renderer'} or mode not in (*ASYNC_RENDERERS, 'native'):
+        raise ValueError('renderer_payload_invalid')
+    target = _plain(executable.with_name('d3d9.dll'))
+    current = _hash(_read(target, MAX_DLL)) if target.exists() else None
+    if current not in (DXVK_SHA256, ASYNC_RENDERERS.get(mode)):
+        raise ValueError('renderer_payload_invalid')
+    if current != DXVK_SHA256:
+        original = _read(_plain(Path(package) / 'Payload/Graphics/d3d9.dll'), MAX_DLL)
+        if _hash(original) != DXVK_SHA256:
+            raise ValueError('renderer_payload_invalid')
+        atomic_write(target, original, journal.parent)
+    journal.unlink()
+
+
+def apply_launch_renderer(root, executable, package, mode):
+    """Temporarily replace only the verified game-local DLL under the session lock."""
+    journal = _plain(root / RENDERER_JOURNAL)
+    target = _plain(executable.with_name('d3d9.dll'))
+    if journal.exists() or _hash(_read(target, MAX_DLL)) != DXVK_SHA256:
+        raise ValueError('renderer_payload_invalid')
+    value = launch_payload(package, mode)
+    atomic_create(journal, encoded({'renderer':mode}), journal.parent)
+    try:
+        if value is None:
+            target.unlink()
+        else:
+            atomic_write(target, value, journal.parent)
+    except BaseException:
+        recover_launch_renderer(root, executable, package)
+        raise
 
 
 def launch_environment(root, inherited=None, *, device_name=None, anisotropic_filtering=False, extended_detail=False):

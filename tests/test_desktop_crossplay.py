@@ -27,7 +27,7 @@ class DesktopCrossplayTests(unittest.TestCase):
         self.catalog=self.fixture.catalog();self.fixture.approve(self.catalog)
         self.enterContext(patch.object(self.desktop,'verification',side_effect=lambda:nullcontext()))
         self.manifest=self.enterContext(patch.object(self.desktop,'package_manifest',return_value={'crossplay_mixed':True}))
-        self.enterContext(patch.object(self.desktop,'installed',return_value={'package_id':'fixture'}))
+        self.enterContext(patch.object(self.desktop,'installed',return_value={'package_id':'fixture','renderer_policy':'dxvk'}))
         self.enterContext(patch.object(self.desktop,'package_id',return_value='fixture'))
         self.enterContext(patch.object(self.desktop,'verify_instance'))
         self.enterContext(patch.object(self.desktop,'check_start_memory'))
@@ -126,7 +126,7 @@ class DesktopCrossplayTests(unittest.TestCase):
         self.owner.invitation.return_value='private-fixture-invitation'
         received=[]
         with patch.object(platform_standalone,'launch',side_effect=launch), \
-                patch.object(backend.choice,'saved_launch_environment',side_effect=lambda _,env:env), \
+                patch.object(backend.choice,'saved_launch_environment',side_effect=lambda _,env,**_options:env), \
                 patch.object(backend.choice,'game_arguments',return_value=[]), \
                 patch.object(backend.choice,'start_window_mode'), \
                 patch.object(memory_guard,'Sentinel'),patch.object(memory_guard,'Probe'):
@@ -147,7 +147,7 @@ class DesktopCrossplayTests(unittest.TestCase):
         def launch(*_args,**kwargs):kwargs['on_initialized'](game);return game
         callback=Mock(side_effect=RuntimeError('fixture-channel-failed'))
         with patch.object(platform_standalone,'launch',side_effect=launch), \
-                patch.object(backend.choice,'saved_launch_environment',side_effect=lambda _,env:env), \
+                patch.object(backend.choice,'saved_launch_environment',side_effect=lambda _,env,**_options:env), \
                 patch.object(backend.choice,'game_arguments',return_value=[]), \
                 patch.object(backend.choice,'start_window_mode'), \
                 patch.object(memory_guard,'Sentinel'),patch.object(memory_guard,'Probe'):

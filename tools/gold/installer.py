@@ -125,8 +125,8 @@ def verify_root(root):
         raise ValueError('Ungültige Gold-Rauminstallation.')
     if value.get('platform_independent',False):
         import platform_standalone
-        platform_standalone.load(root)
-        adapter=platform_standalone.GOLD
+        descriptor,_,binary=platform_standalone.load(root)
+        adapter=descriptor['files'][binary.relative_to(root).as_posix()]
     for name, expected in ((gold.EXE.as_posix(), EXE_SHA256),
                            (gold.INTERFACE.as_posix(), gold.MIXED_MENU_SHA256 if room else gold.MENU_SHA256),
                            (gold.SHARED.as_posix(), gold.SHARED_SHA256),

@@ -1,9 +1,10 @@
 # Optional edge smoothing, Ultra shadows, contacts and cinematic shading
 
-RC4.00 update, 2026-11-16: all editions now require DXVK (Vulkan). The launcher
-offers no legacy renderer or automatic native fallback. Existing native/automatic
-preferences migrate to DXVK, and an unsupported GPU stops launch. The native
-renderer comparisons below describe earlier releases.
+In Windows rc4.04, all editions offer DXVK 3.1.1 (default), DXVK-Async 1.10.3
+(Vulkan 1.1), DXVK-GPLAsync 2.6.2-1 (Vulkan 1.3), and native Windows D3D9.
+The alternative renderers select a GPU automatically and pause ReShade effects.
+The optional graphics check checks the default renderer. The native renderer
+comparisons below describe earlier releases.
 
 Development update, 2026-11-08: edge smoothing now uses genuine SMAA independently
 of Maximum. With tone, contacts and Maximum disabled, the profile loads only

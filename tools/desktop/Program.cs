@@ -17,6 +17,7 @@ internal static class Program
         if(value=="2.0.0-rc4.1")return "rc4.01";
         if(value=="2.0.0-rc4.2")return "rc4.02";
         if(value=="2.0.0-rc4.3")return "rc4.03";
+        if(value=="2.0.0-rc4.4")return "rc4.04";
         int marker=value.IndexOf("-rc",StringComparison.OrdinalIgnoreCase);
         return marker>=0?value[(marker+1)..].ToLowerInvariant():value;
     }
@@ -226,7 +227,7 @@ internal sealed partial class MainForm : Form
     private Control internetEndpointField = null!, internetInviteField = null!, internetShareRow = null!, internetEndRow = null!;
     private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
-    private readonly ComboBox gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
+    private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
     private readonly CheckBox extendedDetail = new() { AutoSize = true };
@@ -237,7 +238,21 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox contactShadows = new() { AutoSize = true };
     private readonly CheckBox ultraShadows = new() { AutoSize = true };
     private readonly CheckBox maximumFx = new() { AutoSize = true };
-    private readonly Label activeRenderer = new() { AutoSize = true };
+    private string RendererMode => (renderer.SelectedItem as Item)?.Key ?? "dxvk";
+
+    private void SetRendererModes(IEnumerable<string> modes, string selected)
+    {
+        renderer.Items.Clear();
+        foreach (string mode in modes)
+        {
+            string? label=mode switch { "dxvk"=>"rendererDxvk", "async"=>"rendererAsync",
+                "gplasync"=>"rendererGplAsync", "native"=>"rendererNative", _=>null };
+            if(label!=null)renderer.Items.Add(new Item(mode,Lang.T(label)));
+        }
+        renderer.SelectedIndex=renderer.Items.Count>0?0:-1;
+        for(int index=1;index<renderer.Items.Count;index++)
+            if(renderer.Items[index] is Item item&&item.Key==selected)renderer.SelectedIndex=index;
+    }
     private readonly Dictionary<string,ComboBox> qualities = [];
     private readonly Dictionary<string,CheckBox> effects = [];
     private readonly Dictionary<Control,string> accessibleFields = [];
@@ -607,7 +622,11 @@ internal sealed partial class MainForm : Form
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
-        activeRenderer.Text=Lang.T("activeRenderer")+": DXVK (Vulkan)";
+        string savedRenderer=replaceFields&&value.TryGetProperty("renderer_policy",out var policy)
+            ? policy.GetString()??"dxvk" : RendererMode;
+        var rendererModes=value.TryGetProperty("renderer_modes",out var modes)
+            ? modes.EnumerateArray().Select(mode=>mode.GetString()!).ToArray() : new[]{"dxvk"};
+        SetRendererModes(rendererModes,savedRenderer);
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
         var graphicsProbe=value.GetProperty("probe");
@@ -791,11 +810,13 @@ internal sealed partial class MainForm : Form
     {
         UpdateGraphicsPresets();
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
-        gpu.Enabled=!busy&&gpu.Items.Count>1;
-        anisotropicFiltering.Enabled=!busy;
+        renderer.Enabled=!busy&&renderer.Items.Count>1;
+        bool modern=RendererMode=="dxvk";
+        gpu.Enabled=!busy&&modern&&gpu.Items.Count>1;
+        anisotropicFiltering.Enabled=!busy&&modern;
         extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
         ultraShadows.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&midsummerToneAvailable;
+        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&modern&&midsummerToneAvailable;
         bool maximumVisible=!singlePlayerOnly||MaximumGraphicsAvailable;
         maximumFx.Visible=maximumVisible;
         foreach(var item in labels.Where(x=>x.Value=="maximumFxInfo"))item.Key.Visible=maximumVisible;
@@ -810,6 +831,7 @@ internal sealed partial class MainForm : Form
     }
     private void ApplyRecommendedGraphics()
     {
+        renderer.SelectedIndex=0;
         DisplayEnabled();
         ApplyQualityPreset(true);
         extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
@@ -829,7 +851,7 @@ internal sealed partial class MainForm : Form
         var quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex);foreach(var pair in effects)quality[pair.Key]=pair.Value.Checked?1:0;
         string? card=(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
-        return new {renderer_policy="dxvk",choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
+        return new {renderer_policy=RendererMode,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
             enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
@@ -1139,7 +1161,7 @@ internal sealed partial class MainForm : Form
                 if(Lang.Read(locale).Values.Any(text=>text.Contains("\u00c3")||text.Contains("\u00c2")||text.Contains("\ufffd")))
                     throw new Exception("Translation encoding damaged: "+locale);
             string fixture="""
-            {"installed":true,"updates_supported":true,"displays":[{"device":"\\\\.\\DISPLAY1","adapter":"Fixture GPU","primary":true,"x":0,"y":0,"width":1920,"height":1080,"resolutions":[[1280,720],[1920,1080]]}],"data_default":"C:\\Fixture\\Instances","source":"C:\\Fixture\\Original","renderer_policy":"auto","probe":{"devices":["Fixture GPU"],"failure":null},"choice":{"format":"s7-graphics-choice-v1","choice":"Fixture GPU","simple_menu":true,"display":{"device":"\\\\.\\DISPLAY1","width":1920,"height":1080,"mode":"borderless"}},"quality":{"ShaderQuality":1,"TextureQuality":1,"ObjectQuality":1,"DistanceCulling":1,"ShadowQuality":1,"WaterQuality":1,"ClutterQuality":1,"Shadows":1,"SSAO":0,"DepthOfField":0,"SunShafts":0,"Parallax":0,"Antialiasing":1},"player_name":"Tester","renderer":"dxvk","current":"C:\\Fixture\\Game","update_available":false}
+            {"installed":true,"updates_supported":true,"displays":[{"device":"\\\\.\\DISPLAY1","adapter":"Fixture GPU","primary":true,"x":0,"y":0,"width":1920,"height":1080,"resolutions":[[1280,720],[1920,1080]]}],"data_default":"C:\\Fixture\\Instances","source":"C:\\Fixture\\Original","renderer_policy":"dxvk","renderer_modes":["dxvk","async","gplasync","native"],"probe":{"devices":["Fixture GPU"],"failure":null},"choice":{"format":"s7-graphics-choice-v1","choice":"Fixture GPU","simple_menu":true,"display":{"device":"\\\\.\\DISPLAY1","width":1920,"height":1080,"mode":"borderless"}},"quality":{"ShaderQuality":1,"TextureQuality":1,"ObjectQuality":1,"DistanceCulling":1,"ShadowQuality":1,"WaterQuality":1,"ClutterQuality":1,"Shadows":1,"SSAO":0,"DepthOfField":0,"SunShafts":0,"Parallax":0,"Antialiasing":1},"player_name":"Tester","renderer":"dxvk","current":"C:\\Fixture\\Game","update_available":false}
             """;
             using var json=JsonDocument.Parse(fixture);
             foreach(string language in new[]{"en","de"})
@@ -1157,7 +1179,7 @@ internal sealed partial class MainForm : Form
                     consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
-                if(form.releaseVersion.Text!="rc4.03"||Program.ReleaseVersion!="rc4.03")throw new Exception("Release version label must be exactly rc4.03");
+                if(form.releaseVersion.Text!="rc4.04"||Program.ReleaseVersion!="rc4.04")throw new Exception("Release version label must be exactly rc4.04");
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.TestStandaloneEdition(json.RootElement,folder,language);
@@ -1230,10 +1252,16 @@ internal sealed partial class MainForm : Form
                         throw new Exception("Recommended graphics profile failed");
                 }
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);
-                using var fixedGraphics=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
-                if(fixedGraphics.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
-                    ||form.accessibleFields.Values.Contains("renderer")||form.labels.Values.Contains("fallback"))
-                    throw new Exception("Launcher exposes an alternative renderer");
+                for(int i=1;i<form.renderer.Items.Count;i++)
+                {
+                    form.renderer.SelectedIndex=i;
+                    using var alternative=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
+                    if(!form.GraphicsDirty||form.gpu.Enabled||form.enhancedAa.Enabled
+                        ||alternative.RootElement.GetProperty("renderer_policy").GetString()!=new[]{"async","gplasync","native"}[i-1])
+                        throw new Exception("Graphics override is unavailable or exposes a DXVK 3 setting");
+                }
+                form.DiscardGraphicsDraft();
+                if(form.RendererMode!="dxvk"||form.GraphicsDirty)throw new Exception("Renderer draft was not discarded");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
                 if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("DXVK visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
@@ -1385,7 +1413,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc403_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","native_gpu_filter_disabled",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc404_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","renderer_selection_and_draft",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

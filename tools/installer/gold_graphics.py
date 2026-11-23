@@ -60,30 +60,31 @@ def prepare_effects(root,selected,**kwargs):
     if any(selected.get(n,False) for n in OPTIONS):return runtime(root,selected).prepare(root,options=selected,**kwargs)
 
 
-def save_choice(root,selected):
+def save_choice(root,selected,*,renderer='dxvk'):
     root=checked_root(root);selected=validate(root,selected)
     if selected.get('display') is not None:
         import display_settings as display
-        display.resolve(selected['display'],display.enumerate_displays(),renderer='dxvk',gpu=selected['choice'])
+        display.resolve(selected['display'],display.enumerate_displays(),renderer='dxvk',
+                        gpu=selected['choice'] if renderer=='dxvk' else None)
     choice._load_choice(root)
-    prepare_effects(root,selected)
+    if renderer=='dxvk':prepare_effects(root,selected)
     data=graphics._plain(root/'LocalData');data.mkdir(exist_ok=True)
     graphics.atomic_write(data/'graphics-choice.json',graphics.encoded(selected),data)
     return selected
 
 
-def launch_environment(root,inherited=None):
+def launch_environment(root,inherited=None,*,renderer='dxvk'):
     root=checked_root(root);selected=validate(root,choice._load_choice(root))
     environment=dict(os.environ if inherited is None else inherited)
     environment={k:v for k,v in environment.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
     environment=choice.visual_environment(selected,environment)
     logs=graphics._plain(root/'LocalData')
     environment.update(DXVK_LOG_PATH=str(logs),DXVK_SHADER_CACHE_PATH=str(logs),DXVK_STATE_CACHE_PATH=str(logs))
-    if any(selected.get(n,False) for n in OPTIONS):
+    if renderer=='dxvk' and any(selected.get(n,False) for n in OPTIONS):
         environment=runtime(root,selected).launch_environment(root,environment,options=selected)
     import quality_settings as quality
     if (root/quality.FILE).exists():quality.prepare(root)
-    return environment
+    return environment if renderer=='dxvk' else choice.alternate_environment(root,renderer,environment)
 
 
 def launch_options(root):

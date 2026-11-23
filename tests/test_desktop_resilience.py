@@ -27,6 +27,7 @@ class DesktopResilienceTests(unittest.TestCase):
     def setUp(self):
         self.base=fixtures.DesktopTests();self.base.setUp();self.addCleanup(self.base.doCleanups)
         self.desktop=self.base.desktop;self.base.prepare();self.root=self.desktop.game()
+        self.desktop.write(self.desktop.state/'graphics-probe.json',self.base.probe)
 
     def request(self):
         return dict(renderer_policy='dxvk',choice={'format':choice.FORMAT,'choice':'Fixture GPU','simple_menu':False},

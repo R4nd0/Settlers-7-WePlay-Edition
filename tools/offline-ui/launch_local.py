@@ -78,12 +78,16 @@ def choose_graphics_environment(root):
     return _graphics_module().choose_launch_environment(root)
 
 
-def graphics_game_arguments(root):
-    return _graphics_module().game_arguments(root)
+def graphics_game_arguments(root, renderer=None):
+    if renderer is None:
+        return _graphics_module().game_arguments(root)
+    return _graphics_module().game_arguments(root, renderer=renderer[0])
 
 
-def saved_graphics_environment(root):
-    return _graphics_module().saved_launch_environment(root)
+def saved_graphics_environment(root, renderer=None):
+    if renderer is None:
+        return _graphics_module().saved_launch_environment(root)
+    return _graphics_module().saved_launch_environment(root, renderer=renderer[0])
 
 
 def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
@@ -147,12 +151,14 @@ def verify_bundle(root):
             raise ValueError("Die Dateien der Testversion haben sich geaendert.")
 
 
-def spawn_game(root, arguments, environment,*,lan=None):
+def spawn_game(root, arguments, environment,*,lan=None,renderer=None):
     if os.name == 'nt' and has_platform_runtime(root):
         import platform_standalone
         if platform_standalone.enabled(root):
-            return platform_standalone.launch(root, environment=environment, arguments=arguments,lan=lan)
+            return platform_standalone.launch(root, environment=environment, arguments=arguments,lan=lan,renderer=renderer)
         raise ValueError('Die Standalone-Laufzeit ist unvollständig.')
+    if renderer is not None:
+        raise ValueError('renderer_payload_invalid')
     if os.name == 'posix':
         import linux_runtime
         command, environment = linux_runtime.game_command(root, arguments, environment)
@@ -314,13 +320,15 @@ def run(args):
         try:
             game_environment = None
             game_arguments = ()
+            renderer = getattr(args, 'renderer', None)
+            renderer_option = {'renderer':renderer} if renderer is not None else {}
             if args.launch_game and (getattr(args, 'saved_graphics', False) or getattr(args, 'choose_graphics', True)):
-                game_environment = (saved_graphics_environment(root) if getattr(args, 'saved_graphics', False)
+                game_environment = (saved_graphics_environment(root, **renderer_option) if getattr(args, 'saved_graphics', False)
                                     else choose_graphics_environment(root))
                 if game_environment is None:
                     print('Spielstart abgebrochen.', flush=True)
                     return 0
-                game_arguments = graphics_game_arguments(root)
+                game_arguments = graphics_game_arguments(root, **renderer_option)
             if args.launch_game:
                 game_environment = game_launch_environment(root, game_environment)
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
@@ -348,7 +356,7 @@ def run(args):
                     game_options['env'] = game_environment
                 if getattr(args, 'before_game', None) is not None:
                     args.before_game()
-                game = spawn_game(root, game_arguments, game_environment)
+                game = spawn_game(root, game_arguments, game_environment, **renderer_option)
                 code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True),
                                              monitor=getattr(args, 'game_monitor', None))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:

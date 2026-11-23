@@ -91,13 +91,11 @@ Verbindungen. Der Ersteller braucht eine von außen erreichbare numerische Adres
 Dieser Modus verzichtet auf öffentliche Vermittlung und Weiterleitung; manche
 Routerverbindungen erlauben ihn nicht. Gäste übernehmen den Modus aus ihrer Einladung.
 
-Ab RC4.00 verwenden alle Editionen fest **DXVK (Vulkan)**. Ein Wechsel auf die
-alte Grafikpipeline wird nicht angeboten. Bestehende Automatisch-/Native-Wahlen
-werden beim nächsten Start auf DXVK umgestellt. Ohne bestätigte Unterstützung
-einer passenden Vulkan-GPU wird der Start mit einer Fehlermeldung angehalten;
-Grafiktreiber prüfen und die Grafikprüfung unter Hilfe erneut ausführen.
-Unter **Grafik** bleiben Grafikkarte, Anzeige und Qualität einstellbar.
-**Speichern** übernimmt die Einstellungen für den nächsten Spielstart.
+Unter **Grafik → Grafikpipeline** stehen in rc4.04 für alle Windows-Ausgaben
+DXVK 3.1.1 (Standard), DXVK-Async 1.10.3 (Vulkan 1.1), DXVK-GPLAsync 2.6.2-1
+(Vulkan 1.3) und natives D3D9 (Windows) zur Wahl. **Speichern** übernimmt die
+Auswahl für den nächsten Spielstart. Die optionale Grafikprüfung unter Hilfe
+prüft den Standardrenderer. Die alternativen Renderer wählen die GPU automatisch.
 
 **Klare Landschaft** setzt hohe Textur-, Licht-, Schatten-, Wasser- und
 Bodendetails, lässt Objektdetails auf Mittel und schaltet Tiefenunschärfe aus.

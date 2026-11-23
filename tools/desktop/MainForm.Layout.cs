@@ -53,7 +53,8 @@ internal sealed partial class MainForm
         var scroll=new Panel {Dock=DockStyle.Fill,AutoScroll=true};graphicsPage.Controls.Add(scroll);var root=Stack(scroll);
         root.Padding=new Padding(14,6,14,2);
         var display=GraphicsSection(root,"graphicsDisplayGroup");
-        Add(display,activeRenderer);Add(display,Field("gpu",gpu));
+        Add(display,Field("activeRenderer",renderer));Add(display,Field("gpu",gpu));
+        renderer.SelectedIndexChanged+=(_,_)=>{if(!loading)DisplayEnabled();};
         Bind(keepDisplay,"keepDisplay");Add(display,keepDisplay);
         var outputs=new TableLayoutPanel {AutoSize=true,Dock=DockStyle.Top,ColumnCount=2};
         outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));

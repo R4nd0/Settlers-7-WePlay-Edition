@@ -71,6 +71,34 @@ class GraphicsProfileTests(unittest.TestCase):
     def state_dir(self):
         return self.root / graphics.STATE
 
+    def test_desktop_renderer_restores_exact_dll_after_normal_or_interrupted_launch(self):
+        self.install()
+        package=self.parent/'package'
+        payload=package/'Payload/Graphics'
+        payload.mkdir(parents=True)
+        (payload/'d3d9.dll').write_bytes(self.dll)
+        executable=self.root/graphics.EXE
+        local_dll=executable.with_name('d3d9.dll')
+        canonical=self.snapshot()
+        alternatives={mode:self.dll+mode.encode('ascii') for mode in graphics.ASYNC_RENDERERS}
+        for mode,value in alternatives.items():
+            (payload/mode).mkdir()
+            (payload/mode/'d3d9.dll').write_bytes(value)
+        pinned={mode:graphics._hash(value) for mode,value in alternatives.items()}
+        with patch.object(graphics,'ASYNC_RENDERERS',pinned):
+            for mode,expected in (*alternatives.items(),('native',None)):
+                with self.subTest(mode=mode):
+                    graphics.apply_launch_renderer(self.root,executable,package,mode)
+                    self.assertEqual(local_dll.read_bytes() if local_dll.exists() else None,expected)
+                    graphics.recover_launch_renderer(self.root,executable,package)
+                    self.assertEqual(self.snapshot(),canonical)
+                    self.assertFalse((self.root/graphics.RENDERER_JOURNAL).exists())
+            graphics.apply_launch_renderer(self.root,executable,package,'async')
+            local_dll.write_bytes(b'foreign replacement')
+            with self.assertRaisesRegex(ValueError,'renderer_payload_invalid'):
+                graphics.recover_launch_renderer(self.root,executable,package)
+            self.assertEqual(local_dll.read_bytes(),b'foreign replacement')
+
     def test_install_restore_idempotence_and_actual_compatibility(self):
         original_id = content.verify(self.root)['content_id']
         self.assertEqual(self.install(), 'enabled')
