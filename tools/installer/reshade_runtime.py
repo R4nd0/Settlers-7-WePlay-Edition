@@ -130,7 +130,11 @@ def _config(options):
     tone, aa, contacts, maximum = _options(options)
     if aa and not (tone or contacts or maximum):
         return CONFIG.replace(b'DepthCopyBeforeClears=1', b'DepthCopyBeforeClears=0')
-    return CONFIG.replace(b'AddonPath=.\\NoAddons', b'AddonPath=.\\ManagedAddons') if maximum else CONFIG
+    if maximum:
+        return CONFIG.replace(b'AddonPath=.\\NoAddons', b'AddonPath=.\\ManagedAddons').replace(
+            b'PreprocessorDefinitions=RESHADE_DEPTH_INPUT_IS_REVERSED=0',
+            b'PreprocessorDefinitions=RESHADE_DEPTH_INPUT_IS_REVERSED=0,WEPLAY_CURRENT_FRAME_GI=1')
+    return CONFIG
 
 
 def _clock(root):
@@ -150,7 +154,7 @@ def _preset(options):
     raw = raw.replace('Strength=0.650000', 'Strength=' + ('0.650000' if tone else '0.000000'))
     techniques = ['WePlay_Midsummer@WePlay-Midsummer.fx']
     if maximum:
-        techniques.extend(['DH_UBER_MOTION_020@dh_uber_motion.fx', 'DH_UBER_RT@dh_uber_rt.fx',
+        techniques.extend(['DH_UBER_RT@dh_uber_rt.fx',
                            'WePlay_Maximum@WePlay-Midsummer.fx'])
     if aa:
         techniques.append('SMAA@SMAA.fx')
@@ -161,10 +165,6 @@ def _preset(options):
             + '\nHazeStrength=0.420000\nHeatStrength=0.850000\nDebugView=0\n')
     if maximum:
         raw += '''
-[dh_uber_motion.fx]
-iMotionRadius=4
-bUnjitterDepth=0
-
 [dh_uber_rt.fx]
 bSkyAt0=0
 bDepthMulti5=0
@@ -174,9 +174,9 @@ fGIRenderScale=0.500000
 iRTMaxRays=4
 iSmoothSamples=8
 iSmoothRadius=8
-iGIFrameAccu=8
-iAOFrameAccu=5
-fGIBounce=0.450000
+iGIFrameAccu=1
+iAOFrameAccu=1
+fGIBounce=0.000000
 fGIHueBiais=0.600000
 fGIDarkMerging=0.650000
 fGILightMerging=0.250000
@@ -202,7 +202,7 @@ def _profile_files(options, root):
     assets = SMAA_ASSETS if aa else ()
     if maximum:
         files['ManagedAddons/WePlayAtmosphere.addon32'] = _clock(root)
-        assets = MAXIMUM_ASSETS
+        assets = tuple(name for name in MAXIMUM_ASSETS if name != 'dh_uber_motion.fx')
     for name in assets:
         directory = 'Textures' if name.endswith('.png') else ('Shaders' if name.endswith(('.fx', '.fxh')) else 'Licenses')
         files[directory + '/' + name] = _asset('effects/' + name).read_bytes()

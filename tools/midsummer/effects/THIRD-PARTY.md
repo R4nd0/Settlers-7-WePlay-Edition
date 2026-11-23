@@ -11,7 +11,8 @@ arbitrary external add-ons are refused.
   (`DH-LICENSE.txt`). WePlay changes dated 2026-11-07: corrected include casing;
   the RT effect falls back to the input when
   depth is unavailable; tone-map bounds are passed explicitly to remove an
-  upstream read/write feedback hazard. Motion processing is otherwise unchanged. Complete
+  upstream read/write feedback hazard. The managed Maximum preset uses the
+  optional current-frame GI path and omits the motion technique. Complete
   modified sources are included. Source line endings/trailing spaces are
   normalized. GPU noise does not use the game's random state.
 * [ReShade common headers](https://github.com/crosire/reshade-shaders/tree/fd0022170615ce0d8162d219bff07232fa6dd84f),

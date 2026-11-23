@@ -43,12 +43,11 @@ The launcher's Graphics page exposes independent opt-in controls:
   multiplicative darkening is 22%; most pixels receive much less. It complements
   native SSAO and does not replace the sun's native shadow maps.
 - **ReShade Maximum (cinematic)** adds DH_UBER_RT 0.20.6 screen-space ray-traced
-  indirect light/color bounce and occlusion, with DH motion estimation, half-size
-  GI tracing, four rays, eight spatial denoising samples and bounded temporal
-  accumulation. The earlier authored broad AO layer is removed. Independent
-  SMAA runs last when the separate smoothing option is enabled. Bloom,
-  bounded sharpening/local contrast, cool shadows and warm highlights complete
-  the grade. Morning haze clears before daytime heat refraction fades in. Both
+  indirect light/color bounce and occlusion, with half-size GI tracing, four rays
+  and eight spatial denoising samples from the current frame. Independent SMAA
+  runs last when the separate smoothing option is enabled. Bloom is limited to
+  broad highlights. Cool shadows and warm highlights complete the grade.
+  Morning haze clears before daytime heat refraction fades in. Both
   follow the actual Mittsommer sun, with smooth transitions; twilight stays
   bright. Haze is
   calibrated to the game's measured depth scale; refraction is at most 0.85
@@ -56,7 +55,8 @@ The launcher's Graphics page exposes independent opt-in controls:
   Warm color is a screen-space ground proxy, not a material or temperature map.
   Sky and unavailable depth are excluded from geometric effects. This is not
   hardware ray tracing: missing/off-screen geometry and light cannot contribute.
-  Motion estimation cannot guarantee freedom from temporal artifacts.
+  The managed profile avoids temporal trails by using current-frame lighting
+  samples. The spatial passes can still affect the composited UI.
 
 Lighting, grading, GI, haze and SMAA process the full image, including the UI.
 The earlier broad strips and rectangular HUD restores were removed because

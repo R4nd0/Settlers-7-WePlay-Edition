@@ -131,7 +131,14 @@ technique WePlay_Midsummer < ui_label = "WePlay visual quality"; >
 float3 Highlight(float2 uv)
 {
     float3 c=ColorAt(uv);
-    return c*smoothstep(.68,.95,Luma(c))*WorldMask(uv);
+    // Bloom should come from broad lit surfaces. Thin bright strokes such as
+    // menu labels must not spread light over their darker surroundings.
+    float2 pixel=4.0*float2(BUFFER_RCP_WIDTH,BUFFER_RCP_HEIGHT);
+    float2 x=float2(pixel.x,0.0);
+    float2 y=float2(0.0,pixel.y);
+    float coverage=min(min(Luma(ColorAt(uv-x)),Luma(ColorAt(uv+x))),
+                       min(Luma(ColorAt(uv-y)),Luma(ColorAt(uv+y))));
+    return c*smoothstep(.68,.95,Luma(c))*smoothstep(.52,.70,coverage)*WorldMask(uv);
 }
 float4 BloomHorizontalPS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 {
@@ -153,15 +160,7 @@ float4 CinematicPS(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Ta
 {
     float4 original=tex2D(SceneSampler,uv);
     float mask=WorldMask(uv)*MaximumStrength;
-    float2 pixel=float2(BUFFER_RCP_WIDTH,BUFFER_RCP_HEIGHT);
-    float3 center=original.rgb;
-    float3 nearMean=(ColorAt(uv+float2(pixel.x*2,0))+ColorAt(uv-float2(pixel.x*2,0))
-        +ColorAt(uv+float2(0,pixel.y*2))+ColorAt(uv-float2(0,pixel.y*2)))*.25;
-    float3 broadMean=(ColorAt(uv+float2(pixel.x*9,0))+ColorAt(uv-float2(pixel.x*9,0))
-        +ColorAt(uv+float2(0,pixel.y*9))+ColorAt(uv-float2(0,pixel.y*9)))*.25;
-    // Bounded fine sharpening and a wider local-contrast component.
-    float3 detail=clamp((center-nearMean)*.22+(center-broadMean)*.16,-.035,.035);
-    float3 color=center+detail;
+    float3 color=original.rgb;
     float light=Luma(color);
     // A restrained S curve, cool low values and warm highlights give the
     // cinematic option a visibly different grade without crushing dark detail.

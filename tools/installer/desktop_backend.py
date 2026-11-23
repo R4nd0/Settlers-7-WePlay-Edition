@@ -199,6 +199,10 @@ class Desktop:
         if value.get('cartographer_context',False):flags['cartographer_context']=True
         if value.get('multiplayer_castles',False):flags['multiplayer_castles']=True
         if value.get('multiplayer_resume',False):flags['multiplayer_resume']=True
+        if value.get('midsummer_profile',False):
+            flags['midsummer_profile']=True
+            effects={'tools/'+name.lower() for name in install.MIDSUMMER_PACKAGE_TOOLS}
+            records.update({name:digest for name,digest in value['files'].items() if name in effects})
         for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers'):
             if value.get(key,False):flags[key]=True
         if value.get('platform_independent',False):

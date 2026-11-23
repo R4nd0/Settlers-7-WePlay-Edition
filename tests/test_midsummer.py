@@ -220,6 +220,19 @@ class ReShadePreparationTests(unittest.TestCase):
             if any(options[name] for name in ('midsummer_tone', 'contact_shadows', 'maximum_fx')):
                 self.assertIn(b'EdgeStrength=0.000000', preset)
 
+    def test_maximum_profile_uses_current_frame_without_motion_or_feedback(self):
+        options = {'maximum_fx': True}
+        self.assertNotIn(b'WEPLAY_CURRENT_FRAME_GI', reshade_runtime._config({'enhanced_aa': True}))
+        with self.prepared(options) as (root, folder, closed):
+            preset = (folder/'WePlay-Midsummer.ini').read_bytes()
+            config = (folder/'ReShade.ini').read_bytes()
+            self.assertIn(b'WEPLAY_CURRENT_FRAME_GI=1', config)
+            self.assertIn(b'DH_UBER_RT@dh_uber_rt.fx', preset)
+            self.assertNotIn(b'DH_UBER_MOTION', preset)
+            self.assertFalse((folder/'Shaders/dh_uber_motion.fx').exists())
+            for setting in (b'iGIFrameAccu=1\n', b'iAOFrameAccu=1\n', b'fGIBounce=0.000000\n', b'bSSR=0\n'):
+                self.assertIn(setting, preset)
+
     def test_bundled_runtime_is_used_without_download_and_missing_bundle_fails_closed(self):
         with self.prepared({'enhanced_aa':True}) as (root,folder,closed):
             fresh=root/'Fresh'

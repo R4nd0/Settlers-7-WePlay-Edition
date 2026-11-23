@@ -25,6 +25,18 @@ import test_installer as fixture
 
 
 class DesktopTests(unittest.TestCase):
+    def test_changed_visual_effect_assets_require_updating_the_owned_copy(self):
+        manifest=self.desktop.read(self.desktop.package/'package.json')
+        manifest['midsummer_profile']=True
+        for path in ('tools/midsummer/weplay-midsummer.fx','tools/midsummer/effects/dh_uber_rt.fx',
+                     'tools/installer/reshade_runtime.py'):
+            manifest['files'][path]='a'*64
+            self.desktop.write(self.desktop.package/'package.json',manifest)
+            before=self.desktop.package_id()
+            manifest['files'][path]='b'*64
+            self.desktop.write(self.desktop.package/'package.json',manifest)
+            self.assertNotEqual(before,self.desktop.package_id())
+
     def test_isolation_capability_and_each_copied_runtime_part_require_game_update(self):
         record=self.desktop.read(self.desktop.package/'package.json')
         before=self.desktop.package_id()

@@ -16,6 +16,10 @@
 // and explicit tone-map bounds to avoid sampling its active render target.
 #include "WePlay-World.fxh"
 
+#ifndef WEPLAY_CURRENT_FRAME_GI
+#define WEPLAY_CURRENT_FRAME_GI 0
+#endif
+
 #ifndef USE_MARTY_LAUNCHPAD_MOTION
  #define USE_MARTY_LAUNCHPAD_MOTION 0
 #endif
@@ -1276,6 +1280,9 @@ namespace DH_UBER_RT_0206 {
     }
 
     void PS_MotionMask  (float4 vpos : SV_Position, float2 coords : TexCoord, out float4 outMask : SV_Target0) {
+#if WEPLAY_CURRENT_FRAME_GI
+        outMask = float4(0,0,0,1);
+#else
         float2 previousCoords = getPreviousCoords(coords);
 
         float2 depth = getDepth(coords);
@@ -1286,20 +1293,21 @@ namespace DH_UBER_RT_0206 {
         if(depth.x>previousDepth.x+0.1*depth.x) mask = 1;
         if(depth.x>previousDepth2.x+0.1*depth.x) mask = 1;
         outMask = float4(mask,0,0,1);
+#endif
     }
 
     void PS_RTFS(float4 vpos : SV_Position, float2 coords : TexCoord, out float4 outRTFS : SV_Target0) {
         float depth = getDepth(coords).x;
 
-        float2 previousCoords = getPreviousCoords(coords);
-
         float4 RTFS;
         RTFS.x = roughnessPass(coords,depth);
         RTFS.y = thicknessPass(coords,depth,RTFS.a);
 
-        float4 previousRTFS = getColorSampler(previousRTFSampler,previousCoords);
+#if !WEPLAY_CURRENT_FRAME_GI
+        float4 previousRTFS = getColorSampler(previousRTFSampler,getPreviousCoords(coords));
         RTFS.y = lerp(previousRTFS.y,RTFS.y,0.33);
         RTFS.a = min(RTFS.a,0.1+previousRTFS.a);
+#endif
 
         RTFS.z = 1;
 
@@ -1315,6 +1323,10 @@ namespace DH_UBER_RT_0206 {
 
     void PS_AmbientPass(float4 vpos : SV_Position, float2 coords : TexCoord, out float4 outAmbient : SV_Target0) {
 
+#if WEPLAY_CURRENT_FRAME_GI
+        float b = 1.0;
+        float bestB = 1.0;
+#else
         float4 previous = getColorSampler(previousAmbientSampler,CENTER);
         bool first = false;
         if(previous.a<=2.0/255.0) {
@@ -1323,10 +1335,9 @@ namespace DH_UBER_RT_0206 {
         }
         //previous.rgb += 1.0/255.0;
         float b = maxOf3(previous.rgb);
-
-
-        float3 result = 1.0;
         float bestB = maxOf3(previous.rgb);
+#endif
+        float3 result = 1.0;
 
         float2 currentCoords = 0;
         float2 bestCoords = CENTER;
@@ -1364,9 +1375,13 @@ namespace DH_UBER_RT_0206 {
             stepSize = size.x/numSteps.x;
         }
 
-        result = first ? result : min(previous.rgb,result);
         avgBrightness /= count;
+#if WEPLAY_CURRENT_FRAME_GI
+        outAmbient = float4(result,avgBrightness);
+#else
+        result = first ? result : min(previous.rgb,result);
         outAmbient = lerp(previous,float4(result,avgBrightness),max(fRemoveAmbientAutoAntiFlicker,0.1)*3.0/60.0);
+#endif
     }
 
     float3 getRemovedAmbiantColor() {
@@ -1505,12 +1520,13 @@ namespace DH_UBER_RT_0206 {
 
         float hueLimit = 0.1;
 
-        float2 previousCoords = getPreviousCoords(coords);
-
         float3 refColor = getColor(coords).rgb;
+#if !WEPLAY_CURRENT_FRAME_GI
+        float2 previousCoords = getPreviousCoords(coords);
         if(fGIBounce>0.0) {
             refColor = lerp(refColor,getColorSampler(resultSampler,previousCoords).rgb,fGIBounce);
         }
+#endif
 
         float depth = getDepth(coords).x;
         if(isSky(depth)) {
@@ -1520,6 +1536,7 @@ namespace DH_UBER_RT_0206 {
 
         float3 refHSV = RGBtoHSV(refColor);
 
+#if !WEPLAY_CURRENT_FRAME_GI
         int lod = 1;
         float3 tempHSV = refHSV;
         while((1.0-tempHSV.y)*tempHSV.z>0.7 && lod<=5) {
@@ -1533,6 +1550,7 @@ namespace DH_UBER_RT_0206 {
         refHSV.x = tempHSV.x;
         refHSV.yz = max(refHSV.yz,tempHSV.yz);
         refColor = HSVtoRGB(refHSV);
+#endif
 
 
         if(bRemoveAmbient) {
@@ -1545,11 +1563,13 @@ namespace DH_UBER_RT_0206 {
             refColor = HSVtoRGB(refHSV);
         }
 
+#if !WEPLAY_CURRENT_FRAME_GI
         if(fGIBounce>0.0) {
             float3 previousColor = getColorSampler(giAccuSampler,previousCoords).rgb;
             float b = getBrightness(refColor);
             refColor = saturate(refColor+previousColor*fGIBounce*(1.0-b)*(0.5+b));
         }
+#endif
 
         float3 result = rampColor(refColor);
 
@@ -2495,7 +2515,7 @@ namespace DH_UBER_RT_0206 {
 	) {
         float2 depth = getDepth(currentScaledCoords);
         if(isSky(depth.x)) {
-#if DX9_MODE
+#if DX9_MODE || WEPLAY_CURRENT_FRAME_GI
             return;
 #else
             depth = getColorSampler(previousDepthSampler,currentScaledCoords).x;
@@ -2568,6 +2588,7 @@ namespace DH_UBER_RT_0206 {
 		float2 previousCoords, float4 previousAccu,
 		bool firstPass
 	) {
+#if !WEPLAY_CURRENT_FRAME_GI
 		if(!firstPass && motionMask<1) {
             float2 depth = getColorSampler(previousDepthSampler,previousCoords).xy;
             float4 curGiAo = previousAccu;
@@ -2613,7 +2634,9 @@ namespace DH_UBER_RT_0206 {
             giAo.rgb /= weightSum.x;
             giAo.rgb = OKLtoRGB(giAo.rgb);
 
-        } else if(weightSum.x>0) {
+        } else
+#endif
+        if(weightSum.x>0) {
             giAo.rgb /= weightSum.x;
             giAo.rgb = OKLtoRGB(giAo.rgb);
         } else {
@@ -2622,7 +2645,9 @@ namespace DH_UBER_RT_0206 {
 
         if(weightSum.y>0) {
             giAo.a /= weightSum.y;
+#if !WEPLAY_CURRENT_FRAME_GI
             giAo.a = lerp(giAo.a,previousAccu.a,0.5);
+#endif
         } else {
             giAo.a = 1.0;
         }
@@ -2649,13 +2674,18 @@ namespace DH_UBER_RT_0206 {
             return;
         }
 
+#if WEPLAY_CURRENT_FRAME_GI
+        float2 previousCoords = scaledCoords;
+        float4 previousAccu = getColorSampler(sourceGISampler,coords);
+#else
         float2 previousCoords = getPreviousCoords(scaledCoords);
         float4 previousAccu = getColorSampler(giPreviousAccuSampler,previousCoords);
+#endif
 
         float3 refNormal = getNormal(scaledCoords);
         float3 refWp = getWorldPosition(scaledCoords,refDepth.x);
 
-        float2 weightSum;
+        float2 weightSum = 0.0;
 
         float4 giAo = 0.0;
 
@@ -2750,13 +2780,18 @@ namespace DH_UBER_RT_0206 {
 
 
         float2 downscaledCoords = coords*fGIRenderScale;
+#if WEPLAY_CURRENT_FRAME_GI
+        float2 previousCoords = coords;
+        float4 previousAccu = getColorSampler(sourceGISampler,downscaledCoords);
+#else
         float2 previousCoords = getPreviousCoords(coords);
         float4 previousAccu = getColorSampler(giPreviousAccuSampler,previousCoords);
+#endif
 
         float3 refNormal = getNormal(coords);
         float3 refWp = getWorldPosition(coords,refDepth.x);
 
-        float2 weightSum;
+        float2 weightSum = 0.0;
 
         float4 giAo = 0.0;
 
@@ -2838,6 +2873,10 @@ namespace DH_UBER_RT_0206 {
         	giAO = getColorSamplerLod(giSmooth2PassSampler,coords,2.0);
         }
 
+#if WEPLAY_CURRENT_FRAME_GI
+        outGI = giAO;
+        outSSR = 0.0;
+#else
 
 
         float motionMask = getColorSampler(motionMaskSampler,coords).x;
@@ -2898,7 +2937,7 @@ namespace DH_UBER_RT_0206 {
         } else {
             outSSR = 0;
         }
-
+#endif
     }
 
 
@@ -3293,12 +3332,14 @@ namespace DH_UBER_RT_0206 {
             "\n"
             "______________________________________";
     > {
-#if!DX9_MODE
+#if !DX9_MODE
+#if !WEPLAY_CURRENT_FRAME_GI
         pass {
             VertexShader = PostProcessVS;
             PixelShader = PS_SavePreviousAmbientPass;
             RenderTarget = previousAmbientTex;
         }
+#endif
         pass {
             VertexShader = PostProcessVS;
             PixelShader = PS_AmbientPass;
@@ -3312,11 +3353,13 @@ namespace DH_UBER_RT_0206 {
 #endif
 
         // Normal Roughness
+#if !WEPLAY_CURRENT_FRAME_GI
         pass {
             VertexShader = PostProcessVS;
             PixelShader = PS_RTFS_save;
             RenderTarget = previousRTFTex;
         }
+#endif
         pass {
             VertexShader = PostProcessVS;
             PixelShader = PS_RTFS;
