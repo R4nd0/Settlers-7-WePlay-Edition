@@ -80,10 +80,10 @@ def launch_environment(root,inherited=None,*,renderer='dxvk'):
     environment=choice.visual_environment(selected,environment)
     logs=graphics._plain(root/'LocalData')
     environment.update(DXVK_LOG_PATH=str(logs),DXVK_SHADER_CACHE_PATH=str(logs),DXVK_STATE_CACHE_PATH=str(logs))
+    import quality_settings as quality
+    quality.prepare(root,smaa=renderer=='dxvk' and selected.get('enhanced_aa',False))
     if renderer=='dxvk' and any(selected.get(n,False) for n in OPTIONS):
         environment=runtime(root,selected).launch_environment(root,environment,options=selected)
-    import quality_settings as quality
-    if (root/quality.FILE).exists():quality.prepare(root)
     return environment if renderer=='dxvk' else choice.alternate_environment(root,renderer,environment)
 
 

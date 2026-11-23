@@ -580,6 +580,25 @@ class DesktopTests(unittest.TestCase):
             launch.assert_called_once()
         self.assertIsNone(choice._load_choice(self.desktop.game())['choice'])
 
+    def test_smaa_default_is_only_used_on_new_supported_copies(self):
+        manifest=dict(self.desktop.package_manifest(),midsummer_profile=True)
+        with patch.object(self.desktop,'package_manifest',return_value=manifest):
+            snapshot=self.prepare()
+        self.assertTrue(snapshot['choice']['enhanced_aa'])
+        self.assertEqual(snapshot['quality']['Antialiasing'],0)
+
+    def test_save_resolves_double_aa_for_the_requested_pipeline(self):
+        self.prepare()
+        request=dict(choice=dict(format=choice.FORMAT,choice=None,enhanced_aa=True),
+                     quality=dict(quality.DEFAULTS),player_name='Tester')
+        with patch('reshade_runtime.prepare'), \
+                patch.object(self.desktop,'supported_renderers',return_value=graphics.RENDERERS):
+            for mode,wanted_smaa in (('dxvk',True),('native',False)):
+                with self.subTest(mode=mode):
+                    response=self.desktop.save_settings(dict(request,renderer_policy=mode))
+                    self.assertIs(response['committed_settings']['choice']['enhanced_aa'],wanted_smaa)
+                    self.assertEqual(quality.load(self.desktop.game())['Antialiasing'],int(not wanted_smaa))
+
     def test_setup_remembers_network_choice_after_committing_the_copy(self):
         def configure(root,gold):
             self.assertEqual(self.desktop.game(),root)
@@ -711,6 +730,24 @@ class ProbeTests(unittest.TestCase):
 
 
 class QualityTests(unittest.TestCase):
+    def test_prepare_disables_game_aa_before_smaa_without_overwriting_other_legacy_options(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            path=root/'Options.ini'
+            original=b'[Quality]\r\nTextureQuality = 2\r\n[Effects]\r\nAntialiasing = 1\r\nSSAO = 1\r\n'
+            path.write_bytes(original)
+            with patch.object(quality.graphics,'ensure_closed'), \
+                    patch.object(quality.display,'uses_portable_profile',return_value=True), \
+                    patch.object(quality.display,'options_path',return_value=path):
+                quality.prepare(root,smaa=True)
+                self.assertEqual(path.read_bytes(),original.replace(b'Antialiasing = 1',b'Antialiasing = 0'))
+                saved=root/quality.FILE;saved.parent.mkdir()
+                saved.write_bytes(graphics.encoded(quality.DEFAULTS))
+                quality.prepare(root,smaa=True)
+                self.assertIn(b'Antialiasing = 0',path.read_bytes())
+                self.assertEqual(quality.load(root)['Antialiasing'],1)
+                quality.prepare(root)
+                self.assertIn(b'Antialiasing = 1',path.read_bytes())
     def test_allowlist_preserves_bom_endian_comments_and_unrelated_values(self):
         text='; header\r\n[quality]\r\nTextureQuality = 0 ; note\r\nFullScreen = 0\r\n[Effects]\r\nShadows = 0\r\n[Other]\r\nValue = keep\r\n'
         for bom,encoding in ((b'','utf-8'),(b'\xef\xbb\xbf','utf-8'),(b'\xff\xfe','utf-16-le'),(b'\xfe\xff','utf-16-be')):

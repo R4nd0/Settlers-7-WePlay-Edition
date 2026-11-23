@@ -99,7 +99,9 @@ prüft den Standardrenderer. Die alternativen Renderer wählen die GPU automatis
 
 **Klare Landschaft** setzt hohe Textur-, Licht-, Schatten-, Wasser- und
 Bodendetails, lässt Objektdetails auf Mittel und schaltet Tiefenunschärfe aus.
-Spiel-Kantenglättung bleibt eingeschaltet. **Höchste Objektdetails** erhöht
+Die Vorlagen wählen SMAA bei modernem DXVK mit ReShade. In den anderen
+Pipelines wählen sie die Standard-Kantenglättung. Unter **Kantenglättung**
+kannst du auch **Aus** wählen. **Höchste Objektdetails** erhöht
 zusätzlich Objektdetails auf Hoch. Beide Vorlagen wählen die abschaltbare
 16× Texturfilterung für Moderne Grafik. Sie ändern weder Bildschirm/Auflösung
 noch CPU-Zuweisung, Bildratenlimit oder den einfachen Menümodus. Erst Speichern

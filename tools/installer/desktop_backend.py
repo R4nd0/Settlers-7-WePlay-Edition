@@ -704,8 +704,11 @@ class Desktop:
         mode=self.renderer(root,'dxvk')
         with graphics.session_lock(root):
             selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
+            if old is None and policy=='dxvk' and manifest.get('midsummer_profile',False):
+                selected['enhanced_aa']=True
             choice.save_choice(root,selected,renderer=policy)
-            self.write(root/quality.FILE,quality.load(root))
+            self.write(root/quality.FILE,quality.without_game_aa(
+                quality.load(root),policy=='dxvk' and selected.get('enhanced_aa',False)))
         self.progress('verify')
         verified=self.verify_instance(root)
         self.record_ownership(root,verified)
@@ -757,6 +760,9 @@ class Desktop:
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         selected=choice.validate_choice(request['choice']);quality_value=quality.validate(request['quality'])
+        if policy!='dxvk' and selected.get('enhanced_aa',False):
+            selected['enhanced_aa']=False
+        quality_value=quality.without_game_aa(quality_value,selected.get('enhanced_aa',False))
         if gold:
             import gold_graphics
             gold_graphics.validate(root,selected)

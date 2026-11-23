@@ -67,19 +67,26 @@ textures, license notices and upstream
 revisions ship with the [effect bundle](../tools/midsummer/effects/THIRD-PARTY.md).
 
 Edge smoothing, contact shading and Maximum require Modern graphics. Ultra shadows
-also work with native Direct3D9. All new choices default off, including when
-reading old preference files. They take effect on the next launch. Ultra uses
+also work with native Direct3D9. Additional detail, lighting and shadow options
+default off. They take effect on the next launch. Ultra uses
 four times the shadow-map texels of the older 4096 high setting and needs more
 GPU memory and rendering work.
 
-**WePlay recommended (Modern)** selects high quality, longer model detail and
-visibility, 4096 shadows, the game's antialiasing and SMAA.
+The **Antialiasing** selector offers Off, Standard (game), and SMAA (ReShade)
+where the active pipeline supports SMAA. The launcher applies one method at a
+time. Modern DXVK presets and new supported Windows copies select SMAA.
+Older pipelines offer Standard and Off. Existing Modern profiles that saved
+both methods use SMAA at their next launch.
+
+**WePlay recommended** selects high quality, longer model detail and
+visibility, 4096 shadows and the antialiasing appropriate to the chosen pipeline.
 **ReShade Maximum (cinematic)** selects high quality, 16× texture filtering,
 extended detail and shadow range, Ultra shadows where supported, and the
 Midsummer color profile, SMAA and Maximum effects. It disables the game's
 antialiasing, depth of field and ReShade contact shadows. Save applies the
 selected settings on the next launch. Both presets preserve the selected
-display, resolution, GPU and menu mode.
+display, resolution, GPU and menu mode. The graphics page displays manual GPU
+selection and ReShade options where the selected graphics pipeline supports them.
 
 Mittsommer keeps its bright twilight/day cycle and 20-minute native period.
 RC3.19 also replaces the inherited fixed 45-degree light/disc azimuth with

@@ -9,6 +9,8 @@ internal sealed partial class MainForm
     private readonly LinkLabel maintenanceNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),Visible=false,Margin=new Padding(0,2,0,4)};
     private Button maintenanceCleanup=null!;
     private Button graphicsRecommended=null!,graphicsMaximum=null!;
+    private Control graphicsGpuField=null!;
+    private readonly Dictionary<CheckBox,Label> additionalGraphics = [];
     private string? graphicsProbeFailure;
     private readonly Label graphicsPresetNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),ForeColor=SystemColors.GrayText};
     private void UpdateGraphicsPresets()
@@ -16,8 +18,8 @@ internal sealed partial class MainForm
         if(graphicsRecommended==null)return;
         graphicsRecommended.Enabled=!busy;
         graphicsMaximum.Enabled=!busy&&MaximumGraphicsAvailable;
-        graphicsMaximum.Visible=!singlePlayerOnly||MaximumGraphicsAvailable;
-        graphicsPresetNotice.Visible=graphicsProbeFailure!=null||!midsummerToneAvailable;
+        graphicsMaximum.Visible=MaximumGraphicsAvailable;
+        graphicsPresetNotice.Visible=RendererMode=="dxvk"&&(graphicsProbeFailure!=null||!midsummerToneAvailable);
         graphicsPresetNotice.Text=Lang.T(graphicsProbeFailure switch {
             "unsupported"=>"graphicsProbeUnconfirmed",
             "probe_failed"=>"graphicsProbeFailed",
@@ -53,7 +55,8 @@ internal sealed partial class MainForm
         var scroll=new Panel {Dock=DockStyle.Fill,AutoScroll=true};graphicsPage.Controls.Add(scroll);var root=Stack(scroll);
         root.Padding=new Padding(14,6,14,2);
         var display=GraphicsSection(root,"graphicsDisplayGroup");
-        Add(display,Field("activeRenderer",renderer));Add(display,Field("gpu",gpu));
+        Add(display,Field("activeRenderer",renderer));
+        graphicsGpuField=Field("gpu",gpu);Add(display,graphicsGpuField);
         renderer.SelectedIndexChanged+=(_,_)=>{if(!loading)DisplayEnabled();};
         Bind(keepDisplay,"keepDisplay");Add(display,keepDisplay);
         var outputs=new TableLayoutPanel {AutoSize=true,Dock=DockStyle.Top,ColumnCount=2};
@@ -71,6 +74,7 @@ internal sealed partial class MainForm
             graphicsRecommended,graphicsMaximum));
         Add(quality,graphicsPresetNotice);
         Add(quality,Label("qualityRecommendedInfo"));
+        Add(quality,Field("antialiasingMode",antialiasing));
         var custom=GraphicsDetails(quality,"graphicsCustomQuality",out graphicsQualityDetails);
         Add(custom,Label("qualityPresetInfo"));
         var grid=new TableLayoutPanel {AutoSize=true,Dock=DockStyle.Top,ColumnCount=2};
@@ -79,7 +83,7 @@ internal sealed partial class MainForm
         for(int i=0;i<levels.Length;i++){var combo=Combo();qualities[levels[i]]=combo;grid.Controls.Add(Field(levels[i],combo),i%2,i/2);}
         Add(custom,grid);
         var effectsRow=new FlowLayoutPanel {AutoSize=true,Dock=DockStyle.Top,WrapContents=true};
-        foreach(string key in new[]{"Shadows","SSAO","DepthOfField","SunShafts","Parallax","Antialiasing"})
+        foreach(string key in new[]{"Shadows","SSAO","DepthOfField","SunShafts","Parallax"})
         {var box=new CheckBox {AutoSize=true,Margin=new Padding(0,8,18,8)};Bind(box,key);effects[key]=box;effectsRow.Controls.Add(box);}
         Add(custom,effectsRow);
 
@@ -88,9 +92,13 @@ internal sealed partial class MainForm
         foreach(var item in new[]{(anisotropicFiltering,"anisotropicFiltering","anisotropicInfo"),
             (extendedDetail,"extendedDetail","extendedDetailInfo"),(detailedShadows,"detailedShadows","detailedShadowsInfo"),
             (extendedShadowRange,"extendedShadowRange","extendedShadowRangeInfo"),(ultraShadows,"ultraShadows","ultraShadowsInfo"),
-            (midsummerTone,"midsummerTone","midsummerToneInfo"),(enhancedAa,"enhancedAa","enhancedAaInfo"),
+            (midsummerTone,"midsummerTone","midsummerToneInfo"),
             (contactShadows,"contactShadows","contactShadowsInfo"),(maximumFx,"maximumFx","maximumFxInfo")})
-        {Bind(item.Item1,item.Item2);Add(advanced,item.Item1);Add(advanced,Label(item.Item3));}
+        {
+            Bind(item.Item1,item.Item2);Add(advanced,item.Item1);
+            var description=Label(item.Item3);
+            additionalGraphics.Add(item.Item1,description);Add(advanced,description);
+        }
         Bind(simple,"simple");Add(advanced,simple);
         var footer=new TableLayoutPanel {AutoSize=true,Dock=DockStyle.Bottom,ColumnCount=1,Padding=new Padding(14,2,14,2)};
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));

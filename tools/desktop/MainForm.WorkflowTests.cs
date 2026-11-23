@@ -70,7 +70,7 @@ internal sealed partial class MainForm
         graphicsRecommended.PerformClick();Application.DoEvents();
         LoadSnapshot(original,acceptGraphics:true);midsummerToneAvailable=true;UpdateGraphicsPresets();
         graphicsRecommended.PerformClick();Application.DoEvents();
-        if(!enhancedAa.Checked)throw new Exception("Supported Recommended click failed");
+        if(AntialiasingMode!="smaa")throw new Exception("Supported Recommended click failed");
         graphicsMaximum.PerformClick();Application.DoEvents();if(!maximumFx.Checked)throw new Exception("Supported Maximum click failed");
         LoadSnapshot(original,acceptGraphics:true);
         TestSettingsRecoveryWorkflow(original);

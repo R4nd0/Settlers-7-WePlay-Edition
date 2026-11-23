@@ -24,7 +24,14 @@ def load(root):
 
 
 def replace(raw,value):
-    value=validate(value)
+    return _replace(raw,validate(value))
+
+
+def without_game_aa(value, smaa):
+    return {**value,'Antialiasing':0} if smaa and value['Antialiasing'] else value
+
+
+def _replace(raw,value):
     if len(raw)>65536:
         raise ValueError('quality_ini_invalid')
     bom,encoding=b'','utf-8'
@@ -32,8 +39,9 @@ def replace(raw,value):
         if raw.startswith(prefix):bom,encoding=prefix,name;break
     text=raw[len(bom):].decode(encoding,errors='strict')
     newline='\r\n' if '\r\n' in text else '\n'
-    sections={'quality':{k.casefold():k for k in LEVELS},
-              'effects':{k.casefold():k for k in (*EFFECTS,'Antialiasing')}}
+    sections={'quality':{k.casefold():k for k in LEVELS if k in value},
+              'effects':{k.casefold():k for k in (*EFFECTS,'Antialiasing') if k in value}}
+    sections={section:keys for section,keys in sections.items() if keys}
     result=[]; section=None; seen_sections=set();seen_keys=set()
     def missing():
         if section in sections:
@@ -66,12 +74,18 @@ def replace(raw,value):
     return after
 
 
-def prepare(root):
-    value=load(root)
+def prepare(root, *, smaa=False, use_saved_quality=True):
+    if use_saved_quality and graphics._plain(root/FILE).exists():
+        value=without_game_aa(load(root),smaa)
+    elif smaa:
+        # Legacy interactive starts may have only the game's own Options.ini.
+        value={'Antialiasing':0}
+    else:
+        return
     graphics.ensure_closed()
     path=graphics._plain(display.options_path(root) if display.uses_portable_profile(root) else display.options_path())
     before=graphics._read(path,65536) if path.exists() else None
-    after=replace(before or b'',value)
+    after=_replace(before or b'',value)
     if after==before:return
     parent=graphics._plain(path.parent);parent.mkdir(exist_ok=True)
     if (graphics._read(path,65536) if path.exists() else None)!=before:

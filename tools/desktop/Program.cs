@@ -236,7 +236,7 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly CheckBox extendedShadowRange = new() { AutoSize = true };
     private readonly CheckBox midsummerTone = new() { AutoSize = true };
-    private readonly CheckBox enhancedAa = new() { AutoSize = true };
+    private readonly ComboBox antialiasing = Combo();
     private readonly CheckBox contactShadows = new() { AutoSize = true };
     private readonly CheckBox ultraShadows = new() { AutoSize = true };
     private readonly CheckBox maximumFx = new() { AutoSize = true };
@@ -263,7 +263,18 @@ internal sealed partial class MainForm : Form
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
-    private bool MaximumGraphicsAvailable=>midsummerToneAvailable&&!singlePlayerOnly;
+    private bool SmaaAvailable=>RendererMode=="dxvk"&&midsummerToneAvailable;
+    private bool MaximumGraphicsAvailable=>SmaaAvailable&&!singlePlayerOnly;
+    private string AntialiasingMode=>(antialiasing.SelectedItem as Item)?.Key??"off";
+
+    private void SetAntialiasingMode(string mode)
+    {
+        antialiasing.Items.Clear();
+        antialiasing.Items.Add(new Item("off",Lang.T("antialiasingOff")));
+        antialiasing.Items.Add(new Item("game",Lang.T("antialiasingGame")));
+        if(SmaaAvailable)antialiasing.Items.Add(new Item("smaa",Lang.T("antialiasingSmaa")));
+        antialiasing.SelectedIndex=mode=="off"?0:mode=="smaa"&&SmaaAvailable?2:1;
+    }
     private Button openGraphics = null!;
 
     public MainForm(bool initialSetup = false, bool test = false)
@@ -551,6 +562,7 @@ internal sealed partial class MainForm : Form
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
         int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
         ApplyCrossplayLanguage();
+        SetAntialiasingMode(AntialiasingMode);
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
         if(snapshot.ValueKind==JsonValueKind.Object) LoadSnapshot(snapshot,false);
@@ -599,6 +611,9 @@ internal sealed partial class MainForm : Form
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
+        string savedRenderer=replaceFields&&value.TryGetProperty("renderer_policy",out var policy)
+            ? policy.GetString()??"dxvk" : RendererMode;
+        string preferredAa=AntialiasingMode;
         if(replaceFields)
         {
             setupNetwork.Checked=value.TryGetProperty("network_setup_preferred",out var networkSetup)&&networkSetup.GetBoolean();
@@ -609,12 +624,14 @@ internal sealed partial class MainForm : Form
             detailedShadows.Checked=value.GetProperty("choice").TryGetProperty("detailed_shadows",out var shadowValue)&&shadowValue.GetBoolean();
             extendedShadowRange.Checked=value.GetProperty("choice").TryGetProperty("extended_shadow_range",out var rangeValue)&&rangeValue.GetBoolean();
             midsummerTone.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("midsummer_tone",out var toneValue)&&toneValue.GetBoolean();
-            enhancedAa.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean();
             contactShadows.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("contact_shadows",out var contactsValue)&&contactsValue.GetBoolean();
             ultraShadows.Checked=visualDetailAvailable&&value.GetProperty("choice").TryGetProperty("ultra_shadows",out var ultraValue)&&ultraValue.GetBoolean();
-            maximumFx.Checked=MaximumGraphicsAvailable&&value.GetProperty("choice").TryGetProperty("maximum_fx",out var maximumValue)&&maximumValue.GetBoolean();
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
+            preferredAa=quality.GetProperty("Antialiasing").GetInt32()!=0?"game":"off";
+            if(savedRenderer=="dxvk"&&midsummerToneAvailable&&
+                value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean())
+                preferredAa="smaa";
         }
         internetAvailable=value.TryGetProperty("internet_available",out var available)&&available.GetBoolean();
         crossplayAvailable=value.TryGetProperty("crossplay_available",out var mixedCapability)&&mixedCapability.GetBoolean();
@@ -626,11 +643,13 @@ internal sealed partial class MainForm : Form
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
-        string savedRenderer=replaceFields&&value.TryGetProperty("renderer_policy",out var policy)
-            ? policy.GetString()??"dxvk" : RendererMode;
         var rendererModes=value.TryGetProperty("renderer_modes",out var modes)
             ? modes.EnumerateArray().Select(mode=>mode.GetString()!).ToArray() : new[]{"dxvk"};
         SetRendererModes(rendererModes,savedRenderer);
+        SetAntialiasingMode(preferredAa);
+        if(replaceFields)
+            maximumFx.Checked=midsummerToneAvailable&&!singlePlayerOnly&&
+                value.GetProperty("choice").TryGetProperty("maximum_fx",out var savedMaximum)&&savedMaximum.GetBoolean();
         string? oldGpu=replaceFields?value.GetProperty("choice").GetProperty("choice").GetString():(gpu.SelectedItem as Item)?.Key;
         gpu.Items.Clear();gpu.Items.Add(new Item("",Lang.T("gpuAuto")));
         var graphicsProbe=value.GetProperty("probe");
@@ -823,38 +842,38 @@ internal sealed partial class MainForm : Form
         monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
         renderer.Enabled=!busy&&renderer.Items.Count>1;
         bool modern=RendererMode=="dxvk";
+        if(!loading&&antialiasing.Items.Count!=(SmaaAvailable?3:2))SetAntialiasingMode(AntialiasingMode);
+        antialiasing.Enabled=!busy;
+        graphicsGpuField.Visible=modern;
         gpu.Enabled=!busy&&modern&&gpu.Items.Count>1;
-        anisotropicFiltering.Enabled=!busy&&modern;
-        extendedDetail.Enabled=detailedShadows.Enabled=extendedShadowRange.Enabled=!busy&&visualDetailAvailable;
-        ultraShadows.Enabled=!busy&&visualDetailAvailable;
-        midsummerTone.Enabled=enhancedAa.Enabled=contactShadows.Enabled=maximumFx.Enabled=!busy&&modern&&midsummerToneAvailable;
-        bool maximumVisible=!singlePlayerOnly||MaximumGraphicsAvailable;
-        maximumFx.Visible=maximumVisible;
-        foreach(var item in labels.Where(x=>x.Value=="maximumFxInfo"))item.Key.Visible=maximumVisible;
-        if(singlePlayerOnly&&!MaximumGraphicsAvailable&&!loading)maximumFx.Checked=false;
-        maximumFx.Enabled&=MaximumGraphicsAvailable;
+        foreach(var item in additionalGraphics)
+        {
+            bool available=item.Key==anisotropicFiltering?modern:
+                item.Key==maximumFx?MaximumGraphicsAvailable:
+                item.Key==midsummerTone||item.Key==contactShadows?SmaaAvailable:visualDetailAvailable;
+            item.Key.Visible=item.Value.Visible=available;
+            item.Key.Enabled=!busy&&available;
+        }
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
         foreach(var pair in qualities)pair.Value.SelectedIndex=pair.Key=="ObjectQuality"&&!maximumObjects?1:2;
         foreach(var pair in effects)pair.Value.Checked=pair.Key!="DepthOfField";
-        anisotropicFiltering.Checked=true;
+        SetAntialiasingMode(SmaaAvailable?"smaa":"game");
+        if(RendererMode=="dxvk")anisotropicFiltering.Checked=true;
     }
     private void ApplyRecommendedGraphics()
     {
-        renderer.SelectedIndex=0;
         DisplayEnabled();
         ApplyQualityPreset(true);
         extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
         ultraShadows.Checked=false;
         maximumFx.Checked=false;
         midsummerTone.Checked=contactShadows.Checked=false;
-        enhancedAa.Checked=midsummerToneAvailable;
     }
     private void ApplyMaximumGraphics()
     {
         ApplyRecommendedGraphics();
-        effects["Antialiasing"].Checked=false;
         ultraShadows.Checked=visualDetailAvailable;
         midsummerTone.Checked=midsummerToneAvailable;
         maximumFx.Checked=MaximumGraphicsAvailable;
@@ -868,12 +887,13 @@ internal sealed partial class MainForm : Form
             string[] dimensions=size.Key.Split('x');output=new {device=item.Key,width=int.Parse(dimensions[0]),height=int.Parse(dimensions[1]),mode=window.SelectedIndex==1?"borderless":"windowed"};
         }
         var quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex);foreach(var pair in effects)quality[pair.Key]=pair.Value.Checked?1:0;
+        quality["Antialiasing"]=AntialiasingMode=="game"?1:0;
         string? card=(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
         return new {renderer_policy=RendererMode,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
-            enhanced_aa=enhancedAa.Checked,contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
+            enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
     }
     private string ValidName()
     {
@@ -1239,15 +1259,16 @@ internal sealed partial class MainForm : Form
                         throw new Exception("Visual detail choices lost in request");
                 }
                 form.midsummerToneAvailable=true;form.DisplayEnabled();form.midsummerTone.Checked=true;
-                form.enhancedAa.Checked=true;form.contactShadows.Checked=true;form.ultraShadows.Checked=true;form.maximumFx.Checked=true;
+                form.SetAntialiasingMode("smaa");form.contactShadows.Checked=true;form.ultraShadows.Checked=true;form.maximumFx.Checked=true;
                 using(var tone=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
-                    if(!form.midsummerTone.Enabled||!form.enhancedAa.Enabled||!form.contactShadows.Enabled
+                    if(!form.midsummerTone.Enabled||!form.antialiasing.Enabled||!form.contactShadows.Enabled
                         ||!tone.RootElement.GetProperty("choice").GetProperty("midsummer_tone").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("enhanced_aa").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("contact_shadows").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("ultra_shadows").GetBoolean()
                         ||!tone.RootElement.GetProperty("choice").GetProperty("maximum_fx").GetBoolean())throw new Exception("Visual quality choice lost");
-                form.midsummerTone.Checked=form.enhancedAa.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=form.maximumFx.Checked=false;
+                form.midsummerTone.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=form.maximumFx.Checked=false;
+                form.SetAntialiasingMode("off");
                 form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
@@ -1265,7 +1286,7 @@ internal sealed partial class MainForm : Form
                 {
                     var choice=recommended.RootElement.GetProperty("choice");
                     if(recommended.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
-                        ||recommended.RootElement.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=1
+                        ||recommended.RootElement.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=0
                         ||choice.GetProperty("ultra_shadows").GetBoolean()||choice.GetProperty("maximum_fx").GetBoolean()
                         ||choice.GetProperty("midsummer_tone").GetBoolean()||choice.GetProperty("contact_shadows").GetBoolean()
                         ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","enhanced_aa"}.All(name=>choice.GetProperty(name).GetBoolean()))
@@ -1287,17 +1308,37 @@ internal sealed partial class MainForm : Form
                     ||maximumChoice.GetProperty("contact_shadows").GetBoolean()
                     ||!new[]{"choice","simple_menu","display"}.All(name=>maximumChoice.GetProperty(name).GetRawText()==beforeMaximum.GetProperty(name).GetRawText()))
                     throw new Exception("Maximum preset did not keep the sharp foliage settings and local device choices");
-                form.LoadSnapshot(json.RootElement,acceptGraphics:true);
+                var dualAa=System.Text.Json.Nodes.JsonNode.Parse(json.RootElement.GetRawText())!.AsObject();
+                dualAa["midsummer_tone_supported"]=true;
+                dualAa["choice"]!["enhanced_aa"]=true;
+                form.LoadSnapshot(JsonSerializer.SerializeToElement(dualAa),acceptGraphics:true);
+                var legacyAa=JsonSerializer.SerializeToElement(form.GraphicsRequest());
+                if(form.AntialiasingMode!="smaa"||legacyAa.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=0)
+                    throw new Exception("A legacy double-AA configuration did not resolve to SMAA");
+                foreach(var mode in new[]{"game","off","smaa"})
+                {
+                    form.SetAntialiasingMode(mode);
+                    var aaRequest=JsonSerializer.SerializeToElement(form.GraphicsRequest());
+                    if(aaRequest.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=(mode=="game"?1:0)
+                        ||aaRequest.GetProperty("choice").GetProperty("enhanced_aa").GetBoolean()!=(mode=="smaa"))
+                        throw new Exception("Antialiasing is not exclusive");
+                }
+                form.graphicsEffectDetails.Checked=true;
                 for(int i=1;i<form.renderer.Items.Count;i++)
                 {
                     form.renderer.SelectedIndex=i;
+                    form.ApplyRecommendedGraphics();
                     using var alternative=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest()));
-                    if(!form.GraphicsDirty||form.gpu.Enabled||form.enhancedAa.Enabled
+                    if(!form.GraphicsDirty||form.graphicsGpuField.Visible||form.antialiasing.Items.Count!=2
+                        ||form.anisotropicFiltering.Visible||form.midsummerTone.Visible||form.contactShadows.Visible||form.graphicsMaximum.Visible
+                        ||form.AntialiasingMode!="game"
                         ||alternative.RootElement.GetProperty("renderer_policy").GetString()!=new[]{"async","gplasync","native"}[i-1])
                         throw new Exception("Graphics override is unavailable or exposes a DXVK 3 setting");
                 }
                 form.DiscardGraphicsDraft();
-                if(form.RendererMode!="dxvk"||form.GraphicsDirty)throw new Exception("Renderer draft was not discarded");
+                if(form.RendererMode!="dxvk"||form.AntialiasingMode!="smaa"||form.GraphicsDirty)
+                    throw new Exception("Renderer draft was not discarded");
+                form.LoadSnapshot(json.RootElement,acceptGraphics:true);
                 form.visualDetailAvailable=true;form.DisplayEnabled();
                 if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("DXVK visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
@@ -1455,7 +1496,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

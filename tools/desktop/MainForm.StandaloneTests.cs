@@ -24,7 +24,7 @@ internal sealed partial class MainForm
         gold["maximum_fx_supported"]=true;gold["midsummer_tone_supported"]=true;gold["visual_detail_supported"]=true;
         using(var fullhd=JsonDocument.Parse(gold.ToJsonString()))LoadSnapshot(fullhd.RootElement,acceptGraphics:true);
         tabs.SelectedTab=graphicsPage;Application.DoEvents();DisplayEnabled();
-        if(graphicsMaximum.Visible||maximumFx.Visible||!extendedDetail.Enabled||!enhancedAa.Enabled)
+        if(graphicsMaximum.Visible||maximumFx.Visible||!extendedDetail.Enabled||antialiasing.Items.Count!=3)
             throw new Exception("Gold must expose working effects and omit defective Maximum");
         graphicsEffectDetails.Checked=true;Application.DoEvents();
         using(var image=new Bitmap(Width,Height))

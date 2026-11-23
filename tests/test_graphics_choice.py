@@ -172,6 +172,24 @@ class GraphicsChoiceTests(unittest.TestCase):
             with self.subTest(name=name),self.assertRaises(ValueError):
                 choice.tone_environment(self.root,{'format':choice.FORMAT,'choice':None,name:True},'native',{})
 
+    def test_saved_launch_applies_only_the_aa_available_for_the_active_renderer(self):
+        import quality_settings as quality
+        import reshade_runtime
+        options=self.parent/'Options.ini'
+        options.write_bytes(b'[Effects]\nAntialiasing = 1\n')
+        (self.root/choice.CHOICE_FILE).write_bytes(graphics.encoded({
+            'format':choice.FORMAT,'choice':None,'enhanced_aa':True}))
+        (self.root/quality.FILE).write_bytes(graphics.encoded(quality.DEFAULTS))
+        def launch(root,environment,**kwargs):
+            self.assertIn(b'Antialiasing = 0',options.read_bytes())
+            return environment
+        with patch.object(choice.display,'options_path',return_value=options), \
+                patch.object(reshade_runtime,'launch_environment',side_effect=launch) as reshade:
+            choice.saved_launch_environment(self.root,{})
+            choice.saved_launch_environment(self.root,{},renderer='native')
+            self.assertIn(b'Antialiasing = 1',options.read_bytes())
+            reshade.assert_called_once()
+
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()
         before = content.verify(self.root)
