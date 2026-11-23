@@ -2,6 +2,15 @@
 import struct
 
 FAILURE_EXIT_BASE = 0xe0537080
+NETWORK_PROBE_EXIT_PREFIX = 0xe1000000
+NETWORK_PROBES = (
+    'winsock', 'ipv4_loopback_tcp', 'ipv6_loopback_tcp',
+    'ipv4_nonloopback_tcp', 'ipv4_nonloopback_udp', 'ipv6_nonloopback_tcp', 'ipv6_nonloopback_udp',
+)
+NETWORK_PROBE_STEPS = (
+    None, 'startup', 'listener_socket', 'bind', 'listen', 'getsockname', 'client_socket',
+    'connect', 'select', 'unexpected_delivery', 'missing_delivery',
+)
 STAGES = {
     1: 'Adapter laden',
     2: 'Initialisierungsexport auflösen',
@@ -18,9 +27,24 @@ STAGES = {
     18: 'Nativer Lobbyadapter',
 }
 
+
+def network_probe_failure(exit_code):
+    # Keep this encoding in sync with native/standalone_probe_diagnostics.h.
+    if exit_code is None or (exit_code & 0xff000000) != NETWORK_PROBE_EXIT_PREFIX:
+        return None
+    test = (exit_code >> 20) & 0xf
+    step = (exit_code >> 16) & 0xf
+    if test >= len(NETWORK_PROBES) or not 0 < step < len(NETWORK_PROBE_STEPS) or (test == 0) != (step == 1):
+        return None
+    return NETWORK_PROBES[test], NETWORK_PROBE_STEPS[step], (exit_code & 0xffff) or None
+
+
 class NativeStartupError(RuntimeError):
     def __init__(self, last_stage, exit_code):
+        self.network_probe_failure = network_probe_failure(exit_code)
         reported_stage = exit_code - FAILURE_EXIT_BASE if exit_code is not None else None
+        if self.network_probe_failure is not None:
+            reported_stage = 11
         stage = reported_stage if reported_stage in STAGES else last_stage
         self.native_start_stage = stage if stage in STAGES else None
         self.native_exit_code = exit_code
@@ -78,8 +102,12 @@ def bridge(remote, image, status, dll, imports, *, initializer='WePlayInitialize
     emit(0x61, 0x9d, 0xff, 0x25); word(status + 8)
     failure = len(code)
     emit(0xc7, 5); word(status); word(2)
-    emit(0xa1); word(status + 4)  # Preserve the failure stage in the exit code.
-    emit(0x05); word(FAILURE_EXIT_BASE); emit(0x50, 0x6a, 0xff)
+    emit(0xa1); word(status + 24)  # Optional native socket failure exit code.
+    emit(0x85, 0xc0, 0x0f, 0x85); detailed = len(code); word(0)
+    emit(0xa1); word(status + 4)  # Preserve the stage for older adapters and other failures.
+    emit(0x05); word(FAILURE_EXIT_BASE)
+    struct.pack_into('<i', code, detailed, len(code) - detailed - 4)
+    emit(0x50, 0x6a, 0xff)
     iat('TerminateProcess'); emit(0xcc)
     for position in failures:
         struct.pack_into('<i', code, position, failure - position - 4)

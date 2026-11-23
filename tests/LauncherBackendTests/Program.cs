@@ -41,6 +41,7 @@ internal static class Tests
             await Scenario(root,"mutating","save",null,null);
             await Scenario(root,"diagnostic-lan","lan-play","operation_failed",null);
             await Scenario(root,"diagnostic-native","internet-create","operation_failed",null);
+            await Scenario(root,"diagnostic-native","lan-play","operation_failed",null);
             await Scenario(root,"failed-cancel","directory-list","backend_timeout",null);
             await Scenario(root,"descendant","directory-list","backend_timeout",null);
             var missing=new ProcessStartInfo(Path.Combine(root,"missing-child")){RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
@@ -119,14 +120,18 @@ internal static class Tests
             Check(!report.RootElement.GetRawText().Contains("private-"),"drops input, raw logs, error text and recovery tokens");
         }
         if(mode=="diagnostic-native") {
-            string reopened=Path.Combine(root,"diagnostic-native-reopened");
+            string reopened=folder+"-reopened";
             Directory.CreateDirectory(Path.Combine(reopened,"State"));
             File.Copy(Path.Combine(folder,"State","launcher-history.json"),Path.Combine(reopened,"State","launcher-history.json"));
             using var report=JsonDocument.Parse(LauncherDiagnostics.Export(reopened,"fixture",default,null).ToJsonString());
             var entry=report.RootElement.GetProperty("launcher_history").EnumerateArray().Single();
             var fault=entry.GetProperty("fault");
+            Check(entry.GetProperty("action").GetString()==action,"socket probe failure is attached to the initiating action");
             Check(fault.GetProperty("native_start_stage").GetInt32()==11,"native startup stage survives persistence and export");
-            Check(fault.GetProperty("native_exit_code").GetUInt32()==0xe053708b,"preserves unsigned native process exit code");
+            Check(fault.GetProperty("native_exit_code").GetUInt32()==0xe143271d,"preserves unsigned native process exit code");
+            Check(fault.GetProperty("network_probe").GetString()=="ipv4_nonloopback_udp","failed socket test survives persistence and export");
+            Check(fault.GetProperty("network_probe_step").GetString()=="bind","failed socket operation survives persistence and export");
+            Check(fault.GetProperty("winsock_code").GetInt32()==10013,"native socket error survives persistence and export");
             Check(!entry.GetProperty("game_started").GetBoolean(),"native initialization failure is recorded before game start");
         }
     }
@@ -148,7 +153,7 @@ internal static class Tests
         }
         if(mode=="diagnostic-native") {
             Console.WriteLine("""{"kind":"progress","phase":"starting"}""");
-            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"","diagnostic":{"kind":"runtime_error","component":"isolated_process","line":395,"native_start_stage":11,"native_exit_code":3763564683}}""");
+            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"","diagnostic":{"kind":"runtime_error","component":"isolated_process","line":395,"native_start_stage":11,"native_exit_code":3779274525,"network_probe":"ipv4_nonloopback_udp","network_probe_step":"bind","winsock_code":10013}}""");
             return 2;
         }
         if(mode=="normal"){Result();return 0;}

@@ -372,10 +372,19 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def test_diagnostic_failure_keeps_native_start_and_socket_details(self):
         from lan_hub import LanHubError
-        from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
+        from standalone_entry import FAILURE_EXIT_BASE, NETWORK_PROBE_EXIT_PREFIX, NativeStartupError
 
         native = backend.diagnostic_failure(NativeStartupError(0, FAILURE_EXIT_BASE + 11))
         self.assertEqual((native['native_start_stage'], native['native_exit_code']), (11, FAILURE_EXIT_BASE + 11))
+        self.assertNotIn('network_probe', native)
+        exit_code = NETWORK_PROBE_EXIT_PREFIX | (4 << 20) | (3 << 16) | 10013
+        socket_failure = backend.diagnostic_failure(NativeStartupError(0, exit_code))
+        self.assertEqual((socket_failure['native_start_stage'], socket_failure['native_exit_code']), (11, exit_code))
+        self.assertEqual((socket_failure['network_probe'], socket_failure['network_probe_step'],
+                          socket_failure['winsock_code']), ('ipv4_nonloopback_udp', 'bind', 10013))
+        delivered = backend.diagnostic_failure(NativeStartupError(0, NETWORK_PROBE_EXIT_PREFIX | (5 << 20) | (9 << 16)))
+        self.assertEqual((delivered['network_probe'], delivered['network_probe_step'], delivered['winsock_code']),
+                         ('ipv6_nonloopback_tcp', 'unexpected_delivery', None))
         timeout = backend.diagnostic_failure(NativeStartupError(3, None))
         self.assertEqual((timeout['native_start_stage'], timeout['native_exit_code']), (3, None))
         lan = backend.diagnostic_failure(LanHubError('lan_discovery_port_busy', winsock_code=10013))

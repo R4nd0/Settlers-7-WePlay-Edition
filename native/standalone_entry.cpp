@@ -12,7 +12,7 @@ bool InstallOfflineNetworkGuard();
 #ifdef S7_GOLD_STARTUP
 bool ConfigureGoldLoopbackGuard(unsigned int slot);
 #endif
-DWORD ProbeStandaloneKernelIsolation();
+DWORD ProbeStandaloneKernelIsolation(DWORD& failure_exit);
 #ifdef S7_GOLD_STARTUP
 extern "C" DWORD WINAPI GoldInitialize(void*);
 #endif
@@ -93,8 +93,13 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
     } else return 0;
 #endif
     stage = 11;
-    const DWORD kernel_probe=ProbeStandaloneKernelIsolation();
-    if (!(kernel_probe&1)) return 0;
+    DWORD failure_exit = 0;
+    const DWORD kernel_probe=ProbeStandaloneKernelIsolation(failure_exit);
+    if (!(kernel_probe&1)) {
+        // Offset 24 in the entry bridge status page, initially zero.
+        *reinterpret_cast<DWORD*>(reinterpret_cast<uintptr_t>(context)-8)=failure_exit;
+        return 0;
+    }
     *reinterpret_cast<DWORD*>(reinterpret_cast<uintptr_t>(context)-12)=kernel_probe;
     stage = 12;
     if (!StandaloneProfile::Prepare(path,edition,module)) return 0;

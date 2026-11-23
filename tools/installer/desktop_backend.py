@@ -1657,6 +1657,9 @@ def diagnostic_failure(error):
         if type(number) is int and -(2**31)<=number<2**31:result['system_code']=number
         if isinstance(error,NativeStartupError):
             result.update(native_start_stage=error.native_start_stage,native_exit_code=error.native_exit_code)
+            if error.network_probe_failure is not None:
+                probe,step,number=error.network_probe_failure
+                result.update(network_probe=probe,network_probe_step=step,winsock_code=number)
         if isinstance(error,LanHubError) and error.winsock_code is not None:
             result['winsock_code']=error.winsock_code
         frame=error.__traceback__

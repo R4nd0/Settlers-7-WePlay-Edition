@@ -60,11 +60,21 @@ internal static class LauncherDiagnostics
             &&value.TryGetUInt32(out uint number)?number:null;
 
     internal sealed record Fault(string? Kind,string? Component,int? Line,int? SystemCode,
-        int? NativeStartStage=null,uint? NativeExitCode=null,int? WinsockCode=null)
+        int? NativeStartStage=null,uint? NativeExitCode=null,int? WinsockCode=null,
+        string? NetworkProbe=null,string? NetworkProbeStep=null)
     {
-        internal Fault Safe()=>new(LauncherDiagnostics.Kind(Kind),
-            Component is not null&&Components.Contains(Component)?Component:null,Line is >0 and <100000?Line:null,SystemCode,
-            NativeStartStage is >0 and <=255?NativeStartStage:null,NativeExitCode,WinsockCode is >0 and <=65535?WinsockCode:null);
+        internal Fault Safe()
+        {
+            bool knownProbe=NativeStartStage==11
+                && NetworkProbe is ("winsock" or "ipv4_loopback_tcp" or "ipv6_loopback_tcp"
+                    or "ipv4_nonloopback_tcp" or "ipv4_nonloopback_udp" or "ipv6_nonloopback_tcp" or "ipv6_nonloopback_udp")
+                && NetworkProbeStep is ("startup" or "listener_socket" or "bind" or "listen" or "getsockname"
+                    or "client_socket" or "connect" or "select" or "unexpected_delivery" or "missing_delivery");
+            return new(LauncherDiagnostics.Kind(Kind),
+                Component is not null&&Components.Contains(Component)?Component:null,Line is >0 and <100000?Line:null,SystemCode,
+                NativeStartStage is >0 and <=255?NativeStartStage:null,NativeExitCode,WinsockCode is >0 and <=65535?WinsockCode:null,
+                knownProbe?NetworkProbe:null,knownProbe?NetworkProbeStep:null);
+        }
     }
     internal sealed record Entry(
         DateTimeOffset StartedUtc,string Action,string Outcome,string? Stage,string? LastPhase,string[] Phases,string? LastActiveState,
@@ -114,7 +124,8 @@ internal static class LauncherDiagnostics
                 case "error":
                     if(item.TryGetProperty("diagnostic",out var data))
                         fault=new Fault(String(data,"kind"),String(data,"component"),Number(data,"line"),Number(data,"system_code"),
-                            Number(data,"native_start_stage"),UnsignedNumber(data,"native_exit_code"),Number(data,"winsock_code")).Safe();
+                            Number(data,"native_start_stage"),UnsignedNumber(data,"native_exit_code"),Number(data,"winsock_code"),
+                            String(data,"network_probe"),String(data,"network_probe_step")).Safe();
                     break;
             }
         }

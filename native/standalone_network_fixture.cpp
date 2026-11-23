@@ -6,19 +6,40 @@
 #include <iphlpapi.h>
 #include <cstdio>
 #include <vector>
+#include "standalone_probe_diagnostics.h"
 DWORD VerifyStandaloneNetworkPolicy(const wchar_t* executable);
 namespace {
 int failures = 0,checks = 0;
 #ifdef S7_KERNEL_PROBE_LIBRARY
 DWORD probe_families=0;
 #endif
+#ifndef S7_KERNEL_PROBE_LIBRARY
 void Check(bool value,const char* label) {
     ++checks;
     if (!value) { ++failures; std::printf("FAIL %s: %d\n",label,WSAGetLastError()); }
 }
-void Loopback(int family) {
+#endif
+struct SocketProbe {
+    KernelProbe::Test test;
+    DWORD* failure_exit;
+
+    bool Check(bool passed, KernelProbe::Step step, const char* label, int error = -1) const {
+        ++checks;
+        if (passed) return true;
+        if (error == -1) error = WSAGetLastError();
+        if (failure_exit && !*failure_exit) *failure_exit = KernelProbe::FailureExit(test,step,error);
+        ++failures;
+        std::printf("FAIL %s: %d\n",label,error);
+        return false;
+    }
+};
+using KernelProbe::Step;
+using KernelProbe::Test;
+
+void Loopback(int family,DWORD* failure_exit=nullptr) {
+    const SocketProbe probe{family == AF_INET ? Test::Ipv4LoopbackTcp : Test::Ipv6LoopbackTcp,failure_exit};
     SOCKET listener = socket(family,SOCK_STREAM,IPPROTO_TCP);
-    Check(listener != INVALID_SOCKET,"loopback listener");
+    probe.Check(listener != INVALID_SOCKET,Step::ListenerSocket,"loopback listener");
     if (listener == INVALID_SOCKET) return;
     sockaddr_storage address{}; int length = 0;
     if (family == AF_INET) {
@@ -28,11 +49,12 @@ void Loopback(int family) {
         auto* value = reinterpret_cast<sockaddr_in6*>(&address); value->sin6_family = AF_INET6;
         value->sin6_addr = in6addr_loopback; length = sizeof(*value);
     }
-    Check(bind(listener,reinterpret_cast<sockaddr*>(&address),length) == 0,"loopback bind");
-    Check(listen(listener,1) == 0,"loopback listen");
-    Check(getsockname(listener,reinterpret_cast<sockaddr*>(&address),&length) == 0,"loopback port");
+    probe.Check(bind(listener,reinterpret_cast<sockaddr*>(&address),length) == 0,Step::Bind,"loopback bind");
+    probe.Check(listen(listener,1) == 0,Step::Listen,"loopback listen");
+    probe.Check(getsockname(listener,reinterpret_cast<sockaddr*>(&address),&length) == 0,Step::LocalEndpoint,"loopback port");
     SOCKET client = socket(family,SOCK_STREAM,IPPROTO_TCP);
-    Check(client != INVALID_SOCKET && connect(client,reinterpret_cast<sockaddr*>(&address),length) == 0,"loopback connection");
+    if (client == INVALID_SOCKET) probe.Check(false,Step::ClientSocket,"loopback client socket");
+    else probe.Check(connect(client,reinterpret_cast<sockaddr*>(&address),length) == 0,Step::Connect,"loopback connection");
     if (client != INVALID_SOCKET) closesocket(client);
     closesocket(listener);
 }
@@ -65,7 +87,7 @@ bool OwnAddress(int family,sockaddr_storage& address,int& length) {
     }
     return false;
 }
-void Delivery(int family,bool datagram,bool baseline,bool game_port=false) {
+void Delivery(int family,bool datagram,bool baseline,bool game_port=false,DWORD* failure_exit=nullptr) {
     sockaddr_storage address{}; int length = 0;
     if (!OwnAddress(family,address,length)) {
 #ifndef S7_KERNEL_PROBE_LIBRARY
@@ -78,16 +100,23 @@ void Delivery(int family,bool datagram,bool baseline,bool game_port=false) {
 #endif
     if (game_port) reinterpret_cast<sockaddr_in*>(&address)->sin_port=htons(3074);
     const int type = datagram ? SOCK_DGRAM : SOCK_STREAM, protocol = datagram ? IPPROTO_UDP : IPPROTO_TCP;
-    SOCKET receiver = socket(family,type,protocol), sender = socket(family,type,protocol);
-    Check(receiver != INVALID_SOCKET && sender != INVALID_SOCKET,"own-address probe sockets");
+    const Test test = family == AF_INET
+        ? (datagram ? Test::Ipv4NonloopbackUdp : Test::Ipv4NonloopbackTcp)
+        : (datagram ? Test::Ipv6NonloopbackUdp : Test::Ipv6NonloopbackTcp);
+    const SocketProbe probe{test,failure_exit};
+    SOCKET receiver = socket(family,type,protocol);
+    probe.Check(receiver != INVALID_SOCKET,Step::ListenerSocket,"own-address receiver socket");
+    SOCKET sender = socket(family,type,protocol);
+    probe.Check(sender != INVALID_SOCKET,Step::ClientSocket,"own-address sender socket");
     if (receiver == INVALID_SOCKET || sender == INVALID_SOCKET) {
         if (receiver != INVALID_SOCKET) closesocket(receiver);
         if (sender != INVALID_SOCKET) closesocket(sender);
         return;
     }
-    if (bind(receiver,reinterpret_cast<sockaddr*>(&address),length)
-        || getsockname(receiver,reinterpret_cast<sockaddr*>(&address),&length) || (!datagram && listen(receiver,1))) {
-        Check(false,"own-address receiver bind/listen"); closesocket(receiver); closesocket(sender); return;
+    if (!probe.Check(bind(receiver,reinterpret_cast<sockaddr*>(&address),length) == 0,Step::Bind,"own-address receiver bind")
+        || !probe.Check(getsockname(receiver,reinterpret_cast<sockaddr*>(&address),&length) == 0,Step::LocalEndpoint,"own-address receiver port")
+        || (!datagram && !probe.Check(listen(receiver,1) == 0,Step::Listen,"own-address receiver listen"))) {
+        closesocket(receiver); closesocket(sender); return;
     }
     // Every destination was obtained from an assigned address on this host and
     // successfully bound by our receiver. There is no Internet or LAN peer probe.
@@ -106,21 +135,28 @@ void Delivery(int family,bool datagram,bool baseline,bool game_port=false) {
         if (datagram) { char value = 0; delivered = recv(receiver,&value,1,0) == 1 && value == 'x'; }
         else { SOCKET accepted = accept(receiver,nullptr,nullptr); delivered = accepted != INVALID_SOCKET; if (delivered) closesocket(accepted); }
     }
-    Check(selected >= 0 && delivered == baseline,datagram ? "actual non-loopback UDP delivery" : "actual non-loopback TCP delivery");
+    if (selected < 0) probe.Check(false,Step::WaitForDelivery,"own-address receiver select");
+    else probe.Check(delivered == baseline,baseline ? Step::MissingDelivery : Step::UnexpectedDelivery,
+                     datagram ? "actual non-loopback UDP delivery" : "actual non-loopback TCP delivery",0);
     closesocket(receiver); closesocket(sender);
 }
 }
 #ifdef S7_KERNEL_PROBE_LIBRARY
-DWORD ProbeStandaloneKernelIsolation() {
+DWORD ProbeStandaloneKernelIsolation(DWORD& failure_exit) {
     failures=checks=0;probe_families=0;
+    failure_exit=0;
     WSADATA data{};
-    if (WSAStartup(MAKEWORD(2,2),&data)) return 0;
-    Loopback(AF_INET);
+    const int startup_error=WSAStartup(MAKEWORD(2,2),&data);
+    if (startup_error) {
+        SocketProbe{Test::Winsock,&failure_exit}.Check(false,Step::Startup,"Winsock startup",startup_error);
+        return 0;
+    }
+    Loopback(AF_INET,&failure_exit);
     SOCKET ipv6=socket(AF_INET6,SOCK_STREAM,IPPROTO_TCP);
     const bool ipv6_available=ipv6!=INVALID_SOCKET;
-    if (ipv6_available) { closesocket(ipv6);Loopback(AF_INET6); }
-    Delivery(AF_INET,false,false);Delivery(AF_INET,true,false);
-    if (ipv6_available) { Delivery(AF_INET6,false,false);Delivery(AF_INET6,true,false); }
+    if (ipv6_available) { closesocket(ipv6);Loopback(AF_INET6,&failure_exit); }
+    Delivery(AF_INET,false,false,false,&failure_exit);Delivery(AF_INET,true,false,false,&failure_exit);
+    if (ipv6_available) { Delivery(AF_INET6,false,false,false,&failure_exit);Delivery(AF_INET6,true,false,false,&failure_exit); }
     WSACleanup();
     // With no assigned non-loopback address there is no own-host negative
     // target. Offline play remains possible; the parent still verifies all

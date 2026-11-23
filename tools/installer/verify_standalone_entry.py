@@ -5,7 +5,7 @@ import os
 import struct
 
 import isolated_process as owner
-from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
+from standalone_entry import FAILURE_EXIT_BASE, NETWORK_PROBE_EXIT_PREFIX, NativeStartupError
 
 
 def fixture_profile(path):
@@ -65,6 +65,18 @@ def main():
         unexpected.wait(timeout=15)
         raise RuntimeError('Native starter did not report the rejected initialization stage')
     print('PASS the bridge reports the rejected native initialization stage.')
+    rejected_network = dict(environment, WEPLAY_TEST_REJECT_NETWORK='1')
+    try:
+        unexpected = owner._launch(executable, dll, owner.digest(executable), profile, rejected_network, ())
+    except NativeStartupError as error:
+        expected_exit = NETWORK_PROBE_EXIT_PREFIX | (4 << 20) | (3 << 16) | 10013
+        if ((error.native_start_stage, error.native_exit_code) != (11, expected_exit)
+                or error.network_probe_failure != ('ipv4_nonloopback_udp', 'bind', 10013)):
+            raise
+    else:
+        unexpected.wait(timeout=15)
+        raise RuntimeError('Native starter did not retain the failed socket test after the process exited')
+    print('PASS the bridge reports the exact socket check and Winsock code from the exited child.')
     # A normal/direct load cannot pass the release DLL's startup gate.
     import subprocess
     subprocess.run([str(executable), '--direct'], cwd=root, check=True, timeout=15)

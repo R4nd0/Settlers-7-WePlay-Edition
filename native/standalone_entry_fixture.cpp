@@ -1,4 +1,5 @@
 #include "standalone_gate.h"
+#include "standalone_probe_diagnostics.h"
 #include <cstdio>
 #ifdef S7_ENTRY_FIXTURE_DLL
 namespace { bool ready = false; }
@@ -31,6 +32,12 @@ extern "C" __declspec(dllexport) DWORD WINAPI WePlayInitializeStandalone(void* o
         || context[5] != reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) || context[7] != 99) return 0;
     wchar_t reject[2]{};
     if (GetEnvironmentVariableW(L"WEPLAY_TEST_REJECT_ENTRY",reject,2)) return 0;
+    if (GetEnvironmentVariableW(L"WEPLAY_TEST_REJECT_NETWORK",reject,2)) {
+        auto* status = reinterpret_cast<DWORD*>(reinterpret_cast<uintptr_t>(opaque)-32);
+        status[1] = 11;
+        status[6] = KernelProbe::FailureExit(KernelProbe::Test::Ipv4NonloopbackUdp,KernelProbe::Step::Bind,10013);
+        return 0;
+    }
     if (!MilesForwarders()) return 0;
     ready = true;
     return context[5]+context[6];
