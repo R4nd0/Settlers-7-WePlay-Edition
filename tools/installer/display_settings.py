@@ -93,6 +93,10 @@ def enumerate_displays():
     return found
 
 
+class DisplayUnavailable(ValueError):
+    """The saved display or its requested mode is unavailable at launch."""
+
+
 def resolve(value, displays, *, renderer='native', gpu=None):
     value = validate(value)
     if value is None:
@@ -100,14 +104,14 @@ def resolve(value, displays, *, renderer='native', gpu=None):
     candidates = [(index, display) for index, display in enumerate(displays[:2])
                   if display['device'] == value['device']]
     if len(candidates) != 1:
-        raise ValueError('The selected display is unavailable. Reopen Graphics.')
+        raise DisplayUnavailable('The selected display is unavailable. Reopen Graphics.')
     index, display = candidates[0]
     if [value['width'], value['height']] not in display['resolutions']:
-        raise ValueError('The selected resolution is unavailable on this display.')
+        raise DisplayUnavailable('The selected resolution is unavailable on this display.')
     if value['mode'] == 'borderless' and (value['width'], value['height']) != (display['width'], display['height']):
-        raise ValueError('Borderless fullscreen requires the current desktop resolution. Reopen Graphics.')
+        raise DisplayUnavailable('Borderless fullscreen requires the current desktop resolution. Reopen Graphics.')
     if renderer == 'dxvk' and gpu is not None and gpu.casefold() != display['adapter'].casefold():
-        raise ValueError('Choose Automatic or the graphics card connected to the selected display.')
+        raise DisplayUnavailable('Choose Automatic or the graphics card connected to the selected display.')
     return index, display
 
 

@@ -15,7 +15,7 @@ internal static class LauncherDiagnostics
         PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower,MaxDepth=12
     };
     private static readonly HashSet<string> Actions= new(StringComparer.Ordinal) {
-        "snapshot","detect","install","repair","save","play","lan-list","lan-play","lan-port",
+        "snapshot","detect","install","repair","save","restore-graphics","play","lan-list","lan-play","lan-port",
         "firewall","probe","verify","diagnostics","update-check","update-install",
         "internet-create","internet-join","crossplay-create","crossplay-join",
         "directory-list","directory-connect","directory-join","discord-connect","discord-disconnect",

@@ -8,7 +8,8 @@ internal sealed partial class MainForm
     private string? savedGraphicsDraft;
     private bool closingDraft,closeDraftApproved,changingLanguage;
     private readonly Label graphicsDraftNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),Margin=new Padding(0,4,0,2)};
-    private Button graphicsDiscard=null!,graphicsSave=null!;
+    private Button graphicsDiscard=null!,graphicsSave=null!,graphicsRestore=null!;
+    private string? graphicsBackup;
     private bool GraphicsDirty=>savedGraphicsDraft!=null&&savedGraphicsDraft!=CaptureGraphicsDraft();
 
     private string CaptureGraphicsDraft()=>JsonSerializer.Serialize(new {
@@ -47,6 +48,16 @@ internal sealed partial class MainForm
         graphicsDraftNotice.Text=Lang.T(dirty?"graphicsUnsaved":"graphicsSavedDraft");
         graphicsDraftNotice.ForeColor=dirty?Color.FromArgb(137,87,15):SystemColors.GrayText;
         if(graphicsDiscard!=null)graphicsDiscard.Enabled=dirty&&!busy;
+        if(graphicsRestore!=null)
+        {
+            graphicsRestore.Text=Lang.T(graphicsBackup switch
+            {
+                "confirmed"=>"graphicsRestoreConfirmed",
+                "previous"=>"graphicsRestorePrevious",
+                _=>"graphicsUseSafe"
+            });
+            graphicsRestore.Enabled=!busy;
+        }
     }
     private void TrackGraphicsDraft()
     {

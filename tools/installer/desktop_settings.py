@@ -19,8 +19,54 @@ import player_settings
 NAME='settings-transaction.json'
 DETACH='settings-detach.json'
 FORMAT='weplay-desktop-settings-v1'
+GRAPHICS_BACKUP='LocalData/desktop-graphics-backup.json'
+GRAPHICS_FORMAT='weplay-desktop-graphics-backup-v1'
 LIMIT=32*1024*1024
 GAME_FILES={'choice':choice.CHOICE_FILE,'quality':quality.FILE,'player':player_settings.FILE,'ownership':'desktop-files.json'}
+
+def current_graphics(desktop,root):
+    policy=desktop.installed()['renderer_policy']
+    return dict(renderer_policy='dxvk' if policy=='auto' else policy,
+                choice=choice._load_choice(root),quality=quality.load(root))
+
+def graphics_backup(desktop,root):
+    try:
+        value=desktop.read(root/GRAPHICS_BACKUP,limit=16384)
+        if (not isinstance(value,dict) or set(value)!={'format','confirmed','settings'}
+                or value['format']!=GRAPHICS_FORMAT or type(value['confirmed']) is not bool):
+            return None
+        settings=value['settings']
+        if (not isinstance(settings,dict) or set(settings)!={'renderer_policy','choice','quality'}
+                or settings['renderer_policy'] not in graphics.RENDERERS):
+            return None
+        return value['confirmed'],dict(renderer_policy=settings['renderer_policy'],
+            choice=choice.validate_choice(settings['choice']),quality=quality.validate(settings['quality']))
+    except (OSError,ValueError):
+        return None
+
+def remember_graphics(desktop,root,settings,*,confirmed):
+    desktop.write(root/GRAPHICS_BACKUP,dict(format=GRAPHICS_FORMAT,confirmed=confirmed,settings=settings))
+
+class GraphicsStartup:
+    def __init__(self,desktop,root):
+        self.desktop,self.root=desktop,root
+        self.observed=False
+        self.ready=False
+
+    def observe(self,game):
+        import window_mode
+        self.observed=True
+        try:
+            active=current_graphics(self.desktop,self.root)
+            if graphics_backup(self.desktop,self.root)==(True,active):
+                self.ready=True
+                return
+            self.ready=window_mode.wait_until_ready(self.root,game)
+            if self.ready:
+                remember_graphics(self.desktop,self.root,active,confirmed=True)
+        except (OSError,RuntimeError,ValueError):
+            # An unavailable window probe must not disturb an already running game.
+            pass
 
 def read(path):
     path=graphics._plain(path)

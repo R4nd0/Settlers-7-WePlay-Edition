@@ -35,6 +35,38 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def before(self):return {key:settings.read(path) for key,path in settings.paths(self.desktop,self.root).items()}
 
+    def test_graphics_startup_restores_confirmed_settings_after_an_early_exit(self):
+        import window_mode
+        good=self.request();good['quality']['WaterQuality']=1
+        good['choice']['display']=dict(choice._load_choice(self.root)['display'],width=1280,height=720,mode='windowed')
+        self.desktop.save_settings(good)
+        with patch.object(window_mode,'wait_until_ready',return_value=True):
+            with self.desktop.graphics_startup(self.root) as startup:
+                startup.observe(SimpleNamespace(poll=lambda:None))
+        confirmed=settings.graphics_backup(self.desktop,self.root)
+        self.assertTrue(confirmed[0])
+        self.assertEqual(confirmed[1]['quality']['WaterQuality'],1)
+        self.desktop.save_settings(dict(self.request(),player_name='Keep this name'))
+        self.assertEqual(settings.graphics_backup(self.desktop,self.root),confirmed)
+        with patch.object(window_mode,'wait_until_ready',return_value=False):
+            with self.assertRaisesRegex(ValueError,'graphics_start_reverted'):
+                with self.desktop.graphics_startup(self.root) as startup:
+                    startup.observe(SimpleNamespace(poll=lambda:1))
+                    raise RuntimeError('game_failed')
+        self.assertEqual(settings.current_graphics(self.desktop,self.root),confirmed[1])
+        self.assertEqual(backend.player_settings.load(self.root),'Keep this name')
+
+    def test_graphics_startup_keeps_pending_settings_on_network_isolation_failure(self):
+        from standalone_entry import FAILURE_EXIT_BASE,NativeStartupError
+        initial=settings.current_graphics(self.desktop,self.root)
+        self.desktop.save_settings(self.request())
+        pending=settings.current_graphics(self.desktop,self.root)
+        with self.assertRaises(NativeStartupError):
+            with self.desktop.graphics_startup(self.root):
+                raise NativeStartupError(11,FAILURE_EXIT_BASE+11)
+        self.assertEqual(settings.current_graphics(self.desktop,self.root),pending)
+        self.assertEqual(settings.graphics_backup(self.desktop,self.root),(False,initial))
+
     def test_gold_settings_rollback_uses_no_history_compatibility_or_renderer_files(self):
         import gold_graphics
         (self.root/graphics.COMPAT).unlink()

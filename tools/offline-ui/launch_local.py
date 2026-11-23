@@ -90,7 +90,15 @@ def saved_graphics_environment(root, renderer=None):
     return _graphics_module().saved_launch_environment(root, renderer=renderer[0],renderer_package=renderer[1])
 
 
-def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
+def try_window_mode(root,game):
+    try:
+        return _graphics_module().start_window_mode(root,game)
+    except (OSError, ValueError, RuntimeError):
+        print('Borderless fullscreen unavailable. The game remains windowed.', flush=True)
+        return None
+
+
+def wait_for_graphics_game(root, game, *, enabled=True, monitor=None, startup=None):
     """Keep the owned window controller alive until this game's exit."""
     controller = None
     observer = None
@@ -99,10 +107,9 @@ def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):
         if monitor is not None:
             observer = monitor(game)
         if enabled:
-            try:
-                controller = _graphics_module().start_window_mode(root, game)
-            except (OSError, ValueError, RuntimeError):
-                print('Borderless fullscreen unavailable. The game remains windowed.', flush=True)
+            controller = try_window_mode(root,game)
+        if startup is not None:
+            startup(game)
         return game.wait(close=False) if managed else game.wait()
     finally:
         try:
@@ -358,7 +365,8 @@ def run(args):
                     args.before_game()
                 game = spawn_game(root, game_arguments, game_environment, **renderer_option)
                 code = wait_for_graphics_game(root, game, enabled=getattr(args, 'choose_graphics', True),
-                                             monitor=getattr(args, 'game_monitor', None))
+                                             monitor=getattr(args, 'game_monitor', None),
+                                             startup=getattr(args, 'game_startup', None))
                 with (data / (run_id + "-game-exit.txt")).open("x", encoding="ascii") as stream:
                     stream.write(str(code) + "\n")
                 if code:

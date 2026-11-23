@@ -111,11 +111,12 @@ internal sealed partial class MainForm
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         graphicsDiscard=Button("graphicsDiscard",()=>{DiscardGraphicsDraft();return Task.CompletedTask;});
         graphicsSave=Button("save",SaveGraphics,true);
-        Add(footer,graphicsDraftNotice);Add(footer,Buttons(graphicsSave,graphicsDiscard));
+        graphicsRestore=Button("graphicsUseSafe",RestoreGraphics);
+        Add(footer,graphicsDraftNotice);Add(footer,Buttons(graphicsSave,graphicsDiscard,graphicsRestore));
         graphicsPage.Controls.Add(footer);
         monitor.SelectedIndexChanged+=(_,_)=>{if(!loading)UpdateResolutions();};
         window.SelectedIndexChanged+=(_,_)=>{if(!loading)UpdateResolutions();};
         keepDisplay.CheckedChanged+=(_,_)=>DisplayEnabled();
-        resolution.SelectedIndexChanged+=(_,_)=>DisplayEnabled();
+        resolution.SelectedIndexChanged+=(_,_)=>ResolutionSelected();
     }
 }

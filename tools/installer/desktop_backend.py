@@ -385,7 +385,7 @@ class Desktop:
                 'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':value['renderer_policy'] if value else 'dxvk',
-                'current':None,'update_available':False,'needs_repair':False,
+                'current':None,'update_available':False,'needs_repair':False,'graphics_backup':'none',
                 'maintenance_pending':len(value['previous']) if value else 0,
                 'internet_available':metadata.get('internet_easytier',False) is True,
                 'crossplay_available':metadata.get('crossplay_mixed',False) is True}
@@ -413,6 +413,8 @@ class Desktop:
         if value:
             root=self.game()
             result.update(current=str(root),update_available=value['package_id']!=self.package_id())
+            backup=desktop_settings.graphics_backup(self,root)
+            if backup is not None:result['graphics_backup']='confirmed' if backup[0] else 'previous'
             if self.is_gold(root):
                 result.update(edition='gold',single_player_only=True,
                     internet_available=False,discord_available=False,directory_available=False,public_directory_available=False,
@@ -468,6 +470,14 @@ class Desktop:
             raise ValueError('preferences_invalid')
         if desktop_settings.read(root/graphics.COMPAT)!=expected:raise ValueError('preferences_invalid')
 
+    def recovery_display(self,screens):
+        if not screens:return None
+        target=next((screen for screen in screens if screen.get('primary')),screens[0])
+        sizes=[(w,h) for w,h in target['resolutions'] if w<=1920 and h<=1080]
+        if not sizes:return None
+        width,height=max(sizes,key=lambda size:size[0]*size[1])
+        return dict(device=target['device'],width=width,height=height,mode='windowed')
+
     def default_choice(self,root,renderer,probe,preferred=None):
         screens=self.displays()
         selected={'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None}
@@ -480,14 +490,13 @@ class Desktop:
             if selected.get('display'):
                 try:display.resolve(selected['display'],screens)
                 except ValueError:selected['display']=None
-            if selected.get('display') is None:
-                size=[target['width'],target['height']]
-                mode='borderless'
-                if size not in target['resolutions'] or not display._resolution(*size):
-                    sizes=[s for s in target['resolutions'] if s[0]<=1920 and s[1]<=1080]
-                    if sizes:size=sizes[-1];mode='windowed'
-                    else:size=None
-                if size:selected['display']=dict(device=target['device'],width=size[0],height=size[1],mode=mode)
+            if selected.get('display') is None and (preferred is None or preferred.get('display') is not None):
+                selected['display']=self.recovery_display(screens)
+                if selected['display'] is not None:
+                    target=next(screen for screen in screens if screen['device']==selected['display']['device'])
+                    if (preferred is None and (selected['display']['width'],selected['display']['height'])
+                            ==(target['width'],target['height'])):
+                        selected['display']['mode']='borderless'
         if renderer=='native':
             selected['choice']=None
             for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
@@ -718,7 +727,12 @@ class Desktop:
             try:self.cleanup_preparations()
             except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
             raise
-        if old:self.transfer_preferences(old,root)
+        if old:
+            self.transfer_preferences(old,root)
+            if self.is_gold(old)==gold:
+                backup=desktop_settings.graphics_backup(self,old)
+                if backup is not None:
+                    desktop_settings.remember_graphics(self,root,backup[1],confirmed=backup[0])
         policy=previous['renderer_policy'] if previous else 'dxvk'
         if policy not in self.supported_renderers():policy='dxvk'
         probe=self.cached_graphics_probe()
@@ -772,7 +786,7 @@ class Desktop:
         return {'format':FORMAT,'owner':self.owner,'files':files}
 
     @verified_operation
-    def save_settings(self,request):
+    def save_settings(self,request,*,remember_previous=True):
         gold=self.is_gold()
         if set(request)!={'renderer_policy','choice','quality','player_name'}:raise ValueError('request_invalid')
         policy=request['renderer_policy']
@@ -800,7 +814,10 @@ class Desktop:
             display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
         with graphics.session_lock(root):
             # Validate all old user records before staging their before-images.
-            choice._load_choice(root);quality.load(root);player_settings.load(root)
+            before=desktop_settings.current_graphics(self,root);player_settings.load(root)
+            after=dict(renderer_policy=policy,choice=selected,quality=quality_value)
+            if remember_previous and after!=before and desktop_settings.graphics_backup(self,root) is None:
+                desktop_settings.remember_graphics(self,root,before,confirmed=False)
             if policy=='dxvk' and any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
                 if gold:gold_graphics.prepare_effects(root,selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
                 else:
@@ -840,6 +857,48 @@ class Desktop:
         try:result=self.snapshot(displays=screens);refresh_failed=False
         except (OSError,ValueError,RuntimeError):result={};refresh_failed=True
         return {**result,'settings_committed':True,'committed_settings':committed,'refresh_failed':refresh_failed}
+
+    def restore_graphics(self,root):
+        screens=self.displays()
+        backup=desktop_settings.graphics_backup(self,root)
+        renderers=self.supported_renderers()
+        settings=backup[1] if backup else dict(
+            renderer_policy='native' if 'native' in renderers else 'dxvk',
+            choice=dict(format=choice.FORMAT,choice=None,simple_menu=True,display=self.recovery_display(screens)),
+            quality=dict(quality.DEFAULTS))
+        selected=dict(settings['choice'])
+        if selected.get('display') is None:
+            selected['display']=self.recovery_display(screens)
+        policy=settings['renderer_policy']
+        if policy not in renderers:policy='dxvk'
+        if policy=='dxvk' and selected['choice'] not in self.cached_graphics_probe()['devices']:
+            selected['choice']=None
+        try:
+            display.resolve(selected.get('display'),screens,renderer=policy,gpu=selected['choice'])
+        except display.DisplayUnavailable:
+            selected.update(choice=None,display=self.recovery_display(screens))
+        return self.save_settings(dict(renderer_policy=policy,choice=selected,quality=settings['quality'],
+                                       player_name=player_settings.load(root)),remember_previous=False)
+
+    @contextmanager
+    def graphics_startup(self,root):
+        startup=desktop_settings.GraphicsStartup(self,root)
+        try:
+            yield startup
+        except (ValueError,RuntimeError) as error:
+            if ((startup.observed and not startup.ready and str(error)=='game_failed')
+                    or isinstance(error,display.DisplayUnavailable)
+                    or str(error)=='renderer_unsupported'):
+                backup=desktop_settings.graphics_backup(self,root)
+                restored=False
+                try:
+                    if backup is not None and backup[1]!=desktop_settings.current_graphics(self,root):
+                        self.restore_graphics(root)
+                        restored=True
+                except (OSError,ValueError,RuntimeError):
+                    self.emit('warning',code='graphics_restore_failed')
+                if restored:raise ValueError('graphics_start_reverted') from error
+            raise
 
     @verified_operation
     def recover_settings(self):
@@ -1099,13 +1158,14 @@ class Desktop:
                 if invite.edition!=edition:raise ValueError('crossplay_edition_mismatch')
                 check_overlap(invite.room,enumerate_interfaces())
             options=dict(name=name,consent=1,cancel_check=lambda:self.progress('internet_connect'),progress=self.progress)
-            with graphics.session_lock(root):
+            with self.graphics_startup(root) as startup,graphics.session_lock(root):
                 owner=(NetworkSession.host(root,catalog,room=room,history=request['history_edition'],**options)
                        if host else NetworkSession.guest(root,catalog,invitation=invitation,**options))
                 with owner:
-                    return self.crossplay_game(root,catalog,owner,invitation_ready=channel.invitation_ready if host else None)
+                    return self.crossplay_game(root,catalog,owner,startup=startup,
+                                               invitation_ready=channel.invitation_ready if host else None)
 
-    def crossplay_game(self,root,catalog,owner,*,invitation_ready=None):
+    def crossplay_game(self,root,catalog,owner,*,invitation_ready=None,startup=None):
         import platform_standalone,memory_guard
         environment={k:v for k,v in os.environ.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
         environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
@@ -1124,13 +1184,14 @@ class Desktop:
                 graphics_options=graphics_options,crossplay=owner.binding,crossplay_catalog=catalog,
                 on_initialized=owner.attach,renderer=renderer)
             self.emit('game_started',pid=game.pid,invitation_run=None);reported=True;self.operation_state('live_game')
-            window=choice.start_window_mode(root,game)
+            window=launch_local.try_window_mode(root,game)
             _,executable,_=platform_standalone.load(root)
             observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
                 memory_guard.Probe(game,executable),
                 warn=lambda level:self.emit('warning',code='memory_warning',level=level))
             observer.start()
             if invitation_ready:invitation_ready(owner.invitation())
+            if startup is not None:startup.observe(game)
             code=game.wait(close=False);owner.runtime.check()
         except BaseException:
             # If a post-start UI/pipe observer fails, close only the room. Keep
@@ -1153,7 +1214,7 @@ class Desktop:
         if code:raise RuntimeError('game_failed')
         return {'exit_code':code}
 
-    def play_gold(self,request=None,*,internet=None):
+    def play_gold(self,request=None,*,internet=None,startup=None):
         if request is not None or internet is not None:raise ValueError('gold_single_player_only')
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
@@ -1173,11 +1234,12 @@ class Desktop:
                 arguments=choice.game_arguments(root,renderer=policy)
                 game=platform_standalone.launch(root,environment=environment,arguments=arguments,
                     graphics_options=gold_graphics.launch_options(root) if renderer is None else None,renderer=renderer)
-                window=choice.start_window_mode(root,game)
+                window=launch_local.try_window_mode(root,game)
                 observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
                     memory_guard.Probe(game,root/gold_support.EXE),
                     warn=lambda level:self.emit('warning',code='memory_warning',level=level))
                 observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
+                if startup is not None:startup.observe(game)
                 code=game.wait(close=False)
         finally:
             if window:window.close()
@@ -1191,10 +1253,15 @@ class Desktop:
     @verified_operation
     def play(self,request=None,*,internet=None,invitation_ready=None):
         if request is not None:self.validate_lan(request)
-        if self.is_gold():return self.play_gold(request,internet=internet)
+        root=self.game()
+        with self.graphics_startup(root) as startup:
+            if self.is_gold():return self.play_gold(request,internet=internet,startup=startup)
+            return self.play_history(root,request,internet=internet,invitation_ready=invitation_ready,startup=startup)
+
+    def play_history(self,root,request,*,internet,invitation_ready,startup):
         directory_bridge=[None]
         invitation_bridge=[None]
-        root=self.game();self.progress('verify')
+        self.progress('verify')
         self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         # The binary/ABI checks and full game manifest checks remain in place.
@@ -1259,7 +1326,8 @@ class Desktop:
         if request is None:
             args=SimpleNamespace(bundle=str(root),dotnet=str(root/'Runtime/dotnet/dotnet.exe'),
                 server=str(root/'Server/S7Patcher.dll'),local_connect_probe=True,local_session_display_probe=False,
-                launch_game=True,saved_graphics=True,before_game=before,game_monitor=monitor,renderer=renderer)
+                launch_game=True,saved_graphics=True,before_game=before,game_monitor=monitor,
+                game_startup=startup.observe,renderer=renderer)
             code=launch_local.run(args)
         elif internet is not None:
             import launch_internet
@@ -1288,6 +1356,7 @@ class Desktop:
             code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],progress=self.progress,
                 cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,
+                game_startup=startup.observe,
                 switch_requested=lambda:directory_bridge[0] is not None and directory_bridge[0].pending is not None,
                 public_observer=observe,**internet),
                 invitation_ready=room_ready,
@@ -1296,7 +1365,8 @@ class Desktop:
         else:
             code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],discovery_port=discovery_port,progress=self.progress,
-                cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor))
+                cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor,
+                game_startup=startup.observe))
         self.emit('game_finished',exit_code=code)
         self.operation_state('cancellable')
         if code:raise RuntimeError('game_failed')
@@ -1579,6 +1649,7 @@ def _dispatch(desktop,request):
                 return desktop.install_game(source,container,prepare_network=data['prepare_network'])
             return desktop.install_game(source,container)
         if action=='save':return desktop.save_settings(data)
+        if action=='restore-graphics' and not data:return desktop.restore_graphics(desktop.game())
         if action=='play' and not data:return desktop.play()
         if action=='lan-list' and not data:return desktop.lan_list()
         if action=='lan-port':return desktop.save_lan_discovery_port(data)
@@ -1621,7 +1692,7 @@ def error_code(error):
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
                 'lan_discovery_port_busy','lan_discovery_port_invalid','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',
-                'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings',
+                'settings_saved_refresh_failed','graphics_start_reverted','platform_isolation_required','gold_single_player_only','gold_game_settings',
                 'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required',
                 'crossplay_unavailable','crossplay_configuration_invalid','crossplay_edition_mismatch',
                 'crossplay_invitation_invalid','crossplay_content_changed','crossplay_service_failed'}

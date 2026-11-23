@@ -14,6 +14,19 @@ internal sealed partial class MainForm
     private void TestLauncherResilience(JsonElement original)
     {
         LoadSnapshot(original,acceptGraphics:true);
+        var fourK=System.Text.Json.Nodes.JsonNode.Parse(original.GetRawText())!.AsObject();
+        var screen=fourK["displays"]![0]!;
+        screen["width"]=3840;screen["height"]=2160;
+        screen["resolutions"]=System.Text.Json.Nodes.JsonNode.Parse("[[1280,720],[1920,1080],[3840,2160]]");
+        var selected=fourK["choice"]!["display"]!;
+        selected["mode"]="windowed";selected["width"]=1280;selected["height"]=720;
+        LoadSnapshot(JsonSerializer.SerializeToElement(fourK),acceptGraphics:true);
+        if((resolution.SelectedItem as Item)?.Key!="1280x720")throw new Exception("Saved window size was lost");
+        window.SelectedIndex=1;
+        if((resolution.SelectedItem as Item)?.Key!="3840x2160")throw new Exception("Borderless did not take the desktop size");
+        window.SelectedIndex=0;
+        if((resolution.SelectedItem as Item)?.Key!="1280x720")throw new Exception("Windowed inherited the borderless size");
+        LoadSnapshot(original,acceptGraphics:true);
         string saved=CaptureGraphicsDraft();qualities["TextureQuality"].SelectedIndex=2;
         if(!GraphicsDirty||!graphicsDiscard.Enabled)throw new Exception("Graphics draft is not marked unsaved");
         string draft=CaptureGraphicsDraft();LoadSnapshot(original);

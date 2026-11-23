@@ -238,6 +238,8 @@ internal sealed partial class MainForm : Form
     private bool internetOperation, internetAvailable;
     private readonly Label lanNotice = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
+    private readonly Dictionary<string,string> windowedResolutions=new(StringComparer.Ordinal);
+    private bool rebuildingResolutions;
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
     private readonly TrackBar detailLevel = new() { Minimum=0,Maximum=1,TickFrequency=1,LargeChange=1,SmallChange=1 };
@@ -626,6 +628,7 @@ internal sealed partial class MainForm : Form
     {
         if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
+        graphicsBackup=value.TryGetProperty("graphics_backup",out var backup)?backup.GetString():null;
         singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
@@ -696,13 +699,15 @@ internal sealed partial class MainForm : Form
             monitor.Items.Add(new Item(key,key.Split("DISPLAY").Last()+ (item.GetProperty("primary").GetBoolean()?" ("+Lang.T("primary")+")":"")+" · "+item.GetProperty("width")+" × "+item.GetProperty("height")));
         }
         if(monitor.Items.Count>0){monitor.SelectedIndex=0;for(int i=0;i<monitor.Items.Count;i++)if(monitor.Items[i] is Item option&&option.Key==oldDisplay)monitor.SelectedIndex=i;}
-        if(replaceFields){keepDisplay.Checked=selected.ValueKind!=JsonValueKind.Object;window.SelectedIndex=selected.ValueKind==JsonValueKind.Object&&selected.GetProperty("mode").GetString()=="borderless"?1:0;}
-        UpdateResolutions(allowWhileLoading:true);
-        if(replaceFields&&selected.ValueKind==JsonValueKind.Object&&window.SelectedIndex==0)
+        if(replaceFields)
         {
-            string key=selected.GetProperty("width")+"x"+selected.GetProperty("height");
-            for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==key)resolution.SelectedIndex=i;
+            bool hasDisplay=selected.ValueKind==JsonValueKind.Object;
+            keepDisplay.Checked=!hasDisplay;
+            window.SelectedIndex=hasDisplay&&selected.GetProperty("mode").GetString()=="borderless"?1:0;
+            if(hasDisplay&&window.SelectedIndex==0&&selected.GetProperty("device").GetString() is string device)
+                windowedResolutions[device]=selected.GetProperty("width")+"x"+selected.GetProperty("height");
         }
+        UpdateResolutions(allowWhileLoading:true);
         loading=false;
         UpdateGraphicsPresets();
         if(replaceFields||acceptGraphics)AcceptGraphicsDraft();else UpdateGraphicsDraft();
@@ -853,19 +858,45 @@ internal sealed partial class MainForm : Form
     private void UpdateResolutions(bool allowWhileLoading=false)
     {
         if(loading&&!allowWhileLoading)return;
-        string? old=(resolution.SelectedItem as Item)?.Key;resolution.Items.Clear();
-        if(monitor.SelectedIndex>=0&&monitor.SelectedIndex<screens.Count)
+        rebuildingResolutions=true;
+        bool unsupported=false;
+        try
         {
-            var screen=screens[monitor.SelectedIndex];int width=screen.GetProperty("width").GetInt32(),height=screen.GetProperty("height").GetInt32();
-            foreach(var size in screen.GetProperty("resolutions").EnumerateArray())
+            resolution.Items.Clear();
+            if(monitor.SelectedIndex>=0&&monitor.SelectedIndex<screens.Count&&monitor.SelectedItem is Item display)
             {
-                int w=size[0].GetInt32(),h=size[1].GetInt32();
-                if(window.SelectedIndex!=1||(w==width&&h==height))resolution.Items.Add(new Item(w+"x"+h,w+" × "+h));
+                var screen=screens[monitor.SelectedIndex];
+                int width=screen.GetProperty("width").GetInt32(),height=screen.GetProperty("height").GetInt32();
+                bool borderless=window.SelectedIndex==1;
+                string? previous=borderless?null:windowedResolutions.GetValueOrDefault(display.Key);
+                int preferred=-1,fallback=0,largestSafe=0;
+                foreach(var size in screen.GetProperty("resolutions").EnumerateArray())
+                {
+                    int w=size[0].GetInt32(),h=size[1].GetInt32();
+                    if(borderless&&(w!=width||h!=height))continue;
+                    string key=w+"x"+h;
+                    int index=resolution.Items.Add(new Item(key,w+" × "+h));
+                    if(key==previous)preferred=index;
+                    if(w<=1920&&h<=1080&&w*h>largestSafe){fallback=index;largestSafe=w*h;}
+                }
+                if(resolution.Items.Count>0)resolution.SelectedIndex=preferred>=0?preferred:fallback;
+                unsupported=borderless&&(width>3840||height>3840||(long)width*height>3840L*2160||resolution.Items.Count==0);
             }
-            if(resolution.Items.Count>0){resolution.SelectedIndex=resolution.Items.Count-1;for(int i=0;i<resolution.Items.Count;i++)if(resolution.Items[i] is Item option&&option.Key==old)resolution.SelectedIndex=i;}
-            if(window.SelectedIndex==1&&(width>3840||height>3840||(long)width*height>3840L*2160||resolution.Items.Count==0))
-            {status.Text=Lang.T("unsupportedSize");window.SelectedIndex=0;return;}
         }
+        finally{rebuildingResolutions=false;}
+        if(unsupported)
+        {
+            status.Text=Lang.T("unsupportedSize");window.SelectedIndex=0;
+            if(loading)UpdateResolutions(allowWhileLoading:true);
+            return;
+        }
+        DisplayEnabled();
+    }
+    private void ResolutionSelected()
+    {
+        if(loading||rebuildingResolutions)return;
+        if(window.SelectedIndex==0&&monitor.SelectedItem is Item display&&resolution.SelectedItem is Item size)
+            windowedResolutions[display.Key]=size.Key;
         DisplayEnabled();
     }
     private void DisplayEnabled()
@@ -944,6 +975,11 @@ internal sealed partial class MainForm : Form
     private async Task SaveGraphics()
     {
         ApplySettingsResult(await RunUiBackend("save",GraphicsRequest()));
+    }
+    private async Task RestoreGraphics()
+    {
+        ApplySettingsResult(await RunUiBackend("restore-graphics",new {}));
+        if(status.Text!=Lang.T("settings_saved_refresh_failed"))status.Text=Lang.T("graphics_restored");
     }
     private async Task Probe(){await Backend.Run("probe",new {},Receive);LoadSnapshot(await Backend.Run("snapshot",new {},Receive));}
     private async Task Verify(){await Backend.Run("verify",new {},Receive);status.Text=Lang.T("verified");}
@@ -1203,7 +1239,16 @@ internal sealed partial class MainForm : Form
         try{await action();}
         catch(Exception error)
         {
-            if(showErrors){gameRunning=false;RestoreWindow();if(!await TryShowSettingsRecovery(error))ShowError(error);}
+            if(showErrors)
+            {
+                gameRunning=false;RestoreWindow();
+                if(error is BackendError {Code:"graphics_start_reverted"})
+                {
+                    try{LoadSnapshot(await RunUiBackend("snapshot",new {}),acceptGraphics:true);}
+                    catch(BackendError){} // Keep the error that explains the completed rollback.
+                }
+                if(!await TryShowSettingsRecovery(error))ShowError(error);
+            }
             else status.Text=Lang.T(error is BackendError backend?backend.Code:"operation_failed");
         }
         finally

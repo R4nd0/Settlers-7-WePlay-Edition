@@ -9,6 +9,7 @@ from ctypes import wintypes as W
 import os
 from pathlib import Path
 import threading
+import time
 
 import display_settings as display
 import graphics_profile as graphics
@@ -53,6 +54,8 @@ class Windows:
             'GetWindowRect': ([W.HWND, C.POINTER(W.RECT)], W.BOOL),
             'SetWindowPos': ([W.HWND, W.HWND, C.c_int, C.c_int, C.c_int, C.c_int, W.UINT], W.BOOL),
             'SetThreadDpiAwarenessContext': ([W.HANDLE], W.HANDLE),
+            'SendMessageTimeoutW': ([W.HWND, W.UINT, W.WPARAM, W.LPARAM, W.UINT, W.UINT,
+                                     C.POINTER(C.c_size_t)], C.c_ssize_t),
         }
         for key, (arguments, result) in signatures.items():
             function = getattr(self.api, key); function.argtypes = arguments; function.restype = result
@@ -85,6 +88,11 @@ class Windows:
         if not self.api.EnumWindows(collect, 0):
             raise C.WinError(C.get_last_error())
         return found
+
+    def responsive(self,window):
+        result=C.c_size_t()
+        # WM_NULL only verifies that the owned window still processes messages.
+        return self.owned(window) and bool(self.api.SendMessageTimeoutW(window,0,0,0,0x23,100,C.byref(result)))
 
     def place(self, window, rectangle):
         if not self.owned(window):
@@ -149,7 +157,7 @@ class Controller:
         self.thread.join(timeout=2)
 
 
-def start(root, game, screen):
+def owned_windows(root,game):
     import platform_standalone
     if display.uses_portable_profile(root):
         _,executable,_=platform_standalone.load(root)
@@ -157,7 +165,30 @@ def start(root, game, screen):
         executable = graphics._plain(Path(root) / 'Base/Bin/Settlers7R.exe').resolve(strict=True)
         if graphics.content.digest(executable) not in (graphics.EXE_SHA256,graphics.STEAM_EXE_SHA256):
             raise ValueError('Unsupported game executable for borderless placement.')
+    return Windows(game,executable)
+
+def wait_until_ready(root,game):
+    if os.name!='nt' or game.poll() is not None:
+        return False
+    api=owned_windows(root,game)
+    deadline=time.monotonic()+30
+    previous=None
+    visible_since=0
+    while api.alive():
+        now=time.monotonic()
+        if now>=deadline:
+            break
+        windows=api.candidates()
+        window=windows[0] if len(windows)==1 and api.responsive(windows[0]) else None
+        if window!=previous:
+            previous,visible_since=window,now
+        if window is not None and now-visible_since>=3:
+            return api.alive()
+        time.sleep(.2)
+    return False
+
+def start(root, game, screen):
     bounds(screen)
-    controller = Controller(Windows(game, executable), screen)
+    controller = Controller(owned_windows(root,game), screen)
     controller.thread.start()
     return controller
