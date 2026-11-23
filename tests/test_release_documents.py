@@ -21,8 +21,8 @@ class ReleaseDocumentTests(unittest.TestCase):
                 text=build_rc2.public_document(source)
                 self.assertNotRegex(text,r'\]\((?!https?://|#)')
         text=build_rc2.public_document(build_rc2.RELEASE_GUIDE)
-        self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/VISUAL-QUALITY.md)',text)
-        self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/WINDOWS-NETWORK-PERMISSIONS.md)',text)
+        self.assertIn('/blob/'+build_rc2.RELEASE_TAG+'/docs/LAUNCHER-GUIDE.md)',text)
+        self.assertIn('S7-Diagnose.json',text)
 
     def test_missing_or_external_file_targets_are_rejected(self):
         for target in ('missing-document.md','../../../../outside.md'):
