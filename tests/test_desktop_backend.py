@@ -568,6 +568,37 @@ class DesktopTests(unittest.TestCase):
             launch.assert_called_once()
         self.assertIsNone(choice._load_choice(self.desktop.game())['choice'])
 
+    def test_setup_remembers_network_choice_after_committing_the_copy(self):
+        def configure(root,gold):
+            self.assertEqual(self.desktop.game(),root)
+            self.assertFalse(gold)
+            return ['network_private_lan_setup_failed']
+        with patch.object(self.desktop,'prepare_install_network',side_effect=configure) as permissions:
+            with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
+                enabled=self.desktop.install_game(self.fixture.source,prepare_network=True)
+                self.assertTrue(enabled['network_setup_preferred'])
+                self.assertEqual(enabled['network_setup_failures'],['network_private_lan_setup_failed'])
+                self.assertFalse(enabled['needs_repair'])
+                disabled=self.desktop.install_game(self.desktop.game(),prepare_network=False)
+            self.assertFalse(disabled['network_setup_preferred'])
+            self.assertEqual(disabled['network_setup_failures'],[])
+            permissions.assert_called_once()
+
+    def test_persistent_permissions_skip_existing_isolation_and_use_only_gold_isolation(self):
+        import platform_standalone
+        import windows_system
+        first=self.fixture.source
+        with patch.object(platform_standalone,'enabled',return_value=True), \
+                patch.object(platform_standalone,'configure') as isolation, \
+                patch.object(windows_system,'lan_firewall') as lan:
+            self.assertEqual(self.desktop.prepare_install_network(first,True),[])
+            isolation.assert_called_once_with(first,'check')
+            lan.assert_not_called()
+            isolation.reset_mock()
+            isolation.side_effect=[RuntimeError('missing'),RuntimeError('declined')]
+            self.assertEqual(self.desktop.prepare_install_network(first,False),['network_isolation_setup_failed'])
+            lan.assert_called_once_with(first)
+
     def test_automatic_gpu_is_not_forced_to_the_adapter_at_the_display(self):
         self.prepare()
         hybrid=dict(self.probe,devices=['Fixture GPU','Discrete GPU'])

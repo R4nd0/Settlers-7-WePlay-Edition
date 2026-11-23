@@ -159,6 +159,10 @@ class LanDiscovery:
         return self.cache.resolve(room_id)
 
 
+class BeaconBindError(OSError):
+    """The private-LAN discovery socket could not bind its fixed port."""
+
+
 class LanBeacon:
     """Reply-only beacon, tied to an explicitly selected private interface."""
     # Immutable defaults; assignments below belong to each beacon instance.
@@ -177,7 +181,12 @@ class LanBeacon:
             route_socket(self.sock, room.local_interface)
             # A wildcard is needed to receive Windows directed broadcasts. Every
             # source is checked against the selected interface before replying.
-            self.sock.bind(('0.0.0.0', DISCOVERY_PORT)); self.sock.settimeout(.2)
+            try:
+                self.sock.bind(('0.0.0.0', DISCOVERY_PORT))
+            except OSError as error:
+                number = getattr(error, 'winerror', None) or error.errno
+                raise BeaconBindError(number, 'LAN discovery bind failed') from error
+            self.sock.settimeout(.2)
         except BaseException:
             self.sock.close(); raise
         self.thread = None
@@ -207,20 +216,25 @@ class LanBeacon:
             try:
                 data, source = self.sock.recvfrom(MAX_DATAGRAM + 1)
                 answer = self._answer(data, source)
-                if answer is not None:
+                if answer is not None and not self.stop_event.is_set():
                     self.sock.sendto(answer, source)
             except OSError:
                 if self.stop_event.is_set():
                     break
 
     def start(self):
-        self.thread = threading.Thread(target=self.serve, name='s7-lan-beacon', daemon=True)
-        self.thread.start()
+        thread = threading.Thread(target=self.serve, name='s7-lan-beacon', daemon=True)
+        thread.start()
+        self.thread = thread
 
-    def close(self):
-        self.stop_event.set(); self.sock.close()
+    def stop_serving(self):
+        self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=1)
+
+    def close(self):
+        self.stop_serving()
+        self.sock.close()
 
     def update_members(self, members):
         if type(members) is int and 1 <= members <= MAX_MEMBERS:

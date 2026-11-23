@@ -197,6 +197,7 @@ internal sealed partial class MainForm : Form
     private Button setupHelp = null!;
     private string? setupErrorCode;
     private readonly Button installButton, cancelButton;
+    private readonly CheckBox setupNetwork = new() { AutoSize = true, MaximumSize = new Size(820,0) };
     private readonly Label homeTitle = new() { AutoSize = true, Font = new Font("Segoe UI",22,FontStyle.Bold) };
     private readonly Label homeInfo = new() { AutoSize = true, MaximumSize = new Size(850,0) };
     private readonly TextBox player = new() { Dock = DockStyle.Fill, MaxLength = 24 };
@@ -406,6 +407,7 @@ internal sealed partial class MainForm : Form
         setupHelp = Button("setupHelp", ToggleSetupHelp);
         accessibleFields[setupDetails] = "details";
         Add(stack,Label("installInfo")); Add(stack,setupNotice);
+        Bind(setupNetwork,"setupNetwork");Add(stack,setupNetwork);
         Add(stack,Buttons(installButton,cancelButton,setupHelp));
         Add(stack,setupDetails);
     }
@@ -598,6 +600,7 @@ internal sealed partial class MainForm : Form
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
         if(replaceFields)
         {
+            setupNetwork.Checked=value.TryGetProperty("network_setup_preferred",out var networkSetup)&&networkSetup.GetBoolean();
             destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();internetPlayer.Text=player.Text;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
             anisotropicFiltering.Checked=value.GetProperty("choice").TryGetProperty("anisotropic_filtering",out var filteringValue)&&filteringValue.GetBoolean();
@@ -734,8 +737,15 @@ internal sealed partial class MainForm : Form
         }
         if(source.SelectedItem is not Item item)throw new BackendError("source_missing","");
         setupErrorCode=null;RefreshSetupDetails();
-        var result=await Backend.Run("install",new {source=item.Key,container=destination.Text},Receive);
+        var result=await RunUiBackend("install",new {source=item.Key,container=destination.Text,prepare_network=setupNetwork.Checked});
         LoadSnapshot(result);if(!testing)Shortcuts.Create();ShowMain();
+        if(result.TryGetProperty("network_setup_failures",out var failures)&&failures.GetArrayLength()>0)
+        {
+            status.Text=Lang.T("networkSetupPartial");
+            if(!testing)MessageBox.Show(this,status.Text+Environment.NewLine+Environment.NewLine+
+                string.Join(Environment.NewLine,failures.EnumerateArray().Select(item=>Lang.T(item.GetString()!))),
+                Lang.T("setupNetworkTitle"),MessageBoxButtons.OK,MessageBoxIcon.Information);
+        }
     }
     private void RefreshUpdateControls()
     {
@@ -1080,7 +1090,7 @@ internal sealed partial class MainForm : Form
     private void SetBusy(bool value)
     {
         if(value)InvalidateDirectoryRefresh();
-        busy=value;tabs.Enabled=!value||internetOperation;source.Enabled=destination.Enabled=installButton.Enabled=!value;language.Enabled=!value;
+        busy=value;tabs.Enabled=!value||internetOperation;source.Enabled=destination.Enabled=installButton.Enabled=setupNetwork.Enabled=!value;language.Enabled=!value;
         foreach(TabPage page in tabs.TabPages)page.Enabled=!value||(internetOperation&&page==(publicRoomOperation?directoryPage:internetPage));
         foreach(var button in Descendants(setup).OfType<Button>())button.Enabled=!value;
         cancelButton.Visible=value&&setup.Visible;cancelButton.Enabled=true;
@@ -1403,6 +1413,12 @@ internal sealed partial class MainForm : Form
                 using(var updateImage=new Bitmap(form.Width,form.Height))
                 {form.DrawToBitmap(updateImage,new Rectangle(0,0,form.Width,form.Height));updateImage.Save(Path.Combine(folder,language+"-update-found.png"));}
                 form.tabs.Visible=false;form.setup.Visible=true;form.source.Items.Add(new Item("C:\\Fixture\\Original","C:\\Fixture\\Original"));form.source.SelectedIndex=0;form.setupNotice.Text=Lang.T("found");Application.DoEvents();
+                if(!form.setupNetwork.Visible||!form.setupNetwork.Enabled||form.setupNetwork.Checked)
+                    throw new Exception("Setup network permissions must be visible and opt-in");
+                var savedSetup=System.Text.Json.Nodes.JsonNode.Parse(json.RootElement.GetRawText())!.AsObject();
+                savedSetup["network_setup_preferred"]=true;
+                form.LoadSnapshot(JsonSerializer.SerializeToElement(savedSetup),acceptGraphics:true);
+                if(!form.setupNetwork.Checked)throw new Exception("Setup did not restore the saved network preference");
                 if(!form.setupHelp.Visible||!form.setupHelp.Enabled)throw new Exception("Setup help is unreachable");
                 form.setupHelp.PerformClick();Application.DoEvents();
                 if(!form.setupDetails.Visible||form.setupDetails.Text!=Lang.T("setupHelpIntro"))throw new Exception("Setup help requires a successful install");
@@ -1413,7 +1429,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc404_and_update_prefix_hidden","setup_help_and_error_details","borderless_native_resolution","renderer_selection_and_draft",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc404_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

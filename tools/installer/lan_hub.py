@@ -1,5 +1,6 @@
 """Own one LAN directory service; retain it while other games remain admitted."""
 import argparse
+import errno
 import http.client
 import json
 from pathlib import Path
@@ -13,9 +14,41 @@ import compatibility
 import host_runtime
 from lan_control import request
 from lan_child_job import ServiceJob
-from lan_discovery import LanBeacon
+from lan_discovery import BeaconBindError, LanBeacon
 from lobby_directory import (HTTP_PORT, GAME_SERVICE_PORT, MAX_MEMBERS, LobbyRoom,
     LobbyEndpoint, LanInterface, content_id, public_name)
+
+STARTUP_FAILURES = {
+    20: 'lan_discovery_port_busy',
+    21: 'lan_discovery_socket_failed',
+    22: 'lan_coordinator_start_failed',
+    23: 'lan_coordinator_timeout',
+}
+BEACON_RETRY_SECONDS = 3
+
+
+class LanHubError(RuntimeError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+def reserve_beacon(room, *, clock=time.monotonic, sleep=time.sleep):
+    deadline = clock() + BEACON_RETRY_SECONDS
+    while True:
+        try:
+            return LanBeacon(room)
+        except BeaconBindError as error:
+            # Winsock can report access denied when an exclusive listener owns
+            # the address. Retry the bind only, never widen the socket scope.
+            if error.errno not in (errno.EADDRINUSE, 10048, 10013):
+                raise LanHubError('lan_discovery_socket_failed') from error
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise LanHubError('lan_discovery_port_busy') from error
+            sleep(min(.2, remaining))
+        except (OSError, ValueError) as error:
+            raise LanHubError('lan_discovery_socket_failed') from error
 
 
 def verify_service(root, expected):
@@ -63,6 +96,9 @@ def serve(root, interface, name, expected, room_id):
     run_id = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8]
     service = beacon = job = None
     try:
+        # This one-per-machine socket also serializes local coordinators.
+        # Keep it reserved until the service has released its other ports.
+        beacon = reserve_beacon(room)
         job = ServiceJob()
         with (data / (run_id + '-lan-server.jsonl')).open('xb') as output, \
                 (data / (run_id + '-lan-errors.txt')).open('xb') as error:
@@ -74,15 +110,14 @@ def serve(root, interface, name, expected, room_id):
             deadline = time.monotonic() + 20
             while True:
                 if service.poll() is not None:
-                    raise RuntimeError('Der LAN-Dienst konnte nicht starten. Laeuft bereits eine Lobby?')
+                    raise LanHubError('lan_coordinator_start_failed')
                 try:
                     status_counts(request(interface.address, interface.address, 'status', expected=expected), expected)
                     break
                 except (OSError, ValueError, http.client.HTTPException):
                     if time.monotonic() >= deadline:
-                        raise TimeoutError('LAN-Dienst nicht bereit.')
+                        raise LanHubError('lan_coordinator_timeout')
                     time.sleep(.1)
-            beacon = LanBeacon(room)
             beacon.start()
             lifetime = HubLifetime()
             while service.poll() is None:
@@ -99,8 +134,7 @@ def serve(root, interface, name, expected, room_id):
     finally:
         try:
             if beacon is not None:
-                beacon.close()
-        finally:
+                beacon.stop_serving()
             try:
                 # Also closes automatically if this Python hub is terminated.
                 if job is not None:
@@ -112,6 +146,9 @@ def serve(root, interface, name, expected, room_id):
                         service.wait(timeout=10)
                     except subprocess.TimeoutExpired:
                         service.kill(); service.wait(timeout=5)
+        finally:
+            if beacon is not None:
+                beacon.close()
 
 
 def main():
@@ -126,6 +163,9 @@ def main():
     try:
         serve(Path(args.bundle), LanInterface(args.address, args.prefix), args.name, args.content_id, args.room_id)
         return 0
+    except LanHubError as error:
+        print(error.code, flush=True)
+        return next(code for code, label in STARTUP_FAILURES.items() if label == error.code)
     except (OSError, ValueError, RuntimeError, TimeoutError, http.client.HTTPException):
         print('LAN-Lobby beendet oder nicht erreichbar.', flush=True)
         return 2

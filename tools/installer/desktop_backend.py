@@ -293,6 +293,43 @@ class Desktop:
         metadata=install.package_metadata(self.package)
         return graphics.RENDERERS if metadata.get('alternate_renderers') is True else ('dxvk',)
 
+    def network_setup_preferred(self, root=None):
+        try:
+            record=self.read(self.state/'network-setup.json',limit=1024)
+            if record is not None:
+                return (isinstance(record,dict) and set(record)=={'format','prepare'}
+                        and record['format']=='weplay-network-setup-v1' and record['prepare'] is True)
+            if root is None:return False
+            marker=self.read(root/'LocalData/desktop-firewall.json',limit=1024)
+            key=hashlib.sha256(str(root).lower().encode('utf-8')).hexdigest()[:16].upper()
+            return marker=={'format':'s7-private-firewall-v1','key':key}
+        except (OSError,ValueError):
+            return False
+
+    def remember_network_setup(self, prepare):
+        try:
+            self.write(self.state/'network-setup.json',{'format':'weplay-network-setup-v1','prepare':prepare})
+            return True
+        except (OSError,ValueError):
+            return False
+
+    def prepare_install_network(self, root, gold):
+        import platform_standalone
+        import windows_system
+        failures=[]
+        try:
+            if platform_standalone.enabled(root):
+                try:platform_standalone.configure(root,'check')
+                except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
+                    platform_standalone.configure(root)
+        except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
+            failures.append('network_isolation_setup_failed')
+        if not gold:
+            try:windows_system.lan_firewall(root)
+            except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
+                failures.append('network_private_lan_setup_failed')
+        return failures
+
     def launch_renderer(self):
         policy=self.installed()['renderer_policy']
         return (policy,self.package) if policy!='dxvk' else None
@@ -310,6 +347,10 @@ class Desktop:
             _,executable,_=platform_standalone.load(root)
             graphics.recover_launch_renderer(root,executable,self.package)
 
+    def remember_lan_start(self, code):
+        try:self.write(self.state/'lan-start.json',{'code':code})
+        except (OSError,ValueError):pass
+
     def snapshot(self,*,displays=None):
         value=self.installed()
         metadata=install.package_metadata(self.package)
@@ -317,6 +358,7 @@ class Desktop:
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':value['renderer_policy'] if value else 'dxvk',
                 'renderer_modes':self.supported_renderers(),
+                'network_setup_preferred':self.network_setup_preferred(self.game() if value else None),
                 'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':value['renderer_policy'] if value else 'dxvk',
@@ -569,7 +611,9 @@ class Desktop:
             shutil.copytree(saves,data/folder,dirs_exist_ok=True,copy_function=copy_progress)
 
     @verified_operation
-    def install_game(self,source,container=None):
+    def install_game(self,source,container=None,*,prepare_network=None):
+        if prepare_network is not None and type(prepare_network) is not bool:
+            raise ValueError('request_invalid')
         self.finalizing=False
         graphics.ensure_closed()
         self.recover_publication()
@@ -667,12 +711,18 @@ class Desktop:
         self.progress('finish')
         self.publish_installation(record)
         pending.unlink()
+        network_failures=[]
+        if prepare_network is not None and not self.remember_network_setup(prepare_network):
+            network_failures.append('network_setup_preference_failed')
+        if prepare_network:
+            self.progress('network_setup')
+            network_failures.extend(self.prepare_install_network(root,gold))
         # Publish and verify first. Only then retire the old owned game files;
         # cleanup failure must not turn a successful installation into failure.
         self.finalizing=True
         try:self.clean_old(automatic=True)
         except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
-        return self.snapshot()
+        return {**self.snapshot(),'network_setup_failures':network_failures}
 
     def record_ownership(self,root,manifest=None):
         self.write(root/'desktop-files.json',self.ownership_record(root,manifest))
@@ -1228,12 +1278,14 @@ class Desktop:
         if self.is_gold():
             import platform_standalone
             self.verify_instance(self.game());platform_standalone.configure(self.game())
+            self.remember_network_setup(True)
             return {'configured':True}
         import windows_system
         self.package_manifest()
         root=self.game();content.verify(root)
         try:windows_system.lan_firewall(root)
         except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('permissionFailed')
+        self.remember_network_setup(True)
         return {'configured':True}
 
     def cleanup_instance(self,container,name):
@@ -1344,11 +1396,17 @@ class Desktop:
         neo=release.get('neo_wire_revision')
         if type(neo) is not int or not 0<=neo<=100000:neo=None
         from game_directory import NETWORK_REVISION
+        try:
+            last_lan=self.read(self.state/'lan-start.json',{},limit=1024)
+            last_lan=last_lan.get('code') if isinstance(last_lan,dict) else None
+            if not isinstance(last_lan,str) or not re.fullmatch('[a-z_]{1,64}',last_lan):last_lan=None
+        except (OSError,ValueError):last_lan=None
         return {'format':'s7-desktop-diagnostics-v1','release':version,'source_commit':source,
                 'release_metadata_network_revision':revision,'content_contract':content.NETWORK_FORMAT,
                 'directory_protocol_revision':NETWORK_REVISION,'neo_wire_revision':neo,
                 'game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
+                'last_lan_start':last_lan,
                 'memory_summary':summary,
                 'known_lan_desync_resolved':False}
 
@@ -1451,17 +1509,26 @@ def _dispatch(desktop,request):
         desktop.recover_launch_renderer()
         if action=='update-install':return desktop.install_update(data)
         if action=='firewall' and not data:return desktop.configure_firewall()
-        if action in ('install','repair') and set(data)<= {'source','container'}:
+        if action in ('install','repair') and set(data)<= {'source','container','prepare_network'}:
             previous=desktop.installed()
             source=data.get('source') or (str(desktop.game()) if previous else None)
             if not isinstance(source,str) or not source:raise ValueError('source_missing')
             container=data.get('container')
             if container is not None and not isinstance(container,str):raise ValueError('request_invalid')
+            if 'prepare_network' in data:
+                if type(data['prepare_network']) is not bool:raise ValueError('request_invalid')
+                return desktop.install_game(source,container,prepare_network=data['prepare_network'])
             return desktop.install_game(source,container)
         if action=='save':return desktop.save_settings(data)
         if action=='play' and not data:return desktop.play()
         if action=='lan-list' and not data:return desktop.lan_list()
-        if action=='lan-play':return desktop.play(data)
+        if action=='lan-play':
+            try:result=desktop.play(data)
+            except (OSError,ValueError,RuntimeError,http.client.HTTPException,subprocess.TimeoutExpired) as error:
+                desktop.remember_lan_start(error_code(error))
+                raise
+            desktop.remember_lan_start('ok')
+            return result
         if action in ('internet-create','internet-join'):return desktop.internet_play(data,host=action=='internet-create')
         if action in ('crossplay-create','crossplay-join'):return desktop.crossplay_play(data,host=action=='crossplay-create')
         if action=='discord-connect':return desktop.connect_discord(data)
@@ -1494,6 +1561,7 @@ def error_code(error):
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
+                'lan_discovery_port_busy','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',
                 'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings',
                 'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required',
                 'crossplay_unavailable','crossplay_configuration_invalid','crossplay_edition_mismatch',

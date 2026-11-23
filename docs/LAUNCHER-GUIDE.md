@@ -107,5 +107,8 @@ noch CPU-Zuweisung, Bildratenlimit oder den einfachen Menümodus. Erst Speichern
 Prüfstand, Vergleich und Rückkehr zum bisherigen Bild:
 [DXVK-Bildqualität](DXVK-QUALITY.md).
 
+[Windows-Netzwerkfreigaben](WINDOWS-NETWORK-PERMISSIONS.md) beschreibt die
+Einrichtung für privates LAN, die Netzisolation und die Freigaben pro Partie.
+
 Weitere Details: [Internetverbindung](RC3-INTERNET.md),
 [Discord-Anzeige](DISCORD-INTEGRATION.md), [LAN](LAN-SPIELER.md).

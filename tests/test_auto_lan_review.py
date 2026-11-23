@@ -109,6 +109,33 @@ class DiscoveryReviewTests(unittest.TestCase):
         sock.bind.assert_not_called()
 
 
+class HubStartupTests(unittest.TestCase):
+    def test_retries_only_a_busy_discovery_port(self):
+        import errno
+        from unittest.mock import sentinel
+        busy=lan_discovery.BeaconBindError(errno.EADDRINUSE,'fixture')
+        now=[0.]
+        def sleep(seconds):
+            now[0]+=seconds
+        with patch.object(lan_hub,'LanBeacon',side_effect=[busy,busy,sentinel.beacon]) as beacon:
+            self.assertIs(lan_hub.reserve_beacon(sentinel.room,clock=lambda:now[0],sleep=sleep),sentinel.beacon)
+            self.assertEqual(beacon.call_count,3)
+        with patch.object(lan_hub,'LanBeacon',side_effect=ValueError('route changed')) as beacon:
+            with self.assertRaisesRegex(lan_hub.LanHubError,'lan_discovery_socket_failed'):
+                lan_hub.reserve_beacon(sentinel.room,clock=lambda:now[0],sleep=sleep)
+            beacon.assert_called_once()
+
+    def test_occupied_discovery_port_has_a_bounded_distinct_error(self):
+        import errno
+        now=[0.]
+        def sleep(seconds):
+            now[0]+=seconds
+        with patch.object(lan_hub,'LanBeacon',side_effect=lan_discovery.BeaconBindError(errno.EADDRINUSE,'fixture')):
+            with self.assertRaisesRegex(lan_hub.LanHubError,'lan_discovery_port_busy'):
+                lan_hub.reserve_beacon(Mock(),clock=lambda:now[0],sleep=sleep)
+        self.assertAlmostEqual(now[0],lan_hub.BEACON_RETRY_SECONDS)
+
+
 class JobReviewTests(unittest.TestCase):
     @staticmethod
     def api():

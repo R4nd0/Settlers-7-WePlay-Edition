@@ -15,6 +15,7 @@ import launch_local
 import launch_lan
 from lan_control import Membership
 from lan_discovery import LanDiscovery
+from lan_hub import LanHubError, STARTUP_FAILURES
 from lan_interfaces import enumerate_interfaces
 from lobby_directory import GAME_SERVICE_PORT
 import lan_autoconnect
@@ -57,12 +58,13 @@ def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             lan_autoconnect.checkpoint(cancel_check)
-            if process.poll() is not None:
-                raise RuntimeError('Der LAN-Dienst konnte nicht starten. Bitte erneut versuchen.')
+            status = process.poll()
+            if status is not None:
+                raise LanHubError(STARTUP_FAILURES.get(status, 'lan_coordinator_start_failed'))
             rooms = directory.list_rooms(timeout=.3)
             if any(room.room_id == room_id and room.endpoint.host == interface.address for room in rooms):
                 return process
-        raise TimeoutError('LAN-Lobby nicht rechtzeitig bereit. Private Firewallfreigabe pruefen.')
+        raise LanHubError('lan_discovery_timeout')
     except BaseException:
         if process.poll() is None:
             process.terminate(); process.wait(timeout=10)
