@@ -1,8 +1,8 @@
 # Settlers 7: WePlay Edition
 
-**[Windows x64 — rc4.06](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.06/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
+**[Windows x64 — rc4.07](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.07/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
 
-[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.06) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.06/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
+[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.07) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.07/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
 WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubisoft History Edition and Steam History Edition**. One Windows installer prepares a separate game copy with its own profile. You supply the original game files.
 
@@ -15,6 +15,8 @@ WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubis
 3. In WePlay, select your original game or existing WePlay copy. Use **Install game** or **Update / repair**. If setup reports a long path, use **Change…** to select a shorter writable location. **Help / diagnostics** is available on the setup screen.
 
 Requires Windows 10 build 19045 or newer, or Windows 11, on x64. Allow about 7 GB for each game copy and extra space during repair.
+
+For support after a launcher error, choose **Save diagnostic report** in Help or Setup and share `S7-Diagnose.json`.
 
 ### Linux
 
@@ -37,11 +39,13 @@ archives, including maps, for editing the contained files.
 
 ## Deutsch
 
-Mit **[Setup.exe für rc4.06](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.06/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
+Mit **[Setup.exe für rc4.07](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.07/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
 
 Schließe WePlay und das Spiel vor dem Update. Wähle im Installer den bisherigen WePlay-Ordner oder den vollständigen Standalone-Export. Im Launcher kannst du die vorhandene Kopie über **Aktualisieren / reparieren** übernehmen. Bei einem zu langen Zielpfad wähle über **Ändern…** einen kürzeren Ordner. **Hilfe / Diagnose** steht direkt in der Einrichtung.
 
 Benötigt werden Windows 10 ab Build 19045 oder Windows 11 (x64) und rund 7 GB Speicherplatz für die getrennte Kopie. Bei einer Reparatur wird vorübergehend mehr Platz benötigt. Unter **Grafik → Grafikpipeline** kannst du für ältere Vulkan-Treiber DXVK-Async oder DXVK-GPLAsync wählen. Natives D3D9 läuft ohne Vulkan.
+
+Nach einem Launcher-Fehler kannst du unter **Hilfe** oder direkt in der **Einrichtung** den Diagnosebericht `S7-Diagnose.json` für den Support speichern.
 
 [LAN auf Deutsch](docs/LAN-SPIELER.md) · [Update und Wiederherstellung](docs/UPDATE-RECOVERY.md)
 

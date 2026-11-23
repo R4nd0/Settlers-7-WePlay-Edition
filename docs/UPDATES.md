@@ -1,8 +1,8 @@
 # WePlay signed update patcher
 
-Windows rc4.06 is published under the tag
-[`rc4.06`](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.06)
-with update sequence **35**. Both signed manifests use the short public tag and
+Windows rc4.07 is published under the tag
+[`rc4.07`](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.07)
+with update sequence **36**. Both signed manifests use the short public tag and
 point to its Setup.exe.
 
 The public download for rc4.01 is
