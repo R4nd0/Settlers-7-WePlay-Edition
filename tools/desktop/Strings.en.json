@@ -122,6 +122,7 @@
   "probe": "Check graphics support again",
   "cleanup": "Remove older prepared versions…",
   "diagnostics": "Save diagnostic report…",
+  "diagnosticErrorHint": "Error code: {0}. To share details with support, save a diagnostic report from Help or the setup screen.",
   "verified": "Installation checked successfully.",
   "cleanupConfirm": "Remove unchanged game files from older prepared versions? Saved games and modified files will be kept.",
   "cleanupDone": "Older prepared versions have been cleaned up. Personal and modified files were kept.",

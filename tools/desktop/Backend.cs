@@ -12,6 +12,7 @@ internal sealed record BackendTiming(TimeSpan Idle,TimeSpan Grace,TimeSpan Poll)
 {
     internal static BackendTiming For(string action)=>new(action switch {
         "directory-list" or "lan-list" or "recovery-status"=>TimeSpan.FromSeconds(60),
+        "diagnostics"=>TimeSpan.FromSeconds(10),
         "update-check"=>TimeSpan.FromMinutes(3),
         "detect" or "verify"=>TimeSpan.FromMinutes(10),
         _=>TimeSpan.FromMinutes(3)},TimeSpan.FromSeconds(5),TimeSpan.FromMilliseconds(100));
@@ -23,7 +24,7 @@ internal static class Backend
     private static Session? operation;
     // These are dispatched before installation recovery. Other actions can
     // recover/mutate and remain cooperative-only even before a state frame.
-    private static readonly HashSet<string> ReadOnlyActions=["directory-list","update-check","recovery-status"];
+    private static readonly HashSet<string> ReadOnlyActions=["directory-list","update-check","recovery-status","diagnostics"];
     public static string? Operation {get{lock(operationsLock)return operation?.Id;}}
 
     public static Task<JsonElement> Run(string action,object data,Action<JsonElement> receive,bool trackOperation=true,CancellationToken cancellationToken=default)
@@ -40,6 +41,20 @@ internal static class Backend
     internal static async Task<JsonElement> RunProcess(ProcessStartInfo start,string root,string id,string action,object data,
         Action<JsonElement> receive,bool trackOperation,CancellationToken cancellationToken,BackendTiming? timing=null)
     {
+        var trace=new LauncherDiagnostics.Operation(action);
+        try{return await RunProcessCore(start,root,id,action,data,receive,trackOperation,cancellationToken,timing,trace);}
+        catch(Exception error) {
+            trace.Fail(error);
+            error.Data["weplay_operation_recorded"]=true;
+            throw;
+        }
+        finally{LauncherDiagnostics.Record(root,trace.Finish());}
+    }
+
+    private static async Task<JsonElement> RunProcessCore(ProcessStartInfo start,string root,string id,string action,object data,
+        Action<JsonElement> receive,bool trackOperation,CancellationToken cancellationToken,BackendTiming? timing,
+        LauncherDiagnostics.Operation trace)
+    {
         string request=JsonSerializer.Serialize(new{format="s7-desktop-request-v1",action,data});
         if(Encoding.UTF8.GetByteCount(request)>32768)throw new BackendError("request_invalid","Request too large");
         var session=new Session(root,id,ReadOnlyActions.Contains(action),timing??BackendTiming.For(action));
@@ -50,7 +65,9 @@ internal static class Backend
         using var finished=new CancellationTokenSource();using var readStop=new CancellationTokenSource();
         Process? process=null;Task? watch=null;Task<string>? errors=null;Task<JsonElement>? pump=null;
         try {
-            session.Expect(start.FileName);process=Start(start);session.Own(process);
+            trace.CurrentStage="process_start";
+            session.Expect(start.FileName,trace);process=Start(start,trace);session.Own(process);
+            trace.CurrentStage="ipc";
             errors=ReadBounded(process.StandardError,8192,readStop.Token);
             pump=Pump();watch=Watch();
             Task winner=await Task.WhenAny(pump,watch);
@@ -66,7 +83,7 @@ internal static class Backend
                     while(await lines.Read(readStop.Token) is string line) {
                         session.Touch();
                         using var document=JsonDocument.Parse(line);var item=document.RootElement.Clone();
-                        string? kind=item.GetProperty("kind").GetString();session.Observe(item,kind);
+                        string? kind=item.GetProperty("kind").GetString();session.Observe(item,kind);trace.Observe(item,kind);
                         if(kind=="result")result=item.GetProperty("data").Clone();
                         else if(kind=="error")failure=new BackendError(item.GetProperty("code").GetString()!,item.GetProperty("detail").GetString()??"");
                         else receive(item);
@@ -81,6 +98,7 @@ internal static class Backend
                 }
                 await process.WaitForExitAsync(readStop.Token);string stderr=await errors;
                 if(failure!=null)throw failure;
+                trace.CurrentStage="process_exit";
                 if(process.ExitCode!=0||result.ValueKind==JsonValueKind.Undefined)throw new BackendError("operation_failed",stderr);
                 return result;
             }
@@ -110,6 +128,7 @@ internal static class Backend
                 }
                 void Warn() {
                     if(!session.MarkWarning())return;
+                    trace.Warn("backend_unresponsive");
                     try{using var json=JsonDocument.Parse("{\"kind\":\"warning\",\"code\":\"backend_unresponsive\"}");receive(json.RootElement.Clone());}catch(Exception){}
                 }
                 void RequestCancellation(){try{session.RequestCancel();}catch(BackendError){Warn();}}
@@ -139,6 +158,9 @@ internal static class Backend
             // read task completing asynchronously. Observe it before disposing.
             if(pump!=null&&!pump.IsCompleted&&readStop.IsCancellationRequested)try{await pump;}catch(Exception){}
             if(errors!=null&&readStop.IsCancellationRequested)try{await errors;}catch(Exception){}
+            if(process!=null)
+                try{if(process.HasExited)trace.ExitCode=process.ExitCode;}
+                catch(Exception error) when(error is InvalidOperationException or System.ComponentModel.Win32Exception){}
             process?.Dispose();
             session.CleanupCancel();
             if(trackOperation)lock(operationsLock){if(ReferenceEquals(operation,session))operation=null;}
@@ -170,9 +192,11 @@ internal static class Backend
             if(value.Length<limit)value.Append(buffer,0,Math.Min(count,limit-value.Length));
         return value.ToString();
     }
-    private static Process Start(ProcessStartInfo info) {
+    private static Process Start(ProcessStartInfo info,LauncherDiagnostics.Operation trace) {
         try{return Process.Start(info)??throw new BackendError("package_invalid","");}
-        catch(Exception error) when(error is IOException or System.ComponentModel.Win32Exception){throw new BackendError("package_invalid",error.Message);}
+        catch(Exception error) when(error is IOException or System.ComponentModel.Win32Exception){
+            trace.CaptureFault(error);throw new BackendError("package_invalid",error.Message);
+        }
     }
     public static void Cancel() {
         Session? current;lock(operationsLock)current=operation;
@@ -222,9 +246,11 @@ internal static class Backend
                 cancelDelivered=true;
             }
         }
-        internal void Expect(string executable) {
+        internal void Expect(string executable,LauncherDiagnostics.Operation trace) {
             try{image=Path.GetFullPath(executable);hash=Digest(image);}
-            catch(Exception error) when(error is IOException or UnauthorizedAccessException){throw new BackendError("package_invalid","Backend executable unavailable");}
+            catch(Exception error) when(error is IOException or UnauthorizedAccessException){
+                trace.CaptureFault(error);throw new BackendError("package_invalid","Backend executable unavailable");
+            }
         }
         internal void CleanupCancel() {
             if(!cancelDelivered)return;

@@ -112,5 +112,13 @@ Prüfstand, Vergleich und Rückkehr zum bisherigen Bild:
 [Windows-Netzwerkfreigaben](WINDOWS-NETWORK-PERMISSIONS.md) beschreibt die
 Einrichtung für privates LAN, die Netzisolation und die Freigaben pro Partie.
 
+Den **Diagnosebericht** kannst du unter **Hilfe** oder direkt in der
+Einrichtung als `S7-Diagnose.json` speichern. Der Bericht enthält die letzten
+relevanten Launcher-Vorgänge mit Zeitpunkt, Status, letzter Phase, Fehlercode
+und verfügbaren System- und Exitcodes. Bei einem defekten Spielprofil oder
+Hintergrundprozess bleiben die bereits erfassten Launcher-Vorgänge verfügbar.
+Der Verlauf enthält keine Freitextprotokolle, Installationspfade,
+Spielernamen, Netzwerkadressen, Einladungen oder Spielstände.
+
 Weitere Details: [Internetverbindung](RC3-INTERNET.md),
 [Discord-Anzeige](DISCORD-INTEGRATION.md), [LAN](LAN-SPIELER.md).

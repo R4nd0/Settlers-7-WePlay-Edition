@@ -148,6 +148,7 @@ class DesktopResilienceTests(unittest.TestCase):
             status=self.dispatch('recovery-status');report=self.dispatch('diagnostics')
         self.assertTrue(status['recoverable']);self.assertIn('quality',status['conflicts'])
         self.assertNotIn(str(self.root),json.dumps(report))
+        self.assertNotIn(status['token'],json.dumps(report))
         result=self.dispatch('recovery-resolve',dict(token=status['token'],action='restore_previous'))
         backup=json.loads((self.desktop.state/result['backup']).read_bytes())['inputs']
         self.assertEqual(settings.decode(backup['current']['quality']),foreign)
@@ -271,7 +272,7 @@ class DesktopResilienceTests(unittest.TestCase):
         status=self.dispatch('recovery-status')
         self.assertTrue(status['pending']);self.assertFalse(status['can_detach']);self.assertFalse(status['recoverable'])
         self.assertEqual(status['conflicts'],['unreadable']);self.assertIsNone(status['token'])
-        self.assertEqual(self.dispatch('diagnostics')['recovery'],status)
+        self.assertEqual(self.dispatch('diagnostics')['recovery'],{key:value for key,value in status.items() if key!='token'})
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),registration)
 
     def test_unreadable_or_unowned_state_remains_diagnosable_but_not_resolvable(self):
@@ -348,6 +349,26 @@ class DesktopResilienceTests(unittest.TestCase):
         self.assertEqual(value['content_contract'],'s7-play-content-v3')
         self.assertEqual(value['directory_protocol_revision'],7);self.assertEqual(value['neo_wire_revision'],5)
         self.assertNotIn(str(self.desktop.app),json.dumps(value))
+
+    def test_diagnostics_survives_unreadable_installation_and_probe_records(self):
+        (self.desktop.state/'installation.json').write_bytes(b'{incomplete')
+        (self.desktop.state/'graphics-probe.json').write_bytes(b'{incomplete')
+        with patch.object(self.desktop,'verification',side_effect=AssertionError('diagnostics must stay read-only')):
+            report=self.dispatch('diagnostics')
+        self.assertEqual(report['collection_status']['installation'],'unreadable')
+        self.assertEqual(report['collection_status']['graphics_probe'],'unreadable')
+        self.assertEqual(report['memory_summary'],{})
+        self.assertIsNone(report['renderer'])
+
+    def test_diagnostic_failure_keeps_system_codes_and_drops_exception_text(self):
+        try:
+            try:raise OSError(10048,'private address 192.168.1.24 and C:/private/player')
+            except OSError as cause:raise RuntimeError('private invite') from cause
+        except RuntimeError as error:
+            info=backend.diagnostic_failure(error)
+        self.assertEqual(info['kind'],'os_error')
+        self.assertEqual(info['system_code'],10048)
+        self.assertNotIn('private',json.dumps(info))
 
 
 class PortableReadOnlyTests(unittest.TestCase):

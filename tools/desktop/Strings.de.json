@@ -122,6 +122,7 @@
   "probe": "Grafikunterstützung erneut prüfen",
   "cleanup": "Ältere vorbereitete Versionen entfernen…",
   "diagnostics": "Diagnosebericht speichern…",
+  "diagnosticErrorHint": "Fehlercode: {0}. Für den Support kannst du unter Hilfe oder in der Einrichtung einen Diagnosebericht speichern.",
   "verified": "Installation erfolgreich geprüft.",
   "cleanupConfirm": "Unveränderte Spieldateien älterer vorbereiteter Versionen entfernen? Spielstände und geänderte Dateien bleiben erhalten.",
   "cleanupDone": "Ältere vorbereitete Versionen wurden bereinigt. Persönliche und geänderte Dateien sind erhalten.",

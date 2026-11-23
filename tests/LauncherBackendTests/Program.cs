@@ -39,11 +39,21 @@ internal static class Tests
             await Scenario(root,"live","play",null,null);
             await Scenario(root,"live-read","directory-list",null,null);
             await Scenario(root,"mutating","save",null,null);
+            await Scenario(root,"diagnostic-lan","lan-play","operation_failed",null);
             await Scenario(root,"failed-cancel","directory-list","backend_timeout",null);
             await Scenario(root,"descendant","directory-list","backend_timeout",null);
             var missing=new ProcessStartInfo(Path.Combine(root,"missing-child")){RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
             await Expect("package_invalid",()=>Backend.RunProcess(missing,root,Guid.NewGuid().ToString("N"),"directory-list",new{},_=>{},true,default,FaultTiming));
             Check(Backend.Operation==null,"startup failure clears operation");
+            using(var snapshot=JsonDocument.Parse(LauncherDiagnostics.Export(root,"fixture",default,new BackendError("package_invalid","private-path")).ToJsonString()))
+            {
+                var report=snapshot.RootElement;
+                Check(report.GetProperty("backend_status").GetString()=="unavailable","export works without backend");
+                var entry=report.GetProperty("launcher_history").EnumerateArray().Last();
+                Check(entry.GetProperty("stage").GetString()=="process_start","reports process startup failure stage");
+                Check(entry.GetProperty("fault").GetProperty("system_code").ValueKind==JsonValueKind.Number,"reports system startup error number");
+                Check(!report.GetRawText().Contains("private-path"),"export drops exception messages");
+            }
             using(var reader=new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes(new string('x',4097)))))
                 await Expect("backend_protocol_invalid",()=>Backend.ReadLineBounded(reader,4096,default));
             Console.WriteLine($"PASS: {checks} backend lifecycle checks; actual own child processes, bounded hangs/frames, protected commit/game phases.");return 0;
@@ -88,6 +98,24 @@ internal static class Tests
             var deadline=Stopwatch.StartNew();while(!File.Exists(marker)&&deadline.Elapsed<TimeSpan.FromSeconds(10))await Task.Delay(50);
             Check(File.Exists(marker),"owned direct-child stop preserves descendant process");
         }
+        if(mode=="diagnostic-lan")
+        {
+            string persisted=Path.Combine(folder,"State","launcher-history.json");
+            string reopened=Path.Combine(root,"diagnostic-reopened");
+            Directory.CreateDirectory(Path.Combine(reopened,"State"));
+            File.Copy(persisted,Path.Combine(reopened,"State","launcher-history.json"));
+            using var payload=JsonDocument.Parse("""{"release":"fixture","stderr":"private-path","recovery":{"pending":true,"token":"private-token"}}""");
+            using var report=JsonDocument.Parse(LauncherDiagnostics.Export(reopened,"fixture",payload.RootElement,null).ToJsonString());
+            var entry=report.RootElement.GetProperty("launcher_history").EnumerateArray().Single();
+            Check(entry.GetProperty("action").GetString()=="lan-play","operation persisted and reads on a clean session");
+            Check(entry.GetProperty("last_phase").GetString()=="lan_connect","records latest LAN phase");
+            Check(entry.GetProperty("last_active_state").GetString()=="critical","records last non-idle backend state");
+            Check(entry.GetProperty("fault").GetProperty("system_code").GetInt32()==10048,"socket error number is shareable");
+            Check(entry.GetProperty("fault").GetProperty("component").GetString()=="lan_hub","component without local path");
+            Check(entry.GetProperty("backend_exit_code").GetInt32()==2,"reports backend exit code");
+            Check(entry.GetProperty("warnings").GetArrayLength()==1,"retains recognized warnings");
+            Check(!report.RootElement.GetRawText().Contains("private-"),"drops input, raw logs, error text and recovery tokens");
+        }
     }
 
     private static async Task<int> Child(string[] args) {
@@ -95,6 +123,16 @@ internal static class Tests
         File.WriteAllText(Path.Combine(root,"child.json"),JsonSerializer.Serialize(new{pid=Environment.ProcessId,started=Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks}));
         _=await Console.In.ReadToEndAsync();
         File.WriteAllText(Path.Combine(root,"ready"),"stdin consumed");
+        if(mode=="diagnostic-lan") {
+            Console.WriteLine("""{"kind":"progress","phase":"lan_search"}""");
+            Console.WriteLine("""{"kind":"progress","phase":"lan_connect"}""");
+            Console.WriteLine("""{"kind":"operation_state","phase":"critical"}""");
+            Console.WriteLine("""{"kind":"log","text":"private-address 192.168.1.24"}""");
+            Console.WriteLine("""{"kind":"warning","code":"backend_unresponsive"}""");
+            Console.WriteLine("""{"kind":"operation_state","phase":"idle"}""");
+            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"private-invite and private-path","diagnostic":{"kind":"os_error","component":"lan_hub","line":55,"system_code":10048}}""");
+            return 2;
+        }
         if(mode=="normal"){Result();return 0;}
         if(mode=="oversize"){Console.Write(new string('x',200000));Console.Out.Flush();}
         if(mode=="malformed"){Console.WriteLine("{broken");Console.Out.Flush();}

@@ -1393,16 +1393,35 @@ class Desktop:
         return {'personal_data_kept':True}
 
     def diagnostics(self):
-        root=self.game();gold=self.is_gold(root)
-        choice._renderer(root,{})
-        mode=self.installed()['renderer_policy']
-        probe=self.validate_probe(self.read(self.state/'graphics-probe.json'))
-        raw=self.read(root/'LocalData/desktop-memory-summary.json',{})
+        collection={}
+        def section(name, read, fallback=None):
+            try:
+                value=read()
+                collection[name]='ok' if value is not None else 'not_available'
+                return value if value is not None else fallback
+            except (OSError,ValueError,RuntimeError,TypeError,KeyError):
+                collection[name]='unreadable'
+                return fallback
+        installed=section('installation',self.installed)
+        root=section('game_copy',lambda:self.game() if installed else None)
+        mode=installed['renderer_policy'] if installed else None
+        def read_probe():
+            value=self.read(self.state/'graphics-probe.json',limit=65536)
+            return self.validate_probe(value) if value is not None else None
+        probe=section('graphics_probe',read_probe,{'devices':[],'failure':None})
+        raw=section('memory',lambda:self.read(root/'LocalData/desktop-memory-summary.json',limit=4096)
+                    if root else None,{})
+        if not isinstance(raw,dict):
+            collection['memory']='unreadable'
+            raw={}
         fields=('samples','max_pressure','peak_private_mib','min_free_mib','min_largest_mib','monitor_failed',
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
         summary={key:raw[key] for key in fields if key in raw and
                  (raw[key] is None or type(raw[key]) in (bool,int) and 0<=raw[key]<=2**63-1)}
-        release=self.read(self.app/'desktop-release.json',{},limit=65536)
+        release=section('release',lambda:self.read(self.app/'desktop-release.json',limit=65536),{})
+        if not isinstance(release,dict):
+            collection['release']='unreadable'
+            release={}
         version=release.get('version','unknown')
         if not isinstance(version,str) or not re.fullmatch('[0-9A-Za-z.+-]{1,64}',version):version='unknown'
         source=release.get('source_commit')
@@ -1417,14 +1436,19 @@ class Desktop:
             last_lan=last_lan.get('code') if isinstance(last_lan,dict) else None
             if not isinstance(last_lan,str) or not re.fullmatch('[a-z_]{1,64}',last_lan):last_lan=None
         except (OSError,ValueError):last_lan=None
-        return {'format':'s7-desktop-diagnostics-v1','release':version,'source_commit':source,
+        report={'format':'s7-desktop-diagnostics-v1','release':version,'source_commit':source,
                 'release_metadata_network_revision':revision,'content_contract':content.NETWORK_FORMAT,
                 'directory_protocol_revision':NETWORK_REVISION,'neo_wire_revision':neo,
                 'game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
                 'last_lan_start':last_lan,
                 'memory_summary':summary,
+                'collection_status':collection,
                 'known_lan_desync_resolved':False}
+        if (self.state/desktop_settings.NAME).exists() or (self.state/desktop_settings.DETACH).exists():
+            status=self.recovery_status()
+            report['recovery']={name:status[name] for name in ('pending','recoverable','can_detach','conflicts')}
+        return report
 
     def reset_installation(self):
         """Explicit GUI recovery: preserve unknown metadata and every game file."""
@@ -1460,8 +1484,7 @@ def dispatch(desktop,request):
         if request['action']=='update-check':return desktop.check_updates()
         if request['action']=='directory-list':return desktop.directory_list()
         if request['action']=='recovery-status':return desktop.recovery_status()
-        if request['action']=='diagnostics' and ((desktop.state/desktop_settings.NAME).exists() or (desktop.state/desktop_settings.DETACH).exists()):
-            return {'format':'s7-desktop-diagnostics-v1','recovery':desktop.recovery_status()}
+        if request['action']=='diagnostics':return desktop.diagnostics()
     with desktop.verification():
         desktop.operation_state('cancellable')
         try:return _dispatch(desktop,request)
@@ -1563,10 +1586,9 @@ def _dispatch(desktop,request):
 
 
 def error_code(error):
-    if re.fullmatch('directory_[a-z_]{1,48}',getattr(error,'code','')):return error.code
-    if re.fullmatch('update_[a-z_]{1,48}',getattr(error,'code','')):return error.code
-    if re.fullmatch('discord_[a-z_]{1,48}',getattr(error,'code','')):return error.code
-    if re.fullmatch('internet_[a-z_]{1,48}',getattr(error,'code','')):return error.code
+    code=getattr(error,'code','')
+    if isinstance(code,str) and re.fullmatch(r'(directory|update|discord|internet)_[a-z_]{1,48}',code):
+        return code
     if getattr(error,'code',None) in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing',
                                     'memory_commit_low','memory_status_failed','source_steam_unsupported',
                                     'source_gold_adapter_unavailable'):
@@ -1593,6 +1615,35 @@ def error_code(error):
     return 'operation_failed'
 
 
+def diagnostic_failure(error):
+    """Keep technical categories and source locations out of free-form logs."""
+    tool_root=Path(__file__).resolve().parents[1]
+    result={'kind':'unexpected','component':None,'line':None,'system_code':None}
+    seen=set()
+    for _ in range(4):
+        if error is None or id(error) in seen:break
+        seen.add(id(error))
+        if isinstance(error,Cancelled):kind='cancelled'
+        elif isinstance(error,(TimeoutError,subprocess.TimeoutExpired)):kind='timeout'
+        elif isinstance(error,http.client.HTTPException):kind='http_error'
+        elif isinstance(error,OSError):kind='os_error'
+        elif isinstance(error,(ValueError,KeyError,TypeError)):kind='invalid_input'
+        elif isinstance(error,RuntimeError):kind='runtime_error'
+        else:kind='unexpected'
+        result['kind']=kind
+        number=getattr(error,'winerror',None)
+        if number is None:number=getattr(error,'errno',None)
+        if type(number) is int and -(2**31)<=number<2**31:result['system_code']=number
+        frame=error.__traceback__
+        while frame:
+            path=Path(frame.tb_frame.f_code.co_filename).absolute()
+            if path.suffix=='.py' and path.is_relative_to(tool_root):
+                result.update(component=path.stem,line=frame.tb_lineno)
+            frame=frame.tb_next
+        error=error.__cause__ or error.__context__
+    return result
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--app',required=True);parser.add_argument('--operation',required=True)
     args=parser.parse_args()
@@ -1609,9 +1660,10 @@ def main():
         with redirect_stdout(Console(emit)):
             result=dispatch(desktop,request)
         emit('result',data=result);return 0
-    except (OSError,ValueError,RuntimeError,TimeoutError,KeyError,TypeError) as error:
+    except Exception as error:
         private=isinstance(request,dict) and request.get('action') in ('internet-create','internet-join','crossplay-create','crossplay-join','discord-connect')
-        emit('error',code=error_code(error),detail='' if private else str(error)[:512]);return 2
+        emit('error',code=error_code(error),detail='' if private else str(error)[:512],
+             diagnostic=diagnostic_failure(error));return 2
     finally:
         if desktop is not None and desktop.cancel.exists():desktop.cancel.unlink()
 

@@ -180,6 +180,7 @@ internal sealed partial class MainForm : Form
     private readonly TextBox updateNotes=new() { Multiline=true,ReadOnly=true,Dock=DockStyle.Top,Height=150,ScrollBars=ScrollBars.Vertical };
     private Button updateCheck=null!,updateInstall=null!,homeUpdateInstall=null!;
     private LinkLabel globalUpdateLink=null!;
+    private LinkLabel startupDiagnosticsLink=null!;
     private JsonElement snapshot;
     private readonly List<JsonElement> screens = [];
     private string lastError = "";
@@ -302,8 +303,9 @@ internal sealed partial class MainForm : Form
         header.Controls.Add(language,2,0);
         var motto=new Label { AutoSize=true,ForeColor=Color.DimGray,Font=new Font("Segoe UI",9),Margin=new Padding(0,6,0,0) };
         Bind(motto,"motto");header.Controls.Add(motto,0,1);header.SetColumnSpan(motto,3);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 50, Padding = new Padding(22,2,22,2),ColumnCount=4,RowCount=2 };
+        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 50, Padding = new Padding(22,2,22,2),ColumnCount=5,RowCount=2 };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         discordLink=new LinkLabel { Dock=DockStyle.Fill, AutoSize=true, TextAlign=ContentAlignment.MiddleRight,
@@ -323,9 +325,12 @@ internal sealed partial class MainForm : Form
         {try{Community.OpenCoffee();}catch(BackendError error){status.Text=Lang.T(error.Code);}};
         globalUpdateLink=new LinkLabel { AutoSize=true,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,Padding=new Padding(12,0,0,0),Visible=false };
         globalUpdateLink.LinkClicked+=async (_,_)=>await Guard(InstallUpdate);
-        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,4);
-        footer.Controls.Add(status,0,1);footer.Controls.Add(globalUpdateLink,1,1);footer.Controls.Add(discordCommunity,2,1);
-        footer.Controls.Add(coffeeLink,3,1);
+        startupDiagnosticsLink=new LinkLabel {AutoSize=true,Visible=false,Anchor=AnchorStyles.Left};
+        Bind(startupDiagnosticsLink,"diagnostics");startupDiagnosticsLink.LinkClicked+=async (_,_)=>await Guard(Diagnostics);
+        footer.Controls.Add(progress,0,0);footer.SetColumnSpan(progress,5);
+        footer.Controls.Add(status,0,1);footer.Controls.Add(startupDiagnosticsLink,1,1);
+        footer.Controls.Add(globalUpdateLink,2,1);footer.Controls.Add(discordCommunity,3,1);
+        footer.Controls.Add(coffeeLink,4,1);
         Controls.Add(body); Controls.Add(footer); Controls.Add(header);
         body.Controls.Add(tabs); body.Controls.Add(setup);
         installButton=Button("install",InstallGame,true);
@@ -426,7 +431,7 @@ internal sealed partial class MainForm : Form
         accessibleFields[setupDetails] = "details";
         Add(stack,Label("installInfo")); Add(stack,setupNotice);
         Bind(setupNetwork,"setupNetwork");Add(stack,setupNetwork);
-        Add(stack,Buttons(installButton,cancelButton,setupHelp));
+        Add(stack,Buttons(installButton,cancelButton,setupHelp,Button("diagnostics",Diagnostics)));
         Add(stack,setupDetails);
     }
 
@@ -725,7 +730,7 @@ internal sealed partial class MainForm : Form
         if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");
         UpdateCrossplayControls();
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;startupDiagnosticsLink.Visible=false;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
         if(!await ResolveGraphicsDraft())return;
@@ -936,10 +941,18 @@ internal sealed partial class MainForm : Form
     }
     private async Task Diagnostics()
     {
-        var value=await RunUiBackend("diagnostics",new {});
+        var value=await CollectDiagnostics();
         if(testing)return;
         using var dialog=new SaveFileDialog { FileName="S7-Diagnose.json",Filter="JSON (*.json)|*.json" };
         if(dialog.ShowDialog(this)==DialogResult.OK){await File.WriteAllTextAsync(dialog.FileName,JsonSerializer.Serialize(value,new JsonSerializerOptions {WriteIndented=true}));status.Text=Lang.T("reportSaved");}
+    }
+    private async Task<System.Text.Json.Nodes.JsonObject> CollectDiagnostics()
+    {
+        JsonElement backend=default;
+        Exception? failure=null;
+        try{backend=await RunUiBackend("diagnostics",new {});}
+        catch(Exception error){failure=error;}
+        return LauncherDiagnostics.Export(Program.AppRoot,Program.ReleaseVersion,backend,failure);
     }
     private async Task Firewall()
     {
@@ -1181,6 +1194,8 @@ internal sealed partial class MainForm : Form
     private void ShowError(Exception error)
     {
         string code=error is BackendError backend?backend.Code:"operation_failed";lastError=error.Message;details.Text=lastError;
+        if(!testing)LauncherDiagnostics.RecordUiError(Program.AppRoot,error);
+        startupDiagnosticsLink.Visible=!tabs.Visible&&!setup.Visible;
         if(setup.Visible)
         {
             setupErrorCode=code;
@@ -1188,7 +1203,9 @@ internal sealed partial class MainForm : Form
             setupDetails.Visible=true;
             if(setupDetails.Parent?.Parent is Panel scroll)scroll.ScrollControlIntoView(setupDetails);
         }
-        status.Text=Lang.T(code);if(!testing)MessageBox.Show(this,Lang.T(code),Lang.T("errorTitle"),MessageBoxButtons.OK,MessageBoxIcon.Warning);
+        status.Text=Lang.T(code);
+        if(!testing)MessageBox.Show(this,Lang.T(code)+Environment.NewLine+Environment.NewLine+
+            string.Format(Lang.T("diagnosticErrorHint"),code),Lang.T("errorTitle"),MessageBoxButtons.OK,MessageBoxIcon.Warning);
     }
     private void RestoreWindow(){ShowInTaskbar=true;WindowState=FormWindowState.Normal;tray.Visible=false;Show();}
 
@@ -1531,12 +1548,20 @@ internal sealed partial class MainForm : Form
                 if(!form.setupDetails.Visible||form.setupDetails.Text!=Lang.T("setupHelpIntro"))throw new Exception("Setup help requires a successful install");
                 form.ShowError(new BackendError("operation_failed","Repair diagnostic fixture"));
                 if(!form.setupDetails.Visible||!form.setupDetails.Text.Contains("Repair diagnostic fixture"))throw new Exception("Setup error details are hidden");
+                form.testUiBackend=(action,_)=>Task.FromException<JsonElement>(new BackendError("package_invalid","private fixture path"));
+                try
+                {
+                    var report=form.CollectDiagnostics().GetAwaiter().GetResult();
+                    if(report["backend_status"]?.GetValue<string>()!="unavailable"||report.ToJsonString().Contains("private fixture path"))
+                        throw new Exception("Setup diagnostics should remain exportable without the backend");
+                }
+                finally{form.testUiBackend=null;}
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
                 form.DiscardGraphicsDraft();form.Close();
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc406_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options","compatibility_smaa_and_linked_lod_steps",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc406_and_update_prefix_hidden","setup_help_and_error_details","setup_diagnostics_without_backend","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options","compatibility_smaa_and_linked_lod_steps",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

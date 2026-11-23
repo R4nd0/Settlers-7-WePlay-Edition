@@ -4,5 +4,9 @@
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
   </PropertyGroup>
-  <ItemGroup><Compile Include="../../tools/desktop/Backend.cs" Link="Backend.cs" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../tools/desktop/Backend.cs" Link="Backend.cs" />
+    <Compile Include="../../tools/desktop/LauncherDiagnostics.cs" Link="LauncherDiagnostics.cs" />
+    <EmbeddedResource Include="../../tools/desktop/Strings.en.json" LogicalName="S7Launcher.Strings.en.json" WithCulture="false" />
+  </ItemGroup>
 </Project>
