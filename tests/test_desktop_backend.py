@@ -667,7 +667,7 @@ class DesktopTests(unittest.TestCase):
         with patch.object(self.desktop,'align_lan') as align,patch.object(backend.launch_auto_lan,'run',return_value=0) as run,\
                 patch.object(content,'verify') as verify:
             self.assertEqual(self.desktop.play({'player_name':'Tester'}),{'exit_code':0})
-            align.assert_called_once_with({'player_name':'Tester'});verify.assert_not_called()
+            align.assert_called_once_with({'player_name':'Tester'},discovery_port=9112);verify.assert_not_called()
             args=run.call_args.args[0]
             self.assertEqual(args.player_name,'Tester');self.assertTrue(args.saved_graphics)
             self.assertTrue(callable(args.progress));self.assertTrue(callable(args.cancel_check))
@@ -685,6 +685,22 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(self.desktop.renderer.call_args.args[1],'dxvk')
         for code in ('lan_unreachable','lan_version','lan_multiple','lan_full','lan_changing'):
             self.assertEqual(backend.error_code(lan_autoconnect.LanConnectionError(code,'private details')),code)
+
+    def test_lan_port_override_is_visible_after_restart_and_can_be_restored(self):
+        self.prepare()
+        def request(port):
+            return backend.dispatch(self.desktop,{'format':backend.REQUEST,'action':'lan-port','data':{'port':port}})
+
+        self.assertEqual(self.desktop.snapshot(displays=[])['lan_discovery_port'],9112)
+        self.assertEqual(request(19112),{'lan_discovery_port':19112})
+        reopened=backend.Desktop(self.desktop.app)
+        self.assertEqual(reopened.diagnostics()['lan_discovery_port'],19112)
+        for invalid in (True, '19112', 80, 65536, 9111):
+            with self.subTest(invalid=invalid),self.assertRaisesRegex(ValueError,'lan_discovery_port_invalid'):
+                request(invalid)
+        self.assertEqual(reopened.lan_discovery_port(),19112)
+        self.assertEqual(request(9112),{'lan_discovery_port':9112})
+        self.assertEqual(reopened.lan_discovery_port(),9112)
 
     def test_firewall_cleanup_uses_current_helper_aborts_on_failure_and_never_executes_legacy_script(self):
         self.prepare();root=self.desktop.game();helper=root/'Launcher/Configure-LAN-Firewall.ps1'

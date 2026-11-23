@@ -1,6 +1,6 @@
 """Find or offer a LAN directory without asking players for IP addresses."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import http.client
 import portable_lock as msvcrt
 from pathlib import Path
@@ -15,9 +15,9 @@ import launch_local
 import launch_lan
 from lan_control import Membership
 from lan_discovery import LanDiscovery
-from lan_hub import LanHubError, STARTUP_FAILURES
+from lan_hub import LanHubError
 from lan_interfaces import enumerate_interfaces
-from lobby_directory import GAME_SERVICE_PORT
+from lobby_directory import DISCOVERY_PORT, GAME_SERVICE_PORT
 import lan_autoconnect
 import player_settings
 import host_runtime
@@ -41,18 +41,30 @@ def session_lock(root):
             lock.seek(0); msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
+def stop_hub(process):
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def start_hub(root, interface, expected, name, directory, *, cancel_check=None, discovery_port=DISCOVERY_PORT):
     room_id = uuid.uuid4().hex
     log_path = root / 'LocalData' / ('lobby-hub-' + room_id + '.txt')
     # The coordinator belongs to all admitted peers. WSL tears down the
     # creator's process session when its CLI exits; keep this normal-user hub
     # independent. Its own lease/grace timer still closes the native service.
     lifetime = dict(start_new_session=True, stdin=subprocess.DEVNULL) if sys.platform == 'linux' else {}
+    port_option = ['--discovery-port', str(discovery_port)] if discovery_port != DISCOVERY_PORT else []
     with log_path.open('xb') as log:
         process = subprocess.Popen([host_runtime.python_command(root), '-B',
             str(root / 'Launcher/lan_hub.py'), '--bundle', str(root),
             '--address', interface.address, '--prefix', str(interface.prefix_length),
-            '--name', name, '--content-id', expected, '--room-id', room_id],
+            '--name', name, '--content-id', expected, '--room-id', room_id, *port_option],
             stdout=log, stderr=log, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), **lifetime)
     try:
         deadline = time.monotonic() + 30
@@ -60,14 +72,13 @@ def start_hub(root, interface, expected, name, directory, *, cancel_check=None):
             lan_autoconnect.checkpoint(cancel_check)
             status = process.poll()
             if status is not None:
-                raise LanHubError(STARTUP_FAILURES.get(status, 'lan_coordinator_start_failed'))
+                raise LanHubError.from_startup_status(status)
             rooms = directory.list_rooms(timeout=.3)
             if any(room.room_id == room_id and room.endpoint.host == interface.address for room in rooms):
                 return process
         raise LanHubError('lan_discovery_timeout')
     except BaseException:
-        if process.poll() is None:
-            process.terminate(); process.wait(timeout=10)
+        stop_hub(process)
         raise
 
 
@@ -84,16 +95,18 @@ def run(args, *, picker=None, network=None):
         enumerate_interfaces()
         print('Dateistand und aktive LAN-Verbindung geprueft. Kein Spiel gestartet.', flush=True)
         return 0
-    with session_lock(root) as data:
+    with session_lock(root) as data, ExitStack() as abort_host:
         # Profile installation and other launchers use this same copy lock.
         # Verify once while owning it, so a profile/content change cannot land
         # between the full-file check and admission/startup.
         expected = compatibility.network_id(compatibility.verify(root))
         launch_local.verify_bundle(root)
         lan_autoconnect.checkpoint(cancel)
+        discovery_port = DISCOVERY_PORT
         if network is None:
+            discovery_port = getattr(args, 'discovery_port', DISCOVERY_PORT)
             interfaces = enumerate_interfaces()
-            directory = LanDiscovery(interfaces)
+            directory = LanDiscovery(interfaces, port=discovery_port)
         else:
             # An owned Internet transport supplies exactly its verified overlay.
             # Never discover or offer a coordinator on a physical default route.
@@ -121,7 +134,8 @@ def run(args, *, picker=None, network=None):
         if choice is None:
             interface = interfaces[0]  # Active private default route first.
             room = lan_autoconnect.connect(directory, expected,
-                lambda: start_hub(root, interface, expected, 'WePlay LAN', directory, cancel_check=cancel),
+                lambda: start_hub(root, interface, expected, 'WePlay LAN', directory,
+                                  cancel_check=cancel, discovery_port=discovery_port),
                 cancel_check=cancel, progress=progress)
             interface, coordinator = room.local_interface, room.endpoint.host
         else:
@@ -136,7 +150,12 @@ def run(args, *, picker=None, network=None):
                 if len(own_rooms) != 1 or not own_rooms[0].compatible(expected):
                     raise ValueError('Die vorhandene eigene LAN-Lobby verwendet einen anderen Patchstand.')
             else:
-                start_hub(root, interface, expected, 'WePlay LAN', directory, cancel_check=cancel)
+                hub = start_hub(root, interface, expected, 'WePlay LAN', directory,
+                                cancel_check=cancel, discovery_port=discovery_port)
+                # A failed Internet host must release its beacon before the
+                # caller tears down the overlay. Leave existing hubs alone.
+                if network is not None:
+                    abort_host.callback(stop_hub, hub)
         membership = Membership(root, interface.address, coordinator, expected)
         runtime = None
         observer = None
@@ -157,6 +176,7 @@ def run(args, *, picker=None, network=None):
                 args.before_game()
             game = launch_local.spawn_game(root,game_arguments,environment,
                 lan={'local':interface.address,'coordinator':coordinator,'group':True},**renderer_option)
+            abort_host.pop_all()
             code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux', monitor=getattr(args, 'game_monitor', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)

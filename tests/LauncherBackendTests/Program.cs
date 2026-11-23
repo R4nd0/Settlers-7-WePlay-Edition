@@ -40,6 +40,7 @@ internal static class Tests
             await Scenario(root,"live-read","directory-list",null,null);
             await Scenario(root,"mutating","save",null,null);
             await Scenario(root,"diagnostic-lan","lan-play","operation_failed",null);
+            await Scenario(root,"diagnostic-native","internet-create","operation_failed",null);
             await Scenario(root,"failed-cancel","directory-list","backend_timeout",null);
             await Scenario(root,"descendant","directory-list","backend_timeout",null);
             var missing=new ProcessStartInfo(Path.Combine(root,"missing-child")){RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
@@ -111,10 +112,22 @@ internal static class Tests
             Check(entry.GetProperty("last_phase").GetString()=="lan_connect","records latest LAN phase");
             Check(entry.GetProperty("last_active_state").GetString()=="critical","records last non-idle backend state");
             Check(entry.GetProperty("fault").GetProperty("system_code").GetInt32()==10048,"socket error number is shareable");
+            Check(entry.GetProperty("fault").GetProperty("winsock_code").GetInt32()==10013,"discovery Winsock code survives persistence and export");
             Check(entry.GetProperty("fault").GetProperty("component").GetString()=="lan_hub","component without local path");
             Check(entry.GetProperty("backend_exit_code").GetInt32()==2,"reports backend exit code");
             Check(entry.GetProperty("warnings").GetArrayLength()==1,"retains recognized warnings");
             Check(!report.RootElement.GetRawText().Contains("private-"),"drops input, raw logs, error text and recovery tokens");
+        }
+        if(mode=="diagnostic-native") {
+            string reopened=Path.Combine(root,"diagnostic-native-reopened");
+            Directory.CreateDirectory(Path.Combine(reopened,"State"));
+            File.Copy(Path.Combine(folder,"State","launcher-history.json"),Path.Combine(reopened,"State","launcher-history.json"));
+            using var report=JsonDocument.Parse(LauncherDiagnostics.Export(reopened,"fixture",default,null).ToJsonString());
+            var entry=report.RootElement.GetProperty("launcher_history").EnumerateArray().Single();
+            var fault=entry.GetProperty("fault");
+            Check(fault.GetProperty("native_start_stage").GetInt32()==11,"native startup stage survives persistence and export");
+            Check(fault.GetProperty("native_exit_code").GetUInt32()==0xe053708b,"preserves unsigned native process exit code");
+            Check(!entry.GetProperty("game_started").GetBoolean(),"native initialization failure is recorded before game start");
         }
     }
 
@@ -130,7 +143,12 @@ internal static class Tests
             Console.WriteLine("""{"kind":"log","text":"private-address 192.168.1.24"}""");
             Console.WriteLine("""{"kind":"warning","code":"backend_unresponsive"}""");
             Console.WriteLine("""{"kind":"operation_state","phase":"idle"}""");
-            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"private-invite and private-path","diagnostic":{"kind":"os_error","component":"lan_hub","line":55,"system_code":10048}}""");
+            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"private-invite and private-path","diagnostic":{"kind":"os_error","component":"lan_hub","line":55,"system_code":10048,"winsock_code":10013}}""");
+            return 2;
+        }
+        if(mode=="diagnostic-native") {
+            Console.WriteLine("""{"kind":"progress","phase":"starting"}""");
+            Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"","diagnostic":{"kind":"runtime_error","component":"isolated_process","line":395,"native_start_stage":11,"native_exit_code":3763564683}}""");
             return 2;
         }
         if(mode=="normal"){Result();return 0;}

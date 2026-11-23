@@ -370,6 +370,17 @@ class DesktopResilienceTests(unittest.TestCase):
         self.assertEqual(info['system_code'],10048)
         self.assertNotIn('private',json.dumps(info))
 
+    def test_diagnostic_failure_keeps_native_start_and_socket_details(self):
+        from lan_hub import LanHubError
+        from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
+
+        native = backend.diagnostic_failure(NativeStartupError(0, FAILURE_EXIT_BASE + 11))
+        self.assertEqual((native['native_start_stage'], native['native_exit_code']), (11, FAILURE_EXIT_BASE + 11))
+        timeout = backend.diagnostic_failure(NativeStartupError(3, None))
+        self.assertEqual((timeout['native_start_stage'], timeout['native_exit_code']), (3, None))
+        lan = backend.diagnostic_failure(LanHubError('lan_discovery_port_busy', winsock_code=10013))
+        self.assertEqual(lan['winsock_code'], 10013)
+
 
 class PortableReadOnlyTests(unittest.TestCase):
     def test_already_bound_snapshot_does_not_rehash_package_but_play_still_rejects_tampering(self):

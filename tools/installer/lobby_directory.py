@@ -17,6 +17,11 @@ DIRECTORY_FORMAT = 's7-lobby-directory-v1'
 DISCOVERY_FORMAT = 's7-lan-discovery-v1'
 CONTROL_FORMAT = 's7-lobby-control-v1'
 DISCOVERY_PORT, HTTP_PORT, GAME_SERVICE_PORT = 9112, 9110, 9111
+
+def validate_discovery_port(port):
+    if type(port) is not int or not 1024 <= port <= 65535 or port in (3074, 6200, 9103, HTTP_PORT, GAME_SERVICE_PORT):
+        raise ValueError('lan_discovery_port_invalid')
+    return port
 MAX_MEMBERS, MAX_ROOMS, MAX_DATAGRAM = 8, 32, 1024
 LEASE_SECONDS, BEACON_TTL = 15, 9
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in

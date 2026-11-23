@@ -18,6 +18,21 @@ STAGES = {
     18: 'Nativer Lobbyadapter',
 }
 
+class NativeStartupError(RuntimeError):
+    def __init__(self, last_stage, exit_code):
+        reported_stage = exit_code - FAILURE_EXIT_BASE if exit_code is not None else None
+        stage = reported_stage if reported_stage in STAGES else last_stage
+        self.native_start_stage = stage if stage in STAGES else None
+        self.native_exit_code = exit_code
+        label = STAGES.get(stage, 'Windows-Programmstart')
+        if exit_code is None:
+            message = f'Zeitlimit beim nativen Starter. Letzte Stufe „{label}“.'
+        elif reported_stage in STAGES:
+            message = f'Der native Starter ist in der Stufe „{label}“ fehlgeschlagen.'
+        else:
+            message = f'Der Spielprozess wurde mit Exitcode 0x{exit_code:08X} beendet. Letzte Startstufe „{label}“.'
+        super().__init__(message)
+
 
 def bridge(remote, image, status, dll, imports, *, initializer='WePlayInitializeStandalone'):
     data = bytearray(4096)

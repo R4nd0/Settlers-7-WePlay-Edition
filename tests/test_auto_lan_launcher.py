@@ -1,5 +1,6 @@
 import os
 import json
+import socket
 from pathlib import Path
 import sys
 import subprocess
@@ -12,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools/installer'), str(ROOT / 'tools/offline-ui')]
 import launch_auto_lan as launcher
 from lobby_directory import LanInterface, LobbyEndpoint, LobbyRoom
+from lan_hub import LanHubError
 
 
 class AutomaticLauncherTests(unittest.TestCase):
@@ -103,6 +105,73 @@ class AutomaticLauncherTests(unittest.TestCase):
                 patch.object(launcher.subprocess, 'Popen') as game:
             with self.assertRaises(ValueError): launcher.run(self.args,picker=launcher._fixture_picker)
         hub.assert_not_called(); game.assert_not_called(); membership.close.assert_called_once()
+
+    def test_failed_internet_host_releases_owned_discovery_socket_after_leaving(self):
+        choice = dict(action='create', network=0, display_name='Anna')
+        membership = Mock()
+        directory = Mock()
+        directory.list_rooms.return_value = []
+        runtime = self.root / 'LocalData/s7-local-runtime.ini'
+
+        def configure(*args, **kwargs):
+            runtime.write_bytes(b'fixture')
+            return runtime
+
+        # A real child reserves an ephemeral loopback UDP port in place of the game hub.
+        command = 'import socket,time; s=socket.socket(type=socket.SOCK_DGRAM); ' \
+                  's.bind(("127.0.0.1",0)); print(s.getsockname()[1],flush=True); time.sleep(30)'
+        with subprocess.Popen([sys.executable, '-I', '-B', '-c', command],
+                              stdout=subprocess.PIPE, text=True) as child:
+            try:
+                port = int(child.stdout.readline())
+                with patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
+                        patch.object(launcher, 'start_hub', return_value=child), \
+                        patch.object(launcher, 'Membership', return_value=membership), \
+                        patch.object(launcher.launch_lan, 'remote_configuration', return_value={'content_id': 'a' * 64}), \
+                        patch.object(launcher.launch_local, 'write_configuration', side_effect=configure), \
+                        patch.object(launcher.launch_local, 'spawn_game', side_effect=RuntimeError('native start failed')):
+                    membership.close.side_effect = lambda: self.assertIsNone(child.poll())
+                    with self.assertRaisesRegex(RuntimeError, 'native start failed'):
+                        launcher.run(self.args, picker=lambda *_: choice,
+                                     network=lambda: ([self.interface], directory))
+                self.assertIsNotNone(child.poll())
+                membership.close.assert_called_once()
+                self.assertFalse(runtime.exists())
+                with socket.socket(type=socket.SOCK_DGRAM) as successor:
+                    successor.bind(('127.0.0.1', port))
+            finally:
+                launcher.stop_hub(child)
+
+    def test_successful_internet_host_preserves_new_hub(self):
+        choice = dict(action='create', network=0, display_name='Anna')
+        directory = Mock()
+        directory.list_rooms.return_value = []
+        with patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
+                patch.object(launcher, 'start_hub') as hub, \
+                patch.object(launcher, 'stop_hub') as stop, \
+                patch.object(launcher, 'Membership'), \
+                patch.object(launcher.launch_lan, 'remote_configuration', return_value={'content_id': 'a' * 64}), \
+                patch.object(launcher.launch_local, 'write_configuration', return_value=None), \
+                patch.object(launcher.launch_local, 'spawn_game'), \
+                patch.object(launcher.launch_local, 'wait_for_graphics_game', return_value=0):
+            self.assertEqual(launcher.run(self.args, picker=lambda *_: choice,
+                                          network=lambda: ([self.interface], directory)), 0)
+        hub.assert_called_once()
+        stop.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows child exit codes preserve Winsock diagnostics')
+    def test_hub_start_preserves_winsock_code_from_child_exit(self):
+        status = LanHubError('lan_discovery_port_busy', winsock_code=10013).startup_status()
+        command = [sys.executable, '-I', '-B', '-c', f'raise SystemExit({status})']
+        (self.root / 'LocalData').mkdir()
+        popen = subprocess.Popen
+        directory = Mock()
+        directory.list_rooms.return_value = []
+        with patch.object(launcher.subprocess, 'Popen', side_effect=lambda *_, **options: popen(command, **options)):
+            with self.assertRaisesRegex(LanHubError, 'lan_discovery_port_busy') as failure:
+                launcher.start_hub(self.root, self.interface, 'a' * 64, 'Anna', directory,
+                                   discovery_port=19112)
+        self.assertEqual(failure.exception.winsock_code, 10013)
 
     def test_desktop_picker_and_saved_graphics_are_used_without_second_dialog(self):
         self.args.saved_graphics=True

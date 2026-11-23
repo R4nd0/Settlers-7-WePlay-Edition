@@ -1,7 +1,9 @@
 import json
+from itertools import chain, repeat
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
 from lobby_directory import *
@@ -29,6 +31,24 @@ class DirectoryTests(unittest.TestCase):
                               (('192.168.178.85', DISCOVERY_PORT), '0' * 32)]:
             with self.assertRaises(ValueError):
                 read_answer(packet, source, self.interface, nonce, 10)
+
+    def test_custom_port_matches_beacon_bind_queries_and_reply_source(self):
+        port = 19112
+        beacon_socket = Mock()
+        beacon = LanBeacon(self.room, port=port, socket_factory=Mock(return_value=beacon_socket),
+                           route_socket=Mock())
+        self.addCleanup(beacon.close)
+        beacon_socket.bind.assert_called_once_with(('0.0.0.0', port))
+        packet = answer_message(query_message(NONCE), self.room)
+        client_socket = Mock()
+        client_socket.recvfrom.side_effect = [(packet, (self.room.endpoint.host, port)), OSError()]
+        directory = LanDiscovery([self.interface], port=port, socket_factory=Mock(return_value=client_socket),
+                                 route_socket=Mock(), clock=Mock(side_effect=chain(repeat(0, 6), repeat(.2))))
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE):
+            self.assertEqual(directory.list_rooms(timeout=.1)[0].room_id, self.room.room_id)
+        self.assertEqual({call.args[1][1] for call in client_socket.sendto.call_args_list}, {port})
+        with self.assertRaises(ValueError):
+            read_answer(packet, (self.room.endpoint.host, port), self.interface, NONCE, 0)
 
     def test_unknown_fields_ttl_and_capacity_are_rejected(self):
         original = json.loads(answer_message(query_message(NONCE), self.room))
@@ -95,7 +115,6 @@ class DirectoryTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError): read_choice(encode(changed), [self.interface])
 
     def test_discovery_closes_failed_sockets(self):
-        from unittest.mock import Mock
         sock = Mock(); sock.bind.side_effect = OSError()
         directory = LanDiscovery([self.interface], socket_factory=Mock(return_value=sock))
         self.assertEqual(directory.list_rooms(timeout=.1), [])

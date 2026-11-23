@@ -7,7 +7,7 @@ import struct
 import subprocess
 import time
 
-from standalone_entry import FAILURE_EXIT_BASE, STAGES, bridge
+from standalone_entry import NativeStartupError, bridge
 
 
 class ProcessEntry(C.Structure):
@@ -390,14 +390,7 @@ def _launch(executable, dll, expected, profile, environment, arguments,*,on_init
             if state == 1: break
             time.sleep(.02)
         if state != 1:
-            last_stage = STAGES.get(stage, 'Windows-Programmstart')
-            exit_code = owned.poll()
-            if exit_code is not None:
-                failed_stage = STAGES.get(exit_code - FAILURE_EXIT_BASE)
-                if failed_stage:
-                    raise RuntimeError(f'Der native Starter ist in der Stufe „{failed_stage}“ fehlgeschlagen.')
-                raise RuntimeError(f'Der Spielprozess wurde mit Exitcode 0x{exit_code:08X} beendet. Letzte Startstufe „{last_stage}“.')
-            raise RuntimeError(f'Zeitlimit beim nativen Starter. Letzte Stufe „{last_stage}“.')
+            raise NativeStartupError(stage, owned.poll())
         if struct.unpack('<I', read(status+8, 4))[0] != image + target_rva or read(entry, 5) != jump:
             raise RuntimeError('Der native Adapter hat die Initialisierung abgelehnt.')
         kernel_probe=struct.unpack('<I',read(status+20,4))[0]

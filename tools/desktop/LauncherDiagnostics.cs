@@ -15,7 +15,7 @@ internal static class LauncherDiagnostics
         PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower,MaxDepth=12
     };
     private static readonly HashSet<string> Actions= new(StringComparer.Ordinal) {
-        "snapshot","detect","install","repair","save","play","lan-list","lan-play",
+        "snapshot","detect","install","repair","save","play","lan-list","lan-play","lan-port",
         "firewall","probe","verify","diagnostics","update-check","update-install",
         "internet-create","internet-join","crossplay-create","crossplay-join",
         "directory-list","directory-connect","directory-join","discord-connect","discord-disconnect",
@@ -34,7 +34,7 @@ internal static class LauncherDiagnostics
     };
     private static readonly string[] ReportFields=[
         "release","source_commit","release_metadata_network_revision","content_contract","directory_protocol_revision",
-        "neo_wire_revision","game_bits","renderer","graphics_devices","probe_status","last_lan_start","memory_summary",
+        "neo_wire_revision","game_bits","renderer","graphics_devices","probe_status","last_lan_start","lan_discovery_port","memory_summary",
         "collection_status","known_lan_desync_resolved"
     ];
     private static readonly Lazy<HashSet<string>> Codes=new(() => {
@@ -55,10 +55,16 @@ internal static class LauncherDiagnostics
         item.ValueKind==JsonValueKind.Object&&item.TryGetProperty(name,out var value)&&value.ValueKind==JsonValueKind.Number
             &&value.TryGetInt32(out int number)?number:null;
 
-    internal sealed record Fault(string? Kind,string? Component,int? Line,int? SystemCode)
+    private static uint? UnsignedNumber(JsonElement item,string name)=>
+        item.ValueKind==JsonValueKind.Object&&item.TryGetProperty(name,out var value)&&value.ValueKind==JsonValueKind.Number
+            &&value.TryGetUInt32(out uint number)?number:null;
+
+    internal sealed record Fault(string? Kind,string? Component,int? Line,int? SystemCode,
+        int? NativeStartStage=null,uint? NativeExitCode=null,int? WinsockCode=null)
     {
         internal Fault Safe()=>new(LauncherDiagnostics.Kind(Kind),
-            Component is not null&&Components.Contains(Component)?Component:null,Line is >0 and <100000?Line:null,SystemCode);
+            Component is not null&&Components.Contains(Component)?Component:null,Line is >0 and <100000?Line:null,SystemCode,
+            NativeStartStage is >0 and <=255?NativeStartStage:null,NativeExitCode,WinsockCode is >0 and <=65535?WinsockCode:null);
     }
     internal sealed record Entry(
         DateTimeOffset StartedUtc,string Action,string Outcome,string? Stage,string? LastPhase,string[] Phases,string? LastActiveState,
@@ -107,7 +113,8 @@ internal static class LauncherDiagnostics
                     break;
                 case "error":
                     if(item.TryGetProperty("diagnostic",out var data))
-                        fault=new Fault(String(data,"kind"),String(data,"component"),Number(data,"line"),Number(data,"system_code")).Safe();
+                        fault=new Fault(String(data,"kind"),String(data,"component"),Number(data,"line"),Number(data,"system_code"),
+                            Number(data,"native_start_stage"),UnsignedNumber(data,"native_exit_code"),Number(data,"winsock_code")).Safe();
                     break;
             }
         }

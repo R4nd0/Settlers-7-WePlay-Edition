@@ -5,6 +5,7 @@ import os
 import struct
 
 import isolated_process as owner
+from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
 
 
 def fixture_profile(path):
@@ -57,8 +58,8 @@ def main():
     rejected_environment = dict(environment, WEPLAY_TEST_REJECT_ENTRY='1')
     try:
         unexpected = owner._launch(executable, dll, owner.digest(executable), profile, rejected_environment, ())
-    except RuntimeError as error:
-        if 'Nativer Initialisierungseinstieg' not in str(error):
+    except NativeStartupError as error:
+        if (error.native_start_stage, error.native_exit_code) != (3, FAILURE_EXIT_BASE + 3):
             raise
     else:
         unexpected.wait(timeout=15)

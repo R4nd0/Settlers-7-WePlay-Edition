@@ -11,7 +11,7 @@ import sys
 
 from lobby_directory import (BEACON_TTL, DISCOVERY_FORMAT, DISCOVERY_PORT, HTTP_PORT,
     GAME_SERVICE_PORT, MAX_DATAGRAM, MAX_MEMBERS, LobbyEndpoint, LobbyRoom, RoomCache,
-    content_id, encode, json_record, private_address, public_name)
+    content_id, encode, json_record, private_address, public_name, validate_discovery_port)
 
 
 class IpAddressRow(ctypes.Structure):
@@ -93,13 +93,13 @@ def answer_message(query, room):
         'http_port': HTTP_PORT, 'udp_port': GAME_SERVICE_PORT})
 
 
-def read_answer(data, source, interface, nonce, now):
+def read_answer(data, source, interface, nonce, now, *, port=DISCOVERY_PORT):
     value = json_record(data)
     if (set(value) != {'format', 'kind', 'nonce', 'room_id', 'name', 'content_id',
                       'members', 'capacity', 'ttl', 'http_port', 'udp_port'}
             or value['format'] != DISCOVERY_FORMAT or value['kind'] != 'room'
             or value['nonce'] != nonce or type(value['ttl']) is not int or not 1 <= value['ttl'] <= BEACON_TTL
-            or source[1] != DISCOVERY_PORT or not interface.contains(source[0])):
+            or source[1] != port or not interface.contains(source[0])):
         raise ValueError('Die Antwort gehoert nicht zur lokalen Suche.')
     return LobbyRoom(value['room_id'], value['name'], value['content_id'],
         LobbyEndpoint('lan-direct', source[0], value['http_port'], value['udp_port']),
@@ -107,11 +107,12 @@ def read_answer(data, source, interface, nonce, now):
 
 
 class LanDiscovery:
-    def __init__(self, interfaces, *, socket_factory=socket.socket, clock=time.monotonic,
+    def __init__(self, interfaces, *, port=DISCOVERY_PORT, socket_factory=socket.socket, clock=time.monotonic,
                  route_socket=select_outgoing_interface):
         if not 1 <= len(interfaces) <= 16:
             raise ValueError('Kein passendes lokales Netzwerk gefunden.')
         self.interfaces = tuple(interfaces)
+        self.port = validate_discovery_port(port)
         self.socket_factory, self.clock = socket_factory, clock
         self.route_socket = route_socket
         self.cache = RoomCache(clock)
@@ -131,10 +132,10 @@ class LanDiscovery:
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     sock.bind((interface.address, 0)); sock.settimeout(.03)
                     self.route_socket(sock, interface)
-                    sock.sendto(packet, (str(interface.network.broadcast_address), DISCOVERY_PORT))
+                    sock.sendto(packet, (str(interface.network.broadcast_address), self.port))
                     # Also permit finding a coordinator on this PC without relying
                     # on the NIC's broadcast-loopback behaviour.
-                    sock.sendto(packet, (interface.address, DISCOVERY_PORT))
+                    sock.sendto(packet, (interface.address, self.port))
                 except (OSError, ValueError):
                     if sock is not None and sockets and sockets[-1][0] is sock:
                         sockets.pop(); sock.close()
@@ -147,7 +148,7 @@ class LanDiscovery:
                     try:
                         data, source = sock.recvfrom(MAX_DATAGRAM + 1)
                         packets += 1
-                        self.cache.add(read_answer(data, source, interface, nonce, self.clock()))
+                        self.cache.add(read_answer(data, source, interface, nonce, self.clock(), port=self.port))
                     except (OSError, ValueError, TypeError):
                         pass
             return self.cache.list_rooms()
@@ -160,7 +161,7 @@ class LanDiscovery:
 
 
 class BeaconBindError(OSError):
-    """The private-LAN discovery socket could not bind its fixed port."""
+    """The private-LAN discovery socket could not bind its configured port."""
 
 
 class LanBeacon:
@@ -171,8 +172,9 @@ class LanBeacon:
     _reply_window = None
     _reply_count = 0
 
-    def __init__(self, room, *, clock=time.monotonic, socket_factory=socket.socket,
+    def __init__(self, room, *, port=DISCOVERY_PORT, clock=time.monotonic, socket_factory=socket.socket,
                  route_socket=select_outgoing_interface):
+        port = validate_discovery_port(port)
         self.room, self.clock = room, clock
         self.stop_event = threading.Event()
         self.rates = OrderedDict()
@@ -182,7 +184,7 @@ class LanBeacon:
             # A wildcard is needed to receive Windows directed broadcasts. Every
             # source is checked against the selected interface before replying.
             try:
-                self.sock.bind(('0.0.0.0', DISCOVERY_PORT))
+                self.sock.bind(('0.0.0.0', port))
             except OSError as error:
                 number = getattr(error, 'winerror', None) or error.errno
                 raise BeaconBindError(number, 'LAN discovery bind failed') from error

@@ -36,9 +36,11 @@ import player_settings
 import quality_settings as quality
 import desktop_settings
 from lan_discovery import LanDiscovery
+from lan_hub import LanHubError
 from lan_interfaces import enumerate_interfaces
-from lobby_directory import json_record, encode
+from lobby_directory import DISCOVERY_PORT, json_record, encode, validate_discovery_port
 from lobby_picker import read_choice
+from standalone_entry import NativeStartupError
 
 FORMAT='s7-desktop-install-v1'
 INSTALL_FORMAT='s7-desktop-install-v2'
@@ -355,6 +357,21 @@ class Desktop:
         try:self.write(self.state/'lan-start.json',{'code':code})
         except (OSError,ValueError):pass
 
+    def lan_discovery_port(self):
+        try:
+            value=self.read(self.state/'lan-discovery.json',limit=1024)
+            if isinstance(value,dict) and set(value)=={'port'}:
+                return validate_discovery_port(value['port'])
+        except (OSError,ValueError):
+            pass
+        return DISCOVERY_PORT
+
+    def save_lan_discovery_port(self,data):
+        if set(data)!={'port'}:raise ValueError('request_invalid')
+        port=validate_discovery_port(data['port'])
+        self.write(self.state/'lan-discovery.json',{'port':port})
+        return {'lan_discovery_port':port}
+
     def snapshot(self,*,displays=None):
         value=self.installed()
         metadata=install.package_metadata(self.package)
@@ -364,6 +381,7 @@ class Desktop:
                 'renderer_modes':self.supported_renderers(),
                 'compat_smaa_supported':metadata.get('compat_smaa_probe',False),
                 'network_setup_preferred':self.network_setup_preferred(self.game() if value else None),
+                'lan_discovery_port':self.lan_discovery_port(),
                 'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
                 'quality':dict(quality.DEFAULTS),'player_name':'LocalPlayer','renderer':value['renderer_policy'] if value else 'dxvk',
@@ -855,7 +873,7 @@ class Desktop:
 
     def lan_list(self):
         if self.is_gold():raise ValueError('gold_single_player_only')
-        root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
+        root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces,port=self.lan_discovery_port())
         expected=self.network_id(root);alternatives=self.alternatives(root)
         rooms=directory.list_rooms(timeout=1)
         def status(room):
@@ -870,11 +888,12 @@ class Desktop:
         if not isinstance(request,dict) or set(request)!={'player_name'}:raise ValueError('request_invalid')
         player_settings.player_name(request['player_name'])
 
-    def align_lan(self,request):
+    def align_lan(self,request,*,discovery_port=None):
         self.validate_lan(request)
         from lan_autoconnect import discover_preferred
         self.progress('lan_search')
-        root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces)
+        if discovery_port is None:discovery_port=self.lan_discovery_port()
+        root=self.game();interfaces=enumerate_interfaces();directory=LanDiscovery(interfaces,port=discovery_port)
         # DXVK is required on this PC; discovery cannot select another pipeline.
         self.renderer(root,'dxvk')
         current=self.network_id(root)
@@ -1229,7 +1248,8 @@ class Desktop:
         probe=self.cached_graphics_probe()
         if request is None or internet is not None:mode=self.renderer(root,'dxvk')
         else:
-            self.align_lan(request);mode=choice._renderer(root,{})[0]
+            discovery_port=self.lan_discovery_port()
+            self.align_lan(request,discovery_port=discovery_port);mode=choice._renderer(root,{})[0]
         renderer=self.launch_renderer()
         with graphics.session_lock(root):
             preferred=choice._load_choice(root)
@@ -1275,7 +1295,7 @@ class Desktop:
                 network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
         else:
             code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
-                player_name=request['player_name'],progress=self.progress,
+                player_name=request['player_name'],discovery_port=discovery_port,progress=self.progress,
                 cancel_check=lambda:self.progress('lan_search'),before_game=before,game_monitor=monitor))
         self.emit('game_finished',exit_code=code)
         self.operation_state('cancellable')
@@ -1441,7 +1461,7 @@ class Desktop:
                 'directory_protocol_revision':NETWORK_REVISION,'neo_wire_revision':neo,
                 'game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
-                'last_lan_start':last_lan,
+                'last_lan_start':last_lan,'lan_discovery_port':self.lan_discovery_port(),
                 'memory_summary':summary,
                 'collection_status':collection,
                 'known_lan_desync_resolved':False}
@@ -1561,6 +1581,7 @@ def _dispatch(desktop,request):
         if action=='save':return desktop.save_settings(data)
         if action=='play' and not data:return desktop.play()
         if action=='lan-list' and not data:return desktop.lan_list()
+        if action=='lan-port':return desktop.save_lan_discovery_port(data)
         if action=='lan-play':
             try:result=desktop.play(data)
             except (OSError,ValueError,RuntimeError,http.client.HTTPException,subprocess.TimeoutExpired) as error:
@@ -1599,7 +1620,7 @@ def error_code(error):
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
-                'lan_discovery_port_busy','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',
+                'lan_discovery_port_busy','lan_discovery_port_invalid','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',
                 'settings_saved_refresh_failed','platform_isolation_required','gold_single_player_only','gold_game_settings',
                 'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required',
                 'crossplay_unavailable','crossplay_configuration_invalid','crossplay_edition_mismatch',
@@ -1634,6 +1655,10 @@ def diagnostic_failure(error):
         number=getattr(error,'winerror',None)
         if number is None:number=getattr(error,'errno',None)
         if type(number) is int and -(2**31)<=number<2**31:result['system_code']=number
+        if isinstance(error,NativeStartupError):
+            result.update(native_start_stage=error.native_start_stage,native_exit_code=error.native_exit_code)
+        if isinstance(error,LanHubError) and error.winsock_code is not None:
+            result['winsock_code']=error.winsock_code
         frame=error.__traceback__
         while frame:
             path=Path(frame.tb_frame.f_code.co_filename).absolute()
