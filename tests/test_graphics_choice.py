@@ -190,6 +190,41 @@ class GraphicsChoiceTests(unittest.TestCase):
             self.assertIn(b'Antialiasing = 1',options.read_bytes())
             reshade.assert_called_once()
 
+    def test_compatibility_uses_only_verified_smaa_and_falls_back_to_game_aa(self):
+        import quality_settings as quality
+        import reshade_runtime
+        options=self.parent/'Options.ini'
+        (self.root/choice.CHOICE_FILE).write_bytes(graphics.encoded({
+            'format':choice.FORMAT,'choice':None,'enhanced_aa':True,'midsummer_tone':True}))
+        (self.root/quality.FILE).write_bytes(graphics.encoded({**quality.DEFAULTS,'Antialiasing':0}))
+        with patch.object(choice.display,'options_path',return_value=options), \
+                patch.object(reshade_runtime,'probe_compatibility_smaa',side_effect=['Fixture GPU',None]), \
+                patch.object(reshade_runtime,'launch_environment',side_effect=lambda root,env,**kwargs:env) as layer:
+            environment=choice.saved_launch_environment(self.root,{},renderer='gplasync',renderer_package=self.parent)
+            self.assertEqual(environment['DXVK_FILTER_DEVICE_NAME'],'Fixture GPU')
+            self.assertEqual(layer.call_args.kwargs['options'],{'enhanced_aa':True})
+            self.assertIn(b'Antialiasing = 0',options.read_bytes())
+            environment=choice.saved_launch_environment(self.root,{},renderer='async',renderer_package=self.parent)
+            self.assertNotIn('DXVK_FILTER_DEVICE_NAME',environment)
+            self.assertIn(b'Antialiasing = 1',options.read_bytes())
+            layer.assert_called_once()
+            self.assertEqual(quality.load(self.root)['Antialiasing'],0)
+
+    def test_linked_shadow_range_uses_the_model_step_and_legacy_is_unchanged(self):
+        base={'format':choice.FORMAT,'choice':None,'extended_detail':True,'extended_shadow_range':True}
+        self.assertEqual(choice.visual_environment(base,{}),
+            {'S7_EXTENDED_DETAIL':'1','S7_EXTENDED_SHADOW_RANGE':'1'})
+        for step in range(5):
+            linked={**base,'detail_level':step,'link_shadow_range':True}
+            self.assertEqual(choice.visual_environment(linked,{}),
+                {'S7_EXTENDED_DETAIL':str(step),'S7_EXTENDED_SHADOW_RANGE':str(step)} if step else {})
+        independent={**base,'detail_level':4,'link_shadow_range':False}
+        self.assertEqual(choice.visual_environment(independent,{}),
+            {'S7_EXTENDED_DETAIL':'4','S7_EXTENDED_SHADOW_RANGE':'1'})
+        for invalid in (True,-1,5,'4'):
+            with self.subTest(invalid=invalid),self.assertRaises(ValueError):
+                choice.validate_choice({**base,'detail_level':invalid})
+
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()
         before = content.verify(self.root)

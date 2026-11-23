@@ -14,12 +14,13 @@ internal sealed partial class MainForm
     private string CaptureGraphicsDraft()=>JsonSerializer.Serialize(new {
         renderer=RendererMode,
         antialiasing=AntialiasingMode,
+        detail=detailLevel.Value,
         gpu=(gpu.SelectedItem as Item)?.Key,
         keepDisplay=keepDisplay.Checked,monitor=keepDisplay.Checked?null:(monitor.SelectedItem as Item)?.Key,
         window=keepDisplay.Checked?-1:window.SelectedIndex,resolution=keepDisplay.Checked?null:(resolution.SelectedItem as Item)?.Key,
         quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex),
         effects=effects.ToDictionary(x=>x.Key,x=>x.Value.Checked),
-        flags=new[]{simple,anisotropicFiltering,extendedDetail,detailedShadows,extendedShadowRange,
+        flags=new[]{simple,anisotropicFiltering,linkShadowRange,detailedShadows,extendedShadowRange,
             ultraShadows,midsummerTone,contactShadows,maximumFx}.Select(x=>x.Checked).ToArray()
     });
     private void AcceptGraphicsDraft(){savedGraphicsDraft=CaptureGraphicsDraft();UpdateGraphicsDraft();}
@@ -51,7 +52,8 @@ internal sealed partial class MainForm
     {
         foreach(var combo in new[]{renderer,gpu,monitor,window,resolution,antialiasing}.Concat(qualities.Values))
             combo.SelectedIndexChanged+=(_,_)=>UpdateGraphicsDraft();
-        foreach(var box in new[]{keepDisplay,simple,anisotropicFiltering,extendedDetail,detailedShadows,extendedShadowRange,
+        detailLevel.ValueChanged+=(_,_)=>UpdateGraphicsDraft();
+        foreach(var box in new[]{keepDisplay,simple,anisotropicFiltering,linkShadowRange,detailedShadows,extendedShadowRange,
             ultraShadows,midsummerTone,contactShadows,maximumFx}.Concat(effects.Values))
             box.CheckedChanged+=(_,_)=>UpdateGraphicsDraft();
     }

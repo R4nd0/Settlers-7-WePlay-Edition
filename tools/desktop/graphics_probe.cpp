@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <d3d9.h>
 #include <cstdio>
+#include <cwchar>
 #include <string>
 #include <vector>
 
@@ -25,23 +26,30 @@ static void json_string(const std::string& text) {
     std::putchar('"');
 }
 int wmain(int argc, wchar_t** argv) {
-    if (argc != 2) return 3;
+    if(argc==2&&std::wcscmp(argv[1],L"--capabilities")==0) {
+        std::puts("s7-render-probe-smaa-v1");
+        return 0;
+    }
+    const bool smaa=argc==3&&std::wcscmp(argv[2],L"--smaa")==0;
+    if (argc!=2&&!smaa) return 3;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     HMODULE dll = LoadLibraryExW(argv[1], nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     if (!dll) { std::puts("{\"format\":\"s7-render-probe-v1\",\"devices\":[]}"); return 2; }
     using Create = IDirect3D9* (WINAPI*)(UINT);
     auto create = reinterpret_cast<Create>(GetProcAddress(dll, "Direct3DCreate9"));
     IDirect3D9* d3d = create ? create(D3D_SDK_VERSION) : nullptr;
-    HWND window = CreateWindowExW(0, L"STATIC", L"S7 graphics check", WS_POPUP, -30000, -30000, 64, 64,
+    const int width=smaa?320:64,height=smaa?240:64;
+    HWND window = CreateWindowExW(0, L"STATIC", L"S7 graphics check", WS_POPUP, -30000, -30000, width, height,
                                  nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
     std::vector<std::string> devices;
     if (d3d && window) {
         const UINT count = d3d->GetAdapterCount();
-        if (count <= 16) for (UINT i = 0; i < count; ++i) {
+        if (count <= 16) for (UINT i=0; i<(smaa&&count?1:count); ++i) {
             D3DADAPTER_IDENTIFIER9 id{};
             if (FAILED(d3d->GetAdapterIdentifier(i, 0, &id))) continue;
             D3DPRESENT_PARAMETERS pp{};
-            pp.BackBufferWidth = 64; pp.BackBufferHeight = 64; pp.BackBufferFormat = D3DFMT_UNKNOWN;
+            pp.BackBufferWidth=static_cast<UINT>(width);pp.BackBufferHeight=static_cast<UINT>(height);
+            pp.BackBufferFormat = D3DFMT_UNKNOWN;
             pp.BackBufferCount = 1; pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
             pp.hDeviceWindow = window; pp.Windowed = TRUE; pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
             IDirect3DDevice9* device = nullptr;
@@ -49,7 +57,16 @@ int wmain(int argc, wchar_t** argv) {
                 D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE, &pp, &device);
             if (SUCCEEDED(result) && device) {
                 const HRESULT clear = device->Clear(0, nullptr, D3DCLEAR_TARGET, 0xff284366, 1.0f, 0);
-                const HRESULT present = device->Present(nullptr, nullptr, nullptr, nullptr);
+                HRESULT present=device->Present(nullptr,nullptr,nullptr,nullptr);
+                if(smaa) {
+                    const D3DRECT mark{35,37,207,113};
+                    for(unsigned frame=0;frame<120&&SUCCEEDED(present);++frame) {
+                        device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff284366,1.0f,0);
+                        device->Clear(1,&mark,D3DCLEAR_TARGET,0xffeeeeee,1.0f,0);
+                        present=device->Present(nullptr,nullptr,nullptr,nullptr);
+                        Sleep(12);
+                    }
+                }
                 if (SUCCEEDED(clear) && SUCCEEDED(present)) devices.push_back(utf8(id.Description));
                 device->Release();
             }

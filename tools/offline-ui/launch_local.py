@@ -87,7 +87,7 @@ def graphics_game_arguments(root, renderer=None):
 def saved_graphics_environment(root, renderer=None):
     if renderer is None:
         return _graphics_module().saved_launch_environment(root)
-    return _graphics_module().saved_launch_environment(root, renderer=renderer[0])
+    return _graphics_module().saved_launch_environment(root, renderer=renderer[0],renderer_package=renderer[1])
 
 
 def wait_for_graphics_game(root, game, *, enabled=True, monitor=None):

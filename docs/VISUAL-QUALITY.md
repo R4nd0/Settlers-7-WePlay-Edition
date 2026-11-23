@@ -75,8 +75,12 @@ GPU memory and rendering work.
 The **Antialiasing** selector offers Off, Standard (game), and SMAA (ReShade)
 where the active pipeline supports SMAA. The launcher applies one method at a
 time. Modern DXVK presets and new supported Windows copies select SMAA.
-Older pipelines offer Standard and Off. Existing Modern profiles that saved
-both methods use SMAA at their next launch.
+DXVK-Async and DXVK-GPLAsync offer SMAA when the package includes the compatibility
+probe. At launch they submit a small D3D9 frame and check that the bundled layer
+compiles SMAA on the adapter selected for the game. A failed check uses Standard
+antialiasing for that launch. The shader remains independent of other ReShade
+effects. Existing Modern profiles that saved both methods use SMAA at their next
+launch.
 
 **WePlay recommended** selects high quality, longer model detail and
 visibility, 4096 shadows and the antialiasing appropriate to the chosen pipeline.
@@ -86,7 +90,12 @@ Midsummer color profile, SMAA and Maximum effects. It disables the game's
 antialiasing, depth of field and ReShade contact shadows. Save applies the
 selected settings on the next launch. Both presets preserve the selected
 display, resolution, GPU and menu mode. The graphics page displays manual GPU
-selection and ReShade options where the selected graphics pipeline supports them.
+selection and additional ReShade effects on Modern DXVK.
+
+**Keep high detail longer when zooming out** offers Off, +50%, +100%, +150% and
++200% with the stepped graphics adapters. Saved on/off choices load as +50% or
+Off. **Link shadow distance to model detail** applies the same step to the
+shadow range. Shadow map resolution and texture filtering stay separate.
 
 Mittsommer keeps its bright twilight/day cycle and 20-minute native period.
 RC3.19 also replaces the inherited fixed 45-degree light/disc azimuth with

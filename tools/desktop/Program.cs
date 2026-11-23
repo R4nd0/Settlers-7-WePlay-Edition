@@ -232,7 +232,8 @@ internal sealed partial class MainForm : Form
     private readonly ComboBox renderer = Combo(), gpu = Combo(), monitor = Combo(), window = Combo(), resolution = Combo();
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
-    private readonly CheckBox extendedDetail = new() { AutoSize = true };
+    private readonly TrackBar detailLevel = new() { Minimum=0,Maximum=1,TickFrequency=1,LargeChange=1,SmallChange=1 };
+    private readonly CheckBox linkShadowRange = new() { AutoSize = true };
     private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly CheckBox extendedShadowRange = new() { AutoSize = true };
     private readonly CheckBox midsummerTone = new() { AutoSize = true };
@@ -263,8 +264,12 @@ internal sealed partial class MainForm : Form
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
-    private bool SmaaAvailable=>RendererMode=="dxvk"&&midsummerToneAvailable;
-    private bool MaximumGraphicsAvailable=>SmaaAvailable&&!singlePlayerOnly;
+    private bool compatSmaaAvailable,lodStepsAvailable;
+    private bool AdvancedReshadeAvailable=>RendererMode=="dxvk"&&midsummerToneAvailable;
+    private bool CanUseSmaa(string renderer)=>midsummerToneAvailable&&(renderer=="dxvk"||
+        (compatSmaaAvailable&&renderer is ("async" or "gplasync")));
+    private bool SmaaAvailable=>CanUseSmaa(RendererMode);
+    private bool MaximumGraphicsAvailable=>AdvancedReshadeAvailable&&!singlePlayerOnly;
     private string AntialiasingMode=>(antialiasing.SelectedItem as Item)?.Key??"off";
 
     private void SetAntialiasingMode(string mode)
@@ -607,6 +612,9 @@ internal sealed partial class MainForm : Form
         singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
+        lodStepsAvailable=value.TryGetProperty("lod_steps_supported",out var lodSupport)&&lodSupport.GetBoolean();
+        compatSmaaAvailable=value.TryGetProperty("compat_smaa_supported",out var compatibleAa)&&compatibleAa.GetBoolean();
+        detailLevel.Maximum=lodStepsAvailable?4:1;
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
@@ -620,7 +628,11 @@ internal sealed partial class MainForm : Form
             destination.Text=value.GetProperty("data_default").GetString(); player.Text=value.GetProperty("player_name").GetString();internetPlayer.Text=player.Text;
             simple.Checked=value.GetProperty("choice").TryGetProperty("simple_menu",out var simpleValue)&&simpleValue.GetBoolean();
             anisotropicFiltering.Checked=value.GetProperty("choice").TryGetProperty("anisotropic_filtering",out var filteringValue)&&filteringValue.GetBoolean();
-            extendedDetail.Checked=value.GetProperty("choice").TryGetProperty("extended_detail",out var detailValue)&&detailValue.GetBoolean();
+            var graphicsChoice=value.GetProperty("choice");
+            int savedDetail=graphicsChoice.TryGetProperty("detail_level",out var step)?step.GetInt32():
+                graphicsChoice.TryGetProperty("extended_detail",out var oldDetail)&&oldDetail.GetBoolean()?1:0;
+            detailLevel.Value=visualDetailAvailable?Math.Clamp(savedDetail,0,detailLevel.Maximum):0;
+            linkShadowRange.Checked=visualDetailAvailable&&graphicsChoice.TryGetProperty("link_shadow_range",out var link)&&link.GetBoolean();
             detailedShadows.Checked=value.GetProperty("choice").TryGetProperty("detailed_shadows",out var shadowValue)&&shadowValue.GetBoolean();
             extendedShadowRange.Checked=value.GetProperty("choice").TryGetProperty("extended_shadow_range",out var rangeValue)&&rangeValue.GetBoolean();
             midsummerTone.Checked=midsummerToneAvailable&&value.GetProperty("choice").TryGetProperty("midsummer_tone",out var toneValue)&&toneValue.GetBoolean();
@@ -629,7 +641,7 @@ internal sealed partial class MainForm : Form
             var quality=value.GetProperty("quality");foreach(var pair in qualities)pair.Value.SelectedIndex=quality.GetProperty(pair.Key).GetInt32();
             foreach(var pair in effects)pair.Value.Checked=quality.GetProperty(pair.Key).GetInt32()!=0;
             preferredAa=quality.GetProperty("Antialiasing").GetInt32()!=0?"game":"off";
-            if(savedRenderer=="dxvk"&&midsummerToneAvailable&&
+            if(CanUseSmaa(savedRenderer)&&
                 value.GetProperty("choice").TryGetProperty("enhanced_aa",out var aaValue)&&aaValue.GetBoolean())
                 preferredAa="smaa";
         }
@@ -846,11 +858,15 @@ internal sealed partial class MainForm : Form
         antialiasing.Enabled=!busy;
         graphicsGpuField.Visible=modern;
         gpu.Enabled=!busy&&modern&&gpu.Items.Count>1;
+        detailLevelField.Visible=detailLevelValue.Visible=linkShadowRange.Visible=visualDetailAvailable;
+        detailLevel.Enabled=linkShadowRange.Enabled=!busy&&visualDetailAvailable;
+        detailLevelValue.Text=detailLevel.Value==0?Lang.T("antialiasingOff"):$"+{detailLevel.Value*50} %";
         foreach(var item in additionalGraphics)
         {
             bool available=item.Key==anisotropicFiltering?modern:
                 item.Key==maximumFx?MaximumGraphicsAvailable:
-                item.Key==midsummerTone||item.Key==contactShadows?SmaaAvailable:visualDetailAvailable;
+                item.Key==midsummerTone||item.Key==contactShadows?AdvancedReshadeAvailable:
+                item.Key==extendedShadowRange?visualDetailAvailable&&!linkShadowRange.Checked:visualDetailAvailable;
             item.Key.Visible=item.Value.Visible=available;
             item.Key.Enabled=!busy&&available;
         }
@@ -866,7 +882,9 @@ internal sealed partial class MainForm : Form
     {
         DisplayEnabled();
         ApplyQualityPreset(true);
-        extendedDetail.Checked=detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
+        detailLevel.Value=visualDetailAvailable?1:0;
+        linkShadowRange.Checked=false;
+        detailedShadows.Checked=extendedShadowRange.Checked=visualDetailAvailable;
         ultraShadows.Checked=false;
         maximumFx.Checked=false;
         midsummerTone.Checked=contactShadows.Checked=false;
@@ -891,7 +909,8 @@ internal sealed partial class MainForm : Form
         string? card=(gpu.SelectedItem as Item)?.Key;
         if(string.IsNullOrEmpty(card))card=null;
         return new {renderer_policy=RendererMode,choice=new {format="s7-graphics-choice-v1",choice=card,simple_menu=simple.Checked,display=output,
-            anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=extendedDetail.Checked,
+            anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=detailLevel.Value>0,
+            detail_level=detailLevel.Value,link_shadow_range=linkShadowRange.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
             enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
     }
@@ -1248,10 +1267,10 @@ internal sealed partial class MainForm : Form
                 var output=request.RootElement.GetProperty("choice").GetProperty("display");
                 if(output.GetProperty("mode").GetString()!="borderless"||output.GetProperty("width").GetInt32()!=1920||form.resolution.Enabled)throw new Exception("Borderless controls failed");
                 if(form.anisotropicFiltering.Checked)throw new Exception("Legacy preferences force texture filtering");
-                if(form.extendedDetail.Checked||form.detailedShadows.Checked||form.extendedShadowRange.Checked)throw new Exception("Legacy preferences force visual detail");
-                if(form.extendedDetail.Enabled||form.detailedShadows.Enabled||form.extendedShadowRange.Enabled)throw new Exception("Unsupported adapter exposes visual controls");
+                if(form.detailLevel.Value!=0||form.detailedShadows.Checked||form.extendedShadowRange.Checked)throw new Exception("Legacy preferences force visual detail");
+                if(form.detailLevel.Enabled||form.detailedShadows.Enabled||form.extendedShadowRange.Enabled)throw new Exception("Unsupported adapter exposes visual controls");
                 form.visualDetailAvailable=true;form.DisplayEnabled();
-                form.extendedDetail.Checked=true;form.detailedShadows.Checked=true;form.extendedShadowRange.Checked=true;
+                form.detailLevel.Value=1;form.detailedShadows.Checked=true;form.extendedShadowRange.Checked=true;
                 using(var detailed=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
                 {
                     var detailChoice=detailed.RootElement.GetProperty("choice");
@@ -1269,7 +1288,7 @@ internal sealed partial class MainForm : Form
                         ||!tone.RootElement.GetProperty("choice").GetProperty("maximum_fx").GetBoolean())throw new Exception("Visual quality choice lost");
                 form.midsummerTone.Checked=form.contactShadows.Checked=form.ultraShadows.Checked=form.maximumFx.Checked=false;
                 form.SetAntialiasingMode("off");
-                form.extendedDetail.Checked=false;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
+                form.detailLevel.Value=0;form.detailedShadows.Checked=false;form.extendedShadowRange.Checked=false;
                 form.ApplyQualityPreset(false);
                 using(var preset=JsonDocument.Parse(JsonSerializer.Serialize(form.GraphicsRequest())))
                 {
@@ -1338,9 +1357,29 @@ internal sealed partial class MainForm : Form
                 form.DiscardGraphicsDraft();
                 if(form.RendererMode!="dxvk"||form.AntialiasingMode!="smaa"||form.GraphicsDirty)
                     throw new Exception("Renderer draft was not discarded");
+                dualAa["visual_detail_supported"]=true;
+                dualAa["lod_steps_supported"]=true;
+                dualAa["compat_smaa_supported"]=true;
+                dualAa["choice"]!["extended_detail"]=true;
+                form.LoadSnapshot(JsonSerializer.SerializeToElement(dualAa),acceptGraphics:true);
+                if(form.detailLevel.Maximum!=4||form.detailLevel.Value!=1)
+                    throw new Exception("The old LOD choice did not become the +50% step");
+                foreach(int index in new[]{1,2})
+                {
+                    form.renderer.SelectedIndex=index;
+                    form.ApplyRecommendedGraphics();
+                    form.detailLevel.Value=4;
+                    form.linkShadowRange.Checked=true;
+                    var compat=JsonSerializer.SerializeToElement(form.GraphicsRequest());
+                    var compatChoice=compat.GetProperty("choice");
+                    if(form.graphicsMaximum.Visible||form.midsummerTone.Visible||form.extendedShadowRange.Visible
+                        ||form.AntialiasingMode!="smaa"||compat.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=0
+                        ||compatChoice.GetProperty("detail_level").GetInt32()!=4||!compatChoice.GetProperty("link_shadow_range").GetBoolean())
+                        throw new Exception("Compatibility SMAA or linked LOD range is unavailable");
+                }
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);
                 form.visualDetailAvailable=true;form.DisplayEnabled();
-                if(!form.extendedDetail.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("DXVK visual detail controls unavailable");
+                if(!form.detailLevel.Enabled||!form.detailedShadows.Enabled||!form.extendedShadowRange.Enabled||!form.ultraShadows.Enabled)throw new Exception("DXVK visual detail controls unavailable");
                 form.tabs.SelectedTab=form.internetPage;form.internetAvailable=true;form.discordAvailable=true;form.UpdateInternetControls();Application.DoEvents();
                 void Capture(string name)
                 {
@@ -1496,7 +1535,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options","compatibility_smaa_and_linked_lod_steps",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",

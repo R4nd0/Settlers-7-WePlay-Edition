@@ -13,6 +13,9 @@ import os
 from pathlib import Path
 import re
 import queue
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -427,3 +430,45 @@ def launch_environment(root, inherited, options=None):
     result['VK_INSTANCE_LAYERS'] = os.pathsep.join([*existing, 'VK_LAYER_reshade'])
     result['RESHADE_BASE_PATH_OVERRIDE'] = str(folder)
     return result
+
+
+def probe_compatibility_smaa(root, package, renderer):
+    """Compile SMAA on the default adapter of this exact compatibility DLL."""
+    import graphics_profile as graphics
+    import graphics_choice as choice
+    import install
+
+    try:
+        metadata=install.package_metadata(package)
+        if not metadata.get('compat_smaa_probe',False) or renderer not in graphics.ASYNC_RENDERERS:
+            return None
+        dll=_plain(package/'Payload/Graphics'/renderer/'d3d9.dll')
+        probe=_plain(package/'Payload/Graphics/S7GraphicsProbe.exe')
+        if (graphics.content.digest(dll)!=graphics.ASYNC_RENDERERS[renderer] or
+                graphics.content.digest(probe)!=metadata['files'].get('payload/graphics/s7graphicsprobe.exe')):
+            return None
+        clean={key:value for key,value in os.environ.items()
+               if not key.upper().startswith(('DXVK_','VK_','RESHADE_','S7_','WEPLAY_'))}
+        with tempfile.TemporaryDirectory(dir=_plain(root/'LocalData'),prefix='smaa-check-') as scratch:
+            test=Path(scratch)
+            bundle=test/RUNTIME_BUNDLE
+            bundle.parent.mkdir(parents=True)
+            shutil.copyfile(_plain(package/RUNTIME_BUNDLE),bundle)
+            options={'enhanced_aa':True}
+            environment=launch_environment(test,clean,options=options)
+            environment.update(DXVK_ASYNC='1',DXVK_CONFIG=graphics.SHADER_COMPATIBILITY,
+                               DXVK_LOG_PATH=str(test),DXVK_STATE_CACHE='0')
+            result=subprocess.run([str(probe),str(dll),'--smaa'],cwd=test,env=environment,
+                capture_output=True,timeout=20,creationflags=subprocess.CREATE_NO_WINDOW)
+            if result.returncode or len(result.stdout)>4096:return None
+            value=json.loads(result.stdout)
+            if not isinstance(value,dict) or value.get('format')!='s7-render-probe-v1':return None
+            devices=value.get('devices')
+            if not isinstance(devices,list) or len(devices)!=1:return None
+            adapter=choice.validate_choice({'format':choice.FORMAT,'choice':devices[0]})['choice']
+            if adapter is None:return None
+            log=_read(_folder(test,options)/'ReShade.log',1024*1024)
+            return adapter if any(b'Successfully compiled ' in line and b'SMAA.fx' in line
+                                  for line in log.splitlines()) else None
+    except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
+        return None

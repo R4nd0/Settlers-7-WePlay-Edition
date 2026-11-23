@@ -10,6 +10,8 @@ internal sealed partial class MainForm
     private Button maintenanceCleanup=null!;
     private Button graphicsRecommended=null!,graphicsMaximum=null!;
     private Control graphicsGpuField=null!;
+    private Control detailLevelField=null!;
+    private Label detailLevelValue=null!;
     private readonly Dictionary<CheckBox,Label> additionalGraphics = [];
     private string? graphicsProbeFailure;
     private readonly Label graphicsPresetNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),ForeColor=SystemColors.GrayText};
@@ -89,8 +91,13 @@ internal sealed partial class MainForm
 
         var extras=GraphicsSection(root,"graphicsEffectsGroup");
         var advanced=GraphicsDetails(extras,"graphicsShowEffects",out graphicsEffectDetails);
+        detailLevelField=Field("extendedDetail",detailLevel);Add(advanced,detailLevelField);
+        detailLevelValue=new Label {AutoSize=true,Margin=new Padding(0,0,0,6)};Add(advanced,detailLevelValue);
+        Bind(linkShadowRange,"linkShadowRange");Add(advanced,linkShadowRange);
+        detailLevel.ValueChanged+=(_,_)=>{if(!loading)DisplayEnabled();};
+        linkShadowRange.CheckedChanged+=(_,_)=>{if(!loading)DisplayEnabled();};
         foreach(var item in new[]{(anisotropicFiltering,"anisotropicFiltering","anisotropicInfo"),
-            (extendedDetail,"extendedDetail","extendedDetailInfo"),(detailedShadows,"detailedShadows","detailedShadowsInfo"),
+            (detailedShadows,"detailedShadows","detailedShadowsInfo"),
             (extendedShadowRange,"extendedShadowRange","extendedShadowRangeInfo"),(ultraShadows,"ultraShadows","ultraShadowsInfo"),
             (midsummerTone,"midsummerTone","midsummerToneInfo"),
             (contactShadows,"contactShadows","contactShadowsInfo"),(maximumFx,"maximumFx","maximumFxInfo")})

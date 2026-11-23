@@ -203,7 +203,7 @@ class Desktop:
             flags['midsummer_profile']=True
             effects={'tools/'+name.lower() for name in install.MIDSUMMER_PACKAGE_TOOLS}
             records.update({name:digest for name,digest in value['files'].items() if name in effects})
-        for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers'):
+        for key in ('platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers','compat_smaa_probe'):
             if value.get(key,False):flags[key]=True
         if value.get('platform_independent',False):
             import platform_standalone
@@ -362,6 +362,7 @@ class Desktop:
                 'data_default':str(value['container'] if value else self.app/'Instances'),'source':str(self.game()) if value else '',
                 'renderer_policy':value['renderer_policy'] if value else 'dxvk',
                 'renderer_modes':self.supported_renderers(),
+                'compat_smaa_supported':metadata.get('compat_smaa_probe',False),
                 'network_setup_preferred':self.network_setup_preferred(self.game() if value else None),
                 'probe':self.cached_graphics_probe(),
                 'choice':{'format':choice.FORMAT,'choice':None,'simple_menu':True,'display':None},
@@ -402,11 +403,13 @@ class Desktop:
                 try:
                     self.verify_instance(root)
                     result.update(choice=choice._load_choice(root),quality=quality.load(root),
-                        visual_detail_supported=True,midsummer_tone_supported=metadata.get('midsummer_profile',False))
+                        visual_detail_supported=True,lod_steps_supported=choice.lod_steps_supported(root),
+                        midsummer_tone_supported=metadata.get('midsummer_profile',False))
                 except (OSError,ValueError,RuntimeError):result['needs_repair']=True
                 return result
             try:
                 result['visual_detail_supported']=choice.visual_supported(root)
+                result['lod_steps_supported']=choice.lod_steps_supported(root)
                 result['midsummer_tone_supported']=(root/'Launcher/reshade_runtime.py').is_file() and (root/'Launcher/WePlay-Midsummer.fx').is_file()
                 choice._renderer(root,{})
                 result.update(choice=choice._load_choice(root),quality=quality.load(root),
@@ -757,10 +760,11 @@ class Desktop:
         policy=request['renderer_policy']
         if policy not in self.supported_renderers():raise ValueError('request_invalid')
         root=self.game();graphics.ensure_closed()
-        self.package_manifest()
+        manifest=self.package_manifest()
         if self.installed()['package_id']!=self.package_id():raise ValueError('update_required')
         selected=choice.validate_choice(request['choice']);quality_value=quality.validate(request['quality'])
-        if policy!='dxvk' and selected.get('enhanced_aa',False):
+        smaa_supported=policy=='dxvk' or (policy in graphics.ASYNC_RENDERERS and manifest.get('compat_smaa_probe',False))
+        if not smaa_supported and selected.get('enhanced_aa',False):
             selected['enhanced_aa']=False
         quality_value=quality.without_game_aa(quality_value,selected.get('enhanced_aa',False))
         if gold:
@@ -1088,7 +1092,8 @@ class Desktop:
         environment.update(DXVK_LOG_PATH=str(root/'LocalData'),DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
         renderer=self.launch_renderer()
         policy=renderer[0] if renderer else 'dxvk'
-        environment=choice.saved_launch_environment(root,environment,renderer=policy)
+        environment=choice.saved_launch_environment(root,environment,renderer=policy,
+            renderer_package=renderer[1] if renderer else None)
         graphics_options=None
         if owner.binding.edition==1 and renderer is None:
             import gold_graphics
@@ -1144,7 +1149,8 @@ class Desktop:
         game=observer=window=None
         try:
             with graphics.session_lock(root):
-                environment=choice.saved_launch_environment(root,environment,renderer=policy)
+                environment=choice.saved_launch_environment(root,environment,renderer=policy,
+                    renderer_package=renderer[1] if renderer else None)
                 arguments=choice.game_arguments(root,renderer=policy)
                 game=platform_standalone.launch(root,environment=environment,arguments=arguments,
                     graphics_options=gold_graphics.launch_options(root) if renderer is None else None,renderer=renderer)

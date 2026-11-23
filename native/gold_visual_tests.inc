@@ -43,13 +43,20 @@ bool GoldVisualGuards() {
         SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS",L"1");
         SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",L"1");
         SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS",L"1");
-        std::vector<Patch> patches;
-        if (!GoldVisualPatches(patches) || patches.size()!=11) return false;
-        for (const auto& patch:patches) if (!Write(patch,true)) return false;
-        if (*reinterpret_cast<uintptr_t*>(image+0x1593ca)!=reinterpret_cast<uintptr_t>(&GoldLodScale)
-            || *reinterpret_cast<uint32_t*>(image+0x40c960)!=8192
-            || *reinterpret_cast<uintptr_t*>(image+0x40ea42)!=reinterpret_cast<uintptr_t>(&GoldShadowFarEnd)) return false;
-        for (const auto& patch:patches) if (!Write(patch,false)) return false;
+        for(unsigned step=1;step<=4;++step) {
+            const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
+            SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL",number);
+            SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",number);
+            std::vector<Patch> patches;
+            if (!GoldVisualPatches(patches) || patches.size()!=11) return false;
+            for (const auto& patch:patches) if (!Write(patch,true)) return false;
+            const auto& tuning=visual_distance::Steps[step-1];
+            if (*reinterpret_cast<uintptr_t*>(image+0x1593ca)!=reinterpret_cast<uintptr_t>(&tuning.lod)
+                || *reinterpret_cast<uintptr_t*>(image+0x3a71aa)!=reinterpret_cast<uintptr_t>(&tuning.lod)
+                || *reinterpret_cast<uint32_t*>(image+0x40c960)!=8192
+                || *reinterpret_cast<uintptr_t*>(image+0x40ea42)!=reinterpret_cast<uintptr_t>(&tuning.shadow_far_end)) return false;
+            for (const auto& patch:patches) if (!Write(patch,false)) return false;
+        }
         // Each mapped instruction, relocation and stack-index/owner guard is
         // independently corrupted. Rejection must not write any game memory.
         for (uintptr_t rva : {0x1593c6u,0x1593cau,0x3a71a6u,0x3a71aau,
@@ -67,7 +74,7 @@ bool GoldVisualGuards() {
             || detailed[2].after[2]!=0x10) return false;
         for (const wchar_t* flag : {L"S7_EXTENDED_DETAIL",L"S7_DETAILED_SHADOWS",
             L"S7_EXTENDED_SHADOW_RANGE",L"S7_ULTRA_SHADOWS"}) {
-            for (const wchar_t* invalid : {L"",L"2",L"true",L"01"}) {
+            for (const wchar_t* invalid : {L"",L"5",L"true",L"01"}) {
                 SetEnvironmentVariableW(flag,invalid);std::vector<Patch> rejected;
                 if (GoldVisualPatches(rejected)) return false;
             }

@@ -30,7 +30,7 @@ int main() {
     SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS", nullptr);
     std::vector<const Patch*> selected;
     check(AppendVisualPatches(selected) && selected.empty());
-    for (const wchar_t* invalid : {L"", L"true", L"2", L"01", L" 1"}) {
+    for (const wchar_t* invalid : {L"", L"true", L"5", L"01", L" 1"}) {
         SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", invalid);
         check(!AppendVisualPatches(selected) && selected.empty());
     }
@@ -39,6 +39,7 @@ int main() {
     for (bool steam : {false, true}) {
         steam_history = steam;
         PrepareFilterContext();
+        const auto& ExtendedLodPatch=ExtendedLodPatches.front();
         auto* operand = PatchAddress(ExtendedLodPatch);
         const unsigned char opcode[] = {0xf3,0x0f,0x59,0x05};
         memcpy(operand - 4, opcode, 4);
@@ -56,7 +57,7 @@ int main() {
             check(VirtualQuery(PatchAddress(*patch), &info, sizeof(info)) == sizeof(info)
                 && info.Protect == PAGE_EXECUTE_READ);
         }
-        check(*reinterpret_cast<uint32_t*>(operand) == reinterpret_cast<uintptr_t>(&ExtendedLodScale));
+        check(*reinterpret_cast<uint32_t*>(operand) == reinterpret_cast<uintptr_t>(&visual_distance::Steps.front().lod));
         for (const auto& patch : DetailedShadowPatches)
             check(!memcmp(PatchAddress(patch), Shadow4096, 5));
         for (const auto* patch : selected) check(WritePatch(*patch, true));
@@ -64,6 +65,13 @@ int main() {
         for (const auto& patch : DetailedShadowPatches)
             check(!memcmp(PatchAddress(patch), OriginalBytes(patch), 5));
         check(VirtualProtect(memory, 0x1106000, PAGE_READWRITE, &previous) != FALSE);
+        for (unsigned step=1;step<=4;++step) {
+            const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
+            SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL",number);
+            selected.clear();
+            check(AppendVisualPatches(selected)&&selected.size()==4&&selected.front()==&ExtendedLodPatches[step-1]);
+        }
+        SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL",L"1");
         operand[-1] = 0x04;
         selected.clear();
         check(!AppendVisualPatches(selected) && selected.empty());
@@ -74,6 +82,7 @@ int main() {
     SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE", L"1");
     for (bool steam : {false,true}) {
         steam_history=steam;
+        const auto& ShadowRangePatches=ShadowRangeLevels.front();
         const unsigned char span[]={0xf3,0x0f,0x59,0x05}, ratio[]={0xf3,0x0f,0x10,0x05};
         const unsigned char end[]={0xc7,0x87,0x2c,0x15,0x00,0x00}, far_end[]={0xc7,0x87,0x30,0x15,0x00,0x00};
         memcpy(PatchAddress(ShadowRangePatches[0])-4,span,4);
@@ -84,19 +93,24 @@ int main() {
             if (patch.pointer_slot) {uint32_t value=OriginalPointer(patch);memcpy(PatchAddress(patch),&value,4);}
             else memcpy(PatchAddress(patch),OriginalBytes(patch),4);
         }
-        selected.clear();check(AppendVisualPatches(selected)&&selected.size()==4);
-        for (const auto* patch:selected) {
-            check(WritePatch(*patch,false));
-            if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==reinterpret_cast<uintptr_t>(patch->replacement));
-            else check(!memcmp(PatchAddress(*patch),patch->replacement,4));
-            check(WritePatch(*patch,true));
-            if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==OriginalPointer(*patch));
-            else check(!memcmp(PatchAddress(*patch),OriginalBytes(*patch),4));
+        for (unsigned step=1;step<=4;++step) {
+            const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
+            SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",number);
+            selected.clear();
+            check(AppendVisualPatches(selected)&&selected.size()==4&&selected.front()==&ShadowRangeLevels[step-1].front());
+            for (const auto* patch:selected) {
+                check(WritePatch(*patch,false));
+                if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==reinterpret_cast<uintptr_t>(patch->replacement));
+                else check(!memcmp(PatchAddress(*patch),patch->replacement,4));
+                check(WritePatch(*patch,true));
+                if (patch->pointer_slot) check(*reinterpret_cast<uint32_t*>(PatchAddress(*patch))==OriginalPointer(*patch));
+                else check(!memcmp(PatchAddress(*patch),OriginalBytes(*patch),4));
+            }
         }
         PatchAddress(ShadowRangePatches[2])[-3]=0x14;
         selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
     }
-    for (const wchar_t* invalid:{L"",L"true",L"2",L"01"}) {
+    for (const wchar_t* invalid:{L"",L"true",L"5",L"01"}) {
         SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",invalid);
         selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
     }

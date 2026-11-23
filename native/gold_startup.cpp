@@ -6,6 +6,7 @@
 #include <cstring>
 #include <vector>
 #include <array>
+#include "visual_distance.h"
 #include <atomic>
 #include "gold_startup.h"
 #include "gold_profile.h"

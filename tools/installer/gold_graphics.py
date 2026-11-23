@@ -73,18 +73,22 @@ def save_choice(root,selected,*,renderer='dxvk'):
     return selected
 
 
-def launch_environment(root,inherited=None,*,renderer='dxvk'):
+def launch_environment(root,inherited=None,*,renderer='dxvk',renderer_package=None):
     root=checked_root(root);selected=validate(root,choice._load_choice(root))
     environment=dict(os.environ if inherited is None else inherited)
     environment={k:v for k,v in environment.items() if not k.upper().startswith(('DXVK_','S7_','WEPLAY_'))}
     environment=choice.visual_environment(selected,environment)
     logs=graphics._plain(root/'LocalData')
     environment.update(DXVK_LOG_PATH=str(logs),DXVK_SHADER_CACHE_PATH=str(logs),DXVK_STATE_CACHE_PATH=str(logs))
+    smaa=selected.get('enhanced_aa',False)
+    fallback=False
+    if renderer!='dxvk':
+        environment,smaa,fallback=choice.compatibility_aa(root,renderer,renderer_package,smaa,environment)
     import quality_settings as quality
-    quality.prepare(root,smaa=renderer=='dxvk' and selected.get('enhanced_aa',False))
+    quality.prepare(root,smaa=smaa,force_game_aa=fallback)
     if renderer=='dxvk' and any(selected.get(n,False) for n in OPTIONS):
         environment=runtime(root,selected).launch_environment(root,environment,options=selected)
-    return environment if renderer=='dxvk' else choice.alternate_environment(root,renderer,environment)
+    return environment
 
 
 def launch_options(root):

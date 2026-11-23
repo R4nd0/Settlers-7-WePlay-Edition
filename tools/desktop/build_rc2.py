@@ -105,6 +105,10 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
     if alternate_renderers is not None:
         build_package.bundle_alternate_renderers(app/'Package',alternate_renderers)
         package_record['alternate_renderers']=True
+        if midsummer_profile:
+            probe_capability=subprocess.run([str(probe),'--capabilities'],capture_output=True,timeout=10)
+            if probe_capability.returncode==0 and probe_capability.stdout.strip()==b's7-render-probe-smaa-v1':
+                package_record['compat_smaa_probe']=True
     if catalog is not None:
         target=app/'Package'/crossplay_content.PACKAGE_CATALOG
         target.parent.mkdir(parents=True);target.write_bytes(catalog.canonical)

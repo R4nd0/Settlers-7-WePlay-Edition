@@ -32,16 +32,32 @@ def visual_supported(root):
         platform_standalone.HISTORY_PINS.get((True,True)),*platform_standalone.LEGACY_HISTORY_PINS)
 
 
+def lod_steps_supported(root):
+    import platform_standalone
+    import gold_graphics
+    gold=gold_graphics.is_gold(root)
+    _,adapter=platform_standalone.layout(root,gold=gold)
+    adapter=graphics._plain(adapter)
+    return adapter.is_file() and content.digest(adapter)==(platform_standalone.LOD_GOLD if gold else platform_standalone.LOD_HISTORY)
+
+
+def detail_level(selected):
+    return selected.get('detail_level',int(selected.get('extended_detail',False)))
+
+
 def _require_visual_support(root, selected):
-    if any(selected.get(name, False) for name in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'ultra_shadows')) and not visual_supported(root):
+    if (detail_level(selected) or any(selected.get(name,False) for name in
+            ('detailed_shadows','extended_shadow_range','ultra_shadows'))) and not visual_supported(root):
         raise ValueError('Diese Detailoptionen brauchen den aktualisierten Grafikadapter.')
+    if detail_level(selected)>1 and not lod_steps_supported(root):
+        raise ValueError('update_required')
 
 
 def validate_choice(value):
     """Validate local choices; never accept hardware IDs or free-form argv."""
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
             or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering',
-                                  'extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone',
+                                  'extended_detail', 'detail_level', 'link_shadow_range', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone',
                                   'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
@@ -49,7 +65,9 @@ def validate_choice(value):
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
         raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
+    if 'detail_level' in value and (type(value['detail_level']) is not int or value['detail_level'] not in range(5)):
+        raise ValueError('Ungueltige Modelldetail-Stufe.')
+    for field in ('extended_detail', 'link_shadow_range', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
         if field in value and type(value[field]) is not bool:
             raise ValueError('Die Detailoption muss ein boolescher Wert sein.')
     name = value['choice']
@@ -62,7 +80,7 @@ def validate_choice(value):
         result['simple_menu'] = value['simple_menu']
     if 'anisotropic_filtering' in value:
         result['anisotropic_filtering'] = value['anisotropic_filtering']
-    for field in ('extended_detail', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
+    for field in ('extended_detail', 'detail_level', 'link_shadow_range', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
         if field in value:
             result[field] = value[field]
     if 'display' in value:
@@ -156,10 +174,11 @@ def _renderer(root, inherited):
     return 'native', environment
 
 
-def saved_launch_environment(root, inherited=None, *, renderer='dxvk'):
+def saved_launch_environment(root, inherited=None, *, renderer='dxvk', renderer_package=None):
     """Prepare saved choices without displaying UI; the caller holds the lock."""
     import gold_graphics
-    if gold_graphics.is_gold(root):return gold_graphics.launch_environment(root,inherited,renderer=renderer)
+    if gold_graphics.is_gold(root):
+        return gold_graphics.launch_environment(root,inherited,renderer=renderer,renderer_package=renderer_package)
     root = graphics._preflight(root)
     selected = _load_choice(root)
     mode, environment = _renderer(root, inherited)
@@ -170,14 +189,17 @@ def saved_launch_environment(root, inherited=None, *, renderer='dxvk'):
         extended_detail=selected.get('extended_detail', False))
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=gpu)
-    smaa=renderer=='dxvk' and selected.get('enhanced_aa',False)
-    if smaa or graphics._plain(root/'LocalData/graphics-quality.json').exists():
+    environment=visual_environment(selected,environment)
+    smaa=selected.get('enhanced_aa',False)
+    fallback=False
+    if renderer!='dxvk':
+        environment,smaa,fallback=compatibility_aa(root,renderer,renderer_package,smaa,environment)
+    if smaa or fallback or graphics._plain(root/'LocalData/graphics-quality.json').exists():
         import quality_settings
-        quality_settings.prepare(root,smaa=smaa)
-    environment = visual_environment(selected, environment)
+        quality_settings.prepare(root,smaa=smaa,force_game_aa=fallback)
     if renderer=='dxvk':
         return tone_environment(root, selected, mode, environment)
-    return alternate_environment(root, renderer, environment)
+    return environment
 
 
 def alternate_environment(root, renderer, inherited):
@@ -188,6 +210,20 @@ def alternate_environment(root, renderer, inherited):
                            DXVK_LOG_PATH=str(logs), DXVK_STATE_CACHE_PATH=str(logs),
                            DXVK_SHADER_CACHE_PATH=str(logs))
     return environment
+
+
+def compatibility_aa(root, renderer, package, requested, inherited):
+    environment=alternate_environment(root,renderer,inherited)
+    if not requested or renderer not in graphics.ASYNC_RENDERERS:
+        return environment,False,False
+    import reshade_runtime
+    adapter=reshade_runtime.probe_compatibility_smaa(root,package,renderer) if package else None
+    if adapter is None:
+        print('SMAA-Grafikpruefung fehlgeschlagen. Spiel-Kantenglaettung aktiv.',flush=True)
+        return environment,False,True
+    environment['DXVK_FILTER_DEVICE_NAME']=adapter
+    environment=reshade_runtime.launch_environment(root,environment,options={'enhanced_aa':True})
+    return environment,True,False
 
 
 def tone_environment(root, selected, mode, environment):
@@ -204,12 +240,14 @@ def visual_environment(selected, inherited):
     selected = validate_choice(selected)
     result = {name: value for name, value in inherited.items()
               if name.upper() not in ('S7_EXTENDED_DETAIL', 'S7_DETAILED_SHADOWS', 'S7_EXTENDED_SHADOW_RANGE', 'S7_ULTRA_SHADOWS')}
-    if selected.get('extended_detail', False):
-        result['S7_EXTENDED_DETAIL'] = '1'
+    detail=detail_level(selected)
+    if detail:
+        result['S7_EXTENDED_DETAIL']=str(detail)
     if selected.get('detailed_shadows', False):
         result['S7_DETAILED_SHADOWS'] = '1'
-    if selected.get('extended_shadow_range', False):
-        result['S7_EXTENDED_SHADOW_RANGE'] = '1'
+    shadow_range=detail if selected.get('link_shadow_range',False) else int(selected.get('extended_shadow_range',False))
+    if shadow_range:
+        result['S7_EXTENDED_SHADOW_RANGE']=str(shadow_range)
     if selected.get('ultra_shadows', False):
         result['S7_ULTRA_SHADOWS'] = '1'
     return result

@@ -41,6 +41,7 @@
 #include "castle_wire.h"
 #include <mutex>
 #include <array>
+#include "visual_distance.h"
 #include <memory>
 #endif
 

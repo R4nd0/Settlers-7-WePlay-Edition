@@ -74,14 +74,15 @@ def _replace(raw,value):
     return after
 
 
-def prepare(root, *, smaa=False, use_saved_quality=True):
+def prepare(root, *, smaa=False, use_saved_quality=True, force_game_aa=False):
     if use_saved_quality and graphics._plain(root/FILE).exists():
         value=without_game_aa(load(root),smaa)
-    elif smaa:
+    elif smaa or force_game_aa:
         # Legacy interactive starts may have only the game's own Options.ini.
         value={'Antialiasing':0}
     else:
         return
+    if force_game_aa:value['Antialiasing']=1
     graphics.ensure_closed()
     path=graphics._plain(display.options_path(root) if display.uses_portable_profile(root) else display.options_path())
     before=graphics._read(path,65536) if path.exists() else None

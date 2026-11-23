@@ -1,8 +1,5 @@
 // Independently mapped Gold renderer. All addresses below are RVAs in the
 // pinned Gold image, not History Edition addresses or simulation operands.
-const float GoldLodScale = 1.f / 200.f;
-const float GoldShadowSpan = 19100.f, GoldShadowRatio = 192.f;
-const float GoldShadowEnd = 19200.f, GoldShadowFarEnd = 76800.f;
 const float GoldNearBlend = .92f;
 const float GoldFilterStep[] = {1.f/2048.f,1.f/2048.f,1.f/2048.f,1.f/2048.f};
 uintptr_t* gold_shadow_owner = nullptr;
@@ -67,10 +64,10 @@ bool GoldFloatOperand(std::vector<Patch>& patches, uintptr_t rva, unsigned char 
     const uintptr_t original=image+original_rva, after=reinterpret_cast<uintptr_t>(replacement);
     return AddBytes(patches,rva,&original,&after,4);
 }
-bool GoldLodOperand(std::vector<Patch>& patches, uintptr_t rva) {
+bool GoldLodOperand(std::vector<Patch>& patches, uintptr_t rva, const float* replacement) {
     const unsigned char opcode[]={0xf3,0x0f,0x59,0x05};
     if (memcmp(reinterpret_cast<void*>(image+rva-4),opcode,4)) return false;
-    const uintptr_t original=image+0xb626e4,after=reinterpret_cast<uintptr_t>(&GoldLodScale);
+    const uintptr_t original=image+0xb626e4,after=reinterpret_cast<uintptr_t>(replacement);
     return AddBytes(patches,rva,&original,&after,4);
 }
 bool GoldFilterPatch(std::vector<Patch>& patches) {
@@ -95,14 +92,18 @@ bool GoldFilterPatch(std::vector<Patch>& patches) {
     return true;
 }
 bool GoldVisualPatches(std::vector<Patch>& patches) {
-    bool detail=false,shadows=false,range=false,ultra=false;
-    if (!GoldVisualFlag(L"S7_EXTENDED_DETAIL",detail)
+    bool shadows=false,ultra=false;
+    unsigned detail=0,range=0;
+    if (!visual_distance::ReadStep(L"S7_EXTENDED_DETAIL",detail)
         || !GoldVisualFlag(L"S7_DETAILED_SHADOWS",shadows)
-        || !GoldVisualFlag(L"S7_EXTENDED_SHADOW_RANGE",range)
+        || !visual_distance::ReadStep(L"S7_EXTENDED_SHADOW_RANGE",range)
         || !GoldVisualFlag(L"S7_ULTRA_SHADOWS",ultra)) return false;
     // Gold also inlines the resolution setter during world creation. Both
     // operands must agree so starting/loading a world does not reset detail.
-    if (detail && (!GoldLodOperand(patches,0x1593ca) || !GoldLodOperand(patches,0x3a71aa))) return false;
+    if (detail) {
+        const float* lod=&visual_distance::Steps[detail-1].lod;
+        if (!GoldLodOperand(patches,0x1593ca,lod) || !GoldLodOperand(patches,0x3a71aa,lod)) return false;
+    }
     if (shadows || ultra) {
         const unsigned char original[]={0xb8,0,8,0,0};
         const unsigned char replacement[]={0xb8,0,static_cast<unsigned char>(ultra ? 0x20 : 0x10),0,0};
@@ -110,11 +111,14 @@ bool GoldVisualPatches(std::vector<Patch>& patches) {
             || !AddBytes(patches,0x40db4f,original,replacement,5) || !GoldFilterPatch(patches)) return false;
     }
     if (ultra && !GoldFloatOperand(patches,0x40e85e,0xd8,0x0d,0xb62774,&GoldNearBlend)) return false;
-    if (range && (!GoldFloatOperand(patches,0x40e821,0xd9,0x05,0xb62778,&GoldShadowSpan)
-        || !GoldFloatOperand(patches,0x40e834,0xd9,0x05,0xb6243c,&GoldShadowRatio)
-        || !GoldFloatOperand(patches,0x40e878,0xd9,0x05,0xb62770,&GoldShadowEnd)
-        || !GoldFloatOperand(patches,0x40e891,0xd9,0x05,0xb6276c,&GoldShadowFarEnd)
-        // Gold reuses the far terminal to build the combined culling volume.
-        || !GoldFloatOperand(patches,0x40ea42,0xd9,0x05,0xb6276c,&GoldShadowFarEnd))) return false;
+    if (range) {
+        const auto& tuning=visual_distance::Steps[range-1];
+        if (!GoldFloatOperand(patches,0x40e821,0xd9,0x05,0xb62778,&tuning.shadow_span)
+            || !GoldFloatOperand(patches,0x40e834,0xd9,0x05,0xb6243c,&tuning.shadow_ratio)
+            || !GoldFloatOperand(patches,0x40e878,0xd9,0x05,0xb62770,&tuning.shadow_end)
+            || !GoldFloatOperand(patches,0x40e891,0xd9,0x05,0xb6276c,&tuning.shadow_far_end)
+            // Gold reuses the far terminal to build the combined culling volume.
+            || !GoldFloatOperand(patches,0x40ea42,0xd9,0x05,0xb6276c,&tuning.shadow_far_end)) return false;
+    }
     return true;
 }
