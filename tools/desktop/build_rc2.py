@@ -15,9 +15,9 @@ import build_package
 import compatibility as content
 import install
 
-RELEASE_GUIDE = REPO/'docs/RC4.04-RELEASE-NOTES.md'
-RELEASE_TAG = 'rc4.04'
-UPDATE_SEQUENCE = 33
+RELEASE_GUIDE = REPO/'docs/RC4.05-RELEASE-NOTES.md'
+RELEASE_TAG = 'rc4.05'
+UPDATE_SEQUENCE = 34
 
 
 def public_document(source,*,revision=None):
@@ -124,8 +124,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC4.04 Graphics compatibility modes','network_revision':9,'game_bits':32,
-             'version':'2.0.0-rc4.4','display_version':RELEASE_TAG,'update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
+    release={'format':'s7-desktop-release-v1','release':'RC4.05 LAN startup and graphics improvements','network_revision':9,'game_bits':32,
+             'version':'2.0.0-rc4.5','display_version':RELEASE_TAG,'update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':6 if neo_logistics else None,'platform_independent':platform_runtime is not None,
              'internet_transport':'EasyTier 2.6.4-weplay-npcap-free-acl1' if easytier_runtime is not None else None,
