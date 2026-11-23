@@ -32,15 +32,19 @@ def visual_supported(root):
         platform_standalone.HISTORY_PINS.get((True,True)),*platform_standalone.LEGACY_HISTORY_PINS)
 
 
-def lod_steps_supported(root):
+def lod_maximum(root):
     import platform_standalone
     import gold_graphics
     gold=gold_graphics.is_gold(root)
     _,adapter=platform_standalone.layout(root,gold=gold)
     adapter=graphics._plain(adapter)
+    if not adapter.is_file():return 1
+    digest=content.digest(adapter)
+    if digest==(platform_standalone.GOLD_LOD400 if gold else platform_standalone.HISTORY_LOD400):
+        return 5
     supported=(platform_standalone.LOD_GOLD,platform_standalone.GOLD_RC409) if gold else (
         platform_standalone.LOD_HISTORY,platform_standalone.HISTORY_RC409)
-    return adapter.is_file() and content.digest(adapter) in supported
+    return 4 if digest in supported else 1
 
 
 def detail_level(selected):
@@ -51,7 +55,7 @@ def _require_visual_support(root, selected):
     if (detail_level(selected) or any(selected.get(name,False) for name in
             ('detailed_shadows','extended_shadow_range','ultra_shadows'))) and not visual_supported(root):
         raise ValueError('Diese Detailoptionen brauchen den aktualisierten Grafikadapter.')
-    if detail_level(selected)>1 and not lod_steps_supported(root):
+    if detail_level(selected)>1 and detail_level(selected)>lod_maximum(root):
         raise ValueError('update_required')
 
 
@@ -67,7 +71,7 @@ def validate_choice(value):
         raise ValueError('Der einfache Menue-Testmodus muss ein boolescher Wert sein.')
     if 'anisotropic_filtering' in value and type(value['anisotropic_filtering']) is not bool:
         raise ValueError('Die Texturfilterung muss ein boolescher Wert sein.')
-    if 'detail_level' in value and (type(value['detail_level']) is not int or value['detail_level'] not in range(5)):
+    if 'detail_level' in value and (type(value['detail_level']) is not int or value['detail_level'] not in range(6)):
         raise ValueError('Ungueltige Modelldetail-Stufe.')
     for field in ('extended_detail', 'link_shadow_range', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone', 'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'):
         if field in value and type(value[field]) is not bool:

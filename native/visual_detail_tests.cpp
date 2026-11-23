@@ -18,6 +18,9 @@ void PrepareFilterContext() {
 }
 
 int main() {
+    static_assert(visual_distance::Steps.back().lod==5.0f/300.0f);
+    static_assert(visual_distance::Steps.back().shadow_end==64000.0f);
+    static_assert(visual_distance::Steps.back().shadow_far_end==256000.0f);
     int checks = 0, failures = 0;
     auto check = [&](bool ok) { ++checks; if (!ok) ++failures; };
     auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, 0x1106000,
@@ -30,7 +33,7 @@ int main() {
     SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS", nullptr);
     std::vector<const Patch*> selected;
     check(AppendVisualPatches(selected) && selected.empty());
-    for (const wchar_t* invalid : {L"", L"true", L"5", L"01", L" 1"}) {
+    for (const wchar_t* invalid : {L"", L"true", L"6", L"01", L" 1"}) {
         SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL", invalid);
         check(!AppendVisualPatches(selected) && selected.empty());
     }
@@ -65,7 +68,7 @@ int main() {
         for (const auto& patch : DetailedShadowPatches)
             check(!memcmp(PatchAddress(patch), OriginalBytes(patch), 5));
         check(VirtualProtect(memory, 0x1106000, PAGE_READWRITE, &previous) != FALSE);
-        for (unsigned step=1;step<=4;++step) {
+        for (unsigned step=1;step<=visual_distance::Steps.size();++step) {
             const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
             SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL",number);
             selected.clear();
@@ -93,7 +96,7 @@ int main() {
             if (patch.pointer_slot) {uint32_t value=OriginalPointer(patch);memcpy(PatchAddress(patch),&value,4);}
             else memcpy(PatchAddress(patch),OriginalBytes(patch),4);
         }
-        for (unsigned step=1;step<=4;++step) {
+        for (unsigned step=1;step<=visual_distance::Steps.size();++step) {
             const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
             SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",number);
             selected.clear();
@@ -110,7 +113,7 @@ int main() {
         PatchAddress(ShadowRangePatches[2])[-3]=0x14;
         selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
     }
-    for (const wchar_t* invalid:{L"",L"true",L"5",L"01"}) {
+    for (const wchar_t* invalid:{L"",L"true",L"6",L"01"}) {
         SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",invalid);
         selected.clear();check(!AppendVisualPatches(selected)&&selected.empty());
     }

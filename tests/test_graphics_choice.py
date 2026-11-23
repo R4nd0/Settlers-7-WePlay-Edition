@@ -214,16 +214,19 @@ class GraphicsChoiceTests(unittest.TestCase):
         base={'format':choice.FORMAT,'choice':None,'extended_detail':True,'extended_shadow_range':True}
         self.assertEqual(choice.visual_environment(base,{}),
             {'S7_EXTENDED_DETAIL':'1','S7_EXTENDED_SHADOW_RANGE':'1'})
-        for step in range(5):
+        for step in range(6):
             linked={**base,'detail_level':step,'link_shadow_range':True}
             self.assertEqual(choice.visual_environment(linked,{}),
                 {'S7_EXTENDED_DETAIL':str(step),'S7_EXTENDED_SHADOW_RANGE':str(step)} if step else {})
-        independent={**base,'detail_level':4,'link_shadow_range':False}
+        independent={**base,'detail_level':5,'link_shadow_range':False}
         self.assertEqual(choice.visual_environment(independent,{}),
-            {'S7_EXTENDED_DETAIL':'4','S7_EXTENDED_SHADOW_RANGE':'1'})
-        for invalid in (True,-1,5,'4'):
+            {'S7_EXTENDED_DETAIL':'5','S7_EXTENDED_SHADOW_RANGE':'1'})
+        for invalid in (True,-1,6,'4'):
             with self.subTest(invalid=invalid),self.assertRaises(ValueError):
                 choice.validate_choice({**base,'detail_level':invalid})
+        with patch.object(choice,'visual_supported',return_value=True),patch.object(choice,'lod_maximum',return_value=4):
+            with self.assertRaisesRegex(ValueError,'update_required'):
+                choice._require_visual_support(self.root,independent)
 
     def test_filtering_opt_in_is_fixed_child_only_reversible_and_keeps_identity(self):
         self.install()

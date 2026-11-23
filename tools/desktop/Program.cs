@@ -243,6 +243,7 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox keepDisplay = new() { AutoSize = true }, simple = new() { AutoSize = true };
     private readonly CheckBox anisotropicFiltering = new() { AutoSize = true };
     private readonly TrackBar detailLevel = new() { Minimum=0,Maximum=1,TickFrequency=1,LargeChange=1,SmallChange=1 };
+    private static readonly int[] detailPercentages=[0,50,100,150,200,400];
     private readonly CheckBox linkShadowRange = new() { AutoSize = true };
     private readonly CheckBox detailedShadows = new() { AutoSize = true };
     private readonly CheckBox extendedShadowRange = new() { AutoSize = true };
@@ -274,7 +275,7 @@ internal sealed partial class MainForm : Form
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
-    private bool compatSmaaAvailable,lodStepsAvailable;
+    private bool compatSmaaAvailable;
     private bool AdvancedReshadeAvailable=>RendererMode=="dxvk"&&midsummerToneAvailable;
     private bool CanUseSmaa(string renderer)=>midsummerToneAvailable&&(renderer=="dxvk"||
         (compatSmaaAvailable&&renderer is ("async" or "gplasync")));
@@ -632,9 +633,10 @@ internal sealed partial class MainForm : Form
         singlePlayerOnly=value.TryGetProperty("single_player_only",out var soloOnly)&&soloOnly.GetBoolean();
         maintenanceCount=value.TryGetProperty("maintenance_pending",out var pendingMaintenance)?pendingMaintenance.GetInt32():0;UpdateMaintenanceNotice();
         visualDetailAvailable=value.TryGetProperty("visual_detail_supported",out var visualAvailable)&&visualAvailable.GetBoolean();
-        lodStepsAvailable=value.TryGetProperty("lod_steps_supported",out var lodSupport)&&lodSupport.GetBoolean();
+        int legacyLodMaximum=value.TryGetProperty("lod_steps_supported",out var lodSupport)&&lodSupport.GetBoolean()?4:1;
         compatSmaaAvailable=value.TryGetProperty("compat_smaa_supported",out var compatibleAa)&&compatibleAa.GetBoolean();
-        detailLevel.Maximum=lodStepsAvailable?4:1;
+        detailLevel.Maximum=value.TryGetProperty("lod_maximum",out var lodMaximum)&&lodMaximum.TryGetInt32(out int limit)
+            ?Math.Clamp(limit,1,detailPercentages.Length-1):legacyLodMaximum;
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
@@ -911,7 +913,7 @@ internal sealed partial class MainForm : Form
         gpu.Enabled=!busy&&modern&&gpu.Items.Count>1;
         detailLevelField.Visible=detailLevelValue.Visible=linkShadowRange.Visible=visualDetailAvailable;
         detailLevel.Enabled=linkShadowRange.Enabled=!busy&&visualDetailAvailable;
-        detailLevelValue.Text=detailLevel.Value==0?Lang.T("antialiasingOff"):$"+{detailLevel.Value*50} %";
+        detailLevelValue.Text=detailLevel.Value==0?Lang.T("antialiasingOff"):$"+{detailPercentages[detailLevel.Value]} %";
         foreach(var item in additionalGraphics)
         {
             bool available=item.Key==anisotropicFiltering?modern:
@@ -1470,17 +1472,21 @@ internal sealed partial class MainForm : Form
                 form.LoadSnapshot(JsonSerializer.SerializeToElement(dualAa),acceptGraphics:true);
                 if(form.detailLevel.Maximum!=4||form.detailLevel.Value!=1)
                     throw new Exception("The old LOD choice did not become the +50% step");
+                dualAa["lod_maximum"]=5;
+                form.LoadSnapshot(JsonSerializer.SerializeToElement(dualAa),acceptGraphics:true);
+                if(form.detailLevel.Maximum!=5)throw new Exception("The adapter's extended LOD step is unavailable");
                 foreach(int index in new[]{1,2})
                 {
                     form.renderer.SelectedIndex=index;
                     form.ApplyRecommendedGraphics();
-                    form.detailLevel.Value=4;
+                    form.detailLevel.Value=5;
                     form.linkShadowRange.Checked=true;
                     var compat=JsonSerializer.SerializeToElement(form.GraphicsRequest());
                     var compatChoice=compat.GetProperty("choice");
                     if(form.graphicsMaximum.Visible||form.midsummerTone.Visible||form.extendedShadowRange.Visible
                         ||form.AntialiasingMode!="smaa"||compat.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=0
-                        ||compatChoice.GetProperty("detail_level").GetInt32()!=4||!compatChoice.GetProperty("link_shadow_range").GetBoolean())
+                        ||compatChoice.GetProperty("detail_level").GetInt32()!=5||!compatChoice.GetProperty("link_shadow_range").GetBoolean()
+                        ||form.detailLevelValue.Text!="+400 %")
                         throw new Exception("Compatibility SMAA or linked LOD range is unavailable");
                 }
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);

@@ -3,8 +3,8 @@
 const unsigned char Shadow4096[] = {0xb8,0x00,0x10,0x00,0x00};
 const unsigned char Shadow8192[] = {0xb8,0x00,0x20,0x00,0x00};
 const float NearShadowBlend = .92f; // concentrate cascade precision near camera
-const std::array<Patch,4> ExtendedLodPatches=[] {
-    std::array<Patch,4> result{};
+const std::array<Patch,visual_distance::Steps.size()> ExtendedLodPatches=[] {
+    std::array<Patch,visual_distance::Steps.size()> result{};
     for(size_t i=0;i<result.size();++i)
         result[i]={0x51178d,{0x2c,0xe2,0x15,0x01},&visual_distance::Steps[i].lod,true};
     return result;
@@ -20,8 +20,8 @@ const Patch UltraShadowPatches[] = {
     {0x90ea6b, {0x4c,0xe3,0x15,0x01}, &NearShadowBlend, true}
 };
 using ShadowRangeLevel=std::array<Patch,4>;
-const std::array<ShadowRangeLevel,4> ShadowRangeLevels=[] {
-    std::array<ShadowRangeLevel,4> result{};
+const std::array<ShadowRangeLevel,visual_distance::Steps.size()> ShadowRangeLevels=[] {
+    std::array<ShadowRangeLevel,visual_distance::Steps.size()> result{};
     for(size_t i=0;i<result.size();++i){
         const auto& step=visual_distance::Steps[i];
         result[i]={{

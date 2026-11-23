@@ -43,7 +43,7 @@ bool GoldVisualGuards() {
         SetEnvironmentVariableW(L"S7_DETAILED_SHADOWS",L"1");
         SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",L"1");
         SetEnvironmentVariableW(L"S7_ULTRA_SHADOWS",L"1");
-        for(unsigned step=1;step<=4;++step) {
+        for(unsigned step=1;step<=visual_distance::Steps.size();++step) {
             const wchar_t number[]={static_cast<wchar_t>(L'0'+step),0};
             SetEnvironmentVariableW(L"S7_EXTENDED_DETAIL",number);
             SetEnvironmentVariableW(L"S7_EXTENDED_SHADOW_RANGE",number);
@@ -74,7 +74,7 @@ bool GoldVisualGuards() {
             || detailed[2].after[2]!=0x10) return false;
         for (const wchar_t* flag : {L"S7_EXTENDED_DETAIL",L"S7_DETAILED_SHADOWS",
             L"S7_EXTENDED_SHADOW_RANGE",L"S7_ULTRA_SHADOWS"}) {
-            for (const wchar_t* invalid : {L"",L"5",L"true",L"01"}) {
+            for (const wchar_t* invalid : {L"",L"6",L"true",L"01"}) {
                 SetEnvironmentVariableW(flag,invalid);std::vector<Patch> rejected;
                 if (GoldVisualPatches(rejected)) return false;
             }
