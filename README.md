@@ -1,8 +1,8 @@
 # Settlers 7: WePlay Edition
 
-**[Windows x64 — rc4.08](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.08/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
+**[Windows x64 — rc4.09](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.09/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
 
-[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.08) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.08/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
+[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.09) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.09/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
 WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubisoft History Edition and Steam History Edition**. One Windows installer prepares a separate game copy with its own profile. You supply the original game files.
 
@@ -16,7 +16,7 @@ WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubis
 
 Requires Windows 10 build 19045 or newer, or Windows 11, on x64. Allow about 7 GB for each game copy and extra space during repair.
 
-For support after a launcher error, choose **Save diagnostic report** in Help or Setup and share `S7-Diagnose.json`. The report includes the native startup stage, process exit code and Winsock error when available.
+For support after a launcher error, choose **Save diagnostic report** in Help or Setup and share `S7-Diagnose.json`. If the Windows network isolation check (startup stage 11) fails during LAN or private internet startup, the report identifies the first failed socket test, the operation and any Winsock error code.
 
 ### Linux
 
@@ -40,7 +40,7 @@ archives, including maps, for editing the contained files.
 
 ## Deutsch
 
-Mit **[Setup.exe für rc4.08](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.08/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
+Mit **[Setup.exe für rc4.09](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.09/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
 
 Schließe WePlay und das Spiel vor dem Update. Wähle im Installer den bisherigen WePlay-Ordner oder den vollständigen Standalone-Export. Im Launcher kannst du die vorhandene Kopie über **Aktualisieren / reparieren** übernehmen. Bei einem zu langen Zielpfad wähle über **Ändern…** einen kürzeren Ordner. **Hilfe / Diagnose** steht direkt in der Einrichtung.
 
@@ -48,7 +48,7 @@ Benötigt werden Windows 10 ab Build 19045 oder Windows 11 (x64) und rund 7 GB S
 
 Im **LAN-Tab** kannst du den UDP-Suchport ändern oder den Standard `9112` wiederherstellen. Alle beteiligten LAN-PCs müssen denselben Port verwenden.
 
-Nach einem Launcher-Fehler kannst du unter **Hilfe** oder direkt in der **Einrichtung** den Diagnosebericht `S7-Diagnose.json` für den Support speichern. Er enthält, soweit verfügbar, die native Startstufe, den Prozess-Exitcode und den Winsock-Fehler.
+Nach einem Launcher-Fehler kannst du unter **Hilfe** oder direkt in der **Einrichtung** den Diagnosebericht `S7-Diagnose.json` für den Support speichern. Scheitert beim LAN- oder Privatraumstart die Windows-Netzisolationsprüfung (Startstufe 11), enthält er den ersten fehlgeschlagenen Socket-Test, den konkreten Aufruf und den verfügbaren Winsock-Code.
 
 [LAN auf Deutsch](docs/LAN-SPIELER.md) · [Update und Wiederherstellung](docs/UPDATE-RECOVERY.md)
 
