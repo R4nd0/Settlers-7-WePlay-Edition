@@ -224,6 +224,7 @@ class EasyTier:
         self.device_name = 'WePlay-' + self.instance_id[:8]
         self.address = str(room.network.network_address + (1 if host else secrets.randbelow(253) + 2))
         self.job = self.child = self.private = self.runtime = None
+        self.adapter_pending = False
         self.portal = None
 
     def checkpoint(self, phase='internet_connect'):
@@ -259,8 +260,11 @@ class EasyTier:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             return self.wait_ready()
-        except BaseException:
-            self.close()
+        except BaseException as primary:
+            try:
+                self.close()
+            except Exception:
+                primary.add_note('internet_cleanup_failed')
             raise
 
     def query(self, *command):
@@ -314,32 +318,41 @@ class EasyTier:
         raise InternetError(code) from None
 
     def close(self):
-        had_child=self.child is not None
-        cleanup_error=None
-        try:
-            if self.job:
-                self.job.close()
-        finally:
-            self.job = None
-            if self.child is not None:
+        job_error = None
+        if self.job:
+            try:self.job.close()
+            except (OSError,subprocess.TimeoutExpired) as error:job_error=error
+            else:self.job=None
+        if self.child is not None:
+            if os.name == 'nt':self.adapter_pending=True
+            if self.child.poll() is None:self.child.terminate()
+            try:self.child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.child.kill()
+                self.child.wait(timeout=5)
+            self.child=None
+        cleanup_error = None
+        if self.adapter_pending:
+            from windows_system import remove_adapter
+            scope = {'crossplay': True} if self.crossplay else {}
+            try:
                 try:
-                    if self.child.poll() is None:
-                        self.child.terminate()
-                    self.child.wait(timeout=10)
-                finally:
-                    self.child = None
-            if had_child and os.name == 'nt':
-                from windows_system import remove_adapter
-                try:
-                    if self.crossplay:remove_adapter(self.root,self.device_name,self.address,crossplay=True)
-                    else:remove_adapter(self.root,self.device_name,self.address)
-                except (OSError,ValueError,subprocess.TimeoutExpired):cleanup_error=InternetError('internet_cleanup_failed')
-            if self.private is not None:
-                # Only our new, random, non-reparse directory may be removed.
-                directory = compatibility.plain(self.private)
-                parent = compatibility.plain(self.private_parent or self.root / 'LocalData')
-                if directory.parent != parent or not directory.name.startswith('easytier-'):
-                    raise InternetError('internet_cleanup_failed')
-                shutil.rmtree(directory)
-                self.private = None
-            if cleanup_error is not None:raise cleanup_error
+                    remove_adapter(self.root, self.device_name, self.address, **scope)
+                except (OSError, ValueError):
+                    # The PnP adapter can remain briefly while the core exits.
+                    time.sleep(.25)
+                    remove_adapter(self.root, self.device_name, self.address, **scope)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                cleanup_error = error
+            else:
+                self.adapter_pending = False
+        if self.private is not None:
+            # Only our new, random, non-reparse directory may be removed.
+            directory = compatibility.plain(self.private)
+            parent = compatibility.plain(self.private_parent or self.root / 'LocalData')
+            if directory.parent != parent or not directory.name.startswith('easytier-'):
+                raise InternetError('internet_cleanup_failed')
+            shutil.rmtree(directory)
+            self.private = None
+        if cleanup_error is not None:raise InternetError('internet_cleanup_failed') from cleanup_error
+        if job_error is not None:raise job_error

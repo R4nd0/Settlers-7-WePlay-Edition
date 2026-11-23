@@ -257,11 +257,17 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
         game.network_policy=scope
         game.restore_renderer=restore_renderer
         return game
-    except BaseException:
+    except BaseException as primary:
         try:
-            if restore_renderer:restore_renderer()
-        finally:
-            if scope:scope.close()
+            if restore_renderer:
+                restore_renderer()
+        except Exception:
+            primary.add_note('renderer_cleanup_failed')
+        try:
+            if scope:
+                scope.close()
+        except Exception:
+            primary.add_note('windows_network_cleanup_failed')
         raise
 
 

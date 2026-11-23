@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 import shutil
 import sys
+import threading
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools/installer'))
 import test_installer as fixtures
@@ -169,6 +170,23 @@ class PlatformStandaloneTests(unittest.TestCase):
             configure.assert_not_called()
             launch.assert_called_once()
 
+    def test_failed_lan_policy_cleanup_preserves_native_stage_and_exit_code(self):
+        from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
+        root = self.prepare()
+        failure = NativeStartupError(11, FAILURE_EXIT_BASE + 11)
+        scope = Mock()
+        scope.close.side_effect = TimeoutError()
+        lan = dict(group=True, local='192.168.1.2', coordinator='192.168.1.3')
+        with patch.object(platform.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), \
+                patch.object(network_peer_policy, 'Session', return_value=scope), \
+                patch.object(isolated_process, 'launch', side_effect=failure):
+            with self.assertRaises(NativeStartupError) as error:
+                platform.launch(root, environment={}, lan=lan)
+        self.assertIs(error.exception, failure)
+        self.assertEqual(error.exception.native_start_stage, 11)
+        self.assertEqual(error.exception.native_exit_code, FAILURE_EXIT_BASE + 11)
+        scope.close.assert_called_once()
+
     def test_package_requires_complete_local_gold_service_dependencies(self):
         f=self.fixture
         (f.package/'Tools/gold/account_config.py').unlink();self.manifest()
@@ -201,6 +219,33 @@ class PlatformStandaloneTests(unittest.TestCase):
                         {**good,'group':'false'},{**good,'extra':'value'}):
             with self.assertRaises(ValueError):
                 network_peer_policy.configuration(changed)
+
+    def test_peer_policy_closes_confirmed_failed_worker_and_reaps_owned_files(self):
+        session = network_peer_policy.Session.__new__(network_peer_policy.Session)
+        session.stop, session.thread = threading.Event(), None
+        session.nonce = 'a' * 32
+        session.path = self.fixture.root / 'peers.ini'
+        session.ready = self.fixture.root / 'peers.ready'
+        session.path.write_bytes(f'nonce={session.nonce}\n'.encode('ascii'))
+        session.ready.write_bytes(f'{session.nonce}\n'.encode('ascii'))
+        session._publish = Mock()
+        child = session.process = Mock()
+        child.wait.side_effect = [TimeoutError(), 2]
+
+        with self.assertRaises(TimeoutError):
+            session.close()
+        session._publish.assert_called_once_with(expired=True)
+        child.close.assert_not_called()
+        self.assertIs(session.process, child)
+        self.assertTrue(session.path.exists())
+
+        with self.assertRaisesRegex(RuntimeError, 'Windows-Netzhelfer'):
+            session.close()
+        session.close()
+        child.close.assert_called_once()
+        self.assertIsNone(session.process)
+        self.assertFalse(session.ready.exists())
+        self.assertFalse(session.path.exists())
 
     def test_desktop_repair_preserves_portable_progress_and_refuses_to_replace_a_newer_target_save(self):
         import desktop_backend

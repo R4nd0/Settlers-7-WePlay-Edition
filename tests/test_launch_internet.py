@@ -107,6 +107,57 @@ class LaunchTests(unittest.TestCase):
         self.overlay.snapshot.assert_called_once()
         self.overlay.close.assert_called_once()
 
+    def test_creator_survives_transient_coordinator_status_failures(self):
+        def run(args, *, picker, network):
+            network()
+            return 0
+
+        responses = [OSError(), OSError(), {'active_members': 1},
+                     OSError(), OSError(), {'active_members': 0}]
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=responses) as request, \
+                patch.object(launch.time, 'sleep'):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+        self.assertEqual(request.call_count, len(responses))
+        self.overlay.snapshot.assert_called_once()
+        self.overlay.close.assert_called_once()
+
+    def test_creator_reports_persistent_coordinator_failure(self):
+        def run(args, *, picker, network):
+            network()
+            return 0
+
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=OSError()) as request, \
+                patch.object(launch.time, 'sleep'):
+            with self.assertRaisesRegex(InternetError, 'internet_disconnected'):
+                launch.run(self.args, overlay_factory=self.factory)
+        self.assertEqual(request.call_count, 3)
+        self.overlay.close.assert_called_once()
+
+    def test_failed_game_retains_exit_code_after_idle_coordinator_is_stopped(self):
+        def run(args, *, picker, network):
+            network()
+            return 1
+
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=ConnectionRefusedError):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 1)
+        self.overlay.close.assert_called_once()
+
+    def test_cleanup_failure_preserves_original_start_diagnostic(self):
+        primary = OSError('native start failed')
+        self.overlay.close.side_effect = InternetError('internet_cleanup_failed')
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=primary):
+            with self.assertRaises(OSError) as error:
+                launch.run(self.args, overlay_factory=self.factory)
+        self.assertIs(error.exception, primary)
+        self.assertEqual(primary.__notes__, ['internet_cleanup_failed'])
+
     def test_game_start_failure_closes_only_owned_overlay(self):
         with patch.object(launch, 'create', return_value=ROOM), \
                 patch.object(launch.launch_auto_lan, 'run', side_effect=RuntimeError('fixture')):

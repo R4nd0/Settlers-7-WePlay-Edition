@@ -249,9 +249,30 @@ class RuntimeTests(unittest.TestCase):
             overlay=runtime.EasyTier(root,ROOM,host=True);overlay.private=data/'easytier-fixture';overlay.private.mkdir()
             config=overlay.private/'network.toml';config.write_text('private fixture',encoding='utf-8')
             overlay.child=Mock();overlay.child.poll.return_value=0
-            with patch('windows_system.remove_adapter',side_effect=ValueError('helper failed')):
+            with patch('windows_system.remove_adapter', side_effect=[ValueError(), ValueError(), None]) as remove:
                 with self.assertRaisesRegex(InternetError,'cleanup_failed'):overlay.close()
-            self.assertFalse(config.exists());self.assertIsNone(overlay.private)
+                self.assertFalse(config.exists())
+                self.assertIsNone(overlay.private)
+                overlay.close()
+                overlay.close()
+            self.assertEqual(remove.call_count, 3)
+
+    def test_close_retains_unreaped_child_and_retries_before_removing_adapter(self):
+        with tempfile.TemporaryDirectory() as folder:
+            overlay = runtime.EasyTier(Path(folder), ROOM, host=True)
+            child = overlay.child = Mock()
+            child.poll.return_value = None
+            child.wait.side_effect = [subprocess.TimeoutExpired('core', 10), subprocess.TimeoutExpired('core', 5), 0]
+            with patch('windows_system.remove_adapter') as remove:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    overlay.close()
+                self.assertIs(overlay.child, child)
+                child.kill.assert_called_once()
+                remove.assert_not_called()
+                child.poll.return_value = 0
+                overlay.close()
+            self.assertIsNone(overlay.child)
+            remove.assert_called_once()
 
 
 if __name__ == '__main__': unittest.main()

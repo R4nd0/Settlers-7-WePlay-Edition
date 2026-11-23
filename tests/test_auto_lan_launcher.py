@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools/installer'), str(ROOT / 'tools/offline-ui')]
 import launch_auto_lan as launcher
-from lobby_directory import LanInterface, LobbyEndpoint, LobbyRoom
+from lobby_directory import MAX_MEMBERS, LanInterface, LobbyEndpoint, LobbyRoom
 from lan_hub import LanHubError
 
 
@@ -106,16 +106,22 @@ class AutomaticLauncherTests(unittest.TestCase):
             with self.assertRaises(ValueError): launcher.run(self.args,picker=launcher._fixture_picker)
         hub.assert_not_called(); game.assert_not_called(); membership.close.assert_called_once()
 
-    def test_failed_internet_host_releases_owned_discovery_socket_after_leaving(self):
+    def check_failed_host_discovery_socket(self, *, automatic=False, game_exits=False, active_members=0):
         choice = dict(action='create', network=0, display_name='Anna')
         membership = Mock()
         directory = Mock()
         directory.list_rooms.return_value = []
         runtime = self.root / 'LocalData/s7-local-runtime.ini'
+        room = LobbyRoom('c' * 32, 'WePlay LAN', 'a' * 64,
+                         LobbyEndpoint('lan-direct', self.interface.address), self.interface)
 
         def configure(*args, **kwargs):
             runtime.write_bytes(b'fixture')
             return runtime
+
+        def connect(_directory, _expected, start, **_options):
+            start()
+            return room
 
         # A real child reserves an ephemeral loopback UDP port in place of the game hub.
         command = 'import socket,time; s=socket.socket(type=socket.SOCK_DGRAM); ' \
@@ -124,23 +130,79 @@ class AutomaticLauncherTests(unittest.TestCase):
                               stdout=subprocess.PIPE, text=True) as child:
             try:
                 port = int(child.stdout.readline())
+                status = dict(content_id='a' * 64, members=1 + active_members,
+                              active_members=active_members, max_members=MAX_MEMBERS)
                 with patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
                         patch.object(launcher, 'start_hub', return_value=child), \
+                        patch.object(launcher, 'request', return_value=status), \
+                        patch.object(launcher, 'LanDiscovery', return_value=directory), \
+                        patch.object(launcher.lan_autoconnect, 'connect', side_effect=connect), \
                         patch.object(launcher, 'Membership', return_value=membership), \
                         patch.object(launcher.launch_lan, 'remote_configuration', return_value={'content_id': 'a' * 64}), \
                         patch.object(launcher.launch_local, 'write_configuration', side_effect=configure), \
-                        patch.object(launcher.launch_local, 'spawn_game', side_effect=RuntimeError('native start failed')):
+                        patch.object(launcher.launch_local, 'spawn_game') as spawn, \
+                        patch.object(launcher.launch_local, 'wait_for_graphics_game', return_value=1):
                     membership.close.side_effect = lambda: self.assertIsNone(child.poll())
-                    with self.assertRaisesRegex(RuntimeError, 'native start failed'):
-                        launcher.run(self.args, picker=lambda *_: choice,
-                                     network=lambda: ([self.interface], directory))
-                self.assertIsNotNone(child.poll())
+                    options = {} if automatic else dict(picker=lambda *_: choice,
+                                                       network=lambda: ([self.interface], directory))
+                    if game_exits:
+                        self.assertEqual(launcher.run(self.args, **options), 1)
+                    else:
+                        spawn.side_effect = RuntimeError('native start failed')
+                        with self.assertRaisesRegex(RuntimeError, 'native start failed'):
+                            launcher.run(self.args, **options)
                 membership.close.assert_called_once()
                 self.assertFalse(runtime.exists())
-                with socket.socket(type=socket.SOCK_DGRAM) as successor:
-                    successor.bind(('127.0.0.1', port))
+                if active_members:
+                    self.assertIsNone(child.poll())
+                else:
+                    self.assertIsNotNone(child.poll())
+                    with socket.socket(type=socket.SOCK_DGRAM) as successor:
+                        successor.bind(('127.0.0.1', port))
             finally:
                 launcher.stop_hub(child)
+
+    def test_failed_internet_host_releases_owned_discovery_socket_after_leaving(self):
+        self.check_failed_host_discovery_socket()
+
+    def test_failed_automatic_lan_host_releases_owned_discovery_socket(self):
+        self.check_failed_host_discovery_socket(automatic=True)
+
+    def test_internet_host_game_failure_releases_owned_idle_coordinator(self):
+        self.check_failed_host_discovery_socket(game_exits=True)
+
+    def test_internet_host_game_failure_preserves_coordinator_with_guests(self):
+        self.check_failed_host_discovery_socket(game_exits=True, active_members=1)
+
+    def test_automatic_lan_falls_back_only_for_interface_socket_failure(self):
+        other = LanInterface('10.20.1.10', 24, 'Kabel')
+        room = LobbyRoom('c' * 32, 'WePlay LAN', 'a' * 64,
+                         LobbyEndpoint('lan-direct', other.address), other)
+
+        def connect(_directory, _expected, start, **_options):
+            start()
+            return room
+
+        for error, attempts in [('lan_discovery_socket_failed', 2), ('lan_discovery_port_busy', 1)]:
+            with self.subTest(error=error), \
+                    patch.object(launcher, 'enumerate_interfaces', return_value=[self.interface, other]), \
+                    patch.object(launcher.lan_autoconnect, 'connect', side_effect=connect), \
+                    patch.object(launcher, 'start_hub', side_effect=[LanHubError(error), Mock()]) as start, \
+                    patch.object(launcher, 'Membership') as membership, \
+                    patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
+                    patch.object(launcher.launch_lan, 'remote_configuration', return_value={'content_id': 'a' * 64}), \
+                    patch.object(launcher.launch_local, 'write_configuration', return_value=None), \
+                    patch.object(launcher.launch_local, 'spawn_game'), \
+                    patch.object(launcher.launch_local, 'wait_for_graphics_game', return_value=0):
+                if attempts == 2:
+                    self.assertEqual(launcher.run(self.args), 0)
+                    membership.assert_called_once_with(self.root, other.address, other.address, 'a' * 64)
+                else:
+                    with self.assertRaisesRegex(LanHubError, error):
+                        launcher.run(self.args)
+                    membership.assert_not_called()
+                self.assertEqual([call.args[1] for call in start.call_args_list],
+                                 [self.interface, other][:attempts])
 
     def test_successful_internet_host_preserves_new_hub(self):
         choice = dict(action='create', network=0, display_name='Anna')

@@ -65,6 +65,7 @@ def winapi():
         ('QueryFullProcessImageNameW', [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
                                         ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
         ('WaitForSingleObject', [wintypes.HANDLE, wintypes.DWORD], wintypes.DWORD),
+        ('GetExitCodeProcess', [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
         ('CloseHandle', [wintypes.HANDLE], wintypes.BOOL)):
         function = getattr(api, name); function.argtypes = args; function.restype = result
     return api
@@ -117,7 +118,7 @@ def elevate(python, script, request):
 def write_state(directory, value):
     temporary = compatibility.plain(directory / 'state.new')
     with temporary.open('w', encoding='utf-8') as stream:
-        json.dump(value, stream, separators=(',', ':'))
+        json.dump(dict(value, written_monotonic_ns=time.monotonic_ns()), stream, separators=(',', ':'))
     # Windows file scanners/readers can briefly retain a non-delete-sharing
     # handle. Retrying the atomic replace keeps the previous complete state.
     deadline = time.monotonic() + 1
@@ -212,7 +213,7 @@ class ElevatedEasyTier:
             while time.monotonic() < deadline:
                 self.checkpoint()
                 try:
-                    interface, _ = self.snapshot()
+                    interface, _ = self.snapshot(wait_for_initial_state=True)
                     if self.progress: self.progress('internet_connected')
                     return interface
                 except FileNotFoundError:
@@ -221,30 +222,41 @@ class ElevatedEasyTier:
                     raise InternetError('internet_elevation_failed')
                 time.sleep(.2)
             raise InternetError('internet_connect_timeout')
-        except BaseException:
-            self.close()
+        except BaseException as primary:
+            try:
+                self.close()
+            except Exception:
+                primary.add_note('internet_cleanup_failed')
             raise
 
     def alive(self):
         return self.handle is not None and winapi().WaitForSingleObject(self.handle, 0) == 0x102
 
-    def snapshot(self):
-        path = compatibility.plain(self.private / 'state.json')
-        if path.stat().st_size > 16384 or time.time() - path.stat().st_mtime > 10:
+    def snapshot(self, *, wait_for_initial_state=False):
+        if self.private is None:
             raise InternetError('internet_disconnected')
         try:
+            path = compatibility.plain(self.private / 'state.json')
             deadline = time.monotonic() + 1
             while True:
                 try:
-                    raw = path.read_text(encoding='utf-8')
+                    with path.open('rb') as stream:
+                        raw = stream.read(16385)
                     break
                 except PermissionError:
                     if time.monotonic() >= deadline:
                         raise InternetError('internet_status_invalid') from None
                     time.sleep(.02)
-            value = json.loads(raw)
-            if value.get('format') != FORMAT or value.get('nonce') != self.nonce:
+            if len(raw) > 16384:
                 raise ValueError()
+            value = json.loads(raw.decode('utf-8'))
+            if not isinstance(value, dict) or value.get('format') != FORMAT or value.get('nonce') != self.nonce:
+                raise ValueError()
+            written = value.get('written_monotonic_ns')
+            if type(written) is not int or written < 0:
+                raise ValueError()
+            if not 0 <= time.monotonic_ns() - written <= 10_000_000_000:
+                raise InternetError('internet_disconnected')
             if value.get('phase') == 'error':
                 code = value.get('code')
                 if not isinstance(code, str) or not code.startswith('internet_') or len(code) > 64:
@@ -262,6 +274,10 @@ class ElevatedEasyTier:
                 if self.room.mode == 'direct' and cost != 'p2p': raise ValueError()
             self.address, self.device_name = interface.address, interface.name
             return interface, peers
+        except FileNotFoundError:
+            if wait_for_initial_state:
+                raise
+            raise InternetError('internet_disconnected') from None
         except InternetError:
             raise
         except (ValueError, TypeError, KeyError):
@@ -273,13 +289,19 @@ class ElevatedEasyTier:
         if directory.parent != compatibility.plain(self.root / 'LocalData') or not directory.name.startswith('easytier-uac-'):
             raise InternetError('internet_cleanup_failed')
         (directory / 'stop').touch()
+        cleanup_failed = False
         if self.handle:
             api = winapi()
             if api.WaitForSingleObject(self.handle, 45000) != 0:
                 raise InternetError('internet_cleanup_failed')
-            api.CloseHandle(self.handle); self.handle = None
+            code = wintypes.DWORD()
+            cleanup_failed = not api.GetExitCodeProcess(self.handle, ctypes.byref(code)) or code.value != 0
+            api.CloseHandle(self.handle)
+            self.handle = None
         shutil.rmtree(directory)
         self.private = None
+        if cleanup_failed:
+            raise InternetError('internet_cleanup_failed')
 
 
 def open_overlay(*args, **kwargs):

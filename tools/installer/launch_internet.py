@@ -92,6 +92,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         code = launch_auto_lan.run(SimpleNamespace(**options), picker=select, network=network)
         if host and interface is not None:
             deadline = time.monotonic() + 86400
+            missed_status = 0
             while time.monotonic() < deadline:
                 if getattr(args,'switch_requested',None) is not None and args.switch_requested():
                     break
@@ -99,20 +100,37 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                     cancel()
                 try:
                     status = request(room.coordinator, interface.address, 'status', timeout=2)
-                    active = status.get('active_members')
-                    if type(active) is not int or not 0 <= active <= 8:
-                        raise InternetError('internet_status_invalid')
-                    if not active:
+                except (OSError, http.client.HTTPException):
+                    if code:
+                        # A failed game's newly created idle hub may already be gone.
                         break
+                    missed_status += 1
+                    if missed_status >= 3:
+                        raise InternetError('internet_disconnected') from None
+                    time.sleep(.5)
+                    continue
+                missed_status = 0
+                active = status.get('active_members')
+                if type(active) is not int or not 0 <= active <= 8:
+                    raise InternetError('internet_status_invalid')
+                if not active:
+                    break
+                try:
                     overlay.snapshot()
                 except (OSError, http.client.HTTPException):
                     raise InternetError('internet_disconnected') from None
                 if progress:
                     progress('internet_hosting')
                 time.sleep(.5)
-        return code
-    finally:
+    except BaseException as primary:
+        try:
+            overlay.close()
+        except Exception:
+            primary.add_note('internet_cleanup_failed')
+        raise
+    else:
         overlay.close()
+    return code
 
 
 def main():

@@ -30,7 +30,9 @@ class ElevationTests(unittest.TestCase):
                 return original(source,target)
             with patch.object(elevation.os,'replace',side_effect=replace),patch.object(elevation.time,'sleep'):
                 elevation.write_state(Path(folder),{'phase':'ready'})
-            self.assertEqual(json.loads((Path(folder)/'state.json').read_text()),{'phase':'ready'})
+            state = json.loads((Path(folder) / 'state.json').read_text())
+            self.assertEqual(state['phase'], 'ready')
+            self.assertIsInstance(state['written_monotonic_ns'], int)
             self.assertEqual(len(calls),2)
 
     def test_uac_cancellation_removes_request_and_starts_no_game(self):
@@ -59,14 +61,62 @@ class ElevationTests(unittest.TestCase):
             interface = LanInterface('10.203.77.2', 24, 'WePlay-12345678')
             value = dict(format=elevation.FORMAT, nonce=overlay.nonce, phase='ready',
                          address=interface.address, device=interface.name, peers={ROOM.coordinator: 'p2p'})
-            state = Path(folder) / 'state.json'
-            state.write_text(json.dumps(value))
+            elevation.write_state(overlay.private, value)
             with patch.object(elevation, 'enumerate_interfaces', return_value=[interface]):
                 self.assertEqual(overlay.snapshot(), (interface, {ROOM.coordinator: 'p2p'}))
-                state.write_text(json.dumps(dict(value, nonce='x' * 32)))
+                elevation.write_state(overlay.private, dict(value, nonce='x' * 32))
                 with self.assertRaises(InternetError): overlay.snapshot()
-                state.write_text(json.dumps(dict(value, peers={'192.168.1.2': 'p2p'})))
+                elevation.write_state(overlay.private, dict(value, peers={'192.168.1.2': 'p2p'}))
                 with self.assertRaises(InternetError): overlay.snapshot()
+
+    def test_snapshot_uses_elapsed_time_across_wall_clock_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            overlay = elevation.ElevatedEasyTier(Path(folder), ROOM, host=False)
+            overlay.private = Path(folder)
+            interface = LanInterface('10.203.77.2', 24, 'WePlay-12345678')
+            state = dict(format=elevation.FORMAT, nonce=overlay.nonce, phase='ready',
+                         address=interface.address, device=interface.name, peers={})
+            with patch.object(elevation.time, 'monotonic_ns', return_value=1_000_000_000):
+                elevation.write_state(overlay.private, state)
+            with patch.object(elevation, 'enumerate_interfaces', return_value=[interface]), \
+                    patch.object(elevation.time, 'time', return_value=10_000_000_000), \
+                    patch.object(elevation.time, 'monotonic_ns', side_effect=[2_000_000_000, 12_000_000_000]):
+                self.assertEqual(overlay.snapshot(), (interface, {}))
+                with self.assertRaisesRegex(InternetError, 'internet_disconnected'):
+                    overlay.snapshot()
+
+    def test_missing_status_is_retryable_only_during_start(self):
+        with tempfile.TemporaryDirectory() as folder:
+            overlay = elevation.ElevatedEasyTier(Path(folder), ROOM, host=False)
+            overlay.private = Path(folder)
+            with self.assertRaises(FileNotFoundError):
+                overlay.snapshot(wait_for_initial_state=True)
+            with self.assertRaisesRegex(InternetError, 'internet_disconnected'):
+                overlay.snapshot()
+
+    def test_close_checks_worker_exit_and_cleans_owned_ipc(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            overlay = elevation.ElevatedEasyTier(root, ROOM, host=True)
+            directory = root / 'LocalData/easytier-uac-fixture'
+            directory.mkdir(parents=True)
+            overlay.private, overlay.handle = directory, 123
+            api = Mock()
+            api.WaitForSingleObject.side_effect = [258, 0]
+            def get_exit_code(_handle, result):
+                result._obj.value = 2
+                return True
+            api.GetExitCodeProcess.side_effect = get_exit_code
+            with patch.object(elevation, 'winapi', return_value=api):
+                with self.assertRaisesRegex(InternetError, 'internet_cleanup_failed'):
+                    overlay.close()
+                self.assertTrue((directory / 'stop').exists())
+                api.CloseHandle.assert_not_called()
+                with self.assertRaisesRegex(InternetError, 'internet_cleanup_failed'):
+                    overlay.close()
+            api.CloseHandle.assert_called_once_with(123)
+            self.assertIsNone(overlay.handle)
+            self.assertFalse(directory.exists())
 
     def test_crossplay_state_must_echo_scope_and_tracks_verified_interface(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -75,10 +125,10 @@ class ElevationTests(unittest.TestCase):
             interface=LanInterface('10.203.77.2',24,'WePlay-12345678')
             value=dict(format=elevation.FORMAT,nonce=overlay.nonce,phase='ready',
                 address=interface.address,device=interface.name,peers={ROOM.coordinator:'p2p'})
-            state=Path(folder)/'state.json';state.write_text(json.dumps(value))
+            elevation.write_state(overlay.private, value)
             with patch.object(elevation,'enumerate_interfaces',return_value=[interface]):
                 with self.assertRaises(InternetError):overlay.snapshot()
-                state.write_text(json.dumps(dict(value,crossplay=True)))
+                elevation.write_state(overlay.private, dict(value,crossplay=True))
                 self.assertEqual(overlay.snapshot(),(interface,{ROOM.coordinator:'p2p'}))
                 self.assertEqual((overlay.address,overlay.device_name),(interface.address,interface.name))
         for setting in (1,'true',None):

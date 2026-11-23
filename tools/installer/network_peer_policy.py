@@ -60,8 +60,11 @@ class Session:
                     break
                 time.sleep(.05)
             else:raise TimeoutError('Der WePlay-Netzbereich wurde nicht rechtzeitig bestätigt.')
-        except BaseException:
-            self.close()
+        except BaseException as primary:
+            try:
+                self.close()
+            except Exception:
+                primary.add_note('windows_network_cleanup_failed')
             raise
 
     def _recover(self):
@@ -123,13 +126,14 @@ class Session:
         if self.thread:self.thread.join(timeout=3)
         if self.path.exists() and ('nonce='+self.nonce+'\n').encode('ascii') in self.path.read_bytes():
             self._publish(expired=True)
+        code = 0
         if self.process:
-            try:
-                code=self.process.wait(timeout=10)
-                if code:raise RuntimeError('Der Windows-Netzhelfer meldet einen Fehler beim Schließen.')
-            finally:self.process.close()
-            self.process=None
+            code = self.process.wait(timeout=10)
+            self.process.close()
+            self.process = None
         if self.ready.exists() and self.ready.read_bytes()==(self.nonce+'\n').encode('ascii'):
             self.ready.unlink()
         if self.path.exists() and ('nonce='+self.nonce+'\n').encode('ascii') in self.path.read_bytes():
             self.path.unlink()
+        if code:
+            raise RuntimeError('Der Windows-Netzhelfer meldet einen Fehler beim Schließen.')

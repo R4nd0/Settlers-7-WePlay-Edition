@@ -13,9 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility
 import launch_local
 import launch_lan
-from lan_control import Membership
+from lan_control import Membership, request
 from lan_discovery import LanDiscovery
-from lan_hub import LanHubError
+from lan_hub import LanHubError, status_counts
 from lan_interfaces import enumerate_interfaces
 from lobby_directory import DISCOVERY_PORT, GAME_SERVICE_PORT
 import lan_autoconnect
@@ -50,6 +50,17 @@ def stop_hub(process):
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
+
+def stop_idle_hub(process, interface, expected):
+    if process.poll() is not None:
+        return
+    try:
+        status = request(interface.address, interface.address, 'status', expected=expected, timeout=.5)
+        _, active = status_counts(status, expected)
+        if not active:
+            stop_hub(process)
+    except (OSError, ValueError, http.client.HTTPException, subprocess.TimeoutExpired):
+        pass  # An unconfirmed room keeps its normal idle lease.
 
 
 def start_hub(root, interface, expected, name, directory, *, cancel_check=None, discovery_port=DISCOVERY_PORT):
@@ -131,11 +142,24 @@ def run(args, *, picker=None, network=None):
         environment = launch_local.game_launch_environment(root, environment)
         game_arguments = ('-vSynch', '-noMapInMainMenu') if sys.platform == 'linux' else launch_local.graphics_game_arguments(root, **renderer_option)
         player_settings.save(root, name)
+
+        def start_owned(target):
+            hub = start_hub(root, target, expected, 'WePlay LAN', directory,
+                            cancel_check=cancel, discovery_port=discovery_port)
+            abort_host.callback(stop_idle_hub, hub, target, expected)
+            return hub
+
+        def start_automatic():
+            for target in interfaces[:-1]:
+                try:
+                    return start_owned(target)
+                except LanHubError as error:
+                    if error.code != 'lan_discovery_socket_failed':
+                        raise
+            return start_owned(interfaces[-1])
+
         if choice is None:
-            interface = interfaces[0]  # Active private default route first.
-            room = lan_autoconnect.connect(directory, expected,
-                lambda: start_hub(root, interface, expected, 'WePlay LAN', directory,
-                                  cancel_check=cancel, discovery_port=discovery_port),
+            room = lan_autoconnect.connect(directory, expected, start_automatic,
                 cancel_check=cancel, progress=progress)
             interface, coordinator = room.local_interface, room.endpoint.host
         else:
@@ -150,12 +174,7 @@ def run(args, *, picker=None, network=None):
                 if len(own_rooms) != 1 or not own_rooms[0].compatible(expected):
                     raise ValueError('Die vorhandene eigene LAN-Lobby verwendet einen anderen Patchstand.')
             else:
-                hub = start_hub(root, interface, expected, 'WePlay LAN', directory,
-                                cancel_check=cancel, discovery_port=discovery_port)
-                # A failed Internet host must release its beacon before the
-                # caller tears down the overlay. Leave existing hubs alone.
-                if network is not None:
-                    abort_host.callback(stop_hub, hub)
+                start_owned(interface)
         membership = Membership(root, interface.address, coordinator, expected)
         runtime = None
         observer = None
@@ -176,11 +195,12 @@ def run(args, *, picker=None, network=None):
                 args.before_game()
             game = launch_local.spawn_game(root,game_arguments,environment,
                 lan={'local':interface.address,'coordinator':coordinator,'group':True},**renderer_option)
-            abort_host.pop_all()
             code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux',
                 monitor=getattr(args, 'game_monitor', None),startup=getattr(args, 'game_startup', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
+            else:
+                abort_host.pop_all()
             return 0 if code == 0 else 1
         finally:
             try:
