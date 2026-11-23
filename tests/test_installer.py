@@ -252,6 +252,20 @@ def prepare(source, output, specification, profile):
         self.assertEqual(content.inventory(self.source, ('Base',)), before)
         content.verify(self.destination)
 
+    def test_steam_source_renderer_files_stay_in_original_installation(self):
+        exe=self.source/'Base/Bin/Settlers7R.exe'
+        exe.write_bytes(b'invented exact Steam image')
+        (exe.parent/'D3D9.dll').write_bytes(b'foreign D3D9 wrapper')
+        (exe.parent/'DxVk.CoNf').write_bytes(b'foreign graphics settings')
+        before=content.inventory(self.source,('Base',))
+        self.data['steam_history']=True
+        (self.package/'package.json').write_text(json.dumps(self.data))
+        with patch.object(install,'STEAM_EXE',content.digest(exe)), \
+                patch.object(install,'STEAM_ADAPTER_SHA256',self.data['files']['payload/uplay_r1_loader.dll']):
+            self.prepare()
+        self.assertEqual(content.inventory(self.source,('Base',)),before)
+        self.assertTrue(set(install.RENDERER_SIDECARS).isdisjoint(content.verify(self.destination)['files']))
+
     def test_executable_changed_after_source_validation_is_not_adopted_as_a_new_baseline(self):
         original = install.source_base
         def change_after_check(root, **options):

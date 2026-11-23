@@ -389,7 +389,8 @@ REPAIR_LAYOUT = dict(zip(REPAIR_INPUTS, ('Base/Bin/Settlers7R.exe', 'Base/BBA/In
 REPAIR_LAYOUT[SHARED_REPAIR_INPUT] = 'Base/BBA/shr.bba'
 PLATFORM_REPAIR = {'base/bin/mss32.dll':'Base/Bin/mss32.dll','base/bin/steam_api.dll':'Base/Bin/steam_api.dll'}
 REPAIR_LAYOUT.update(PLATFORM_REPAIR)
-GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', 'base/bin/d3d9.dll', 'base/bin/dxvk.conf',
+RENDERER_SIDECARS = ('base/bin/d3d9.dll','base/bin/dxvk.conf')
+GENERATED_BASE = ('base/bin/uplay_r1_loader.dll', *RENDERER_SIDECARS,
                   'base/bin/weplay_miles_original.dll','base/bin/.weplay-isolation')
 
 
@@ -561,7 +562,11 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         for path in sorted(stack.pop().iterdir()):
             content.plain(path)
             if path.is_dir(): stack.append(path)
-            elif path.is_file(): files.append(path)
+            elif path.is_file():
+                # The managed copy installs its own verified DXVK profile.
+                # A source-side wrapper or configuration stays in the original.
+                if ('base/'+path.relative_to(base).as_posix()).lower() not in RENDERER_SIDECARS:
+                    files.append(path)
             else: raise ValueError('Unbekannter Dateityp in der Spielinstallation.')
     if type(additional_bytes) is not int or additional_bytes<0:raise ValueError('Ungueltige Speicherreservierung.')
     input_sizes={name:len(recovery[1][name]) if managed else content.member(base,name.removeprefix('base/')).stat().st_size
