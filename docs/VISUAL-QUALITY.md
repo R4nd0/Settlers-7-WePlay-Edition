@@ -70,13 +70,16 @@ Edge smoothing, contact shading and Maximum require Modern graphics. Ultra shado
 also work with native Direct3D9. All new choices default off, including when
 reading old preference files. They take effect on the next launch. Ultra uses
 four times the shadow-map texels of the older 4096 high setting and needs more
-GPU memory and rendering work. It is not enabled silently by a preset.
+GPU memory and rendering work.
 
-**WePlay recommended (Modern)** explicitly selects high quality, longer model
-detail/range, 4096 shadows and the original three ReShade components, leaving
-Ultra and Maximum off. **ReShade Maximum (cinematic)** selects that baseline
-with Maximum enabled. Each button only changes the displayed controls until
-Save; output resolution is preserved. Earlier preset buttons keep their scope.
+**WePlay recommended (Modern)** selects high quality, longer model detail and
+visibility, 4096 shadows, the game's antialiasing and SMAA.
+**ReShade Maximum (cinematic)** selects high quality, 16× texture filtering,
+extended detail and shadow range, Ultra shadows where supported, and the
+Midsummer color profile, SMAA and Maximum effects. It disables the game's
+antialiasing, depth of field and ReShade contact shadows. Save applies the
+selected settings on the next launch. Both presets preserve the selected
+display, resolution, GPU and menu mode.
 
 Mittsommer keeps its bright twilight/day cycle and 20-minute native period.
 RC3.19 also replaces the inherited fixed 45-degree light/disc azimuth with

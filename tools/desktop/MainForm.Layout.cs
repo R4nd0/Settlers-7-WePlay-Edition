@@ -65,7 +65,7 @@ internal sealed partial class MainForm
 
         var quality=GraphicsSection(root,"graphicsQualityGroup");
         graphicsRecommended=Button("qualityRecommended",()=>{ApplyRecommendedGraphics();return Task.CompletedTask;});
-        graphicsMaximum=Button("qualityMaximum",()=>{ApplyRecommendedGraphics();maximumFx.Checked=MaximumGraphicsAvailable;return Task.CompletedTask;});
+        graphicsMaximum=Button("qualityMaximum",()=>{ApplyMaximumGraphics();return Task.CompletedTask;});
         Add(quality,Buttons(Button("qualityClear",()=>{ApplyQualityPreset(false);return Task.CompletedTask;}),
             Button("qualityDetail",()=>{ApplyQualityPreset(true);return Task.CompletedTask;}),
             graphicsRecommended,graphicsMaximum));

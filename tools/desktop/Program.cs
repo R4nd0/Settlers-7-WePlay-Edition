@@ -851,6 +851,14 @@ internal sealed partial class MainForm : Form
         midsummerTone.Checked=contactShadows.Checked=false;
         enhancedAa.Checked=midsummerToneAvailable;
     }
+    private void ApplyMaximumGraphics()
+    {
+        ApplyRecommendedGraphics();
+        effects["Antialiasing"].Checked=false;
+        ultraShadows.Checked=visualDetailAvailable;
+        midsummerTone.Checked=midsummerToneAvailable;
+        maximumFx.Checked=MaximumGraphicsAvailable;
+    }
     private object GraphicsRequest()
     {
         object? output=null;
@@ -1257,11 +1265,28 @@ internal sealed partial class MainForm : Form
                 {
                     var choice=recommended.RootElement.GetProperty("choice");
                     if(recommended.RootElement.GetProperty("renderer_policy").GetString()!="dxvk"
+                        ||recommended.RootElement.GetProperty("quality").GetProperty("Antialiasing").GetInt32()!=1
                         ||choice.GetProperty("ultra_shadows").GetBoolean()||choice.GetProperty("maximum_fx").GetBoolean()
                         ||choice.GetProperty("midsummer_tone").GetBoolean()||choice.GetProperty("contact_shadows").GetBoolean()
                         ||!new[]{"extended_detail","detailed_shadows","extended_shadow_range","enhanced_aa"}.All(name=>choice.GetProperty(name).GetBoolean()))
                         throw new Exception("Recommended graphics profile failed");
                 }
+                form.tabs.SelectedTab=form.graphicsPage;Application.DoEvents();
+                var beforeMaximum=JsonSerializer.SerializeToElement(form.GraphicsRequest()).GetProperty("choice");
+                form.graphicsMaximum.PerformClick();
+                var maximum=JsonSerializer.SerializeToElement(form.GraphicsRequest());
+                var maximumChoice=maximum.GetProperty("choice");
+                var maximumQuality=maximum.GetProperty("quality");
+                if(maximum.GetProperty("renderer_policy").GetString()!="dxvk"
+                    ||maximumQuality.GetProperty("Antialiasing").GetInt32()!=0
+                    ||maximumQuality.GetProperty("DepthOfField").GetInt32()!=0
+                    ||form.qualities.Keys.Any(name=>maximumQuality.GetProperty(name).GetInt32()!=2)
+                    ||!new[]{"Shadows","SSAO","SunShafts","Parallax"}.All(name=>maximumQuality.GetProperty(name).GetInt32()==1)
+                    ||!new[]{"anisotropic_filtering","extended_detail","detailed_shadows","extended_shadow_range",
+                        "enhanced_aa","midsummer_tone","ultra_shadows","maximum_fx"}.All(name=>maximumChoice.GetProperty(name).GetBoolean())
+                    ||maximumChoice.GetProperty("contact_shadows").GetBoolean()
+                    ||!new[]{"choice","simple_menu","display"}.All(name=>maximumChoice.GetProperty(name).GetRawText()==beforeMaximum.GetProperty(name).GetRawText()))
+                    throw new Exception("Maximum preset did not keep the sharp foliage settings and local device choices");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);
                 for(int i=1;i<form.renderer.Items.Count;i++)
                 {
@@ -1430,7 +1455,7 @@ internal sealed partial class MainForm : Form
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
-                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft",
+                passed=true,checks=new[]{"translation_keys","release_version_exact_rc405_and_update_prefix_hidden","setup_help_and_error_details","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",
                     "easytier_consent_defaults_denied","discord_symbols_only_on_community_links","room_switch_requires_fresh_consent","four_play_mode_cards","mode_card_navigation_without_network_join",
