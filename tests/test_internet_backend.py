@@ -67,6 +67,7 @@ class InternetBackendTests(unittest.TestCase):
     def setUp(self):
         self.fixture=fixtures.DesktopTests();self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
         self.desktop=self.fixture.desktop
+        self.fixture.prepare()
 
     def test_join_secret_only_travels_over_private_channel(self):
         channel=Mock();channel.read.return_value=ROOM.token()

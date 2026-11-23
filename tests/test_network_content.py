@@ -229,12 +229,20 @@ class NetworkContentTests(unittest.TestCase):
         desktop=backend.Desktop.__new__(backend.Desktop)
         desktop.game=Mock(return_value=root);desktop.progress=Mock();desktop.renderer=Mock()
         desktop.installed=Mock(return_value={'renderer_policy':'auto'});desktop.probe=Mock()
-        with patch.object(backend,'enumerate_interfaces',return_value=[]), \
-                patch.object(backend,'LanDiscovery'), \
-                patch.object(lan_autoconnect,'discover_preferred',return_value=None) as discover:
-            desktop.align_lan({'player_name':'Fixture'})
-        self.assertEqual(discover.call_args.args[1],content.network_id(value))
-        self.assertNotIn('acceptable_content_ids',discover.call_args.kwargs)
+        desktop.state=root/'LauncherState'
+        desktop.state.mkdir()
+        for port in (9112,19112):
+            with self.subTest(port=port):
+                if port!=9112:desktop.write(desktop.state/'lan-discovery.json',{'port':port})
+                with (
+                    patch.object(backend,'enumerate_interfaces',return_value=[]),
+                    patch.object(backend,'LanDiscovery') as discovery,
+                    patch.object(lan_autoconnect,'discover_preferred',return_value=None) as discover,
+                ):
+                    desktop.align_lan({'player_name':'Fixture'})
+                discovery.assert_called_once_with([],port=port)
+                self.assertEqual(discover.call_args.args[1],content.network_id(value))
+                self.assertNotIn('acceptable_content_ids',discover.call_args.kwargs)
 
     def test_legacy_group_is_rejected_instead_of_silently_elected(self):
         expected=content.network_id(manifest(self.files))

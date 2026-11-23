@@ -83,7 +83,10 @@ class DesktopCrossplayTests(unittest.TestCase):
         self.assertEqual(self.host.call_args.args,(self.fixture.roots[1],self.catalog))
         self.assertEqual(self.host.call_args.kwargs['history'],3)
         self.assertIs(self.host.call_args.kwargs['room'],ROOM)
-        self.assertEqual(self.run.call_args.kwargs,{'invitation_ready':self.channel.invitation_ready})
+        options=self.run.call_args.kwargs
+        self.assertEqual(set(options),{'invitation_ready','startup'})
+        self.assertIs(options['invitation_ready'],self.channel.invitation_ready)
+        self.assertIsInstance(options['startup'],backend.desktop_settings.GraphicsStartup)
         self.guest.assert_not_called()
 
     def test_original_history_guests_bind_only_the_invited_edition(self):
