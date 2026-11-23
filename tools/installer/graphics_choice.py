@@ -38,7 +38,9 @@ def lod_steps_supported(root):
     gold=gold_graphics.is_gold(root)
     _,adapter=platform_standalone.layout(root,gold=gold)
     adapter=graphics._plain(adapter)
-    return adapter.is_file() and content.digest(adapter)==(platform_standalone.LOD_GOLD if gold else platform_standalone.LOD_HISTORY)
+    supported=(platform_standalone.LOD_GOLD,platform_standalone.GOLD_RC409) if gold else (
+        platform_standalone.LOD_HISTORY,platform_standalone.HISTORY_RC409)
+    return adapter.is_file() and content.digest(adapter) in supported
 
 
 def detail_level(selected):

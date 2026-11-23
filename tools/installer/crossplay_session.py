@@ -9,6 +9,7 @@ import re
 import secrets
 
 import compatibility
+from platform_standalone import GOLD_RC403,GOLD_RC405,GOLD_RC409,HISTORY_RC405,HISTORY_RC409,LOD_GOLD,LOD_HISTORY
 
 PREFIX = 'WEPLAY_CROSSPLAY_'
 EXECUTABLE_EDITIONS = {
@@ -18,14 +19,10 @@ EXECUTABLE_EDITIONS = {
 }
 # Filled only for production adapters that implement the contract. Previous
 # solo/History-only fingerprints never become mixed-capable by migration.
-_HISTORY_ROOM_ADAPTER = '847378000abeabd83b1d7a459db19e54b734c84b5694a9b3b797704ef4225017'
-_HISTORY_LOD_ADAPTER = '1fbe68497696309900ee6306eb2cfd6cb0cbaf036b9a30ec322f7efb4e749ace'
 ADAPTER_PINS = {
-    1: ('a5e511148b04f99d05b99ea1605f435c805988ab1f2a1fc23d250769ae9d3453',
-        '72fa857ebcef73b35f611873c6daf1535dadfe24034e05b4ac3279500023b989',
-        '92bd952f0efde03ae2e1357c019102854fb14df006b2fd7f0a91a11997a66dcd'),
-    2: (_HISTORY_ROOM_ADAPTER,_HISTORY_LOD_ADAPTER),
-    3: (_HISTORY_ROOM_ADAPTER,_HISTORY_LOD_ADAPTER),
+    1: (GOLD_RC403,GOLD_RC405,LOD_GOLD,GOLD_RC409),
+    2: (HISTORY_RC405,LOD_HISTORY,HISTORY_RC409),
+    3: (HISTORY_RC405,LOD_HISTORY,HISTORY_RC409),
 }
 
 

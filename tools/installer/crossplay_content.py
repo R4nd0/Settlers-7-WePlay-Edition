@@ -165,10 +165,10 @@ class Catalog:
     def renderer_adapter(edition,name,expected,actual):
         # Exact, render-only rebuilds retain the original room catalog ID.
         if edition not in REQUIRED or name!=REQUIRED[edition][1]:return False
-        from platform_standalone import GOLD_RC403,GOLD_RC405,HISTORY_RC405,LOD_GOLD,LOD_HISTORY
+        from platform_standalone import GOLD_RC403,GOLD_RC405,GOLD_RC409,HISTORY_RC405,HISTORY_RC409,LOD_GOLD,LOD_HISTORY
         if edition==1:
-            return expected==GOLD_RC403 and actual in (GOLD_RC405,LOD_GOLD)
-        return expected==HISTORY_RC405 and actual==LOD_HISTORY
+            return expected==GOLD_RC403 and actual in (GOLD_RC405,LOD_GOLD,GOLD_RC409)
+        return expected==HISTORY_RC405 and actual in (LOD_HISTORY,HISTORY_RC409)
 
 
 def read(path):
