@@ -19,9 +19,11 @@ oder Verbindung zu den Plattformclients. Unbekannte Programmstände werden
 abgewiesen.
 
 Beim ersten Start einer Kopie benötigt die Windows-Netzisolation eine
-Administratorbestätigung. Vier dauerhafte, ausschließlich auf ihren EXE-Pfad
-begrenzte Filter sperren Nicht-Loopback-Verbindungen für IPv4 und IPv6.
-Globale Firewall-Einstellungen und Regeln anderer Anwendungen bleiben erhalten.
+Administratorbestätigung. Vier dauerhafte, auf den EXE-Pfad begrenzte Filter
+sperren Nicht-Loopback-Verbindungen für IPv4 und IPv6. Lässt Windows im
+lokalen IPv4-TCP-Netztest unerwartet eine Verbindung zu, erneuert WePlay
+diese Filter und versucht den Spielstart einmal erneut. Der zweite Start
+durchläuft dieselbe Netzprüfung.
 Der Starter prüft die Filter vor dem Spielstart. Die Spiel-EXE darf keine
 Unterprozesse starten. Direkte Starts außerhalb des WePlay-Starters werden
 bereits beim Laden abgewiesen.

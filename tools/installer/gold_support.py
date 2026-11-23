@@ -46,9 +46,12 @@ def adapter_input(source, adapter=None):
     return path
 
 
-def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None,mixed_room=False):
+def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None,mixed_room=False,platform_runtime=None):
     if type(mixed_room) is not bool or (mixed_room and source_root is None):
         raise ValueError('Mixed-room tools require an explicit trusted source tree.')
+    if platform_runtime is not None:
+        if source_root is None:raise ValueError('Standalone runtime refresh requires the trusted source tree.')
+        platform_runtime=platform_standalone.payload(platform_runtime)
     source,target=map(content.plain,(source,target))
     value=verify_source_package(source,source_root=source_root) if source_root is not None else verify_package(source)
     if target.exists():raise ValueError('Gold payload destination exists')
@@ -66,6 +69,9 @@ def bundle(source,target,*,source_root=None,quiet_reshade=None,adapter=None,mixe
         path=content.plain(target/name);path.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(content.plain(source/name),path)
     shutil.copyfile(adapter,content.plain(target/'Payload/weplay_gold_startup.dll'))
+    if platform_runtime is not None:
+        for name in platform_standalone.PAYLOAD:
+            shutil.copyfile(platform_runtime/name,content.plain(target/'Payload/Platform'/name))
     if source_root is not None:
         repo=content.plain(source_root)
         # Reuse pinned native/interpreter inputs, while always shipping the

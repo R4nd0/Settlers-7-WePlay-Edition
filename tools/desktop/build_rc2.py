@@ -99,7 +99,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         memory_scanner=memory_scanner or old/'Tools/d3d11/memory_scan.dll',
         easytier_runtime=easytier_runtime,windows_helpers=windows_helpers,game_directory=game_directory,neo_logistics=neo_logistics,midsummer_profile=midsummer_profile,atmosphere_addon=atmosphere_addon,quiet_reshade=quiet_reshade,platform_runtime=platform_runtime)
     gold_support.bundle(gold_package,app/'Package'/gold_support.FOLDER,source_root=REPO,
-                        quiet_reshade=quiet_reshade,adapter=gold_adapter,mixed_room=catalog is not None)
+                        quiet_reshade=quiet_reshade,adapter=gold_adapter,mixed_room=catalog is not None,
+                        platform_runtime=platform_runtime)
     package_record=json.loads((app/'Package/package.json').read_text(encoding='utf-8'))
     package_record.update(main_package=True,gold_standalone=True,platform_isolation=release_policy.CONTRACT)
     if alternate_renderers is not None:

@@ -1680,6 +1680,8 @@ def _dispatch(desktop,request):
 
 
 def error_code(error):
+    if isinstance(error,NativeStartupError) and error.native_start_stage==11:
+        return 'network_isolation_failed'
     code=getattr(error,'code','')
     if isinstance(code,str) and re.fullmatch(r'(directory|update|discord|internet)_[a-z_]{1,48}',code):
         return code

@@ -185,6 +185,7 @@
   "disk_low": "There is not enough free disk space for a separate game copy.",
   "lan_failed": "LAN preparation failed. Open Help and create a diagnostic report for more information.",
   "lan_discovery_port_busy": "WePlay could not open the UDP discovery port. If WePlay just closed, wait a moment and try again.",
+  "network_isolation_failed": "Windows did not enforce the required network isolation. WePlay stopped the game before it could start. See Help for the failed network check.",
   "lan_discovery_port_invalid": "Choose a UDP port from 1024 to 65535, excluding reserved game ports 3074, 6200, 9103, 9110 and 9111.",
   "lan_discovery_socket_failed": "LAN discovery could not start on the selected network interface. Check that the connection is still active.",
   "lan_coordinator_start_failed": "The local LAN service could not start. Check whether another WePlay copy is already running the LAN service.",

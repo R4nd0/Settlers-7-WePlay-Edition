@@ -43,7 +43,9 @@ STEAM_API = '2e9836aeb19373dc1cc0743a9d8bdd5f322fbb426d077ea2718005c5a4bef140'
 MILES_GATE = 'ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63'
 MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf'
 STEAM_ORIGINAL = 'd99d425793f588fbc15f91c7765977cdd642b477be01dac41c0388ab6a5d492d'
-POLICY = '3317aec4210f8214cb6fbe586502a4e26c23fb68182d8b00a1b0353848e49b41'
+POLICY_V1 = '3317aec4210f8214cb6fbe586502a4e26c23fb68182d8b00a1b0353848e49b41'
+POLICY = '48f32b7461648bf04c9b990a1cc1261f3087c471381aeb2263081d352efd9846'
+POLICY_FILE = 'Launcher/weplay_network_policy.exe'
 PAYLOAD = {'steam_api.dll': STEAM_API, 'mss32.dll': MILES_GATE, 'weplay_network_policy.exe': POLICY}
 
 
@@ -86,10 +88,11 @@ def marker(executable):
     return ('WePlay network scope v1\n'+content.digest(executable)+'\n').encode('ascii')
 
 
-def payload(directory):
+def payload(directory, *, allow_legacy=False):
     directory = content.plain(directory)
     for name, expected in PAYLOAD.items():
-        if content.digest(content.plain(directory/name)) != expected:
+        accepted = (expected,POLICY_V1) if allow_legacy and name=='weplay_network_policy.exe' else (expected,)
+        if content.digest(content.plain(directory/name)) not in accepted:
             raise ValueError('Ungeprüfte Standalone-Laufzeit: '+name)
     return directory
 
@@ -114,10 +117,13 @@ def load(root):
     expected_adapter=value['files'].get(adapter_name)
     if expected_adapter not in adapter_pins(gold=gold):
         raise ValueError('Ungeprüftes Standalone-Adapterprofil.')
+    expected_policy=value['files'].get(POLICY_FILE)
+    if expected_policy not in (POLICY,POLICY_V1):
+        raise ValueError('Die Standalone-Laufzeit ist unvollständig oder ungeprüft.')
     files = {adapter_name: expected_adapter,
              (executable.parent/'mss32.dll').relative_to(root).as_posix(): MILES_GATE,
              (executable.parent/'weplay_miles_original.dll').relative_to(root).as_posix(): MILES_ORIGINAL,
-             'Launcher/weplay_network_policy.exe': POLICY}
+             POLICY_FILE: expected_policy}
     if isolated_process.PROFILES[expected_exe][0] == 2:
         files[(executable.parent/'steam_api.dll').relative_to(root).as_posix()] = STEAM_API
     if value['files'] != files:
@@ -158,14 +164,14 @@ def prepare(root, runtime, *, gold=False, tracker=None):
     copy(runtime/'mss32.dll', miles)
     if profile[0] == 2:
         copy(runtime/'steam_api.dll', executable.with_name('steam_api.dll'))
-    copy(runtime/'weplay_network_policy.exe', root/'Launcher/weplay_network_policy.exe')
+    copy(runtime/'weplay_network_policy.exe', root/POLICY_FILE)
     scope = executable.with_name('.weplay-isolation')
     scope.write_bytes(marker(executable))
     if tracker: tracker(scope, content.digest(scope))
     files = {adapter.relative_to(root).as_posix(): adapter_digest,
              miles.relative_to(root).as_posix(): MILES_GATE,
              retained.relative_to(root).as_posix(): MILES_ORIGINAL,
-             'Launcher/weplay_network_policy.exe': POLICY}
+             POLICY_FILE: POLICY}
     if profile[0] == 2:
         files[(executable.parent/'steam_api.dll').relative_to(root).as_posix()] = STEAM_API
     record = root/RECORD
@@ -203,7 +209,7 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
         environment = crossplay.environment(root, executable, environment)
     elif crossplay_catalog is not None:
         raise ValueError('crossplay_configuration_invalid')
-    helper=root/'Launcher/weplay_network_policy.exe'
+    helper=root/POLICY_FILE
     result=subprocess.run([str(helper),'check',str(executable)],capture_output=True,timeout=15)
     if result.returncode and lan is None:
         print('Windows-Netzisolation für diese Kopie wird eingerichtet ...',flush=True)
@@ -231,10 +237,23 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
                 environment['DXVK_CONFIG_FILE']=str(executable.with_name('dxvk.conf'))
                 environment['DXVK_CONFIG']=graphics.SHADER_COMPATIBILITY+'; d3d9.samplerAnisotropy = -1'
             environment[graphics.LAUNCH_RENDERER]=mode
-        game=isolated_process.launch(executable, adapter,
+        start=dict(
             dll_sha256=value['files'][adapter.relative_to(root).as_posix()],
-            policy=root/'Launcher/weplay_network_policy.exe', policy_sha256=POLICY,
+            policy=helper, policy_sha256=value['files'][POLICY_FILE],
             environment=environment, arguments=arguments,on_initialized=on_initialized)
+        from standalone_entry import NativeStartupError
+        try:
+            game=isolated_process.launch(executable,adapter,**start)
+        except NativeStartupError as error:
+            if (start['policy_sha256']!=POLICY or error.native_start_stage!=11 or
+                    error.network_probe_failure!=('ipv4_nonloopback_tcp','unexpected_delivery',None)):
+                raise
+            print('WePlay erneuert den Windows-Netzschutz für diese Kopie ...',flush=True)
+            try:
+                configure(root,'refresh')
+            except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as recovery:
+                raise error from recovery
+            game=isolated_process.launch(executable,adapter,**start)
         game.network_policy=scope
         game.restore_renderer=restore_renderer
         return game
@@ -276,25 +295,27 @@ def launch_environment(value, executable, inherited, *, graphics_options=None):
 
 def configure(root, action='install'):
     root = content.plain(root)
-    _, executable, _ = load(root)
-    if action not in ('install', 'check', 'remove'):
+    value, executable, _ = load(root)
+    if action not in ('install','check','remove','refresh') or (
+            action=='refresh' and value['files'][POLICY_FILE]!=POLICY):
         raise ValueError('Unbekannte Netzisolationsaktion.')
-    helper = root/'Launcher/weplay_network_policy.exe'
+    helper = root/POLICY_FILE
     result = subprocess.run([str(helper), action, str(executable)], timeout=30,capture_output=True,
                             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-    if result.returncode == 5 and action in ('install','remove'):
+    if result.returncode == 5 and action in ('install','remove','refresh'):
         import network_elevation
         network_elevation.run(helper,executable,action)
-        if action == 'install':configure(root,'check')
+        if action in ('install','refresh'):configure(root,'check')
         return
     if result.returncode:
-        raise RuntimeError('Windows-Netzisolation konnte nicht '+{'install':'eingerichtet','check':'geprüft','remove':'entfernt'}[action]+' werden.')
+        raise RuntimeError('Windows-Netzisolation konnte nicht '+{'install':'eingerichtet','check':'geprüft','remove':'entfernt','refresh':'erneuert'}[action]+' werden.')
+    if action=='refresh':configure(root,'check')
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bundle', required=True, type=Path)
-    parser.add_argument('action', choices=('install', 'check', 'remove'))
+    parser.add_argument('action', choices=('install','check','remove','refresh'))
     args = parser.parse_args()
     configure(args.bundle, args.action)

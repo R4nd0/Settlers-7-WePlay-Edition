@@ -185,6 +185,7 @@
   "lanResetPort": "Standard (9112) wiederherstellen",
   "lanPortSaved": "LAN-Suchport gespeichert.",
   "lan_discovery_port_busy": "WePlay konnte den UDP-Suchport nicht öffnen. Falls WePlay gerade beendet wurde, warte kurz und versuche es erneut.",
+  "network_isolation_failed": "Windows hat die erforderliche Netzisolation nicht bestätigt. WePlay hat den Spielstart abgebrochen. Unter Hilfe kannst du den fehlgeschlagenen Netztest exportieren.",
   "lan_discovery_port_invalid": "Wähle einen UDP-Port von 1024 bis 65535. Die Spielports 3074, 6200, 9103, 9110 und 9111 sind reserviert.",
   "lan_discovery_socket_failed": "Die LAN-Suche konnte auf der gewählten Netzwerkschnittstelle nicht gestartet werden. Prüfe, ob die Verbindung noch aktiv ist.",
   "lan_coordinator_start_failed": "Der lokale LAN-Dienst konnte nicht gestartet werden. Prüfe, ob bereits eine andere WePlay-Kopie als LAN-Dienst läuft.",

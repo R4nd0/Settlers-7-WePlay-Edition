@@ -154,7 +154,8 @@ class CrossplaySessionTests(unittest.TestCase):
     def test_platform_passes_explicit_handoff_after_graphics_and_keeps_native_loopback_policy(self):
         adapter = self.root / 'Launcher/weplay_gold_startup.dll'; adapter.parent.mkdir(); adapter.write_bytes(b'adapter')
         digest = hashlib.sha256(b'adapter').hexdigest()
-        descriptor = {'edition': 'gold', 'files': {adapter.relative_to(self.root).as_posix(): digest}}
+        descriptor = {'edition': 'gold', 'files': {adapter.relative_to(self.root).as_posix(): digest,
+                                                    platform.POLICY_FILE: platform.POLICY}}
         editions = []
         for edition in (1, 2, 3):
             exe = self.digest if edition == 1 else next(pin for pin, local in session.EXECUTABLE_EDITIONS.items() if local == edition)

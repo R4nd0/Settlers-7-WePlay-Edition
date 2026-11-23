@@ -41,9 +41,11 @@ class ElevatedProcess:
 
 
 def start(helper, executable, action):
-    from platform_standalone import POLICY
+    from platform_standalone import POLICY,POLICY_V1
     helper, executable = map(isolated_process.plain, (helper, executable))
-    if action not in ('install', 'remove','serve-lan') or isolated_process.digest(helper) != POLICY:
+    expected=isolated_process.digest(helper)
+    accepted=(POLICY,) if action=='refresh' else (POLICY,POLICY_V1)
+    if action not in ('install','remove','serve-lan','refresh') or expected not in accepted:
         raise ValueError('Ungeprüfte Aktion oder ungeprüfter Windows-Netzhelfer.')
     api = isolated_process.Windows(); isolated_process.bind_extra(api)
     k, check = api.k, api.check
@@ -57,7 +59,7 @@ def start(helper, executable, action):
     shell = C.WinDLL('shell32', use_last_error=True).ShellExecuteExW
     shell.argtypes, shell.restype = [C.POINTER(ShellExecute)], W.BOOL
     try:
-        if isolated_process.digest(helper) != POLICY:
+        if isolated_process.digest(helper)!=expected:
             raise ValueError('Der Windows-Netzhelfer wurde verändert.')
         check(shell(C.byref(request)))
         return ElevatedProcess(api,request.process,lock)
@@ -68,7 +70,7 @@ def start(helper, executable, action):
 
 
 def run(helper,executable,action,*,timeout=180):
-    if action not in ('install','remove'):raise ValueError('Unbekannte Installationsaktion.')
+    if action not in ('install','remove','refresh'):raise ValueError('Unbekannte Installationsaktion.')
     process=start(helper,executable,action)
     try:
         code=process.wait(timeout)

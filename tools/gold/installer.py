@@ -88,7 +88,7 @@ def verify_package(app, *, source_package=False):
     if value.get('platform_independent',False):
         import platform_standalone
         adapters=platform_standalone.adapter_pins(gold=True) if source_package else (platform_standalone.GOLD,)
-        platform_standalone.payload(app/'Payload/Platform')
+        platform_standalone.payload(app/'Payload/Platform',allow_legacy=source_package)
         tools=SOURCE_STANDALONE_TOOLS if source_package else (*platform_standalone.TOOLS,*platform_standalone.GOLD_SERVICE_TOOLS)
         if any(('Tools/gold/'+name) not in value['files'] for name in (*tools,'compatibility.py')):
             raise ValueError('Die Gold-Standalone-Werkzeuge fehlen.')

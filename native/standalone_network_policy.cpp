@@ -158,7 +158,8 @@ DWORD Containers(HANDLE engine,PSECURITY_DESCRIPTOR security,bool install) {
     return result;
 }
 DWORD Run(const wchar_t* action,const wchar_t* argument) {
-    const bool install = !wcscmp(action,L"install"), remove = !wcscmp(action,L"remove");
+    const bool refresh = !wcscmp(action,L"refresh");
+    const bool install = refresh || !wcscmp(action,L"install"), remove = !wcscmp(action,L"remove");
     if (!install && !remove && wcscmp(action,L"check")) return ERROR_INVALID_PARAMETER;
     std::wstring path; Blob app;
     DWORD result = Identity(argument,path,app);
@@ -190,7 +191,11 @@ DWORD Run(const wchar_t* action,const wchar_t* argument) {
             const bool valid = Equal(*actual,expected);
             FwpmFreeMemory0(reinterpret_cast<void**>(&actual));
             if (!valid) result = ERROR_INVALID_DATA;
-            else if (remove) result = FwpmFilterDeleteByKey0(engine.value,&key);
+            else if (remove || refresh) {
+                result = FwpmFilterDeleteByKey0(engine.value,&key);
+                // Replace only an exact owned rule. A failed add rolls back the delete.
+                if (!result && refresh) result = FwpmFilterAdd0(engine.value,&expected,security.value,nullptr);
+            }
         }
     }
     if (transaction) {

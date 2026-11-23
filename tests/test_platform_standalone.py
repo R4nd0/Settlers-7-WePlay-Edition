@@ -114,6 +114,61 @@ class PlatformStandaloneTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.prepare()
         self.assertFalse(f.destination.exists())
 
+    def test_old_pinned_policy_is_readable_for_repair_but_cannot_prepare_new_copies(self):
+        root=self.prepare()
+        old=b'invented previous pinned helper'
+        legacy_hash=sha(old)
+        helper=root/platform.POLICY_FILE
+        helper.write_bytes(old)
+        record=json.loads((root/platform.RECORD).read_bytes())
+        record['files'][platform.POLICY_FILE]=legacy_hash
+        (root/platform.RECORD).write_text(json.dumps(record),encoding='utf-8')
+        runtime=self.fixture.package/'Payload/Platform'
+        (runtime/'weplay_network_policy.exe').write_bytes(old)
+        with patch.object(platform,'POLICY_V1',legacy_hash):
+            self.assertEqual(platform.load(root)[0]['files'][platform.POLICY_FILE],legacy_hash)
+            self.assertEqual(platform.payload(runtime,allow_legacy=True),runtime.resolve())
+            with self.assertRaisesRegex(ValueError,'Ungeprüfte Standalone-Laufzeit'):
+                platform.payload(runtime)
+
+    def test_known_tcp_isolation_error_refreshes_and_retries_only_once(self):
+        from standalone_entry import NETWORK_PROBE_EXIT_PREFIX, NativeStartupError
+        root=self.prepare()
+        failure=NativeStartupError(11,NETWORK_PROBE_EXIT_PREFIX | (3<<20) | (9<<16))
+        game=SimpleNamespace()
+        with patch.object(platform.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+                patch.object(platform,'configure') as configure, \
+                patch.object(isolated_process,'launch',side_effect=(failure,game)) as launch:
+            self.assertIs(platform.launch(root,environment={}),game)
+            self.assertEqual(launch.call_count,2)
+            self.assertEqual(launch.call_args_list[0],launch.call_args_list[1])
+            configure.assert_called_once_with(root,'refresh')
+        with patch.object(platform.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+                patch.object(platform,'configure') as configure, \
+                patch.object(isolated_process,'launch',side_effect=(failure,failure)) as launch:
+            with self.assertRaises(NativeStartupError):
+                platform.launch(root,environment={})
+            self.assertEqual(launch.call_count,2)
+            configure.assert_called_once_with(root,'refresh')
+        with patch.object(platform.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+                patch.object(platform,'configure',side_effect=PermissionError) as configure, \
+                patch.object(isolated_process,'launch',side_effect=failure) as launch:
+            with self.assertRaises(NativeStartupError):
+                platform.launch(root,environment={})
+            launch.assert_called_once()
+            configure.assert_called_once_with(root,'refresh')
+
+    def test_unrelated_native_start_error_does_not_refresh_the_policy(self):
+        from standalone_entry import FAILURE_EXIT_BASE,NativeStartupError
+        root=self.prepare()
+        with patch.object(platform.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+                patch.object(platform,'configure') as configure, \
+                patch.object(isolated_process,'launch',side_effect=NativeStartupError(12,FAILURE_EXIT_BASE+12)) as launch:
+            with self.assertRaises(NativeStartupError):
+                platform.launch(root,environment={})
+            configure.assert_not_called()
+            launch.assert_called_once()
+
     def test_package_requires_complete_local_gold_service_dependencies(self):
         f=self.fixture
         (f.package/'Tools/gold/account_config.py').unlink();self.manifest()
