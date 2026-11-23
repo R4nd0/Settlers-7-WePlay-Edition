@@ -246,6 +246,9 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
                 if item.is_dir(): stack.append(item)
                 elif item.is_file(): entries.append((item,item.relative_to(source)))
                 else: raise ValueError('Unsupported Gold source file type.')
+    if dxvk is not None:
+        sidecars={EXE.with_name(name).as_posix().casefold() for name in ('d3d9.dll','dxvk.conf')}
+        entries=[(item,relative) for item,relative in entries if relative.as_posix().casefold() not in sidecars]
     for index,(item,relative) in enumerate(entries):
         name=relative.as_posix()
         output=plain(destination/relative);output.parent.mkdir(parents=True,exist_ok=True)

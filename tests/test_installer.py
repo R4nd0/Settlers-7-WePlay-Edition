@@ -266,6 +266,15 @@ def prepare(source, output, specification, profile):
         self.assertEqual(content.inventory(self.source,('Base',)),before)
         self.assertTrue(set(install.RENDERER_SIDECARS).isdisjoint(content.verify(self.destination)['files']))
 
+    def test_ubisoft_source_renderer_files_stay_in_original_installation(self):
+        exe=self.source/'Base/Bin/Settlers7R.exe'
+        (exe.parent/'d3d9.dll').write_bytes(b'foreign D3D9 wrapper')
+        (exe.parent/'dxvk.conf').write_bytes(b'foreign graphics settings')
+        before=content.inventory(self.source,('Base',))
+        self.prepare()
+        self.assertEqual(content.inventory(self.source,('Base',)),before)
+        self.assertTrue(set(install.RENDERER_SIDECARS).isdisjoint(content.verify(self.destination)['files']))
+
     def test_executable_changed_after_source_validation_is_not_adopted_as_a_new_baseline(self):
         original = install.source_base
         def change_after_check(root, **options):

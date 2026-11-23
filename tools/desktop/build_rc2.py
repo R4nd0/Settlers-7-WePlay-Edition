@@ -128,7 +128,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         sources=app/'Source';sources.mkdir()
         source_bundle.build(easytier_source,sources/'EasyTier-corresponding-source.zip')
         shutil.copyfile(sources/'EasyTier-corresponding-source.zip',output/'EasyTier-corresponding-source.zip')
-    release={'format':'s7-desktop-release-v1','release':'RC4.06 Graphics controls and History installation fix','network_revision':9,'game_bits':32,
+    release={'format':'s7-desktop-release-v1','release':'RC4.06 Graphics controls and installation fixes','network_revision':9,'game_bits':32,
              'version':'2.0.0-rc4.6','display_version':RELEASE_TAG,'update_sequence':update_sequence,'update_channel':'preview','midsummer_profile':midsummer_profile,
              'platform_isolation':release_policy.CONTRACT,'gold_standalone':True,'main_package':True,
              'neo_logistics':neo_logistics,'neo_wire_revision':6 if neo_logistics else None,'platform_independent':platform_runtime is not None,

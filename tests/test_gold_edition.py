@@ -213,16 +213,21 @@ class GoldTests(unittest.TestCase):
         self.assertIn(b'd3d9.enumerateByDisplays = True\n', gold.DXVK_CONFIG)
         self.assertFalse(report['graphics_verified'])
 
-    def test_existing_source_proxy_is_not_replaced(self):
-        (self.source / gold.EXE).with_name('d3d9.dll').write_bytes(b'existing proxy')
+    def test_source_uses_its_own_proxy_and_managed_copy_uses_pinned_dxvk(self):
+        source_bin=(self.source/gold.EXE).parent
+        (source_bin/'D3D9.dll').write_bytes(b'existing proxy')
+        (source_bin/'DxVk.conf').write_bytes(b'existing config')
         dll = self.root / 'new.dll'
         dll.write_bytes(b'new renderer')
         target = self.root / 'copy'
         with patch.object(gold, 'DXVK_SHA256', gold.digest(dll)):
-            with self.assertRaisesRegex(ValueError, 'must not be overwritten'):
-                gold.prepare(self.source, target, dxvk=dll)
-        self.assertEqual((target / gold.EXE).with_name('d3d9.dll').read_bytes(), b'existing proxy')
-        self.assertTrue((target / 'PREPARATION-INCOMPLETE.txt').exists())
+            result=gold.prepare(self.source, target, dxvk=dll)
+        destination_bin=(target/gold.EXE).parent
+        self.assertEqual((source_bin/'D3D9.dll').read_bytes(),b'existing proxy')
+        self.assertEqual((source_bin/'DxVk.conf').read_bytes(),b'existing config')
+        self.assertEqual((destination_bin/'d3d9.dll').read_bytes(),dll.read_bytes())
+        self.assertEqual((destination_bin/'dxvk.conf').read_bytes(),gold.DXVK_CONFIG)
+        self.assertFalse(any(name.casefold().endswith(('/d3d9.dll','/dxvk.conf')) for name in result['source_files']))
 
     def test_symlink_is_rejected(self):
         link = self.root / 'linked-source'
