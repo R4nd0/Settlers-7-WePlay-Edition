@@ -82,7 +82,10 @@ def enumerate_displays():
             mode = Mode(); mode.size = C.sizeof(mode)
             if not api.EnumDisplaySettingsW(device.name, number, C.byref(mode)):
                 break
-            if mode.bpp == 32 and _resolution(mode.width, mode.height):
+            # Drivers can list virtual fullscreen modes larger than the
+            # current desktop. A window using such a mode cannot fit.
+            if (mode.bpp == 32 and _resolution(mode.width, mode.height)
+                    and mode.width <= current.width and mode.height <= current.height):
                 modes.add((mode.width, mode.height))
         else:
             raise ValueError('Unexpectedly many display modes.')
@@ -119,7 +122,8 @@ def resolve(value, displays, *, renderer='native', gpu=None):
     if value['mode'] == 'borderless':
         if (value['width'], value['height']) != (display['width'], display['height']):
             raise DisplayUnavailable('Borderless fullscreen requires the current desktop resolution. Reopen Graphics.')
-    elif [value['width'], value['height']] not in display['resolutions']:
+    elif (value['width'] > display['width'] or value['height'] > display['height']
+            or [value['width'], value['height']] not in display['resolutions']):
         raise DisplayUnavailable('The selected resolution is unavailable on this display.')
     if renderer == 'dxvk' and gpu is not None and gpu.casefold() != display['adapter'].casefold():
         raise DisplayGpuMismatch('Choose Automatic or the graphics card connected to the selected display.')

@@ -109,6 +109,16 @@ class GraphicsRecoveryTests(unittest.TestCase):
         self.assertEqual(record['devices'], ['Fixture GPU'])
         self.assertEqual(record['renderer_sha256'], graphics.DXVK_SHA256)
 
+    def test_cached_probe_ignores_reports_from_the_previous_probe_executable(self):
+        desktop = self.probe_desktop(previous=None)
+        record = dict(format='s7-desktop-probe-v1', probe_sha256='0' * 64,
+                      renderer_sha256=graphics.DXVK_SHA256, adapters=[],
+                      devices=['Outdated GPU Name'], failure=None)
+        desktop.read.return_value = record
+        self.assertEqual(backend.Desktop.cached_graphics_probe(desktop)['devices'], [])
+        record['probe_sha256'] = desktop.package_manifest()['files']['payload/graphics/s7graphicsprobe.exe']
+        self.assertEqual(backend.Desktop.cached_graphics_probe(desktop), record)
+
     def test_missing_display_inventory_uses_automatic_output_for_a_stale_choice(self):
         desktop = Mock(displays=Mock(return_value=[]))
         preferred = dict(format=choice.FORMAT, choice=None,

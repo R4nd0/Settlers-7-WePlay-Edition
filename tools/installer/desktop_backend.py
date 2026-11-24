@@ -290,7 +290,8 @@ class Desktop:
     def cached_graphics_probe(self):
         try:
             value=self.validate_probe(self.read(self.state/'graphics-probe.json',limit=65536))
-            if value.get('renderer_sha256')==graphics.DXVK_SHA256:
+            if (value.get('renderer_sha256')==graphics.DXVK_SHA256
+                    and value['probe_sha256']==self.package_manifest()['files'].get('payload/graphics/s7graphicsprobe.exe')):
                 return value
         except (OSError,ValueError,TypeError):
             pass

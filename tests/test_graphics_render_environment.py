@@ -52,7 +52,7 @@ class RenderProfileTests(unittest.TestCase):
 
 @unittest.skipUnless(os.name == 'nt', 'Windows display enumeration layouts')
 class DisplayInventoryTests(unittest.TestCase):
-    def screens(self, devices, unavailable=()):
+    def screens(self, devices, unavailable=(), virtual_size=None):
         api = Mock()
         def device(_unused, index, pointer, _flags):
             if index >= len(devices):
@@ -61,10 +61,11 @@ class DisplayInventoryTests(unittest.TestCase):
             record.name, record.description, record.flags = devices[index]
             return True
         def mode(name, number, pointer):
-            if name in unavailable or number not in (0, 0xffffffff):
+            if name in unavailable or (number not in (0, 0xffffffff) and not (number == 1 and virtual_size)):
                 return False
             value = C.cast(pointer, C.POINTER(display.Mode)).contents
-            value.bpp, value.width, value.height = 32, 1920, 1080
+            value.bpp = 32
+            value.width, value.height = virtual_size if number == 1 else (1920, 1080)
             return True
         api.EnumDisplayDevicesW.side_effect = device
         api.EnumDisplaySettingsW.side_effect = mode
@@ -82,6 +83,20 @@ class DisplayInventoryTests(unittest.TestCase):
         desktop, removed = r'\\.\DISPLAY1', r'\\.\DISPLAY2'
         screens, _ = self.screens([(desktop, 'GPU', 0x5), (removed, 'GPU', 0x1)], unavailable=[removed])
         self.assertEqual([item['device'] for item in screens], [desktop])
+
+    def test_virtual_super_resolution_is_not_offered_as_a_window_larger_than_the_desktop(self):
+        screens, _ = self.screens([(r'\\.\DISPLAY1', 'GPU', 0x5)], virtual_size=(3840, 2160))
+        self.assertEqual(screens[0]['resolutions'], [[1920, 1080]])
+
+    def test_previously_selected_oversized_window_requires_a_matching_desktop_size(self):
+        screens, _ = self.screens([(r'\\.\DISPLAY1', 'GPU', 0x5)])
+        current = screens[0]
+        current.update(width=2560, height=1440, resolutions=[[2560, 1440], [3840, 2160]])
+        choice = dict(device=current['device'], width=3840, height=2160, mode='windowed')
+        with self.assertRaises(display.DisplayUnavailable):
+            display.resolve(choice, screens)
+        current.update(width=3840, height=2160)
+        self.assertEqual(display.resolve(choice, screens), (0, current))
 
 
 if __name__ == '__main__':
