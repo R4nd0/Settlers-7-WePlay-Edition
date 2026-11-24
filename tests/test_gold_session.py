@@ -94,6 +94,15 @@ class GoldSessionTests(unittest.TestCase):
         with self.assertRaises(BlockingIOError): sock.recv(65536)
         self.assertFalse(self.owner.adapter.connections)
 
+    @unittest.skipUnless(sys.platform == 'win32', 'Winsock UDP reset behavior')
+    def test_departing_udp_client_does_not_stop_gold_loopback_service(self):
+        departing = self.client()
+        departing.sendto(incoming(0), ('127.0.0.1', self.owner.auth_port))
+        departing.close()
+        self.owner.pump(.05)
+        remaining = self.client()
+        self.exchange(remaining, self.owner.auth_port, incoming(0), 1)
+
     def test_config_uses_original_route_host_and_only_the_owned_gold_source(self):
         for source, status in (('127.0.0.2', 200), ('127.0.0.3', 400)):
             connection = http.client.HTTPConnection('127.0.0.1', self.owner.config_port,

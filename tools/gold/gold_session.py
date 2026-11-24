@@ -78,6 +78,12 @@ class GoldSessionService:
             for _ in range(64):
                 try: data, peer = sock.recvfrom(MAX_DATAGRAM + 1)
                 except BlockingIOError: break
+                except ConnectionResetError as error:
+                    if getattr(error, 'winerror', None) != 10054:
+                        raise
+                    # Winsock can report an earlier peer's closed UDP port
+                    # on the shared receive socket.
+                    continue
                 for reply in self.adapter.handle(backend, peer, data, time.monotonic()):
                     sock.sendto(reply, peer)
         now = time.monotonic(); self.probes.pump(now)
