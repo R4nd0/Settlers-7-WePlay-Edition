@@ -54,6 +54,31 @@ class LinuxTunnelTests(unittest.TestCase):
                 self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
             self.overlay.snapshot()
 
+    def test_worker_exit_during_adapter_lookup_invalidates_the_checked_state(self):
+        self.overlay.child = Mock(poll=Mock(side_effect=[None, 2]))
+        adapter = LanInterface('10.203.77.1', 24, 'WePlay-Test')
+        self.overlay.latest = dict(format=elevation.FORMAT, phase='ready',
+                                   address=adapter.address, device=adapter.name, peers={})
+        self.overlay.updated = time.monotonic()
+        with patch.object(elevation, 'enumerate_interfaces', return_value=[adapter]), \
+                self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            self.overlay.snapshot()
+
+    def test_linux_guest_waits_for_coordinator_in_elevated_ready_state(self):
+        self.overlay.host = False
+        self.overlay.progress = Mock()
+        self.overlay.latest = {'phase': 'ready'}
+        adapter = LanInterface('10.203.77.2', 24, 'WePlay-Test')
+        coordinator = self.overlay.room.coordinator
+        with patch.object(elevation.os, 'geteuid', return_value=1000, create=True), \
+                patch('easytier_runtime.verify_runtime'), \
+                patch.object(elevation.subprocess, 'Popen', return_value=Mock(poll=Mock(return_value=None))), \
+                patch.object(elevation.threading, 'Thread'), patch.object(elevation.time, 'sleep'), \
+                patch.object(self.overlay, 'snapshot', side_effect=[(adapter, {}), (adapter, {coordinator: 'p2p'})]) as snapshot:
+            self.assertEqual(self.overlay.start(), adapter)
+        self.assertEqual(snapshot.call_count, 2)
+        self.overlay.progress.assert_called_once_with('internet_connected')
+
     def test_linux_close_reports_worker_exit_failure_after_reaping(self):
         child = self.overlay.child = Mock(wait=Mock(return_value=2))
         child.stdin.closed = False

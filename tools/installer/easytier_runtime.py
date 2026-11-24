@@ -327,6 +327,7 @@ class EasyTier:
         return self.child is not None and self.child.poll() is None
 
     def snapshot(self):
+        child = self.child
         if not self.alive():
             raise InternetError('internet_disconnected')
         address, peers = peer_snapshot(self.query('peer'), self.room, self.device_name)
@@ -340,6 +341,8 @@ class EasyTier:
             if not bootstrap_connected(self.query('connector', 'list'), self.room):
                 raise InternetError('internet_relay_unavailable')
             self.bootstrap_verified = True
+        if self.child is not child or not self.alive():
+            raise InternetError('internet_disconnected')
         return interface, peers
 
     def wait_ready(self, timeout=45):
@@ -348,6 +351,8 @@ class EasyTier:
             self.checkpoint()
             try:
                 interface, peers = self.snapshot()
+                if time.monotonic() >= deadline:
+                    break
                 if self.host or self.room.coordinator in peers:
                     self.checkpoint('internet_connected')
                     return interface

@@ -112,6 +112,26 @@ class ElevationTests(unittest.TestCase):
                 overlay.snapshot()
             api.WaitForSingleObject.assert_called_once_with(123, 0)
 
+    def test_windows_guest_waits_for_coordinator_in_elevated_ready_state(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in ('Runtime/python/python.exe', 'Launcher/easytier_elevation.py'):
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'fixture')
+            overlay = elevation.ElevatedEasyTier(root, ROOM, host=False, progress=Mock())
+            adapter = LanInterface('10.203.77.2', 24, 'WePlay-Test')
+            api = Mock(WaitForSingleObject=Mock(return_value=0x102))
+            replies = [(adapter, {}), (adapter, {ROOM.coordinator: 'p2p'})]
+            with patch('easytier_runtime.verify_runtime'), patch.object(elevation, 'verify_worker'), \
+                    patch.object(elevation, 'parent_process', return_value=(api, 1, 123, Path(sys.executable))), \
+                    patch.object(elevation, 'inherit_private_access'), patch.object(elevation, 'elevate', return_value=2), \
+                    patch.object(elevation, 'winapi', return_value=api), patch.object(elevation.time, 'sleep'), \
+                    patch.object(overlay, 'snapshot', side_effect=replies) as snapshot:
+                self.assertEqual(overlay.start(), adapter)
+            self.assertEqual(snapshot.call_count, 2)
+            self.assertEqual([call.args[0] for call in overlay.progress.call_args_list].count('internet_connected'), 1)
+
     def test_close_checks_worker_exit_and_cleans_owned_ipc(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

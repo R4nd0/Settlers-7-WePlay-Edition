@@ -77,9 +77,12 @@ class ElevatedEasyTier:
                 if value is not None:
                     if value.get('phase') == 'error':
                         raise InternetError(failure_code(value))
-                    interface, _ = self.snapshot()
-                    if self.progress: self.progress('internet_connected')
-                    return interface
+                    interface, peers = self.snapshot()
+                    if time.monotonic() >= deadline:
+                        break
+                    if self.host or self.room.coordinator in peers:
+                        if self.progress: self.progress('internet_connected')
+                        return interface
                 if not reading:
                     code = 'internet_elevation_cancelled' if self.child.poll() is not None else 'internet_connect_failed'
                     raise InternetError(code)
@@ -126,11 +129,12 @@ class ElevatedEasyTier:
 
     def snapshot(self):
         with self.lock: value, updated = self.latest, self.updated
-        if self.child is None or time.monotonic()-updated > 10:
+        child = self.child
+        if child is None or time.monotonic()-updated > 10:
             raise InternetError('internet_disconnected')
         if isinstance(value, dict) and value.get('phase') == 'error':
             raise InternetError(failure_code(value))
-        if self.child.poll() is not None:
+        if child.poll() is not None:
             raise InternetError('internet_disconnected')
         if not isinstance(value,dict) or value.get('phase') != 'ready': raise InternetError('internet_disconnected')
         try:
@@ -142,6 +146,8 @@ class ElevatedEasyTier:
             for address, cost in peers.items():
                 if not interface.contains(address) or address==interface.address or cost not in ('p2p','relay'): raise ValueError()
                 if self.room.mode=='direct' and cost!='p2p': raise ValueError()
+            if self.child is not child or child.poll() is not None:
+                raise InternetError('internet_disconnected')
             return interface,peers
         except InternetError:
             raise

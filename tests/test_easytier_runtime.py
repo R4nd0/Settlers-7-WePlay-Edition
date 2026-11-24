@@ -135,6 +135,33 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(overlay.wait_ready(),interface)
         self.assertEqual(overlay.snapshot.call_count,2)
 
+    def test_core_exit_during_adapter_lookup_rejects_a_valid_but_old_snapshot(self):
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=False)
+        interface = LanInterface(overlay.address, 24, overlay.device_name)
+        overlay.child = Mock(poll=Mock(side_effect=[None, 2]))
+        overlay.interfaces = Mock(return_value=[interface])
+        overlay.query = Mock(return_value=json.dumps([
+            row(overlay.address, 'Local', overlay.device_name), row(ROOM.coordinator)]).encode())
+        with self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            overlay.snapshot()
+        overlay.interfaces.assert_called_once()
+
+    def test_ready_snapshot_completed_after_deadline_is_rejected(self):
+        progress = Mock()
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=False, progress=progress)
+        interface = LanInterface(overlay.address, 24, overlay.device_name)
+        elapsed = [0.]
+
+        def snapshot():
+            elapsed[0] = 1.1
+            return interface, {ROOM.coordinator: 'p2p'}
+
+        overlay.snapshot = snapshot
+        with patch.object(runtime.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                self.assertRaisesRegex(InternetError, '^internet_connect_timeout$'):
+            overlay.wait_ready(timeout=1)
+        progress.assert_called_once_with('internet_connect')
+
     def test_overlay_interface_is_validated_even_on_pc_with_many_adapters(self):
         overlay = runtime.EasyTier(Path('.'), ROOM, host=False)
         interface = LanInterface(overlay.address, 24, overlay.device_name)
@@ -341,9 +368,9 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(tomllib.loads(config.read_text())['network_identity']['network_secret'], ROOM.secret)
                 raise OSError('fixture failure')
             job.start.side_effect = spawn
+            admin = patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1) if os.name == 'nt' else nullcontext()
             with patch.object(runtime, 'verify_runtime', return_value=directory), \
-                    patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1), \
-                    patch.object(runtime.socket, 'socket') as probe:
+                    admin, patch.object(runtime.socket, 'socket') as probe:
                 probe.return_value.__enter__.return_value.getsockname.return_value=('127.0.0.1',12345)
                 with self.assertRaises(OSError): overlay.start()
             job.close.assert_called_once()
@@ -357,6 +384,7 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(InternetError) as error: overlay.snapshot()
         self.assertEqual(error.exception.code, 'internet_disconnected')
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows adapter removal')
     def test_close_removes_only_owned_adapter_after_child_exit_and_preserves_other_files(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);data=root/'LocalData';data.mkdir();other=data/'keep.txt';other.write_bytes(b'personal fixture')
@@ -371,6 +399,7 @@ class RuntimeTests(unittest.TestCase):
                 overlay.close();overlay.close();cleanup.assert_called_once()
             self.assertEqual(other.read_bytes(),b'personal fixture');self.assertIsNone(overlay.private)
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows adapter removal')
     def test_failed_adapter_cleanup_still_reclaims_private_room_config(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);data=root/'LocalData';data.mkdir()
@@ -400,7 +429,7 @@ class RuntimeTests(unittest.TestCase):
                 child.poll.return_value = 0
                 overlay.close()
             self.assertIsNone(overlay.child)
-            remove.assert_called_once()
+            self.assertEqual(remove.call_count, int(os.name == 'nt'))
 
 
 if __name__ == '__main__': unittest.main()

@@ -213,11 +213,15 @@ class ElevatedEasyTier:
             while time.monotonic() < deadline:
                 self.checkpoint()
                 try:
-                    interface, _ = self.snapshot(wait_for_initial_state=True)
-                    if self.progress: self.progress('internet_connected')
-                    return interface
+                    interface, peers = self.snapshot(wait_for_initial_state=True)
                 except FileNotFoundError:
                     pass
+                else:
+                    if time.monotonic() >= deadline:
+                        break
+                    if self.host or self.room.coordinator in peers:
+                        if self.progress: self.progress('internet_connected')
+                        return interface
                 if winapi().WaitForSingleObject(self.handle, 0) != 0x102:
                     raise InternetError('internet_elevation_failed')
                 time.sleep(.2)
