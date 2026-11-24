@@ -84,7 +84,14 @@ arbitrary endpoint URLs, account data or native game calls are involved.
         rooms = directory.scan(timeout=timeout)
         fresh = bool(rooms)
         scanned_routes = {route(room) for room in rooms}
-        cached = [room for room in directory.cache.list_rooms() if route(room) not in scanned_routes]
+        announced = {}
+        for room in rooms:
+            announced.setdefault(room.endpoint.host, set()).add(room.room_id)
+        # A replaced beacon generation must not appear as a second group
+        # just because an older announcement was cached on another interface.
+        cached = [room for room in directory.cache.list_rooms()
+                  if route(room) not in scanned_routes
+                  and (room.endpoint.host not in announced or room.room_id in announced[room.endpoint.host])]
         rooms.extend(cached[:MAX_ROOMS - len(rooms)])
     else:
         rooms = directory.list_rooms(timeout=timeout)

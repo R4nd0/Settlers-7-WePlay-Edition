@@ -171,6 +171,22 @@ class DiscoveryPolicyTests(unittest.TestCase):
         with patch.object(auto, 'request', return_value=status(active=1)):
             self.assertEqual(self.discover_on_interfaces(directory, [], clock), existing)
 
+    def test_fresh_room_does_not_conflict_with_cached_generation_on_another_route(self):
+        current = room('192.168.1.20', key=2)
+        previous = room('192.168.1.20', local='192.168.1.30', key=1, default=False)
+        sockets = [Mock(), Mock()]
+        reply = answer_message(query_message('c' * 32), current)
+        sockets[0].recvfrom.return_value = reply, (current.endpoint.host, DISCOVERY_PORT)
+        clock = [1.]
+        directory = LanDiscovery([current.local_interface, previous.local_interface],
+                                 socket_factory=Mock(side_effect=sockets), route_socket=Mock(),
+                                 clock=lambda: clock[0])
+        directory.cache.add(previous)
+        with patch.object(auto, 'request', return_value=status(active=1)) as status_request:
+            selected = self.discover_on_interfaces(directory, [sockets[0]], clock)
+        self.assertEqual(selected.room_id, current.room_id)
+        status_request.assert_called_once()
+
     def test_live_group_on_second_adapter_retains_the_bound_source(self):
         other = room('10.20.1.20', local='10.20.1.10', default=False)
         with patch.object(auto, 'request', return_value=status(active=1)) as request:
