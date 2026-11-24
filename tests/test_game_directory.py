@@ -169,10 +169,16 @@ class DirectoryTests(unittest.TestCase):
 
         def delay(seconds):
             elapsed[0] += seconds
+
+        validate = directory.validate_ticket
+        def validate_before_clock_rolls_back(*args):
+            accepted = validate(*args)
             wall[0] = 900
+            return accepted
 
         crypto = Mock(return_value=dict(format=join_crypto.FORMAT, public_key='public', private_key='private'))
-        with patch.object(directory.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+        with patch.object(directory, 'validate_ticket', side_effect=validate_before_clock_rolls_back), \
+                patch.object(directory.time, 'monotonic', side_effect=lambda: elapsed[0]), \
                 self.assertRaisesRegex(directory.DirectoryError, '^directory_join_unavailable$'):
             directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto,
                            clock=lambda: wall[0], sleep=delay)

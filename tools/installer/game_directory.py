@@ -126,11 +126,11 @@ def associated(ticket):
     return json.dumps({key:ticket[key] for key in ('id','game_id','challenge','expires_at')},sort_keys=True,separators=(',',':')).encode('ascii')
 
 
-def validate_ticket(value,game_id,challenge,clock=time.time):
+def validate_ticket(value,game_id,challenge,now):
     if (not isinstance(value,dict) or set(value)!={'format','id','game_id','challenge','expires_at'} or
             value['format']!='weplay-join-ticket-v1' or not isinstance(value['id'],str) or not HEX32.fullmatch(value['id'])
             or value['game_id']!=game_id or value['challenge']!=challenge or type(value['expires_at']) is not int
-            or not clock()-5<value['expires_at']<=clock()+90):raise DirectoryError('directory_invalid')
+            or not now-5<value['expires_at']<=now+90):raise DirectoryError('directory_invalid')
     return value
 
 
@@ -153,8 +153,10 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
             cancel()
         value=transport(url,'/v1/directory/join','POST',dict(format='weplay-join-request-v1',game_id=game_id,
             content_id=row['content_id'],network_revision=NETWORK_REVISION,public_key=key['public_key'],challenge=challenge,token=token))
-        ticket=validate_ticket(value,game_id,challenge,clock)
-        deadline = time.monotonic() + (ticket['expires_at'] - clock())
+        received = time.monotonic()
+        wall_time = clock()
+        ticket=validate_ticket(value,game_id,challenge,wall_time)
+        deadline = received + (ticket['expires_at'] - wall_time)
 
         def expired():
             return time.monotonic() >= deadline or clock() >= ticket['expires_at']
