@@ -2,12 +2,14 @@
 import hashlib,importlib.util,json
 from pathlib import Path
 import sys,tempfile,unittest
-from unittest.mock import patch
+from contextlib import ExitStack
+from unittest.mock import Mock, patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'tools/installer'),str(ROOT/'tools/gold')]
 spec=importlib.util.spec_from_file_location('gold_repair_fixture',ROOT/'tools/gold/installer.py')
 installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
 import platform_standalone as platform
+import gold_support
 gold=installer.gold
 sha=lambda data:hashlib.sha256(data).hexdigest()
 
@@ -84,7 +86,6 @@ class GoldRepairTests(unittest.TestCase):
                  patch.object(gold,'menu_bytes',return_value=b'clean interface'),
                  patch.object(gold,'shared_bytes',return_value=self.originals[gold.SHARED.as_posix()]),
                  patch.object(gold,'MENU_SHA256',sha(b'clean interface')))
-        from contextlib import ExitStack
         with ExitStack() as stack:
             for item in patches:stack.enter_context(item)
             result=gold.prepare(self.root,output,originals=originals,source_files=files)
@@ -96,6 +97,60 @@ class GoldRepairTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'copy verification'):
                 gold.prepare(self.root,self.root.parent/'Refused',originals=originals,source_files=files)
         self.assertEqual((self.root/'LocalData/ProfileRoot/Profiles/Savegames/keep.s7s').read_bytes(),b'invented user save')
+
+    def prepare_patches(self, stack):
+        stack.enter_context(patch.object(gold,'inspect',return_value={
+            'unlocked_exe_sha256':sha(b'prepared exe')}))
+        stack.enter_context(patch.object(gold,'unlock_bytes',return_value=b'prepared exe'))
+        stack.enter_context(patch.object(gold,'menu_bytes',return_value=b'clean interface'))
+        stack.enter_context(patch.object(gold,'shared_bytes',return_value=self.originals[gold.SHARED.as_posix()]))
+        stack.enter_context(patch.object(gold,'MENU_SHA256',sha(b'clean interface')))
+
+    def test_gold_prepare_checks_cancellation_before_own_archive_changes(self):
+        output=self.root.parent/'Cancelled'
+        def progress(phase,*_):
+            if phase=='patch':
+                raise RuntimeError('cancelled before patch')
+        with ExitStack() as stack:
+            self.prepare_patches(stack)
+            with self.assertRaisesRegex(RuntimeError,'cancelled before patch'):
+                gold.prepare(self.root,output,originals=self.originals,source_files=self.files,progress=progress)
+        self.assertEqual((output/gold.EXE).read_bytes(),self.originals[gold.EXE.as_posix()])
+
+    def test_transformed_gold_files_and_new_backups_are_tracked_before_later_failure(self):
+        output=self.root.parent/'Failed'
+        write=Path.write_bytes
+        tracker=Mock()
+        def fail_interface(path,value):
+            if path==output/gold.INTERFACE and value==b'clean interface':
+                raise OSError('injected Gold interface write failure')
+            return write(path,value)
+        with ExitStack() as stack:
+            self.prepare_patches(stack)
+            stack.enter_context(patch.object(Path,'write_bytes',fail_interface))
+            with self.assertRaisesRegex(OSError,'Gold interface write failure'):
+                gold.prepare(self.root,output,originals=self.originals,source_files=self.files,tracker=tracker)
+        tracker.assert_any_call(output/gold.EXE,sha(b'prepared exe'))
+        tracker.assert_any_call(output/'Backup/Settlers7R.original.exe',self.files[gold.EXE.as_posix()])
+        tracker.assert_any_call(output/'Backup/Interface.original.bba',self.files[gold.INTERFACE.as_posix()])
+
+    def test_gold_network_manifest_update_refreshes_the_preparation_receipt(self):
+        output=self.root.parent/'Network target'
+        output.mkdir()
+        record_path=output/'gold-install.json'
+        record_path.write_text(json.dumps({'files':{}}),encoding='utf-8')
+        runtime=Mock()
+        runtime.read_json.side_effect=lambda path:json.loads(path.read_text(encoding='utf-8'))
+        runtime.inventory.return_value={'Runtime/python/python.exe':'a'*64}
+        runtime.verify_root.side_effect=ValueError('later network verification failed')
+        tracker=Mock()
+        with (patch.object(gold_support,'module',return_value=runtime),
+              patch.object(gold_support,'verify_package'),
+              patch.object(gold_support,'prepare_network_runtime')):
+            with self.assertRaisesRegex(ValueError,'later network verification failed'):
+                gold_support.prepare(self.root,self.root,output,network_runtime=True,tracker=tracker)
+        self.assertTrue(json.loads(record_path.read_bytes())['network_runtime'])
+        tracker.assert_called_with(record_path,sha(record_path.read_bytes()))
 
 
 if __name__=='__main__':unittest.main()

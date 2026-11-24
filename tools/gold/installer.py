@@ -248,9 +248,9 @@ def install(app, source, *, emit=print):
              'profile_isolation': 'portable' if independent else 'native-path-derived', 'source_files_verified': len(report['source_files'])}
     if package.get('mixed_room',False):value['mixed_room']=True
     (stage / 'gold-install.json').write_text(json.dumps(value, indent=2) + '\n', encoding='utf8')
+    verify_root(stage)
     ensure_closed(app)
     stage.rename(target)
-    verify_game(app)
     emit('Gold bereit: bereinigtes Interface und vollständige Kampagnenauswahl.')
     return value
 

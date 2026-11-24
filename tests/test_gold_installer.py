@@ -89,6 +89,14 @@ class GoldInstallerTests(unittest.TestCase):
                 installer.install(self.app, self.source, emit=lambda text: None)
         self.assertFalse((self.app / 'Game').exists())
 
+    def test_failed_final_verification_never_publishes_gold_game(self):
+        with patch.object(installer.gold,'prepare',side_effect=self.prepared), \
+                patch.object(installer,'verify_root',side_effect=ValueError('final Gold verification failed')):
+            with self.assertRaisesRegex(ValueError,'final Gold verification failed'):
+                installer.install(self.app,self.source,emit=lambda _: None)
+        self.assertFalse((self.app/'Game').exists())
+        self.assertEqual((self.source/installer.gold.EXE).read_bytes(),b'original')
+
     def test_manifest_traversal_and_outside_roots_rejected_before_read(self):
         for name in ('../outside', '/absolute', 'C:/outside', 'Runtime/../../outside', 'LocalData/private.json'):
             with patch.object(installer.gold, 'digest') as digest:

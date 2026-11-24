@@ -232,6 +232,7 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
     if on_created: on_created(destination)
     incomplete = destination / 'PREPARATION-INCOMPLETE.txt'
     incomplete.write_text('Gold development copy is incomplete. Do not launch.\n', encoding='utf-8')
+    if tracker:tracker(incomplete,digest(incomplete))
     records = {}
     # Copy only game data, excluding launcher download/state and account directories.
     if originals is not None:
@@ -262,27 +263,36 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
         records[name]=original_hash
         if tracker: tracker(output,original_hash)
         if progress: progress('copy',index+1,len(entries))
+    if progress:progress('patch',0,0)
     original_exe = plain(destination / EXE)
     if digest(original_exe) != GOLD_SHA256:
         raise ValueError('Gold executable changed during preparation.')
     backup = destination / 'Backup/Settlers7R.original.exe'
     backup.parent.mkdir()
     shutil.copy2(original_exe, backup)
+    if tracker:tracker(backup,GOLD_SHA256)
     original_exe.write_bytes(patched)
     if digest(original_exe) != report['unlocked_exe_sha256']:
         raise ValueError('Gold unlock output verification failed.')
+    if tracker:tracker(original_exe,report['unlocked_exe_sha256'])
     copied_interface = plain(destination / INTERFACE)
     if digest(copied_interface) != INTERFACE_SHA256:
         raise ValueError('Gold interface changed during preparation.')
-    shutil.copy2(copied_interface, backup.with_name('Interface.original.bba'))
+    interface_backup=backup.with_name('Interface.original.bba')
+    shutil.copy2(copied_interface, interface_backup)
+    if tracker:tracker(interface_backup,INTERFACE_SHA256)
     copied_interface.write_bytes(interface)
     if digest(copied_interface) != report['menu_interface_sha256']:
         raise ValueError('Gold cleaned interface copy verification failed.')
+    if tracker:tracker(copied_interface,report['menu_interface_sha256'])
     shared=plain(destination/SHARED)
     shared_raw=shared.read_bytes()
     shared_result=shared_bytes(shared_raw)
-    shutil.copy2(shared,backup.with_name('Shr.original.bba'))
+    shared_backup=backup.with_name('Shr.original.bba')
+    shutil.copy2(shared,shared_backup)
+    if tracker:tracker(shared_backup,sha256(shared_raw))
     shared.write_bytes(shared_result)
+    if tracker:tracker(shared,sha256(shared_result))
     report.update(format='s7-gold-development-copy-v1', source_files=records,
                   definitions_sha256=DEFINITIONS_SHA256, dxvk_staged=dxvk is not None,
                   shared_profile_isolated=False, starter_created=False)
@@ -295,9 +305,12 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
         shutil.copy2(plain(dxvk), dll)
         if digest(dll) != DXVK_SHA256:
             raise ValueError('DXVK copy verification failed.')
+        if tracker:tracker(dll,DXVK_SHA256)
         config.write_bytes(DXVK_CONFIG)
+        if tracker:tracker(config,sha256(DXVK_CONFIG))
         report.update(dxvk_sha256=DXVK_SHA256, dxvk_config_sha256=sha256(DXVK_CONFIG))
     (destination / 'gold-development.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    if tracker:tracker(destination/'gold-development.json',digest(destination/'gold-development.json'))
     (destination / 'README.txt').write_text(
         'WePlay Gold development copy\n\n'
         'Gold offline unlock applied; original executable retained in Backup.\n'
@@ -306,6 +319,7 @@ def prepare(source, destination, *, definitions=DEFINITIONS, dxvk=None,
         'Crossplay and modern graphics have not been qualified.\n'
         'No starter is created: isolate/back up the actual profile and saves before testing.\n'
         'Do not use the History Edition installer or native adapter on this copy.\n', encoding='utf-8')
+    if tracker:tracker(destination/'README.txt',digest(destination/'README.txt'))
     incomplete.unlink()
     return report
 

@@ -192,7 +192,9 @@ def prepare(package,source,target,*,network_runtime=False,**options):
             record=runtime.read_json(Path(target)/'gold-install.json')
             record['files'].update(runtime.inventory(Path(target),('Launcher','Runtime')))
             record['network_runtime']=True
-            (Path(target)/'gold-install.json').write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
+            path=Path(target)/'gold-install.json'
+            path.write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
+            if options.get('tracker'):options['tracker'](path,content.digest(path))
             result=runtime.verify_root(target)
         return result
     finally:sys.path[:]=previous
