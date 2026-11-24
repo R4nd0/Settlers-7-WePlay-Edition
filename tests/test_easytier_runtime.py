@@ -147,6 +147,19 @@ class RuntimeTests(unittest.TestCase):
                 patch('windows_system.command', return_value=json.dumps(records).encode()):
             self.assertEqual(overlay.snapshot(), (interface, {ROOM.coordinator: 'p2p'}))
 
+    def test_duplicate_address_on_different_devices_is_detected_as_overlap(self):
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=False)
+        interface = LanInterface(overlay.address, 24, overlay.device_name)
+        competing = LanInterface(overlay.address, 24, 'Other adapter')
+        overlay.child = Mock(poll=Mock(return_value=None))
+        overlay.query = Mock(return_value=json.dumps([
+            row(overlay.address, 'Local', overlay.device_name), row(ROOM.coordinator)]).encode())
+        records = [vars(competing), vars(interface)]
+        with patch.object(sys, 'platform', 'win32'), \
+                patch('windows_system.command', return_value=json.dumps(records).encode()), \
+                self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
+            overlay.snapshot()
+
     def test_status_query_cannot_request_secret_bearing_commands(self):
         overlay=runtime.EasyTier(Path('.'),ROOM,host=True)
         for command in (('node',),('config',),('connector','add')):

@@ -21,7 +21,12 @@ def select_private_interfaces(records, *, allow_empty=False, include_all=False):
             continue
         try:
             interface = LanInterface(**item)
-            found[(interface.address, interface.prefix_length)] = interface
+            key = (interface.address, interface.prefix_length)
+            if include_all:
+                # Two separate devices can advertise the same address. Keep
+                # both so the VPN overlap check can refuse the conflict.
+                key = (*key, interface.name)
+            found[key] = interface
         except (ValueError, TypeError):
             continue
     if not found and not allow_empty:
