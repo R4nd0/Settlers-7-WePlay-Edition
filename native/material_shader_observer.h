@@ -58,6 +58,19 @@ struct CaptureSample {
     std::array<ConstantSample,MaxCaptureConstants> constants{};
     std::array<SamplerSample,MaxCaptureSamplers> samplers{};
 };
+// Raw shader uniforms from one matched original River geometry draw. This is
+// not the generic Vision context camera and contains no inferred elevation or
+// exposure. One successful full-scene snapshot is retained per observer frame.
+struct FrameSnapshot {
+    DWORD size=sizeof(FrameSnapshot),version=1,available=0,context_valid=0;
+    std::uint64_t frame=0,successful_draw=0;
+    DWORD vertex_id=0,pixel_id=0,vertex_aliases=0,pixel_aliases=0;
+    DWORD target_width=0,target_height=0,target_format=0,viewport_width=0,viewport_height=0;
+    DWORD alpha_blend=0,alpha_test=0,srgb_write=0;
+    std::array<unsigned char,32> catalog_sha256{},vertex_sha256{},pixel_sha256{};
+    std::array<float,16> vs_constants_12_15{};
+    std::array<float,3> vs16_eye{},ps5_sun_direction{},ps7_sun_specular{};
+};
 struct Stats {
     std::uint32_t size=sizeof(Stats),version=1,enabled=0,catalog_count=0;
     std::uint32_t unknown_count=0,pair_count=0,cached_refs=0,peak_cached_refs=0;
@@ -82,7 +95,10 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected_sha256[
 // Requests are bounded single float4 registers; only selected finite components
 // are retained. Sampler capture contains dimensions/formats only, never pixels.
 bool ConfigureCapture(const CaptureConfig* config) noexcept;
-// Invoke AFTER the original Draw call, retaining its original HRESULT.
+bool ConfigureFrameSnapshot(DWORD render_width,DWORD render_height) noexcept;
+bool CopyLatestFrameSnapshot(std::uint64_t expected_present_frame,FrameSnapshot* output) noexcept;
+void InvalidateFrameSnapshot() noexcept;
+// Invoke AFTER the original nonzero-geometry Draw call, retaining its HRESULT.
 void ObserveDraw(IDirect3DDevice9* device,unsigned kind,HRESULT draw_result) noexcept;
 // Invoke at Present entry, even when that Present will fail or fall back.
 void EndFrame(IDirect3DDevice9* device) noexcept;
@@ -93,4 +109,8 @@ void Reset(IDirect3DDevice9* device) noexcept;
 bool ReadStats(Stats* output) noexcept;
 void Flush() noexcept;
 void Shutdown() noexcept;
+#ifdef S7_MATERIAL_OBSERVER_FIXTURE
+bool FixtureFrameIdentity(const unsigned char vertex[32],UINT vertex_bytes,
+                          const unsigned char pixel[32],UINT pixel_bytes) noexcept;
+#endif
 }

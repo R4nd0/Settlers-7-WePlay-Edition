@@ -1,6 +1,7 @@
 #pragma once
 #include "supersampling_hook.h"
 #include "graphics_observation.h"
+#include "material_shader_observer.h"
 #include <array>
 #include <string>
 
@@ -13,6 +14,8 @@ struct Result {
     LARGE_INTEGER started{},finished{},frequency{};
     SupersamplingStats graphics{};
     GraphicsObservation::Snapshot observation{};
+    MaterialShaderObserver::FrameSnapshot scene_uniforms{};
+    bool scene_uniforms_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };

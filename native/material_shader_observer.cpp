@@ -32,6 +32,11 @@ struct State {
     CaptureConfig capture{};
     std::array<std::uint32_t,MaxCaptureTargets> captured{};
     std::array<std::uint64_t,MaxCaptureTargets> last_capture{};
+    DWORD frame_width=0,frame_height=0;
+    std::uint64_t frame_attempt=0;
+    FrameSnapshot latest{};
+    std::array<unsigned char,32> frame_vertex{},frame_pixel{};
+    UINT frame_vertex_bytes=2592,frame_pixel_bytes=3740;
 };
 SRWLOCK mutex=SRWLOCK_INIT;
 State current;
@@ -46,6 +51,10 @@ struct FloatingState {
     ~FloatingState(){_fxrstor(bytes.data());}
 };
 void Exception() noexcept {Lock lock;++current.stats.exceptions;}
+void DigestLiteral(const char* text,std::array<unsigned char,32>& output) {
+    const auto digit=[](char value){return value<='9'?value-'0':value-'a'+10;};
+    for(size_t index=0;index<32;++index)output[index]=static_cast<unsigned char>((digit(text[index*2])<<4)|digit(text[index*2+1]));
+}
 
 bool Hash(const void* data,size_t bytes,std::array<unsigned char,32>& result) {
     if(!current.algorithm || bytes>std::numeric_limits<ULONG>::max())return false;
@@ -242,6 +251,44 @@ bool Finite(float value) {
     std::uint32_t bits=0;std::memcpy(&bits,&value,sizeof(bits));return (bits&0x7f800000u)!=0x7f800000u;
 }
 
+void CaptureFrame(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
+    if(!current.frame_width || !vertex || !pixel || !vertex->aliases || !pixel->aliases)return;
+    const std::uint64_t frame=current.stats.frames+1;
+    if(current.frame_attempt==frame || vertex->bytes!=current.frame_vertex_bytes || pixel->bytes!=current.frame_pixel_bytes
+        || vertex->sha256!=current.frame_vertex || pixel->sha256!=current.frame_pixel)return;
+    FrameSnapshot sample{};sample.frame=frame;sample.successful_draw=current.stats.successful_draws;
+    sample.vertex_id=vertex->representative;sample.pixel_id=pixel->representative;
+    sample.vertex_aliases=vertex->aliases;sample.pixel_aliases=pixel->aliases;
+    sample.catalog_sha256=current.catalog_digest;sample.vertex_sha256=vertex->sha256;sample.pixel_sha256=pixel->sha256;
+    IDirect3DSurface9* target=nullptr;D3DSURFACE_DESC desc{};D3DVIEWPORT9 viewport{};
+    bool valid=SUCCEEDED(device->GetRenderTarget(0,&target)) && target && SUCCEEDED(target->GetDesc(&desc));
+    if(target)target->Release();
+    if(!valid || desc.Width!=current.frame_width || desc.Height!=current.frame_height || desc.Format!=D3DFMT_A8R8G8B8)return;
+    if(FAILED(device->GetViewport(&viewport)) || viewport.X || viewport.Y
+        || viewport.Width!=desc.Width || viewport.Height!=desc.Height)return;
+    DWORD blend=0,alpha=0,srgb=0;
+    if(FAILED(device->GetRenderState(D3DRS_ALPHABLENDENABLE,&blend)) || blend
+        || FAILED(device->GetRenderState(D3DRS_ALPHATESTENABLE,&alpha)) || alpha
+        || FAILED(device->GetRenderState(D3DRS_SRGBWRITEENABLE,&srgb)) || srgb)return;
+    // At most one raw-uniform attempt for an eligible original full-scene draw.
+    // A failed/nonfinite attempt makes this frame unavailable, never stale.
+    current.frame_attempt=frame;
+    sample.target_width=desc.Width;sample.target_height=desc.Height;sample.target_format=desc.Format;
+    sample.viewport_width=viewport.Width;sample.viewport_height=viewport.Height;
+    sample.alpha_blend=blend;sample.alpha_test=alpha;sample.srgb_write=srgb;sample.context_valid=7;
+    std::array<float,4> eye{},sun{},specular{};
+    if(FAILED(device->GetVertexShaderConstantF(12,sample.vs_constants_12_15.data(),4))
+        || FAILED(device->GetVertexShaderConstantF(16,eye.data(),1))
+        || FAILED(device->GetPixelShaderConstantF(5,sun.data(),1))
+        || FAILED(device->GetPixelShaderConstantF(7,specular.data(),1)))return;
+    for(float value:sample.vs_constants_12_15)if(!Finite(value))return;
+    for(size_t index=0;index<3;++index) {
+        if(!Finite(eye[index]) || !Finite(sun[index]) || !Finite(specular[index]))return;
+        sample.vs16_eye[index]=eye[index];sample.ps5_sun_direction[index]=sun[index];sample.ps7_sun_specular[index]=specular[index];
+    }
+    sample.available=1;current.latest=sample;
+}
+
 void Capture(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
     if(!vertex || !pixel || !current.capture.target_count || current.stats.frames<current.capture.first_frame)return;
     for(size_t index=0;index<current.capture.target_count;++index) {
@@ -345,6 +392,10 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected[32],con
         if(!valid){CloseHandle(file);return false;}
         current.stats=Stats{};current.stats.enabled=1;current.stats.catalog_count=rows;
         current.capture=CaptureConfig{};current.captured.fill(0);current.last_capture.fill(0);
+        current.frame_width=0;current.frame_height=0;current.frame_attempt=0;current.latest=FrameSnapshot{};
+        DigestLiteral("f190d66ee1ae43637341a76e5b644cc63bf3c2a5b5c94ea9286764e13f1c16c0",current.frame_vertex);
+        DigestLiteral("dd65ba0b9d79c7c4d9ad9904404388230556b194eedb8cbdfbd4fa99f44eee5b",current.frame_pixel);
+        current.frame_vertex_bytes=2592;current.frame_pixel_bytes=3740;
         current.catalog=catalog;current.catalog_digest=actual;current.catalog_file=file;
         current.report_path=std::move(pending_report);current.thread=0;current.device=nullptr;
         for(size_t index=0;index<rows;++index) {
@@ -387,6 +438,22 @@ bool ConfigureCapture(const CaptureConfig* config) noexcept {
         current.stats.captures.fill(CaptureSample{});return true;
     }catch(...){Exception();return false;}
 }
+bool ConfigureFrameSnapshot(DWORD width,DWORD height) noexcept {
+    LastErrorState last_error;
+    try {Lock lock;if(!current.stats.enabled || width<320 || height<200 || width>8192 || height>8192
+        || static_cast<std::uint64_t>(width)*height>32u*1024u*1024u)return false;
+        current.frame_width=width;current.frame_height=height;current.frame_attempt=0;current.latest=FrameSnapshot{};return true;
+    }catch(...){Exception();return false;}
+}
+bool CopyLatestFrameSnapshot(std::uint64_t expected,FrameSnapshot* output) noexcept {
+    LastErrorState last_error;
+    try {Lock lock;if(!output || output->size!=sizeof(FrameSnapshot) || output->version!=1)return false;
+        *output=FrameSnapshot{};
+        if(!current.stats.enabled || expected!=current.stats.frames || !current.latest.available || current.latest.frame!=expected)return false;
+        *output=current.latest;return true;
+    }catch(...){Exception();return false;}
+}
+void InvalidateFrameSnapshot() noexcept {LastErrorState last_error;try{Lock lock;current.latest=FrameSnapshot{};}catch(...){Exception();}}
 
 void ObserveDraw(IDirect3DDevice9* device,unsigned kind,HRESULT result) noexcept {
     LastErrorState last_error;
@@ -400,7 +467,7 @@ void ObserveDraw(IDirect3DDevice9* device,unsigned kind,HRESULT result) noexcept
         current.stats.shader_queries+=2;
         if(FAILED(device->GetVertexShader(&vertex))){++current.stats.query_failures;if(vertex)vertex->Release();vertex=nullptr;}
         if(FAILED(device->GetPixelShader(&pixel))){++current.stats.query_failures;if(pixel)pixel->Release();pixel=nullptr;}
-        Cached* vs=Query(vertex,1);Cached* ps=Query(pixel,2);Count(vs);Count(ps);Pair(vs,ps);Capture(device,vs,ps);
+        Cached* vs=Query(vertex,1);Cached* ps=Query(pixel,2);Count(vs);Count(ps);Pair(vs,ps);Capture(device,vs,ps);CaptureFrame(device,vs,ps);
     } catch(...) {Exception();}
 }
 
@@ -436,6 +503,15 @@ void Shutdown() noexcept {
         if(current.catalog_file!=INVALID_HANDLE_VALUE){CloseHandle(current.catalog_file);current.catalog_file=INVALID_HANDLE_VALUE;}
         if(current.algorithm){BCryptCloseAlgorithmProvider(current.algorithm,0);current.algorithm=nullptr;}
         current.device=nullptr;current.thread=0;current.report_path.clear();
+        current.latest=FrameSnapshot{};current.frame_width=0;current.frame_height=0;
     } catch(...) {Exception();}
 }
+#ifdef S7_MATERIAL_OBSERVER_FIXTURE
+bool FixtureFrameIdentity(const unsigned char vertex[32],UINT vertex_bytes,const unsigned char pixel[32],UINT pixel_bytes) noexcept {
+    LastErrorState last_error;try {Lock lock;if(!current.stats.enabled || !vertex || !pixel)return false;
+        std::memcpy(current.frame_vertex.data(),vertex,32);std::memcpy(current.frame_pixel.data(),pixel,32);
+        current.frame_vertex_bytes=vertex_bytes;current.frame_pixel_bytes=pixel_bytes;current.latest=FrameSnapshot{};current.frame_attempt=0;return true;
+    }catch(...){return false;}
+}
+#endif
 }

@@ -160,12 +160,115 @@ class QualificationTests(unittest.TestCase):
         self.assertFalse(result['cases'][1]['runtime_records_consistent'])
         self.assertIn('selected_target was not the requested high-resolution scene', result['cases'][1]['rejected'])
 
+    def test_graceful_terminal_detach_preserves_historical_attachment_evidence(self):
+        self.change_artifact(1, 'hook', lambda data: data.update(attached=0,hook_detached=1,terminal_cleanup=1,window_shutdowns=1))
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['native_ssaa_records_consistent'])
+        self.change_artifact(1, 'hook', lambda data: data.update(hook_detached=0))
+        result=q.aggregate(self.manifest)
+        self.assertFalse(result['cases'][1]['native_ssaa_records_consistent'])
+        self.assertIn('no active attachment or verified graceful terminal detach',result['cases'][1]['rejected'])
+
+    def test_verified_gold_rotating_autosave_requires_before_image_and_never_waives_manual_changes(self):
+        relative=q.GOLD_SAVE_ROLE_PROOF['rotating_autosave_relative']
+        auto=self.bundle/'LocalData/ProfileRoot'/relative
+        auto.parent.mkdir(parents=True,exist_ok=True)
+        old=b'synthetic older owned autosave';auto.write_bytes(old)
+        before={'THE SETTLERS 7 - History Edition/s79.s7s':{'sha256':digest(self.save.read_bytes())},
+                relative:{'sha256':digest(old),'size':len(old)}}
+        backup=self.work/'backup';target=backup/relative;target.parent.mkdir(parents=True);target.write_bytes(old)
+        auto.write_bytes(b'synthetic newer owned autosave')
+        result,_=q._save_classification(self.bundle,backup,before,True)
+        self.assertFalse(result['all_original_private_saves_unchanged'])
+        self.assertTrue(result['manual_original_private_saves_unchanged'])
+        self.assertTrue(result['private_rotating_autosave_changes'][0]['before_image_identity_verified'])
+        self.assertEqual(auto.read_bytes(),b'synthetic newer owned autosave')
+        self.save.write_bytes(b'changed manual original')
+        result,_=q._save_classification(self.bundle,backup,before,True)
+        self.assertFalse(result['manual_original_private_saves_unchanged'])
+        self.assertIn('THE SETTLERS 7 - History Edition/s79.s7s',result['unapproved_original_private_save_changes'])
+        target.unlink()
+        result,_=q._save_classification(self.bundle,backup,before,True)
+        self.assertIn(relative,result['unapproved_original_private_save_changes'])
+        result,_=q._save_classification(self.bundle,backup,before,False)
+        self.assertEqual(result['private_rotating_autosave_changes'],[])
+
+    def test_verified_history_slot_is_edition_scoped_and_requires_exact_retained_before_image(self):
+        relative=q.UBI_SAVE_ROLE_PROOF['rotating_autosave_relative']
+        auto=self.bundle/'LocalData/ProfileRoot'/relative;auto.parent.mkdir(parents=True,exist_ok=True)
+        auto.write_bytes(b'newer owned progress')
+        old=b'older diagnostic before image';before={relative:{'sha256':digest(old),'size':len(old)}}
+        backup=self.work/'history-backup';target=backup/relative;target.parent.mkdir(parents=True);target.write_bytes(old)
+        result,_=q._save_classification(self.bundle,backup,before,True,relative)
+        self.assertFalse(result['all_original_private_saves_unchanged'])
+        self.assertTrue(result['manual_original_private_saves_unchanged'])
+        result,_=q._save_classification(self.bundle,backup,before,True)
+        self.assertIn(relative,result['unapproved_original_private_save_changes'])
+        target.write_bytes(b'unrelated backup')
+        result,_=q._save_classification(self.bundle,backup,before,True,relative)
+        self.assertIn(relative,result['unapproved_original_private_save_changes'])
+        self.assertEqual(auto.read_bytes(),b'newer owned progress')
+
     def test_hook_build_identity_must_match_the_initialized_binary(self):
         self.change_artifact(1, 'hook_build', lambda data: data['files'].update(WePlaySupersamplingLab_dll='different'))
         self.change_artifact(1, 'hook_init', lambda data: data.update(dll_sha256='c' * 64))
         result = q.aggregate(self.manifest)
         self.assertFalse(result['cases'][1]['native_ssaa_records_consistent'])
         self.assertIn('hook initialization/build manifest mismatch', result['cases'][1]['rejected'])
+
+    def effects_build(self):
+        reference = self.data['cases'][1]['artifacts']['hook_build']
+        directory = Path(reference['path']).parent
+        def update(data):
+            data.update(format='s7-native-graphics-build-v2', source_set='effects-v1',
+                        compiled_capabilities=15, abi=dict(q.EFFECTS_BUILD_ABI))
+            for name in (q.EFFECTS_HOOK_SOURCES | q.EFFECTS_HOOK_BINARIES) - data['files'].keys():
+                path = directory / name
+                path.write_bytes(('synthetic effects compiled snapshot ' + name).encode())
+                data['files'][name] = digest(path.read_bytes())
+        self.change_artifact(1, 'hook_build', update)
+        return directory
+
+    def test_early_engine_cleanup_requires_complete_original_returns_and_clean_exit(self):
+        self.effects_build()
+        self.change_artifact(1, 'hook', lambda data: data.update(attached=0,hook_detached=1,
+            terminal_cleanup=1,window_shutdowns=0,engine_deinit_calls=2,engine_deinit_returned=2,
+            engine_deinit_rejected=0,engine_deinit_cleanup=1,shutdown_stage=3))
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['native_ssaa_records_consistent'])
+        for key,value in [('engine_deinit_returned',1),('engine_deinit_rejected',1),
+                          ('engine_deinit_cleanup',0),('shutdown_stage',2)]:
+            original=2 if key=='engine_deinit_returned' else 0 if key=='engine_deinit_rejected' else 1 if key=='engine_deinit_cleanup' else 3
+            self.change_artifact(1,'hook',lambda data,key=key,value=value:data.update({key:value}))
+            self.assertFalse(q.aggregate(self.manifest)['cases'][1]['native_ssaa_records_consistent'])
+            self.change_artifact(1,'hook',lambda data,key=key,original=original:data.update({key:original}))
+        self.change_artifact(1,'result',lambda data:data.update(exit_code=1))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['native_ssaa_records_consistent'])
+
+    def test_effects_build_checks_19_frozen_sources_and_three_binaries(self):
+        self.effects_build()
+        self.assertEqual(len(q.EFFECTS_HOOK_SOURCES), 19)
+        result = q.aggregate(self.manifest)
+        self.assertTrue(result['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(result['visual_qualified'])
+        self.assertFalse(result['release_qualified'])
+        self.change_artifact(1, 'hook_build', lambda data: data['abi'].update(effects=4136))
+        self.assertIn('hook initialization/build manifest mismatch',
+                      q.aggregate(self.manifest)['cases'][1]['rejected'])
+
+    def test_effects_build_rejects_changed_snapshot_and_missing_gpu_program(self):
+        directory = self.effects_build()
+        (directory / 'material_shader_effects.cpp').write_bytes(b'changed after compile')
+        self.assertIn('compiled hook source/binary snapshot changed',
+                      q.aggregate(self.manifest)['cases'][1]['rejected'])
+        self.change_artifact(1, 'hook_build', lambda data: data['files'].pop('supersampling_effects_gpu.exe'))
+        self.assertIn('incomplete native hook build source identities',
+                      q.aggregate(self.manifest)['cases'][1]['rejected'])
+
+    def test_effects_build_unknown_source_set_and_capabilities_rejected(self):
+        self.effects_build()
+        self.change_artifact(1, 'hook_build', lambda data: data.update(source_set='effects-v2'))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1, 'hook_build', lambda data: data.update(source_set='effects-v1', compiled_capabilities=31))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
 
     def test_changed_artifact_hash_is_rejected_without_rebinding(self):
         path = Path(self.data['cases'][1]['artifacts']['hook']['path'])
@@ -281,6 +384,61 @@ class QualificationTests(unittest.TestCase):
         self.assertFalse(frame['filtered_present_recorded'])
         self.assertEqual(result['edition_coverage']['ubisoft-history']['same_frame_filtered_capture_runs'], [])
         self.assertIn('per-frame successful filtered/original presentation without fallback', result['cases'][1]['missing'])
+
+    def test_same_frame_river_uniforms_require_exact_hash_frame_and_scene(self):
+        self.effects_build()
+        self.add_native_capture()
+        self.change_artifact(1, 'hook_init', lambda data: data.update(observer_catalog_sha256='d' * 64))
+        uniform = {'source': 'original_river_shader_uniforms', 'available': 1, 'context_valid': 7,
+                   'frame': 80, 'successful_draw': 71,
+                   'vertex_id': 309, 'pixel_id': 310, 'vertex_aliases': 3, 'pixel_aliases': 1,
+                   'catalog_sha256': 'd' * 64, 'vertex_sha256': q.RIVER_VERTEX_SHA256,
+                   'pixel_sha256': q.RIVER_PIXEL_SHA256, 'target': [4, 4], 'viewport': [4, 4],
+                   'target_format': 21, 'alpha_blend': 0, 'alpha_test': 0, 'srgb_write': 0,
+                   'vs_constants_12_15': [1 if i % 5 == 0 else 0 for i in range(16)],
+                   'vs16_eye': [10, 20, 30], 'ps5_sun_direction': [.1, .2, .3],
+                   'ps7_sun_specular': [1, 2, 3]}
+        def write(values):
+            reference = self.data['cases'][1]['native_captures'][0]
+            path = Path(reference['path'])
+            frame = json.loads(path.read_text())
+            frame['scene_uniforms'] = values
+            path.write_text(json.dumps(frame))
+            self.data['cases'][1]['native_captures'][0] = q._ref(path)
+            self.write_manifest()
+        write(uniform)
+        frame = q.aggregate(self.manifest)['cases'][1]['native_frame_pairs'][0]
+        self.assertTrue(frame['same_frame_river_uniforms_recorded'])
+        self.assertFalse(frame['visible_camera_validated'])
+        self.assertIsNone(frame['exposure'])
+        for key, invalid in [('frame', 79), ('pixel_sha256', 'e' * 64), ('target', [2, 2]),
+                             ('catalog_sha256', 'b' * 64), ('context_valid', 0),
+                             ('vs16_eye', [0, 0, float('nan')])]:
+            changed = deepcopy(uniform)
+            changed[key] = invalid
+            write(changed)
+            result = q.aggregate(self.manifest)['cases'][1]
+            self.assertFalse(result['native_frame_pairs'][0]['same_frame_river_uniforms_recorded'])
+            self.assertIn('invalid or unsupported same-frame original River shader observation', result['rejected'])
+        write(None)
+        result = q.aggregate(self.manifest)['cases'][1]
+        self.assertTrue(result['runtime_records_consistent'])
+        self.assertFalse(result['native_frame_pairs'][0]['same_frame_river_uniforms_recorded'])
+
+    def test_effect_epoch_requires_geometry_and_drawn_revision_without_proving_material_activation(self):
+        epoch = dict.fromkeys(q.EFFECT_EPOCH_FIELDS, 0)
+        epoch.update(effects_requested=7, effects_configured=1, effects_active=3, effects_revision=8,
+                     effects_drawn_revision=8, effects_drawn_active=3, effects_frame_has_geometry=1)
+        self.assertTrue(q._effect_epoch(epoch)['drawn_configuration_consistent'])
+        self.assertFalse(q._effect_epoch(epoch)['individual_material_changes_proven'])
+        for key, value in [('effects_drawn_revision', 7), ('effects_frame_has_geometry', 0),
+                           ('effects_module_restore_failures', 1), ('effects_faulted', 1)]:
+            changed = dict(epoch)
+            changed[key] = value
+            self.assertFalse(q._effect_epoch(changed)['drawn_configuration_consistent'])
+        with self.assertRaises(ValueError):
+            q._effect_epoch({'effects_requested': 7})
+        self.assertIsNone(q._effect_epoch({}))
 
     def test_duplicate_cases_unknown_pairs_and_external_paths_refuse_manifest(self):
         self.data['cases'].append(deepcopy(self.data['cases'][0]))

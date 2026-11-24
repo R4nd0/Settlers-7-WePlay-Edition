@@ -11,32 +11,42 @@ if __package__:
 else:
     import probe
 
-SOURCES = ('supersampling_hook.cpp', 'supersampling_hook.h', 'supersampling_hook_config.h',
+NATIVE20_SOURCES = ('supersampling_hook.cpp', 'supersampling_hook.h', 'supersampling_hook_config.h',
            'supersampling_hook_capture.h', 'supersampling_hook_capture.cpp', 'supersampling_hook.def',
            'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp', 'material_shader_observer.h',
            'material_shader_observer.cpp', 'graphics_observation.h', 'graphics_observation.cpp',
            'atmosphere_clock.h', 'atmosphere_fp.h')
-BINARIES = ('WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe')
+SOURCES = NATIVE20_SOURCES + ('supersampling_hook_effects_contract.h', 'supersampling_hook_effects_draw.h',
+                            'supersampling_hook_effects_gpu.cpp', 'material_shader_effects.h', 'material_shader_effects.cpp')
+NATIVE20_BINARIES = ('WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe')
+BINARIES = NATIVE20_BINARIES + ('supersampling_effects_gpu.exe',)
+BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132, 'observation': 952, 'effects': 4132, 'capture': 12}
 
 
 def verify_build(directory):
     directory = probe.plain(directory)
     manifest_path = probe.plain(directory / 'supersampling-hook-build.json')
-    if manifest_path.stat().st_size > 4096:
+    if manifest_path.stat().st_size > 8192:
         raise ValueError('Unbounded hook build manifest.')
     manifest = json.loads(manifest_path.read_text('utf-8'))
+    current = manifest.get('format') == 's7-native-graphics-build-v2'
+    if not current and manifest.get('format') != 's7-supersampling-hook-build-v1':
+        raise ValueError('Unknown native build schema.')
+    sources, binaries = (SOURCES, BINARIES) if current else (NATIVE20_SOURCES, NATIVE20_BINARIES)
     expected = {
-        'format': 's7-supersampling-hook-build-v1',
+        'format': manifest['format'],
         'build_sha256': probe.sha256(probe.REPOSITORY / 'native/supersampling_hook_build.ps1'),
-        'files': {name: probe.sha256(probe.REPOSITORY / 'native' / name) for name in SOURCES},
+        'files': {name: probe.sha256(probe.REPOSITORY / 'native' / name) for name in sources},
     }
-    expected['files'].update({name: probe.sha256(probe.plain(directory / name)) for name in BINARIES})
+    if current:
+        expected.update({'source_set': 'effects-v1', 'compiled_capabilities': 15, 'abi': BUILD_ABI})
+    expected['files'].update({name: probe.sha256(probe.plain(directory / name)) for name in binaries})
     if manifest != expected:
         raise ValueError('Stale or changed hook build; rebuild from current source.')
     return expected
 
 
-def run(directory, runtime, output, *, catalog=None, catalog_sha256=None):
+def run(directory, runtime, output, *, catalog=None, catalog_sha256=None, shutdown='held-parent'):
     if os.name != 'nt':
         raise ValueError('The GPU hook fixture requires Windows.')
     directory, runtime, output = map(probe.plain, (directory, runtime, output))
@@ -64,6 +74,10 @@ def run(directory, runtime, output, *, catalog=None, catalog_sha256=None):
         if not catalog.is_relative_to(work) or probe.sha256(catalog) != catalog_sha256:
             raise ValueError('The private observer catalog identity changed.')
         command.extend((str(catalog), catalog_sha256))
+    if shutdown != 'held-parent':
+        if shutdown not in ('last-parent', 'engine-deinit'):
+            raise ValueError('Unknown owned shutdown fixture mode.')
+        command.append('--' + shutdown)
     try:
         result = subprocess.run(command, env=environment, cwd=output, capture_output=True,
                                 timeout=45, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -86,6 +100,8 @@ def run(directory, runtime, output, *, catalog=None, catalog_sha256=None):
             or receipt.get('cache_reuse_passed') is not True
             or receipt.get('window_shutdown_cleanup_passed') is not True
             or receipt.get('failed_filtered_capture_recorded') is not True
+            or receipt.get('original_destroy_device_usable') is not True
+            or receipt.get('engine_deinit_rejections') != 2
             or receipt.get('authored_marker_gpu_magenta') is not True):
         raise RuntimeError('Incomplete COM hook fixture receipt.')
     for sequence, should_fallback in ((1, False), (2, True)):
@@ -114,9 +130,10 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--catalog', type=Path)
     parser.add_argument('--catalog-sha256')
+    parser.add_argument('--shutdown', choices=('held-parent', 'last-parent', 'engine-deinit'), default='held-parent')
     args = parser.parse_args()
     try:
-        receipt = run(args.build, args.dxvk, args.output, catalog=args.catalog, catalog_sha256=args.catalog_sha256)
+        receipt = run(args.build, args.dxvk, args.output, catalog=args.catalog, catalog_sha256=args.catalog_sha256, shutdown=args.shutdown)
     except (ValueError, OSError, RuntimeError, json.JSONDecodeError) as error:
         parser.exit(1, f'{error}\n')
     print(json.dumps(receipt, indent=2))

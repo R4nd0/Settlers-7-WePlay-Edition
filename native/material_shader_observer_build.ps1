@@ -22,7 +22,9 @@ try {
         $leases+=,[IO.File]::Open($snapshot,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
     }
     $flags=@('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/O2')
-    & cl.exe @flags material_shader_observer.cpp material_shader_observer_fixture.cpp /Fe:material_shader_observer_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    & cl.exe @flags /c material_shader_observer.cpp /Fo:material_shader_observer.production.obj
+    if($LASTEXITCODE){throw 'Production material observer compile failed.'}
+    & cl.exe @flags /DS7_MATERIAL_OBSERVER_FIXTURE material_shader_observer.cpp material_shader_observer_fixture.cpp /Fe:material_shader_observer_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Material observer fixture compile failed.'}
     & (Join-Path $output 'material_shader_observer_fixture.exe') (Join-Path $output 'fixture')
     if($LASTEXITCODE){throw 'Material observer synthetic lifecycle fixture failed.'}

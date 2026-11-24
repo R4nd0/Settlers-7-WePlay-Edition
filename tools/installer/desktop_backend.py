@@ -1799,6 +1799,10 @@ def error_code(error):
                 'crossplay_invitation_invalid','crossplay_content_changed','crossplay_service_failed'}
     known.update(('discord_unavailable','discord_not_connected','update_unavailable','update_parent_invalid','permissionFailed'))
     known.update(('directory_unavailable','directory_not_connected','directory_invalid','directory_join_failed','directory_join_unavailable','directory_code_invalid'))
+    known.update(('native_graphics_invalid','native_graphics_unavailable','native_graphics_renderer_required',
+        'native_graphics_effect_conflict','native_graphics_high_quality_required','native_graphics_payload_invalid',
+        'native_graphics_payload_changed','native_graphics_display_required','native_graphics_resolution_invalid',
+        'native_graphics_resolution_limit'))
     if text in known:return text
     if '4 GiB' in text:return 'memory_low'
     if 'laeuft' in text or 'running' in text or 'schliessen' in text:return 'game_running'

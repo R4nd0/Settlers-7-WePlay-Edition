@@ -23,7 +23,10 @@ class HookBuildIdentityTests(unittest.TestCase):
         for name in hook_probe.BINARIES:
             (self.build / name).write_bytes(('fixture binary, never executed: ' + name).encode())
         self.manifest = {
-            'format': 's7-supersampling-hook-build-v1',
+            'format': 's7-native-graphics-build-v2',
+            'source_set': 'effects-v1',
+            'compiled_capabilities': 15,
+            'abi': hook_probe.BUILD_ABI,
             'build_sha256': probe.sha256(script),
             'files': {name: probe.sha256(native / name) for name in hook_probe.SOURCES},
         }

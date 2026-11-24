@@ -46,7 +46,11 @@ HRESULT STDMETHODCALLTYPE TextureDesc(FakeTexture*,UINT level,D3DSURFACE_DESC* o
     if(level || !output)return D3DERR_INVALIDCALL;
     *output=D3DSURFACE_DESC{};output->Width=512;output->Height=256;output->Format=D3DFMT_A8R8G8B8;return S_OK;
 }
-struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;};
+struct FakeSurface {void** table=nullptr;ULONG refs=1;};
+ULONG STDMETHODCALLTYPE SurfaceAddRef(FakeSurface* surface){return ++surface->refs;}
+ULONG STDMETHODCALLTYPE SurfaceRelease(FakeSurface* surface){Check(surface->refs>1,"surface reference underflow");return --surface->refs;}
+HRESULT STDMETHODCALLTYPE SurfaceDesc(FakeSurface*,D3DSURFACE_DESC* output){*output={};output->Width=1920;output->Height=1080;output->Format=D3DFMT_A8R8G8B8;return S_OK;}
+struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;FakeSurface* surface=nullptr;unsigned uniform_reads=0;bool unused_nan=false;};
 HRESULT STDMETHODCALLTYPE Vertex(FakeDevice* device,IDirect3DVertexShader9** output) {
     if(!output)return D3DERR_INVALIDCALL;
     *output=reinterpret_cast<IDirect3DVertexShader9*>(device->vertex);
@@ -58,9 +62,11 @@ HRESULT STDMETHODCALLTYPE Pixel(FakeDevice* device,IDirect3DPixelShader9** outpu
     if(device->pixel)AddRef(device->pixel);return S_OK;
 }
 HRESULT STDMETHODCALLTYPE Constants(FakeDevice* device,UINT index,float* output,UINT count) {
-    if(!output || count!=1)return D3DERR_INVALIDCALL;
-    for(unsigned component=0;component<4;++component)output[component]=static_cast<float>(index+component);
+    if(!output || !count || count>4)return D3DERR_INVALIDCALL;
+    ++device->uniform_reads;
+    for(unsigned item=0;item<count;++item)for(unsigned component=0;component<4;++component)output[item*4+component]=static_cast<float>(index+item+component);
     if(device->nonfinite){const DWORD bits=0x7fc00000;std::memcpy(output,&bits,4);}
+    if(device->unused_nan&&count==1&&(index==5||index==7||index==16)){const DWORD bits=0x7fc00000;std::memcpy(output+3,&bits,4);}
     return S_OK;
 }
 HRESULT STDMETHODCALLTYPE Texture(FakeDevice* device,DWORD index,IDirect3DBaseTexture9** output) {
@@ -68,7 +74,7 @@ HRESULT STDMETHODCALLTYPE Texture(FakeDevice* device,DWORD index,IDirect3DBaseTe
     *output=index==3?reinterpret_cast<IDirect3DBaseTexture9*>(device->texture):nullptr;
     if(*output)TextureAddRef(device->texture);return S_OK;
 }
-HRESULT STDMETHODCALLTYPE Target(FakeDevice*,DWORD,IDirect3DSurface9** output){*output=nullptr;return E_FAIL;}
+HRESULT STDMETHODCALLTYPE Target(FakeDevice* device,DWORD,IDirect3DSurface9** output){*output=reinterpret_cast<IDirect3DSurface9*>(device->surface);if(device->surface)SurfaceAddRef(device->surface);return device->surface?S_OK:E_FAIL;}
 HRESULT STDMETHODCALLTYPE Viewport(FakeDevice*,D3DVIEWPORT9* output){*output={0,0,1920,1080,0,1};return S_OK;}
 HRESULT STDMETHODCALLTYPE RenderState(FakeDevice*,D3DRENDERSTATETYPE,DWORD* output){*output=0;return S_OK;}
 void Write(const std::wstring& path,const void* data,size_t bytes) {
@@ -169,6 +175,28 @@ int wmain(int argc,wchar_t** argv) {
         for(auto& item:many){owner.pixel=&item;ObserveDraw(device,Draw,S_OK);}
         Check(Snapshot().cache_overflows>0 && Snapshot().cached_refs<=256,"cache is bounded");
         Reset(device);for(const auto& item:many)Check(item.refs==1,"bounded cache released every shader");
+        // Frame-coupled raw uniforms use authored fixture identities only. The
+        // production observer's River hashes remain fixed when this macro is off.
+        owner.vertex=&vertex;owner.pixel=&pixel;
+        std::array<void*,17> surface_table{};surface_table[1]=reinterpret_cast<void*>(&SurfaceAddRef);surface_table[2]=reinterpret_cast<void*>(&SurfaceRelease);surface_table[12]=reinterpret_cast<void*>(&SurfaceDesc);
+        FakeSurface surface{surface_table.data(),1};owner.surface=&surface;
+        const auto vertex_hash=Hash(vertex.code.data(),vertex.code.size()),pixel_hash=Hash(pixel.code.data(),pixel.code.size());
+        Check(FixtureFrameIdentity(vertex_hash.data(),static_cast<UINT>(vertex.code.size()),pixel_hash.data(),static_cast<UINT>(pixel.code.size())),"fixture-only frame identities");
+        Check(ConfigureFrameSnapshot(1920,1080),"configure trusted frame target");owner.unused_nan=true;
+        ObserveDraw(device,Draw,S_OK);const auto next=Snapshot().frames+1;FrameSnapshot frame{};
+        Check(!CopyLatestFrameSnapshot(next,&frame)&&!frame.available,"unpresented frame unavailable");
+        const unsigned reads=owner.uniform_reads;ObserveDraw(device,Draw,S_OK);Check(owner.uniform_reads==reads,"raw frame uniforms read only once per eligible frame");
+        EndFrame(device);Check(CopyLatestFrameSnapshot(next,&frame)&&frame.available&&frame.frame==next,"exact presented frame snapshot");
+        Check(frame.vs16_eye[0]==16&&frame.ps5_sun_direction[0]==5&&frame.ps7_sun_specular[0]==7&&surface.refs==1,"raw selected uniforms and balanced context references");
+        Check(frame.vertex_id==1&&frame.pixel_id==2&&frame.pixel_aliases==2,"actual catalog IDs and aliases retained");
+        Check(!CopyLatestFrameSnapshot(next-1,&frame)&&!frame.available,"stale frame unavailable");Reset(device);
+        Check(CopyLatestFrameSnapshot(next,&frame),"ordinary ref cleanup retains copied frame data");
+        EndFrame(device);Check(!CopyLatestFrameSnapshot(next+1,&frame),"frame without matching original geometry unavailable");
+        owner.nonfinite=true;ObserveDraw(device,Draw,S_OK);const auto invalid_frame=Snapshot().frames+1;EndFrame(device);
+        Check(!CopyLatestFrameSnapshot(invalid_frame,&frame),"nonfinite meaningful uniform rejected");owner.nonfinite=false;
+        ObserveDraw(device,Draw,S_OK);const auto valid_frame=Snapshot().frames+1;EndFrame(device);Check(CopyLatestFrameSnapshot(valid_frame,&frame),"later valid frame recovers");
+        InvalidateFrameSnapshot();Check(!CopyLatestFrameSnapshot(valid_frame,&frame),"actual Reset invalidates prior frame data");
+        owner.unused_nan=false;
         SetLastError(0x37570004);Flush();Check(GetLastError()==0x37570004,"report flush preserves LastError");
         Shutdown();Check(!Snapshot().enabled,"shutdown disables observer");
         Check(vertex.refs==1 && pixel.refs==1,"all original references balanced");

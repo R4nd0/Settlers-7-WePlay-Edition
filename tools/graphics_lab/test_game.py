@@ -9,6 +9,15 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_material_commands_only_toggle_prepared_subsets(self):
+        self.assertEqual(game.native_command(b'{"operation":"effects","sequence":2,"enabled":0}',1,7)['enabled'],0)
+        self.assertEqual(game.native_command(b'{"operation":"effects","sequence":2,"enabled":5}',1,7)['enabled'],5)
+        self.assertIsNone(game.native_command(b'{"operation":"effects","sequence":1,"enabled":7}',1,7))
+        for raw,flags in ((b'{"operation":"effects","sequence":2,"enabled":8}',7),
+                          (b'{"operation":"effects","sequence":2,"enabled":true}',7),
+                          (b'{"operation":"effects","sequence":2,"enabled":0}',0),
+                          (b'{"operation":"effects","sequence":2,"enabled":7,"path":"foreign"}',7)):
+            with self.assertRaises(ValueError):game.native_command(raw,0,flags)
     def test_elapsed_measurement_budget_only_requests_regular_close_once(self):
         self.assertFalse(game.measurement_budget_expired(29, 30, False))
         self.assertTrue(game.measurement_budget_expired(30, 30, False))
@@ -38,11 +47,16 @@ class GraphicsControllerTests(unittest.TestCase):
                 self.assertEqual(len(control), 3132)
                 self.assertEqual(struct.unpack_from('<2I', control), (3132, 2))
                 self.assertEqual(control[1048:], bytes(2084))
+                materials=load_hook.configuration((1920,1080),(1280,720),report,material_flags=7)
+                self.assertEqual(struct.unpack_from('<I',materials,1048)[0],14)
                 config = load_hook.configuration((1920, 1080), (1280, 720), report,
                     observer_catalog=catalog, observer_sha256=load_hook.digest(catalog))
                 self.assertEqual(len(config), 3132)
                 self.assertEqual(struct.unpack_from('<I', config, 1048)[0], 1)
                 self.assertEqual(config[2076:2108], bytes.fromhex(load_hook.digest(catalog)))
+                combined=load_hook.configuration((1920,1080),(1280,720),report,material_flags=7,
+                    observer_catalog=catalog,observer_sha256=load_hook.digest(catalog))
+                self.assertEqual(struct.unpack_from('<I',combined,1048)[0],15)
                 self.assertTrue(config[2108:].decode('utf-16le').rstrip('\0').endswith('material-observer.private.json'))
                 with self.assertRaises(ValueError):
                     load_hook.configuration((1920, 1080), (1280, 720), report,
@@ -116,10 +130,14 @@ class GraphicsControllerTests(unittest.TestCase):
             dll.write_bytes(b'fixture DLL, never loaded')
             fixture = build / 'supersampling_hook_fixture.exe'
             fixture.write_bytes(b'fixture EXE, never run')
-            manifest = {'format': 's7-supersampling-hook-build-v1',
+            effects_fixture=build/'supersampling_effects_gpu.exe'
+            effects_fixture.write_bytes(b'authored fixture, never run')
+            manifest = {'format': 's7-native-graphics-build-v2','source_set':'effects-v1',
+                        'compiled_capabilities':15,'abi':load_hook.BUILD_ABI,
                         'build_sha256': load_hook.digest(script), 'files': {
                             name: load_hook.digest(root / 'native' / name) for name in load_hook.SOURCES}}
             manifest['files'].update({dll.name: load_hook.digest(dll), fixture.name: load_hook.digest(fixture)})
+            manifest['files'][effects_fixture.name]=load_hook.digest(effects_fixture)
             path = build / 'supersampling-hook-build.json'
             path.write_text(json.dumps(manifest), encoding='utf-8')
             with patch.object(game, 'ROOT', root), patch.object(load_hook, 'ROOT', root):

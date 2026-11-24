@@ -89,6 +89,20 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
+def native_command(raw, previous, material_flags=0):
+    if not isinstance(raw,bytes) or len(raw)>4096:
+        raise ValueError('Native command exceeds its bound.')
+    value=graphics_profile._json(raw)
+    if isinstance(value,dict) and value.get('operation')=='capture':
+        return value if capture_command(raw,previous) is not None else None
+    if (not isinstance(value,dict) or set(value)!={'operation','sequence','enabled'}
+            or value['operation']!='effects' or type(value['sequence'])is not int
+            or not 1<=value['sequence']<=1000000 or type(value['enabled'])is not int
+            or value['enabled']<0 or value['enabled']&~material_flags or not material_flags):
+        raise ValueError('Only prepared material subsets and bounded capture are supported.')
+    return value if value['sequence']>previous else None
+
+
 def measurement_budget_expired(now, deadline, already_reported):
     """A healthy client's unsaved state is never discarded for a time budget."""
     return now >= deadline and not already_reported
@@ -97,7 +111,7 @@ def measurement_budget_expired(now, deadline, already_reported):
 def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=None,
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
-        high_quality=False):
+        high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False):
     if os.name != 'nt':
         raise ValueError('The portable graphics laboratory requires Windows.')
     root, output = lab_path(root), lab_path(output)
@@ -123,6 +137,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     elif observer_catalog is not None or material_capture is not None:
         raise ValueError('Observation requires the fixed source-bound native hook.')
     capture_config = None
+    material_keys=('improved_water','improved_terrain','improved_vegetation')
+    if (not isinstance(material_effects,(list,tuple)) or len(set(material_effects))!=len(material_effects)
+            or any(key not in material_keys for key in material_effects)
+            or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool
+            or (material_effects and (hook is None or not high_quality))):
+        raise ValueError('Native materials require an explicit exact hook and High shader quality.')
     if material_capture is not None:
         material_capture = lab_path(material_capture)
         with material_capture.open('rb') as stream:
@@ -132,6 +152,22 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 or hashlib.sha256(capture_config).hexdigest() != material_capture_sha256):
             raise ValueError('Invalid or changed targeted observation configuration.')
     output.mkdir()
+    effects_config=None
+    material_flags=0
+    if material_effects:
+        from tools.installer import native_graphics_settings
+        from tools.material_shaders import staging
+        axis=width*100//output_width
+        if width*100!=axis*output_width or height*100!=axis*output_height:
+            raise ValueError('Material laboratory requires a supported exact render scale.')
+        selected={**native_graphics_settings.DEFAULTS,'render_scale':axis}
+        selected.update(dict.fromkeys(material_effects,True))
+        prepared=staging.prepare(root,selected,dict(width=output_width,height=output_height,mode='windowed'),
+            available_features=('supersampling',*material_keys),available_scales=(100,150,200),
+            native_report=output/'hook-state.private.json',verified_platform=value,private_case=True)
+        effects_config=prepared.pop('config');material_flags=prepared['material_flags']
+        (output/'effects-config.bin').write_bytes(effects_config)
+        (output/'material-stage.private.json').write_text(json.dumps(prepared,indent=2),encoding='utf-8')
     shared = ProfileGuard(shared_profile_roots(), output / 'shared-before')
     shared.capture()
     private = ProfileGuard({'portable': root / 'LocalData/ProfileRoot'}, output / 'portable-before')
@@ -159,7 +195,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             raise RuntimeError('The graphics controller changed during source checkpoint creation.')
     (output / 'checkpoint.private.json').write_text(json.dumps(dict(
         files=immutable, sources=checkpoint, requested_render_size=[width, height],
-        reshade_requested=False), indent=2), encoding='utf-8')
+        reshade_requested=False,detailed_shadows_requested=detailed_shadows), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
         targets={'options': options, 'runtime': runtime, 'config': config_file},
         shared=shared_profile_roots())
@@ -190,6 +226,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             launch_local.write_configuration(root / 'LocalData', configuration, port,
                                              True, display_name='GraphicsLab')
         environment = clean_environment(os.environ)
+        if detailed_shadows:environment['S7_DETAILED_SHADOWS']='1'
         environment['DXVK_LOG_PATH'] = str(output)
         environment['DXVK_CONFIG_FILE'] = str(config_file)
         arguments = ('-vSynch', '-noMapInMainMenu', '-width', str(width), '-height', str(height))
@@ -198,7 +235,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             def initialize(owned):
                 receipt = load_hook.initialize(owned, hook, render=(width, height),
                     output=(output_width, output_height), report=output / 'hook-state.private.json',
-                    observer_catalog=observer_catalog, observer_sha256=observer_sha256)
+                    observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=material_flags)
                 (output / 'hook-initialized.private.json').write_text(
                     json.dumps(receipt, indent=2), encoding='utf-8')
                 _, build = load_hook.verify_build(hook)
@@ -207,6 +244,11 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                     observed = load_hook.invoke(owned, hook, 'configure', capture_config)
                     (output / 'material-configured.private.json').write_text(
                         json.dumps(observed, indent=2), encoding='utf-8')
+                if effects_config is not None:
+                    initial=bytearray(effects_config)
+                    if effects_initially_off:struct.pack_into('<I',initial,8,0)
+                    configured=load_hook.invoke(owned,hook,'effects',bytes(initial))
+                    (output/'effects-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -244,10 +286,15 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        sequence = capture_command(raw, last_sequence)
-                        if sequence is not None:
-                            last_sequence = sequence
-                            receipt = load_hook.invoke(game, hook, 'capture', struct.pack('<3I', 12, 1, sequence))
+                        request = native_command(raw, last_sequence, material_flags)
+                        if request is not None:
+                            sequence=request['sequence'];last_sequence=sequence
+                            operation=request['operation']
+                            payload=struct.pack('<3I',12,1,sequence)
+                            if operation=='effects':
+                                payload=bytearray(effects_config)
+                                struct.pack_into('<I',payload,8,request['enabled']);payload=bytes(payload)
+                            receipt = load_hook.invoke(game, hook, operation, payload)
                             (output / f'command-{sequence}.private.json').write_text(
                                 json.dumps(receipt, indent=2), encoding='utf-8')
                     except (ValueError, RuntimeError, OSError) as error:
@@ -325,12 +372,16 @@ def main():
     parser.add_argument('--material-capture', type=Path)
     parser.add_argument('--material-capture-sha256')
     parser.add_argument('--high-quality', action='store_true', help='Matched high native quality with DOF off in private options only')
+    parser.add_argument('--material-effects',nargs='+',choices=('improved_water','improved_terrain','improved_vegetation'),default=[])
+    parser.add_argument('--effects-initially-off',action='store_true')
+    parser.add_argument('--detailed-shadows',action='store_true',help='Existing guarded adapter 4096 shadow baseline; no new filter activation')
     args = parser.parse_args()
     run(args.bundle, args.output, width=args.width, height=args.height, seconds=args.seconds,
         hook=args.hook, output_width=args.output_width, output_height=args.output_height,
         observer_catalog=args.observer_catalog, observer_sha256=args.observer_sha256,
         material_capture=args.material_capture, material_capture_sha256=args.material_capture_sha256,
-        high_quality=args.high_quality)
+        high_quality=args.high_quality,material_effects=args.material_effects,effects_initially_off=args.effects_initially_off,
+        detailed_shadows=args.detailed_shadows)
 
 
 if __name__ == '__main__':

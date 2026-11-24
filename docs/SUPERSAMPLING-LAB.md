@@ -106,12 +106,61 @@ on the two additional editions.
 
 ## Combined native diagnostic interface
 
+### Actual 4K and lifecycle checkpoint
+
+Original Ubisoft History loaded its owned Waldreich save at 3840 x 2160 with a
+1920 x 1080 physical output. Same-frame source/output captures confirm full
+scene target, viewport and filtered presentation. Original material bindings
+were changed and restored on real draws, with no shader/set/restore failure.
+This establishes execution, not the desired visible material improvement.
+
+The first combined material run exited with access violation 0xc0000005 after
+the original desktop confirmation. Its fault module/stack is unavailable; it
+must not count as a clean-exit pass. A subsequent candidate cleans up before
+the guarded original engine D3D deinitializers and retains the device through
+the original window callback in the fallback path. The first actual retest was
+interrupted before Exit by two bounded address-scan timeouts; the existing
+memory guard stopped that test, and its limits/retry policy remain unchanged.
+
+The next actual retest loaded the previously created private save, rendered the
+world with materials enabled, disabled the effects, saved to another free slot
+and exited through the original UI with code zero. Both guarded original engine
+deinitialization calls returned; one early cleanup completed with no rejected
+call or window-destroy fallback. The monitor stayed functional, recorded no
+pressure and peaked at 1,910 MiB private memory. Shared profiles, binaries and
+private-configuration restoration checks passed. A rotating owned private
+autosave advanced and its before-image was retained; the strict whole-case
+qualifier continues to expose this rather than silently declaring preservation.
+This is one Ubisoft lifecycle retest, not an AV root-cause proof or Gold/Steam
+qualification of this new candidate.
+
+The cache correction also has real draw evidence: 89 further active frames
+restored 13,973 material draws without another shader-object creation. Three
+generated programs remained retained and zero remained after disable/cleanup.
+These are D3D9 object counters, not driver compilation events or a pacing gain.
+
+Separate 30-second PresentMon measurements of the earlier material candidate
+recorded CPU frame intervals with no collector loss or capture/epoch changes:
+effects off mean 16.654 ms / p95 18.941 ms / maximum 25.605 ms; effects on mean
+16.674 ms / p95 19.252 ms / maximum 69.706 ms (one interval above 50 ms). Both
+were capped at 60 Hz on this machine. They are not displayed-FPS measurements,
+matched-demanding-settlement benchmarks or evidence for the later cache change.
+
+Original P pause can reuse a cached world backbuffer. A diagnostic capture after
+an effect toggle therefore waits for fresh successful geometry in that epoch;
+it must not label the old displayed image with the new setting. In one observed
+case the capture completed only on the first resumed world frame. Original
+water render-time inputs can change independently, so unchanged camera/light
+uniforms alone do not isolate water appearance. Further controlled comparisons
+and visible improvement remain required.
+
 The initializer retains its 1,048-byte version-1 ABI. Version 2 has a 3,132-byte
 configuration: the original prefix, flags, a scalar shader-catalog path and
-SHA256, and a separate private observer-report path. The current compiled flag
-mask accepts read-only observation (`1`) only; Water (`2`), Terrain (`4`),
-Vegetation (`8`) and Stable shadows (`16`) are declared but rejected until their
-implementations and qualification are available. At render scale 100%, the
+SHA256, and a separate private observer-report path. Native20 accepts read-only
+observation (`1`) only. The later `effects-v1` candidate implements Water (`2`),
+Terrain (`4`) and Vegetation (`8`) behind an explicit configuration handshake;
+Stable shadows (`16`) remains rejected. Compiled implementation is separate from
+per-edition runtime qualification. At render scale 100%, the
 observer uses the original Present without an extra swapchain or logical resize.
 
 `WePlayNativeGraphicsConfigureObservation` accepts the bounded 952-byte exact-

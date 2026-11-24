@@ -128,6 +128,14 @@ fallback behavior, and pacing/memory observations at the intended resolution.
 Capture readback stalls are excluded from pacing. Before/after appearance is a
 separate observed comparison, not a conclusion from a shader compiling.
 
+For world-pose matching, `scene_uniforms` is available only from an eligible
+successful original River draw in the exact captured GPU frame. It contains raw
+VS c12–15 MainVP, VS c16.xyz eye, PS c5.xyz sun direction and PS c7.rgb specular
+color with original shader/catalog hashes and actual render context. Missing or
+stale River data remains `null`; the generic Vision main-context camera may be a
+dummy and must not substitute for it. These uniforms do not establish physical
+sun elevation, exposure or simulation time.
+
 The next GPU fixture must create genuine vertex and pixel shaders, apply at least
 one intended transaction, compare actual GPU state before/after both successful
 and failed draws, and exercise restoration retry/failure handling. Fixture-only

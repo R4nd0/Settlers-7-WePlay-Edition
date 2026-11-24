@@ -132,6 +132,28 @@ std::string FloatArray(const float* values,size_t count,bool available) {
     for(size_t i=0;i<count;++i){if(i)text+=",";text+=Number(values[i]);}
     return text+"]";
 }
+std::string Hex(const std::array<unsigned char,32>& data) {
+    constexpr char hex[]="0123456789abcdef";std::string text;
+    for(auto value:data){text+=hex[value>>4];text+=hex[value&15];}return text;
+}
+std::string SceneUniforms(const Result& result) {
+    if(!result.scene_uniforms_available)return "null";
+    const auto& s=result.scene_uniforms;
+    return "{\"source\":\"original_river_shader_uniforms\",\"frame\":"+std::to_string(s.frame)
+        +",\"available\":"+std::to_string(s.available)+",\"context_valid\":"+std::to_string(s.context_valid)
+        +",\"successful_draw\":"+std::to_string(s.successful_draw)
+        +",\"vertex_id\":"+std::to_string(s.vertex_id)+",\"pixel_id\":"+std::to_string(s.pixel_id)
+        +",\"vertex_aliases\":"+std::to_string(s.vertex_aliases)+",\"pixel_aliases\":"+std::to_string(s.pixel_aliases)
+        +",\"catalog_sha256\":\""+Hex(s.catalog_sha256)+"\",\"vertex_sha256\":\""+Hex(s.vertex_sha256)
+        +"\",\"pixel_sha256\":\""+Hex(s.pixel_sha256)+"\",\"target\":["+std::to_string(s.target_width)+","+std::to_string(s.target_height)
+        +"],\"viewport\":["+std::to_string(s.viewport_width)+","+std::to_string(s.viewport_height)
+        +"],\"target_format\":"+std::to_string(s.target_format)+",\"alpha_blend\":"+std::to_string(s.alpha_blend)
+        +",\"alpha_test\":"+std::to_string(s.alpha_test)+",\"srgb_write\":"+std::to_string(s.srgb_write)
+        +",\"vs_constants_12_15\":"+FloatArray(s.vs_constants_12_15.data(),16,true)
+        +",\"vs16_eye\":"+FloatArray(s.vs16_eye.data(),3,true)
+        +",\"ps5_sun_direction\":"+FloatArray(s.ps5_sun_direction.data(),3,true)
+        +",\"ps7_sun_specular\":"+FloatArray(s.ps7_sun_specular.data(),3,true)+"}";
+}
 }
 
 bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept {
@@ -155,6 +177,9 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
         if(!Paths(base_report,sequence,prefix) || !TargetAvailable(base_report,sequence))throw std::runtime_error("invalid_capture_target");
         result.receipt_path=prefix+L".json";
         GraphicsObservation::Read(result.observation);
+        result.scene_uniforms_available=MaterialShaderObserver::CopyLatestFrameSnapshot(graphics.present_calls,&result.scene_uniforms)
+            && result.scene_uniforms.available && result.scene_uniforms.context_valid
+            && result.scene_uniforms.frame==graphics.present_calls;
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -207,8 +232,24 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +"],\"high_resolution_draws\":"+std::to_string(result.graphics.high_resolution_draws)
             +",\"indexed_draws\":"+std::to_string(result.graphics.indexed_draws)
             +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
+            +",\"effects_requested\":"+std::to_string(result.graphics.effects_requested)
+            +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
+            +",\"effects_active\":"+std::to_string(result.graphics.effects_active)
+            +",\"effects_revision\":"+std::to_string(result.graphics.effects_revision)
+            +",\"effects_unsafe\":"+std::to_string(result.graphics.effects_unsafe)
+            +",\"effects_drawn_revision\":"+std::to_string(result.graphics.effects_drawn_revision)
+            +",\"effects_drawn_active\":"+std::to_string(result.graphics.effects_drawn_active)
+            +",\"effects_frame_has_geometry\":"+std::to_string(result.graphics.effects_frame_has_geometry)
+            +",\"effects_faulted\":"+std::to_string(result.graphics.effects_faulted)
+            +",\"effects_disabled_reason\":"+std::to_string(result.graphics.effects_disabled_reason)
+            +",\"effects_module_faulted\":"+std::to_string(result.graphics.effects_module_faulted)
+            +",\"effects_module_shader_failures\":"+std::to_string(result.graphics.effects_module_shader_failures)
+            +",\"effects_module_set_failures\":"+std::to_string(result.graphics.effects_module_set_failures)
+            +",\"effects_module_restore_failures\":"+std::to_string(result.graphics.effects_module_restore_failures)
+            +",\"effects_module_exceptions\":"+std::to_string(result.graphics.effects_module_exceptions)
             +",\"observation_available\":"+std::to_string(o.available)+",\"observation_status\":"+std::to_string(o.status)
-            +",\"camera_world\":"+FloatArray(o.camera_world,16,camera)+",\"fov_native\":"+FloatArray(o.fov_native,2,camera)
+            +",\"scene_uniforms\":"+SceneUniforms(result)
+            +",\"camera_world_source\":\"vision_main_context_export\",\"camera_world\":"+FloatArray(o.camera_world,16,camera)+",\"fov_native\":"+FloatArray(o.fov_native,2,camera)
             +",\"clip_native\":"+FloatArray(o.clip_native,2,camera)+",\"context_size\":"
             +(context?("["+std::to_string(o.context_width)+","+std::to_string(o.context_height)+"]"):"null")
             +",\"lod_scale\":"+(lod?Number(o.lod_scale):"null")+",\"sun_azimuth\":"+(sun?Number(o.sun_azimuth):"null")

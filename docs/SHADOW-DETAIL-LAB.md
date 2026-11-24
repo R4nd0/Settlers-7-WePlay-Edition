@@ -155,3 +155,52 @@ from the shared-profile guard.
 Seven synthetic filesystem tests cover copy-time mutation, unreadable paths,
 timestamp/hash/file-set changes and preservation of a newer save. They do not
 qualify actual game-profile isolation.
+
+## Staged guarded filter candidate
+
+`native/shadow_detail_candidate.h` contains a pure, disabled-by-default policy
+for a later per-draw experiment. It matches the exact original ATI High
+MaskShader programs and a real 4096/8192 square shadow texture on sampler 1.
+Only the exact original inverse-size c57.xy input is eligible; the candidate
+widens that sampling footprint by 1.25 while preserving c57.zw bit for bit.
+The existing distant 1/2048 correction is consequently ineligible and remains
+the control. No map allocation, bias, tap count, cascade split, kernel radius or
+rotation frequency changes. The original shader also uses c33.y for rotation-map
+frequency, so changing that parameter would affect more than edge softness.
+
+This is staged policy, with no device calls or runtime enablement. Its sixteen
+CPU checks cover exact program/context/input guards, the two eligible map sizes,
+off behavior and unchanged nonselected bits. It has no actual image or cost
+result. A future integration must snapshot and restore the original constant
+around only the guarded draw, including failed draws, and first establish the
+real sampler/register binding. Softer edges may conceal detail or increase
+bleeding; a matched original/candidate review must determine whether it helps.
+
+`tools/shadow_detail/catalog_probe.py` constructs an expanded private scalar
+catalog from the original archive: the existing nine High water/terrain/tree
+libraries plus ATI/ATIx/NV High shadow libraries. It writes metadata and hashes,
+never original shader bodies. A mixed 952-byte read-only observation config
+captures River camera/raw sunlight and a separate shadow target's PS57.xy,
+PS33.xyzw and sampler-1 dimensions. Exact CTAB names/registers and program
+identities are checked before generation. The wire catalog has only three
+legacy numeric families, so shadow rows use legacy family 2 with explicit
+`observation_group=shadow` metadata; this does not activate a terrain or shadow
+effect. Consumers must identify original programs by hash/size rather than old
+numeric IDs. Three CPU tests validate the ABI and binding refusals.
+
+The subsequent owned Ubisoft History 4K material case recorded the exact
+MaskShader pair in three consecutive frames: sampler 1 was a 2048-square D16
+texture with one mip, PS57.xy was exactly 1/2048, and PS33 was
+`[2.75, 2.75, 0, 0]`. The full 3840×2160 target/viewport and original render-state
+guards passed. This establishes that baseline's original shader/register/sampler
+binding; it does not qualify the staged high-resolution candidate, which correctly
+rejects 2048 maps. No detailed-shadow child flag was requested for that case.
+
+A follow-up baseline can use the existing guarded adapter with only the
+child-local `S7_DETAILED_SHADOWS=1` flag, retaining the current detail/range,
+material settings and fixed supersampling. The laboratory runner must record
+this explicit choice after clearing inherited S7 flags; no adapter replacement
+or production-pin change is required. Its actual sampler must then be observed
+as 4096-square before testing the candidate. The observer currently samples the
+first matching draw per frame; one reciprocal value does not establish every
+cascade's input. The existing distant correction remains part of this baseline.

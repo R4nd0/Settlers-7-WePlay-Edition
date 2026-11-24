@@ -96,6 +96,10 @@ class NativeRuntimeTests(unittest.TestCase):
         self.assertEqual(struct.unpack_from('<6I',data),(3132,2,1920,1080,1280,720))
         self.assertEqual(data[1048:],bytes(2084))
         self.assertEqual(loader.validate_command('initialize',data),b'WePlaySupersamplingInitialize\0')
+        material=runtime.configuration(dimensions,self.root/'material.private.json',material_flags=7)
+        self.assertEqual(struct.unpack_from('<I',material,1048)[0],14)
+        for flags in (True,-1,8):
+            with self.assertRaises(ValueError):runtime.configuration(dimensions,self.root/'report.json',material_flags=flags)
 
     def test_fixed_worker_and_export_allowlist(self):
         code=loader.worker(0x20000000,0x21000000,0x401000,0x401004,8,200,256,1024)

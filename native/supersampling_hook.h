@@ -24,16 +24,31 @@ struct SupersamplingStats {
     DWORD logical_api_slots, logical_context_rejections;
     DWORD edition, cached_release_calls, output_cache_drops, window_shutdowns, terminal_cleanup;
     DWORD capture_requests, capture_completed, capture_failures, capture_frame;
+    DWORD effects_requested, effects_configured, effects_active, effects_pending, effects_revision;
+    DWORD effects_config_errors, effects_unsafe, effects_blocked_draws;
+    DWORD effects_drawn_revision, effects_drawn_active, effects_frame_has_geometry;
+    DWORD effects_module_faulted, effects_module_shader_failures, effects_module_set_failures;
+    DWORD effects_module_restore_failures, effects_module_exceptions;
+    DWORD effects_faulted, effects_disabled_reason, effects_fallback_draws;
+    DWORD engine_deinit_calls, engine_deinit_rejected, engine_deinit_cleanup, engine_deinit_returned, shutdown_stage;
 };
 
 extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* config);
 extern "C" DWORD WINAPI WePlaySupersamplingReadStats(void* output);
 extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* request);
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* config);
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* config);
 #ifdef S7_SUPERSAMPLING_FIXTURE
 extern "C" DWORD WINAPI WePlaySupersamplingAttach(IDirect3DDevice9* device);
 extern "C" DWORD WINAPI WePlaySupersamplingDetach(IDirect3DDevice9* device);
 extern "C" BOOL WINAPI WePlaySupersamplingFixtureRect(HWND window,RECT* rectangle,const void* caller);
 extern "C" BOOL WINAPI WePlaySupersamplingFixturePoint(HWND window,POINT* point,const void* caller,BOOL to_screen);
 extern "C" DWORD WINAPI WePlaySupersamplingFixtureFailPresent();
+#endif
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+extern "C" DWORD WINAPI WePlaySupersamplingFixtureFailDraw();
+extern "C" DWORD WINAPI WePlaySupersamplingFixtureModuleFault();
+#endif
+#ifdef S7_SUPERSAMPLING_FIXTURE
+extern "C" DWORD WINAPI WePlaySupersamplingFixturePrepareDeinit(const void* caller,DWORD thread);
 #endif

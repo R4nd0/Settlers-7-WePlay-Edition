@@ -25,9 +25,13 @@ HRESULT resize_reset_result=E_FAIL;
 POINT observed_mouse{};
 POINT observed_size{};
 LPARAM observed_minimize=-1;
+bool inspect_destroy_device=false,original_destroy_device_usable=false;
 constexpr UINT FixtureMessage=WM_APP+73;
 
 LRESULT CALLBACK FixtureProcedure(HWND window,UINT message,WPARAM wparam,LPARAM lparam) {
+    if(message==WM_DESTROY && inspect_destroy_device && fixture_device) {
+        D3DCAPS9 caps{};original_destroy_device_usable=SUCCEEDED(fixture_device->GetDeviceCaps(&caps));
+    }
     if(message==WM_SIZE && fixture_device) {
         if(wparam==SIZE_MINIMIZED){observed_minimize=lparam;return 0;}
         observed_size={LOWORD(lparam),HIWORD(lparam)};
@@ -189,8 +193,11 @@ double Verify(IDirect3DDevice9* device,HWND window,UINT width,UINT height,UINT h
 
 int wmain(int argc,wchar_t** argv) {
     try {
-        Require(argc==3 || argc==5,"usage_hook_fixture_absolute_dxvk_path_new_output_directory_optional_catalog_and_sha256");
-        const bool observe=argc==5;
+        Require(argc>=3 && argc<=6,"usage_hook_fixture_dxvk_output_optional_catalog_sha_and_shutdown_mode");
+        const bool observe=argc==5 || argc==6;
+        const wchar_t* shutdown=(argc==4?argv[3]:(argc==6?argv[5]:L"--held-parent"));
+        const bool last_parent=!std::wcscmp(shutdown,L"--last-parent"),engine_boundary=!std::wcscmp(shutdown,L"--engine-deinit");
+        Require(last_parent || engine_boundary || !std::wcscmp(shutdown,L"--held-parent"),"fixture_unknown_shutdown_mode");
         const auto output=std::filesystem::absolute(argv[2]);
         Require(!std::filesystem::exists(output) && std::filesystem::create_directory(output),"use_new_fixture_output_directory");
         SetProcessDPIAware();Runtime runtime(std::filesystem::absolute(argv[1]));
@@ -287,13 +294,25 @@ int wmain(int argc,wchar_t** argv) {
         parameters=Parameters(window.get(),1280,720);
         Check(device->Reset(&parameters),"fixture_recovery_reset_failed");
         const double recovered=Verify(device.get(),window.get(),640,360,1280,720,output,"hook-recovered");
+        const void* valid_caller=reinterpret_cast<const void*>(FixtureProcedure);
+        const void* foreign_caller=reinterpret_cast<const void*>(GetProcAddress(GetModuleHandleW(L"d3d9.dll"),"Direct3DCreate9"));
+        Require(WePlaySupersamplingFixturePrepareDeinit(valid_caller,GetCurrentThreadId()+1)==0
+            && WePlaySupersamplingFixturePrepareDeinit(foreign_caller,GetCurrentThreadId())==0,
+            "fixture_invalid_engine_deinit_context_accepted");
+        if(engine_boundary)Require(WePlaySupersamplingFixturePrepareDeinit(valid_caller,GetCurrentThreadId())==1,
+            "fixture_guarded_engine_deinit_cleanup_failed");
+        inspect_destroy_device=true;
+        if(last_parent)device.reset(); // The cached swapchain is now the last public device owner.
         Require(DestroyWindow(window.get())!=FALSE,"fixture_owned_window_destroy_failed");
         SupersamplingStats destroyed{};
-        Require(WePlaySupersamplingReadStats(&destroyed)==1 && destroyed.window_shutdowns==1
-            && destroyed.terminal_cleanup==1 && destroyed.detached==1,"fixture_window_shutdown_did_not_clear_cache");
-        D3DCAPS9 remaining_caps{};
-        Check(device->GetDeviceCaps(&remaining_caps),"fixture_held_device_invalid_after_cache_shutdown");
-        Require(WePlaySupersamplingDetach(device.get())==1,"fixture_idempotent_detach_failed");
+        Require(WePlaySupersamplingReadStats(&destroyed)==1 && destroyed.window_shutdowns==(engine_boundary?0u:1u)
+            && destroyed.terminal_cleanup==1 && destroyed.detached==1 && original_destroy_device_usable,
+            "fixture_original_window_handler_lost_live_device");
+        if(!last_parent) {
+            D3DCAPS9 remaining_caps{};
+            Check(device->GetDeviceCaps(&remaining_caps),"fixture_held_device_invalid_after_cache_shutdown");
+            Require(WePlaySupersamplingDetach(device.get())==1,"fixture_idempotent_detach_failed");
+        }
         fixture_device=nullptr;
         device.reset();
         SupersamplingStats stats{};
@@ -310,11 +329,13 @@ int wmain(int argc,wchar_t** argv) {
             "\"cache_reuse_passed\":true,\"window_shutdown_cleanup_passed\":true,\"swapchain_creations\":%lu,\"cached_release_calls\":%lu,"
             "\"same_frame_surface_capture_passed\":true,"
             "\"failed_filtered_capture_recorded\":true,\"observer_v2_enabled\":%s,"
+            "\"original_destroy_device_usable\":true,\"shutdown_mode\":\"%s\",\"engine_deinit_rejections\":%lu,"
             "\"extended_interface_tested\":%s,\"authored_marker_gpu_magenta\":%s,\"device_loss_tested\":false}\n",first,after_reset,recovered,retained,
             stats.source_width,stats.source_height,stats.output_width,stats.output_height,stats.output_present_calls,
             stats.reset_successes,stats.fallback_calls,stats.high_resolution_draws,stats.detached,stats.resize_applied,
             stats.swapchain_creations,stats.cached_release_calls,
             observe?"true":"false",
+            last_parent?"last_parent":(engine_boundary?"engine_deinit":"held_parent"),destroyed.engine_deinit_rejected,
             extended_tested?"true":"false",marker?"true":"false");
         return 0;
     } catch(const std::exception& error){std::fprintf(stderr,"hook_fixture: %s\n",error.what());return 1;}

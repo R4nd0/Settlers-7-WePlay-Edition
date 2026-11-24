@@ -28,6 +28,7 @@ ARTIFACTS = {
     'hook': 'hook-state.private.json', 'hook_init': 'hook-initialized.private.json',
     'recovery': 'recovery-journal.private.json', 'profile_before': 'portable-before/snapshot.private.json',
     'hook_build': 'supersampling-hook-build.json',
+    'save_role_proof': 'private-save-role-proof.private.json',
 }
 MAX_JSON = 1024 * 1024
 MAX_IMAGE = 128 * 1024 * 1024
@@ -37,6 +38,56 @@ HOOK_SOURCES = {
     'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp', 'material_shader_observer.h',
     'material_shader_observer.cpp', 'graphics_observation.h', 'graphics_observation.cpp',
     'atmosphere_clock.h', 'atmosphere_fp.h',
+}
+EFFECTS_HOOK_SOURCES = HOOK_SOURCES | {
+    'supersampling_hook_effects_contract.h', 'supersampling_hook_effects_draw.h',
+    'supersampling_hook_effects_gpu.cpp', 'material_shader_effects.h', 'material_shader_effects.cpp',
+}
+HOOK_BINARIES = {'supersampling_hook_fixture.exe', 'WePlaySupersamplingLab.dll'}
+EFFECTS_HOOK_BINARIES = HOOK_BINARIES | {'supersampling_effects_gpu.exe'}
+EFFECTS_BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132,
+                     'observation': 952, 'effects': 4132, 'capture': 12}
+
+
+def _build_contract(build):
+    """Select a frozen source schema without comparing historical files to HEAD."""
+    if build.get('format') == 's7-supersampling-hook-build-v1':
+        return HOOK_SOURCES, HOOK_BINARIES, True
+    if build.get('format') == 's7-native-graphics-build-v2':
+        valid = (build.get('source_set') == 'effects-v1'
+                 and type(build.get('compiled_capabilities')) is int
+                 and build['compiled_capabilities'] == 15
+                 and build.get('abi') == EFFECTS_BUILD_ABI)
+        return EFFECTS_HOOK_SOURCES, EFFECTS_HOOK_BINARIES, valid
+    return set(), set(), False
+
+
+GOLD_SAVE_ROLE_PROOF = {
+    'format': 's7-gold-private-save-role-proof-v1', 'edition': 'gold',
+    'executable_sha256': '76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab',
+    'get_slot_range': {'callback_rva': 0x1a9ff0, 'callback_bytes': 62,
+        'callback_sha256': 'cc0c66f1d4439c92b91f1d67fa19147cfe3dc130fc98413ae777d33a071eddd3',
+        'first': 30, 'count': 50},
+    'source_member': {'name': 'Script/local/file/saveGames.lua',
+        'sha256': 'b24466aaa705baabacfbc8f8d57b007809ab8542e365238ea64ac96dd90a35b3'},
+    'quick_slot_index': 1, 'auto_slot_index': 2,
+    'rotating_autosave_relative': 'Profiles/Savegames/s31.s7s',
+    'restoration_performed': False,
+}
+UBI_SAVE_ROLE_PROOF = {
+    'format': 's7-history-private-save-role-proof-v1', 'edition': 'ubisoft-history',
+    'executable_sha256': EDITIONS['ubisoft-history'],
+    'registration': {'name': 'GetSaveGameSlotRangeSP', 'name_rva': 0xd344d0,
+        'initializer_rva': 0x8bb0f, 'initializer_bytes': 20,
+        'initializer_sha256': 'c1e65bdd8c3a9c28e0255cc9dd020c6d25fb910ec6bd62c20a1890453ecf3b36',
+        'name_slot_rva': 0xf7ca2c, 'callback_rva': 0x13df90},
+    'get_slot_range': {'callback_rva': 0x13df90, 'callback_bytes': 66,
+        'callback_sha256': 'f202ca35c9cc6b96fd53127f9767bedeeaa1acf6aa583381dbed3c4a3638b7f7',
+        'first_rva': 0xd5e538, 'count_rva': 0xd5e5e0, 'first': 30, 'count': 50},
+    'source_member': GOLD_SAVE_ROLE_PROOF['source_member'].copy(),
+    'quick_slot_index': 1, 'auto_slot_index': 2,
+    'rotating_autosave_relative': 'THE SETTLERS 7 - History Edition/Savegames/s31.s7s',
+    'restoration_performed': False,
 }
 
 
@@ -99,6 +150,69 @@ def _positive(value):
     return type(value) is int and value > 0
 
 
+RIVER_VERTEX_SHA256 = 'f190d66ee1ae43637341a76e5b644cc63bf3c2a5b5c94ea9286764e13f1c16c0'
+RIVER_PIXEL_SHA256 = 'dd65ba0b9d79c7c4d9ad9904404388230556b194eedb8cbdfbd4fa99f44eee5b'
+
+
+def _scene_uniforms(frame, requested, expected_catalog):
+    """Validate raw draw/capture correlation, without inferring camera or exposure."""
+    value = frame.get('scene_uniforms')
+    if not isinstance(value, dict):
+        return None
+    if (value.get('source') != 'original_river_shader_uniforms'
+            or type(value.get('available')) is not int or value['available'] != 1
+            or type(value.get('context_valid')) is not int or value['context_valid'] != 7
+            or not _positive(frame.get('frame')) or value.get('frame') != frame['frame']
+            or not _positive(value.get('successful_draw'))
+            or any(not _positive(value.get(key)) for key in ('vertex_id', 'pixel_id', 'vertex_aliases', 'pixel_aliases'))
+            or value.get('vertex_sha256') != RIVER_VERTEX_SHA256
+            or value.get('pixel_sha256') != RIVER_PIXEL_SHA256
+            or not re.fullmatch('[0-9a-f]{64}', str(expected_catalog))
+            or value.get('catalog_sha256') != expected_catalog
+            or value.get('target') != requested or value.get('viewport') != requested
+            or value.get('target_format') != 21
+            or any(type(value.get(key)) is not int or value[key] != 0
+                   for key in ('alpha_blend', 'alpha_test', 'srgb_write'))):
+        return None
+    for key, count in (('vs_constants_12_15', 16), ('vs16_eye', 3),
+                       ('ps5_sun_direction', 3), ('ps7_sun_specular', 3)):
+        values = value.get(key)
+        if not isinstance(values, list) or len(values) != count or not all(_number(v) for v in values):
+            return None
+    return value
+
+
+EFFECT_EPOCH_FIELDS = ('effects_requested', 'effects_configured', 'effects_active', 'effects_revision',
+    'effects_unsafe', 'effects_drawn_revision', 'effects_drawn_active', 'effects_frame_has_geometry',
+    'effects_faulted', 'effects_disabled_reason', 'effects_module_faulted',
+    'effects_module_shader_failures', 'effects_module_set_failures',
+    'effects_module_restore_failures', 'effects_module_exceptions')
+
+
+def _effect_epoch(frame):
+    """Record configuration of actual geometry; this does not prove any material changed."""
+    if not any(key in frame for key in EFFECT_EPOCH_FIELDS):
+        return None
+    if any(type(frame.get(key)) is not int or not 0 <= frame[key] <= 0xffffffff
+           for key in EFFECT_EPOCH_FIELDS):
+        raise ValueError('Incomplete or invalid per-frame effect epoch.')
+    result = {key: frame[key] for key in EFFECT_EPOCH_FIELDS}
+    requested, active = result['effects_requested'], result['effects_active']
+    if (requested & ~7 or active & ~requested or result['effects_drawn_active'] & ~requested
+            or any(result[key] not in (0, 1) for key in ('effects_configured', 'effects_unsafe',
+                'effects_frame_has_geometry', 'effects_faulted', 'effects_module_faulted'))):
+        raise ValueError('Invalid material effect flags.')
+    healthy = not any(result[key] for key in ('effects_unsafe', 'effects_faulted',
+        'effects_disabled_reason', 'effects_module_faulted', 'effects_module_shader_failures',
+        'effects_module_set_failures', 'effects_module_restore_failures', 'effects_module_exceptions'))
+    result['drawn_configuration_consistent'] = bool(healthy and result['effects_frame_has_geometry'] == 1
+        and result['effects_drawn_revision'] == result['effects_revision']
+        and result['effects_drawn_active'] == active
+        and (not requested or result['effects_configured'] == 1))
+    result['individual_material_changes_proven'] = False
+    return result
+
+
 def _camera(value):
     if isinstance(value, dict) and set(value) == {'world_matrix', 'fov_native', 'clip_native'}:
         matrix, fov, clip = (value[k] for k in ('world_matrix', 'fov_native', 'clip_native'))
@@ -149,6 +263,103 @@ def _image_size(raw):
     if not _size(size):
         raise ValueError('Capture dimensions exceed the analysis bound.')
     return size
+
+
+def _pe_slice(raw, rva, size):
+    pe = struct.unpack_from('<I', raw, 0x3c)[0]
+    if raw[:2] != b'MZ' or not 64 <= pe < 4096 or raw[pe:pe+6] != b'PE\0\0\x4c\x01':
+        raise ValueError('Invalid original Gold image.')
+    count, optional = struct.unpack_from('<H', raw, pe+6)[0], struct.unpack_from('<H', raw, pe+20)[0]
+    if not 1 <= count <= 32 or optional < 224:
+        raise ValueError('Invalid original Gold section table.')
+    for i in range(count):
+        start = pe + 24 + optional + i*40
+        _, virtual, length, offset = struct.unpack_from('<4I', raw, start+8)
+        if virtual <= rva and rva + size <= virtual + length:
+            data = raw[offset+rva-virtual:offset+rva-virtual+size]
+            if len(data) == size:
+                return data
+    raise ValueError('Original save-role callback is outside file-backed sections.')
+
+
+def gold_save_role_proof(root):
+    """Verify the narrow original Gold slot policy; read no save-body contents."""
+    root = _plain(root)
+    exe = _read(root / 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe', 64*1024*1024)
+    if hashlib.sha256(exe).hexdigest() != GOLD_SAVE_ROLE_PROOF['executable_sha256']:
+        raise ValueError('Gold save-role proof requires the exact original executable.')
+    source = GOLD_SAVE_ROLE_PROOF['get_slot_range']
+    if hashlib.sha256(_pe_slice(exe, source['callback_rva'], source['callback_bytes'])).hexdigest() != source['callback_sha256']:
+        raise ValueError('Original Gold save-range callback changed.')
+    # The callback's demonstrated doubles are first=30/count=50; the exact
+    # original Lua member identifies index1 quick/index2 auto and computes
+    # slot=first+index-1. No source body is exported or stored in this report.
+    import mmap
+    from tools.material_shaders.inventory import bba, read_payload
+    with _plain(root / 'Data/Base/BBA/Interface.bba').open('rb') as stream:
+        with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as raw:
+            archive = bba.Archive(raw, copy=False)
+            member = read_payload(archive, GOLD_SAVE_ROLE_PROOF['source_member']['name'])
+    if hashlib.sha256(member).hexdigest() != GOLD_SAVE_ROLE_PROOF['source_member']['sha256']:
+        raise ValueError('Original Gold save-slot policy member changed.')
+    return json.loads(json.dumps(GOLD_SAVE_ROLE_PROOF))
+
+
+def ubisoft_save_role_proof(root):
+    """Verify original History registration/callback/constants and original Lua."""
+    root = _plain(root)
+    exe = _read(root / 'Base/Bin/Settlers7R.exe', 64*1024*1024)
+    proof = UBI_SAVE_ROLE_PROOF
+    if hashlib.sha256(exe).hexdigest() != proof['executable_sha256']:
+        raise ValueError('Ubisoft save-role proof requires the exact original executable.')
+    registration, callback = proof['registration'], proof['get_slot_range']
+    for item, prefix in ((registration, 'initializer'), (callback, 'callback')):
+        if hashlib.sha256(_pe_slice(exe, item[prefix+'_rva'], item[prefix+'_bytes'])).hexdigest() != item[prefix+'_sha256']:
+            raise ValueError('Original History save-range registration or callback changed.')
+    if (_pe_slice(exe, registration['name_rva'], 23) != b'GetSaveGameSlotRangeSP\0'
+            or struct.unpack('<d', _pe_slice(exe, callback['first_rva'], 8))[0] != 30
+            or struct.unpack('<d', _pe_slice(exe, callback['count_rva'], 8))[0] != 50):
+        raise ValueError('Original History save-range values changed.')
+    import mmap
+    from tools.material_shaders.inventory import bba, read_payload
+    with _plain(root / 'Base/BBA/Interface.bba').open('rb') as stream:
+        with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as raw:
+            member = read_payload(bba.Archive(raw, copy=False), proof['source_member']['name'])
+    if hashlib.sha256(member).hexdigest() != proof['source_member']['sha256']:
+        raise ValueError('Original History save-slot policy member changed.')
+    return json.loads(json.dumps(proof))
+
+
+def _save_classification(root, backup_root, before, allow_gold_rotating=False, rotating_relative=None):
+    changes, rotating = [], []
+    saves = {name: item for name, item in before.items() if Path(name).suffix.casefold() in ('.s7s', '.s7local')}
+    for relative, item in saves.items():
+        try:
+            profile_root = _plain(root / 'LocalData/ProfileRoot')
+            path = _plain(profile_root / relative)
+            if not path.is_relative_to(profile_root):
+                raise ValueError('Private save checkpoint escaped its owned profile.')
+            raw = _read(path, MAX_IMAGE)
+            if hashlib.sha256(raw).hexdigest() == item['sha256']:
+                continue
+        except (KeyError, OSError, ValueError):
+            changes.append(relative)
+            continue
+        if allow_gold_rotating and relative == (rotating_relative or GOLD_SAVE_ROLE_PROOF['rotating_autosave_relative']):
+            try:
+                backup = _read(backup_root / relative, MAX_IMAGE)
+                if (hashlib.sha256(backup).hexdigest() == item['sha256']
+                        and ('size' not in item or item['size'] == len(backup))):
+                    rotating.append({'relative': relative, 'before_image_identity_verified': True,
+                                     'original_code_role_verified': True, 'restored': False})
+                    continue
+            except (OSError, ValueError):
+                pass
+        changes.append(relative)
+    return {'all_original_private_saves_unchanged': not changes and not rotating,
+            'manual_original_private_saves_unchanged': not changes,
+            'private_rotating_autosave_changes': rotating,
+            'unapproved_original_private_save_changes': changes}, bool(saves)
 
 
 def record_case(directory, *, case_id, edition, role='candidate', kind='actual-game',
@@ -248,6 +459,7 @@ def _case(value, base):
                 except (OSError, ValueError):
                     rejected.append('missing/unsafe frozen source')
     journal = data.get('recovery', {})
+    save_preservation = None
     if journal:
         check(journal.get('format') == 's7-graphics-lab-recovery-v1' and journal.get('state') == 'restored', 'recovery journal incomplete')
         check(journal.get('critical') == binaries, 'recovery/binary checkpoint mismatch')
@@ -269,16 +481,24 @@ def _case(value, base):
         if not isinstance(before, dict):
             rejected.append('invalid original profile snapshot')
         else:
-            saves = {name: item for name, item in before.items() if Path(name).suffix.casefold() in ('.s7s', '.s7local')}
-            if not saves:
-                missing.append('original private save checkpoint')
-            for relative, item in saves.items():
+            allow_rotating = False
+            rotating_relative = None
+            if 'save_role_proof' in data:
                 try:
-                    path = _plain(Path(journal['root']) / 'LocalData/ProfileRoot' / relative)
-                    raw = _read(path, MAX_IMAGE)
-                    check(hashlib.sha256(raw).hexdigest() == item['sha256'], 'original private save changed')
-                except (KeyError, OSError, ValueError):
-                    rejected.append('original private save unavailable')
+                    builder = {'gold': gold_save_role_proof, 'ubisoft-history': ubisoft_save_role_proof}.get(value['edition'])
+                    if builder is None:
+                        raise ValueError('No independently verified slot-role policy for this edition.')
+                    expected = builder(Path(journal['root']))
+                    allow_rotating = json.dumps(data['save_role_proof'], sort_keys=True) == json.dumps(expected, sort_keys=True)
+                    rotating_relative = expected['rotating_autosave_relative']
+                    check(allow_rotating, 'private autosave role proof changed')
+                except (OSError, ValueError):
+                    rejected.append('private autosave role proof unavailable')
+            profile_path, _ = _bound(value['artifacts']['profile_before'], base, MAX_JSON)
+            save_preservation, has_saves = _save_classification(Path(journal['root']), profile_path.parent / 'portable', before, allow_rotating, rotating_relative)
+            if not has_saves:
+                missing.append('original private save checkpoint')
+            check(not save_preservation['unapproved_original_private_save_changes'], 'original private save changed')
     requested = checkpoint.get('requested_render_size')
     hook = data.get('hook', {})
     if value['role'] == 'candidate':
@@ -295,7 +515,20 @@ def _case(value, base):
             if _size(output) and _size(requested):
                 check(output[0] < requested[0] and output[1] < requested[1]
                       and output[0] * requested[1] == output[1] * requested[0], 'not same-aspect native downsampling')
-            for key in ('attached', 'present_calls', 'output_present_calls', 'high_resolution_draws', 'indexed_draws'):
+            attached_or_clean_detach = (_positive(hook.get('attached'))
+                or (hook.get('attached') == 0 and hook.get('hook_detached') == 1
+                    and hook.get('terminal_cleanup') == 1
+                    and (_positive(hook.get('window_shutdowns'))
+                         or (data.get('hook_build', {}).get('format') == 's7-native-graphics-build-v2'
+                             and _build_contract(data['hook_build'])[2]
+                             and _positive(hook.get('engine_deinit_calls'))
+                             and hook.get('engine_deinit_returned') == hook['engine_deinit_calls']
+                             and hook.get('engine_deinit_rejected') == 0
+                             and hook.get('engine_deinit_cleanup') == 1
+                             and hook.get('shutdown_stage') == 3))
+                    and result.get('exit_code') == 0 and result.get('owned_timeout_or_stop') is False))
+            check(attached_or_clean_detach, 'no active attachment or verified graceful terminal detach')
+            for key in ('present_calls', 'output_present_calls', 'high_resolution_draws', 'indexed_draws'):
                 check(_positive(hook.get(key)), f'no native {key}')
             if type(hook.get('output_present_calls')) is int and type(hook.get('present_calls')) is int:
                 check(hook['output_present_calls'] <= hook['present_calls'], 'invalid presentation counters')
@@ -310,21 +543,23 @@ def _case(value, base):
         build = data.get('hook_build', {})
         if build:
             build_files = build.get('files', {})
-            check(build.get('format') == 's7-supersampling-hook-build-v1' and isinstance(build_files, dict)
+            build_sources, build_binaries, build_schema = _build_contract(build)
+            check(build_schema and isinstance(build_files, dict)
                   and build_files.get('WePlaySupersamplingLab.dll') == initialized.get('dll_sha256')
                   and bool(re.fullmatch('[0-9a-f]{64}', str(build.get('build_sha256')))),
                   'hook initialization/build manifest mismatch')
-            check(isinstance(build_files, dict) and HOOK_SOURCES | {'supersampling_hook_fixture.exe', 'WePlaySupersamplingLab.dll'} <= build_files.keys(),
+            check(isinstance(build_files, dict) and build_schema
+                  and build_sources | build_binaries == build_files.keys(),
                 'incomplete native hook build source identities')
             check(isinstance(build_files, dict) and all(isinstance(pin, str) and re.fullmatch('[0-9a-f]{64}', pin)
                   for pin in build_files.values()), 'invalid native hook build source identity')
             if isinstance(build_files, dict):
                 build_path, _ = _bound(value['artifacts']['hook_build'], base, MAX_JSON)
-                for name in HOOK_SOURCES | {'WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe'}:
+                for name in build_sources | build_binaries:
                     if name not in build_files:
                         continue
                     try:
-                        raw = _read(build_path.parent / name, MAX_JSON if name in HOOK_SOURCES else MAX_IMAGE)
+                        raw = _read(build_path.parent / name, MAX_JSON if name in build_sources else MAX_IMAGE)
                         check(hashlib.sha256(raw).hexdigest() == build_files[name], 'compiled hook source/binary snapshot changed')
                     except (OSError, ValueError):
                         rejected.append('compiled hook source/binary snapshot unavailable')
@@ -389,11 +624,23 @@ def _case(value, base):
                                     'clip_native': frame.get('clip_native')}
                 if _camera(candidate_camera):
                     camera = candidate_camera
+            uniforms = _scene_uniforms(frame, requested,
+                data.get('hook_init', {}).get('observer_catalog_sha256'))
+            effects_build = (data.get('hook_build', {}).get('format') == 's7-native-graphics-build-v2'
+                             and _build_contract(data['hook_build'])[2])
+            if frame.get('scene_uniforms') is not None and (uniforms is None or not effects_build):
+                rejected.append('invalid or unsupported same-frame original River shader observation')
+                uniforms = None
+            epoch = _effect_epoch(frame)
             native_frames.append({'sequence': sequence, 'frame': number, 'gpu_buffer_pair_bound': bool(buffers),
                 'native_scene_dimensions_recorded': bool(scene),
                 'filtered_present_recorded': bool(filtered), 'original_present_recorded': bool(original),
                 'vision_main_context_camera': camera, 'visible_camera_validated': False,
                 'camera_provenance': 'original Vision main-context exports; visible scene tracking unvalidated',
+                'scene_uniforms': uniforms,
+                'material_effect_epoch': epoch,
+                'same_frame_river_uniforms_recorded': bool(uniforms is not None and buffers and scene),
+                'sun_uniform_provenance': 'raw original River PS5.xyz; no elevation or exposure inference' if uniforms else None,
                 'lod_scale': frame.get('lod_scale') if type(available) is int and available & 4 else None,
                 'sun_azimuth': frame.get('sun_azimuth') if type(available) is int and available & 8 else None,
                 'sun_elevation': frame.get('sun_elevation'), 'exposure': frame.get('exposure'),
@@ -442,6 +689,7 @@ def _case(value, base):
                 'min_largest_mib', 'min_host_physical_free_mib', 'min_host_commit_free_mib', 'peak_scan_ms')},
             'render_size': requested, 'output_size': requested if value['role'] == 'control' else hook.get('output', requested),
             'native_frame_pairs': native_frames,
+            'save_preservation': save_preservation,
             '_observation': observation}
 
 

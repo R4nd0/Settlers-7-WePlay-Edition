@@ -112,7 +112,7 @@ def require(root, selected, *, renderer='dxvk', quality=None, check_quality=Fals
     return capability, dimensions
 
 
-def configuration(dimensions, report):
+def configuration(dimensions, report, *, material_flags=0):
     """Current v2 ABI; production never enables the diagnostic observer."""
     report = loader.plain(report)
     path = str(report).encode('utf-16le')
@@ -120,7 +120,9 @@ def configuration(dimensions, report):
         raise ValueError('native_graphics_path_invalid')
     numbers = [dimensions[key] for key in
                ('render_width', 'render_height', 'output_width', 'output_height')]
-    return struct.pack('<6I', 3132, 2, *numbers) + path.ljust(1024, b'\0') + bytes(2084)
+    if type(material_flags)is not int or material_flags<0 or material_flags&~7:
+        raise ValueError('native_graphics_command_invalid')
+    return struct.pack('<6I', 3132, 2, *numbers) + path.ljust(1024, b'\0') + struct.pack('<I',material_flags<<1) + bytes(2080)
 
 
 def render_arguments(arguments, dimensions):
@@ -153,7 +155,9 @@ def prepare_launch(root, arguments, callback, *, renderer='dxvk'):
     local = loader.plain(Path(root) / 'LocalData')
     local.mkdir(exist_ok=True)
     report = loader.plain(local / 'native-graphics.private.json')
-    initial = configuration(dimensions, report)
+    material_flags=sum(bit for bit,key in ((1,'improved_water'),(2,'improved_terrain'),(4,'improved_vegetation'))
+                       if selected['native_graphics'][key])
+    initial = configuration(dimensions, report,material_flags=material_flags)
     material = None
     if any(selected['native_graphics'][key] for key in
            ('improved_water', 'improved_terrain', 'improved_vegetation')):

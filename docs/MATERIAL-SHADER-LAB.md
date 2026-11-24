@@ -295,6 +295,57 @@ The x86 CPU fixture covers partial setter failures, exception unwinding, failed
 restoration reporting/retry and original-state/reference recovery. This remains
 a candidate until the parent's actual GPU, image and pacing tests pass.
 
+The generated-program cache now survives ordinary EndFrame boundaries, bounded
+to one leaf VS and two terrain PS objects. Original classification references
+still end each frame. Reset before every external device Release, actual Reset,
+disable, reconfiguration and Shutdown releases both caches. Reports distinguish
+current/peak retained programs from the frame's original `cached_refs`. The CPU
+fixture proves eight warm frames perform no additional shader creation, followed
+by complete Reset cleanup and lazy recreation. This addresses the actual game's
+observed three program creations per active frame; it does not establish a
+measured frame-time improvement or resolve the separate game-exit fault.
+
+An actual 4K comparison has matching original River camera/light uniforms for
+off/on/off frames. Water changes also occur between the two controls, so their
+pixel differences are animation noise as well as any material effect. Distant
+ground and foreground leaf regions showed no clear effect. A closer pair had
+different eye/VP values and is rejected as an A/B pair. Original P pause can
+present a cached backbuffer without fresh world geometry; a configuration
+acknowledgement alone therefore cannot prove that pixels show the new effect.
+
+The original terrain programs fade normal detail and parallax displacement
+between eye distances 2000 and 3200. Beyond 3200 the normal is flat and the
+displacement contribution is zero, even when the matching program executes.
+The current normal-strength recipe intentionally preserves that original fade.
+Its contrast parameter affects centered detail diffuse colour; a distant mip
+near the neutral value can likewise produce little change. These are source
+explanations to test, not evidence that the inspected image region uses a
+particular texture mip or terrain height. A useful next terrain experiment must
+measure this near-detail weight and preserve the separate far-layer fade.
+
+`terrain_distance.py` is that experiment's separate offline candidate: its
+bounded default interval is 8000..12800, ending before the far layer starts
+fading. It changes exactly two original local DEF components per matched VS,
+preserving the Bump program's separate 15000..19200 far visibility interval.
+The same source/pair hashes generate identical candidates for ATI/ATIx/NV;
+system disassembly accepts both programs. No new instruction or texture read is
+added. The parallax candidate also extends its original displacement weight,
+so geometry coverage, aliasing, texture mips and pacing still need actual tests.
+The current native configuration supports a leaf VS and terrain PS programs;
+it cannot load these terrain VS candidates. A future explicit configuration
+version and guarded VS/PS transaction are required before runtime use.
+
+`leaf_lobe.py` stages a separate offline candidate. The source-proven angular
+factor is a saturated view/sun dot raised to the fourth power. Replacing its
+unique, exact-original self-product with a saturated MOV changes only
+TEXCOORD7.y to the second-power lobe, without a colour gain, new constant,
+temporary or texture read. The recipient's complete source-resource and original
+VS/PS hashes are mandatory. System disassembly accepts the generated program;
+authored tests verify the other outputs and zero-light response. The production
+stager and native program pins do not accept this candidate, and no actual GPU
+or visual qualification has been claimed. A view whose dot already clamps to
+zero will remain unchanged with either exponent.
+
 ## Verification
 
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_inventory -v` from the
@@ -302,8 +353,8 @@ repository root (17 checks at this milestone).
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_shaderlib -v` for
 eight additional parser, exact-identity and unchanged-program checks.
 Run `rtk proxy python -B -m unittest discover -s tools/material_shaders -p 'test_*.py'`
-for all 53 inventory, format, CTAB, catalog/capture, output-extension and
-recipient-cache checks. `native/material_shader_observer_build.ps1` builds and
+for all 73 inventory, format, CTAB, catalog/capture, output-extension,
+recipient staging, comparison and candidate checks. `native/material_shader_observer_build.ps1` builds and
 runs an x86 synthetic COM fixture without creating a D3D9 device or GPU work;
 it covers reference cleanup, aliases, successful-draw-only observations,
 capture bounds, nonfinite values, sampler/context descriptors, foreign-thread

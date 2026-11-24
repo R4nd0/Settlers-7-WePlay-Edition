@@ -4,6 +4,8 @@
 #include "supersampling_hook_config.h"
 #include "material_shader_observer.h"
 #include "supersampling_hook_capture.h"
+#include "supersampling_hook_effects_contract.h"
+#include "supersampling_hook_effects_draw.h"
 #include "atmosphere_fp.h"
 #include <bcrypt.h>
 #include <array>
@@ -28,7 +30,11 @@ constexpr char VisionHash[]="d950f1bdb11d83a9d4c6c7e1937b7d7ef747dff884e4e6b6e70
 // laboratory machine. It is not an exemption for arbitrary wrappers/modules.
 constexpr char ApphelpHash[]="34655b97cbcaa5b93733da1d9118e0663735c442eb0016671a98389f3cde863e";
 constexpr char GetterName[]="?GetD3DDevice@VVideo@@SAPAUIDirect3DDevice9@@XZ";
+constexpr char DeinitD3DName[]="?DeInitializeD3D@VVideo@@SAXXZ";
+constexpr char DeinitScreenName[]="?DeInitializeScreen@VVideo@@SA_NAAVVVideoConfig@@@Z";
 using Getter=IDirect3DDevice9* (__cdecl*)();
+using DeinitD3D=void (__cdecl*)();
+using DeinitScreen=bool (__cdecl*)(void*);
 using Release=ULONG (STDMETHODCALLTYPE*)(IDirect3DDevice9*);
 using Present=HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*,const RECT*,const RECT*,HWND,const RGNDATA*);
 using Reset=HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRESENT_PARAMETERS*);
@@ -52,16 +58,27 @@ struct State {
 #ifdef S7_SUPERSAMPLING_FIXTURE
     bool fail_next_present=false;
 #endif
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+    bool fail_next_draw=false;
+    bool module_fault_once=false;
+#endif
 };
 SupersamplingConfig configuration{};
 NativeGraphicsConfig::Version2 native_configuration{};
-constexpr DWORD CompiledCapabilities=NativeGraphicsConfig::Observe;
+constexpr DWORD CompiledCapabilities=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Water
+    |NativeGraphicsConfig::Terrain|NativeGraphicsConfig::Vegetation;
 DWORD capture_pending=0,capture_last_sequence=0;
+MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
+bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
+DWORD effects_loaded_flags=0;
 SupersamplingStats stats{sizeof(SupersamplingStats),1};
 SRWLOCK state_lock=SRWLOCK_INIT;
 State* state=nullptr;
 thread_local State* internal=nullptr;
+thread_local DWORD window_callback_depth=0;
 Getter original_getter=nullptr;
+DeinitD3D original_deinit_d3d=nullptr;
+DeinitScreen original_deinit_screen=nullptr;
 HMODULE renderer=nullptr;
 HMODULE apphelp=nullptr;
 std::vector<HANDLE> pinned_files;
@@ -163,7 +180,15 @@ void Report() {
         "\"logical_size_messages\":%lu,\"logical_rect_calls\":%lu,\"logical_point_calls\":%lu,"
         "\"logical_mouse_messages\":%lu,\"logical_api_slots\":%lu,\"logical_context_rejections\":%lu,"
         "\"edition\":%lu,\"cached_release_calls\":%lu,\"output_cache_drops\":%lu,\"window_shutdowns\":%lu,\"terminal_cleanup\":%lu,"
-        "\"capture_requests\":%lu,\"capture_completed\":%lu,\"capture_failures\":%lu,\"capture_frame\":%lu}\n",
+        "\"capture_requests\":%lu,\"capture_completed\":%lu,\"capture_failures\":%lu,\"capture_frame\":%lu,"
+        "\"effects_requested\":%lu,\"effects_configured\":%lu,\"effects_active\":%lu,\"effects_pending\":%lu,"
+        "\"effects_revision\":%lu,\"effects_config_errors\":%lu,\"effects_unsafe\":%lu,\"effects_blocked_draws\":%lu,"
+        "\"effects_drawn_revision\":%lu,\"effects_drawn_active\":%lu,\"effects_frame_has_geometry\":%lu,"
+        "\"effects_module_faulted\":%lu,\"effects_module_shader_failures\":%lu,\"effects_module_set_failures\":%lu,"
+        "\"effects_module_restore_failures\":%lu,\"effects_module_exceptions\":%lu,"
+        "\"effects_faulted\":%lu,\"effects_disabled_reason\":%lu,\"effects_fallback_draws\":%lu,"
+        "\"engine_deinit_calls\":%lu,\"engine_deinit_rejected\":%lu,\"engine_deinit_cleanup\":%lu,"
+        "\"engine_deinit_returned\":%lu,\"shutdown_stage\":%lu}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -176,7 +201,14 @@ void Report() {
         stats.logical_size_messages,stats.logical_rect_calls,stats.logical_point_calls,
         stats.logical_mouse_messages,stats.logical_api_slots,stats.logical_context_rejections,
         stats.edition,stats.cached_release_calls,stats.output_cache_drops,stats.window_shutdowns,stats.terminal_cleanup,
-        stats.capture_requests,stats.capture_completed,stats.capture_failures,stats.capture_frame);
+        stats.capture_requests,stats.capture_completed,stats.capture_failures,stats.capture_frame,
+        stats.effects_requested,stats.effects_configured,stats.effects_active,stats.effects_pending,
+        stats.effects_revision,stats.effects_config_errors,stats.effects_unsafe,stats.effects_blocked_draws,
+        stats.effects_drawn_revision,stats.effects_drawn_active,stats.effects_frame_has_geometry,
+        stats.effects_module_faulted,stats.effects_module_shader_failures,stats.effects_module_set_failures,
+        stats.effects_module_restore_failures,stats.effects_module_exceptions,
+        stats.effects_faulted,stats.effects_disabled_reason,stats.effects_fallback_draws,
+        stats.engine_deinit_calls,stats.engine_deinit_rejected,stats.engine_deinit_cleanup,stats.engine_deinit_returned,stats.shutdown_stage);
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -188,6 +220,89 @@ void DropOutput(State& current) {
     if(current.output){auto* old=current.output;current.output=nullptr;++stats.output_cache_drops;old->Release();}
 }
 bool TerminalCleanup(State& current);
+
+bool SameEffectsIdentity(MaterialShaderEffects::Config first,MaterialShaderEffects::Config second) {
+    first.flags=second.flags=0;
+    return !std::memcmp(&first,&second,sizeof(first));
+}
+
+void ApplyPendingEffects() {
+    if(!effects_waiting || (effects_faulted && effects_pending_config.flags) || stats.effects_unsafe)return;
+    DiagnosticScope diagnostic;
+    const auto next=effects_pending_config;
+    bool valid=false;
+    if(effects_faulted && !next.flags) {
+        if(effects_initialized)MaterialShaderEffects::Shutdown();
+        effects_initialized=false;effects_loaded_flags=0;valid=true;
+    } else if(effects_initialized && SameEffectsIdentity(next,effects_loaded_config)
+        && !(next.flags&~effects_loaded_flags)) {
+        valid=MaterialShaderEffects::SetEnabled(next.flags);
+    } else {
+        if(effects_initialized)MaterialShaderEffects::Shutdown();
+        effects_initialized=false;effects_loaded_flags=0;
+        if(!next.flags)valid=true;
+        else {
+            valid=MaterialShaderEffects::Initialize(&next);
+            if(valid){effects_initialized=true;effects_loaded_config=next;effects_loaded_flags=next.flags;
+                MaterialShaderEffects::SetDiagnostics((native_configuration.flags&NativeGraphicsConfig::Observe)!=0);}
+        }
+    }
+    effects_waiting=false;stats.effects_pending=0;
+    if(valid) {
+        effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
+        stats.effects_configured=1;stats.effects_active=next.flags;++stats.effects_revision;
+    } else {
+        effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
+        stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
+        if(capture_pending){capture_pending=0;++stats.capture_failures;}
+        stats.effects_frame_has_geometry=0;
+    }
+    Report();
+}
+
+bool EffectsDrawAllowed() {
+    return !stats.effects_unsafe && (!stats.effects_requested || effects_received);
+}
+
+void CancelEffectsCapture() {
+    if(capture_pending){capture_pending=0;++stats.capture_failures;}
+    stats.effects_frame_has_geometry=0;
+}
+
+void CheckEffectsState() {
+    if(!effects_initialized)return;
+    DiagnosticScope diagnostic;
+    MaterialShaderEffects::Stats module{};
+    const bool read=MaterialShaderEffects::ReadStats(&module);
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+    if(state && state->module_fault_once){state->module_fault_once=false;module.faulted=1;}
+#endif
+    const auto bounded=[](std::uint64_t value){return static_cast<DWORD>(std::min<std::uint64_t>(value,MAXDWORD));};
+    stats.effects_module_faulted=read?module.faulted:1;
+    if(read) {
+        stats.effects_module_shader_failures=bounded(module.shader_failures);
+        stats.effects_module_set_failures=bounded(module.set_failures);
+        stats.effects_module_restore_failures=bounded(module.restore_failures);
+        stats.effects_module_exceptions=bounded(module.exceptions);
+    }
+    if(!read || module.faulted || module.shader_failures || module.set_failures || module.restore_failures || module.exceptions) {
+        const bool first=!effects_faulted;
+        effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=223;stats.effects_active=0;
+        if(first){++stats.effects_revision;stats.last_failure=223;CancelEffectsCapture();Report();}
+    }
+}
+
+void LatchEffectsDraw() {
+    stats.effects_drawn_revision=stats.effects_revision;
+    stats.effects_drawn_active=stats.effects_active;
+    stats.effects_frame_has_geometry=1;
+}
+
+bool CaptureEpochReady() {
+    return !stats.effects_requested || ((stats.effects_configured || effects_faulted) && !effects_waiting
+        && !stats.effects_unsafe && stats.effects_frame_has_geometry
+        && stats.effects_drawn_revision==stats.effects_revision && stats.effects_drawn_active==stats.effects_active);
+}
 
 bool OwnedWindow(HWND window) {
     DWORD pid=0;
@@ -275,6 +390,7 @@ bool ClientMouseMessage(UINT message) {
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM lparam) {
+    struct Depth {Depth(){++window_callback_depth;}~Depth(){--window_callback_depth;}} depth;
     OriginalCallScope original_state;
     if(message==WM_DESTROY || message==WM_NCDESTROY) {
         const auto request=[&](State* current) {
@@ -285,7 +401,6 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
         if(internal)request(internal); // Finish an in-flight COM call before releasing its swapchain.
         else {
             Lock lock;request(state);
-            if(state && state->window==window){Internal inside(state);TerminalCleanup(*state);}
         }
     }
     if(message==WM_SIZE || ClientMouseMessage(message)) {
@@ -356,31 +471,48 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
         return 0;
     }
     original_state.before();
+    if(message==WM_DESTROY || message==WM_NCDESTROY){stats.shutdown_stage=4;Report();}
     const LRESULT returned=original_window_proc?CallWindowProcW(original_window_proc,window,message,wparam,lparam)
         :DefWindowProcW(window,message,wparam,lparam);
-    original_state.returned();return returned;
+    original_state.returned();
+    if(message==WM_DESTROY || message==WM_NCDESTROY) {
+        stats.shutdown_stage=5;
+        if(!internal && window_callback_depth==1) {
+            Lock lock;if(state && state->window==window){Internal inside(state);TerminalCleanup(*state);}
+        }
+    }
+    return returned;
 }
 
-void QueueWindowTransition(State& current) {
-    if(configuration.render_width==configuration.output_width && configuration.render_height==configuration.output_height)return;
-    if(current.resize_posted || !stats.high_resolution_draws
-        || stats.source_width!=configuration.render_width || stats.source_height!=configuration.render_height)return;
-    DiagnosticScope diagnostic; // Preserve the original draw's post-call state on every Win32 path below.
+bool EnsureWindowProcedure(State& current) {
+    if(original_window_proc)return true;
+    DiagnosticScope diagnostic;
     DWORD pid=0;
     const DWORD owner_thread=GetWindowThreadProcessId(current.window,&pid);
-    if(pid!=GetCurrentProcessId() || owner_thread!=GetCurrentThreadId())return;
+    if(pid!=GetCurrentProcessId() || owner_thread!=GetCurrentThreadId())return false;
     if(!original_window_proc) {
         const auto previous=reinterpret_cast<WNDPROC>(GetWindowLongPtrW(current.window,GWLP_WNDPROC));
-        if(!previous){stats.resize_failure=5;Report();return;}
+        if(!previous){stats.resize_failure=5;Report();return false;}
         SetLastError(ERROR_SUCCESS);
         const auto replaced=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(current.window,GWLP_WNDPROC,
             reinterpret_cast<LONG_PTR>(WindowProcedure)));
         if(replaced!=previous) {
             if(replaced)SetWindowLongPtrW(current.window,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(replaced));
-            stats.resize_failure=6;Report();return;
+            stats.resize_failure=6;Report();return false;
         }
         original_window_proc=previous;
     }
+    return true;
+}
+
+void QueueWindowTransition(State& current) {
+    if(configuration.render_width==configuration.output_width && configuration.render_height==configuration.output_height) {
+        EnsureWindowProcedure(current);return; // Lifecycle only: no size/input virtualization at 1x.
+    }
+    if(current.resize_posted || !stats.high_resolution_draws
+        || stats.source_width!=configuration.render_width || stats.source_height!=configuration.render_height)return;
+    DiagnosticScope diagnostic;
+    if(!EnsureWindowProcedure(current))return;
     if(PostMessageW(current.window,resize_message,GetCurrentProcessId(),ResizeToken)) {
         current.resize_posted=true;++stats.resize_queued;
     } else stats.resize_failure=7;
@@ -418,6 +550,7 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
     {
         Internal inside(current);
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
+        if(effects_initialized)MaterialShaderEffects::Reset(device);
         // Keep the output chain across ordinary temporary references. Its public
         // child reference deliberately retains the parent until Reset, fallback,
         // explicit shutdown, or the owned window's verified destruction event.
@@ -440,6 +573,8 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     OriginalCallScope original_state;
     Internal inside(state);
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
+    if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
+    if(effects_initialized)MaterialShaderEffects::Reset(device);
     DropOutput(*state);
     ++stats.reset_calls;
     if(Range(parameters,sizeof(*parameters))) {
@@ -466,6 +601,8 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     OriginalCallScope original_state;
     Internal inside(state);auto& current=*state;
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::EndFrame(device);
+    if(effects_initialized)MaterialShaderEffects::EndFrame(device);
+    CheckEffectsState();
     if(current.terminal_cleanup) {
         original_state.before();
         const HRESULT returned=reinterpret_cast<Present>(current.original[17])
@@ -473,9 +610,13 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         original_state.returned();return returned;
     }
     ++stats.present_calls;
+    if(effects_faulted && effects_waiting && !effects_pending_config.flags && !stats.effects_unsafe)ApplyPendingEffects();
+    if(!EffectsDrawAllowed()) {
+        stats.last_failure=221;Report();return D3DERR_DEVICELOST;
+    }
     NativeGraphicsCapture::Result captured{};bool capture_attempted=false;
     if(configuration.render_width==configuration.output_width && configuration.render_height==configuration.output_height) {
-        if(capture_pending) {
+        if(capture_pending && CaptureEpochReady()) {
             IDirect3DSurface9* backbuffer=nullptr;
             if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
                 D3DSURFACE_DESC description{};RECT physical{};
@@ -500,8 +641,10 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
             if(captured.status)++stats.capture_failures;else ++stats.capture_completed;
         }
         stats.last_hresult=static_cast<DWORD>(original);stats.last_failure=0;
+        stats.effects_frame_has_geometry=0;
         if(current.shutdown_requested)TerminalCleanup(current);
-        if(stats.present_calls==1 || stats.present_calls%60==0)Report();
+        else ApplyPendingEffects();
+        if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0))Report();
         return original;
     }
     HRESULT result=D3DERR_INVALIDCALL;
@@ -545,7 +688,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
                         stats.output_width=output.Width;stats.output_height=output.Height;
                         result=device->StretchRect(high,nullptr,low,nullptr,D3DTEXF_LINEAR);
                         if(FAILED(result))failure=11;
-                        else if(capture_pending && !current.shutdown_requested) {
+                        else if(capture_pending && CaptureEpochReady() && !current.shutdown_requested) {
                             NativeGraphicsCapture::Read(device,high,low,configuration.report_path,capture_pending,stats,captured);
                             capture_pending=0;capture_attempted=true;
                         }
@@ -578,8 +721,10 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         NativeGraphicsCapture::Finish(captured,filtered_result,result,fallback_used,true);stats.capture_frame=stats.present_calls;
         if(captured.status)++stats.capture_failures;else ++stats.capture_completed;
     }
+    stats.effects_frame_has_geometry=0;
     if(current.shutdown_requested)TerminalCleanup(current);
-    if(stats.present_calls==1 || stats.present_calls%60==0 || failure)Report();
+    else ApplyPendingEffects();
+    if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0) || failure)Report();
     return result;
 }
 
@@ -603,11 +748,22 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     if(internal && internal->device==device)return reinterpret_cast<Draw>(internal->original[81])(device,type,first,count);
     Lock lock;if(!state || state->device!=device)return reinterpret_cast<Draw>(saved_methods[81])(device,type,first,count);
     Internal inside(state);
-    const HRESULT result=reinterpret_cast<Draw>(state->original[81])(device,type,first,count);
-    if(SUCCEEDED(result) && count)CountDraw(false);
-    if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Draw,result);
-    if(SUCCEEDED(result) && count)QueueWindowTransition(*state);
-    return result;
+    if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
+    if(effects_faulted)++stats.effects_fallback_draws;
+    const auto transaction=NativeEffectsDraw::Execute(device,effects_initialized && stats.effects_active && count,
+        [&]()->HRESULT {
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+            if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
+#endif
+            return reinterpret_cast<Draw>(state->original[81])(device,type,first,count);},
+        [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count)
+            MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Draw,result);});
+    if(transaction.unsafe) {
+        stats.effects_unsafe=1;stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
+        CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
+    }
+    if(SUCCEEDED(transaction.original_result) && count){CountDraw(false);LatchEffectsDraw();QueueWindowTransition(*state);}
+    return transaction.CallerResult();
 }
 HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVETYPE type,INT base,
                                           UINT min,UINT vertices,UINT first,UINT count) {
@@ -615,11 +771,22 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
         (device,type,base,min,vertices,first,count);
     Lock lock;if(!state || state->device!=device)return reinterpret_cast<DrawIndexed>(saved_methods[82])(device,type,base,min,vertices,first,count);
     Internal inside(state);
-    const HRESULT result=reinterpret_cast<DrawIndexed>(state->original[82])(device,type,base,min,vertices,first,count);
-    if(SUCCEEDED(result) && count && vertices)CountDraw(true);
-    if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Indexed,result);
-    if(SUCCEEDED(result) && count && vertices)QueueWindowTransition(*state);
-    return result;
+    if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
+    if(effects_faulted)++stats.effects_fallback_draws;
+    const auto transaction=NativeEffectsDraw::Execute(device,effects_initialized && stats.effects_active && count && vertices,
+        [&]()->HRESULT {
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+            if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
+#endif
+            return reinterpret_cast<DrawIndexed>(state->original[82])(device,type,base,min,vertices,first,count);},
+        [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count && vertices)
+            MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Indexed,result);});
+    if(transaction.unsafe) {
+        stats.effects_unsafe=1;stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
+        CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
+    }
+    if(SUCCEEDED(transaction.original_result) && count && vertices){CountDraw(true);LatchEffectsDraw();QueueWindowTransition(*state);}
+    return transaction.CallerResult();
 }
 
 const std::array<std::pair<size_t,void*>,7> Intercepts{{
@@ -647,6 +814,10 @@ bool TerminalCleanup(State& current) {
     if(native_configuration.flags&NativeGraphicsConfig::Observe) {
         MaterialShaderObserver::Reset(current.device);MaterialShaderObserver::Flush();MaterialShaderObserver::Shutdown();
     }
+    if(effects_initialized) {
+        MaterialShaderEffects::Reset(current.device);MaterialShaderEffects::Flush();MaterialShaderEffects::Shutdown();effects_initialized=false;
+    }
+    effects_waiting=false;stats.effects_pending=0;stats.effects_active=0;
     bool restored=true;
     for(size_t i=Intercepts.size();i;i--) {
         const auto& intercept=Intercepts[i-1];
@@ -669,6 +840,70 @@ bool TerminalCleanup(State& current) {
     Report();return restored;
 }
 
+bool PrepareEngineDeinit(const void* caller,DWORD thread) {
+    DiagnosticScope diagnostic;
+    const auto prepare=[&](State* current) {
+        ++stats.engine_deinit_calls;
+        if(!current || current->terminal_cleanup)return true;
+        MEMORY_BASIC_INFORMATION origin{};
+        const bool image=GameCaller(caller) && VirtualQuery(caller,&origin,sizeof(origin))==sizeof(origin);
+#ifdef S7_SUPERSAMPLING_FIXTURE
+        const bool caller_valid=image && origin.AllocationBase==game_modules[0];
+#else
+        const bool caller_valid=image && origin.AllocationBase==game_modules[2];
+#endif
+        if(!caller_valid || thread!=current->thread || GetCurrentThreadId()!=current->thread) {
+            ++stats.engine_deinit_rejected;Report();return false;
+        }
+        stats.shutdown_stage=1;Report();
+        const bool cleaned=TerminalCleanup(*current);
+        if(cleaned){++stats.engine_deinit_cleanup;stats.shutdown_stage=2;Report();}
+        return cleaned;
+    };
+    if(internal) {
+        ++stats.engine_deinit_calls;++stats.engine_deinit_rejected;
+        internal->shutdown_requested=true;internal->logical_window_active=false;stats.shutdown_stage=7;Report();
+        return false; // An in-flight COM call still owns its resources; finalize only after it returns.
+    }
+    Lock lock;
+    if(state){Internal inside(state);return prepare(state);}
+    return prepare(nullptr);
+}
+
+void __cdecl HookDeinitD3D() {
+    OriginalCallScope original_state;
+    PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId());
+    original_state.before();original_deinit_d3d();original_state.returned();
+    ++stats.engine_deinit_returned;stats.shutdown_stage=3;Report();
+}
+bool __cdecl HookDeinitScreen(void* config) {
+    OriginalCallScope original_state;
+    PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId());
+    original_state.before();const bool result=original_deinit_screen(config);original_state.returned();
+    ++stats.engine_deinit_returned;stats.shutdown_stage=3;Report();return result;
+}
+
+bool DeinitExports(HMODULE module) {
+    const auto base=reinterpret_cast<uintptr_t>(module);
+    if(reinterpret_cast<uintptr_t>(original_deinit_d3d)!=base+0x862e0
+        || reinterpret_cast<uintptr_t>(original_deinit_screen)!=base+0x87a90)return false;
+    std::array<unsigned char,16> first{};std::array<unsigned char,17> second{};
+    if(!Range(reinterpret_cast<void*>(base+0x862e0),first.size())
+        || !Range(reinterpret_cast<void*>(base+0x87a90),second.size()))return false;
+    std::memcpy(first.data(),reinterpret_cast<void*>(base+0x862e0),first.size());
+    std::memcpy(second.data(),reinterpret_cast<void*>(base+0x87a90),second.size());
+    const auto address=[&](unsigned char* at,DWORD rva) {
+        DWORD actual=0;std::memcpy(&actual,at,4);
+        if(actual!=static_cast<DWORD>(base+rva))return false;
+        const DWORD preferred=0x10000000u+rva;std::memcpy(at,&preferred,4);return true;
+    };
+    if(!address(first.data()+2,0x11bc84) || !address(first.data()+9,0x11bc79)
+        || !address(second.data()+1,0x11bc74))return false;
+    const unsigned char expected_first[]={0xf6,0x05,0x84,0xbc,0x11,0x10,0x02,0xc6,0x05,0x79,0xbc,0x11,0x10,0x00,0x74,0x32};
+    const unsigned char expected_second[]={0xa1,0x74,0xbc,0x11,0x10,0x85,0xc0,0x74,0x12,0x8b,0x08,0x8b,0x51,0x08,0x50,0xff,0xd2};
+    return !std::memcmp(first.data(),expected_first,first.size()) && !std::memcmp(second.data(),expected_second,second.size());
+}
+
 bool Attach(IDirect3DDevice9* device) {
     if(!device || !Range(device,sizeof(void*),true)){stats.last_failure=100;Report();return false;}
     Lock lock;
@@ -689,6 +924,7 @@ bool Attach(IDirect3DDevice9* device) {
 #ifdef S7_SUPERSAMPLING_FIXTURE
         std::fprintf(stderr,"guarded_index=%zu\n",i);
 #endif
+
         stats.last_hresult=static_cast<DWORD>(i);methods_valid=false;
     }
     if(!methods_valid)return fail(102);
@@ -727,6 +963,7 @@ bool Attach(IDirect3DDevice9* device) {
     }
     state=current;stats.attached=1;
     {Internal inside(current);Target(*current);
+        if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
         IDirect3DSurface9* backbuffer=nullptr;D3DSURFACE_DESC description{};
         if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
             if(SUCCEEDED(backbuffer->GetDesc(&description))) {
@@ -809,6 +1046,7 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,bytes.data(),header[0],&read) || read!=header[0]
         || NativeGraphicsConfig::Decode(bytes.data(),header[0],CompiledCapabilities,native_configuration)!=NativeGraphicsConfig::Error::None)return 0;
     configuration=native_configuration.base;
+    stats.effects_requested=NativeEffectsContract::Requested(native_configuration.flags);
     renderer=GetModuleHandleW(L"d3d9.dll");
     if(!PinIdentity(renderer,RendererHash)){stats.last_failure=201;Report();return 0;}
     apphelp=GetModuleHandleW(L"apphelp.dll");
@@ -837,18 +1075,29 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
     if((native_configuration.flags&NativeGraphicsConfig::Observe)
         && !MaterialShaderObserver::Initialize(native_configuration.catalog_path,native_configuration.catalog_sha256,
             native_configuration.observer_report_path)){stats.last_failure=208;Report();return 0;}
+    if((native_configuration.flags&NativeGraphicsConfig::Observe)
+        && !MaterialShaderObserver::ConfigureFrameSnapshot(configuration.render_width,configuration.render_height)) {
+        stats.last_failure=209;Report();return 0;
+    }
 #ifndef S7_SUPERSAMPLING_FIXTURE
     HMODULE executable=GetModuleHandleW(nullptr),base=GetModuleHandleW(L"vbase90.dll"),vision=GetModuleHandleW(L"vision90.dll");
     for(const auto& profile:Executables)if(PinIdentity(executable,profile.sha256)){stats.edition=profile.edition;break;}
     if(!stats.edition || !PinIdentity(base,BaseHash) || !PinIdentity(vision,VisionHash))return 0;
     game_modules={{executable,base,vision}};
     original_getter=reinterpret_cast<Getter>(GetProcAddress(base,GetterName));
-    if(!original_getter)return 0;
+    original_deinit_d3d=reinterpret_cast<DeinitD3D>(GetProcAddress(base,DeinitD3DName));
+    original_deinit_screen=reinterpret_cast<DeinitScreen>(GetProcAddress(base,DeinitScreenName));
+    if(!original_getter || !original_deinit_d3d || !original_deinit_screen || !DeinitExports(base)) {
+        stats.last_failure=210;Report();return 0;
+    }
     std::vector<Slot> slots;
     if(!Slots(executable,slots,"vbase90.dll",GetterName,reinterpret_cast<void*>(original_getter),reinterpret_cast<void*>(HookGetter))
         || !Slots(vision,slots,"vbase90.dll",GetterName,reinterpret_cast<void*>(original_getter),reinterpret_cast<void*>(HookGetter))
         || slots.size()!=2)return 0;
-    const size_t getters=slots.size();
+    if(!Slots(vision,slots,"vbase90.dll",DeinitD3DName,reinterpret_cast<void*>(original_deinit_d3d),reinterpret_cast<void*>(HookDeinitD3D))
+        || !Slots(vision,slots,"vbase90.dll",DeinitScreenName,reinterpret_cast<void*>(original_deinit_screen),reinterpret_cast<void*>(HookDeinitScreen))
+        || slots.size()!=4){stats.last_failure=211;Report();return 0;}
+    const size_t core_imports=slots.size();
     for(auto module:game_modules) {
         if(!Slots(module,slots,"USER32.dll","GetClientRect",reinterpret_cast<void*>(physical_rect),reinterpret_cast<void*>(HookClientRect))
             || !Slots(module,slots,"USER32.dll","ScreenToClient",reinterpret_cast<void*>(physical_to_client),reinterpret_cast<void*>(HookScreenToClient))
@@ -856,7 +1105,7 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
             stats.last_failure=206;Report();return 0;
         }
     }
-    stats.logical_api_slots=static_cast<DWORD>(slots.size()-getters);
+    stats.logical_api_slots=static_cast<DWORD>(slots.size()-core_imports);
     if(!stats.logical_api_slots){stats.last_failure=207;Report();return 0;}
     size_t applied=0;
     for(;applied<slots.size();++applied)if(!SetSlot(slots[applied],true))break;
@@ -885,6 +1134,18 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
     return MaterialShaderObserver::ConfigureCapture(&config)?1u:0u;
 }
 
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
+    using namespace SupersamplingHook;
+    DiagnosticScope diagnostic;
+    MaterialShaderEffects::Config config{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read) || read!=sizeof(config))return 0;
+    Lock lock;
+    if(!initialization_ready || effects_waiting || (effects_faulted && config.flags) || stats.effects_unsafe
+        || (state && state->terminal_cleanup)
+        || NativeEffectsContract::Validate(config,native_configuration)!=NativeEffectsContract::Error::None)return 0;
+    effects_pending_config=config;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
+}
+
 extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
     using namespace SupersamplingHook;
     NativeGraphicsCapture::Request request{};SIZE_T read=0;
@@ -892,6 +1153,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
         || request.size!=sizeof(request) || request.version!=1 || !request.sequence)return 0;
     Lock lock;
     if(!state || !stats.attached || state->shutdown_requested || state->terminal_cleanup || capture_pending
+        || effects_waiting || stats.effects_unsafe
         || request.sequence<=capture_last_sequence || !NativeGraphicsCapture::TargetAvailable(configuration.report_path,request.sequence))return 0;
     capture_pending=request.sequence;capture_last_sequence=request.sequence;++stats.capture_requests;Report();return 1;
 }
@@ -928,5 +1190,19 @@ extern "C" BOOL WINAPI WePlaySupersamplingFixturePoint(HWND window,POINT* point,
 extern "C" DWORD WINAPI WePlaySupersamplingFixtureFailPresent() {
     using namespace SupersamplingHook;
     Lock lock;if(!state || !state->output)return 0;state->fail_next_present=true;return 1;
+}
+extern "C" DWORD WINAPI WePlaySupersamplingFixturePrepareDeinit(const void* caller,DWORD thread) {
+    return SupersamplingHook::PrepareEngineDeinit(caller,thread)?1u:0u;
+}
+#endif
+
+#ifdef S7_MATERIAL_EFFECTS_FIXTURE
+extern "C" DWORD WINAPI WePlaySupersamplingFixtureFailDraw() {
+    using namespace SupersamplingHook;
+    Lock lock;if(!state || state->terminal_cleanup)return 0;state->fail_next_draw=true;return 1;
+}
+extern "C" DWORD WINAPI WePlaySupersamplingFixtureModuleFault() {
+    using namespace SupersamplingHook;
+    Lock lock;if(!state || state->terminal_cleanup)return 0;state->module_fault_once=true;return 1;
 }
 #endif

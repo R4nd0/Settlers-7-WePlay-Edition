@@ -69,10 +69,22 @@ exact hook build manifest. Source snapshots below the case's `source/` directory
 must match the controller checkpoint. Candidate initialization must match the
 hook build's DLL identity and native source identities. Current game binaries
 must match their checkpoint, including the original edition EXE and DXVK pin.
-The combined build currently has fourteen native source/header inputs plus its
-DLL and fixture EXE. Their retained build-directory snapshots are hashed against
-the exact build manifest; the report does not substitute current edited sources
-for the files actually compiled.
+Historical native20 builds retain fourteen native source/header inputs plus the
+DLL and fixture EXE. The effects-v1 build has nineteen source inputs, three
+binaries, capabilities 15, and explicit initialization/observation/effects/capture
+ABI sizes. Both schemas remain supported. Their retained build-directory
+snapshots are hashed against the exact build manifest; the report does not
+substitute current edited sources for the files actually compiled. Unknown
+source sets, capabilities, ABI sizes, extra/missing identities and changed
+snapshots reject consistency.
+
+Graceful terminal detachment can follow either a recorded window shutdown or
+the guarded early original-engine deinitialization route. The latter requires
+the supported effects build schema, positive deinitialization calls, the same
+number of returned original calls, zero rejected calls, cleanup completed and
+shutdown stage 3, together with exit code zero and no owned forced stop. An early
+cleanup counter alone never waives a failed exit or the independent save,
+binary, recovery and memory checks.
 
 ### Same-frame native captures
 
@@ -100,8 +112,84 @@ lifecycle/fallback, material, shadow and release gates remain separate.
 
 The original private `.s7s`/`.s7local` files from the portable-profile checkpoint
 are checked against the still-retained owned profile. New save slots are allowed;
-overwriting an original save rejects the preservation evidence. This tool never
-restores a file. Actual recovery remains in [the interruption journal](../tools/graphics_lab/recover.py).
+overwriting an original manual save rejects the preservation evidence. A narrow
+Gold exception classifies the original rotating autosave only when the guarded
+original GetSaveGameSlotRangeSP code and original Lua mapping establish its
+role, and its matching before-image remains in the case backup. This preserves
+`all_original_private_saves_unchanged=false` truthfully while separately requiring
+all manual originals unchanged. Unknown changed files are never waived. This
+tool never restores a file. Actual recovery remains in
+[the interruption journal](../tools/graphics_lab/recover.py).
+
+### Draw-correlated camera and lighting uniforms
+
+New effects builds can include `scene_uniforms` from the exact original River
+vertex/pixel programs, independently of the generic Vision camera. The qualifier
+requires the original program hashes, positive draw/catalog identities, exact
+capture-frame equality, configured full render target and viewport, format and
+render-state guards, and finite raw VS12–15, VS16.xyz, PS5.xyz and PS7.rgb values.
+The catalog hash must also match `observer_catalog_sha256` in the successful
+initialization receipt. Numeric catalog IDs are not fixed: adding observation
+resources changes them. Stale or unavailable uniforms remain null and are never
+replaced with the Vision context.
+
+`same_frame_river_uniforms_recorded` establishes the recorded draw/capture
+association, not a complete A/B scene match. The raw fields represent the view
+projection, shader eye, sun direction and sun specular color; elevation and
+exposure remain unavailable. Full-size target dimensions alone do not prove the
+draw contributed to the final image, so `visible_camera_validated` remains false
+pending actual tracking/contribution review. The actual Gold pan/zoom comparison
+showed changing River eye/projection values while the generic Vision camera
+remained fixed; those earlier uniform samples were not taken on the BMP frames.
+
+The optional material epoch records requested/configured/drawn masks and
+revisions. A matching epoch requires geometry in that frame and no unsafe,
+disabled or module-failure state. This describes the configuration used for
+geometry; it does not prove any individual material was changed. Per-material
+draw/substitution records and visual review remain separate requirements.
+
+### Diagnostic water-scroll isolation
+
+`native/material_comparison.h/.cpp` is a separately staged diagnostic component,
+not a production graphics choice. Original River PS80 is the CTAB float4
+`g_UVScrollTimer`; it continued changing during the paused material comparison.
+The component matches the exact original River programs and full render context,
+reads all four finite components, and pins the first value only after a successful
+original geometry draw and bitwise restoration. Every later matching control and
+candidate draw receives the same float4 temporarily. Each draw restores its own
+original PS80 even on failure or exception. It changes no game clock, RNG,
+simulation, asset, image or file.
+
+The trusted hook must nest this outside material effects, restore both modules
+before observing the original shader, and stop any unsafe rendering/fallback
+claim if immediate restoration retry fails. An explicit diagnostic-only
+12-byte configuration is separate from read-only observation configuration;
+the production loader must not expose it. Reconfiguration/disable clears the
+pin. Reset drops all shader identities/device references but retains the pin;
+Shutdown clears everything after all transactions are restored.
+
+A retained pin alone proves no capture used it. State includes local frame,
+last application/restoration frames and completed-frame counters; the integrating
+host must bind them to the actual GPU capture frame. It must also preserve the
+pin across ordinary material on/off switches. First-match shader scrolling can
+be isolated this way, but reflected/refracted scene texture animation remains
+possible. A residual original/original image comparison is still required.
+Diagnostic constant-setting costs also must not be reported as production cost.
+
+The standalone x86 build compiles production code and a synthetic COM fixture
+under `/W4 /WX /fp:strict`. Its 676 CPU checks cover matching/context refusals,
+finite inputs, successful and failed draws, partial/silent/throwing setters,
+bitwise restoration and retry, bounded identity references, foreign-thread
+cleanup, no-geometry frame counters, LastError and FPU/SSE controls. No game or
+GPU is started; runtime integration and visual isolation remain unverified.
+
+`tools/graphics_lab/camera_read.py` is a separate, bounded read-only process
+reader for an existing owned case. Ubisoft and Gold mappings follow the actual
+registered GetCamTranslation/GetCamLookAt callbacks and guarded instructions.
+Steam uses a bounded original-name registration lookup plus exact unpacked
+instruction templates because its file code is packed; that runtime route still
+requires actual verification. The helper calls no game functions, writes no
+memory and supplies no same-frame GPU or FOV proof.
 
 ## Native scene observation contract
 

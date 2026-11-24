@@ -17,11 +17,13 @@ import struct
 ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
-from tools.supersampling.hook_probe import SOURCES as HOOK_SOURCES
+from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,
+                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
     'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
     'configure': (b'WePlayNativeGraphicsConfigureObservation\0', 952),
+    'effects': (b'WePlayNativeGraphicsConfigureEffects\0', 4132),
 }
 
 
@@ -41,21 +43,26 @@ def verify_build(dll):
     if len(raw) > 8192:
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
-    expected = SOURCES | {DLL_NAME, 'supersampling_hook_fixture.exe'}
-    if (not isinstance(value, dict) or set(value) != {'format', 'build_sha256', 'files'}
-            or value['format'] != 's7-supersampling-hook-build-v1'
+    current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
+    sources = SOURCES if current else set(NATIVE20_SOURCES)
+    expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
+    keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
+    if (not isinstance(value, dict) or set(value) != keys
+            or value['format'] not in ('s7-supersampling-hook-build-v1','s7-native-graphics-build-v2')
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
+    if current and (value['source_set']!='effects-v1' or value['compiled_capabilities']!=15 or value['abi']!=BUILD_ABI):
+        raise ValueError('Unexpected compiled graphics ABI or capabilities.')
     for name, pin in value['files'].items():
-        path = ROOT / 'native' / name if name in SOURCES else dll.parent / name
+        path = ROOT / 'native' / name if name in sources else dll.parent / name
         if pin != digest(path):
             raise ValueError('Hook build/source fingerprint changed.')
     return dll, value
 
 
 def configuration(render, output, report, *, observer_catalog=None, observer_sha256=None,
-                  observer_report=None):
+                  observer_report=None, material_flags=0):
     from .game import lab_path
     report = lab_path(report)
     if not report.parent.is_dir() or report.exists():
@@ -70,7 +77,9 @@ def configuration(render, output, report, *, observer_catalog=None, observer_sha
     name = str(report).encode('utf-16le')
     if len(name) > 1022 or '\0' in str(report):
         raise ValueError('Hook report path exceeds the fixed UTF16 ABI.')
-    version = 2 if observer_catalog is not None or render == output else 1
+    if type(material_flags)is not int or material_flags<0 or material_flags&~7:
+        raise ValueError('Invalid explicit material intent.')
+    version = 2 if observer_catalog is not None or render == output or material_flags else 1
     base = struct.pack('<6I', 3132 if version == 2 else 1048, version, *values) + name.ljust(1024, b'\0')
     if version == 1:
         if observer_sha256 is not None or observer_report is not None:
@@ -79,7 +88,7 @@ def configuration(render, output, report, *, observer_catalog=None, observer_sha
     if observer_catalog is None:
         if observer_sha256 is not None or observer_report is not None:
             raise ValueError('Observer identity needs an explicit catalog.')
-        return base + bytes(2084)
+        return base + struct.pack('<I',material_flags<<1) + bytes(2080)
     catalog = lab_path(observer_catalog)
     destination = lab_path(observer_report or report.with_name('material-observer.private.json'))
     if (not catalog.is_file() or catalog.suffix.lower() != '.bin' or catalog.stat().st_size > 1024*1024
@@ -95,7 +104,7 @@ def configuration(render, output, report, *, observer_catalog=None, observer_sha
         if '\0' in text or len(encoded) > 1022:
             raise ValueError('Observer path exceeds its fixed UTF16 ABI.')
         return encoded.ljust(1024, b'\0')
-    return base + struct.pack('<I', 1) + wide(catalog) + bytes.fromhex(observer_sha256) + wide(destination)
+    return base + struct.pack('<I', 1|(material_flags<<1)) + wide(catalog) + bytes.fromhex(observer_sha256) + wide(destination)
 
 
 def worker(code_base, data_base, load_slot, export_slot, path_offset, export_offset, config_offset,
@@ -149,13 +158,15 @@ def file_lease(path):
         k.CloseHandle(handle)
 
 
-def initialize(owned, dll, *, render, output, report, observer_catalog=None, observer_sha256=None):
+def initialize(owned, dll, *, render, output, report, observer_catalog=None, observer_sha256=None,material_flags=0):
     dll, _ = verify_build(dll)
     with file_lease(dll):
         config = configuration(render, output, report, observer_catalog=observer_catalog,
-                               observer_sha256=observer_sha256)
+                               observer_sha256=observer_sha256,material_flags=material_flags)
         receipt = _invoke_pinned(owned, dll, config, EXPORT)
         receipt['initialized'] = True
+        if observer_catalog is not None:
+            receipt['observer_catalog_sha256'] = observer_sha256
         return receipt
 
 
