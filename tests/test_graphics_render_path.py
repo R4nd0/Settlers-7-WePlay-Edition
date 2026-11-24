@@ -1,9 +1,11 @@
+import ctypes as C
+from ctypes import wintypes as W
 import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,3 +47,43 @@ class ReShadePathTests(unittest.TestCase):
                 self.assertNotIn('VK_INSTANCE_LAYERS', env)
                 self.assertIn(b'Antialiasing = 1', options.read_bytes())
                 self.assertEqual(quality.load(root), values)
+
+    def test_high_integrity_launch_keeps_game_aa_when_loader_ignores_the_managed_layer(self):
+        root = ROOT / 'work' / 'qualified-dxvk-fixture'
+        selected = {'enhanced_aa': True}
+        parent = {'PATH': 'fixture'}
+        with patch.object(reshade_runtime, 'high_integrity', return_value=True, create=True), \
+                patch.object(reshade_runtime, 'launch_environment',
+                             return_value={**parent, 'VK_INSTANCE_LAYERS': 'VK_LAYER_reshade'}) as activate:
+            child, smaa, fallback = choice.launch_managed_effects(root, selected, parent, reshade_runtime)
+        self.assertEqual(child, parent)
+        self.assertFalse(smaa)
+        self.assertTrue(fallback)
+        activate.assert_not_called()
+
+        with patch.object(reshade_runtime, 'high_integrity', return_value=True), \
+                patch.object(reshade_runtime, 'prepare') as prepare:
+            with self.assertRaisesRegex(ValueError, 'reshade_elevation_unavailable'):
+                reshade_runtime.launch_environment(root, parent, selected)
+            prepare.assert_not_called()
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows token ABI')
+    def test_elevated_token_detection_matches_the_loader_integrity_threshold(self):
+        def open_token(_process, _access, token):
+            C.cast(token, C.POINTER(W.HANDLE)).contents.value = 7
+            return True
+
+        def token_information(_token, _class, result, _length, _required):
+            C.cast(result, C.POINTER(W.LPVOID)).contents.value = 13
+            return True
+
+        kernel = Mock(GetCurrentProcess=Mock(return_value=-1))
+        security = Mock(OpenProcessToken=Mock(side_effect=open_token),
+                        GetTokenInformation=Mock(side_effect=token_information),
+                        GetSidSubAuthorityCount=Mock(return_value=C.pointer(C.c_ubyte(1))))
+        libraries = {'kernel32': kernel, 'advapi32': security}
+        with patch.object(C, 'WinDLL', side_effect=lambda name, **_: libraries[name]):
+            for level, elevated in ((0x2000, False), (0x3000, True), (0x4000, True)):
+                security.GetSidSubAuthority.return_value = C.pointer(W.DWORD(level))
+                self.assertIs(reshade_runtime.high_integrity(), elevated)
+        self.assertEqual(kernel.CloseHandle.call_count, 3)

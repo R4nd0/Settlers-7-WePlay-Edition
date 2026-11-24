@@ -246,8 +246,9 @@ def compatibility_aa(root, renderer, package, requested, inherited, *, display_a
 
 def launch_managed_effects(root, selected, environment, runtime):
     smaa=selected.get('enhanced_aa',False)
-    if not runtime.layer_path_supported(root):
-        print(runtime.LAYER_PATH_ERROR,flush=True)
+    issue=runtime.activation_issue(root)
+    if issue is not None:
+        print(issue,flush=True)
         return environment,False,smaa
     return runtime.launch_environment(root,environment,options=selected),smaa,False
 
@@ -338,14 +339,16 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Der Grafikauswahldialog konnte nicht abgeschlossen werden.')
     selected = _record(result.stdout)
     _require_visual_support(root, selected)
+    effect_issue = None
     if any(selected.get(name, False) for name in RESHADE_OPTIONS):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         if selected.get('display') is not None:
             display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
         import reshade_runtime
-        reshade_runtime.require_layer_path(root)
-        reshade_runtime.prepare(root, options=selected)
+        effect_issue = reshade_runtime.activation_issue(root)
+        if effect_issue is None:
+            reshade_runtime.prepare(root, options=selected)
     current_mode, environment = _renderer(root, inherited)
     if current_mode != mode:
         raise ValueError('Das Grafikprofil wurde waehrend des Dialogs veraendert.')
@@ -362,6 +365,10 @@ def choose_launch_environment(root, inherited=None):
     # not adopted while the user has the dialog open.
     if _read_choice(root) != previous:
         raise ValueError('Die Grafikauswahl wurde waehrend des Dialogs veraendert.')
-    _prepare_quality(root,selected.get('enhanced_aa',False))
+    smaa = selected.get('enhanced_aa',False)
+    if effect_issue is not None:
+        print(effect_issue,flush=True)
+    _prepare_quality(root,smaa and effect_issue is None,smaa and effect_issue is not None)
     graphics.atomic_write(target, graphics.encoded(selected), data)
-    return tone_environment(root, selected, mode, visual_environment(selected, environment))
+    environment = visual_environment(selected, environment)
+    return environment if effect_issue is not None else tone_environment(root, selected, mode, environment)

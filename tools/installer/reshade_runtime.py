@@ -37,6 +37,7 @@ CLOCK_FILE = 'Runtime/Graphics/WePlayAtmosphere.addon32'
 FOLDER = 'LocalData/ReShade-Visual-v2'
 OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')
 LAYER_PATH_ERROR = 'reshade_layer_path_unavailable'
+LAYER_ELEVATION_ERROR = 'reshade_elevation_unavailable'
 SMAA_ASSETS = ('SMAA.fx', 'SMAA.fxh', 'ReShade.fxh', 'ReShadeUI.fxh',
                'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt', 'THIRD-PARTY.md')
 SMAA_PRESET = '''
@@ -435,8 +436,65 @@ def require_layer_path(root):
         raise ValueError(LAYER_PATH_ERROR)
 
 
+def high_integrity():
+    """Read the same process integrity level the Windows Vulkan loader uses."""
+    if os.name != 'nt':
+        return False
+    import ctypes as C
+    from ctypes import wintypes as W
+
+    kernel = C.WinDLL('kernel32', use_last_error=True)
+    security = C.WinDLL('advapi32', use_last_error=True)
+    kernel.GetCurrentProcess.argtypes = []
+    kernel.GetCurrentProcess.restype = W.HANDLE
+    kernel.CloseHandle.argtypes = [W.HANDLE]
+    kernel.CloseHandle.restype = W.BOOL
+    security.OpenProcessToken.argtypes = [W.HANDLE, W.DWORD, C.POINTER(W.HANDLE)]
+    security.OpenProcessToken.restype = W.BOOL
+    security.GetTokenInformation.argtypes = [W.HANDLE, C.c_int, W.LPVOID, W.DWORD, C.POINTER(W.DWORD)]
+    security.GetTokenInformation.restype = W.BOOL
+    security.GetSidSubAuthorityCount.argtypes = [W.LPVOID]
+    security.GetSidSubAuthorityCount.restype = C.POINTER(C.c_ubyte)
+    security.GetSidSubAuthority.argtypes = [W.LPVOID, W.DWORD]
+    security.GetSidSubAuthority.restype = C.POINTER(W.DWORD)
+
+    token = W.HANDLE()
+    if not security.OpenProcessToken(kernel.GetCurrentProcess(), 0x18, C.byref(token)):
+        return False
+    try:
+        label = C.create_string_buffer(128)
+        size = W.DWORD()
+        if not security.GetTokenInformation(token, 25, label, C.sizeof(label), C.byref(size)):
+            return False
+        # TOKEN_MANDATORY_LABEL begins with the SID pointer.
+        sid = C.cast(label, C.POINTER(W.LPVOID)).contents.value
+        if not sid:
+            return False
+        count = security.GetSidSubAuthorityCount(sid)
+        if not count or not count.contents.value:
+            return False
+        level = security.GetSidSubAuthority(sid, count.contents.value - 1)
+        return bool(level and level.contents.value >= 0x3000)
+    finally:
+        kernel.CloseHandle(token)
+
+
+def activation_issue(root):
+    if not layer_path_supported(root):
+        return LAYER_PATH_ERROR
+    if high_integrity():
+        return LAYER_ELEVATION_ERROR
+    return None
+
+
+def require_activation(root):
+    issue = activation_issue(root)
+    if issue is not None:
+        raise ValueError(issue)
+
+
 def launch_environment(root, inherited, options=None):
-    require_layer_path(root)
+    require_activation(root)
     folder = prepare(root, options=options)
     path_key, add_key, layer_key = 'VK_LAYER_PATH', 'VK_ADD_LAYER_PATH', 'VK_INSTANCE_LAYERS'
     inherited_layers = {key.upper(): value for key, value in inherited.items()
