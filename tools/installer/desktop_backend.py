@@ -1056,8 +1056,9 @@ class Desktop:
         if not self.package_manifest().get('game_directory',False):raise ValueError('directory_unavailable')
         if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
         from internet_private_channel import PrivateChannel
-        from game_directory import parse_code,FORMAT
+        from game_directory import parse_code, listing, FORMAT
         with PrivateChannel(data['channel']) as channel:url,game=parse_code(channel.read())
+        listing(url)
         self.write(self.state/'game-directory.json',{'format':FORMAT,'origin':url,'explicit_override':True})
         return {'connected':True,'game_id':game}
 

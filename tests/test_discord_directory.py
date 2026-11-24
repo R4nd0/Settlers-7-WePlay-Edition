@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import unittest
 import uuid
-from unittest.mock import Mock,patch
+from unittest.mock import Mock, PropertyMock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/installer'))
@@ -144,6 +144,13 @@ class ReporterTests(unittest.TestCase):
         connection.getresponse.side_effect = directory.http.client.RemoteDisconnected()
         with self.assertRaisesRegex(credentials.DiscordError, '^discord_connection_failed$'):
             directory.check_connection(ORIGIN, KEY, connection_factory=Mock(return_value=connection))
+        connection.close.assert_called_once()
+
+    def test_reporter_shutdown_can_race_completion_of_active_request(self):
+        connection = Mock()
+        with patch.object(type(self.reporter), 'active_connection', create=True,
+                          new_callable=PropertyMock, side_effect=[connection, None]):
+            self.reporter.close()
         connection.close.assert_called_once()
 
 

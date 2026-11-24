@@ -111,8 +111,9 @@ class Reporter:
     def close(self):
         self.stop.set()
         if self.broker:self.broker.stopped=True
-        if self.active_connection:
-            try:self.active_connection.close()
+        connection = self.active_connection
+        if connection is not None:
+            try:connection.close()
             except OSError:pass
         if self.thread:self.thread.join(timeout=8)
         if self.broker:

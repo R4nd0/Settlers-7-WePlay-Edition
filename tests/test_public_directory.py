@@ -37,6 +37,19 @@ class PublicHostingTests(unittest.TestCase):
                 profile.write_text(json.dumps(dict(format=game_directory.FORMAT,origin=custom,explicit_override='yes')))
                 with self.assertRaisesRegex(ValueError,'directory_invalid'):game_directory.configured(state)
 
+    def test_valid_packaged_directory_remains_available_after_corrupt_local_preferences(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'work') as folder:
+            root = Path(folder)
+            state = root / 'state'
+            state.mkdir()
+            broken = state / 'game-directory.json'
+            broken.write_bytes(b'{"format":')
+            (root/'directory-service.json').write_text(json.dumps(dict(
+                format='weplay-directory-service-v1', origin=ORIGIN)))
+            with patch.object(game_directory, '__file__', str(root/'game_directory.py')):
+                self.assertEqual(game_directory.configured(state), ORIGIN)
+            self.assertEqual(broken.read_bytes(), b'{"format":')
+
     def test_public_reporter_never_reads_discord_credentials_and_uses_public_routes(self):
         connection=Mock();connection.getresponse.return_value=Mock(status=200,read=Mock(return_value=b'{"ok":true}'))
         factory=Mock(return_value=connection)

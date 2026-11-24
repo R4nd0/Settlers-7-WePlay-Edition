@@ -59,12 +59,18 @@ def configured(state):
         if not isinstance(value,dict) or value.get('format')!=expected:raise DirectoryError('directory_invalid')
         if value.get('origin') is not None:origin(value['origin'])
         return value
-    selected=read(state/'game-directory.json',FORMAT)
+    selected_error = None
+    try:
+        selected = read(state / 'game-directory.json', FORMAT)
+    except (OSError, ValueError) as error:
+        selected, selected_error = None, error
     if selected and type(selected.get('explicit_override',False)) is not bool:raise DirectoryError('directory_invalid')
     if selected and selected.get('explicit_override') is True and selected.get('origin') is not None:
         return origin(selected['origin'])
     default=read(Path(__file__).with_name('directory-service.json'),'weplay-directory-service-v1')
     if default and default.get('origin') is not None:return origin(default['origin'])
+    if selected_error is not None:
+        raise selected_error
     # Legacy reader profiles followed the old central address. Keep them as a
     # fallback for unconfigured packages, without pinning upgrades to that address.
     if selected and selected.get('origin') is not None:return origin(selected['origin'])
