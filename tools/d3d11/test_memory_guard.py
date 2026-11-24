@@ -68,6 +68,38 @@ class MemoryTests(unittest.TestCase):
                 sentinel.observe(self.sample(private=3400))
             write.assert_called_once()
 
+    def test_failed_final_report_does_not_fail_a_completed_game(self):
+        child = Mock(poll=Mock(return_value=0))
+        sentinel = guard.Sentinel(child, self.path, None, warn=lambda _level: None)
+        self.path.write_bytes(b'previous report')
+        with patch.object(guard.os, 'fsync', side_effect=OSError('fixture write failure')), \
+                patch('builtins.print') as log:
+            sentinel.close()
+            log.assert_called_once_with('memory_summary_write_failed', flush=True)
+        self.assertEqual(self.path.read_bytes(), b'previous report')
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+
+        child.poll.return_value = None
+        with patch.object(guard, 'save', side_effect=OSError('fixture write failure')), self.assertRaises(OSError):
+            sentinel.close()
+
+    def test_initial_counter_failure_is_reported_before_monitor_ownership_returns(self):
+        error = guard.AddressScanTimeout('fixture internal path')
+        probe = Mock(sample=Mock(side_effect=error))
+        sentinel = guard.Sentinel(Mock(), self.path, probe, warn=lambda _level: None)
+        with self.assertRaises(guard.AddressScanTimeout) as caught:
+            sentinel.start()
+        self.assertIs(caught.exception, error)
+        self.assertIsNone(sentinel.thread)
+        actual = self.path.read_bytes()
+        self.assertNotIn(b'fixture internal path', actual)
+        report = json.loads(actual)
+        self.assertTrue(report['monitor_failed'])
+        self.assertTrue(report['recovery_required'])
+        self.assertEqual(report['failure_stage'], 'measure')
+        self.assertEqual(report['failure_kind'], 'scan_timeout')
+        self.assertEqual(report['samples'], 0)
+
     def test_full_address_scan_is_cached_but_private_bytes_are_fresh(self):
         probe = guard.Probe.__new__(guard.Probe)
         probe.address_sample = None; probe.last_scan = float('-inf')
@@ -90,6 +122,27 @@ class MemoryTests(unittest.TestCase):
             now[0] = 10
             probe.sample()
             self.assertEqual(probe.address_space.call_count,2)
+
+    def test_transient_low_address_space_is_resampled_before_a_recovery_warning(self):
+        probe = guard.Probe.__new__(guard.Probe)
+        probe.address_sample = None
+        probe.last_scan = float('-inf')
+        probe.handle = Mock()
+        probe.psapi = Mock()
+        probe.psapi.GetProcessMemoryInfo.return_value = True
+        probe.address_space = Mock(side_effect=[
+            {'free': 2000 * guard.MIB, 'largest': 12 * guard.MIB},
+            {'free': 2000 * guard.MIB, 'largest': 500 * guard.MIB},
+        ])
+        sentinel = guard.Sentinel(Mock(), self.path, probe, warn=lambda _level: None)
+        now = 0
+        with patch.object(guard.time, 'monotonic', side_effect=lambda: now), \
+                patch.object(guard, 'host_memory', return_value={}):
+            for now in (0, 2, 4):
+                sentinel.measure()
+        self.assertFalse(sentinel.summary['recovery_required'])
+        self.assertFalse(self.path.exists())
+        self.assertEqual(probe.address_space.call_count, 2)
 
     def test_native_scan_accepts_only_a_complete_bounded_current_abi(self):
         probe = guard.Probe.__new__(guard.Probe)

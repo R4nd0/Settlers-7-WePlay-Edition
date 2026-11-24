@@ -141,13 +141,20 @@ def require_game_headroom(sample=None):
     return sample
 
 
-def process_pressure(sample):
-    private, free, largest = (sample[k] for k in ('private', 'free', 'largest'))
-    if private >= 3328*MIB or free <= 256*MIB or largest <= 16*MIB:
+def address_pressure(sample):
+    free, largest = sample['free'], sample['largest']
+    if free <= 256*MIB or largest <= 16*MIB:
         return 2
-    if private >= 2816*MIB or free <= 768*MIB or largest <= 64*MIB:
+    if free <= 768*MIB or largest <= 64*MIB:
         return 1
     return 0
+
+
+def process_pressure(sample):
+    regions = address_pressure(sample)
+    if sample['private'] >= 3328*MIB:
+        return 2
+    return max(regions, int(sample['private'] >= 2816*MIB))
 
 
 def host_pressure(sample):
@@ -177,14 +184,16 @@ def allocation_pressure(sample):
 
 def save(path, value):
     # Caller validates the private LocalData path before starting the sentinel.
-    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-        temporary = Path(stream.name)
-        stream.write((json.dumps(value, indent=2)+'\n').encode('ascii'))
-        stream.flush(); os.fsync(stream.fileno())
+    temporary = None
     try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write((json.dumps(value, indent=2)+'\n').encode('ascii'))
+            stream.flush(); os.fsync(stream.fileno())
         os.replace(temporary, path)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def recovery_required(path):
@@ -228,7 +237,10 @@ class Probe:
         counters = Counters(); counters.cb = C.sizeof(counters)
         if not self.psapi.GetProcessMemoryInfo(self.handle,C.byref(counters),counters.cb):
             raise OSError('Speicherzaehler nicht verfuegbar.')
-        if self.address_sample is None or time.monotonic()-self.last_scan >= ADDRESS_SCAN_SECONDS:
+        # Confirm apparent address pressure with a fresh reading on the next
+        # poll so one transient allocation cannot count as sustained pressure.
+        if (self.address_sample is None or address_pressure(self.address_sample)
+                or time.monotonic()-self.last_scan >= ADDRESS_SCAN_SECONDS):
             try:
                 address_sample = self.address_space()
             except AddressScanTimeout:
@@ -335,25 +347,40 @@ class Sentinel:
                     self.persist()
                 stage = 'poll'
         except Exception as error:
-            self.summary['monitor_failed'] = self.summary['recovery_required'] = True
-            # Bounded diagnostics only; never persist exception messages/paths.
-            self.summary['failure_stage'] = stage
-            self.summary['failure_kind'] = ('scan_timeout' if isinstance(error,AddressScanTimeout)
-                                            else 'os_error' if isinstance(error,OSError) else 'internal_error')
-            code = getattr(error,'winerror',None) or getattr(error,'errno',None)
-            if type(code) is int:self.summary['failure_code'] = code
+            self.mark_failure(stage,error)
             try:
                 self.persist()
             finally:
                 if not self.warned:
                     threading.Thread(target=self.warn,args=(3,),daemon=True).start()
 
+    def mark_failure(self, stage, error):
+        self.summary['monitor_failed'] = self.summary['recovery_required'] = True
+        # Keep diagnostics to fixed stages, categories and numeric codes.
+        self.summary['failure_stage'] = stage
+        self.summary['failure_kind'] = ('scan_timeout' if isinstance(error,AddressScanTimeout)
+                                        else 'os_error' if isinstance(error,OSError) else 'internal_error')
+        code = getattr(error,'winerror',None) or getattr(error,'errno',None)
+        if type(code) is int:self.summary['failure_code'] = code
+
     def start(self):
         # Check functionality before reporting a protected start.
-        self.measure()
-        self.persist()
-        self.thread = threading.Thread(target=self.run,daemon=True)
-        self.thread.start()
+        stage = 'measure'
+        try:
+            self.measure()
+            stage = 'persist'
+            self.persist()
+            stage = 'poll'
+            thread = threading.Thread(target=self.run,daemon=True)
+            thread.start()
+            self.thread = thread
+        except Exception as error:
+            self.mark_failure(stage,error)
+            try:
+                self.persist()
+            except OSError:
+                error.add_note('memory_summary_write_failed')
+            raise
 
     def close(self):
         self.stop.set()
@@ -361,4 +388,9 @@ class Sentinel:
             self.thread.join(timeout=5)
             if self.thread.is_alive():
                 raise RuntimeError('Speicherpruefung wurde nicht rechtzeitig beendet.')
-        self.persist()
+        try:
+            self.persist()
+        except OSError:
+            if self.child.poll() is None:
+                raise
+            print('memory_summary_write_failed', flush=True)
