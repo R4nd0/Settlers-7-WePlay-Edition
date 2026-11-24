@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from urllib.parse import quote
 
 REPO=Path(__file__).resolve().parents[2]
@@ -137,31 +138,53 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
              'internet_gameplay_verified':False,
              'project':'Settlers-7-WePlay-Edition',
              'source_repository':'https://github.com/R4nd0/Settlers-7-WePlay-Edition',
-             'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip(),
-             'source_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=REPO,text=True).strip()),
+             **source_state(),
              'package_id':content.fingerprint(install.package_manifest(app/'Package')['files']),
              'probe_sha256':content.digest(probe),'compiler':'Inno Setup 7.1.1 x64','authenticode_signed':False}
     (app/'desktop-release.json').write_text(json.dumps(release,indent=2)+'\n',encoding='utf-8')
     compile_setup(app,output,compiler)
-    proof={'format':'weplay-main-package-release-v1','platform_isolation':release_policy.CONTRACT,
-           'setup_sha256':content.digest(output/'Setup.exe'),'setup_bytes':(output/'Setup.exe').stat().st_size,
-           'source_commit':release['source_commit'],'package_id':release['package_id'],
-           'source_tree_dirty':release['source_tree_dirty'],
-           'crossplay_mixed':package_record.get('crossplay_mixed',False)}
-    (output/'Setup.release.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
     return app
 
 
+def source_state():
+    return {
+        'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip(),
+        'source_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=REPO,text=True).strip()),
+    }
+
+
 def compile_setup(app,output,compiler):
+    import release_policy
+    app,output=map(content.plain,(app,output))
+    if output.is_relative_to(app):
+        raise ValueError('Setup output must be outside the application stage')
     if any((app/name).exists() for name in ('State','Instances','LocalData','Game','Backup')):
         raise ValueError('Private machine/game data must never be included in Setup')
-    result=subprocess.run([str(compiler),'/Qp','/DStage='+str(app),'/DOutput='+str(output),str(REPO/'tools/desktop/Setup.iss')],
-                          cwd=REPO,capture_output=True,text=True)
-    if result.returncode:raise RuntimeError(result.stdout+'\n'+result.stderr)
-    target=output/'Setup.exe'
-    if not target.is_file():raise RuntimeError('Setup compiler produced no installer')
-    target.with_suffix('.exe.sha256').write_text(content.digest(target)+'  Setup.exe\n',encoding='ascii')
-    print(json.dumps({'setup':str(target),'bytes':target.stat().st_size,'sha256':content.digest(target)}))
+    package=install.package_manifest(app/'Package')
+    release=json.loads(content.plain(app/'desktop-release.json').read_text(encoding='utf-8'))
+    if (not isinstance(release,dict) or release.get('format')!='s7-desktop-release-v1'
+            or release.get('package_id')!=content.fingerprint(package['files'])):
+        raise ValueError('Stage metadata package identity does not match the verified payload')
+    output.mkdir(parents=True,exist_ok=True)
+    # A successful compiler exit is insufficient when an older Setup.exe is
+    # already present. Require a new artifact from this separate invocation.
+    with tempfile.TemporaryDirectory(prefix='setup-compile-',dir=output) as folder:
+        candidate=Path(folder)
+        result=subprocess.run([str(compiler),'/Qp','/DStage='+str(app),'/DOutput='+str(candidate),
+                               str(REPO/'tools/desktop/Setup.iss')],cwd=REPO,capture_output=True,text=True)
+        if result.returncode:raise RuntimeError(result.stdout+'\n'+result.stderr)
+        setup=content.plain(candidate/'Setup.exe')
+        if not setup.is_file():raise RuntimeError('Setup compiler produced no installer')
+        sha256=content.digest(setup);size=setup.stat().st_size
+        proof={'format':'weplay-main-package-release-v1','platform_isolation':release_policy.CONTRACT,
+               'setup_sha256':sha256,'setup_bytes':size,'source_commit':release['source_commit'],
+               'package_id':release['package_id'],'source_tree_dirty':release['source_tree_dirty'],
+               'crossplay_mixed':package.get('crossplay_mixed',False)}
+        (candidate/'Setup.release.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
+        (candidate/'Setup.exe.sha256').write_text(sha256+'  Setup.exe\n',encoding='ascii')
+        for name in ('Setup.exe','Setup.exe.sha256','Setup.release.json'):
+            (candidate/name).replace(content.plain(output/name))
+    print(json.dumps({'setup':str(output/'Setup.exe'),'bytes':size,'sha256':sha256}))
 
 
 def refresh_stage(app,desktop_publish):
@@ -186,7 +209,13 @@ def refresh_stage(app,desktop_publish):
     (package/'package.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(package)
     for path in desktop_publish.iterdir():
-        if path.is_file() and path.suffix in ('.exe','.dll','.json'):shutil.copyfile(path,app/path.name)
+        if path.is_file() and path.suffix in ('.exe','.dll','.json') and path.name.casefold()!='desktop-release.json':
+            shutil.copyfile(path,app/path.name)
+    release_path=content.plain(app/'desktop-release.json')
+    if release_path.is_file():
+        release=json.loads(release_path.read_text(encoding='utf-8'))
+        release.update(source_state(),package_id=content.fingerprint(manifest['files']))
+        release_path.write_text(json.dumps(release,indent=2)+'\n',encoding='utf-8')
     copy_documents(app,platform_independent=manifest.get('platform_independent',False))
     for name in ('LIESMICH.txt','START-HIER.txt'):(package/name).unlink(missing_ok=True)
     return app
