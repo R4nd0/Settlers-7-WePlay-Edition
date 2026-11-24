@@ -31,6 +31,13 @@ class RenderProfileTests(unittest.TestCase):
         self.assertTrue(Path(environment['DXVK_SHADER_CACHE_PATH']).is_dir())
         self.assertEqual(self.snapshot(), before)
 
+    def test_inherited_dxvk_uuid_cannot_override_the_saved_gpu_selection(self):
+        inherited = {'dxvk_filter_device_uuid': '0' * 32, 'PATH': 'fixture'}
+        child = graphics.launch_environment(self.root, inherited, device_name='Fixture GPU')
+        self.assertEqual(child['DXVK_FILTER_DEVICE_NAME'], 'Fixture GPU')
+        self.assertNotIn('DXVK_FILTER_DEVICE_UUID', {name.upper() for name in child})
+        self.assertEqual(child['PATH'], inherited['PATH'])
+
     def test_renderer_swap_requires_working_restore_source_before_it_mutates(self):
         executable = self.root / graphics.EXE
         renderer = executable.with_name('d3d9.dll')

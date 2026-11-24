@@ -449,7 +449,8 @@ def launch_environment(root, inherited=None, *, device_name=None, anisotropic_fi
             raise ValueError('Ungueltige lokale Grafikkartenauswahl.')
     result = dict(os.environ if inherited is None else inherited)
     owned = {'DXVK_CONFIG_FILE', 'DXVK_LOG_PATH', 'DXVK_SHADER_CACHE_PATH',
-             'DXVK_STATE_CACHE_PATH', 'DXVK_FILTER_DEVICE_NAME', 'DXVK_CONFIG'}
+             'DXVK_STATE_CACHE_PATH', 'DXVK_FILTER_DEVICE_NAME',
+             'DXVK_FILTER_DEVICE_UUID', 'DXVK_CONFIG'}
     # Windows environment names are case-insensitive; remove inherited aliases.
     for name in list(result):
         if name.upper() in owned:

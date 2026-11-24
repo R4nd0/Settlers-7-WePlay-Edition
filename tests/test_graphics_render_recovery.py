@@ -1,6 +1,7 @@
 """Owned graphics preflights and last-working preference restoration."""
 from contextlib import contextmanager
 from pathlib import Path
+import os
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -118,6 +119,15 @@ class GraphicsRecoveryTests(unittest.TestCase):
         self.assertEqual(backend.Desktop.cached_graphics_probe(desktop)['devices'], [])
         record['probe_sha256'] = desktop.package_manifest()['files']['payload/graphics/s7graphicsprobe.exe']
         self.assertEqual(backend.Desktop.cached_graphics_probe(desktop), record)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows GPU probe path')
+    def test_gpu_probe_ignores_an_inherited_dxvk_device_uuid_filter(self):
+        desktop = self.probe_desktop(previous=None)
+        result = SimpleNamespace(returncode=0, stdout=b'{"format":"s7-render-probe-v1","devices":["Fixture GPU"]}')
+        with patch.dict(os.environ, {'DXVK_FILTER_DEVICE_UUID': '0' * 32}), \
+                patch.object(subprocess, 'run', return_value=result) as child:
+            self.assertEqual(backend.Desktop.probe(desktop)['devices'], ['Fixture GPU'])
+        self.assertFalse(any(name.upper() == 'DXVK_FILTER_DEVICE_UUID' for name in child.call_args.kwargs['env']))
 
     def test_missing_display_inventory_uses_automatic_output_for_a_stale_choice(self):
         desktop = Mock(displays=Mock(return_value=[]))

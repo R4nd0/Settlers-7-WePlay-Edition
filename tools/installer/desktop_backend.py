@@ -253,7 +253,7 @@ class Desktop:
         self.progress('graphics_probe')
         environment=dict(os.environ)
         for key in list(environment):
-            if key.upper() in ('DXVK_CONFIG','DXVK_FILTER_DEVICE_NAME','DXVK_CONFIG_FILE'):
+            if key.upper() in ('DXVK_CONFIG','DXVK_FILTER_DEVICE_NAME','DXVK_FILTER_DEVICE_UUID','DXVK_CONFIG_FILE'):
                 del environment[key]
         environment.update(DXVK_CONFIG='d3d9.floatEmulation = Strict',DXVK_LOG_LEVEL='none',
                            DXVK_STATE_CACHE='0',DXVK_LOG_PATH=str(self.state))
