@@ -177,7 +177,10 @@ class CrossplayBroker:
             raise ValueError('Invalid pump timeout')
         for key, flags in self.selector.select(timeout):
             if key.fileobj is self.listener:
-                sock, address = self.listener.accept()
+                try:
+                    sock, address = self.listener.accept()
+                except (BlockingIOError, ConnectionAbortedError, ConnectionResetError):
+                    continue
                 if len(self.connections) >= 16 or self.retired or address[0] not in self.allowed_addresses:
                     sock.close(); self.rejections += 1; continue
                 try:

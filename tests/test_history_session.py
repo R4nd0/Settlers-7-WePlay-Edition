@@ -2,6 +2,7 @@
 import base64
 import os
 from pathlib import Path
+import subprocess
 import sys,tempfile,unittest
 from unittest.mock import Mock,patch
 
@@ -69,6 +70,40 @@ class HistorySessionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'service_failed'):owner.pump(0)
         owner.close();self.process.terminate.assert_not_called()
         self.assertFalse((self.data/'s7-local-runtime.ini').exists())
+
+    def test_history_cleanup_can_resume_after_child_exit_timeout(self):
+        owner = self.owner().start()
+        self.process.wait.side_effect = [subprocess.TimeoutExpired('fixture', 10),
+                                         subprocess.TimeoutExpired('fixture', 5)]
+        with self.assertRaises(subprocess.TimeoutExpired):
+            owner.close()
+        self.assertFalse(owner.closed)
+        self.assertFalse(owner.lock.closed)
+        self.assertTrue(owner.runtime.is_file())
+        self.process.poll.return_value = 0
+        owner.close()
+        self.assertTrue(owner.closed)
+        self.assertFalse(owner.runtime.exists())
+
+    def test_restore_retries_temporary_sharing_conflict_after_shutdown(self):
+        runtime = self.data / 's7-local-runtime.ini'
+        previous = b'format=s7-local-runtime-v1\nprevious profile\n'
+        runtime.write_bytes(previous)
+        stamp = 1700000000000000000
+        os.utime(runtime, ns=(stamp, stamp))
+        owner = self.owner().start()
+        move = Path.replace
+        attempts = []
+        def retry(path, target):
+            attempts.append(target)
+            if len(attempts) == 1:
+                raise PermissionError('temporary sharing conflict')
+            return move(path, target)
+        with patch.object(Path, 'replace', retry):
+            owner.close()
+        self.assertEqual(runtime.read_bytes(), previous)
+        self.assertEqual(runtime.stat().st_mtime_ns, stamp)
+        self.assertEqual(attempts, [runtime, runtime])
 
     def test_parallel_owner_fails_without_stopping_the_first_service(self):
         first=self.owner().start()

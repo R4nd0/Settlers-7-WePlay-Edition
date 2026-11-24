@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import uuid
 
 import compatibility as content
@@ -26,13 +27,14 @@ def launcher_module():
 
 
 class HistorySessionService:
-    def __init__(self,root,*,profile_id,name):
+    def __init__(self,root,*,profile_id,name,cancel_check=None):
         if (not isinstance(profile_id,str) or len(profile_id)!=36
                 or str(uuid.UUID(profile_id))!=profile_id or uuid.UUID(profile_id).int==0
                 or not isinstance(name,str) or not 1<=len(name)<=64
                 or any(not 32<=ord(c)<=126 for c in name)):
             raise ValueError('crossplay_configuration_invalid')
         self.root=content.plain(root);self.profile_id=profile_id;self.name=name
+        self.cancel_check = cancel_check
         self.process=self.lock=self.output=self.errors=None
         self.runtime=self.owned_runtime=self.previous_runtime=None
         self.previous_times=None;self.closed=False;self.started=False
@@ -43,6 +45,8 @@ class HistorySessionService:
         data=content.plain(self.root/'LocalData')
         if not data.is_dir():raise ValueError('crossplay_profile_invalid')
         try:
+            if self.cancel_check:
+                self.cancel_check()
             self.lock=content.plain(data/'session.lock').open('a+b')
             if self.lock.tell()==0:self.lock.write(b'0');self.lock.flush()
             self.lock.seek(0)
@@ -68,7 +72,7 @@ class HistorySessionService:
                 stdout=self.output,stderr=self.errors,
                 creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             launcher=launcher_module()
-            configuration,port=launcher.service_ready(self.process,self.log)
+            configuration,port=launcher.service_ready(self.process,self.log,cancel_check=self.cancel_check)
             launcher.write_configuration(data,configuration,port,True,display_name=self.name,profile_id=self.profile_id)
             self.owned_runtime=self.runtime.read_bytes()
             self.pump(0)
@@ -83,12 +87,18 @@ class HistorySessionService:
     def close(self):
         if self.closed:return
         failed=False
-        try:
-            if self.process is not None and self.process.poll() is None:
+        # Keep the lock and original configuration while the owned child may
+        # still be using this copy. A later close can finish after it exits.
+        if self.process is not None:
+            if self.process.poll() is None:
                 self.process.terminate()
-                try:self.process.wait(timeout=10)
+                try:
+                    self.process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    self.process.kill();self.process.wait(timeout=5)
+                    self.process.kill()
+                    self.process.wait(timeout=5)
+            self.process = None
+        try:
             if self.owned_runtime is not None:
                 if not self.runtime.is_file() or self.runtime.read_bytes()!=self.owned_runtime:
                     failed=True
@@ -97,8 +107,16 @@ class HistorySessionService:
                     temporary=content.plain(self.runtime.with_name('restore-'+uuid.uuid4().hex+'.tmp'))
                     try:
                         with temporary.open('xb') as stream:stream.write(self.previous_runtime)
-                        temporary.replace(self.runtime)
-                        os.utime(self.runtime,ns=self.previous_times)
+                        os.utime(temporary, ns=self.previous_times)
+                        deadline = time.monotonic() + .25
+                        while True:
+                            try:
+                                temporary.replace(self.runtime)
+                                break
+                            except PermissionError:
+                                if time.monotonic() >= deadline:
+                                    raise
+                                time.sleep(.02)
                     finally:temporary.unlink(missing_ok=True)
         finally:
             for stream in (self.output,self.errors):

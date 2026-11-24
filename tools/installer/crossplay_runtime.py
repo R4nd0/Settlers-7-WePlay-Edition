@@ -60,7 +60,10 @@ class SessionPump:
                     service.pump(0)
                 if self.gateway is not None:
                     self.gateway.pump()
-                    if self.gateway.closed: break
+                    if self.gateway.closed:
+                        if not self.stop.is_set() and (not games or any(game.poll() is None for game in games)):
+                            self.failed = True
+                        break
                 self.stop.wait(.005)
         except Exception:
             # Never log exception payloads or terminate a healthy game to hide

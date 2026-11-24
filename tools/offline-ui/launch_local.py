@@ -271,11 +271,13 @@ def write_configuration(data, configuration, udp_port, connect_probe=False, *, a
     return destination
 
 
-def service_ready(process, log, address="127.0.0.1"):
+def service_ready(process, log, address="127.0.0.1", *, cancel_check=None):
     # A newly copied .NET runtime can need about 30 s for its first cold start.
     # Keep startup bounded and require the same validated loopback response.
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
+        if cancel_check:
+            cancel_check()
         if process.poll() is not None:
             raise RuntimeError("Der lokale Dienst konnte nicht starten.")
         for line in log.read_text(encoding="utf-8").splitlines():
@@ -295,6 +297,8 @@ def service_ready(process, log, address="127.0.0.1"):
                     if response.status != 200 or len(body) > 8192:
                         raise ValueError("Die lokale Konfiguration konnte nicht gelesen werden.")
                     return json.loads(body), udp_port
+                except (ConnectionRefusedError, ConnectionResetError, TimeoutError):
+                    break  # Transport can lag behind the readiness log briefly.
                 finally:
                     connection.close()
         time.sleep(0.1)

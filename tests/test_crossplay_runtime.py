@@ -77,6 +77,18 @@ class RuntimeTests(unittest.TestCase):
         history.close.assert_called_once();gateway.close.assert_called_once()
         game.terminate.assert_not_called();game.kill.assert_not_called()
 
+    def test_gateway_eof_while_game_still_running_reports_disconnect(self):
+        gateway = self.endpoint()
+        gateway.pump.side_effect = lambda: setattr(gateway, 'closed', True)
+        game = Mock(poll=Mock(return_value=None))
+        owner = SessionPump(gateway=gateway).attach(game).start()
+        self.addCleanup(owner.close)
+        owner.thread.join(timeout=2)
+        self.assertTrue(owner.closed)
+        with self.assertRaisesRegex(RuntimeError, '^crossplay_service_failed$'):
+            owner.check()
+        game.terminate.assert_not_called()
+
     def test_explicit_cancel_closes_waiting_session_and_close_is_idempotent(self):
         broker, gold = self.endpoint(), self.endpoint()
         owner = SessionPump(broker=broker, gold=gold)

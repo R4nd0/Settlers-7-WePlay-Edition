@@ -36,6 +36,19 @@ class ServiceReadinessTests(unittest.TestCase):
         self.assertGreaterEqual(now[0],60);self.assertLess(now[0],60.2)
         connect.assert_not_called()
 
+    def test_initial_connection_refusal_can_recover_within_readiness_window(self):
+        process = Mock(poll=Mock(return_value=None))
+        log = Mock(read_text=Mock(return_value=json.dumps(dict(event='configuration-server-ready',
+                                                               http_port=1234, udp_port=1235))))
+        refused = Mock()
+        refused.request.side_effect = ConnectionRefusedError()
+        response = Mock(status=200, read=Mock(return_value=b'{"fixture":true}'))
+        ready = Mock(getresponse=Mock(return_value=response))
+        with patch.object(launch.http.client, 'HTTPConnection', side_effect=[refused, ready]):
+            self.assertEqual(launch.service_ready(process, log), ({'fixture': True}, 1235))
+        refused.close.assert_called_once()
+        ready.close.assert_called_once()
+
     def test_exited_child_fails_immediately(self):
         process=Mock();process.poll.return_value=1
         with patch.object(launch.time,'sleep') as sleep:

@@ -74,7 +74,7 @@ class CrossplayNetworkTests(unittest.TestCase):
             self.assertIsNone(guest.binding.gold_auth_port)
             self.assertEqual(guest.binding.key,host.pair._guest.key)
             self.history_factory.assert_called_with(self.fixture.roots[edition],
-                profile_id=self.history_factory.call_args.kwargs['profile_id'],name='Guest')
+                profile_id=self.history_factory.call_args.kwargs['profile_id'],name='Guest',cancel_check=None)
             profile=self.history_factory.call_args.kwargs['profile_id']
             self.assertEqual(str(uuid.UUID(profile)),profile)
             self.assertNotEqual(uuid.UUID(profile).bytes,guest.binding.identity)
@@ -89,6 +89,20 @@ class CrossplayNetworkTests(unittest.TestCase):
                 invitation=host.invitation(),name='Guest',consent=1)
         self.history.close.assert_called_once()
         self.gateway.close.assert_called();self.overlay.close.assert_called()
+
+    def test_mixed_guest_cancellation_reaches_local_history_bootstrap(self):
+        host = self.host()
+        cancel = Mock(side_effect=RuntimeError('cancelled'))
+        def bootstrap(*_args, cancel_check=None, **_options):
+            if cancel_check:
+                self.history.start.side_effect = cancel_check
+            return self.history
+        self.history_factory.side_effect = bootstrap
+        with self.assertRaisesRegex(RuntimeError, '^cancelled$'):
+            network.NetworkSession.guest(self.fixture.roots[3], self.catalog,
+                invitation=host.invitation(), name='Guest', consent=1, cancel_check=cancel)
+        cancel.assert_called_once()
+        self.history.close.assert_called_once()
 
     def test_wrong_guest_content_fails_before_a_second_overlay(self):
         pair=self.host();token=pair.invitation();self.open.reset_mock()

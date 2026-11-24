@@ -85,7 +85,8 @@ class NetworkSession:
             # The local platform profile, opaque channel identity and Storm
             # principal are separate. Bind a fresh profile to this same owner;
             # never reinterpret channel bytes as an unqualified GUID layout.
-            result.history=HistorySessionService(root,profile_id=str(uuid.uuid4()),name=name)
+            result.history=HistorySessionService(root,profile_id=str(uuid.uuid4()),name=name,
+                                                 cancel_check=cancel_check)
             result.history.start()
             result.runtime = SessionPump(gateway=result.gateway,history=result.history).start()
             result.check()
@@ -104,9 +105,11 @@ class NetworkSession:
         return self
 
     def check(self):
-        if self.closed or self.runtime is None or self.runtime.closed:
+        if self.closed or self.runtime is None:
             raise ValueError('crossplay_service_closed')
         self.runtime.check()
+        if self.runtime.closed:
+            raise ValueError('crossplay_service_closed')
 
     def close(self):
         if self.closed: return

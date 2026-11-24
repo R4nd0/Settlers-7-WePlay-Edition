@@ -5,7 +5,9 @@ import secrets
 import socket
 import sys
 import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'tools/gold'))
 from crossplay_server import CrossplayBroker, HEADER, Launch, MAX_PAYLOAD, PINS
@@ -69,6 +71,17 @@ class BrokerTests(unittest.TestCase):
         connection=next(iter(self.broker.connections.values()))
         self.assertEqual(connection.sock.getsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY),1)
         self.assertFalse(connection.authenticated);self.assertFalse(self.broker.members)
+
+    def test_aborted_connection_before_accept_keeps_listener_available(self):
+        listener = Mock()
+        listener.accept.side_effect = ConnectionAbortedError()
+        ready = SimpleNamespace(fileobj=listener)
+        with patch.object(self.broker, 'listener', listener), \
+                patch.object(self.broker.selector, 'select', return_value=[(ready, 1)]):
+            self.broker.pump(0)
+        self.assertFalse(self.broker.retired)
+        self.client(1)
+        self.assertEqual(len(self.broker.connections), 1)
 
     def test_authenticated_profile_cannot_be_changed(self):
         body = self.hello(1)
