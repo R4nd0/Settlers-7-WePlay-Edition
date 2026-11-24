@@ -174,6 +174,27 @@ class DiscoveryPolicyTests(unittest.TestCase):
         with patch.object(auto, 'request', return_value=status(active=1)):
             self.assertEqual(self.discover_on_interfaces(directory, [], clock), existing)
 
+    def test_cached_alternate_adapter_can_reach_a_room_after_a_missed_beacon(self):
+        primary = room('192.168.1.20')
+        alternate = replace(primary, local_interface=LanInterface('192.168.1.30', 24, 'Second adapter'))
+        clock = [1.]
+        directory = LanDiscovery([primary.local_interface, alternate.local_interface], socket_factory=Mock(),
+                                 route_socket=Mock(), clock=lambda: clock[0])
+        directory.cache.add(primary)
+        directory.cache.add(alternate)
+
+        def inspect(_host, local, *_args, **_options):
+            if local == alternate.local_interface.address:
+                raise ConnectionRefusedError()
+            return status(active=1)
+
+        with patch.object(auto, 'request', side_effect=inspect) as request:
+            self.assertEqual(self.discover_on_interfaces(directory, [], clock), primary)
+        self.assertEqual({call.args[1] for call in request.call_args_list},
+                         {primary.local_interface.address, alternate.local_interface.address})
+        self.assertEqual(len(directory.cache.list_rooms()), 1)
+        self.assertEqual(directory.resolve(primary.room_id), primary)
+
     def test_fresh_room_does_not_conflict_with_cached_generation_on_another_route(self):
         current = room('192.168.1.20', key=2)
         previous = room('192.168.1.20', local='192.168.1.30', key=1, default=False)

@@ -33,6 +33,7 @@ namespace S7Patcher.Source
             reason = "unsupported-join-success-arguments";
             if (closed || !CatalogueProbe || owner == null || registration == null
                 || !LocalSessionMetadata.TryReadJoinSuccessBody(body, out var space, out uint id)) return false;
+            ExpirePendingJoins();
             reason = "local-join-success-not-reserved-caller";
             if (!registration.TryCopyRegisteredPeer(out var peer)) return false;
             using (peer)

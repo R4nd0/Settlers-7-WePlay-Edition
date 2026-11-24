@@ -23,6 +23,7 @@ STARTUP_FAILURES = {
     21: 'lan_discovery_socket_failed',
     22: 'lan_coordinator_start_failed',
     23: 'lan_coordinator_timeout',
+    24: 'lan_coordinator_stopped',
 }
 BEACON_RETRY_SECONDS = 3
 BEACON_BIND_FAILURES = ('lan_discovery_port_busy', 'lan_discovery_socket_failed')
@@ -137,7 +138,7 @@ def serve(root, interface, name, expected, room_id, *, discovery_port=DISCOVERY_
                     time.sleep(.1)
             beacon.start()
             lifetime = HubLifetime()
-            while service.poll() is None:
+            while (exit_code := service.poll()) is None:
                 try:
                     status = request(interface.address, interface.address, 'status', expected=expected)
                     members, active = status_counts(status, expected)
@@ -148,6 +149,8 @@ def serve(root, interface, name, expected, room_id, *, discovery_port=DISCOVERY_
                 if not lifetime.keep(active):
                     break
                 time.sleep(1)
+            if exit_code not in (None, 0):
+                raise LanHubError('lan_coordinator_stopped')
     finally:
         try:
             if beacon is not None:

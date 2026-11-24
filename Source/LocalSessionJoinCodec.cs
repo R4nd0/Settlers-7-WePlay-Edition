@@ -34,6 +34,29 @@ namespace S7Patcher.Source
 
     internal sealed partial class LocalSessionRegistry
     {
+        private const long PendingJoinMilliseconds = 120_000;
+
+        // Only the UDP owner advances native reservations. Confirmed members
+        // still leave through their normal transport/room lifecycle.
+        internal void ExpirePendingJoins()
+        {
+            if (closed || !CatalogueProbe) return;
+            long now = clock();
+            bool changed = false;
+            foreach (var entry in entries)
+            {
+                List<object> expired = null;
+                foreach (var reservation in entry.Pending)
+                    if (!reservation.Value.Confirmed && now >= reservation.Value.ExpiresAt)
+                        (expired ??= new()).Add(reservation.Key);
+                if (expired == null) continue;
+                foreach (object owner in expired)
+                    if (entry.Pending.Remove(owner, out var member)) member.Dispose();
+                changed = true;
+            }
+            if (changed) RefreshPublicGames();
+        }
+
         internal bool TryObserveJoinFailure(object owner, LocalLoginRpcEngine registration,
             ReadOnlySpan<byte> message, out uint sessionKind, out int textLength, out string reason)
             => TryObserveJoinFailure(owner, registration, message, out sessionKind, out textLength, out reason, out _);
@@ -84,11 +107,12 @@ namespace S7Patcher.Source
         }
 
         private sealed class PendingMember(LocalLoginRpcEngine.RegisteredPeer peer,
-            LocalSessionMetadata metadata, ReadOnlySpan<byte> body) : IDisposable
+            LocalSessionMetadata metadata, ReadOnlySpan<byte> body, long expiresAt) : IDisposable
         {
             internal readonly LocalLoginRpcEngine.RegisteredPeer Peer = peer;
             internal readonly LocalSessionMetadata Metadata = metadata;
             internal readonly byte[] Body = body.ToArray();
+            internal readonly long ExpiresAt = expiresAt;
             internal bool Confirmed;
             public void Dispose() { Peer.Dispose(); Metadata.Dispose(); CryptographicOperations.ZeroMemory(Body); }
         }
@@ -230,6 +254,7 @@ namespace S7Patcher.Source
             byte[] routes = null;
             try
             {
+                ExpirePendingJoins();
                 reason = "local-join-caller-not-registered";
                 if (registration == null || !registration.TryCopyRegisteredPeer(out peer)) return false;
                 string identity = Convert.ToHexString(peer.ProfileId);
@@ -264,7 +289,8 @@ namespace S7Patcher.Source
                     if (!Slots(selected.Metadata, "settlers_max_slots", out long max) || max < 2
                         || !Slots(selected.Metadata, "settlers_free_slots", out long free)
                         || free <= unconfirmed || selected.Pending.Count + 1 >= max) return false;
-                    candidate = new(peer, metadata, body); peer = null; metadata = null;
+                    candidate = new(peer, metadata, body, clock() + PendingJoinMilliseconds);
+                    peer = null; metadata = null;
                 }
                 reason = "local-join-response-limit";
                 using var snapshot = Snapshot(selected, candidate);

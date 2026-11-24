@@ -192,6 +192,7 @@
   "lan_discovery_socket_failed": "Die LAN-Suche konnte auf der gewählten Netzwerkschnittstelle nicht gestartet werden. Prüfe, ob die Verbindung noch aktiv ist.",
   "lan_coordinator_start_failed": "Der lokale LAN-Dienst konnte nicht gestartet werden. Prüfe, ob bereits eine andere WePlay-Kopie als LAN-Dienst läuft.",
   "lan_coordinator_timeout": "Der lokale LAN-Dienst wurde nicht rechtzeitig erreichbar. Versuche den LAN-Start erneut.",
+  "lan_coordinator_stopped": "Der lokale LAN-Dienst wurde unerwartet beendet. Starte die LAN-Verbindung erneut.",
   "lan_discovery_timeout": "Die lokale LAN-Gruppe antwortet nicht auf die LAN-Suche. Prüfe den Zugriff für privates LAN.",
   "setupNetwork": "Windows-Netzwerkfreigaben für diese Kopie einrichten (Netzisolation und privates LAN, soweit verfügbar)",
   "setupNetworkTitle": "Windows-Netzwerkfreigaben",

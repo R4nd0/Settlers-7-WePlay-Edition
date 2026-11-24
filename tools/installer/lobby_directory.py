@@ -164,7 +164,7 @@ class RoomCache:
         self.prune()
         if room.expires_at <= self.clock():
             return
-        key = (room.room_id, room.endpoint.host)
+        key = (room.room_id, room.endpoint.host, room.local_interface.address)
         if key not in self.rooms and len(self.rooms) >= MAX_ROOMS:
             return
         self.rooms[key] = room
@@ -173,9 +173,22 @@ class RoomCache:
         now = self.clock()
         self.rooms = {key: room for key, room in self.rooms.items() if room.expires_at > now}
 
-    def list_rooms(self):
+    def list_routes(self):
         self.prune()
-        return sorted(self.rooms.values(), key=lambda r: (r.name.casefold(), r.room_id, r.endpoint.host))
+        return sorted(self.rooms.values(), key=lambda r: (r.name.casefold(), r.room_id, r.endpoint.host,
+                                                           not r.local_interface.default_route, r.local_interface.address))
+
+    def list_rooms(self):
+        # The manual picker displays an endpoint once. Automatic election
+        # instead rechecks every cached source-bound route to that endpoint.
+        endpoints = {}
+        for room in self.list_routes():
+            key = room.room_id, room.endpoint.host
+            previous = endpoints.get(key)
+            if previous is None or (room.expires_at, room.local_interface.default_route) > (
+                    previous.expires_at, previous.local_interface.default_route):
+                endpoints[key] = room
+        return sorted(endpoints.values(), key=lambda r: (r.name.casefold(), r.room_id, r.endpoint.host))
 
     def resolve(self, room_id):
         matches = [room for room in self.list_rooms() if room.room_id == room_id]

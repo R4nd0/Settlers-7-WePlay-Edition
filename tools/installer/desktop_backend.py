@@ -1797,7 +1797,7 @@ def error_code(error):
         'reshade_layer_path_unavailable',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
-                'lan_discovery_port_busy','lan_discovery_port_invalid','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',
+                'lan_discovery_port_busy','lan_discovery_port_invalid','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_coordinator_stopped','lan_discovery_timeout',
                 'settings_saved_refresh_failed','graphics_start_reverted','platform_isolation_required','gold_single_player_only','gold_game_settings',
                 'gold_graphics_invalid','gold_maximum_unavailable','gold_dxvk_required',
                 'crossplay_unavailable','crossplay_configuration_invalid','crossplay_edition_mismatch',

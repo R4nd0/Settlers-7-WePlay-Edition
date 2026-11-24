@@ -89,7 +89,7 @@ arbitrary endpoint URLs, account data or native game calls are involved.
             announced.setdefault(room.endpoint.host, set()).add(room.room_id)
         # A replaced beacon generation must not appear as a second group
         # just because an older announcement was cached on another interface.
-        cached = [room for room in directory.cache.list_rooms()
+        cached = [room for room in directory.cache.list_routes()
                   if route(room) not in scanned_routes
                   and (room.endpoint.host not in announced or room.room_id in announced[room.endpoint.host])]
         rooms.extend(cached[:MAX_ROOMS - len(rooms)])

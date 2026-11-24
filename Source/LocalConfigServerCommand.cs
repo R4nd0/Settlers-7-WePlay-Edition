@@ -291,6 +291,7 @@ namespace S7Patcher.Source
                                 tick ??= maintenance.WaitForNextTickAsync(stop.Token).AsTask();
                                 await Task.WhenAny(receive, tick);
                                 if (tick.IsCompleted) { await tick; tick = null; }
+                                sessions.ExpirePendingJoins();
                                 if (network.Lobby != null)
                                     ReclaimUnadmittedContexts(network.Lobby, admissionGenerations, loginSessions, peers);
                                 foreach (var entry in loginSessions.ToArray())

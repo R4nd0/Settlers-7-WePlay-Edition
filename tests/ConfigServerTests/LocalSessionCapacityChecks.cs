@@ -67,6 +67,27 @@ internal static class LocalSessionCapacityChecks
             Check(ai.TryUpdate(owner, LocalSessionUpdateChecks.Body(aiId, attributes:Slots(1)), out _)
                 && ai.TryJoin(visitors[1], guests[1], LocalSessionJoinChecks.Body(id:aiId), _ => [1], out _, out _),
                 "ordered AI removal allows another human without rehosting");
+
+            long now = 1000;
+            using var stalled = new LocalSessionRegistry(catalogueProbe: true, clock: () => now);
+            Check(stalled.TryCreate(owner, host, LocalSessionCatalogueChecks.PublicBody(), out uint stalledId, out _),
+                "stalled reservation fixture");
+            bool Reserve(int index) => stalled.TryJoin(visitors[index], guests[index],
+                LocalSessionJoinChecks.Body(id:stalledId), _ => [1], out _, out _);
+            bool Complete(int index) => stalled.TryConfirmJoin(visitors[index], guests[index],
+                LocalJoinSuccessChecks.Body(id:stalledId), out _);
+            Check(Reserve(0) && Complete(0) && Reserve(1) && Reserve(2), "confirmed player and unfinished joins occupy capacity");
+            now += 119_999;
+            Check(!Reserve(3), "a live incomplete join is not displaced early");
+            ++now;
+            Check(Reserve(3), "abandoned in-game join reservation kept the lobby full");
+            Check(Complete(0) && !Complete(1), "confirmed player stays and an old incomplete join cannot confirm");
+            now += 120_000;
+            stalled.ExpirePendingJoins();
+            Check(stalled.TryCopyLiveSession(new object(), "invented-space"u8, stalledId, out var remaining),
+                "idle maintenance keeps the room");
+            using (remaining) Check(remaining.PendingProfiles.Count == 0 && remaining.ConfirmedProfiles.Count == 1,
+                "idle maintenance clears only abandoned reservations");
         }
         finally { foreach (var guest in guests) guest.Dispose(); }
         return checks;

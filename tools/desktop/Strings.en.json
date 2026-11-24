@@ -192,6 +192,7 @@
   "lan_discovery_socket_failed": "LAN discovery could not start on the selected network interface. Check that the connection is still active.",
   "lan_coordinator_start_failed": "The local LAN service could not start. Check whether another WePlay copy is already running the LAN service.",
   "lan_coordinator_timeout": "The local LAN service did not become reachable in time. Try starting LAN again.",
+  "lan_coordinator_stopped": "The local LAN service stopped unexpectedly. Start LAN again.",
   "lan_discovery_timeout": "The local LAN group did not reply to discovery. Check private LAN access.",
   "setupNetwork": "Set up Windows network permissions for this copy (network isolation and private LAN where available)",
   "setupNetworkTitle": "Windows network permissions",

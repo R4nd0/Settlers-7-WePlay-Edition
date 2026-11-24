@@ -11,12 +11,14 @@ namespace S7Patcher.Source
         internal const int MaximumSessions = 8;
         private readonly List<Entry> entries = new();
         private readonly Dictionary<object, DisplaySnapshot> previews = new(ReferenceEqualityComparer.Instance);
+        private readonly Func<long> clock;
         internal bool DisplayProbe { get; }
         internal bool CatalogueProbe { get; }
-        internal LocalSessionRegistry(bool displayProbe = false, bool catalogueProbe = false)
+        internal LocalSessionRegistry(bool displayProbe = false, bool catalogueProbe = false, Func<long> clock = null)
         {
             if (displayProbe && catalogueProbe) throw new ArgumentException("Choose one catalogue mode.");
             DisplayProbe = displayProbe; CatalogueProbe = catalogueProbe;
+            this.clock = clock ?? (() => Environment.TickCount64);
         }
         private uint nextId = 1;
         private bool closed;

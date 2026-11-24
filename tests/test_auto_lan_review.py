@@ -112,6 +112,28 @@ class DiscoveryReviewTests(unittest.TestCase):
 
 
 class HubStartupTests(unittest.TestCase):
+    def test_failed_native_service_after_readiness_does_not_report_clean_hub_exit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            interface = LanInterface('192.168.10.10', 24)
+            expected = 'a' * 64
+            status = dict(content_id=expected, members=1, active_members=0, max_members=8)
+            service = Mock(poll=Mock(side_effect=[None, 9, 9]))
+            beacon = Mock()
+            job = Mock(start=Mock(return_value=service))
+            with patch.object(lan_hub, 'verify_service'), \
+                    patch.object(lan_hub, 'reserve_beacon', return_value=beacon), \
+                    patch.object(lan_hub, 'ServiceJob', return_value=job), \
+                    patch.object(lan_hub.host_runtime, 'server_command', return_value=['fixture']), \
+                    patch.object(lan_hub, 'request', return_value=status), \
+                    self.assertRaisesRegex(lan_hub.LanHubError, '^lan_coordinator_stopped$') as raised:
+                lan_hub.serve(root, interface, 'WePlay LAN', expected, 'b' * 32)
+            beacon.start.assert_called_once()
+            beacon.close.assert_called_once()
+            job.close.assert_called_once()
+            self.assertEqual(lan_hub.LanHubError.from_startup_status(raised.exception.startup_status()).code,
+                             'lan_coordinator_stopped')
+
     def test_retries_only_a_busy_discovery_port(self):
         import errno
         from unittest.mock import sentinel
