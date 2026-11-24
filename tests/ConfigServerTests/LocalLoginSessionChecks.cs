@@ -560,6 +560,20 @@ internal static class LocalLoginSessionChecks
         }
         using (Fixture fixture = new(keepAlive: true))
         {
+            var session = fixture.Session; Action<ConfigServerEvent> emit = fixture.Events.Add;
+            fixture.Login(); session.TakeDue(100, emit);
+            Check(session.TryAcknowledge(Ack(ServerCookie, 1)), "Keepalive login fixture ACK");
+            session.ProcessData(fixture.Data(7, 0, Request(true)), emit);
+            session.TakeDue(100, emit);
+            Check(!session.TryReplyToPing(Ping(), 200, emit, out _), "Unacknowledged registration enabled keepalive");
+            Check(session.TryAcknowledge(Ack(ServerCookie, 2)), "Keepalive registration fixture ACK");
+            session.ProcessData(fixture.Data(8, 0, LocalSessionSearchChecks.Request()), emit, 210);
+            Check(session.PendingCount == 1, "Keepalive in-flight catalogue response fixture");
+            Check(session.TryReplyToPing(Ping(), 220, emit, out _) && session.PendingCount == 1,
+                "An unacknowledged catalogue response blocked an independent keepalive");
+        }
+        using (Fixture fixture = new(keepAlive: true))
+        {
             fixture.Register();
             long hardEnd = 100 + PrudpLocalLoginSession.KeepAliveMaximumMilliseconds;
             for (long now = 60100; now < hardEnd; now += 60000)
@@ -861,6 +875,32 @@ internal static class LocalLoginSessionChecks
             fixture.Session.Dispose();
             Check(!registry.TryCopyDisplaySnapshot(fixture.Session, out _), "Transport teardown retained preview");
             CryptographicOperations.ZeroMemory(expected);
+        }
+        using (LocalSessionRegistry registry = new(catalogueProbe: true))
+        using (Fixture host = new(keepAlive: true, sessions: registry))
+        using (Fixture visitor = new(keepAlive: true, sessions: registry))
+        {
+            host.Register(); visitor.Register();
+            host.Session.ProcessData(host.Data(8, 0, LocalSessionCreationChecks.Request(
+                body: LocalSessionCatalogueChecks.PublicBody())), host.Events.Add);
+            Check(registry.Count == 1, "Response budget host fixture");
+            int limit = PrudpLocalLoginSession.MaximumPostLoginResponses;
+            for (int i = 0; i < limit; ++i)
+            {
+                byte[] call = i == limit - 1 ? LocalSessionJoinChecks.Request() : LocalSessionDisplayChecks.Search();
+                visitor.Session.ProcessData(visitor.Data((ushort)(8 + i), 0, call), visitor.Events.Add);
+                Check(visitor.Session.TakeDue(200 + i, visitor.Events.Add).Count == 1
+                    && visitor.Session.TryAcknowledge(Ack(ServerCookie, (ushort)(3 + i))), "Response budget visitor fixture ACK");
+            }
+            Check(registry.TryCopyLiveSession(visitor.Session, "invented-space"u8, 1, out var reserved), "Budget fixture room lookup");
+            using (reserved) Check(reserved.PendingProfiles.Count == 1, "Final allowed response reserves a place");
+            visitor.Session.ProcessData(visitor.Data((ushort)(8 + limit), 0, LocalJoinFailureChecks.Request()), visitor.Events.Add);
+            Check(registry.TryCopyLiveSession(visitor.Session, "invented-space"u8, 1, out var remaining), "Failure report kept the host room");
+            using (remaining) Check(remaining.PendingProfiles.Count == 0,
+                "The reply quota blocked cleanup of an authenticated failed join");
+            Check(visitor.Session.PendingCount == 0, "Failure report generated a response above quota");
+            visitor.Session.ProcessData(visitor.Data((ushort)(9 + limit), 0, LocalSessionDisplayChecks.Search()), visitor.Events.Add);
+            Check(visitor.Session.PendingCount == 0, "Releasing the reservation reopened the reply quota");
         }
         // Two independently encrypted peers, in both host directions. This tests
         // discovery/Get/reservation/confirmation, not native peer admission or gameplay.

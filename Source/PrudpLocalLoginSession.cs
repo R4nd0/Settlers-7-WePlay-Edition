@@ -81,7 +81,7 @@ namespace S7Patcher.Source
         internal bool TryReplyToPing(ReadOnlySpan<byte> packet, long now, Action<ConfigServerEvent> emit, out byte[] reply)
         {
             reply = null;
-            if (closed || !keepAlive || ExpireIfDue(now, emit) || responseCount != 2 || pending.Count != 0
+            if (closed || !keepAlive || ExpireIfDue(now, emit) || !registrationAcknowledged
                 || now < nextPingReplyAt || !PrudpPingAckCodec.TryCreateReply(packet, peer, out reply)) return false;
             // Refresh only a fully registered, acknowledged local session after
             // context/checksum validation. An ACK/no-request packet cannot refresh.
@@ -166,19 +166,15 @@ namespace S7Patcher.Source
                         // retries, peer allowlisting and idle expiry stay bounded.
                         if (lanKeepAlive && now.HasValue && now.Value - responseWindowAt >= LanResponseWindowMilliseconds)
                         { responseWindowAt = now.Value; postLoginResponseCount = 0; }
-                        if (observedOperations.Count < 8)
-                        {
-                            string operation = LoginRpcCodec.ClassifyPostLoginRequest(message);
-                            if (observedOperations.Add(operation))
-                                Emit(emit, new() { Event = "local-post-login-request-observed", Reason = operation });
-                        }
-                        int responseLimit = lanKeepAlive ? LanResponsesPerWindow : MaximumPostLoginResponses;
-                        if (!keepAlive || !registrationAcknowledged || postLoginResponseCount >= responseLimit || pending.Count >= ReliableResponseQueue.MaximumResponses)
+                        if (!keepAlive || !registrationAcknowledged)
                         {
                             Emit(emit, new() { Event = "local-login-message-rejected", Reason = "response-budget-exhausted" });
                             continue;
                         }
-                        if (LoginRpcCodec.ClassifyPostLoginRequest(message) == "matchmaking-report-join-failure-v1")
+                        string operation = LoginRpcCodec.ClassifyPostLoginRequest(message);
+                        if (observedOperations.Count < 8 && observedOperations.Add(operation))
+                            Emit(emit, new() { Event = "local-post-login-request-observed", Reason = operation });
+                        if (operation == "matchmaking-report-join-failure-v1")
                         {
                             // Cap redacted diagnostics, not lifecycle processing:
                             // every owned failed attempt must release its reservation.
@@ -193,6 +189,12 @@ namespace S7Patcher.Source
                             }
                             if (sessions.TryReleaseFailedJoin(this, rpc, message, out reason))
                                 Emit(emit, new() { Event = "local-session-join-failure-reservation-released", Reason = reason });
+                            continue;
+                        }
+                        int responseLimit = lanKeepAlive ? LanResponsesPerWindow : MaximumPostLoginResponses;
+                        if (postLoginResponseCount >= responseLimit)
+                        {
+                            Emit(emit, new() { Event = "local-login-message-rejected", Reason = "response-budget-exhausted" });
                             continue;
                         }
                         if (!TryReplyToSessionRequest(message, out response, out reason))
