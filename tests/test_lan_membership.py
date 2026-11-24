@@ -62,6 +62,21 @@ class MembershipTests(unittest.TestCase):
         self.assertEqual(transport.call_args_list[0].args[2], 'admit')
         self.assertEqual(transport.call_args_list[-1].args[2], 'leave')
 
+    def test_renewal_thread_start_failure_still_leaves_and_removes_peer_file(self):
+        transport = Mock(side_effect=[response(), None])
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=transport, clock=lambda: 10)
+        startup_error = RuntimeError('cannot start renewal thread')
+        with patch.object(lan_control.threading.Thread, 'start', side_effect=startup_error):
+            with self.assertRaises(RuntimeError) as raised:
+                try:
+                    membership.start()
+                finally:
+                    membership.close()
+        self.assertEqual([call.args[2] for call in transport.call_args_list], ['admit', 'leave'])
+        self.assertFalse((self.root / 'LocalData/lan-peers.ini').exists())
+        self.assertIs(raised.exception, startup_error)
+
     def test_peer_file_retries_temporary_sharing_error(self):
         replace = os.replace
         calls = []

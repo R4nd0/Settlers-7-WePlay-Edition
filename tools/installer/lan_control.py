@@ -161,8 +161,9 @@ class Membership:
 
     def start(self):
         self.renew()  # Must finish before the game can bind or send.
-        self.thread = threading.Thread(target=self._run, name='s7-lan-membership', daemon=True)
-        self.thread.start()
+        thread = threading.Thread(target=self._run, name='s7-lan-membership', daemon=True)
+        thread.start()
+        self.thread = thread
         return self
 
     def _run(self):
