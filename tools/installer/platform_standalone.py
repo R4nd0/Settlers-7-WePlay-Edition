@@ -44,9 +44,14 @@ MILES_GATE = 'ac50ee39af6ce5b1932aee08df80461dc281255b7b29d9bb82dc76d8ab9d4a63'
 MILES_ORIGINAL = '301f351311b96964ca0ec21df68cec38ccaa9c6ffc082987ca24ce35ca39f5bf'
 STEAM_ORIGINAL = 'd99d425793f588fbc15f91c7765977cdd642b477be01dac41c0388ab6a5d492d'
 POLICY_V1 = '3317aec4210f8214cb6fbe586502a4e26c23fb68182d8b00a1b0353848e49b41'
-POLICY = '48f32b7461648bf04c9b990a1cc1261f3087c471381aeb2263081d352efd9846'
+POLICY_REFRESH_V1 = '48f32b7461648bf04c9b990a1cc1261f3087c471381aeb2263081d352efd9846'
+POLICY = '2a9287059240198819a52865fe7ad329b989888e9723e5024fc2a7ad7dffcd83'
 POLICY_FILE = 'Launcher/weplay_network_policy.exe'
 PAYLOAD = {'steam_api.dll': STEAM_API, 'mss32.dll': MILES_GATE, 'weplay_network_policy.exe': POLICY}
+
+
+def policy_pins(*, refresh=False):
+    return (POLICY,POLICY_REFRESH_V1) if refresh else (POLICY,POLICY_REFRESH_V1,POLICY_V1)
 
 
 def tool_sources():
@@ -91,7 +96,7 @@ def marker(executable):
 def payload(directory, *, allow_legacy=False):
     directory = content.plain(directory)
     for name, expected in PAYLOAD.items():
-        accepted = (expected,POLICY_V1) if allow_legacy and name=='weplay_network_policy.exe' else (expected,)
+        accepted = policy_pins() if allow_legacy and name=='weplay_network_policy.exe' else (expected,)
         if content.digest(content.plain(directory/name)) not in accepted:
             raise ValueError('Ungeprüfte Standalone-Laufzeit: '+name)
     return directory
@@ -118,7 +123,7 @@ def load(root):
     if expected_adapter not in adapter_pins(gold=gold):
         raise ValueError('Ungeprüftes Standalone-Adapterprofil.')
     expected_policy=value['files'].get(POLICY_FILE)
-    if expected_policy not in (POLICY,POLICY_V1):
+    if expected_policy not in policy_pins():
         raise ValueError('Die Standalone-Laufzeit ist unvollständig oder ungeprüft.')
     files = {adapter_name: expected_adapter,
              (executable.parent/'mss32.dll').relative_to(root).as_posix(): MILES_GATE,
@@ -247,7 +252,7 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
         try:
             game=isolated_process.launch(executable,adapter,**start)
         except NativeStartupError as error:
-            if (start['policy_sha256']!=POLICY or error.native_start_stage!=11 or
+            if (start['policy_sha256'] not in policy_pins(refresh=True) or error.native_start_stage!=11 or
                     error.network_probe_failure!=('ipv4_nonloopback_tcp','unexpected_delivery',None)):
                 raise
             print('WePlay erneuert den Windows-Netzschutz für diese Kopie ...',flush=True)
@@ -305,7 +310,7 @@ def configure(root, action='install'):
     root = content.plain(root)
     value, executable, _ = load(root)
     if action not in ('install','check','remove','refresh') or (
-            action=='refresh' and value['files'][POLICY_FILE]!=POLICY):
+            action=='refresh' and value['files'][POLICY_FILE] not in policy_pins(refresh=True)):
         raise ValueError('Unbekannte Netzisolationsaktion.')
     helper = root/POLICY_FILE
     result = subprocess.run([str(helper), action, str(executable)], timeout=30,capture_output=True,

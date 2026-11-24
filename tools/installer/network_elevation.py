@@ -41,10 +41,10 @@ class ElevatedProcess:
 
 
 def start(helper, executable, action):
-    from platform_standalone import POLICY,POLICY_V1
+    from platform_standalone import policy_pins
     helper, executable = map(isolated_process.plain, (helper, executable))
     expected=isolated_process.digest(helper)
-    accepted=(POLICY,) if action=='refresh' else (POLICY,POLICY_V1)
+    accepted=policy_pins(refresh=action=='refresh')
     if action not in ('install','remove','serve-lan','refresh') or expected not in accepted:
         raise ValueError('Ungeprüfte Aktion oder ungeprüfter Windows-Netzhelfer.')
     api = isolated_process.Windows(); isolated_process.bind_extra(api)

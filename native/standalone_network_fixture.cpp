@@ -160,7 +160,7 @@ DWORD ProbeStandaloneKernelIsolation(DWORD& failure_exit) {
     WSACleanup();
     // With no assigned non-loopback address there is no own-host negative
     // target. Offline play remains possible; the parent still verifies all
-    // four persistent rules, including IPv6, before creating this process.
+    // persistent rules for both address families before creating this process.
     return failures ? 0 : 1u|probe_families;
 }
 #else

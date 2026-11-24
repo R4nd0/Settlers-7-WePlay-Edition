@@ -126,11 +126,13 @@ class PlatformStandaloneTests(unittest.TestCase):
         (root/platform.RECORD).write_text(json.dumps(record),encoding='utf-8')
         runtime=self.fixture.package/'Payload/Platform'
         (runtime/'weplay_network_policy.exe').write_bytes(old)
-        with patch.object(platform,'POLICY_V1',legacy_hash):
-            self.assertEqual(platform.load(root)[0]['files'][platform.POLICY_FILE],legacy_hash)
-            self.assertEqual(platform.payload(runtime,allow_legacy=True),runtime.resolve())
-            with self.assertRaisesRegex(ValueError,'Ungeprüfte Standalone-Laufzeit'):
-                platform.payload(runtime)
+        for version in ('POLICY_V1','POLICY_REFRESH_V1'):
+            with self.subTest(version=version), patch.object(platform,version,legacy_hash):
+                self.assertEqual(platform.load(root)[0]['files'][platform.POLICY_FILE],legacy_hash)
+                self.assertEqual(platform.payload(runtime,allow_legacy=True),runtime.resolve())
+                self.assertEqual(legacy_hash in platform.policy_pins(refresh=True),version=='POLICY_REFRESH_V1')
+                with self.assertRaisesRegex(ValueError,'Ungeprüfte Standalone-Laufzeit'):
+                    platform.payload(runtime)
 
     def test_known_tcp_isolation_error_refreshes_and_retries_only_once(self):
         from standalone_entry import NETWORK_PROBE_EXIT_PREFIX, NativeStartupError

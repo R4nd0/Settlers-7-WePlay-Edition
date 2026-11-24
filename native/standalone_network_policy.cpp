@@ -19,6 +19,10 @@ const GUID* const layers[] = {&FWPM_LAYER_ALE_AUTH_CONNECT_V4,&FWPM_LAYER_ALE_AU
 constexpr wchar_t name[] = L"WePlay Community standalone isolation v1";
 FWP_V4_ADDR_AND_MASK loopback4 = {0x7f000000,0xff000000};
 FWP_V6_ADDR_AND_MASK loopback6 = {{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},128};
+FWP_BYTE_ARRAY16 loopback6_address = {{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}};
+constexpr UINT32 loopback4_first = 0x7f000000;
+constexpr UINT32 loopback4_last = 0x7fffffff;
+enum class AddressRule : unsigned char { Legacy, BelowLoopback, AboveLoopback };
 struct Engine { HANDLE value = nullptr; ~Engine() { if (value) FwpmEngineClose0(value); } };
 struct Blob { FWP_BYTE_BLOB* value = nullptr; ~Blob() { if (value) FwpmFreeMemory0(reinterpret_cast<void**>(&value)); } };
 struct Security { PSECURITY_DESCRIPTOR value = nullptr; ~Security() { if (value) LocalFree(value); } };
@@ -57,16 +61,18 @@ DWORD Identity(const wchar_t* argument,std::wstring& path,Blob& app) {
     }
     return FwpmGetAppIdFromFileName0(path.c_str(),&app.value);
 }
-bool Key(const FWP_BYTE_BLOB& app,const GUID& layer,GUID& key) {
+bool Key(const FWP_BYTE_BLOB& app,const GUID& layer,AddressRule rule,GUID& key) {
     std::vector<unsigned char> bytes(app.data,app.data+app.size);
     const auto* suffix = reinterpret_cast<const unsigned char*>(&layer);
     bytes.insert(bytes.end(),suffix,suffix+sizeof(GUID));
+    if (rule != AddressRule::Legacy) bytes.push_back(static_cast<unsigned char>(rule));
     std::array<unsigned char,32> hash{};
     if (!StandaloneImage::Digest(bytes.data(),bytes.size(),hash)) return false;
     memcpy(&key,hash.data(),sizeof(key));
     return true;
 }
-void Definition(FWPM_FILTER0& filter,GUID key,const GUID& layer,FWP_BYTE_BLOB* app,FWPM_FILTER_CONDITION0 (&conditions)[2]) {
+void Definition(FWPM_FILTER0& filter,GUID key,const GUID& layer,FWP_BYTE_BLOB* app,AddressRule rule,
+                FWPM_FILTER_CONDITION0 (&conditions)[2]) {
     filter.filterKey = key;
     filter.displayData.name = const_cast<wchar_t*>(name);
     filter.flags = FWPM_FILTER_FLAG_PERSISTENT;
@@ -78,14 +84,26 @@ void Definition(FWPM_FILTER0& filter,GUID key,const GUID& layer,FWP_BYTE_BLOB* a
     conditions[0].matchType = FWP_MATCH_EQUAL;
     conditions[0].conditionValue.type = FWP_BYTE_BLOB_TYPE;
     conditions[0].conditionValue.byteBlob = app;
-    conditions[1].fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
-    conditions[1].matchType = FWP_MATCH_NOT_EQUAL;
-    if (Same(layer,FWPM_LAYER_ALE_AUTH_CONNECT_V4) || Same(layer,FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4)) {
-        conditions[1].conditionValue.type = FWP_V4_ADDR_MASK;
-        conditions[1].conditionValue.v4AddrMask = &loopback4;
+    auto& remote = conditions[1];
+    remote.fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
+    const bool ipv4 = Same(layer,FWPM_LAYER_ALE_AUTH_CONNECT_V4) || Same(layer,FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4);
+    if (rule == AddressRule::Legacy) {
+        // Recognize only the original shape when removing an owned filter.
+        remote.matchType = FWP_MATCH_NOT_EQUAL;
+        if (ipv4) { remote.conditionValue.type = FWP_V4_ADDR_MASK; remote.conditionValue.v4AddrMask = &loopback4; }
+        else { remote.conditionValue.type = FWP_V6_ADDR_MASK; remote.conditionValue.v6AddrMask = &loopback6; }
     } else {
-        conditions[1].conditionValue.type = FWP_V6_ADDR_MASK;
-        conditions[1].conditionValue.v6AddrMask = &loopback6;
+        // Match ordered addresses in their native WFP types. A negated address
+        // mask is not a sortable value. Loopback needs no permit filter.
+        const bool below = rule == AddressRule::BelowLoopback;
+        remote.matchType = below ? FWP_MATCH_LESS : FWP_MATCH_GREATER;
+        if (ipv4) {
+            remote.conditionValue.type = FWP_UINT32;
+            remote.conditionValue.uint32 = below ? loopback4_first : loopback4_last;
+        } else {
+            remote.conditionValue.type = FWP_BYTE_ARRAY16_TYPE;
+            remote.conditionValue.byteArray16 = &loopback6_address;
+        }
     }
     filter.numFilterConditions = 2; filter.filterCondition = conditions;
 }
@@ -108,12 +126,18 @@ bool Equal(const FWPM_FILTER0& actual,const FWPM_FILTER0& expected) {
                 || !blob || blob->size != wanted->size || memcmp(blob->data,wanted->data,blob->size)) return false;
             app = true;
         } else if (Same(condition.fieldKey,FWPM_CONDITION_IP_REMOTE_ADDRESS)) {
-            const auto& wanted = expected.filterCondition[1].conditionValue;
-            if (flags || condition.matchType != FWP_MATCH_NOT_EQUAL || condition.conditionValue.type != wanted.type) {
+            const auto& wanted_condition = expected.filterCondition[1];
+            const auto& wanted = wanted_condition.conditionValue;
+            if (flags || condition.matchType != wanted_condition.matchType || condition.conditionValue.type != wanted.type) {
                 std::fprintf(stderr,"Policy address: match=%d type=%d expected=%d\n",static_cast<int>(condition.matchType),
                     static_cast<int>(condition.conditionValue.type),static_cast<int>(wanted.type)); return false;
             }
-            if (wanted.type == FWP_V4_ADDR_MASK) {
+            if (wanted.type == FWP_UINT32) {
+                if (condition.conditionValue.uint32 != wanted.uint32) return false;
+            } else if (wanted.type == FWP_BYTE_ARRAY16_TYPE) {
+                const auto* address = condition.conditionValue.byteArray16;
+                if (!address || memcmp(address->byteArray16,wanted.byteArray16->byteArray16,16)) return false;
+            } else if (wanted.type == FWP_V4_ADDR_MASK) {
                 const auto* address = condition.conditionValue.v4AddrMask;
                 if (!address || address->addr != loopback4.addr || address->mask != loopback4.mask) return false;
             } else {
@@ -157,6 +181,31 @@ DWORD Containers(HANDLE engine,PSECURITY_DESCRIPTOR security,bool install) {
     }
     return result;
 }
+DWORD ReconcileFilter(HANDLE engine,PSECURITY_DESCRIPTOR security,FWP_BYTE_BLOB* app,const GUID& layer,
+                      AddressRule rule,bool install,bool remove,bool refresh) {
+    const bool legacy = rule == AddressRule::Legacy;
+    GUID key{};
+    if (!Key(*app,layer,rule,key)) return ERROR_INVALID_DATA;
+    FWPM_FILTER0 expected{}; FWPM_FILTER_CONDITION0 conditions[2]{};
+    Definition(expected,key,layer,app,rule,conditions);
+    FWPM_FILTER0* actual = nullptr;
+    DWORD result = FwpmFilterGetByKey0(engine,&key,&actual);
+    if (result == FWP_E_FILTER_NOT_FOUND) {
+        if (remove || legacy) return ERROR_SUCCESS;
+        return install ? FwpmFilterAdd0(engine,&expected,security,nullptr) : result;
+    }
+    if (result) return result;
+    const bool valid = Equal(*actual,expected);
+    FwpmFreeMemory0(reinterpret_cast<void**>(&actual));
+    if (!valid) return ERROR_INVALID_DATA;
+    if (legacy && !install && !remove) return ERROR_REVISION_MISMATCH;
+    if (remove || legacy || refresh) {
+        result = FwpmFilterDeleteByKey0(engine,&key);
+        // Replace only an exact owned rule. A failed add rolls back the delete.
+        if (!result && refresh && !legacy) result = FwpmFilterAdd0(engine,&expected,security,nullptr);
+    }
+    return result;
+}
 DWORD Run(const wchar_t* action,const wchar_t* argument) {
     const bool refresh = !wcscmp(action,L"refresh");
     const bool install = refresh || !wcscmp(action,L"install"), remove = !wcscmp(action,L"remove");
@@ -178,25 +227,11 @@ DWORD Run(const wchar_t* action,const wchar_t* argument) {
     }
     result = Containers(engine.value,security.value,install);
     for (const auto* layer : layers) {
-        if (result) break;
-        GUID key{};
-        if (!Key(*app.value,*layer,key)) { result = ERROR_INVALID_DATA; break; }
-        FWPM_FILTER0 expected{}; FWPM_FILTER_CONDITION0 conditions[2]{};
-        Definition(expected,key,*layer,app.value,conditions);
-        FWPM_FILTER0* actual = nullptr;
-        result = FwpmFilterGetByKey0(engine.value,&key,&actual);
-        if (result == FWP_E_FILTER_NOT_FOUND && install) result = FwpmFilterAdd0(engine.value,&expected,security.value,nullptr);
-        else if (result == FWP_E_FILTER_NOT_FOUND && remove) result = ERROR_SUCCESS;
-        else if (!result) {
-            const bool valid = Equal(*actual,expected);
-            FwpmFreeMemory0(reinterpret_cast<void**>(&actual));
-            if (!valid) result = ERROR_INVALID_DATA;
-            else if (remove || refresh) {
-                result = FwpmFilterDeleteByKey0(engine.value,&key);
-                // Replace only an exact owned rule. A failed add rolls back the delete.
-                if (!result && refresh) result = FwpmFilterAdd0(engine.value,&expected,security.value,nullptr);
-            }
+        for (const auto rule : {AddressRule::BelowLoopback,AddressRule::AboveLoopback,AddressRule::Legacy}) {
+            if (result) break;
+            result = ReconcileFilter(engine.value,security.value,app.value,*layer,rule,install,remove,refresh);
         }
+        if (result) break;
     }
     if (transaction) {
         if (result) FwpmTransactionAbort0(engine.value);
@@ -221,7 +256,7 @@ int wmain(int argc,wchar_t** argv) {
         std::fprintf(stderr,"Standalone Windows filtering failed: 0x%08lx\n",result);
         return result == ERROR_ACCESS_DENIED ? 5 : 2;
     }
-    std::wprintf(L"PASS %s: four persistent per-application IPv4/IPv6 non-loopback blocks\n",argv[1]);
+    std::wprintf(L"PASS %s: scoped IPv4/IPv6 isolation\n",argv[1]);
     return 0;
 }
 #endif

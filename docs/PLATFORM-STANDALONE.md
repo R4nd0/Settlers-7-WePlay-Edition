@@ -19,8 +19,10 @@ oder Verbindung zu den Plattformclients. Unbekannte Programmstände werden
 abgewiesen.
 
 Beim ersten Start einer Kopie benötigt die Windows-Netzisolation eine
-Administratorbestätigung. Vier dauerhafte, auf den EXE-Pfad begrenzte Filter
-sperren Nicht-Loopback-Verbindungen für IPv4 und IPv6. Lässt Windows im
+Administratorbestätigung. Dauerhafte, auf den EXE-Pfad begrenzte Filter
+sperren für IPv4 und IPv6 jeweils die Adressbereiche unter und über Loopback.
+Die Einrichtung ersetzt bisherige WePlay-Filter für denselben EXE-Pfad in
+einer Windows-Transaktion. Lässt Windows im
 lokalen IPv4-TCP-Netztest unerwartet eine Verbindung zu, erneuert WePlay
 diese Filter und versucht den Spielstart einmal erneut. Der zweite Start
 durchläuft dieselbe Netzprüfung.
@@ -76,7 +78,7 @@ IPv4 und IPv6 wurden gegen eigene Nicht-Loopback-Empfänger geprüft, während
 die Loopback-Kontrolle funktionierte. Insgesamt 1.733 Prozess-/Socket-/Modul-
 Beobachtungen fanden keine Plattformclients, Plattformclient-Module oder
 Nicht-Loopback-Verbindungen. Dies sind periodische Beobachtungen; die
-Durchsetzung beruht zusätzlich auf den vier vorab geprüften Windows-Filtern.
+Durchsetzung beruht zusätzlich auf den vorab geprüften Windows-Filtern.
 Es wurden keine Paketnutzdaten aufgezeichnet. Alle Intervalle endeten regulär
 mit Code 0 und unveränderten gemeinsamen Profilen sowie EXE-Dateien.
 
