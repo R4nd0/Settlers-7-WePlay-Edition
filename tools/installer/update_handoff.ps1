@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Job,[switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
-$updateMutex=$null;$ownedMutex=$false;$stage='validate';$app=$null;$record=$null;$parentProcess=$null;$backendProcess=$null
+$updateMutex=$null;$ownedMutex=$false;$statusAllowed=$false;$stage='validate';$app=$null;$record=$null;$parentProcess=$null;$backendProcess=$null
 function PlainPath([string]$Path) {
     $full=[IO.Path]::GetFullPath($Path)
     $cursor=$full
@@ -29,7 +29,7 @@ function Decode64([string]$Value) {
     return ,$bytes
 }
 function WriteStatus([string]$Phase,[string]$Code) {
-    if(-not $app -or $ValidateOnly) { return }
+    if(-not $statusAllowed -or $ValidateOnly) { return }
     $status=PlainPath (Join-Path $app 'State\Updates\status.json')
     $temporary=$status+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
     $value=@{format='weplay-update-status-v1';phase=$Phase;code=$Code;version=$record.version;sequence=$record.sequence}
@@ -45,6 +45,21 @@ function OpenOwned($Identity,[string]$ExpectedPath) {
         return $process
     } catch { $process.Dispose();throw }
 }
+function VerifyOffer($Manifest,[string]$PayloadHash) {
+    $local=ReadJson (Join-Path $app 'desktop-release.json') 65536
+    $isolationFloor=Join-Path $app 'State\platform-isolation.json'
+    $localPackage=$null
+    if(Test-Path -LiteralPath (Join-Path $app 'Package\package.json')) { $localPackage=ReadJson (Join-Path $app 'Package\package.json') 4194304 }
+    if($null -ne $Manifest.platform_isolation -or $local.platform_independent -eq $true -or $localPackage.platform_independent -eq $true -or (Test-Path -LiteralPath $isolationFloor)) {
+        $isolation=$Manifest.platform_isolation
+        if($null -eq $isolation -or $isolation.revision -isnot [int] -or $isolation.revision -ne 1 -or
+            ($isolation.editions -join ',') -cne 'gold,history-steam,history-ubisoft' -or
+            @($isolation.PSObject.Properties).Count -ne 2) { throw 'update_isolation_required' }
+    }
+    $highest=ReadJson (Join-Path $updates 'highest.json') 4096
+    if($local.update_channel -cne 'preview' -or $Manifest.sequence -le $local.update_sequence -or
+        $Manifest.sequence -ne $highest.sequence -or $highest.payload_sha256 -cne $PayloadHash) { throw 'update_downgrade' }
+}
 try {
     $Job=PlainPath $Job;$jobDir=Split-Path -Parent $Job
     $updates=Split-Path -Parent $jobDir;$state=Split-Path -Parent $updates;$app=Split-Path -Parent $state
@@ -56,6 +71,14 @@ try {
         if((Hash (Join-Path $jobDir $name)) -cne (Hash (Join-Path $app ('Package\Tools\installer\'+$name)))) { throw 'update_invalid' }
     }
     if((PlainPath $PSCommandPath) -ine (Join-Path $jobDir 'update_handoff.ps1')) { throw 'update_invalid' }
+    if(-not $ValidateOnly) {
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try { $appKey=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToLowerInvariant()))).Replace('-','').Substring(0,24) }
+        finally { $sha.Dispose() }
+        $created=$false;$updateMutex=[Threading.Mutex]::new($true,('Local\S7Launcher-Update-'+$appKey),[ref]$created)
+        if(-not $created) { throw 'update_busy' }
+        $ownedMutex=$true;$statusAllowed=$true
+    }
     $pin=ReadJson (Join-Path $jobDir 'update-key.json') 4096
     $envelope=ReadJson (Join-Path $jobDir 'weplay-update.json') 49152
     if($pin.format -cne 'weplay-update-key-v1' -or $pin.e -ne 65537 -or $pin.n -cnotmatch '^[0-9a-f]{768}$' -or
@@ -76,29 +99,16 @@ try {
         $manifest.channel -cne 'preview' -or $manifest.setup.name -cne 'Setup.exe' -or $manifest.setup.url -cne $expectedUrl -or
         $manifest.setup.sha256 -cnotmatch '^[0-9a-f]{64}$' -or $manifest.setup.size -lt 1 -or $manifest.setup.size -gt 805306368 -or
         $manifest.sequence -ne $record.sequence -or $manifest.version -cne $record.version) { throw 'update_invalid' }
-    $local=ReadJson (Join-Path $app 'desktop-release.json') 65536
-    $isolationFloor=Join-Path $app 'State\platform-isolation.json'
-    $localPackage=$null
-    if(Test-Path -LiteralPath (Join-Path $app 'Package\package.json')) { $localPackage=ReadJson (Join-Path $app 'Package\package.json') 4194304 }
-    if($null -ne $manifest.platform_isolation -or $local.platform_independent -eq $true -or $localPackage.platform_independent -eq $true -or (Test-Path -LiteralPath $isolationFloor)) {
-        $isolation=$manifest.platform_isolation
-        if($null -eq $isolation -or $isolation.revision -isnot [int] -or $isolation.revision -ne 1 -or
-            ($isolation.editions -join ',') -cne 'gold,history-steam,history-ubisoft' -or
-            @($isolation.PSObject.Properties).Count -ne 2) { throw 'update_isolation_required' }
-    }
-    $highest=ReadJson (Join-Path $updates 'highest.json') 4096
-    if($manifest.sequence -le $local.update_sequence -or $manifest.sequence -ne $highest.sequence) { throw 'update_downgrade' }
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try { $fingerprint=[BitConverter]::ToString($sha.ComputeHash($payload)).Replace('-','').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    VerifyOffer $manifest $fingerprint
     $installer=PlainPath (Join-Path $jobDir 'Setup.exe')
     if((Get-Item -LiteralPath $installer).Length -ne $manifest.setup.size -or (Hash $installer) -cne $manifest.setup.sha256) { throw 'update_hash_invalid' }
     if($ValidateOnly) { Write-Output 'PASS: signed update and immutable installer verified; validation mode never installs.'; exit 0 }
-    $sha=[Security.Cryptography.SHA256]::Create()
-    try { $appKey=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToLowerInvariant()))).Replace('-','').Substring(0,24) }
-    finally { $sha.Dispose() }
-    $created=$false;$updateMutex=[Threading.Mutex]::new($true,('Local\S7Launcher-Update-'+$appKey),[ref]$created)
-    if(-not $created) { throw 'update_busy' };$ownedMutex=$true
-    $stage='waiting';WriteStatus 'waiting' ''
     $parentProcess=OpenOwned $record.parent (Join-Path $app 'S7Launcher.exe')
     $backendProcess=OpenOwned $record.backend (Join-Path $app 'Package\Runtime\python\python.exe')
+    $stage='waiting';WriteStatus 'waiting' ''
     $ready=@{format='weplay-update-ready-v1';helper_pid=$PID;version=$record.version;sequence=$record.sequence}
     $readyTemporary=Join-Path $jobDir 'ready.tmp'
     [IO.File]::WriteAllText($readyTemporary,($ready|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
@@ -110,6 +120,7 @@ try {
     $searcher=[Management.ManagementObjectSearcher]::new("SELECT CommandLine FROM Win32_Process WHERE Name='dotnet.exe'")
     try { foreach($service in $searcher.Get()) { if($service.CommandLine -match 'S7Patcher\.dll') { throw 'update_busy' } } }
     finally { $searcher.Dispose() }
+    VerifyOffer $manifest $fingerprint
     $stage='installing';WriteStatus 'installing' ''
     # Verify again at the final process boundary, after waiting for the old app.
     if((Get-Item -LiteralPath $installer).Length -ne $manifest.setup.size -or (Hash $installer) -cne $manifest.setup.sha256) { throw 'update_hash_invalid' }

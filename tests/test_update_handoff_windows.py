@@ -292,7 +292,8 @@ class WindowsHandoffTests(unittest.TestCase):
         self.ready(helper)
         second = self.helper()
         self.finished(second, 2)
-        self.assertEqual(self.status()['code'], 'update_busy')
+        self.assertEqual(self.status()['phase'], 'waiting')
+        self.assertEqual(self.status()['code'], '')
         self.assertIsNone(helper.poll())
         self.assertTrue(all(process.poll() is None for process, _ in self.parents))
         self.assertFalse((self.app / 'setup.marker').exists())
@@ -308,6 +309,53 @@ class WindowsHandoffTests(unittest.TestCase):
         self.assertEqual(self.status()['code'], 'update_hash_invalid')
         self.assertFalse((self.app / 'setup.marker').exists())
         self.assertFalse((self.app / 'restarted.marker').exists())
+        self.preserved()
+
+    def test_newer_cached_update_after_ready_blocks_stale_handoff(self):
+        helper = self.helper()
+        self.ready(helper)
+        self.write(self.job.parent / 'highest.json', {'sequence':3,'payload_sha256':'a'*64})
+        self.exit_parent(0)
+        self.exit_parent(1)
+        self.finished(helper,2)
+        self.assertEqual(self.status()['code'],'update_downgrade')
+        self.assertFalse((self.app/'setup.marker').exists())
+        self.preserved()
+
+    def test_platform_floor_added_after_ready_blocks_incompatible_installer(self):
+        import release_policy
+        helper = self.helper()
+        self.ready(helper)
+        self.write(self.app/'State'/release_policy.FLOOR,release_policy.CONTRACT)
+        self.exit_parent(0)
+        self.exit_parent(1)
+        self.finished(helper,2)
+        self.assertEqual(self.status()['code'],'update_isolation_required')
+        self.assertFalse((self.app/'setup.marker').exists())
+        self.preserved()
+
+    def test_cached_payload_fingerprint_mismatch_is_refused(self):
+        self.write(self.job.parent/'highest.json',{'sequence':2,'payload_sha256':'0'*64})
+        helper = self.helper()
+        ready = self.job/'ready.json'
+        self.until(lambda: ready.is_file() or helper.poll() is not None)
+        self.assertFalse(ready.exists(),'A different cached payload must never reach readiness.')
+        self.finished(helper,2)
+        self.assertEqual(self.status()['code'],'update_downgrade')
+        self.assertFalse((self.app/'setup.marker').exists())
+        self.preserved()
+
+    def test_unvalidated_job_does_not_overwrite_existing_status(self):
+        status = self.job.parent/'status.json'
+        previous = {'format':'weplay-update-status-v1','phase':'installed','sequence':1,'code':''}
+        self.write(status,previous)
+        malformed = self.job/'untrusted.json'
+        malformed.write_text('{}',encoding='utf-8')
+        helper = self.spawn(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
+            '-File',str(self.job/'update_handoff.ps1'),'-Job',str(malformed)], diagnostics=True)
+        self.finished(helper,2)
+        self.assertEqual(self.status(),previous)
+        self.assertFalse((self.app/'setup.marker').exists())
         self.preserved()
 
 

@@ -30,7 +30,13 @@ internal static class Program
             string self=SafePaths.FileAt(job,"WePlay.UpdateHelper.exe");
             string trusted=SafePaths.FileAt(app,"Package/Payload/Helpers/WePlay.UpdateHelper.exe");
             if(!Equal(SafePaths.Plain(Environment.ProcessPath!),self)||SafePaths.Hash(self)!=SafePaths.Hash(trusted))Fail("update_invalid");
-            statusAllowed=true;
+            if(!validate)
+            {
+                string appKey=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(app.ToLowerInvariant())))[..24];
+                mutex=new Mutex(true,"Local\\S7Launcher-Update-"+appKey,out bool created);
+                if(!created)Fail("update_busy");
+                owned=true;statusAllowed=true;
+            }
 
             using var keyStream=Assembly.GetExecutingAssembly().GetManifestResourceStream("WePlay.UpdateKey")!;
             using var key=JsonDocument.Parse(keyStream);
@@ -61,30 +67,11 @@ internal static class Program
             long size=setup.GetProperty("size").GetInt64();string digest=Text(setup,"sha256");
             if(Text(setup,"name")!="Setup.exe"||Text(setup,"url")!=$"https://github.com/{Repository}/releases/download/{tag}/Setup.exe"||
                size<1||size>805306368||!Match(digest,"[0-9a-f]{64}"))Fail("update_invalid");
-            using var local=Read(SafePaths.FileAt(app,"desktop-release.json"),65536);
-            string packagePath=SafePaths.Plain(Path.Combine(app,"Package/package.json"));
-            using var package=File.Exists(packagePath)?Read(packagePath,4*1024*1024):JsonDocument.Parse("{}");
-            if(isolation.ValueKind!=JsonValueKind.Undefined||Isolated(local.RootElement)||Isolated(package.RootElement)||File.Exists(SafePaths.Plain(Path.Combine(app,"State/platform-isolation.json"))))
-            {
-                if(isolation.ValueKind!=JsonValueKind.Object)Fail("update_isolation_required");
-                Keys(isolation,"revision","editions");
-                if(isolation.GetProperty("revision").ValueKind!=JsonValueKind.Number||
-                   !isolation.GetProperty("revision").TryGetInt32(out int revision)||revision!=1||
-                   isolation.GetProperty("editions").ValueKind!=JsonValueKind.Array||
-                   !isolation.GetProperty("editions").EnumerateArray().Select(x=>x.GetString()).SequenceEqual(new[]{"gold","history-steam","history-ubisoft"}))
-                    Fail("update_isolation_required");
-            }
-            using var highest=Read(SafePaths.FileAt(updates,"highest.json"),4096);
-            Keys(highest.RootElement,"sequence","payload_sha256");
-            if(sequence<=local.RootElement.GetProperty("update_sequence").GetInt32()||Text(local.RootElement,"update_channel")!="preview"||
-               sequence!=highest.RootElement.GetProperty("sequence").GetInt32()||
-               Text(highest.RootElement,"payload_sha256")!=Convert.ToHexStringLower(SHA256.HashData(payload)))Fail("update_downgrade");
+            string fingerprint=Convert.ToHexStringLower(SHA256.HashData(payload));
+            VerifyOffer(isolation,fingerprint);
             string installer=SafePaths.FileAt(job,"Setup.exe");VerifySetup(installer,size,digest);
             if(validate){Console.WriteLine("PASS: compiled helper verified signed update and installer; no installation performed.");return 0;}
 
-            string appKey=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(app.ToLowerInvariant())))[..24];
-            mutex=new Mutex(true,"Local\\S7Launcher-Update-"+appKey,out bool created);
-            if(!created)Fail("update_busy");owned=true;
             using var parent=OpenOwned(r.GetProperty("parent"),SafePaths.FileAt(app,"S7Launcher.exe"));
             using var backend=OpenOwned(r.GetProperty("backend"),SafePaths.FileAt(app,"Package/Runtime/python/python.exe"));
             Status("waiting","");
@@ -94,7 +81,9 @@ internal static class Program
                 writer.WriteString("version",version);writer.WriteNumber("sequence",sequence);
             },overwrite:false);
             if(!parent.WaitForExit(180000)||!backend.WaitForExit(180000))Fail("update_busy");
-            EnsureClosed();Status("installing","");
+            EnsureClosed();
+            VerifyOffer(isolation,fingerprint);
+            Status("installing","");
             // Keep the verified file non-writable/non-replaceable through the final execution boundary.
             using(var locked=new FileStream(SafePaths.Plain(installer),FileMode.Open,FileAccess.Read,FileShare.Read))
             {
@@ -104,7 +93,7 @@ internal static class Program
                 using var process=Process.Start(start)??throw new InvalidDataException("update_install_failed");
                 process.WaitForExit();if(process.ExitCode!=0)Fail("update_install_failed");
             }
-            Status("installed","");mutex.ReleaseMutex();owned=false;mutex.Dispose();mutex=null;
+            Status("installed","");mutex!.ReleaseMutex();owned=false;mutex.Dispose();mutex=null;
             Process.Start(new ProcessStartInfo(SafePaths.FileAt(app,"S7Launcher.exe")){UseShellExecute=false,WorkingDirectory=app});
             return 0;
         }
@@ -116,6 +105,27 @@ internal static class Program
             return 2;
         }
         finally{if(mutex!=null){if(owned)mutex.ReleaseMutex();mutex.Dispose();}}
+    }
+    private static void VerifyOffer(JsonElement isolation,string fingerprint)
+    {
+        using var local=Read(SafePaths.FileAt(app!,"desktop-release.json"),65536);
+        string packagePath=SafePaths.Plain(Path.Combine(app!,"Package/package.json"));
+        using var package=File.Exists(packagePath)?Read(packagePath,4*1024*1024):JsonDocument.Parse("{}");
+        if(isolation.ValueKind!=JsonValueKind.Undefined||Isolated(local.RootElement)||Isolated(package.RootElement)||File.Exists(SafePaths.Plain(Path.Combine(app!,"State/platform-isolation.json"))))
+        {
+            if(isolation.ValueKind!=JsonValueKind.Object)Fail("update_isolation_required");
+            Keys(isolation,"revision","editions");
+            if(isolation.GetProperty("revision").ValueKind!=JsonValueKind.Number||
+               !isolation.GetProperty("revision").TryGetInt32(out int revision)||revision!=1||
+               isolation.GetProperty("editions").ValueKind!=JsonValueKind.Array||
+               !isolation.GetProperty("editions").EnumerateArray().Select(x=>x.GetString()).SequenceEqual(new[]{"gold","history-steam","history-ubisoft"}))
+                Fail("update_isolation_required");
+        }
+        using var highest=Read(SafePaths.FileAt(updates!,"highest.json"),4096);
+        Keys(highest.RootElement,"sequence","payload_sha256");
+        if(sequence<=local.RootElement.GetProperty("update_sequence").GetInt32()||Text(local.RootElement,"update_channel")!="preview"||
+           sequence!=highest.RootElement.GetProperty("sequence").GetInt32()||
+           Text(highest.RootElement,"payload_sha256")!=fingerprint)Fail("update_downgrade");
     }
     private static void EnsureClosed()
     {

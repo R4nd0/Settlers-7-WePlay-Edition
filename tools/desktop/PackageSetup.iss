@@ -73,7 +73,7 @@ begin
 end;
 
 function RecoverPackageUpgrade(App: String): Boolean;
-var Journal, Name, Stage, Backup, Current: String;
+var Journal, Name, Stage, Backup, Current, Phase: String;
 begin
   Result := False;
   Journal := PackageJournal(App);
@@ -85,13 +85,17 @@ begin
   Stage := AddBackslash(App) + Name;
   Backup := Stage + '.previous';
   Current := AddBackslash(App) + 'Package';
+  Phase := GetIniString('Transaction', 'phase', '', Journal);
   if not PlainPackagePath(Stage) or not PlainPackagePath(Backup) or not PlainPackagePath(Current) then exit;
-  if DirExists(Backup) and (GetIniString('Transaction', 'phase', '', Journal) <> 'committed') then begin
+  if DirExists(Backup) and (Phase <> 'committed') then begin
     if DirExists(Current) then begin
       if DirExists(Stage) then exit;
       if not RenameFile(Current, Stage) then exit;
     end;
     if not RenameFile(Backup, Current) then exit;
+  end else if (Phase = 'publishing-fresh') and DirExists(Current) and not DirExists(Stage) then begin
+    { A first install has no previous Package to signal an interrupted swap. }
+    if not RenameFile(Current, Stage) then exit;
   end;
   if not PreservePackageSlot(App, Backup) then exit;
   { A partial/unpublished stage is preserved, never recursively deleted. }
@@ -169,7 +173,11 @@ begin
       not PlainPackagePath(Backup) or DirExists(Backup) then
     RaiseException(CustomMessage('PackageFailed'));
   if DirExists(Current) then
-    if not RenameFile(Current, Backup) then RaiseException(CustomMessage('PackageBusy'));
+    begin
+      if not RenameFile(Current, Backup) then RaiseException(CustomMessage('PackageBusy'));
+    end
+  else if not SetIniString('Transaction', 'phase', 'publishing-fresh', PackageJournal(App)) then
+    RaiseException(CustomMessage('PackageFailed'));
   PackageTestFault('after-old-moved');
   if not RenameFile(Stage, Current) then begin
     if DirExists(Backup) then RenameFile(Backup, Current);
