@@ -23,6 +23,16 @@ from internet_room import InternetError, parse, select_interface
 from lan_interfaces import enumerate_interfaces
 
 FORMAT = 'weplay-linux-tunnel-v1'
+REPORTED_FAILURES = (
+    'internet_adapter_invalid', 'internet_address_conflict', 'internet_connect_timeout',
+    'internet_direct_unavailable', 'internet_disconnected', 'internet_network_overlap',
+    'internet_relay_unavailable', 'internet_runtime_invalid',
+)
+
+
+def failure_code(value):
+    code = value.get('code')
+    return code if code in REPORTED_FAILURES else 'internet_connect_failed'
 
 
 class ElevatedEasyTier:
@@ -65,7 +75,8 @@ class ElevatedEasyTier:
                 reading = self.thread.is_alive()
                 with self.lock: value = self.latest
                 if value is not None:
-                    if value.get('phase') == 'error': raise InternetError('internet_connect_failed')
+                    if value.get('phase') == 'error':
+                        raise InternetError(failure_code(value))
                     interface, _ = self.snapshot()
                     if self.progress: self.progress('internet_connected')
                     return interface
@@ -115,7 +126,11 @@ class ElevatedEasyTier:
 
     def snapshot(self):
         with self.lock: value, updated = self.latest, self.updated
-        if self.child is None or self.child.poll() is not None or time.monotonic()-updated > 10:
+        if self.child is None or time.monotonic()-updated > 10:
+            raise InternetError('internet_disconnected')
+        if isinstance(value, dict) and value.get('phase') == 'error':
+            raise InternetError(failure_code(value))
+        if self.child.poll() is not None:
             raise InternetError('internet_disconnected')
         if not isinstance(value,dict) or value.get('phase') != 'ready': raise InternetError('internet_disconnected')
         try:
@@ -139,11 +154,13 @@ class ElevatedEasyTier:
         if self.child is not None:
             try:
                 if self.child.stdin and not self.child.stdin.closed: self.child.stdin.close()
-                self.child.wait(timeout=20)
+                code = self.child.wait(timeout=20)
             except subprocess.TimeoutExpired: raise InternetError('internet_cleanup_failed') from None
             finally:
                 if self.child.stdout: self.child.stdout.close()
             self.child = None
+            if code != 0:
+                raise InternetError('internet_cleanup_failed')
 
 
 def worker():
@@ -199,8 +216,12 @@ def worker():
             send(dict(phase='ready',address=interface.address,device=interface.name,peers=peers))
     except ParentClosed:
         return 0
-    except (OSError,ValueError,RuntimeError,TimeoutError,subprocess.SubprocessError):
-        try: send(dict(phase='error'))
+    except (OSError,ValueError,RuntimeError,TimeoutError,subprocess.SubprocessError) as error:
+        try:
+            status = {'phase': 'error'}
+            if isinstance(error, InternetError) and error.code in REPORTED_FAILURES:
+                status['code'] = error.code
+            send(status)
         except BrokenPipeError: pass
         return 2
     finally:

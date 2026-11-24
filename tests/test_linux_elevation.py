@@ -54,6 +54,15 @@ class LinuxTunnelTests(unittest.TestCase):
                 self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
             self.overlay.snapshot()
 
+    def test_linux_close_reports_worker_exit_failure_after_reaping(self):
+        child = self.overlay.child = Mock(wait=Mock(return_value=2))
+        child.stdin.closed = False
+        with self.assertRaisesRegex(InternetError, '^internet_cleanup_failed$'):
+            self.overlay.close()
+        self.assertIsNone(self.overlay.child)
+        child.stdin.close.assert_called_once()
+        child.stdout.close.assert_called_once()
+
     def test_reader_drains_worker_error_already_in_exited_process_pipe(self):
         self.overlay.child = worker = Mock()
         worker.poll.return_value = 2
@@ -120,7 +129,14 @@ class LinuxTunnelTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'linux', 'requires native Linux pipes')
     def test_start_reports_buffered_failure_from_real_exited_worker(self):
-        record = json.dumps(dict(format=elevation.FORMAT, phase='error'))
+        self.check_failure_from_real_worker({})
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires native Linux pipes')
+    def test_linux_worker_preserves_address_conflict_over_the_private_pipe(self):
+        self.check_failure_from_real_worker({'code': 'internet_address_conflict'})
+
+    def check_failure_from_real_worker(self, extra):
+        record = json.dumps(dict(format=elevation.FORMAT, phase='error', **extra))
         script = f'import sys; sys.stdin.readline(); print({record!r}, flush=True); sys.exit(2)'
         spawn = subprocess.Popen
         receive = self.overlay._receive
@@ -136,7 +152,7 @@ class LinuxTunnelTests(unittest.TestCase):
                 patch('easytier_runtime.verify_runtime'), \
                 patch.object(elevation.subprocess, 'Popen', side_effect=fixture), \
                 patch.object(self.overlay, '_receive', side_effect=after_worker_exit):
-            with self.assertRaisesRegex(InternetError, 'internet_connect_failed'):
+            with self.assertRaisesRegex(InternetError, '^' + extra.get('code', 'internet_connect_failed') + '$'):
                 self.overlay.start()
         self.assertIsNone(self.overlay.child)
 
