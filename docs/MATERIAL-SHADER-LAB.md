@@ -24,8 +24,9 @@ Vision SDK samples match S7:
   10,870 entries. Vendor/quality variants include water, terrain, SpeedTree and
   shadows.
 - Explicit selected water, SpeedTree and shadow libraries have a printable
-  `FILE` header and HLSL text markers. The bounded scan found no raw SM2/3 token
-  envelopes in those selected resources. This does not decode their container.
+  `FILE` header and HLSL text markers. The initial generic scan found no raw
+  SM2/3 token envelopes because compiled programs are serialized as hexadecimal
+  text. The later dedicated decoding milestone below resolves that format.
 - The selected ATI/NV high-quality water libraries both reference `Water.inc`.
   That include references existing Defines, Fog, Globals and Light includes in
   the same shader resource directory. Its source text contains sampler-register
@@ -42,9 +43,56 @@ its complete archive fingerprint was not qualified. The initial full-file hash
 experiment was interrupted without changing the input after excessive IO.
 
 The concrete next target is the original high-quality water-library/include
-path. Container serialization, the actually selected vendor variant, compiled
-programs and live texture/constant inputs still require runtime observation.
-No material binding or shader replacement is claimed by this milestone.
+path. The actually selected vendor variant, compiled program binding and live
+texture/constant inputs still require runtime observation. No active material
+binding or enabled shader replacement is claimed by this milestone.
+
+## Compiled water decoder and authored binding marker
+
+`tools/material_shaders/shaderlib.py` now decodes the actual text format observed
+in S7's selected resources. Its supported header is `FILEVERSION = 2.3.0.0;`
+followed by `PLATFORM = DX9;`. A delimited SOURCECODE field contains include
+references. Named SHADER records carry render-state and constant metadata plus
+`vs_bytecode[vs_3_0]` / `ps_bytecode[ps_3_0]` fields. Those hexadecimal bodies
+decode to a four-byte little-endian byte length followed by the compiled D3D9
+program. The length prefix is not part of the program given to D3D9.
+
+Actual read-only verification decoded each of the ATI, NV and ATIx high-quality
+water libraries into 11 named records and 21 compiled SM3 programs (10 vertex,
+11 pixel). Every serialized length, stage, model and full token envelope
+matched. The selected shadow library likewise decoded into five records and
+eight programs. This establishes that serialization shape for the checked
+resources, not complete support for every Vision library or shader semantics.
+The private `water-compiled-manifest.private.json` contains the per-program
+SHA256 identities needed by a future D3D9 shader-creation/binding observer.
+
+The parser masks the source fence, comments and quoted strings when identifying
+records. Unknown versions/profiles, duplicate records/stages, malformed hex,
+wrong lengths and trailing/incomplete programs are refused. Its metadata API
+exports program hashes, stage/model and sizes, never decoded original programs.
+
+`marker_pixel_shader()` is an authored 44-byte SM3 pixel program that outputs
+opaque magenta without textures or game constants. It is a diagnostic binding
+marker, not the proposed water-quality effect. Windows' system D3D compiler
+accepted its disassembly with HRESULT zero and recognized SM3 and the color
+output. This compiler check does not establish GPU rendering or game binding.
+
+`replace_with_marker()` constructs an in-memory candidate for one named pixel
+program, requiring both the full original ShaderLib resource SHA256 and the
+exact original compiled-program SHA256. It updates the encoded program length,
+preserves every byte outside that one hexadecimal span, reparses the candidate,
+and verifies that all unrelated programs and records survived unchanged.
+The actual OceanWater record round-tripped this way in all three checked vendor
+libraries. Original source, constant metadata, render state, include references
+and other programs were retained. No game archive or resource file was written.
+
+The function implements no file export, archive patch, deployment or runtime
+activation. Its candidate report states `diagnostic_only: true`,
+`runtime_binding_observed: false` and `deployment_permitted: false`. Before an
+actual marker run, an original game draw must be observed using the matching
+compiled-program identity and supported original resource/edition. Subsequent
+visual improvements can then target that verified material path while retaining
+its required bindings and a checked original fallback.
 
 ## Read-only inventory
 
@@ -103,13 +151,18 @@ device/reset/resource lifetime handling and an unchanged-original fallback for
 unsupported state. A standalone GPU fixture can test shader behavior but cannot
 establish correct S7 material binding or actual visual improvement.
 
-Actual game experiments remain subject to the Crossplay chat's reservation of
-native adapters and test copies. This work starts no games and changes no pins.
+On 2026-11-24 the user clarified that the Crossplay chat is archived. Its older
+exclusive reservation no longer blocks isolated graphics experiments under the
+existing local-test authorization. The inventory tool itself starts no games
+and changes no pins. Check actual process ownership and profile isolation before
+any separate runtime experiment.
 
 ## Verification
 
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_inventory -v` from the
 repository root (17 checks at this milestone).
+Run `rtk proxy python -B -m unittest tools.material_shaders.test_shaderlib -v` for
+eight additional parser, exact-identity and unchanged-program checks.
 The synthetic checks cover misleading comment tokens, truncation, unknown
 opcodes, token-scan bounds, traversal names, fingerprint/CRC failures, bounded
 decompression, absence of unselected payload/full-file reads in metadata-only

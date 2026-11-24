@@ -4,8 +4,10 @@
 comparison tool**, not a new renderer effect or a native patch. No game was
 launched, no reserved test copy was changed, and no shader or shadow improvement
 was runtime-qualified by this work. Supersampling is the preceding stage; the
-material-shader investigation remains separate. The Crossplay chat's reservation
-of native tests and release pins remains in force.
+material-shader investigation remains separate. On 2026-11-24 the user clarified
+that the Crossplay chat is archived: its older test-copy reservation no longer
+blocks isolated graphics experiments. Release qualification and pin requirements
+remain unchanged.
 
 ## Existing work to retain
 
@@ -122,10 +124,34 @@ visual inspection, memory/GPU measurements and lifecycle checks are still open.
 
 ## Next native experiment
 
-Once the owning chat makes the tests available, first capture the current
-renderer with ReShade off and supersampling fixed. Keep simulation at normal
+For the next isolated game experiment, first capture the current renderer with
+ReShade off and supersampling fixed. Keep simulation at normal
 pace and capture the same native turns/sun interval in both runs. Compare a
 stationary wall-shadow ROI separately from vegetation. Keep the current filter
 and mip correction as the control. Only after identifying a repeatable shadow
 artifact should a targeted native filter/cascade change be implemented under the
 existing executable, byte, owner, reciprocal-vector and per-edition ABI guards.
+
+## Profile safety helper
+
+`tools/shadow_detail/profile_guard.py` supplies `snapshot_profile(root)` and
+`ProfileGuard(named_roots, backup_dir)` without importing a debugger or optional
+packages. Supply the resolved, explicit game-profile roots and a fresh backup
+directory under `work/`. `capture()` backs up only `Options.ini`, `Profiles.xml`,
+`.s7s` and `.s7local` files, retaining their timestamps and verifying their hashes
+and file set before and after copying. Unreadable directories, symbolic links,
+junctions and input bounds fail closed. Unrelated account-cache files are not
+opened. Reads are limited to 256 MiB per protected file and 2,500 files/directories
+per root.
+
+After closing the owned game, `changes()` lists added, removed and changed
+protected files. `verify_unchanged()` refuses a changed shared profile. Neither
+method restores files: newer saves and profile progress remain available for
+assessment rather than being replaced by an older backup. Restoring an owned
+diagnostic options file is a separate caller action, followed by verification.
+Private profiles expected to advance can be checked with `changes()` separately
+from the shared-profile guard.
+
+Seven synthetic filesystem tests cover copy-time mutation, unreadable paths,
+timestamp/hash/file-set changes and preservation of a newer save. They do not
+qualify actual game-profile isolation.

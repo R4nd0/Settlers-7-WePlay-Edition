@@ -99,7 +99,84 @@ Private receipts and BMPs remain under `work/`; no generated binaries or game
 data are committed. The 39 Python tests cover sizing/provenance, the material
 inventory and the shadow comparator independently of the GPU experiment.
 
-## Game qualification still required
+## Actual game experiments and remaining qualification
+
+### Logical-size prototype: first working local observation
+
+The next guarded prototype separates logical game dimensions from the physical
+client. It replaces documented COM slots in place, preserving the DXVK compiler's
+private vtable/RTTI structure. Known game-module import slots for GetClientRect,
+ScreenToClient and ClientToScreen provide logical sizes/points only for the owned
+window and pinned game callers. DXVK, unrelated callers/windows and unsupported
+states retain physical behavior. The owned window procedure translates the
+matching size/client-mouse messages; minimize and unrelated messages are retained.
+The resize runs outside the presentation/reset lock.
+
+The independent GPU fixture verified actual high-resolution Reset and drawing,
+physical low-resolution presentation, coordinate roundtrips, foreign-context
+exclusions, fallback/recovery and explicit detach. It also rendered the authored
+SM3 diagnostic marker. Device loss and the extended device interface remain
+unqualified.
+
+Actual original Ubisoft History gameplay on 2026-11-24 then retained a 1920 x 1080
+backbuffer, selected scene target and viewport with a 1280 x 720 client/output.
+The private Waldreich save loaded through the original UI. Final counters were
+16,980 presentations, 16,979 filtered presentations, one initial transition
+fallback, 48,632,359 high-resolution draw calls and 64,432,334 indexed draw calls.
+The final failure code was zero. These are call counts, not frame-time or FPS
+measurements, and include multiple render passes.
+
+Original menu selection, world selection opening the military panel, text entry
+and saving to a new free private slot were observed. The original save remained
+present. The game exited zero without a watchdog/forced stop. Shared profiles and
+game binaries matched their checkpoints; the durable recovery journal restored
+private options/runtime/DXVK configuration with no cleanup errors. Memory
+monitoring remained functional; peak private memory was 1,863 MiB and no pressure
+was recorded in this run.
+
+This establishes a local experimental supersampling path, not a released option,
+pixel-perfect HUD/picking certification, a 4K benchmark or cross-edition/platform
+qualification. Additional swapchain recreation occurred 70 times and still needs
+pacing review. Existing production adapters and release pins remain unchanged.
+The native build and fresh runtime case are retained privately under `work/`.
+
+`tools/graphics_lab/game.py` starts only a fingerprinted portable test copy,
+backs up explicit profiles and omits ReShade preparation. Its fixed x86 loader
+binds the hook DLL to the current source/build manifest and retains a read-only
+file lease through loading. `tools/graphics_lab/recover.py` journals only the
+three private configuration files before mutation. Recovery refuses running
+games, changed binaries/shared profiles or unsafe paths, preserves diagnostic
+settings, and never replaces saves. Journal fsync/atomic replacement does not
+promise protection beyond the underlying storage system's guarantees.
+
+### First actual game observation and power-loss recovery
+
+The separate portable Ubisoft History copy was started with its packaged native
+adapter and pinned DXVK, requesting 1920 x 1080 with a 1280 x 720 output. A
+baseline loaded the private Waldreich save and exited with code zero; shared
+profiles and game binaries were unchanged. This is single-client evidence.
+
+The first hook run was interrupted by a user-reported power outage. Its last
+statistics file was zero-filled and cannot qualify any rendering result. After
+restart, no test game remained. The original shared profile fingerprints and
+game binaries matched their checkpoints, and only the private test options were
+restored. No save was replaced with a diagnostic backup. Sources passed all 64
+then-current Python checks and the hook build fingerprint still matched.
+
+The fresh post-restart run provided the decisive real-game result: resizing the
+client from 1920 x 1080 to 1280 x 720 caused S7 to request a successful original
+Reset at 1280 x 720. Actual backbuffer, selected target and viewport all became
+1280 x 720. The hook recorded 8,066 original presentations and zero filtered
+output presentations, correctly rejecting the low-resolution source with reason
+7. Real world rendering and indexed draws were observed, but this was **not
+supersampling**. The process later exited zero without a watchdog/forced stop;
+shared profiles and binaries were unchanged and private options were restored.
+
+The next implementation must keep S7's logical render dimensions separate from
+its physical output window. Changing only Reset's backbuffer dimensions would
+not establish high-resolution scene rendering. HUD/world picking, original
+offscreen targets, viewport dimensions and original resize/reset behavior remain
+part of the required observation. No production option or release pin is enabled.
 
 - Verify the original scene's actual color/depth and final backbuffer sizes.
   Raising only a presentation surface can leave the scene at its old resolution.
@@ -115,10 +192,12 @@ inventory and the shadow comparator independently of the GPU experiment.
 - Test memory and pacing in a large settlement, restoration, and a fresh start.
   Keep normal game speed and the pinned renderer.
 
-The current handoff reserves game test copies for Crossplay and prohibits
-concurrent games. These independent GPU/offline fixtures do not consume those
-copies. Do not replace a loaded adapter, alter release pins or present synthetic
-GPU results as observed S7 gameplay.
+On 2026-11-24 the user clarified that the Crossplay chat is archived; its older
+exclusive reservation is no longer current. Isolated local game experiments
+can continue under the existing authorization. Check actual running processes
+before each launch and preserve profile/save isolation. Do not replace a loaded
+adapter, alter release pins or present synthetic GPU results as observed S7
+gameplay. The first standalone fixture milestone did not start S7.
 
 ## Reproduce the standalone experiment
 
