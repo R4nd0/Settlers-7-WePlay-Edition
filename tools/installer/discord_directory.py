@@ -83,7 +83,9 @@ class Reporter:
         value=self.transport(self.coordinator,self.interface.address,'games',expected=self.expected,timeout=2)
         games=native_games(value,self.expected)
         if not self.registered:
-            self.send('POST',[]);self.registered=True
+            self.send('POST', [])
+            self.registered = True
+            self.last_payload = None  # The new registration is empty.
         payload=json.dumps(games,sort_keys=True,separators=(',',':'))
         if payload!=self.last_payload or self.clock()-self.last_send>=60:
             self.sequence+=1;self.send('PUT',games)

@@ -158,11 +158,14 @@ service. Four passes bound changing views and retain cancellation checkpoints.
     for _ in range(4):
         selected = discover()
         if selected is None:
-            raise LanConnectionError('lan_unreachable', 'Die LAN-Verbindung wurde unterbrochen. Bitte erneut versuchen.')
+            previous = None
+            continue
         current = identity(selected)
         if previous == current:
             checkpoint(cancel_check, progress, 'lan_connect')
             return selected
         previous = current
+    if previous is None:
+        raise LanConnectionError('lan_unreachable', 'Die LAN-Verbindung wurde unterbrochen. Bitte erneut versuchen.')
     raise LanConnectionError('lan_changing',
         'Das LAN wird gerade eingerichtet. Bitte kurz warten und erneut starten.')

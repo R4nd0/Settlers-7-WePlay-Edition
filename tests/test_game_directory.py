@@ -73,6 +73,37 @@ class DirectoryTests(unittest.TestCase):
                     cancel=(lambda:(_ for _ in ()).throw(ValueError('cancelled'))) if cancel else None)
             self.assertEqual(calls[-1],('/v1/directory/join/'+'c'*32,'DELETE'))
 
+    def test_join_recovers_from_temporary_delivery_failure_on_same_ticket(self):
+        calls = []
+        ticket = None
+        invitation = internet_room.Room('a'*32, 'b'*64, '10.203.77.0/24').token()
+        def transport(_url, path, method='GET', value=None, authorization=None):
+            nonlocal ticket
+            calls.append((path, method, authorization))
+            if path.endswith('/games'):
+                return dict(format='weplay-games-directory-v1', games=[row()])
+            if method == 'POST':
+                ticket = dict(format='weplay-join-ticket-v1', id='c'*32, game_id=GAME,
+                              challenge=value['challenge'], expires_at=1045)
+                return ticket
+            if method == 'DELETE':
+                return {'ok': True}
+            if sum(path == entry[0] and entry[1] == 'GET' for entry in calls) == 1:
+                raise directory.DirectoryError('directory_unavailable')
+            return dict(ticket, format='weplay-join-delivery-v1', envelope={'sealed': 'fixture'})
+
+        def crypto(action, _value, **_options):
+            if action == 'keygen':
+                return dict(format=join_crypto.FORMAT, public_key='public', private_key='private')
+            grant = dict(ticket, format='weplay-room-grant-v1', invitation=invitation)
+            return dict(plaintext=join_crypto.encoded(json.dumps(grant).encode('ascii')))
+
+        self.assertEqual(directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto,
+                                        clock=lambda: 1000, sleep=lambda _: None), invitation)
+        ticket_calls = [call for call in calls if call[0].endswith('/' + ticket['id'])]
+        self.assertEqual([call[1] for call in ticket_calls], ['GET', 'GET', 'DELETE'])
+        self.assertEqual(len({call[2] for call in ticket_calls}), 1)
+
     def test_host_only_seals_open_native_sessions_and_caches_retry_envelope(self):
         room=internet_room.Room('a'*32,'b'*64,'10.203.77.0/24')
         invitation=room.token()

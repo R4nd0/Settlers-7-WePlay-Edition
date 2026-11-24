@@ -40,39 +40,55 @@ class ElevatedEasyTier:
         verify_runtime(self.root)
         if self.cancel_check: self.cancel_check()
         script = compatibility.plain(self.root / 'Launcher/linux_elevation.py')
-        self.child = subprocess.Popen(['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I', '-B', str(script), '--worker'],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
         payload = json.dumps(dict(format=FORMAT,root=str(self.root),room=self.room.token(),host=self.host),
                              separators=(',',':')).encode('ascii') + b'\n'
         if len(payload) > 8192:
-            self.close(); raise InternetError('internet_request_invalid')
-        self.child.stdin.write(payload); self.child.stdin.flush()
-        self.thread = threading.Thread(target=self._receive, name='weplay-linux-tunnel', daemon=True)
-        self.thread.start()
-        deadline = time.monotonic() + 70
+            raise InternetError('internet_request_invalid')
+        self.child = subprocess.Popen(['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I', '-B', str(script), '--worker'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
         try:
+            try:
+                self.child.stdin.write(payload)
+                self.child.stdin.flush()
+            except BrokenPipeError:
+                raise InternetError('internet_elevation_cancelled' if self.child.poll() is not None
+                                    else 'internet_connect_failed') from None
+            thread = threading.Thread(target=self._receive, name='weplay-linux-tunnel', daemon=True)
+            thread.start()
+            self.thread = thread
+            deadline = time.monotonic() + 70
             while time.monotonic() < deadline:
                 if self.cancel_check: self.cancel_check()
+                reading = self.thread.is_alive()
                 with self.lock: value = self.latest
                 if value is not None:
                     if value.get('phase') == 'error': raise InternetError('internet_connect_failed')
                     interface, _ = self.snapshot()
                     if self.progress: self.progress('internet_connected')
                     return interface
-                if self.child.poll() is not None: raise InternetError('internet_elevation_cancelled')
+                if not reading:
+                    code = 'internet_elevation_cancelled' if self.child.poll() is not None else 'internet_connect_failed'
+                    raise InternetError(code)
                 time.sleep(.1)
             raise InternetError('internet_connect_timeout')
-        except BaseException:
-            self.close(); raise
+        except BaseException as primary:
+            try:
+                self.close()
+            except Exception as cleanup:
+                raise primary from cleanup
+            raise
 
     def _receive(self):
+        child = self.child
         pending = b''
+        heartbeat = True
         selector = selectors.DefaultSelector()
         try:
-            selector.register(self.child.stdout, selectors.EVENT_READ)
-            while not self.stop.is_set() and self.child.poll() is None:
+            selector.register(child.stdout, selectors.EVENT_READ)
+            # The pipe can still hold a final diagnostic after the worker exits.
+            while not self.stop.is_set():
                 for _, _ in selector.select(.4):
-                    raw = os.read(self.child.stdout.fileno(), 16385)
+                    raw = os.read(child.stdout.fileno(), 16385)
                     if not raw: return
                     pending += raw
                     if len(pending) > 32768: return
@@ -81,12 +97,17 @@ class ElevatedEasyTier:
                         value = json.loads(line)
                         if not isinstance(value,dict) or value.get('format') != FORMAT: return
                         with self.lock: self.latest, self.updated = value, time.monotonic()
-                self.child.stdin.write(b'ping\n'); self.child.stdin.flush()
+                if heartbeat and child.poll() is None:
+                    try:
+                        child.stdin.write(b'ping\n')
+                        child.stdin.flush()
+                    except BrokenPipeError:
+                        heartbeat = False
         except (OSError,ValueError): pass
         finally:
             selector.close()
             # EOF is also the fail-closed root-worker lifetime boundary.
-            try: self.child.stdin.close()
+            try: child.stdin.close()
             except OSError: pass
 
     def snapshot(self):

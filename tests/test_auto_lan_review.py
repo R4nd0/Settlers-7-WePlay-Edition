@@ -50,7 +50,8 @@ class DiscoveryReviewTests(unittest.TestCase):
             sock.recvfrom.return_value = (b'bad', ('192.168.7.20', 9112))
         directory = lan_discovery.LanDiscovery([self.interface] * 3,
             socket_factory=Mock(side_effect=sockets), clock=lambda: 0, route_socket=Mock())
-        self.assertEqual(directory.list_rooms(timeout=.1), [])
+        with patch('select.select', return_value=(sockets, [], [])):
+            self.assertEqual(directory.list_rooms(timeout=.1), [])
         self.assertEqual(sum(sock.recvfrom.call_count for sock in sockets), 256)
         for sock in sockets:
             sock.close.assert_called_once()
@@ -65,7 +66,8 @@ class DiscoveryReviewTests(unittest.TestCase):
             sock.recvfrom.side_effect = receive
         directory = lan_discovery.LanDiscovery([self.interface] * 3,
             socket_factory=Mock(side_effect=sockets), clock=lambda: now[0], route_socket=Mock())
-        directory.list_rooms(timeout=.1)
+        with patch('select.select', return_value=(sockets, [], [])):
+            directory.list_rooms(timeout=.1)
         self.assertEqual(sum(sock.recvfrom.call_count for sock in sockets), 1)
 
     @staticmethod

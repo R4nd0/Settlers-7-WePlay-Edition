@@ -62,6 +62,33 @@ class MembershipTests(unittest.TestCase):
         self.assertEqual(transport.call_args_list[0].args[2], 'admit')
         self.assertEqual(transport.call_args_list[-1].args[2], 'leave')
 
+    def test_peer_file_retries_temporary_sharing_error(self):
+        replace = os.replace
+        calls = []
+        def replace_after_scan(source, target):
+            calls.append(target)
+            if len(calls) == 1:
+                raise PermissionError('temporary sharing conflict')
+            replace(source, target)
+
+        with patch.object(lan_control.os, 'replace', side_effect=replace_after_scan):
+            path = lan_control.write_peers(self.root, LOCAL, (COORDINATOR,), clock=lambda: 0)
+        self.assertEqual(calls, [path, path])
+        self.assertIn(f'peer_1={COORDINATOR}', path.read_text())
+        self.assertEqual(list(path.parent.glob('peers-*.tmp')), [])
+
+    def test_repeated_close_leaves_successor_membership_alone(self):
+        transport = Mock(return_value=response())
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=transport, clock=lambda: 10)
+        membership.renew()
+        membership.close()
+        successor = lan_control.write_peers(self.root, LOCAL, (), clock=lambda: 1000)
+        replacement = successor.read_bytes()
+        membership.close()
+        self.assertEqual(successor.read_bytes(), replacement)
+        self.assertEqual([call.args[2] for call in transport.call_args_list], ['admit', 'leave'])
+
     def test_hub_stays_for_remote_players_and_has_bounded_idle_lifetime(self):
         now = [0]
         life = HubLifetime(clock=lambda: now[0])

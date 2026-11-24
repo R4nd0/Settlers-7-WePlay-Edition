@@ -95,8 +95,8 @@ class PublicStartupTests(unittest.TestCase):
                 # integrity/operation-scope tests exercise constructed Desktops.
                 desktop.verification=lambda:nullcontext()
                 desktop.package_manifest=lambda:desktop_backend.install.package_manifest(desktop.package)
-                for name,value in {'game':root,'installed':{'package_id':'fixture','renderer_policy':'native'},
-                    'package_id':'fixture','probe':{},'renderer':'native','default_choice':{}}.items():setattr(desktop,name,Mock(return_value=value))
+                for name,value in {'game':root,'installed':{'package_id':'fixture','renderer_policy':'dxvk'},
+                    'package_id':'fixture','probe':{},'renderer':'dxvk','default_choice':{}}.items():setattr(desktop,name,Mock(return_value=value))
                 for name in ('progress','emit','validate_lan','align_internet'):setattr(desktop,name,Mock())
                 desktop.read=Mock(return_value={'version':'2.0.0-rc3.19'})
                 desktop.check_start_memory=Mock(side_effect=OSError('preflight failed') if preflight_error else None)

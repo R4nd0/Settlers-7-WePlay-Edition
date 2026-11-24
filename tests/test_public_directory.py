@@ -68,6 +68,7 @@ class PublicHostingTests(unittest.TestCase):
         backend=object.__new__(desktop_backend.Desktop)
         backend.package=ROOT/'work/public-package-fixture';backend.state=ROOT/'work/public-state-fixture'
         backend.verification=lambda:nullcontext()
+        backend.is_gold = Mock(return_value=False)
         backend.package_manifest=lambda:desktop_backend.install.package_manifest(backend.package)
         backend.validate_lan=Mock();backend.play=Mock(return_value={'exit_code':0});backend.progress=Mock()
         channel=Mock();channel.__enter__=Mock(return_value=channel);channel.__exit__=Mock(return_value=False);channel.read.return_value=None

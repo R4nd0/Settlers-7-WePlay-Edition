@@ -121,7 +121,15 @@ def write_peers(root, local, peers, *, clock=tick_ms):
         with tempfile.NamedTemporaryFile(dir=destination.parent, prefix='peers-', suffix='.tmp', delete=False) as output:
             temporary = Path(output.name)
             output.write(content.encode('ascii')); output.flush(); os.fsync(output.fileno())
-        os.replace(temporary, destination)
+        deadline = time.monotonic() + .25
+        while True:
+            try:
+                os.replace(temporary, destination)
+                break
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(.02)
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
@@ -167,7 +175,10 @@ class Membership:
                 pass
 
     def close(self):
-        self.stop_event.set()
+        with self.publish_lock:
+            if self.stop_event.is_set():
+                return
+            self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=5)
         try:

@@ -141,10 +141,19 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
         value=transport(url,'/v1/directory/join','POST',dict(format='weplay-join-request-v1',game_id=game_id,
             content_id=row['content_id'],network_revision=NETWORK_REVISION,public_key=key['public_key'],challenge=challenge,token=token))
         ticket=validate_ticket(value,game_id,challenge,clock)
+        misses = 0
         while clock()<ticket['expires_at']:
             if cancel:cancel()
             if progress:progress('directory_join')
-            response=transport(url,'/v1/directory/join/'+ticket['id'],authorization='Join '+token)
+            try:
+                response = transport(url, '/v1/directory/join/' + ticket['id'], authorization='Join ' + token)
+            except DirectoryError as error:
+                if error.code != 'directory_unavailable' or misses >= 2:
+                    raise
+                misses += 1
+                sleep(.75)
+                continue
+            misses = 0
             if (not isinstance(response,dict) or set(response)!={'format','id','game_id','challenge','expires_at','envelope'}
                     or response['format']!='weplay-join-delivery-v1'
                     or any(response[name]!=ticket[name] for name in ('id','game_id','challenge','expires_at'))):

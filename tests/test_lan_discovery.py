@@ -1,7 +1,9 @@
 import json
 from itertools import chain, repeat
 from pathlib import Path
+import socket
 import sys
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -44,7 +46,8 @@ class DirectoryTests(unittest.TestCase):
         client_socket.recvfrom.side_effect = [(packet, (self.room.endpoint.host, port)), OSError()]
         directory = LanDiscovery([self.interface], port=port, socket_factory=Mock(return_value=client_socket),
                                  route_socket=Mock(), clock=Mock(side_effect=chain(repeat(0, 6), repeat(.2))))
-        with patch('lan_discovery.secrets.token_hex', return_value=NONCE):
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE), \
+                patch('select.select', return_value=([client_socket], [], [])):
             self.assertEqual(directory.list_rooms(timeout=.1)[0].room_id, self.room.room_id)
         self.assertEqual({call.args[1][1] for call in client_socket.sendto.call_args_list}, {port})
         with self.assertRaises(ValueError):
@@ -119,6 +122,96 @@ class DirectoryTests(unittest.TestCase):
         directory = LanDiscovery([self.interface], socket_factory=Mock(return_value=sock))
         self.assertEqual(directory.list_rooms(timeout=.1), [])
         sock.close.assert_called_once()
+
+    def test_failed_broadcast_can_still_find_own_coordinator(self):
+        packet = answer_message(query_message(NONCE), self.room)
+        client = Mock()
+        def send(_packet, target):
+            if target[0] != self.interface.address:
+                raise OSError('broadcast unavailable')
+        client.sendto.side_effect = send
+        client.recvfrom.side_effect = [(packet, (self.room.endpoint.host, DISCOVERY_PORT)), socket.timeout()]
+        directory = LanDiscovery([self.interface], socket_factory=Mock(return_value=client),
+                                 clock=Mock(side_effect=chain(repeat(0, 6), repeat(.2))), route_socket=Mock())
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE), \
+                patch('select.select', return_value=([client], [], [])):
+            self.assertEqual([room.room_id for room in directory.list_rooms(timeout=.1)], [self.room.room_id])
+        self.assertEqual(client.sendto.call_args.args[1], (self.interface.address, DISCOVERY_PORT))
+
+    def test_discovery_retries_after_first_query_is_lost(self):
+        packet = answer_message(query_message(NONCE), self.room)
+        client = Mock()
+        now = [0.]
+        def ready(read, _write, _except, delay):
+            if client.sendto.call_count < 4:
+                now[0] += delay
+                return [], [], []
+            return read, [], []
+        def receive(_size):
+            room_reply = client.sendto.call_count >= 4
+            now[0] += .03
+            if room_reply:
+                return packet, (self.room.endpoint.host, DISCOVERY_PORT)
+            raise socket.timeout()
+        client.recvfrom.side_effect = receive
+        directory = LanDiscovery([self.interface], socket_factory=Mock(return_value=client),
+                                 clock=lambda: now[0], route_socket=Mock())
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE), patch('select.select', side_effect=ready):
+            self.assertEqual([room.room_id for room in directory.list_rooms(timeout=.4)], [self.room.room_id])
+        self.assertEqual(client.sendto.call_count, 4)
+
+    def test_idle_adapters_do_not_use_up_deadline_before_ready_adapter(self):
+        packet = answer_message(query_message(NONCE), self.room)
+        sockets = [Mock() for _ in range(6)]
+        now = [0.]
+        def idle(_size):
+            now[0] += .03
+            raise socket.timeout()
+        for sock in sockets[:-1]:
+            sock.recvfrom.side_effect = idle
+        def receive(_size):
+            now[0] += .02
+            return packet, (self.room.endpoint.host, DISCOVERY_PORT)
+        sockets[-1].recvfrom.side_effect = receive
+        directory = LanDiscovery([self.interface] * len(sockets), socket_factory=Mock(side_effect=sockets),
+                                 clock=lambda: now[0], route_socket=Mock())
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE), \
+                patch('select.select', return_value=([sockets[-1]], [], [])):
+            self.assertEqual([room.room_id for room in directory.list_rooms(timeout=.1)], [self.room.room_id])
+        for sock in sockets[:-1]:
+            sock.recvfrom.assert_not_called()
+
+    def test_loopback_scan_receives_reply_to_retransmission(self):
+        # Only this fixture permits loopback as a LAN address. Its beacon
+        # listens on an ephemeral loopback port and ignores the first query.
+        with patch('lobby_directory.private_address', side_effect=lambda address: address), \
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as beacon:
+            beacon.bind(('127.0.0.1', 0))
+            beacon.settimeout(2)
+            interface = LanInterface('127.0.0.1', 24)
+            room = LobbyRoom(self.room.room_id, self.room.name, EXPECTED,
+                             LobbyEndpoint('lan-direct', interface.address), interface)
+            received = []
+            def serve():
+                try:
+                    received.append(beacon.recvfrom(MAX_DATAGRAM))
+                    query, address = beacon.recvfrom(MAX_DATAGRAM)
+                    received.append((query, address))
+                    beacon.sendto(answer_message(query, room), address)
+                except OSError:
+                    pass
+
+            worker = threading.Thread(target=serve)
+            worker.start()
+            try:
+                directory = LanDiscovery([interface], port=beacon.getsockname()[1], route_socket=Mock())
+                result = directory.list_rooms(timeout=.6)
+                self.assertEqual([item.room_id for item in result], [room.room_id])
+                self.assertEqual(len(received), 2)
+                self.assertEqual(received[0], received[1])
+            finally:
+                worker.join(timeout=3)
+            self.assertFalse(worker.is_alive())
 
 
 if __name__ == '__main__': unittest.main()

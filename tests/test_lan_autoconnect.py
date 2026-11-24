@@ -200,7 +200,13 @@ class StartupElectionTests(unittest.TestCase):
             self.connect([one, one, two, one, two])
         self.assertEqual(error.exception.code, 'lan_changing')
         with self.assertRaises(auto.LanConnectionError):
-            self.connect([one, None])
+            self.connect([one, None, None, None, None])
+
+    def test_transient_empty_search_does_not_abort_election(self):
+        selected = room('192.168.1.20')
+        start = Mock()
+        self.assertEqual(self.connect([selected, None, selected, selected], start), selected)
+        start.assert_not_called()
 
     def test_cancel_before_start_has_no_side_effects(self):
         start = Mock()

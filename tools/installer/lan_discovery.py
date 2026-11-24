@@ -4,6 +4,7 @@ from dataclasses import replace
 import ctypes
 import secrets
 import math
+import select
 import socket
 import threading
 import time
@@ -117,43 +118,70 @@ class LanDiscovery:
         self.route_socket = route_socket
         self.cache = RoomCache(clock)
 
+    def _send_queries(self, sock, interface, packet):
+        sent = False
+        # A NIC may not support broadcast or loopback. Each destination is
+        # independent, so failure on one must not discard the other's reply.
+        for address in (str(interface.network.broadcast_address), interface.address):
+            try:
+                sock.sendto(packet, (address, self.port))
+                sent = True
+            except OSError:
+                pass
+        return sent
+
     def list_rooms(self, *, timeout=2):
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or not .1 <= timeout <= 5:
             raise ValueError('Ungueltige Suchdauer.')
         nonce = secrets.token_hex(16)
         packet = query_message(nonce)
-        sockets = []
+        sockets = {}
         try:
             for interface in self.interfaces:
                 sock = None
                 try:
                     sock = self.socket_factory(socket.AF_INET, socket.SOCK_DGRAM)
-                    sockets.append((sock, interface))
+                    sockets[sock] = interface
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                    sock.bind((interface.address, 0)); sock.settimeout(.03)
+                    sock.bind((interface.address, 0))
+                    sock.setblocking(False)
                     self.route_socket(sock, interface)
-                    sock.sendto(packet, (str(interface.network.broadcast_address), self.port))
-                    # Also permit finding a coordinator on this PC without relying
-                    # on the NIC's broadcast-loopback behaviour.
-                    sock.sendto(packet, (interface.address, self.port))
+                    if self._send_queries(sock, interface, packet):
+                        continue
                 except (OSError, ValueError):
-                    if sock is not None and sockets and sockets[-1][0] is sock:
-                        sockets.pop(); sock.close()
-            deadline = self.clock() + timeout
+                    pass
+                if sock is not None:
+                    sockets.pop(sock)
+                    sock.close()
+            started = self.clock()
+            deadline = started + timeout
+            # Up to two retransmissions within the original scan budget.
+            # The interval exceeds the beacon's per-source reply cooldown.
+            retries = iter((started + .25, started + .5))
+            next_retry = min(next(retries), deadline)
             packets = 0
-            while sockets and self.clock() < deadline and packets < 256:
-                for sock, interface in sockets:
+            while sockets and packets < 256:
+                now = self.clock()
+                if now >= deadline:
+                    break
+                if now >= next_retry:
+                    for sock, interface in sockets.items():
+                        self._send_queries(sock, interface, packet)
+                    next_retry = min(next(retries, deadline), deadline)
+                ready, _, _ = select.select(list(sockets), [], [], max(0, next_retry - self.clock()))
+                for sock in ready:
                     if packets >= 256 or self.clock() >= deadline:
                         break
+                    packets += 1
                     try:
                         data, source = sock.recvfrom(MAX_DATAGRAM + 1)
-                        packets += 1
-                        self.cache.add(read_answer(data, source, interface, nonce, self.clock(), port=self.port))
+                        answer = read_answer(data, source, sockets[sock], nonce, self.clock(), port=self.port)
+                        self.cache.add(answer)
                     except (OSError, ValueError, TypeError):
                         pass
             return self.cache.list_rooms()
         finally:
-            for sock, _ in sockets:
+            for sock in sockets:
                 sock.close()
 
     def resolve(self, room_id):

@@ -114,6 +114,23 @@ class ReporterTests(unittest.TestCase):
         with self.assertRaises(credentials.DiscordError):self.reporter.poll()
         self.assertEqual(self.sent,[])
 
+    def test_registration_recovery_republishes_same_game_immediately(self):
+        self.reporter.poll()
+        initial = self.row
+        self.clock = 5
+        self.row = dict(initial, state='started', free_slots=0)
+        expired = Mock(status=409, read=Mock(return_value=b'{}'))
+        healthy_factory = self.reporter.connection_factory
+        self.reporter.connection_factory = Mock(return_value=Mock(getresponse=Mock(return_value=expired)))
+        with self.assertRaises(credentials.DiscordError):
+            self.reporter.poll()
+        self.reporter.connection_factory = healthy_factory
+        self.clock = 10
+        self.row = initial
+        self.reporter.poll()
+        self.assertEqual([args[0] for args, _ in self.sent], ['POST', 'PUT', 'POST', 'PUT'])
+        self.assertEqual(json.loads(self.sent[-1][1]['body'])['games'], [self.row])
+
     def test_redirects_are_not_followed_with_publisher_credentials(self):
         response=Mock(status=302,read=Mock(return_value=b'{}'))
         connection=Mock(getresponse=Mock(return_value=response))
