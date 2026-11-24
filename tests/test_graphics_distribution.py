@@ -61,6 +61,14 @@ class DistributionTests(unittest.TestCase):
             path.write_bytes(original)
         self.manifest()
 
+    def test_restore_uses_its_owned_backup_without_requiring_a_new_renderer_payload(self):
+        self.assertEqual(distribution.apply(self.package, self.root, 'install'), 'enabled')
+        (self.package / 'Payload/Graphics/d3d9.dll').unlink()
+        (self.package / 'Payload/Graphics/LICENSE').unlink()
+        self.manifest()  # A valid package may omit the optional graphics payload.
+        self.assertEqual(distribution.apply(self.package, self.root, 'restore'), 'disabled')
+        self.assertEqual(self.snapshot(), self.before)
+
     def test_stale_launcher_and_unknown_action_are_rejected_before_profile_changes(self):
         path=self.root / 'Launcher/graphics_choice.py'; path.write_bytes(b'old launcher')
         before=self.snapshot()

@@ -16,11 +16,6 @@ def apply(package, bundle, action):
     install.package_manifest(package)
     if action not in ('install', 'restore'):
         raise ValueError('Unbekannte Grafikaktion.')
-    source = package / 'Payload/Graphics/d3d9.dll'
-    license_path = package / 'Payload/Graphics/LICENSE'
-    if (content.digest(source) != graphics.DXVK_SHA256
-            or content.digest(license_path) != LICENSE_SHA256):
-        raise ValueError('Das mitgelieferte Grafikprofil ist unvollstaendig oder veraendert.')
     # Do not enable a new renderer on an old copy whose launcher lacks today's
     # shader compatibility and display handling. Never update files in place.
     helpers = [*install.GRAPHICS_TOOLS, *install.DISPLAY_TOOLS,
@@ -30,7 +25,14 @@ def apply(package, bundle, action):
     for original, target in helpers:
         if content.digest(content.plain(bundle / 'Launcher' / target)) != content.digest(package / 'Tools' / original):
             raise ValueError('Bitte zuerst mit diesem RC eine neue getrennte Testkopie anlegen.')
-    return graphics.install(bundle, source) if action == 'install' else graphics.restore(bundle)
+    if action == 'restore':
+        return graphics.restore(bundle)
+    source = package / 'Payload/Graphics/d3d9.dll'
+    license_path = package / 'Payload/Graphics/LICENSE'
+    if (content.digest(source) != graphics.DXVK_SHA256
+            or content.digest(license_path) != LICENSE_SHA256):
+        raise ValueError('Das mitgelieferte Grafikprofil ist unvollstaendig oder veraendert.')
+    return graphics.install(bundle, source)
 
 
 def main():

@@ -1,4 +1,5 @@
 """Renderer publication and recovery use only owned or absent targets."""
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -7,6 +8,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools/installer'), str(ROOT / 'tools/lan')]
 import graphics_profile as graphics
+import reshade_runtime as reshade
 import test_graphics_profile as fixtures
 
 
@@ -58,6 +60,16 @@ class GraphicsSwapTests(unittest.TestCase):
                 graphics.recover_launch_renderer(self.root, executable, package)
         self.assertEqual(local.read_bytes(), foreign)
         self.assertTrue((self.root / graphics.RENDERER_JOURNAL).is_file())
+
+    def test_managed_reshade_keeps_inherited_additive_layer_search_paths(self):
+        with patch.object(reshade, 'prepare', return_value=self.parent):
+            existing = {'VK_ADD_LAYER_PATH': 'extra-driver-layers'}
+            child = reshade.launch_environment(self.root, existing)
+            self.assertEqual(child['VK_LAYER_PATH'],
+                             os.pathsep.join((str(self.parent), 'extra-driver-layers')))
+            override = reshade.launch_environment(self.root, {**existing, 'VK_LAYER_PATH': 'explicit-override'})
+            self.assertEqual(override['VK_LAYER_PATH'],
+                             os.pathsep.join((str(self.parent), 'explicit-override')))
 
 
 if __name__ == '__main__':
