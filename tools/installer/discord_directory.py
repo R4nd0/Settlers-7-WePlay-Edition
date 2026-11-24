@@ -80,7 +80,10 @@ class Reporter:
                                headers={'Content-Type':'application/json','Authorization':'Bearer '+self.key})
             response=connection.getresponse();raw=response.read(4097)
             if response.status==409:self.registered=False
-            if response.status!=200 or len(raw)>4096 or json.loads(raw)!={'ok':True}:
+            if response.status!=200 or len(raw)>4096:
+                raise DiscordError(self.warning_code)
+            acknowledgement=json.loads(raw)
+            if not isinstance(acknowledgement,dict) or set(acknowledgement)!={'ok'} or acknowledgement['ok'] is not True:
                 raise DiscordError(self.warning_code)
         finally:connection.close();self.active_connection=None
 

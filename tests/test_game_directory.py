@@ -51,6 +51,42 @@ class DirectoryTests(unittest.TestCase):
         for path in ('https://attacker.invalid','/v1/directory/games?secret=x','/v1/directory/../games'):
             with self.assertRaises(ValueError):directory.request(ORIGIN,path)
 
+    def test_public_directory_rejects_a_response_completed_after_its_deadline(self):
+        now = [20.0]
+        def read(_limit):
+            now[0] += 5.1
+            return b'{"format":"weplay-games-directory-v1","games":[]}'
+
+        response = Mock(status=200, read=Mock(side_effect=read))
+        connection = Mock(getresponse=Mock(return_value=response))
+        with patch.object(directory.time, 'monotonic', side_effect=lambda: now[0]), \
+                self.assertRaisesRegex(directory.DirectoryError, '^directory_unavailable$'):
+            directory.request(ORIGIN, '/v1/directory/games', connection_factory=Mock(return_value=connection))
+        response.close.assert_called_once()
+        connection.close.assert_called_once()
+
+    def test_public_directory_deadline_interrupts_a_detached_response_socket(self):
+        connected = Mock()
+        connection = Mock(sock=connected)
+        timer = Mock()
+
+        def read(_limit):
+            start_timer.call_args.args[1]()
+            return b'{"format":"weplay-games-directory-v1","games":[]}'
+
+        response = Mock(status=200, read=Mock(side_effect=read))
+        def getresponse():
+            connection.sock = None
+            return response
+
+        connection.getresponse.side_effect = getresponse
+        with patch.object(directory.threading, 'Timer', return_value=timer) as start_timer, \
+                self.assertRaisesRegex(directory.DirectoryError, '^directory_unavailable$'):
+            directory.request(ORIGIN, '/v1/directory/games', connection_factory=Mock(return_value=connection))
+        connected.shutdown.assert_called_once_with(directory.socket.SHUT_RDWR)
+        timer.cancel.assert_called_once()
+        response.close.assert_called_once()
+
     def test_join_requires_matching_data_and_live_open_game_before_key_generation(self):
         crypto=Mock()
         for change,allowed in [({},set()),({'state':'full','free_slots':0},{CONTENT}),({'state':'started','free_slots':0},{CONTENT})]:

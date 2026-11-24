@@ -131,6 +131,21 @@ class ReporterTests(unittest.TestCase):
         self.assertEqual([args[0] for args, _ in self.sent], ['POST', 'PUT', 'POST', 'PUT'])
         self.assertEqual(json.loads(self.sent[-1][1]['body'])['games'], [self.row])
 
+    def test_numeric_confirmation_does_not_mark_changed_public_status_as_delivered(self):
+        self.reporter.poll()
+        previous = self.reporter.last_payload
+        self.row = dict(game(), state='started', free_slots=0)
+        self.clock = 5
+        invalid = Mock(getresponse=Mock(return_value=Mock(status=200, read=Mock(return_value=b'{"ok":1}'))))
+        with patch.object(self.reporter, 'connection_factory', return_value=invalid), \
+                self.assertRaisesRegex(credentials.DiscordError, '^discord_publish_failed$'):
+            self.reporter.poll()
+        self.assertEqual(self.reporter.last_payload, previous)
+        self.assertEqual(self.reporter.last_send, 0.)
+        self.clock = 10
+        self.reporter.poll()
+        self.assertEqual(json.loads(self.sent[-1][1]['body'])['games'], [self.row])
+
     def test_redirects_are_not_followed_with_publisher_credentials(self):
         response=Mock(status=302,read=Mock(return_value=b'{}'))
         connection=Mock(getresponse=Mock(return_value=response))

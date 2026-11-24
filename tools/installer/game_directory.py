@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import re
 import secrets
+import socket
+import threading
 import time
 from urllib.parse import urlsplit
 
@@ -85,18 +87,50 @@ def request(url,path,method='GET',value=None,authorization=None,*,connection_fac
         raise DirectoryError('directory_invalid')
     raw=None if value is None else json.dumps(value,separators=(',',':'),ensure_ascii=True).encode('ascii')
     if raw is not None and len(raw)>8192:raise DirectoryError('directory_invalid')
-    connection=connection_factory(urlsplit(url).hostname,timeout=5)
+    timeout = 5
+    deadline = time.monotonic() + timeout
+    connection=connection_factory(urlsplit(url).hostname,timeout=timeout)
+    timer = response = None
+    expired = threading.Event()
     try:
+        connection.connect()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError()
+        connected_socket = connection.sock
+
+        def interrupt():
+            expired.set()
+            try:
+                # Retain the TLS socket even if HTTP detaches a closing response.
+                connected_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+        timer = threading.Timer(remaining, interrupt)
+        timer.daemon = True
+        timer.start()
         headers={'Content-Type':'application/json'}
         if authorization is not None:headers['Authorization']=authorization
         connection.request(method,path,body=raw,headers=headers)
         response=connection.getresponse();body=response.read(131073)
+        if expired.is_set() or time.monotonic() >= deadline:
+            raise TimeoutError()
         if len(body)>131072:raise DirectoryError('directory_invalid')
         if response.status!=200:
             raise DirectoryError('directory_join_unavailable' if response.status in (404,409,410,429) else 'directory_unavailable')
         return record(body)
     except (OSError,http.client.HTTPException):raise DirectoryError('directory_unavailable') from None
-    finally:connection.close()
+    finally:
+        if timer is not None:
+            timer.cancel()
+            if timer.ident is not None:
+                timer.join()
+        try:
+            if response is not None:
+                response.close()
+        finally:
+            connection.close()
 
 
 def validate_game(value):

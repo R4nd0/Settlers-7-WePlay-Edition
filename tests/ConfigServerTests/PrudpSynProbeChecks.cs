@@ -37,6 +37,8 @@ internal static class PrudpSynProbeChecks
         ConcurrentQueue<ConfigServerEvent> events = new();
         TaskCompletionSource<ConfigServerEvent> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource peerClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource sendFailureObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int failNextSend = 0;
         UdpClient departing = null;
         using CancellationTokenSource stop = new();
         Task service = LocalConfigurationServer.RunAsync(new() { HttpPort = 0, UdpPort = 0, SynProbe = true, Seconds = 15 }, item =>
@@ -48,7 +50,13 @@ internal static class PrudpSynProbeChecks
                 peer.Dispose();
                 peerClosed.TrySetResult();
             }
-        }, stop.Token);
+        }, stop.Token, (socket, packet, endpoint, token) =>
+        {
+            if (Interlocked.Exchange(ref failNextSend, 0) == 0)
+                return socket.SendAsync(packet, endpoint, token);
+            sendFailureObserved.TrySetResult();
+            return ValueTask.FromException<int>(new SocketException((int)SocketError.HostUnreachable));
+        });
         ConfigServerEvent info = await ready.Task.WaitAsync(TimeSpan.FromSeconds(4));
         List<UdpClient> senders = [];
         UdpClient Sender()
@@ -107,6 +115,13 @@ internal static class PrudpSynProbeChecks
                 Check((await Exchange(Sender(), syn)).Length == 18, "Allowed bounded sender was rejected");
             await Silent(Sender(), syn); // Ninth sender gets no cookie or reply.
             Check((await Exchange(first, syn)).SequenceEqual(reply), "Capacity limit evicted an existing sender's cookie");
+
+            Interlocked.Exchange(ref failNextSend, 1);
+            await first.SendAsync(syn);
+            await sendFailureObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Check((await Exchange(senders[1], syn)).Length == 18,
+                "A route failure sending to one UDP peer stopped service for another peer");
+            Check((await Exchange(first, syn)).SequenceEqual(reply), "A temporary route failure retired the first peer");
 
             // Close an ordinary client after the coordinator receives its SYN
             // and before the coordinator can deliver that SYN's reply.

@@ -170,8 +170,11 @@ namespace S7Patcher.Source
         private const int FirstLineLimit = 2048;
         private const int ConcurrentRequestLimit = 8;
 
-        internal static async Task RunAsync(LocalConfigServerOptions options, Action<ConfigServerEvent> emit, CancellationToken cancellation)
+        internal static async Task RunAsync(LocalConfigServerOptions options, Action<ConfigServerEvent> emit,
+            CancellationToken cancellation,
+            Func<UdpClient, ReadOnlyMemory<byte>, IPEndPoint, CancellationToken, ValueTask<int>> sendDatagram = null)
         {
+            sendDatagram ??= static (socket, data, endpoint, token) => socket.SendAsync(data, endpoint, token);
             // Order diagnostics on one monotonic process clock. Wall-clock file
             // timestamps cannot establish the sequence of a live match failure.
             long started = Stopwatch.GetTimestamp();
@@ -511,13 +514,24 @@ namespace S7Patcher.Source
 
                     async ValueTask<bool> SendCurrentAsync(byte[] outgoing, IPEndPoint endpoint)
                     {
-                        ValueTask<int> sending = default;
-                        // Start the send while the generation is held; never
-                        // retain that lock across await or send old queued data
-                        // after a Leave/Re-Admit replaced its context.
-                        if (!UseCurrentLobbyContext(network.Lobby, endpoint, admissionGenerations, loginSessions, peers,
-                            () => sending = udp.SendAsync(outgoing, endpoint, stop.Token))) return false;
-                        await sending; return true;
+                        try
+                        {
+                            ValueTask<int> sending = default;
+                            // Start the send while the generation is held; never
+                            // retain that lock across await or send old queued data
+                            // after a Leave/Re-Admit replaced its context.
+                            if (!UseCurrentLobbyContext(network.Lobby, endpoint, admissionGenerations, loginSessions, peers,
+                                () => sending = sendDatagram(udp, outgoing, endpoint, stop.Token))) return false;
+                            await sending;
+                            return true;
+                        }
+                        catch (SocketException error) when (error.SocketErrorCode is SocketError.HostUnreachable
+                            or SocketError.NetworkUnreachable or SocketError.HostDown)
+                        {
+                            // A missing route drops this datagram. Keep the
+                            // shared service and normal retransmissions alive.
+                            return false;
+                        }
                     }
                 }
             }
