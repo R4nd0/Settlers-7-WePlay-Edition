@@ -1,10 +1,10 @@
-# WePlay rc4.01 for Linux
+# WePlay rc4.11 for Linux
 
 The Linux package uses the current History resume fixes, deterministic NEO6
 logistics and DXVK. It prepares **Ubisoft History Edition or Steam History
 Edition**. Gold and the Windows mixed room feature are outside this Linux
 package's scope. Multiplayer participants need the same Linux package and
-game content. The Windows and Linux rc4.01 adapters differ.
+game content. Windows and Linux use separate adapters.
 
 Earlier Linux game tests used Ubisoft History Edition on Ubuntu 24.04 under
 WSL2/WSLg, WineHQ 11 and WineD3D. Those runs describe the earlier renderer and
@@ -94,8 +94,8 @@ The full local inventory still checks **Base, Server and Launcher**. The v2
 network contract identifies all gameplay files under Base, together with the
 explicit service/carrier protocol revision. Linux ELF helpers and Windows host
 helpers can therefore differ without changing the game identity. Their local
-integrity remains checked. The rc4.01 Linux adapter changes the game identity,
-so use matching rc4.01 Linux copies for multiplayer.
+integrity remains checked. The Linux adapter changes the game identity, so use
+matching rc4.11 Linux copies for multiplayer.
 
 Windows CPython uses zlib-ng 2.2.4, whose compressed streams differ from system
 zlib on Linux. The Linux package therefore includes a hash-pinned native
@@ -127,7 +127,7 @@ The transport additionally requires Rust stable, its
 directory under work. It applies the existing patches and runs the relevant
 packet-filter unit suites. Ship the matching corresponding-source archive and
 all dependency notices with any distributed transport binary.
-The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/EasyTier-corresponding-source.zip)
+The release's [EasyTier corresponding source archive](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/EasyTier-corresponding-source.zip)
 contains both Linux and Windows build recipes and the reviewed patches.
 
 `tools/linux/build_package.py` accepts the verified patch package, the pinned

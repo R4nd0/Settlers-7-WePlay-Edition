@@ -95,7 +95,7 @@ def gui(package=None, bundle=None):
     cancelled = threading.Event(); private_invitation = [None]; pending_game = [None]
     frame = ttk.Frame(window, padding=24); frame.pack(fill='both', expand=True)
     ttk.Label(frame, text='SETTLERS 7 · WEPLAY', font=('Sans', 23, 'bold')).pack(anchor='w')
-    ttk.Label(frame, text='rc4.01 · Linux · Wine / Proton · DXVK').pack(anchor='w', pady=(4, 18))
+    ttk.Label(frame, text='rc4.11 · Linux · Wine / Proton · DXVK').pack(anchor='w', pady=(4, 18))
     status = tk.StringVar(value=str(bundle) if bundle else 'Select your own History Edition to prepare a separate copy.')
     ttk.Label(frame, textvariable=status, wraplength=690).pack(anchor='w', pady=8)
     controls = ttk.Frame(frame); controls.pack(fill='x', pady=10)
@@ -272,7 +272,7 @@ def gui(package=None, bundle=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--version', action='version', version='rc4.01')
+    parser.add_argument('--version', action='version', version='rc4.11')
     parser.add_argument('--package', type=Path)
     parser.add_argument('--bundle', type=Path)
     commands = parser.add_subparsers(dest='action')

@@ -12,6 +12,7 @@ import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[2]
+RELEASE_TAG = 'rc4.11'
 sys.path.insert(0, str(ROOT / 'tools/installer'))
 import compatibility
 import install
@@ -28,7 +29,7 @@ def build(patch_package, server, output, *, compression, history_adapter, easyti
     if compatibility.digest(history_adapter) != install.LINUX_NEO6_ADAPTER_SHA256:
         raise ValueError('Supply the pinned Wine-compatible NEO6 History adapter')
     if source['files'].get('payload/graphics/d3d9.dll') != DXVK_SHA256:
-        raise ValueError('Supply the verified 32-bit DXVK for rc4.01')
+        raise ValueError('Supply the pinned 32-bit DXVK')
     compression=compatibility.plain(compression)
     lock=json.loads((ROOT/'tools/lan/compression-runtime.json').read_text(encoding='utf-8'))
     if (lock.get('format')!='weplay-canonical-compressor-v1' or lock.get('version')!='2.2.4'
@@ -93,14 +94,14 @@ def build(patch_package, server, output, *, compression, history_adapter, easyti
     manifest['files'] = compatibility.inventory(output, ('Payload', 'Runtime', 'Tools'))
     install.write_json(output / 'package.json', manifest)
     install.package_manifest(output)
-    install.write_json(output / 'linux-release.json', dict(format='weplay-linux-release-v1',version='2.0.0-rc4.1',
-        display_version='rc4.01', neo_wire_revision=6, renderer='dxvk', crossplay_mixed=False,
+    install.write_json(output / 'linux-release.json', dict(format='weplay-linux-release-v1',version=f'2.0.0-{RELEASE_TAG}',
+        display_version=RELEASE_TAG, neo_wire_revision=6, renderer='dxvk', crossplay_mixed=False,
         network_revision=9,content_contract=compatibility.NETWORK_FORMAT,game_bits=32,host='linux-x64',
         game_runtime='Wine/Proton',gameplay_qualified=False))
     shutil.copyfile(ROOT / 'LICENSE', output / 'LICENSE.txt')
     credits = (ROOT / 'CREDITS.md').read_text(encoding='utf-8')
     credits = re.sub(r'\]\((?!https?://|#)([^)]+)\)',
-                     lambda match: '](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/rc4.01/' + match[1] + ')',
+                     lambda match: f'](https://github.com/R4nd0/Settlers-7-WePlay-Edition/blob/{RELEASE_TAG}/' + match[1] + ')',
                      credits)
     (output / 'CREDITS.md').write_text(credits, encoding='utf-8', newline='\n')
     starter = output / 'WePlay.sh'

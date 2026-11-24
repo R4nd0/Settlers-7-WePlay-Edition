@@ -1,8 +1,8 @@
 # Settlers 7: WePlay Edition
 
-**[Windows x64 — rc4.10](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.10/Setup.exe)** · **[Linux x64 — rc4.01](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz)**
+**[Windows x64 — rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/Setup.exe)** · **[Linux x64 — rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/WePlay-rc4.11-Linux-x64.tar.gz)**
 
-[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.10) · [Windows SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.10/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
+[Release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.11) · [SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
 WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubisoft History Edition and Steam History Edition**. One Windows installer prepares a separate game copy with its own profile. You supply the original game files.
 
@@ -42,7 +42,7 @@ archives, including maps, for editing the contained files.
 
 ## Deutsch
 
-Mit **[Setup.exe für rc4.10](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.10/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
+Mit **[Setup.exe für rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
 
 Schließe WePlay und das Spiel vor dem Update. Wähle im Installer den bisherigen WePlay-Ordner oder den vollständigen Standalone-Export. Im Launcher kannst du die vorhandene Kopie über **Aktualisieren / reparieren** übernehmen. Bei einem zu langen Zielpfad wähle über **Ändern…** einen kürzeren Ordner. **Hilfe / Diagnose** steht direkt in der Einrichtung.
 
@@ -56,7 +56,7 @@ Lässt Windows die lokale IPv4-TCP-Testverbindung in Stufe 11 unerwartet zu, ern
 
 [LAN auf Deutsch](docs/LAN-SPIELER.md) · [Update und Wiederherstellung](docs/UPDATE-RECOVERY.md)
 
-**Linux:** Das [rc4.01-Linux-Paket](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.01/WePlay-rc4.01-Linux-x64.tar.gz) entpacken und `./WePlay.sh` starten. Es unterstützt History Edition unter Wine oder Proton. Die gemischten Gold-/History-Räume sind eine Windows-Funktion. [Linux-Anleitung](docs/LINUX.md)
+**Linux:** Das [rc4.11-Linux-Paket](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/WePlay-rc4.11-Linux-x64.tar.gz) entpacken und `./WePlay.sh` starten. Es unterstützt History Edition unter Wine oder Proton. Die gemischten Gold-/History-Räume sind eine Windows-Funktion. [Linux-Anleitung](docs/LINUX.md)
 
 ## Credits
 

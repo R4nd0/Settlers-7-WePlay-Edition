@@ -102,7 +102,7 @@ def configure(root, *, runner='wine', executable='/usr/bin/wine', steam=None):
 def graphics_environment(root):
     import graphics_profile
     if not (Path(root) / graphics_profile.STATE).is_dir():
-        raise ValueError('rc4.01 requires DXVK. Install or update this copy from the Linux package.')
+        raise ValueError('WePlay for Linux requires DXVK. Install or update this copy from the Linux package.')
     return graphics_profile.launch_environment(root, clean_environment())
 
 
