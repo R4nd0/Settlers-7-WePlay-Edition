@@ -210,10 +210,14 @@ def saved_launch_environment(root, inherited=None, *, renderer='dxvk', renderer_
     elif renderer != 'dxvk':
         environment,smaa,fallback=compatibility_aa(root,renderer,renderer_package,smaa,environment,
                                                     display_adapter=output['adapter'] if output else None)
+    _prepare_quality(root,smaa,fallback)
+    return environment
+
+
+def _prepare_quality(root, smaa, fallback=False):
     if smaa or fallback or graphics._plain(root/'LocalData/graphics-quality.json').exists():
         import quality_settings
         quality_settings.prepare(root,smaa=smaa,force_game_aa=fallback)
-    return environment
 
 
 def alternate_environment(root, renderer, inherited):
@@ -358,8 +362,6 @@ def choose_launch_environment(root, inherited=None):
     # not adopted while the user has the dialog open.
     if _read_choice(root) != previous:
         raise ValueError('Die Grafikauswahl wurde waehrend des Dialogs veraendert.')
-    if selected.get('enhanced_aa',False):
-        import quality_settings
-        quality_settings.prepare(root,smaa=True,use_saved_quality=False)
+    _prepare_quality(root,selected.get('enhanced_aa',False))
     graphics.atomic_write(target, graphics.encoded(selected), data)
     return tone_environment(root, selected, mode, visual_environment(selected, environment))

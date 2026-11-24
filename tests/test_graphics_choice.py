@@ -79,6 +79,20 @@ class GraphicsChoiceTests(unittest.TestCase):
         self.assertNotIn('DXVK_FILTER_DEVICE_NAME', environment)
         self.assertEqual(json.loads(runner.call_args.kwargs['input'])['previous']['choice'], 'Fixture GPU')
 
+    def test_legacy_picker_restores_saved_standard_aa_after_turning_off_smaa(self):
+        import quality_settings as quality
+        options = self.root / 'LocalData' / 'Options.ini'
+        options.write_bytes(b'[Effects]\nAntialiasing = 0\n')
+        previous = {'format': choice.FORMAT, 'choice': None, 'enhanced_aa': True}
+        (self.root / choice.CHOICE_FILE).write_bytes(graphics.encoded(previous))
+        (self.root / quality.FILE).write_bytes(graphics.encoded(quality.DEFAULTS))
+        with patch.object(choice.display, 'uses_portable_profile', return_value=True), \
+                patch.object(choice.display, 'options_path', return_value=options):
+            self.choose(self.result(raw=graphics.encoded({**previous, 'enhanced_aa': False})))
+        self.assertIn(b'Antialiasing = 1', options.read_bytes())
+        self.assertEqual(quality.load(self.root), quality.DEFAULTS)
+        self.assertIs(self.saved()['enhanced_aa'], False)
+
     def test_visual_options_are_independent_child_only_and_keep_game_content(self):
         self.install()
         before = content.verify(self.root)
