@@ -245,6 +245,22 @@ class EasyTier:
             self.progress(phase)
 
     def start(self):
+        tried = set()
+        for attempt in range(3):
+            try:
+                return self._start_once()
+            except InternetError as error:
+                if (self.host or error.code != 'internet_address_conflict' or attempt == 2
+                        or self.child is not None or self.private is not None or self.job is not None
+                        or self.adapter_pending):
+                    raise
+                tried.add(self.address)
+                base = self.room.network.network_address
+                addresses = (str(base + offset) for offset in range(2, 255))
+                available = [address for address in addresses if address not in tried]
+                self.address = available[secrets.randbelow(len(available))]
+
+    def _start_once(self):
         self.bootstrap_verified = False
         self.checkpoint()
         self.runtime = verify_runtime(self.root)

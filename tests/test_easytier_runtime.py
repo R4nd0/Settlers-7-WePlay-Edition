@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from contextlib import nullcontext
 import tomllib
 import unittest
 from unittest.mock import Mock, patch
@@ -159,6 +160,36 @@ class RuntimeTests(unittest.TestCase):
                 patch('windows_system.command', return_value=json.dumps(records).encode()), \
                 self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
             overlay.snapshot()
+
+    def test_guest_retries_address_collision_after_reaping_original_overlay(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            jobs = [Mock(), Mock()]
+            for job in jobs:
+                job.start.return_value = Mock(poll=Mock(return_value=0))
+            factory = Mock(side_effect=jobs)
+            admin = (patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1)
+                     if os.name == 'nt' else nullcontext())
+            with patch.object(runtime.secrets, 'randbelow', return_value=0), admin, \
+                    patch.object(runtime, 'verify_runtime', return_value=root), \
+                    patch('windows_system.remove_adapter'):
+                overlay = runtime.EasyTier(root, ROOM, host=False, job_factory=factory)
+                first = overlay.address
+                def ready():
+                    if factory.call_count == 1:
+                        raise InternetError('internet_address_conflict')
+                    return LanInterface(overlay.address, 24, overlay.device_name)
+                overlay.wait_ready = ready
+                try:
+                    interface = overlay.start()
+                    self.assertEqual(interface.address, '10.203.77.3')
+                    self.assertNotEqual(interface.address, first)
+                    jobs[0].close.assert_called_once()
+                    jobs[1].close.assert_not_called()
+                    self.assertEqual(len(list((root / 'LocalData').glob('easytier-*'))), 1)
+                finally:
+                    overlay.close()
+            self.assertEqual(list((root / 'LocalData').iterdir()), [])
 
     def test_status_query_cannot_request_secret_bearing_commands(self):
         overlay=runtime.EasyTier(Path('.'),ROOM,host=True)
