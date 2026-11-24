@@ -13,18 +13,22 @@ internal sealed partial class MainForm
         AddMode(PlayMode.Solo,"startLocalTitle","startLocalInfo","modeSoloFeatures","modeSoloLocal","playButton",()=>Play(false));
         AddMode(PlayMode.Lan,"startLanTitle","startLanInfo","modeLanFind","modeLanNetwork","openLan",()=>{tabs.SelectedTab=lanPage;return Task.CompletedTask;});
         AddMode(PlayMode.PrivateInternet,"startInternetTitle","startInternetInfo","modeEasyTier","modeInvite","openInternet",()=>{tabs.SelectedTab=internetPage;return Task.CompletedTask;});
-        AddMode(PlayMode.PublicInternet,"startPublicTitle","startPublicInfo","modeEasyTier","modeDiscord","startPublicAction",()=>{
-            tabs.SelectedTab=directoryPage;
-            return testing?Task.CompletedTask:RefreshDirectory();
-        });
+        AddMode(PlayMode.PublicInternet,"startPublicTitle","startPublicInfo","modeEasyTier","modeDiscord","startPublicAction",OpenPublicDirectory);
         return modeGrid;
     }
     private void AddMode(PlayMode mode,string title,string summary,string one,string two,string action,Func<Task> open)
     {
         var card=new PlayModeCard(mode){Font=Font,TabIndex=playModes.Count};Bind(card,title);
-        card.Click+=async (_,_)=>{if(mode==PlayMode.PublicInternet){if(!busy)await open();}else await Guard(open);};
+        card.Click+=async (_,_)=>{if(mode==PlayMode.Solo)await Guard(open);else if(!busy)await open();};
         playModes.Add((card,summary,one,two,action));
         modeGrid.Controls.Add(card,((int)mode)%2,((int)mode)/2);
+    }
+    private async Task OpenPublicDirectory()
+    {
+        openingDirectory=true;
+        try{tabs.SelectedTab=directoryPage;}
+        finally{openingDirectory=false;}
+        if(!testing||testDirectoryFetch!=null)await RefreshDirectory();
     }
     private void ApplyPlayModeLanguage()
     {

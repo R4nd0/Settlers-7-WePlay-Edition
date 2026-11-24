@@ -489,7 +489,7 @@ internal sealed partial class MainForm : Form
         Add(home,BuildPlayModes());Add(home,Label("modeConsentInfo"));
         homeScroll.ClientSizeChanged+=(_,_)=>ResizePlayModes(homeScroll);
         ResizePlayModes(homeScroll);
-        openGraphics=Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;});
+        openGraphics=Button("openGraphics",()=>{tabs.SelectedTab=graphicsPage;return Task.CompletedTask;},exclusive:false);
         Add(home,Buttons(openGraphics));
         Add(home,homeUpdateNotice);
         homeUpdateInstall=Button("updateInstall",InstallUpdate,true);
@@ -691,7 +691,15 @@ internal sealed partial class MainForm : Form
         directoryAvailable=value.TryGetProperty("directory_available",out var directoryCapability)&&directoryCapability.GetBoolean();
         publicHostingAvailable=value.TryGetProperty("public_directory_available",out var publicCapability)&&publicCapability.GetBoolean();
         if(!preserveDirectoryConnection)
-            directoryConnected=value.TryGetProperty("directory_connected",out var directoryConnection)&&directoryConnection.GetBoolean();
+        {
+            bool knownConnection=value.TryGetProperty("directory_connected",out var directoryConnection);
+            directoryConnected=knownConnection&&directoryConnection.GetBoolean();
+            if(knownConnection&&!directoryConnected)
+            {
+                InvalidateDirectoryRefresh();
+                directoryRows.Clear();directoryGames.Items.Clear();directoryLoadFailed=false;
+            }
+        }
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
@@ -1076,6 +1084,7 @@ internal sealed partial class MainForm : Form
         SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
     }
     private bool? activeInternetDirect;
+    private Func<InternetChannel>? testInternetChannelFactory;
     private void UpdateInternetControls()
     {
         bool available=MixedInternet?crossplayAvailable:internetAvailable;
@@ -1123,6 +1132,7 @@ internal sealed partial class MainForm : Form
         if(internetEnd!=null)internetEnd.Visible=internetOperation&&!publicRoomOperation;
         if(internetEndRow!=null)internetEndRow.Visible=!publicRoomOperation;
         internetInvite.Enabled=true;
+        if(discordPublish.Checked&&(!discordAvailable||!discordConnected))discordPublish.Checked=false;
         discordPublish.Enabled=!busy&&discordAvailable&&discordConnected;discordPublish.Visible=discordAvailable;
         if(discordConnect!=null)discordConnect.Enabled=!busy&&discordAvailable;
         if(discordDisconnect!=null)discordDisconnect.Enabled=!busy&&discordAvailable&&discordConnected;
@@ -1199,8 +1209,8 @@ internal sealed partial class MainForm : Form
         string? endpoint=direct?internetEndpoint.Text:null;
         if(create&&direct&&string.IsNullOrWhiteSpace(endpoint))throw new BackendError("internetEndpointRequired","");
         if(!ConfirmInternetConnection(publicLobby||publish))return;
+        using var channel=testing&&testInternetChannelFactory!=null?testInternetChannelFactory():new InternetChannel();
         BeginInternetOperation(create,publicLobby||publish,direct);
-        using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
         {
             void Accept(){if(internetOperation){internetInvite.Text=code;internetStage="ready";UpdateInternetControls();}}
@@ -1432,6 +1442,7 @@ internal sealed partial class MainForm : Form
                 TestLauncherInteractions(json.RootElement);
                 TestLauncherPresentation(json.RootElement);
                 TestLauncherRooms(json.RootElement);
+                TestLauncherDirectoryState(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))

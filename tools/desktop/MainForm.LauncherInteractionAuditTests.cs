@@ -53,6 +53,7 @@ internal sealed partial class MainForm
         });
 
         Check("declining-consent-keeps-unrelated-player-name-drafts",form=>{
+            form.internetAvailable=true;
             form.player.Text="LAN draft";form.internetPlayer.Text="Private draft";form.directoryPlayer.Text="Directory draft";
             form.internetJoin.Text="weplay1.synthetic";
             form.testInternetConsent=publicLobby=>false;

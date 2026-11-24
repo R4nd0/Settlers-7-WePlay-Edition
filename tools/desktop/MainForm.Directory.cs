@@ -16,11 +16,19 @@ internal sealed partial class MainForm
     private bool publicRoomOperation;
     private readonly Label directoryProgress=new() { AutoSize=true,MaximumSize=new Size(850,0) };
     private Button directoryHost=null!,directoryEnd=null!;
-    private bool directoryRefreshing;
+    private bool directoryRefreshing,openingDirectory;
     private long directoryGeneration;
     private readonly CancellationTokenSource backgroundLifetime=new();
     private CancellationTokenSource? directoryRequest;
-    private void InvalidateDirectoryRefresh(){directoryGeneration++;if(directoryRows.Count>0)directoryLoadFailed=true;directoryRequest?.Cancel();}
+    private Func<CancellationToken,Task<JsonElement>>? testDirectoryFetch;
+    private void InvalidateDirectoryRefresh()
+    {
+        directoryGeneration++;
+        if(directoryRows.Count>0)directoryLoadFailed=true;
+        var obsolete=directoryRequest;
+        directoryRequest=null;directoryRefreshing=false;
+        obsolete?.Cancel();
+    }
     private void QueueDirectorySwitch(JsonElement result)
     {
         if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String)
@@ -33,7 +41,7 @@ internal sealed partial class MainForm
         var scroll=new Panel {Dock=DockStyle.Fill,AutoScroll=true};page.Controls.Add(scroll);var stack=Stack(scroll);
         var title=Label("directoryTitle");title.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(stack,title);
         Add(stack,Label("directoryIntro"));Add(stack,Field("player",directoryPlayer));
-        directoryGames.AccessibleName=Lang.T("directoryTitle");
+        accessibleFields[directoryGames]="directoryTitle";
         directoryGames.Columns.Add("",330);directoryGames.Columns.Add("",155);directoryGames.Columns.Add("",110);directoryGames.Columns.Add("",165);
         directoryGames.SelectedIndexChanged+=(_,_)=>UpdateDirectoryControls();
         directoryRefresh=Button("directoryRefresh",()=>RefreshDirectoryCore(false),exclusive:false);
@@ -43,7 +51,7 @@ internal sealed partial class MainForm
         Add(stack,directoryGames);Add(stack,directoryNotice);
         Add(stack,Label("directoryHostInfo"));
         directoryHost=Button("directoryHost",async()=>{
-            bool publish=publicHostingAvailable?discordPublish.Checked:true;
+            bool publish=!publicHostingAvailable||(discordAvailable&&discordConnected&&discordPublish.Checked);
             if(publish&&!discordConnected)throw new BackendError("discord_not_connected","");
             await PlayInternet(true,publish:publish,publicLobby:true);
         });
@@ -68,7 +76,7 @@ internal sealed partial class MainForm
         discordOptions.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(discordOptions.Checked)scroll.ScrollControlIntoView(discordOptionsPanel);};
         async Task RefreshVisible()
         {
-            if(testing||busy||!Visible||WindowState==FormWindowState.Minimized||tabs.SelectedTab!=directoryPage||!directoryAvailable)return;
+            if((testing&&testDirectoryFetch==null)||openingDirectory||busy||!Visible||WindowState==FormWindowState.Minimized||tabs.SelectedTab!=directoryPage||!directoryAvailable)return;
             await RefreshDirectoryCore(true);
         }
         directoryTimer.Tick+=async(_,_)=>await RefreshVisible();
@@ -103,10 +111,11 @@ internal sealed partial class MainForm
         directoryConnect.Enabled=!busy&&directoryAvailable;
         directoryPlayer.Enabled=!busy;
         var selected=SelectedDirectoryGame();
-        directoryJoin.Enabled=!busy&&!directoryRefreshing&&!directoryLoadFailed&&directoryAvailable&&directoryConnected&&selected.HasValue&&DirectoryJoinable(selected.Value);
+        directoryJoin.Enabled=!busy&&!directoryRefreshing&&!directoryLoadFailed&&directoryAvailable&&directoryConnected&&internetAvailable&&selected.HasValue&&DirectoryJoinable(selected.Value);
         string[] headings=["directoryGame","directoryState","directoryPlayers","directoryVersion"];
         for(int i=0;i<headings.Length;i++)directoryGames.Columns[i].Text=Lang.T(headings[i]);
-        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":directoryRefreshing?"directoryRefreshing":directoryLoadFailed?"directoryStale":!directoryConnected?"directoryNotConnected":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
+        directoryNotice.Text=Lang.T(!directoryAvailable?"directoryUnavailableInfo":directoryRefreshing?"directoryRefreshing":directoryLoadFailed?"directoryStale":
+            !directoryConnected?"directoryNotConnected":!internetAvailable?"internetUnavailable":directoryRows.Count==0?"directoryEmpty":"directoryJoinInfo");
         if(directoryHost!=null)directoryHost.Enabled=!busy&&directoryAvailable&&internetAvailable&&directoryConnected&&(publicHostingAvailable||discordConnected);
         bool active=publicRoomOperation&&internetOperation;
         if(directoryHost!=null)directoryHost.Visible=!active;
@@ -146,6 +155,7 @@ internal sealed partial class MainForm
     private async Task RefreshDirectoryCore(bool automatic,Func<CancellationToken,Task<JsonElement>>? fetch=null)
     {
         if(IsDisposed||Disposing||directoryRefreshing||busy||!directoryAvailable)return;
+        if(testing)fetch??=testDirectoryFetch;
         using var request=CancellationTokenSource.CreateLinkedTokenSource(backgroundLifetime.Token);
         directoryRequest=request;long generation=++directoryGeneration;directoryRefreshing=true;UpdateDirectoryControls();
         try
@@ -194,7 +204,8 @@ internal sealed partial class MainForm
         try
         {
             var selected=SelectedDirectoryGame();
-            if(directoryRefreshing||directoryLoadFailed||!directoryAvailable||!directoryConnected||!selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
+            if(directoryRefreshing||directoryLoadFailed||!directoryAvailable||!directoryConnected||!internetAvailable||
+                !selected.HasValue||!DirectoryJoinable(selected.Value))throw new BackendError("directory_join_unavailable","");
             string id=selected.Value.GetProperty("id").GetString()!;
             await Guard(()=>testing&&testJoinDirectory!=null?testJoinDirectory(id):JoinDirectoryGame(id));
         }
@@ -203,6 +214,7 @@ internal sealed partial class MainForm
 
     private async Task JoinDirectoryGame(string id)
     {
+        if(!internetAvailable)throw new BackendError("internetUnavailable","");
         if(!await ResolveGraphicsDraft())return;
         string name=ValidName(directoryPlayer.Text);
         if(!ConfirmInternetConnection(publicLobby:true))return;

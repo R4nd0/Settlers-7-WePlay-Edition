@@ -48,7 +48,7 @@ internal sealed partial class MainForm
         if(cancelRequested||status.Text!=Lang.T("cancel_request_failed"))throw new Exception("Failed cancellation is shown as requested");
         lastError="";details.Clear();status.Text=Lang.T("ready");
 
-        directoryAvailable=true;directoryConnected=true;tabs.SelectedTab=directoryPage;
+        directoryAvailable=directoryConnected=internetAvailable=true;tabs.SelectedTab=directoryPage;
         using var listed=JsonDocument.Parse("""{"connected":true,"games":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","title":"UI fixture game","compatible":true,"state":"open","free_slots":3,"players":1,"capacity":4,"version":"UI fixture"}]}""");
         ShowDirectory(listed.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");Application.DoEvents();
         var completion=new TaskCompletionSource<JsonElement>();

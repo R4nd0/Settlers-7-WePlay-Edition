@@ -8,7 +8,7 @@ internal sealed partial class MainForm
     private void TestFreshReviewWorkflows(JsonElement original)
     {
         LoadSnapshot(original,acceptGraphics:true);ShowMain();tabs.SelectedTab=directoryPage;
-        directoryAvailable=directoryConnected=true;
+        directoryAvailable=directoryConnected=internetAvailable=true;
         using var listed=JsonDocument.Parse("""{"connected":true,"games":[{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","title":"Click fixture","compatible":true,"state":"open","free_slots":3,"players":1,"capacity":4,"version":"fixture"}]}""");
         ShowDirectory(listed.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");Application.DoEvents();
         int joins=0,cancels=0;
