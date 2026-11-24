@@ -47,6 +47,10 @@ CONFIG = b'[Settlers7R.exe]\nd3d9.maxFrameRate = 60\n'
 # PC1 Tanholm A/B/A: Auto renders black water; Strict restores the water path.
 # Keep this fixed and child-only; the owned on-disk profile remains reversible.
 SHADER_COMPATIBILITY = 'd3d9.floatEmulation = Strict'
+# DXVK-Async 1.10.3 has a configuration-file override but no inline override.
+ASYNC_COMPATIBILITY_CONFIG = (
+    SHADER_COMPATIBILITY + '\nd3d9.samplerAnisotropy = -1\n'
+).encode('ascii') + CONFIG
 MAX_DLL = 32 * 1024 * 1024
 MAX_JSON = 4 * 1024 * 1024
 
@@ -372,6 +376,16 @@ def launch_payload(package, mode):
         raise ValueError('renderer_payload_invalid')
     _pe32_dll(value)
     return value
+
+
+def prepare_async_config(directory):
+    directory = _plain(directory)
+    path = _plain(directory / 'dxvk-async.conf')
+    if not path.exists():
+        atomic_create(path, ASYNC_COMPATIBILITY_CONFIG, directory)
+    if _read(path, len(ASYNC_COMPATIBILITY_CONFIG)) != ASYNC_COMPATIBILITY_CONFIG:
+        raise ValueError('renderer_payload_invalid')
+    return path
 
 
 def _canonical_launch_payload(package):

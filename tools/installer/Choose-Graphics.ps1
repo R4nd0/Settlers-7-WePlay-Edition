@@ -122,7 +122,7 @@ try {
     if ('extended_detail' -cin $fields) { $extendedDetailEnabled = $previous.extended_detail }
     if ('detail_level' -cin $fields) {
         if (($previous.detail_level -isnot [int] -and $previous.detail_level -isnot [long]) -or
-            $previous.detail_level -lt 0 -or $previous.detail_level -gt 4) { throw 'Invalid previous model detail level.' }
+            $previous.detail_level -lt 0 -or $previous.detail_level -gt 5) { throw 'Invalid previous model detail level.' }
         $extendedDetailEnabled = $previous.detail_level -gt 0
     }
     if ('detailed_shadows' -cin $fields) { $detailedShadowsEnabled = $previous.detailed_shadows }

@@ -484,6 +484,8 @@ def probe_compatibility_smaa(root, package, renderer):
             environment=launch_environment(test,clean,options=options)
             environment.update(DXVK_ASYNC='1',DXVK_CONFIG=graphics.SHADER_COMPATIBILITY,
                                DXVK_LOG_PATH=str(test),DXVK_STATE_CACHE='0')
+            if renderer=='async':
+                environment['DXVK_CONFIG_FILE']=str(graphics.prepare_async_config(test))
             result=subprocess.run([str(probe),str(dll),'--smaa'],cwd=test,env=environment,
                 capture_output=True,timeout=20,creationflags=subprocess.CREATE_NO_WINDOW)
             if result.returncode or len(result.stdout)>4096:return None

@@ -515,6 +515,33 @@ class GraphicsChoiceTests(unittest.TestCase):
 
 
 class PowerShellChoiceFixtureTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows graphics dialog')
+    def test_legacy_picker_accepts_the_current_highest_saved_lod(self):
+        # Exercise the actual request validation before display/WMI or GUI work.
+        script = ROOT / 'tools/installer/Choose-Graphics.ps1'
+        command = r'''
+$source = Get-Content -Raw -LiteralPath $args[0]
+$beforeUi = $source.IndexOf('    $enumerationFailed = $false')
+if ($beforeUi -lt 0) { throw 'Graphics request validation boundary missing.' }
+$validated = $source.Substring(0, $beforeUi) + @'
+[Console]::Out.WriteLine($previous.detail_level)
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 2
+}
+'@
+& ([scriptblock]::Create($validated)) -RendererMode dxvk
+'''
+        invocation = '& { ' + command + ' } ' + "'" + str(script).replace("'", "''") + "'"
+        request = {'previous': {'format': choice.FORMAT, 'choice': None,
+                                'detail_level': 5}, 'displays': []}
+        result = subprocess.run(['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive',
+                                 '-WindowStyle', 'Hidden', '-Command', invocation],
+                                input=graphics.encoded(request), capture_output=True,
+                                timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        self.assertEqual(result.stdout.strip(), b'5')
+
     def test_actual_pure_functions_without_ui_or_cim(self):
         # Parse the production script, load ONLY its pure function definitions,
         # and invoke them with literal fixtures. No top-level code, GUI or CIM.

@@ -229,12 +229,14 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
                 raise ValueError('renderer_payload_invalid')
             if value['edition']=='gold' and value['files'][adapter.relative_to(root).as_posix()] not in (GOLD,GOLD_RC409,LOD_GOLD,GOLD_RC405):
                 raise ValueError('update_required')
+            config = (graphics.prepare_async_config(root / 'LocalData')
+                      if mode=='async' else executable.with_name('dxvk.conf'))
             graphics.apply_launch_renderer(root,executable,package,mode)
             restore_renderer=lambda:graphics.recover_launch_renderer(root,executable,package)
             if mode=='native':
                 environment={key: setting for key, setting in environment.items() if not key.upper().startswith('DXVK_')}
             else:
-                environment['DXVK_CONFIG_FILE']=str(executable.with_name('dxvk.conf'))
+                environment['DXVK_CONFIG_FILE']=str(config)
                 environment['DXVK_CONFIG']=graphics.SHADER_COMPATIBILITY+'; d3d9.samplerAnisotropy = -1'
             environment[graphics.LAUNCH_RENDERER]=mode
         start=dict(
