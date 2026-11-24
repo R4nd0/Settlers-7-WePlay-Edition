@@ -1595,6 +1595,15 @@ class Desktop:
                 'recovery_required','min_host_physical_free_mib','min_host_commit_free_mib')
         summary={key:raw[key] for key in fields if key in raw and
                  (raw[key] is None or type(raw[key]) in (bool,int) and 0<=raw[key]<=2**63-1)}
+        if summary.get('monitor_failed') is True:
+            for key,allowed in (
+                    ('failure_stage',('measure','persist','poll')),
+                    ('failure_kind',('scan_timeout','os_error','internal_error'))):
+                if raw.get(key) in allowed:
+                    summary[key]=raw[key]
+            code=raw.get('failure_code')
+            if type(code) is int and 0<=code<=0xffffffff:
+                summary['failure_code']=code
         release=section('release',lambda:self.read(self.app/'desktop-release.json',limit=65536),{})
         if not isinstance(release,dict):
             collection['release']='unreadable'

@@ -36,6 +36,23 @@ class DesktopResilienceTests(unittest.TestCase):
 
     def before(self):return {key:settings.read(path) for key,path in settings.paths(self.desktop,self.root).items()}
 
+    def test_diagnostics_exports_only_allowlisted_memory_monitor_failure_details(self):
+        path=self.root/'LocalData/desktop-memory-summary.json'
+        record={'format':'s7-memory-summary-v1','samples':3,'monitor_failed':True,
+                'failure_stage':'measure','failure_kind':'os_error','failure_code':5,
+                'raw_failure':'private fixture path'}
+        self.desktop.write(path,record)
+        actual=self.desktop.diagnostics()['memory_summary']
+        self.assertEqual({key:actual[key] for key in ('failure_stage','failure_kind','failure_code')},
+                         {'failure_stage':'measure','failure_kind':'os_error','failure_code':5})
+        self.assertNotIn('raw_failure',actual)
+
+        record.update(failure_stage=['fixture path'],failure_kind='private fixture path',
+                      failure_code=2**40)
+        self.desktop.write(path,record)
+        actual=self.desktop.diagnostics()['memory_summary']
+        self.assertFalse(any(key.startswith('failure_') for key in actual))
+
     def test_graphics_startup_restores_confirmed_settings_after_an_early_exit(self):
         import window_mode
         good=self.request();good['quality']['WaterQuality']=1
