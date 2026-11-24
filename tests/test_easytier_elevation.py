@@ -95,6 +95,23 @@ class ElevationTests(unittest.TestCase):
             with self.assertRaisesRegex(InternetError, 'internet_disconnected'):
                 overlay.snapshot()
 
+    def test_recent_ready_status_is_rejected_after_owned_worker_exit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            overlay = elevation.ElevatedEasyTier(Path(folder), ROOM, host=False)
+            overlay.private = Path(folder)
+            overlay.handle = 123
+            interface = LanInterface('10.203.77.2', 24, 'WePlay-12345678')
+            value = dict(format=elevation.FORMAT, nonce=overlay.nonce, phase='ready',
+                         address=interface.address, device=interface.name, peers={})
+            elevation.write_state(overlay.private, value)
+            api = Mock()
+            api.WaitForSingleObject.return_value = 0
+            with patch.object(elevation, 'enumerate_interfaces', return_value=[interface]), \
+                    patch.object(elevation, 'winapi', return_value=api), \
+                    self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+                overlay.snapshot()
+            api.WaitForSingleObject.assert_called_once_with(123, 0)
+
     def test_close_checks_worker_exit_and_cleans_owned_ipc(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

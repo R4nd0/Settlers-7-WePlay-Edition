@@ -273,6 +273,8 @@ class ElevatedEasyTier:
                 if not interface.contains(address) or address == interface.address or cost not in ('p2p', 'relay'):
                     raise ValueError()
                 if self.room.mode == 'direct' and cost != 'p2p': raise ValueError()
+            if self.handle is not None and not self.alive():
+                raise InternetError('internet_disconnected')
             self.address, self.device_name = interface.address, interface.name
             return interface, peers
         except FileNotFoundError:
