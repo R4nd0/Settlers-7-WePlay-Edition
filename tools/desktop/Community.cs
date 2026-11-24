@@ -43,6 +43,9 @@ internal static class Community
             "Share this code only with your players.\nCommunity: "+DiscordUrl;
     }
 
+    internal static bool IsInvitationToken(string text)=>
+        text.Length<=2048&&Regex.IsMatch(text,@"\Aweplay(?:1|x1)\.[A-Za-z0-9_-]+\z");
+
     public static string InvitationCode(string text)
     {
         // Accept either a raw invitation or the exact share message generated
@@ -50,7 +53,7 @@ internal static class Community
         if(text.Length>4096)throw new BackendError("internet_invitation_invalid", "");
         string[] lines=text.Trim().Replace("\r\n","\n").Split('\n');
         string code=lines[0];
-        if(code.Length>2048||!Regex.IsMatch(code,@"\Aweplay(?:1|x1)\.[A-Za-z0-9_-]+\z") ||
+        if(!IsInvitationToken(code) ||
             (lines.Length>1 && !(lines.Length>=3 && lines[1]=="" &&
                 lines[2] is "WePlay – private Raumeinladung" or "WePlay – private room invitation" or
                     "WePlay – private Gold/History-Einladung" or "WePlay – private Gold/History invitation")))

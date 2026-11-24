@@ -9,7 +9,7 @@ namespace S7Desktop {
     internal static class Program {public static string AppRoot=>AppContext.BaseDirectory;}
 }
 
-internal static class Tests
+internal static partial class Tests
 {
     // Allow cold .NET startup on loaded CI hosts; these are lifecycle tests,
     // not sub-second latency benchmarks. Protected bodies outlast Idle+Grace.
@@ -26,6 +26,7 @@ internal static class Tests
         string basePath=Environment.GetEnvironmentVariable("S7_TEST_TEMP_ROOT")??Path.Combine(Path.GetTempPath(),"weplay-backend-tests");Directory.CreateDirectory(basePath);
         string root=Path.Combine(basePath,Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
         try {
+            await LauncherIpc(root);
             await Scenario(root,"normal","directory-list",null,null);
             await Scenario(root,"hang","directory-list","backend_timeout",null);
             await Scenario(root,"normal","recovery-status",null,null);
@@ -186,6 +187,8 @@ internal static class Tests
             return 2;
         }
         if(mode=="normal"){Result();return 0;}
+        if(mode=="duplicate-result"){Result();Result();return 0;}
+        if(mode=="null-result"){Console.WriteLine("""{"kind":"result","data":null}""");return 0;}
         if(mode=="oversize"){Console.Write(new string('x',200000));Console.Out.Flush();}
         if(mode=="malformed"){Console.WriteLine("{broken");Console.Out.Flush();}
         if(mode=="descendant") {

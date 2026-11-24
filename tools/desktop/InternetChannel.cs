@@ -24,9 +24,12 @@ internal sealed class InternetChannel : IDisposable
         await pipe.WriteAsync(raw, stop.Token).ConfigureAwait(false);
         await pipe.FlushAsync(stop.Token).ConfigureAwait(false);
     }
-    private async Task<JsonElement> ReadFrame()
+    private async Task<JsonElement?> ReadFrame()
     {
-        byte[] header = new byte[4]; await pipe.ReadExactlyAsync(header, stop.Token).ConfigureAwait(false);
+        byte[] header = new byte[4];
+        int received=await pipe.ReadAsync(header.AsMemory(),stop.Token).ConfigureAwait(false);
+        if(received==0)return null; // EOF before the next frame starts is normal.
+        await pipe.ReadExactlyAsync(header.AsMemory(received),stop.Token).ConfigureAwait(false);
         int length = BitConverter.ToInt32(header);
         if (length is < 1 or > 4096) throw new BackendError("internet_channel_failed", "");
         byte[] raw = new byte[length]; await pipe.ReadExactlyAsync(raw, stop.Token).ConfigureAwait(false);
@@ -40,17 +43,16 @@ internal sealed class InternetChannel : IDisposable
             await WriteFrame(new { format = Format, invitation }).ConfigureAwait(false);
             while (!stop.IsCancellationRequested)
             {
-                JsonElement value = await ReadFrame().ConfigureAwait(false);
+                if(await ReadFrame().ConfigureAwait(false) is not JsonElement value)break;
                 if (value.GetProperty("format").GetString() != Format || value.EnumerateObject().Count() != 2)
                     throw new BackendError("internet_channel_failed", "");
                 string? code = value.GetProperty("invitation").GetString();
-                if (code == null || code.Length is < 1 or > 2048) throw new BackendError("internet_channel_failed", "");
+                if (code == null || !Community.IsInvitationToken(code)) throw new BackendError("internet_channel_failed", "");
                 receive(code);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
         catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
-        catch (EndOfStreamException) { /* Backend closes the private pipe before its public result. */ }
         catch (Exception error) when (error is IOException or JsonException or InvalidOperationException or KeyNotFoundException)
         { throw new BackendError("internet_channel_failed", ""); }
     }

@@ -55,6 +55,7 @@ internal static class Backend
         Action<JsonElement> receive,bool trackOperation,CancellationToken cancellationToken,BackendTiming? timing,
         LauncherDiagnostics.Operation trace)
     {
+        if(cancellationToken.IsCancellationRequested)throw new BackendError("cancelled","");
         string request=JsonSerializer.Serialize(new{format="s7-desktop-request-v1",action,data});
         if(Encoding.UTF8.GetByteCount(request)>32768)throw new BackendError("request_invalid","Request too large");
         var session=new Session(root,id,ReadOnlyActions.Contains(action),timing??BackendTiming.For(action));
@@ -84,8 +85,13 @@ internal static class Backend
                         session.Touch();
                         using var document=JsonDocument.Parse(line);var item=document.RootElement.Clone();
                         string? kind=item.GetProperty("kind").GetString();session.Observe(item,kind);trace.Observe(item,kind);
-                        if(kind=="result")result=item.GetProperty("data").Clone();
-                        else if(kind=="error")failure=new BackendError(item.GetProperty("code").GetString()!,item.GetProperty("detail").GetString()??"");
+                        if(kind is "result" or "error") {
+                            if(failure!=null||result.ValueKind!=JsonValueKind.Undefined)throw new BackendError("backend_protocol_invalid","");
+                            if(kind=="result") {
+                                result=item.GetProperty("data").Clone();
+                                if(result.ValueKind!=JsonValueKind.Object)throw new BackendError("backend_protocol_invalid","");
+                            } else failure=new BackendError(item.GetProperty("code").GetString()!,item.GetProperty("detail").GetString()??"");
+                        }
                         else receive(item);
                     }
                 }
@@ -118,7 +124,8 @@ internal static class Backend
                     if(session.Cancelled&&session.CancelElapsed>=session.Timing.Grace) {
                         if(session.CanTerminate) {
                             if(!session.StopOwned()) {Warn();continue;}
-                            session.TerminalCode=session.ProtocolFailure?"backend_protocol_invalid":cancellationToken.IsCancellationRequested?"cancelled":"backend_timeout";
+                            session.TerminalCode=session.ProtocolFailure?"backend_protocol_invalid":
+                                (cancellationToken.IsCancellationRequested||session.ManualCancel)?"cancelled":"backend_timeout";
                             readStop.Cancel();
                             try{await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));}catch(TimeoutException){Warn();continue;}
                             throw new BackendError(session.TerminalCode,"");
@@ -200,13 +207,13 @@ internal static class Backend
     }
     public static void Cancel() {
         Session? current;lock(operationsLock)current=operation;
-        current?.RequestCancel();
+        current?.RequestCancel(manual:true);
     }
 
     private sealed class Session(string root,string id,bool canTerminate,BackendTiming timing)
     {
         private readonly object gate=new();private readonly Stopwatch clock=Stopwatch.StartNew();
-        private TimeSpan lastActivity,requested;private bool cancelled,cancelDelivered,warning,critical,live,protocolFailure;
+        private TimeSpan lastActivity,requested;private bool cancelled,cancelDelivered,manualCancel,warning,critical,live,protocolFailure;
         private Process? process;private int pid;private DateTime started;private string? image,hash,terminalCode;
         internal string? TerminalCode {get{lock(gate)return terminalCode;}set{lock(gate)terminalCode=value;}}
         internal string Id=>id;internal BackendTiming Timing=>timing;
@@ -214,6 +221,7 @@ internal static class Backend
         internal bool Critical {get{lock(gate)return critical;}}
         internal bool LiveGame {get{lock(gate)return live;}}
         internal bool Cancelled {get{lock(gate)return cancelled;}}
+        internal bool ManualCancel {get{lock(gate)return manualCancel;}}
         internal bool ProtocolFailure {get{lock(gate)return protocolFailure;}set{lock(gate)protocolFailure=value;}}
         internal TimeSpan IdleElapsed {get{lock(gate)return clock.Elapsed-lastActivity;}}
         internal TimeSpan CancelElapsed {get{lock(gate)return clock.Elapsed-requested;}}
@@ -231,8 +239,9 @@ internal static class Backend
                 else if(kind=="progress"&&item.GetProperty("phase").GetString()=="patch")critical=true;
             }
         }
-        internal void RequestCancel() {
+        internal void RequestCancel(bool manual=false) {
             lock(gate) {
+                manualCancel|=manual;
                 if(cancelDelivered)return;
                 if(!cancelled){cancelled=true;requested=clock.Elapsed;}
                 try {
