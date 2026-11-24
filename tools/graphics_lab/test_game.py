@@ -9,6 +9,45 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_elapsed_measurement_budget_only_requests_regular_close_once(self):
+        self.assertFalse(game.measurement_budget_expired(29, 30, False))
+        self.assertTrue(game.measurement_budget_expired(30, 30, False))
+        self.assertFalse(game.measurement_budget_expired(300, 30, True))
+    def test_native_commands_are_capture_only_monotonic_and_bounded(self):
+        self.assertEqual(game.capture_command(b'{"operation":"capture","sequence":3}', 2), 3)
+        self.assertIsNone(game.capture_command(b'{"operation":"capture","sequence":2}', 2))
+        for raw in (b'{"operation":"load","sequence":3}', b'{"operation":"capture","sequence":true}',
+                    b'{"operation":"capture","sequence":1000001}', b' ' * 4097,
+                    b'{"operation":"capture","sequence":3,"export":"arbitrary"}'):
+            with self.subTest(raw=raw[:80]), self.assertRaises(ValueError):
+                game.capture_command(raw, 0)
+        with self.assertRaises(ValueError):
+            load_hook.invoke(None, Path('never-loaded.dll'), 'arbitrary', b'')
+        with self.assertRaises(ValueError):
+            load_hook.invoke(None, Path('never-loaded.dll'), 'capture', struct.pack('<3I', 12, 1, 0))
+
+    def test_v2_observer_and_one_to_one_control_have_exact_native_abi(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'work').mkdir()
+            catalog = root / 'work/catalog.bin'
+            catalog.write_bytes(b'private catalog fixture, no shader programs')
+            report = root / 'work/hook.json'
+            with patch.object(game, 'ROOT', root):
+                control = load_hook.configuration((1280, 720), (1280, 720), report)
+                self.assertEqual(len(control), 3132)
+                self.assertEqual(struct.unpack_from('<2I', control), (3132, 2))
+                self.assertEqual(control[1048:], bytes(2084))
+                config = load_hook.configuration((1920, 1080), (1280, 720), report,
+                    observer_catalog=catalog, observer_sha256=load_hook.digest(catalog))
+                self.assertEqual(len(config), 3132)
+                self.assertEqual(struct.unpack_from('<I', config, 1048)[0], 1)
+                self.assertEqual(config[2076:2108], bytes.fromhex(load_hook.digest(catalog)))
+                self.assertTrue(config[2108:].decode('utf-16le').rstrip('\0').endswith('material-observer.private.json'))
+                with self.assertRaises(ValueError):
+                    load_hook.configuration((1920, 1080), (1280, 720), report,
+                        observer_catalog=catalog, observer_sha256='0' * 64)
+
     def test_cleanup_failures_do_not_skip_options_service_or_shared_profile_checks(self):
         calls = []
         def action(label, fail=False):

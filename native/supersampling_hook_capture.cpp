@@ -1,0 +1,219 @@
+#include "supersampling_hook_capture.h"
+#include "supersampling_hook_config.h"
+#include "atmosphere_fp.h"
+#include <bcrypt.h>
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <stdexcept>
+#include <vector>
+
+namespace NativeGraphicsCapture {
+namespace {
+struct LastErrorScope {DWORD saved=GetLastError();~LastErrorScope(){SetLastError(saved);}};
+template<class T> struct Com {
+    T* value=nullptr;
+    ~Com(){if(value)value->Release();}
+};
+void Check(HRESULT result,Result& capture) {
+    if(FAILED(result)){capture.readback_hresult=result;throw std::runtime_error("readback_failed");}
+}
+struct Hash {
+    BCRYPT_ALG_HANDLE algorithm=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;
+    Hash() {
+        if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0
+            || BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0)<0) {
+            if(algorithm){BCryptCloseAlgorithmProvider(algorithm,0);algorithm=nullptr;}
+            throw std::runtime_error("hash_failed");
+        }
+    }
+    ~Hash(){if(hash)BCryptDestroyHash(hash);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);}
+    void add(const void* data,size_t bytes) {
+        if(bytes>std::numeric_limits<ULONG>::max() || BCryptHashData(hash,
+            static_cast<unsigned char*>(const_cast<void*>(data)),static_cast<ULONG>(bytes),0)<0)throw std::runtime_error("hash_failed");
+    }
+    void finish(std::array<char,65>& output) {
+        std::array<unsigned char,32> digest{};
+        if(BCryptFinishHash(hash,digest.data(),static_cast<ULONG>(digest.size()),0)<0)throw std::runtime_error("hash_failed");
+        constexpr char hex[]="0123456789abcdef";
+        for(size_t i=0;i<digest.size();++i){output[i*2]=hex[digest[i]>>4];output[i*2+1]=hex[digest[i]&15];}
+    }
+};
+struct File {
+    HANDLE handle=INVALID_HANDLE_VALUE;
+    explicit File(const std::wstring& path) {
+        handle=CreateFileW(path.c_str(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(handle==INVALID_HANDLE_VALUE)throw std::runtime_error("capture_file_exists_or_unavailable");
+    }
+    ~File(){if(handle!=INVALID_HANDLE_VALUE)CloseHandle(handle);}
+    void write(const void* data,size_t bytes) {
+        const auto* next=static_cast<const unsigned char*>(data);
+        while(bytes) {
+            const DWORD chunk=static_cast<DWORD>(std::min<size_t>(bytes,1024*1024));DWORD written=0;
+            if(!WriteFile(handle,next,chunk,&written,nullptr) || written!=chunk)throw std::runtime_error("capture_write_failed");
+            next+=chunk;bytes-=chunk;
+        }
+    }
+    void flush(){if(!FlushFileBuffers(handle))throw std::runtime_error("capture_flush_failed");}
+};
+
+bool Paths(const wchar_t* base_report,DWORD sequence,std::wstring& prefix) {
+    if(!base_report || !sequence)return false;
+    wchar_t copied[512]{};
+    const size_t length=wcsnlen_s(base_report,512);
+    if(!length || length>=512)return false;
+    std::copy(base_report,base_report+length,copied);
+    if(!NativeGraphicsConfig::AbsolutePath(copied,L".json"))return false;
+    const std::wstring report(copied);
+    const size_t end=report.find_last_of(L"\\/");if(end==std::wstring::npos)return false;
+    const std::wstring directory=report.substr(0,end);
+    // Retain the configured private directory, rejecting ancestor redirection.
+    for(size_t i=3;i<=directory.size();++i)if(i==directory.size() || directory[i]==L'\\' || directory[i]==L'/') {
+        const DWORD attributes=GetFileAttributesW(directory.substr(0,i).c_str());
+        if(attributes==INVALID_FILE_ATTRIBUTES || !(attributes&FILE_ATTRIBUTE_DIRECTORY)
+            || (attributes&FILE_ATTRIBUTE_REPARSE_POINT))return false;
+    }
+    prefix=directory+L"\\capture-"+std::to_wstring(sequence);
+    return prefix.size()+16<512;
+}
+bool Absent(const std::wstring& path) {
+    SetLastError(ERROR_SUCCESS);
+    return GetFileAttributesW(path.c_str())==INVALID_FILE_ATTRIBUTES && GetLastError()==ERROR_FILE_NOT_FOUND;
+}
+
+std::vector<unsigned char> Pixels(IDirect3DDevice9* device,IDirect3DSurface9* surface,
+                                  D3DSURFACE_DESC& description,Result& capture) {
+    Check(surface->GetDesc(&description),capture);
+    if(!description.Width || !description.Height || description.Width>3840 || description.Height>2160
+        || (description.Format!=D3DFMT_A8R8G8B8 && description.Format!=D3DFMT_X8R8G8B8)
+        || description.MultiSampleType!=D3DMULTISAMPLE_NONE)throw std::runtime_error("unsupported_capture_surface");
+    Com<IDirect3DSurface9> staging;
+    Check(device->CreateOffscreenPlainSurface(description.Width,description.Height,description.Format,
+        D3DPOOL_SYSTEMMEM,&staging.value,nullptr),capture);
+    Check(device->GetRenderTargetData(surface,staging.value),capture);
+    std::vector<unsigned char> pixels(static_cast<size_t>(description.Width)*description.Height*4);
+    D3DLOCKED_RECT locked{};
+    Check(staging.value->LockRect(&locked,nullptr,D3DLOCK_READONLY),capture);
+    if(!locked.pBits || locked.Pitch<0 || static_cast<size_t>(locked.Pitch)<static_cast<size_t>(description.Width)*4) {
+        staging.value->UnlockRect();throw std::runtime_error("invalid_capture_pitch_or_pointer");
+    }
+    for(UINT y=0;y<description.Height;++y)std::memcpy(pixels.data()+static_cast<size_t>(y)*description.Width*4,
+        static_cast<const unsigned char*>(locked.pBits)+static_cast<size_t>(y)*locked.Pitch,
+        static_cast<size_t>(description.Width)*4);
+    Check(staging.value->UnlockRect(),capture);
+    return pixels;
+}
+
+void Bitmap(const std::wstring& path,const D3DSURFACE_DESC& desc,const std::vector<unsigned char>& pixels,
+            std::array<char,65>& digest) {
+    BITMAPFILEHEADER file{};BITMAPINFOHEADER info{};
+    file.bfType=0x4d42;file.bfOffBits=sizeof(file)+sizeof(info);file.bfSize=file.bfOffBits+static_cast<DWORD>(pixels.size());
+    info.biSize=sizeof(info);info.biWidth=static_cast<LONG>(desc.Width);info.biHeight=-static_cast<LONG>(desc.Height);
+    info.biPlanes=1;info.biBitCount=32;info.biCompression=BI_RGB;info.biSizeImage=static_cast<DWORD>(pixels.size());
+    File output(path);Hash hash;
+    for(const auto& bytes:std::array<std::pair<const void*,size_t>,3>{{{&file,sizeof(file)},{&info,sizeof(info)},{pixels.data(),pixels.size()}}}) {
+        output.write(bytes.first,bytes.second);hash.add(bytes.first,bytes.second);
+    }
+    output.flush();hash.finish(digest);
+}
+
+std::string Number(double value) {
+    if(!std::isfinite(value))return "null";
+    char buffer[64]{};
+    const auto converted=std::to_chars(buffer,buffer+sizeof(buffer),value,std::chars_format::general,17);
+    return converted.ec==std::errc{}?std::string(buffer,converted.ptr):"null";
+}
+std::string FloatArray(const float* values,size_t count,bool available) {
+    if(!available)return "null";
+    std::string text="[";
+    for(size_t i=0;i<count;++i){if(i)text+=",";text+=Number(values[i]);}
+    return text+"]";
+}
+}
+
+bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept {
+    LastErrorScope error;
+    try {
+        std::wstring prefix;
+        return Paths(base_report,sequence,prefix) && Absent(prefix+L"-source.bmp")
+            && Absent(prefix+L"-output.bmp") && Absent(prefix+L".json");
+    } catch(...){return false;}
+}
+
+bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* output,
+          const wchar_t* base_report,DWORD sequence,const SupersamplingStats& graphics,Result& result) noexcept {
+    result={};result.sequence=sequence;result.graphics=graphics;
+    LastErrorScope error;
+    atmosphere::FpScope fp;
+    if(!fp.valid){result.status=3;return false;}
+    QueryPerformanceFrequency(&result.frequency);QueryPerformanceCounter(&result.started);
+    try {
+        std::wstring prefix;
+        if(!Paths(base_report,sequence,prefix) || !TargetAvailable(base_report,sequence))throw std::runtime_error("invalid_capture_target");
+        result.receipt_path=prefix+L".json";
+        GraphicsObservation::Read(result.observation);
+        Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
+        D3DSURFACE_DESC high{},low{};
+        auto source_pixels=Pixels(device,source,high,result);
+        result.source_width=high.Width;result.source_height=high.Height;result.format=high.Format;
+        Bitmap(prefix+L"-source.bmp",high,source_pixels,result.source_sha256);
+        if(source==output) {
+            low=high;Bitmap(prefix+L"-output.bmp",low,source_pixels,result.output_sha256);
+        } else {
+            auto output_pixels=Pixels(device,output,low,result);
+            Bitmap(prefix+L"-output.bmp",low,output_pixels,result.output_sha256);
+        }
+        result.output_width=low.Width;result.output_height=low.Height;
+        QueryPerformanceCounter(&result.finished);return true;
+    } catch(...) {
+        result.status=1;QueryPerformanceCounter(&result.finished);return false;
+    }
+}
+
+void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_result,
+            bool fallback_used,bool filtered_path) noexcept {
+    LastErrorScope error;
+    atmosphere::FpScope fp;
+    if(!fp.valid){result.status=3;return;}
+    try {
+        if(result.receipt_path.empty())return;
+        const auto& o=result.observation;const bool camera=(o.available&GraphicsObservation::CameraReady)!=0;
+        const bool context=(o.available&GraphicsObservation::ContextSizeReady)!=0;
+        const bool lod=(o.available&GraphicsObservation::LodReady)!=0;
+        const bool sun=(o.available&GraphicsObservation::SunAzimuthReady)!=0;
+        const double milliseconds=result.frequency.QuadPart>0?static_cast<double>(result.finished.QuadPart-result.started.QuadPart)*1000/result.frequency.QuadPart:0;
+        std::string text="{\"format\":\"s7-native-frame-capture-v1\",\"draw_counter_semantics\":\"successful_nonzero\",\"sequence\":"+std::to_string(result.sequence)
+            +",\"complete\":"+(result.status?"false":"true")+",\"status\":"+std::to_string(result.status)
+            +",\"frame\":"+std::to_string(result.graphics.present_calls)+",\"edition\":"+std::to_string(result.graphics.edition)
+            +",\"source\":["+std::to_string(result.source_width)+","+std::to_string(result.source_height)
+            +"],\"output\":["+std::to_string(result.output_width)+","+std::to_string(result.output_height)
+            +"],\"d3d9_format\":"+std::to_string(result.format)+",\"source_bmp_sha256\":\""+result.source_sha256.data()
+            +"\",\"output_bmp_sha256\":\""+result.output_sha256.data()+"\",\"state_sha256\":\""+result.state_sha256.data()
+            +"\",\"present_hresult\":"+std::to_string(static_cast<DWORD>(final_caller_result))
+            +",\"attempted_path_hresult\":"+std::to_string(static_cast<DWORD>(attempted_path_result))
+            +",\"filtered_present_hresult\":"+(filtered_path?std::to_string(static_cast<DWORD>(attempted_path_result)):"null")
+            +",\"final_present_hresult\":"+std::to_string(static_cast<DWORD>(final_caller_result))
+            +",\"fallback_used\":"+(fallback_used?"true":"false")
+            +",\"presentation_path\":\""+(fallback_used?"fallback_original":(filtered_path?"filtered_output":"original"))+"\""
+            +",\"filtered_api_succeeded\":"+((filtered_path && !fallback_used && SUCCEEDED(attempted_path_result))?"true":"false")
+            +",\"readback_hresult\":"+std::to_string(static_cast<DWORD>(result.readback_hresult))
+            +",\"capture_stall_ms\":"+Number(milliseconds)+",\"exclude_from_pacing\":true,\"desktop_capture\":false"
+            +",\"client\":["+std::to_string(result.graphics.client_width)+","+std::to_string(result.graphics.client_height)
+            +"],\"viewport\":["+std::to_string(result.graphics.viewport_width)+","+std::to_string(result.graphics.viewport_height)
+            +"],\"selected_target\":["+std::to_string(result.graphics.target_width)+","+std::to_string(result.graphics.target_height)
+            +"],\"high_resolution_draws\":"+std::to_string(result.graphics.high_resolution_draws)
+            +",\"indexed_draws\":"+std::to_string(result.graphics.indexed_draws)
+            +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
+            +",\"observation_available\":"+std::to_string(o.available)+",\"observation_status\":"+std::to_string(o.status)
+            +",\"camera_world\":"+FloatArray(o.camera_world,16,camera)+",\"fov_native\":"+FloatArray(o.fov_native,2,camera)
+            +",\"clip_native\":"+FloatArray(o.clip_native,2,camera)+",\"context_size\":"
+            +(context?("["+std::to_string(o.context_width)+","+std::to_string(o.context_height)+"]"):"null")
+            +",\"lod_scale\":"+(lod?Number(o.lod_scale):"null")+",\"sun_azimuth\":"+(sun?Number(o.sun_azimuth):"null")
+            +",\"sun_clock_ms\":"+(sun?Number(o.sun_clock_ms):"null")+",\"sun_elevation\":null,\"exposure\":null,\"simulation_turn\":null}\n";
+        File file(result.receipt_path);file.write(text.data(),text.size());file.flush();
+    } catch(...) {result.status=2;}
+}
+}

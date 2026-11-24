@@ -11,7 +11,7 @@ $lines=& $env:ComSpec /d /c "call `"$setup`" x64_x86 >nul && set"
 if ($LASTEXITCODE) {throw 'Cannot initialize x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
-$names=@('supersampling_hook.cpp','supersampling_hook.h','supersampling_hook.def','supersampling_hook_fixture.cpp','supersampling_probe.cpp')
+$names=@('supersampling_hook.cpp','supersampling_hook.h','supersampling_hook_config.h','supersampling_hook_capture.h','supersampling_hook_capture.cpp','supersampling_hook.def','supersampling_hook_fixture.cpp','supersampling_probe.cpp','material_shader_observer.h','material_shader_observer.cpp','graphics_observation.h','graphics_observation.cpp','atmosphere_clock.h','atmosphere_fp.h')
 $leases=@()
 $hashes=@{}
 $sha=[Security.Cryptography.SHA256]::Create()
@@ -26,9 +26,10 @@ try {
     }
     $buildHash=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($PSCommandPath))).Replace('-','').ToLowerInvariant()
     $flags=@('/nologo','/std:c++17','/EHsc','/MT','/W4','/WX','/O2')
-    & cl.exe @flags /LD supersampling_hook.cpp /Fe:WePlaySupersamplingLab.dll /link /DEF:supersampling_hook.def bcrypt.lib user32.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    $components=@('supersampling_hook.cpp','supersampling_hook_capture.cpp','material_shader_observer.cpp','graphics_observation.cpp')
+    & cl.exe @flags /LD @components /Fe:WePlaySupersamplingLab.dll /link /DEF:supersampling_hook.def bcrypt.lib user32.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Supersampling hook DLL compile failed.'}
-    & cl.exe @flags /DS7_SUPERSAMPLING_FIXTURE supersampling_hook.cpp supersampling_hook_fixture.cpp /Fe:supersampling_hook_fixture.exe /link bcrypt.lib user32.lib gdi32.lib dwmapi.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    & cl.exe @flags /DS7_SUPERSAMPLING_FIXTURE @components supersampling_hook_fixture.cpp /Fe:supersampling_hook_fixture.exe /link bcrypt.lib user32.lib gdi32.lib dwmapi.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Supersampling hook GPU fixture compile failed.'}
     $entries=@()
     foreach($name in $names) {

@@ -2,3 +2,5 @@ LIBRARY WePlaySupersamplingLab
 EXPORTS
     WePlaySupersamplingInitialize=_WePlaySupersamplingInitialize@4
     WePlaySupersamplingReadStats=_WePlaySupersamplingReadStats@4
+    WePlayNativeGraphicsRequestCapture=_WePlayNativeGraphicsRequestCapture@4
+    WePlayNativeGraphicsConfigureObservation=_WePlayNativeGraphicsConfigureObservation@4

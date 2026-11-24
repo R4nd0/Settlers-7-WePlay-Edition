@@ -11,8 +11,11 @@ if __package__:
 else:
     import probe
 
-SOURCES = ('supersampling_hook.cpp', 'supersampling_hook.h', 'supersampling_hook.def',
-           'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp')
+SOURCES = ('supersampling_hook.cpp', 'supersampling_hook.h', 'supersampling_hook_config.h',
+           'supersampling_hook_capture.h', 'supersampling_hook_capture.cpp', 'supersampling_hook.def',
+           'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp', 'material_shader_observer.h',
+           'material_shader_observer.cpp', 'graphics_observation.h', 'graphics_observation.cpp',
+           'atmosphere_clock.h', 'atmosphere_fp.h')
 BINARIES = ('WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe')
 
 
@@ -33,7 +36,7 @@ def verify_build(directory):
     return expected
 
 
-def run(directory, runtime, output):
+def run(directory, runtime, output, *, catalog=None, catalog_sha256=None):
     if os.name != 'nt':
         raise ValueError('The GPU hook fixture requires Windows.')
     directory, runtime, output = map(probe.plain, (directory, runtime, output))
@@ -54,6 +57,13 @@ def run(directory, runtime, output):
             environment.pop(key)
     environment['DXVK_LOG_PATH'] = str(output)
     command = [str(directory / 'supersampling_hook_fixture.exe'), str(own_runtime), str(output / 'frames')]
+    if catalog is not None or catalog_sha256 is not None:
+        if catalog is None or catalog_sha256 is None:
+            raise ValueError('Both catalog path and SHA256 are required for version-2 observation.')
+        catalog = probe.plain(catalog)
+        if not catalog.is_relative_to(work) or probe.sha256(catalog) != catalog_sha256:
+            raise ValueError('The private observer catalog identity changed.')
+        command.extend((str(catalog), catalog_sha256))
     try:
         result = subprocess.run(command, env=environment, cwd=output, capture_output=True,
                                 timeout=45, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -67,14 +77,30 @@ def run(directory, runtime, output):
     receipt = json.loads(result.stdout)
     if (receipt.get('format') != 's7-supersampling-hook-fixture-v1'
             or receipt.get('game_tested') is not False or receipt.get('hud_input_tested') is not False
-            or receipt.get('output_present_calls') != 3 or receipt.get('reset_successes') != 4
-            or receipt.get('fallback_calls') != 1 or receipt.get('hook_detached') != 1
+            or receipt.get('output_present_calls') != 4 or receipt.get('reset_successes') != 4
+            or receipt.get('fallback_calls') != 2 or receipt.get('hook_detached') != 1
             or receipt.get('owned_window_resize_applied') != 1
             or receipt.get('logical_resize_preserved_high_scene') is not True
             or receipt.get('logical_context_guards_passed') is not True
             or receipt.get('logical_point_and_mouse_roundtrip_passed') is not True
+            or receipt.get('cache_reuse_passed') is not True
+            or receipt.get('window_shutdown_cleanup_passed') is not True
+            or receipt.get('failed_filtered_capture_recorded') is not True
             or receipt.get('authored_marker_gpu_magenta') is not True):
         raise RuntimeError('Incomplete COM hook fixture receipt.')
+    for sequence, should_fallback in ((1, False), (2, True)):
+        capture = json.loads((output / 'frames' / f'capture-{sequence}.json').read_text('utf-8'))
+        if (capture.get('complete') is not True or capture.get('status') != 0
+                or capture.get('fallback_used') is not should_fallback
+                or capture.get('filtered_api_succeeded') is not (not should_fallback)
+                or capture.get('presentation_path') != ('fallback_original' if should_fallback else 'filtered_output')
+                or capture.get('final_present_hresult') != 0
+                or type(capture.get('filtered_present_hresult')) is not int
+                or (capture.get('filtered_present_hresult') == 0) is should_fallback):
+            raise RuntimeError('Capture conflated filtered presentation with the final fallback result.')
+        for role in ('source', 'output'):
+            if probe.sha256(output / 'frames' / f'capture-{sequence}-{role}.bmp') != capture.get(f'{role}_bmp_sha256'):
+                raise RuntimeError('Captured surface bitmap identity changed.')
     receipt['renderer_sha256'] = probe.DXVK_SHA256
     receipt['build'] = build
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
@@ -86,9 +112,11 @@ def main():
     parser.add_argument('--build', required=True, type=Path)
     parser.add_argument('--dxvk', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--catalog', type=Path)
+    parser.add_argument('--catalog-sha256')
     args = parser.parse_args()
     try:
-        receipt = run(args.build, args.dxvk, args.output)
+        receipt = run(args.build, args.dxvk, args.output, catalog=args.catalog, catalog_sha256=args.catalog_sha256)
     except (ValueError, OSError, RuntimeError, json.JSONDecodeError) as error:
         parser.exit(1, f'{error}\n')
     print(json.dumps(receipt, indent=2))

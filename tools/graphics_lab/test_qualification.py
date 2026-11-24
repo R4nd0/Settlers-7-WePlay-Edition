@@ -1,0 +1,300 @@
+"""Synthetic evidence records; no original game, image editing or GPU execution."""
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+import struct
+import tempfile
+import unittest
+from unittest.mock import patch
+import zlib
+
+from tools.graphics_lab import qualification as q
+
+
+def digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def png(width, height):
+    def chunk(name, data):
+        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+    header = struct.pack('>2I5B', width, height, 8, 2, 0, 0, 0)
+    pixels = b''.join(b'\0' + bytes(width * 3) for _ in range(height))
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(pixels)) + chunk(b'IEND', b'')
+
+
+def bmp(width, height):
+    pixels = bytes(width * height * 4)
+    return (struct.pack('<2sIHHI', b'BM', 54 + len(pixels), 0, 0, 54)
+            + struct.pack('<IiiHHIIiiII', 40, width, -height, 1, 32, 0, len(pixels), 0, 0, 0, 0) + pixels)
+
+
+class QualificationTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.work = self.root / 'work'
+        self.work.mkdir()
+        self.bundle = self.work / 'owned-game'
+        self.bin = self.bundle / 'Base/Bin'
+        self.bin.mkdir(parents=True)
+        self.binaries = {}
+        for name in ('Settlers7R.exe', 'uplay_r1_loader.dll', 'd3d9.dll', 'Vision90.dll', 'vBase90.dll'):
+            path = self.bin / name
+            path.write_bytes(('synthetic ' + name).encode())
+            self.binaries['Base/Bin/' + name] = digest(path.read_bytes())
+        self.profile = self.bundle / 'LocalData/ProfileRoot/THE SETTLERS 7 - History Edition'
+        self.profile.mkdir(parents=True)
+        self.save = self.profile / 's79.s7s'
+        self.save.write_bytes(b'synthetic original save')
+        for name, value in (('ROOT', self.root), ('EDITIONS', {'ubisoft-history': self.binaries['Base/Bin/Settlers7R.exe'],
+                                                           'steam-history': 'b' * 64, 'gold': 'c' * 64}),
+                            ('DXVK', self.binaries['Base/Bin/d3d9.dll'])):
+            p = patch.object(q, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+        self.cases = []
+        for case_id, role in (('control', 'control'), ('candidate', 'candidate')):
+            self.cases.append(self.fixture(case_id, role))
+        self.manifest = self.work / 'qualification.private.json'
+        self.data = {'format': q.FORMAT, 'cases': self.cases, 'pairs': [{'control': 'control', 'candidate': 'candidate'}]}
+        self.write_manifest()
+
+    def write_manifest(self):
+        self.manifest.write_text(json.dumps(self.data), encoding='utf-8')
+
+    def fixture(self, case_id, role):
+        case = self.work / case_id
+        case.mkdir()
+        def emit(relative, data):
+            path = case / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data), encoding='utf-8')
+        memory = {'monitor_failed': False, 'recovery_required': False, 'max_pressure': 0, 'samples': 20}
+        owned = {'sha256': self.binaries['Base/Bin/Settlers7R.exe'], 'path': str(self.bin / 'Settlers7R.exe'),
+                 'pid': 1234 if role == 'control' else 1235, 'parent': 1000, 'native_initialized': True, 'kernel_isolation': 7}
+        emit('result.private.json', {'game_started': True, 'shared_profiles_unchanged': True,
+             'game_binaries_unchanged': True, 'private_options_restored': True, 'exit_code': 0,
+             'owned_timeout_or_stop': False, 'error_type': None, 'cleanup_errors': [], 'memory': memory})
+        emit('memory.private.json', memory)
+        emit('owned.private.json', owned)
+        source = case / 'source/tools/graphics_lab/game.py'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b'synthetic frozen controller source')
+        emit('checkpoint.private.json', {'files': self.binaries, 'reshade_requested': False,
+             'requested_render_size': [4, 4] if role == 'candidate' else [2, 2],
+             'sources': {'tools/graphics_lab/game.py': digest(source.read_bytes())}})
+        emit('recovery-journal.private.json', {'format': 's7-graphics-lab-recovery-v1', 'state': 'restored',
+             'root': str(self.bundle), 'critical': self.binaries})
+        emit('portable-before/snapshot.private.json', {'portable': {'files': {
+             'THE SETTLERS 7 - History Edition/s79.s7s': {'sha256': digest(self.save.read_bytes())}}}})
+        if role == 'candidate':
+            emit('hook-state.private.json', {'format': 's7-supersampling-hook-v1', 'lab_only': True,
+                 'source': [4, 4], 'selected_target': [4, 4], 'viewport': [4, 4], 'output': [2, 2], 'client': [2, 2],
+                 'attached': 1, 'present_calls': 100, 'output_present_calls': 99, 'high_resolution_draws': 900,
+                 'indexed_draws': 800, 'fallback_calls': 1, 'swapchain_creations': 1, 'last_failure': 0, 'resize_failure': 0})
+            build_files = {}
+            for name in q.HOOK_SOURCES | {'WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe'}:
+                path = case / name
+                path.write_bytes(('synthetic compiled snapshot ' + name).encode())
+                build_files[name] = digest(path.read_bytes())
+            emit('hook-initialized.private.json', {'initialized': True, 'original_entry_guarded': True,
+                 'worker_code_rx': True, 'dll_sha256': build_files['WePlaySupersamplingLab.dll']})
+            emit('supersampling-hook-build.json', {'format': 's7-supersampling-hook-build-v1',
+                 'build_sha256': 'b' * 64, 'files': build_files})
+        reader = case / 'reader.py'
+        reader.write_bytes(b'synthetic native observation reader checkpoint')
+        observation = {'format': 's7-native-scene-observation-v1', 'origin': 'guarded-runtime-read',
+             'reader_source': q._ref(reader), 'identity': {k: owned[k] for k in ('pid', 'parent', 'sha256')},
+             'renderer_sha256': self.binaries['Base/Bin/d3d9.dll'],
+             'render_size': [4, 4] if role == 'candidate' else [2, 2], 'output_size': [2, 2],
+             'camera': {'translation': [1, 2, 3], 'look_at': [4, 5, 6], 'fov_degrees': 45},
+             'save_sha256': digest(self.save.read_bytes()), 'native_lod_scale': 1.5, 'simulation_pace_ms': 100,
+             'frames': [{'turn': 100 + i, 'elapsed_seconds': i * .1, 'sun_azimuth_degrees': 240 + i * .01,
+                         'sun_elevation_degrees': 30, 'exposure': 2.6} for i in range(3)]}
+        captures = []
+        for stage in ('source', 'output'):
+            path = case / (stage + '.png')
+            size = 4 if role == 'candidate' and stage == 'source' else 2
+            path.write_bytes(png(size, size))
+            captures.append((stage, path))
+            for frame in observation['frames']:
+                frame[stage + '_image_sha256'] = digest(path.read_bytes())
+        emit('scene.private.json', observation)
+        return q.record_case(case, case_id=case_id, edition='ubisoft-history', role=role,
+                             captures=captures, observation=case / 'scene.private.json')
+
+    def change_artifact(self, case_index, role, mutate):
+        reference = self.data['cases'][case_index]['artifacts'][role]
+        path = Path(reference['path'])
+        data = json.loads(path.read_text())
+        mutate(data)
+        path.write_text(json.dumps(data))
+        self.data['cases'][case_index]['artifacts'][role] = q._ref(path)
+        self.write_manifest()
+
+    def test_matching_file_backed_records_never_automatically_qualify_visuals_or_release(self):
+        result = q.aggregate(self.manifest)
+        self.assertTrue(all(c['runtime_records_consistent'] for c in result['cases']))
+        self.assertTrue(result['pairs'][0]['metadata_fields_comparable'])
+        self.assertFalse(result['pairs'][0]['measurements_comparable'])
+        self.assertFalse(result['pairs'][0]['visible_camera_validated'])
+        self.assertFalse(result['visual_qualified'])
+        self.assertFalse(result['release_qualified'])
+        self.assertEqual(result['edition_coverage']['gold']['consistent_native_runs'], [])
+        self.assertEqual(result['edition_coverage']['ubisoft-history']['consistent_ssaa_runs'], ['candidate'])
+        self.assertTrue(result['edition_coverage']['ubisoft-history']['actual_lifecycle_and_fallback_review_required'])
+
+    def test_synthetic_cases_never_count_toward_native_edition_coverage(self):
+        self.data['cases'][1]['kind'] = 'synthetic'
+        self.write_manifest()
+        result = q.aggregate(self.manifest)
+        self.assertFalse(result['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(result['pairs'][0]['measurements_comparable'])
+
+    def test_low_resolution_scene_cannot_pass_just_because_output_is_correct(self):
+        self.change_artifact(1, 'hook', lambda data: data.update(selected_target=[2, 2], viewport=[2, 2]))
+        result = q.aggregate(self.manifest)
+        self.assertFalse(result['cases'][1]['runtime_records_consistent'])
+        self.assertIn('selected_target was not the requested high-resolution scene', result['cases'][1]['rejected'])
+
+    def test_hook_build_identity_must_match_the_initialized_binary(self):
+        self.change_artifact(1, 'hook_build', lambda data: data['files'].update(WePlaySupersamplingLab_dll='different'))
+        self.change_artifact(1, 'hook_init', lambda data: data.update(dll_sha256='c' * 64))
+        result = q.aggregate(self.manifest)
+        self.assertFalse(result['cases'][1]['native_ssaa_records_consistent'])
+        self.assertIn('hook initialization/build manifest mismatch', result['cases'][1]['rejected'])
+
+    def test_changed_artifact_hash_is_rejected_without_rebinding(self):
+        path = Path(self.data['cases'][1]['artifacts']['hook']['path'])
+        path.write_bytes(b'changed receipt')
+        result = q.aggregate(self.manifest)
+        self.assertFalse(result['cases'][1]['runtime_records_consistent'])
+        self.assertIn('hook: ValueError', result['cases'][1]['rejected'])
+
+    def test_missing_capture_and_operator_notes_do_not_establish_a_comparable_pair(self):
+        self.data['cases'][1]['captures'] = []
+        path = Path(self.data['cases'][1]['observation']['path'])
+        data = json.loads(path.read_text())
+        data['origin'] = 'operator-notes'
+        path.write_text(json.dumps(data))
+        self.data['cases'][1]['observation'] = q._ref(path)
+        self.write_manifest()
+        result = q.aggregate(self.manifest)
+        self.assertFalse(result['pairs'][0]['measurements_comparable'])
+        self.assertIn('native high-resolution source image', result['cases'][1]['missing'])
+
+    def test_camera_save_lod_sun_and_cadence_must_match(self):
+        for key, replacement in (('camera', {'translation': [9, 2, 3], 'look_at': [4, 5, 6], 'fov_degrees': 45}),
+                                 ('save_sha256', 'b' * 64), ('native_lod_scale', 2.0),
+                                 ('simulation_pace_ms', 5)):
+            with self.subTest(key=key):
+                data = deepcopy(self.data)
+                path = Path(data['cases'][1]['observation']['path'])
+                original = path.read_bytes()
+                observation = json.loads(original)
+                observation[key] = replacement
+                path.write_text(json.dumps(observation))
+                data['cases'][1]['observation'] = q._ref(path)
+                self.manifest.write_text(json.dumps(data))
+                self.assertFalse(q.aggregate(self.manifest)['pairs'][0]['measurements_comparable'])
+                path.write_bytes(original)
+        self.write_manifest()
+
+    def test_memory_failure_force_stop_and_original_save_change_are_rejected(self):
+        self.change_artifact(1, 'result', lambda data: data.update(owned_timeout_or_stop=True))
+        self.save.write_bytes(b'changed original save')
+        result = q.aggregate(self.manifest)
+        self.assertIn('watchdog/forced stop', result['cases'][1]['rejected'])
+        self.assertIn('original private save changed', result['cases'][1]['rejected'])
+        self.assertFalse(result['cases'][1]['runtime_records_consistent'])
+
+    def test_image_hash_size_and_complete_data_are_checked(self):
+        self.assertEqual(q._image_size(png(4, 3)), [4, 3])
+        for raw in (png(4, 3)[:33], png(4, 3)[:-1], b'not an image'):
+            with self.subTest(raw=raw[:10]), self.assertRaises(ValueError):
+                q._image_size(raw)
+        image = Path(self.data['cases'][1]['captures'][1]['file']['path'])
+        image.write_bytes(png(3, 3))
+        self.data['cases'][1]['captures'][1]['file'] = q._ref(image)
+        self.write_manifest()
+        self.assertIn('capture dimensions do not match their native stage', q.aggregate(self.manifest)['cases'][1]['rejected'])
+
+    def test_original_vision_matrix_camera_contract_and_memory_failure(self):
+        self.assertTrue(q._camera({'world_matrix': [1 if i % 5 == 0 else 0 for i in range(16)],
+                                   'fov_native': [60, 40], 'clip_native': [1, 1000]}))
+        self.assertFalse(q._camera({'world_matrix': [0] * 15, 'fov_native': [60, 40], 'clip_native': [1, 1000]}))
+        self.change_artifact(1, 'memory', lambda data: data.update(monitor_failed=True))
+        self.change_artifact(1, 'result', lambda data: data['memory'].update(monitor_failed=True))
+        result = q.aggregate(self.manifest)
+        self.assertIn('unhealthy memory monitoring', result['cases'][1]['rejected'])
+        self.assertFalse(result['cases'][1]['native_ssaa_records_consistent'])
+
+    def add_native_capture(self, *, fallback=False):
+        case = self.work / 'candidate'
+        source, output = bmp(4, 4), bmp(2, 2)
+        (case / 'capture-1-source.bmp').write_bytes(source)
+        (case / 'capture-1-output.bmp').write_bytes(output)
+        data = {'format': 's7-native-frame-capture-v1', 'sequence': 1, 'frame': 80, 'edition': 1,
+                'complete': True, 'status': 0, 'source': [4, 4], 'output': [2, 2],
+                'source_bmp_sha256': digest(source), 'output_bmp_sha256': digest(output),
+                'capture_stall_ms': 42.0, 'desktop_capture': False, 'exclude_from_pacing': True,
+                'present_hresult': 0, 'final_present_hresult': 0,
+                'readback_hresult': 0, 'client': [2, 2], 'viewport': [4, 4], 'selected_target': [4, 4],
+                'high_resolution_draws': 900, 'indexed_draws': 800,
+                'attempted_path_hresult': 0x88760868 if fallback else 0,
+                'filtered_present_hresult': 0x88760868 if fallback else 0,
+                'presentation_path': 'fallback_original' if fallback else 'filtered_output',
+                'fallback_used': fallback, 'filtered_api_succeeded': not fallback,
+                'observation_available': 7, 'observation_status': 0,
+                'camera_world': [1 if i % 5 == 0 else 0 for i in range(16)],
+                'fov_native': [60, 40], 'clip_native': [1, 1000], 'lod_scale': 1.5,
+                'sun_azimuth': None, 'sun_elevation': None, 'exposure': None, 'simulation_turn': None}
+        path = case / 'capture-1.json'
+        path.write_text(json.dumps(data))
+        self.data['cases'][1]['native_captures'] = [q._ref(path)]
+        self.data['cases'][1]['captures'].extend([
+            {'stage': 'source', 'file': q._ref(case / 'capture-1-source.bmp')},
+            {'stage': 'output', 'file': q._ref(case / 'capture-1-output.bmp')}])
+        self.write_manifest()
+
+    def test_native_same_frame_buffer_pair_and_filtered_present_are_separate(self):
+        self.add_native_capture()
+        result = q.aggregate(self.manifest)
+        frame = result['cases'][1]['native_frame_pairs'][0]
+        self.assertTrue(frame['gpu_buffer_pair_bound'])
+        self.assertTrue(frame['filtered_present_recorded'])
+        self.assertEqual(frame['lod_scale'], 1.5)
+        self.assertFalse(frame['visible_camera_validated'])
+        self.assertIn('vision_main_context_camera', frame)
+        self.assertIsNone(frame['exposure'])
+        self.assertEqual(result['edition_coverage']['ubisoft-history']['same_frame_filtered_capture_runs'], ['candidate'])
+        self.assertFalse(result['release_qualified'])
+
+    def test_successful_original_fallback_never_qualifies_a_failed_filtered_present(self):
+        self.add_native_capture(fallback=True)
+        result = q.aggregate(self.manifest)
+        frame = result['cases'][1]['native_frame_pairs'][0]
+        self.assertTrue(frame['gpu_buffer_pair_bound'])
+        self.assertFalse(frame['filtered_present_recorded'])
+        self.assertEqual(result['edition_coverage']['ubisoft-history']['same_frame_filtered_capture_runs'], [])
+        self.assertIn('per-frame successful filtered/original presentation without fallback', result['cases'][1]['missing'])
+
+    def test_duplicate_cases_unknown_pairs_and_external_paths_refuse_manifest(self):
+        self.data['cases'].append(deepcopy(self.data['cases'][0]))
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, 'unique'):
+            q.aggregate(self.manifest)
+        self.data['cases'].pop()
+        self.data['pairs'][0]['candidate'] = 'missing'
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, 'known case'):
+            q.aggregate(self.manifest)
+        with self.assertRaisesRegex(ValueError, 'below repository'):
+            q._plain(self.root / 'outside.json')
+
+
+if __name__ == '__main__':
+    unittest.main()

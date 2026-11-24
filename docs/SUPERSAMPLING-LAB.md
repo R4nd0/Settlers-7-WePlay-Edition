@@ -38,6 +38,117 @@ postprocessing surfaces and any multisampling need additional allocations.
 Neither a simple bytes-per-pixel estimate nor a successful small GPU fixture
 qualifies a large saved settlement.
 
+## Output-cache lifetime candidate
+
+### Actual three-edition checkpoint, 2026-11-24
+
+The combined observer/capture build was run sequentially with the original
+Ubisoft History, Steam History and Gold executables in isolated portable copies.
+All three produced real world geometry with a 1920 x 1080 scene target,
+viewport and source, a 1280 x 720 physical client/output, and a successful
+same-frame GPU source/output capture. No ReShade was prepared.
+
+| Edition | Filtered / total presentations | Output chain creations | Peak private memory | Exit |
+| --- | ---: | ---: | ---: | --- |
+| Ubisoft History | 68,939 / 68,940 | 1 | 1,948 MiB | Old measurement watchdog stopped the client; not a regular-exit pass |
+| Gold | 42,918 / 42,919 | 1 | 2,032 MiB | 0, original UI after a new free-slot save |
+| Steam History | 23,646 / 23,647 | 1 | 2,025 MiB | 0, original UI after a new free-slot save |
+
+Each initial transition used the original path once. Gold and Steam terminal
+cleanup restored the public slots and released the cached chain once. Shared
+profiles and the five guarded game binaries were unchanged; private test
+configuration was restored without cleanup errors. No memory pressure or
+monitor failure was recorded. Counters are successful nonzero draw/presentation
+counts, not FPS or GPU timing.
+
+The healthy-client watchdog has since been corrected: the measurement deadline
+only requests a regular close and keeps memory monitoring and local services
+alive. Gold exercised this soft deadline and was subsequently saved and closed
+normally. A time budget does not establish a hung process.
+
+These cases establish the three-edition 1.5x experimental path and actual cache
+reuse. They do not qualify 2x/4K, every HUD/picking/DPI/reset scenario, demanding
+settlement performance or the final installed package. Materials were observed
+read-only; no material or shadow appearance improvement is claimed here.
+
+The Vision main render-context camera stayed fixed even while the visible Gold
+view moved. It is retained only as getter provenance. The bound RiverColor
+vertex shader's eye and view-projection constants did change coherently with
+the castle-to-village images. Their sample frames differ from the GPU capture
+frames, so this is tracking evidence, not same-frame camera matching.
+
+The first working game run created the output swapchain 70 times. The original
+bridge deliberately dropped it before every external device `Release`, including
+temporary references. The next candidate keeps it across those ordinary releases.
+It drops the output before Reset, on a rejected/failing presentation, and during
+explicit cleanup or the owned window's `WM_DESTROY`/`WM_NCDESTROY` lifecycle.
+It never treats the numeric return from COM `Release` as proof of device death.
+Terminal cleanup restores the documented public method slots before releasing
+the cached child. The method table itself must belong to the pinned renderer or
+the separately pinned Windows compatibility image; no private object fields or
+compiler-private slots are accessed.
+
+The standalone GPU fixture observed 1,002 ordinary device releases with cache
+retention. A deliberate sequence of 1,000 `AddRef`/`Release` pairs and its following
+filtered presentation reused the same output swapchain. Only three swapchains
+were created across three actual allocation epochs; Reset, deliberate fallback,
+recovery, owned-window destruction and table restoration passed. Four captured
+outputs matched the complete reference with maximum channel error 0.5. This is
+resource-lifetime evidence from the synthetic host, not a measured S7 pacing gain.
+The corresponding S7 performance and lifecycle qualification remains separate.
+
+Exact original executable profiles are now identified for Ubisoft History,
+Steam History and Gold. Read-only checks found their vBase90 and Vision90 DLLs
+byte-identical, including the named device getter and its documented C++ signature.
+Their original executable fingerprints remain distinct. Adding those identities
+to the guard table does not qualify supersampling, input or saved-game rendering
+on the two additional editions.
+
+## Combined native diagnostic interface
+
+The initializer retains its 1,048-byte version-1 ABI. Version 2 has a 3,132-byte
+configuration: the original prefix, flags, a scalar shader-catalog path and
+SHA256, and a separate private observer-report path. The current compiled flag
+mask accepts read-only observation (`1`) only; Water (`2`), Terrain (`4`),
+Vegetation (`8`) and Stable shadows (`16`) are declared but rejected until their
+implementations and qualification are available. At render scale 100%, the
+observer uses the original Present without an extra swapchain or logical resize.
+
+`WePlayNativeGraphicsConfigureObservation` accepts the bounded 952-byte exact-
+pair capture configuration after initialization. `WePlayNativeGraphicsRequestCapture`
+accepts a 12-byte `(size, version, sequence)` request and queues one capture on
+the owning render thread. Both remain explicit diagnostic interfaces; they do
+not enable an unqualified launcher option.
+
+Surface capture reads the actual high backbuffer and filtered output from the
+same frame, after the GPU blit and before presentation. It writes new private
+BMPs and a scalar receipt beside the configured report, with bitmap/state hashes,
+actual dimensions, camera/LOD/sun availability, frame counters and capture stall
+duration. Unavailable camera or environment fields remain `null`; no elevation,
+exposure or simulation turn is inferred. It never samples the desktop. The
+readback/write stall is explicitly excluded from pacing measurements.
+
+The combined x86 GPU fixture passed with both version 1 and version-2 observation
+enabled. It also injected a failed filtered Present followed by a successful
+original fallback. That frame's buffer files were complete, but its receipt
+retained the failed `filtered_present_hresult`, `fallback_used: true` and
+`presentation_path: fallback_original`; the final caller's `S_OK` did not become
+a filtered-presentation success. A qualifier must check those per-frame fields,
+not merely `complete` or later global counters. The native-only path is labeled
+`original`, not `filtered_output`.
+
+The combined candidate has standalone GPU evidence for cache reuse, logical
+resize/input contexts, original Reset/fallback/recovery, owned-window cleanup,
+actual shader `GetFunction` observation, same-frame surface hashes and negative
+presentation metadata. Those results do not establish current S7 pacing,
+cross-edition SSAA, 4K memory safety, or a material appearance improvement.
+
+Current native reports and surface receipts label `draw_counter_semantics` as
+`successful_nonzero`: high-resolution and indexed counters advance only after a
+successful original draw with nonzero primitive count (and nonzero indexed vertex
+count). Earlier receipts counted attempted calls; their historical counters are
+not retroactively reinterpreted as successful geometry draws.
+
 ## First GPU experiment
 
 `native/supersampling_probe.cpp` is a standalone x86 D3D9 host. It loads only

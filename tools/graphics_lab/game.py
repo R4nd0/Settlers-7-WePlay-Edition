@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import sys
 import time
 
@@ -77,8 +78,26 @@ def cleanup_steps(steps):
     return errors
 
 
+def capture_command(raw, previous):
+    if not isinstance(raw, bytes) or len(raw) > 4096:
+        raise ValueError('Native command exceeds its bound.')
+    value = graphics_profile._json(raw)
+    if (not isinstance(value, dict) or set(value) != {'operation', 'sequence'}
+            or value['operation'] != 'capture' or type(value['sequence']) is not int
+            or not 1 <= value['sequence'] <= 1000000):
+        raise ValueError('Only a bounded native capture command is supported.')
+    return value['sequence'] if value['sequence'] > previous else None
+
+
+def measurement_budget_expired(now, deadline, already_reported):
+    """A healthy client's unsaved state is never discarded for a time budget."""
+    return now >= deadline and not already_reported
+
+
 def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=None,
-        hook=None, output_width=1280, output_height=720):
+        hook=None, output_width=1280, output_height=720, observer_catalog=None,
+        observer_sha256=None, material_capture=None, material_capture_sha256=None,
+        high_quality=False):
     if os.name != 'nt':
         raise ValueError('The portable graphics laboratory requires Windows.')
     root, output = lab_path(root), lab_path(output)
@@ -101,6 +120,17 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')
         from . import load_hook
         hook, _ = load_hook.verify_build(hook)
+    elif observer_catalog is not None or material_capture is not None:
+        raise ValueError('Observation requires the fixed source-bound native hook.')
+    capture_config = None
+    if material_capture is not None:
+        material_capture = lab_path(material_capture)
+        with material_capture.open('rb') as stream:
+            capture_config = stream.read(953)
+        if (observer_catalog is None or len(capture_config) != 952
+                or struct.unpack_from('<2I', capture_config) != (952, 1)
+                or hashlib.sha256(capture_config).hexdigest() != material_capture_sha256):
+            raise ValueError('Invalid or changed targeted observation configuration.')
     output.mkdir()
     shared = ProfileGuard(shared_profile_roots(), output / 'shared-before')
     shared.capture()
@@ -118,7 +148,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     checkpoint = {str(p.relative_to(ROOT)): digest(p) for p in (
         Path(__file__), ROOT / 'tools/installer/platform_standalone.py',
         ROOT / 'tools/installer/isolated_process.py', ROOT / 'tools/d3d11/memory_guard.py',
-        ROOT / 'tools/shadow_detail/profile_guard.py', ROOT / 'tools/graphics_lab/recover.py')}
+        ROOT / 'tools/shadow_detail/profile_guard.py', ROOT / 'tools/graphics_lab/recover.py',
+        ROOT / 'tools/graphics_lab/load_hook.py', ROOT / 'tools/supersampling/hook_probe.py')}
     for name, pin in checkpoint.items():
         source = ROOT / name
         target = output / 'source' / name
@@ -135,16 +166,25 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     game = service = sentinel = None
     failure = None
     timed_out = False
+    budget_expired = False
     try:
         options.parent.mkdir(parents=True, exist_ok=True)
-        options.write_bytes(display_settings.windowed_options(previous_options or b''))
+        option_bytes = display_settings.windowed_options(previous_options or b'')
+        if high_quality:
+            from tools.d3d11 import settings as lab_settings
+            quality = lab_settings.read_defaults(option_bytes)
+            quality.update(dict.fromkeys(lab_settings.LEVELS, 2))
+            quality.update(dict.fromkeys(lab_settings.EFFECTS, 1))
+            quality['DepthOfField'] = 0
+            option_bytes = lab_settings.replace_game_values(option_bytes, quality)
+        options.write_bytes(option_bytes)
         config_file.write_bytes(graphics_profile.CONFIG + b'd3d9.floatEmulation = Strict\n')
         if value['edition'] == 'history':
             with (output / 'service.private.jsonl').open('xb') as log, (output / 'service-errors.private.txt').open('xb') as errors:
                 service = subprocess.Popen([
                     str(root / 'Runtime/dotnet/dotnet.exe'), str(root / 'Server/S7Patcher.dll'),
                     '--local-config-server', '--local-keepalive-probe', '--http-port', '0',
-                    '--udp-port', '0', '--seconds', str(seconds + 60)],
+                    '--udp-port', '0', '--seconds', '86400'],
                     stdout=log, stderr=errors, creationflags=subprocess.CREATE_NO_WINDOW)
             configuration, port = launch_local.service_ready(service, output / 'service.private.jsonl')
             launch_local.write_configuration(root / 'LocalData', configuration, port,
@@ -157,9 +197,16 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         if hook is not None:
             def initialize(owned):
                 receipt = load_hook.initialize(owned, hook, render=(width, height),
-                    output=(output_width, output_height), report=output / 'hook-state.private.json')
+                    output=(output_width, output_height), report=output / 'hook-state.private.json',
+                    observer_catalog=observer_catalog, observer_sha256=observer_sha256)
                 (output / 'hook-initialized.private.json').write_text(
                     json.dumps(receipt, indent=2), encoding='utf-8')
+                _, build = load_hook.verify_build(hook)
+                (output / 'hook-build.private.json').write_text(json.dumps(build, indent=2), encoding='utf-8')
+                if capture_config is not None:
+                    observed = load_hook.invoke(owned, hook, 'configure', capture_config)
+                    (output / 'material-configured.private.json').write_text(
+                        json.dumps(observed, indent=2), encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -174,22 +221,48 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                               requested_render_size=[width, height], portable=True,
                               reshade_requested=False)), flush=True)
         deadline = time.monotonic() + seconds
+        last_command = None
+        last_sequence = 0
         while game.poll() is None:
             if sentinel.summary['monitor_failed'] or sentinel.summary['recovery_required']:
                 raise RuntimeError('The memory guard failed or confirmed pressure; stop this owned experiment.')
-            if time.monotonic() >= deadline or (output / 'stop-owned.request').exists():
-                # Terminate only the original owned handle, after PID/parent/path/hash verification.
-                timed_out = True
-                game.terminate()
-                game.wait(timeout=15, close=False)
-                break
+            if measurement_budget_expired(time.monotonic(), deadline, budget_expired):
+                budget_expired = True
+                notification = dict(event='graphics-measurement-budget-ended',
+                    regular_close_required=True, game_terminated=False)
+                (output / 'close-needed.private.json').write_text(json.dumps(notification), encoding='utf-8')
+                print(json.dumps(notification), flush=True)
+                # Keep ownership, memory monitoring and the loopback service
+                # alive until the original UI closes. A time limit is not a
+                # hung-client finding and does not permit losing unsaved play.
+            command = output / 'native-command.json'
+            if hook is not None and command.exists():
+                command = lab_path(command)
+                with command.open('rb') as stream:
+                    raw = stream.read(4097)
+                identity = hashlib.sha256(raw).hexdigest()
+                if identity != last_command:
+                    last_command = identity
+                    try:
+                        sequence = capture_command(raw, last_sequence)
+                        if sequence is not None:
+                            last_sequence = sequence
+                            receipt = load_hook.invoke(game, hook, 'capture', struct.pack('<3I', 12, 1, sequence))
+                            (output / f'command-{sequence}.private.json').write_text(
+                                json.dumps(receipt, indent=2), encoding='utf-8')
+                    except (ValueError, RuntimeError, OSError) as error:
+                        # An optional measurement refusal must not discard a running game.
+                        (output / 'command-error.private.json').write_text(json.dumps(
+                            dict(type=type(error).__name__, sequence=last_sequence)), encoding='utf-8')
             time.sleep(.25)
     except BaseException as error:
         failure = error
     finally:
         def stop_game():
+            nonlocal timed_out
             if game and game.poll() is None:
                 game.terminate()
+                timed_out = True
                 game.wait(timeout=15, close=False)
         def stop_service():
             if service and service.poll() is None:
@@ -216,6 +289,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         unchanged = not any(e['stage'] == 'shared-profile-verification' for e in cleanup_errors)
         result = dict(game_started=game is not None, exit_code=exit_state['code'],
                       owned_timeout_or_stop=timed_out, shared_profiles_unchanged=unchanged,
+                      measurement_budget_expired=budget_expired,
                       game_binaries_unchanged=verify('binary-verification', lambda: all(
                           digest(root / n) == h for n, h in immutable.items())),
                       private_options_restored=verify('options-verification', lambda: (
@@ -246,9 +320,17 @@ def main():
     parser.add_argument('--hook', type=Path, help='Exact source-bound experimental supersampling DLL')
     parser.add_argument('--output-width', type=int, default=1280)
     parser.add_argument('--output-height', type=int, default=720)
+    parser.add_argument('--observer-catalog', type=Path)
+    parser.add_argument('--observer-sha256')
+    parser.add_argument('--material-capture', type=Path)
+    parser.add_argument('--material-capture-sha256')
+    parser.add_argument('--high-quality', action='store_true', help='Matched high native quality with DOF off in private options only')
     args = parser.parse_args()
     run(args.bundle, args.output, width=args.width, height=args.height, seconds=args.seconds,
-        hook=args.hook, output_width=args.output_width, output_height=args.output_height)
+        hook=args.hook, output_width=args.output_width, output_height=args.output_height,
+        observer_catalog=args.observer_catalog, observer_sha256=args.observer_sha256,
+        material_capture=args.material_capture, material_capture_sha256=args.material_capture_sha256,
+        high_quality=args.high_quality)
 
 
 if __name__ == '__main__':

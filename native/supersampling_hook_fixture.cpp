@@ -4,6 +4,10 @@
 #include "supersampling_probe.cpp"
 #undef wmain
 #include "supersampling_hook.h"
+#include "supersampling_hook_capture.h"
+#include "supersampling_hook_config.h"
+#include "material_shader_observer.h"
+#include <memory>
 
 namespace {
 D3DPRESENT_PARAMETERS Parameters(HWND window,UINT width,UINT height) {
@@ -50,6 +54,13 @@ void VerifyLogicalContext(HWND window) {
     Require(GetClientRect(window,&physical) && physical.right==640 && physical.bottom==360,"fixture_physical_size_changed");
     Require(WePlaySupersamplingFixtureRect(window,&logical,known) && logical.right==1280 && logical.bottom==720,
         "fixture_logical_rect_failed");
+    SetLastError(0x7357);Require(GetClientRect(window,&physical)!=FALSE,"fixture_real_rect_error_baseline_failed");
+    const DWORD real_rect_error=GetLastError();SetLastError(0x7357);
+    Require(WePlaySupersamplingFixtureRect(window,&logical,known) && GetLastError()==real_rect_error,"fixture_logical_rect_last_error_changed");
+    RECT invalid{};SetLastError(0x7357);const BOOL actual_failed=GetClientRect(nullptr,&invalid);
+    const DWORD failure_error=GetLastError();SetLastError(0x7357);
+    Require(!actual_failed && !WePlaySupersamplingFixtureRect(nullptr,&invalid,known) && GetLastError()==failure_error,
+        "fixture_real_rect_failure_error_masked");
     Require(WePlaySupersamplingFixtureRect(window,&forwarded,foreign) && forwarded.right==640 && forwarded.bottom==360,
         "fixture_foreign_caller_was_virtualized");
     HWND other=CreateWindowExW(0,WindowClass,L"Unmodified fixture window",WS_POPUP,0,0,200,100,
@@ -132,7 +143,13 @@ bool MarkerShader(IDirect3DDevice9* device) {
     struct Vertex {float x,y,z,w;DWORD color;};
     const Vertex vertices[]={{-.5f,-.5f,0,1,0xffffffff},{1.5f,-.5f,0,1,0xffffffff},{-.5f,1.5f,0,1,0xffffffff}};
     Check(device->BeginScene(),"marker_begin_scene_failed");
-    Check(device->DrawPrimitiveUP(D3DPT_TRIANGLELIST,1,vertices,sizeof(Vertex)),"marker_draw_failed");
+    Com<IDirect3DVertexBuffer9> buffer;
+    Check(device->CreateVertexBuffer(sizeof(vertices),0,D3DFVF_XYZRHW|D3DFVF_DIFFUSE,D3DPOOL_MANAGED,buffer.put(),nullptr),"marker_vertex_buffer_failed");
+    void* data=nullptr;Check(buffer->Lock(0,sizeof(vertices),&data,0),"marker_vertex_lock_failed");
+    std::memcpy(data,vertices,sizeof(vertices));Check(buffer->Unlock(),"marker_vertex_unlock_failed");
+    Check(device->SetStreamSource(0,buffer.get(),0,sizeof(Vertex)),"marker_stream_failed");
+    Check(device->DrawPrimitive(D3DPT_TRIANGLELIST,0,1),"marker_draw_failed");
+    Check(device->SetStreamSource(0,nullptr,0,0),"marker_stream_clear_failed");
     Check(device->EndScene(),"marker_end_scene_failed");
     const auto pixels=Readback(device,target.get(),1,1);
     Check(device->SetPixelShader(previous_shader.get()),"marker_restore_shader_failed");
@@ -172,7 +189,8 @@ double Verify(IDirect3DDevice9* device,HWND window,UINT width,UINT height,UINT h
 
 int wmain(int argc,wchar_t** argv) {
     try {
-        Require(argc==3,"usage_hook_fixture_absolute_dxvk_path_new_output_directory");
+        Require(argc==3 || argc==5,"usage_hook_fixture_absolute_dxvk_path_new_output_directory_optional_catalog_and_sha256");
+        const bool observe=argc==5;
         const auto output=std::filesystem::absolute(argv[2]);
         Require(!std::filesystem::exists(output) && std::filesystem::create_directory(output),"use_new_fixture_output_directory");
         SetProcessDPIAware();Runtime runtime(std::filesystem::absolute(argv[1]));
@@ -186,7 +204,23 @@ int wmain(int argc,wchar_t** argv) {
         const auto report=(output/L"hook-state.json").wstring();
         Require(report.size()<512,"fixture_report_path_too_long");
         std::copy(report.begin(),report.end(),config.report_path);
-        Require(WePlaySupersamplingInitialize(&config)==1,"fixture_initialize_failed");
+        NativeGraphicsConfig::Version2 version2{};
+        if(observe) {
+            version2.base=config;version2.base.size=sizeof(version2);version2.base.version=2;
+            version2.flags=NativeGraphicsConfig::Observe;
+            const std::wstring catalog=std::filesystem::absolute(argv[3]).wstring(),observer_report=(output/L"observer.json").wstring();
+            Require(catalog.size()<512 && observer_report.size()<512 && std::wcslen(argv[4])==64,"fixture_observer_paths_or_sha_invalid");
+            std::copy(catalog.begin(),catalog.end(),version2.catalog_path);
+            std::copy(observer_report.begin(),observer_report.end(),version2.observer_report_path);
+            const auto nibble=[](wchar_t c)->unsigned {
+                if(c>=L'0' && c<=L'9')return static_cast<unsigned>(c-L'0');
+                if(c>=L'a' && c<=L'f')return static_cast<unsigned>(c-L'a'+10);
+                if(c>=L'A' && c<=L'F')return static_cast<unsigned>(c-L'A'+10);
+                throw std::runtime_error("fixture_observer_sha_invalid");
+            };
+            for(size_t i=0;i<32;++i)version2.catalog_sha256[i]=static_cast<unsigned char>(nibble(argv[4][i*2])*16+nibble(argv[4][i*2+1]));
+        }
+        Require(WePlaySupersamplingInitialize(observe?static_cast<void*>(&version2):static_cast<void*>(&config))==1,"fixture_initialize_failed");
         fixture_previous=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window.get(),GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(FixtureProcedure)));
         Require(fixture_previous!=nullptr,"fixture_original_window_procedure_failed");
         fixture_device=device.get();
@@ -203,6 +237,32 @@ int wmain(int argc,wchar_t** argv) {
         ExerciseDraw(device.get(),1280,720);
         const bool marker=MarkerShader(device.get());
         const double first=Verify(device.get(),window.get(),640,360,1280,720,output,"hook-2x");
+        SupersamplingStats cache_before{},cache_after{};
+        Require(WePlaySupersamplingReadStats(&cache_before)==1,"fixture_cache_before_failed");
+        for(unsigned i=0;i<1000;++i){device->AddRef();device->Release();}
+        Require(WePlaySupersamplingReadStats(&cache_after)==1
+            && cache_after.swapchain_creations==cache_before.swapchain_creations
+            && cache_after.cached_release_calls>=1000,"fixture_temporary_releases_dropped_cache");
+        NativeGraphicsCapture::Request capture{sizeof(capture),1,1};
+        Require(WePlayNativeGraphicsRequestCapture(&capture)==1,"fixture_capture_request_failed");
+        Require(WePlayNativeGraphicsRequestCapture(&capture)==0,"fixture_duplicate_capture_request_accepted");
+        const double retained=Verify(device.get(),window.get(),640,360,1280,720,output,"hook-retained-cache");
+        SupersamplingStats cache_present{};
+        Require(WePlaySupersamplingReadStats(&cache_present)==1
+            && cache_present.swapchain_creations==cache_before.swapchain_creations
+            && cache_present.capture_completed==1 && cache_present.capture_failures==0,
+            "fixture_retained_present_recreated_swapchain");
+        if(observe) {
+            auto observations=std::make_unique<MaterialShaderObserver::Stats>();
+            Require(MaterialShaderObserver::ReadStats(observations.get()) && observations->enabled
+                && observations->frames>=2 && observations->shader_reads>=1 && observations->cached_refs==0,
+                "fixture_real_gpu_observer_callbacks_failed");
+        }
+        NativeGraphicsCapture::Request rejected_capture{sizeof(rejected_capture),1,2};
+        Require(WePlayNativeGraphicsRequestCapture(&rejected_capture)==1 && WePlaySupersamplingFixtureFailPresent()==1,
+            "fixture_failed_present_capture_setup_failed");
+        Upload(device.get(),1280,720);
+        Check(device->Present(nullptr,nullptr,nullptr,nullptr),"fixture_fallback_original_present_failed");
         // Verify the extended interface did not fall off a truncated clone.
         Com<IDirect3DDevice9Ex> extended;
         const HRESULT extended_result=device->QueryInterface(__uuidof(IDirect3DDevice9Ex),reinterpret_cast<void**>(extended.put()));
@@ -227,23 +287,34 @@ int wmain(int argc,wchar_t** argv) {
         parameters=Parameters(window.get(),1280,720);
         Check(device->Reset(&parameters),"fixture_recovery_reset_failed");
         const double recovered=Verify(device.get(),window.get(),640,360,1280,720,output,"hook-recovered");
-        Require(WePlaySupersamplingDetach(device.get())==1,"fixture_explicit_detach_failed");
+        Require(DestroyWindow(window.get())!=FALSE,"fixture_owned_window_destroy_failed");
+        SupersamplingStats destroyed{};
+        Require(WePlaySupersamplingReadStats(&destroyed)==1 && destroyed.window_shutdowns==1
+            && destroyed.terminal_cleanup==1 && destroyed.detached==1,"fixture_window_shutdown_did_not_clear_cache");
+        D3DCAPS9 remaining_caps{};
+        Check(device->GetDeviceCaps(&remaining_caps),"fixture_held_device_invalid_after_cache_shutdown");
+        Require(WePlaySupersamplingDetach(device.get())==1,"fixture_idempotent_detach_failed");
         fixture_device=nullptr;
         device.reset();
         SupersamplingStats stats{};
         Require(WePlaySupersamplingReadStats(&stats)==1,"fixture_stats_failed");
-        Require(stats.output_present_calls==3 && stats.reset_successes==4 && stats.fallback_calls==1
+        Require(stats.output_present_calls==4 && stats.reset_successes==4 && stats.fallback_calls==2
             && stats.high_resolution_draws>=1 && stats.detached==1 && stats.resize_applied==1,
             "fixture_lifecycle_or_counters_failed");
         std::printf("{\"format\":\"s7-supersampling-hook-fixture-v1\",\"game_tested\":false,"
-            "\"hud_input_tested\":false,\"first_error\":%.4f,\"reset_error\":%.4f,\"recovered_error\":%.4f,"
+            "\"hud_input_tested\":false,\"first_error\":%.4f,\"reset_error\":%.4f,\"recovered_error\":%.4f,\"retained_error\":%.4f,"
             "\"source\":[%lu,%lu],\"output\":[%lu,%lu],\"output_present_calls\":%lu,"
             "\"reset_successes\":%lu,\"fallback_calls\":%lu,\"high_resolution_draws\":%lu,"
             "\"hook_detached\":%lu,\"owned_window_resize_applied\":%lu,\"logical_resize_preserved_high_scene\":true,"
             "\"logical_context_guards_passed\":true,\"logical_point_and_mouse_roundtrip_passed\":true,"
-            "\"extended_interface_tested\":%s,\"authored_marker_gpu_magenta\":%s,\"device_loss_tested\":false}\n",first,after_reset,recovered,
+            "\"cache_reuse_passed\":true,\"window_shutdown_cleanup_passed\":true,\"swapchain_creations\":%lu,\"cached_release_calls\":%lu,"
+            "\"same_frame_surface_capture_passed\":true,"
+            "\"failed_filtered_capture_recorded\":true,\"observer_v2_enabled\":%s,"
+            "\"extended_interface_tested\":%s,\"authored_marker_gpu_magenta\":%s,\"device_loss_tested\":false}\n",first,after_reset,recovered,retained,
             stats.source_width,stats.source_height,stats.output_width,stats.output_height,stats.output_present_calls,
             stats.reset_successes,stats.fallback_calls,stats.high_resolution_draws,stats.detached,stats.resize_applied,
+            stats.swapchain_creations,stats.cached_release_calls,
+            observe?"true":"false",
             extended_tested?"true":"false",marker?"true":"false");
         return 0;
     } catch(const std::exception& error){std::fprintf(stderr,"hook_fixture: %s\n",error.what());return 1;}

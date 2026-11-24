@@ -17,8 +17,12 @@ import struct
 ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
-SOURCES = {'supersampling_hook.cpp', 'supersampling_hook.h', 'supersampling_hook.def',
-           'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp'}
+from tools.supersampling.hook_probe import SOURCES as HOOK_SOURCES
+SOURCES = set(HOOK_SOURCES)
+OPERATIONS = {
+    'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
+    'configure': (b'WePlayNativeGraphicsConfigureObservation\0', 952),
+}
 
 
 def digest(path):
@@ -50,7 +54,8 @@ def verify_build(dll):
     return dll, value
 
 
-def configuration(render, output, report):
+def configuration(render, output, report, *, observer_catalog=None, observer_sha256=None,
+                  observer_report=None):
     from .game import lab_path
     report = lab_path(report)
     if not report.parent.is_dir() or report.exists():
@@ -65,7 +70,32 @@ def configuration(render, output, report):
     name = str(report).encode('utf-16le')
     if len(name) > 1022 or '\0' in str(report):
         raise ValueError('Hook report path exceeds the fixed UTF16 ABI.')
-    return struct.pack('<6I', 1048, 1, *values) + name.ljust(1024, b'\0')
+    version = 2 if observer_catalog is not None or render == output else 1
+    base = struct.pack('<6I', 3132 if version == 2 else 1048, version, *values) + name.ljust(1024, b'\0')
+    if version == 1:
+        if observer_sha256 is not None or observer_report is not None:
+            raise ValueError('Observer identity needs an explicit catalog.')
+        return base
+    if observer_catalog is None:
+        if observer_sha256 is not None or observer_report is not None:
+            raise ValueError('Observer identity needs an explicit catalog.')
+        return base + bytes(2084)
+    catalog = lab_path(observer_catalog)
+    destination = lab_path(observer_report or report.with_name('material-observer.private.json'))
+    if (not catalog.is_file() or catalog.suffix.lower() != '.bin' or catalog.stat().st_size > 1024*1024
+            or not isinstance(observer_sha256, str) or len(observer_sha256) != 64
+            or any(c not in '0123456789abcdef' for c in observer_sha256)
+            or digest(catalog) != observer_sha256
+            or destination == report or destination.exists() or not destination.parent.is_dir()
+            or destination.suffix.lower() != '.json'):
+        raise ValueError('Invalid or changed private observer identity.')
+    def wide(path):
+        text = str(path)
+        encoded = text.encode('utf-16le')
+        if '\0' in text or len(encoded) > 1022:
+            raise ValueError('Observer path exceeds its fixed UTF16 ABI.')
+        return encoded.ljust(1024, b'\0')
+    return base + struct.pack('<I', 1) + wide(catalog) + bytes.fromhex(observer_sha256) + wide(destination)
 
 
 def worker(code_base, data_base, load_slot, export_slot, path_offset, export_offset, config_offset,
@@ -119,20 +149,37 @@ def file_lease(path):
         k.CloseHandle(handle)
 
 
-def initialize(owned, dll, *, render, output, report):
+def initialize(owned, dll, *, render, output, report, observer_catalog=None, observer_sha256=None):
     dll, _ = verify_build(dll)
     with file_lease(dll):
-        return _initialize_pinned(owned, dll, render=render, output=output, report=report)
+        config = configuration(render, output, report, observer_catalog=observer_catalog,
+                               observer_sha256=observer_sha256)
+        receipt = _invoke_pinned(owned, dll, config, EXPORT)
+        receipt['initialized'] = True
+        return receipt
 
 
-def _initialize_pinned(owned, dll, *, render, output, report):
+def invoke(owned, dll, operation, payload):
+    if operation not in OPERATIONS:
+        raise ValueError('Unsupported native graphics operation.')
+    export, size = OPERATIONS[operation]
+    if (not isinstance(payload, bytes) or len(payload) != size
+            or struct.unpack_from('<2I', payload) != (size, 1)):
+        raise ValueError('Invalid fixed native graphics command ABI.')
+    if operation == 'capture' and not 1 <= struct.unpack_from('<I', payload, 8)[0] <= 1000000:
+        raise ValueError('Capture sequence exceeds the bounded command range.')
+    dll, _ = verify_build(dll)
+    with file_lease(dll):
+        return _invoke_pinned(owned, dll, payload, export)
+
+
+def _invoke_pinned(owned, dll, config, export):
     import isolated_process
     dll, build = verify_build(dll)
-    config = configuration(render, output, report)
     owned.owned()
     if (not owned.native_initialized or owned.expected not in isolated_process.PROFILES
-            or isolated_process.PROFILES[owned.expected][0] != 1):
-        raise ValueError('This first hook experiment requires the original portable Ubisoft child.')
+            or isolated_process.PROFILES[owned.expected][0] not in (1, 2, 3)):
+        raise ValueError('The hook experiment requires an original portable Gold or History child.')
     api, k = owned.api, owned.api.k
     k.CreateRemoteThread.argtypes = [W.HANDLE, C.c_void_p, C.c_size_t, C.c_void_p,
                                      C.c_void_p, W.DWORD, C.POINTER(W.DWORD)]
@@ -174,18 +221,18 @@ def _initialize_pinned(owned, dll, *, render, output, report):
         raise ValueError('The owned renderer changed before hook initialization.')
     renderer_offset = len(payload); payload.extend(str(renderer).encode('utf-16le') + b'\0\0')
     path_offset = len(payload); payload.extend(str(dll).encode('utf-16le') + b'\0\0')
-    export_offset = len(payload); payload.extend(EXPORT)
+    export_offset = len(payload); payload.extend(export)
     while len(payload) % 4:
         payload.append(0)
     config_offset = len(payload); payload.extend(config)
-    if len(payload) > 4096:
-        raise ValueError('Hook configuration exceeds the fixed data page.')
+    if len(payload) > 8192:
+        raise ValueError('Hook configuration exceeds the fixed bounded data allocation.')
     data_base = code_base = thread = None
     finished = False
     try:
-        data_base = api.check(k.VirtualAllocEx(owned._handle, None, 4096, 0x3000, 4))
+        data_base = api.check(k.VirtualAllocEx(owned._handle, None, 8192, 0x3000, 4))
         code_base = api.check(k.VirtualAllocEx(owned._handle, None, 4096, 0x3000, 4))
-        if max(data_base, code_base) >= 0xfffff000:
+        if data_base >= 0xffffe000 or code_base >= 0xfffff000:
             raise RuntimeError('The x86 allocation range was exceeded.')
         write(data_base, bytes(payload))
         code = worker(code_base, data_base, *slots, path_offset, export_offset, config_offset, renderer_offset)
@@ -203,7 +250,8 @@ def _initialize_pinned(owned, dll, *, render, output, report):
         stage, result = struct.unpack('<2I', read(data_base, 8))
         if stage != 3 or result != 1:
             raise RuntimeError(f'Supersampling initializer refused the laboratory (stage {stage}, result {result}).')
-        return {'initialized': True, 'dll_sha256': build['files'][DLL_NAME],
+        return {'succeeded': True, 'export': export.rstrip(b'\0').decode('ascii'),
+                'dll_sha256': build['files'][DLL_NAME],
                 'original_entry_guarded': True, 'worker_code_rx': True}
     finally:
         if thread:

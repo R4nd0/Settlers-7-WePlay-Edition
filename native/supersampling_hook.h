@@ -22,13 +22,18 @@ struct SupersamplingStats {
     DWORD after_client_width, after_client_height;
     DWORD logical_size_messages, logical_rect_calls, logical_point_calls, logical_mouse_messages;
     DWORD logical_api_slots, logical_context_rejections;
+    DWORD edition, cached_release_calls, output_cache_drops, window_shutdowns, terminal_cleanup;
+    DWORD capture_requests, capture_completed, capture_failures, capture_frame;
 };
 
 extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* config);
 extern "C" DWORD WINAPI WePlaySupersamplingReadStats(void* output);
+extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* request);
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* config);
 #ifdef S7_SUPERSAMPLING_FIXTURE
 extern "C" DWORD WINAPI WePlaySupersamplingAttach(IDirect3DDevice9* device);
 extern "C" DWORD WINAPI WePlaySupersamplingDetach(IDirect3DDevice9* device);
 extern "C" BOOL WINAPI WePlaySupersamplingFixtureRect(HWND window,RECT* rectangle,const void* caller);
 extern "C" BOOL WINAPI WePlaySupersamplingFixturePoint(HWND window,POINT* point,const void* caller,BOOL to_screen);
+extern "C" DWORD WINAPI WePlaySupersamplingFixtureFailPresent();
 #endif

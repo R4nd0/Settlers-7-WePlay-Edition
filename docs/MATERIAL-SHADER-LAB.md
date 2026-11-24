@@ -157,12 +157,161 @@ existing local-test authorization. The inventory tool itself starts no games
 and changes no pins. Check actual process ownership and profile isolation before
 any separate runtime experiment.
 
+## Bounded original-program observer and material input capture
+
+`native/material_shader_observer.{h,cpp}` is an optional read-only D3D9 component
+for the guarded native graphics hook. It accepts a SHA256-pinned scalar catalog,
+not program bytes. `tools/material_shaders/catalog.py` generates that catalog
+from explicitly selected recipient-owned original resources. The checked
+high-quality Water/Terrain/SpeedTree libraries yield 345 entries across three
+vendor variants. Many entries alias identical compiled programs: a matched hash
+does not uniquely identify a vendor or logical material. Reports retain alias
+counts and original VS/PS pair identities rather than inventing uniqueness.
+
+The integrating hook calls `ObserveDraw` after a successful original draw, inside
+its internal/TLS scope. `Get*Shader`/`GetFunction` yield bounded program hashes;
+cached COM references prevent address reuse from producing a stale identity.
+References are released at Present, before Reset and before **every external
+device Release**, including serialized same-device cleanup from another thread.
+Observe/capture calls remain restricted to their render thread. The component
+preserves caller LastError and the complete FPU/MXCSR state. Its scalar reports
+contain no original code, pointers, texture pixels or account information.
+
+`tools/material_shaders/semantics.py` reads bounded compiler CTAB metadata.
+Actual selected ATI high-quality VS/PS programs yielded 605 binding rows across
+115 programs. This catches an important stage distinction: river reflection
+and fog vectors belong to the RiverColor vertex shader at c69/c68, while the
+OceanColor pixel shader uses a different packed density/specular vector at c102.
+Register names in an include alone cannot substitute for the compiled binding.
+
+`tools/material_shaders/capture.py` generates a 952-byte `CaptureConfig` ABI1
+and private semantic receipt. Eight exact original VS/PS hash pairs cover river,
+ocean color/composite, terrain bump/parallax, leaf cards, fronds and branches.
+Configurable first-frame/stride and per-target limits cap capture at 64 samples.
+Only selected finite float4 components are retained. Texture capture reports
+sampler type, dimensions and format; draw context reports target/viewport sizes,
+format, alpha states and sRGB-write state with an explicit validity mask.
+
+The supplied source interpretations distinguish compiler-verified register
+locations from meanings established by private include inspection. Packed
+components whose meaning is still unqualified are labeled accordingly. A
+diffuse multiplier is explicitly not presented as a foliage backlighting knob.
+All captures are read-only; native constant/shader writes remain a separate
+implementation and qualification step.
+
+Further include/interface inspection resolves the OceanColor c102 vector:
+x is fog density, y is depth density, z is specular intensity and w is specular
+exponent. Terrain c33.y scales centered high-frequency material detail before
+combining it with the base surface; c33.z supplies displacement. These are
+material-specific candidate controls. Their numerical limits still require
+measured original draw values, and changes must restore the original GPU
+constants after each matching draw. A layer pass can write an intermediate
+material target, so its context and new-launch behavior must also be checked.
+
+## Recipient-generated leaf backlighting recipe
+
+Private original-source inspection identifies the leaf backlighting factor in
+TEXCOORD7.y: the original vertex program computes an angular eye/sun term and
+the pixel program uses that interpolant for warm leaf transmission. The other
+components carry alpha, specular fade and selection information. This is a
+material-specific path, not a full-screen brightness adjustment.
+
+`foliage.py` authors a narrowly scoped vertex-program extension. It identifies
+the compiler-declared TEXCOORD7 output, redirects its original calculation to a
+verified unused temporary, retains the other components and increases/clamps
+only the backlight component. Position, wind calculations, address calculations,
+texture inputs and unrelated interpolants are preserved. New local constants
+are allocated outside all explicit and complete CTAB-declared float/matrix/array
+ranges. Opaque/mismatched relative-array footprints, unsupported control flow,
+missing semantics and register/instruction exhaustion are refused. Original
+valid HLSL array-index bounds remain the unchanged indexing contract.
+
+The checked three vendor variants generate the same 3,872-byte VS at factor
+1.25, forty bytes longer than the original. The system D3D disassembler accepts
+SM3, TEXCOORD7 and the authored coefficient. Synthetic semantic checks preserve
+position/alpha/specular/selection and verify saturation. These results do not
+establish GPU rendering or visible improvement in S7.
+
+`recipes.py` ships authored transform code and compatibility hashes only.
+`generate_leaf()` requires the recipient's exact original resource and compiled
+LeafCard VS/PS pair. `write_local_cache()` creates content-addressed outputs
+under that recipient's `LocalData/MaterialShaders`; existing program bytes are
+verified and never overwritten. No original or derived game program is to be
+committed or bundled in a public package. Generation returns `active: false`.
+The native effect must classify the original pair before a temporary shader
+bind, restore the original shader after the draw and record original/applied
+observations separately. Actual binding, output quality and state restoration
+must pass before an ordinary setting or release can enable this recipe.
+
+The separate `bytecode.py` RGB extension is a guarded tuning/diagnostic primitive
+only. It preserves alpha, other MRT outputs and original inputs, but does not
+establish completed water, terrain or vegetation improvements by itself.
+
+## First actual bindings and candidate draw-local effects
+
+The parent's owned Ubisoft History run supplied an actual read-only snapshot
+with 9,345,217 successful original draws, 2,467,912 known VS/PS pairs and no
+query/capture failures. Twenty-four targeted samples covered RiverColor,
+terrain bump/parallax, leaf cards, fronds and branches on a 1920x1080 target and
+viewport. OceanColor/OceanWater were not captured and remain outside this
+candidate's active scope. Vendor aliases still prevent unique vendor attribution.
+
+These are four early-world frames, not a long-term numerical qualification.
+River c68/c69 each contain four depth-class coefficients selected by a clamped
+0..3 vertex depth index. Their vectors were identical across the four samples;
+component min/max describes differences between classes, not a temporal change.
+The include's older fog-depth label is consumed by the river pixel program as
+fog density, including depth-dependent refraction tint. Later steady and
+transition samples are still required before final policy bounds are qualified.
+
+`terrain.py` now provides a material-specific normal-detail recipe for the
+original compiled bump/parallax programs. It strengthens the CTAB-proven normal
+map at sampler5, preserving the other texture channels. Because the original
+program reconstructs Z with an unguarded square root, the authored extension
+radially limits decoded XY to 0.99 before re-encoding packed AG channels. The
+epsilon-protected reciprocal square root also handles flat normals. Independent
+per-channel gain would be unsafe here and is not used. The two recipient-generated
+PS programs add nine ALU operations per normal fetch; system disassembly and
+synthetic steep/flat-normal checks pass, but actual GPU/visual checks remain.
+
+The new `native/material_shader_effects.{h,cpp}` component is separate from the
+currently loaded observer build. It classifies exact original VS/PS pairs before
+any temporary shader bind and checks the original target/viewport/alpha/sRGB
+context. Candidate river tuning adjusts proven depth-class density/reflection
+components independently; terrain contrast/relief changes preserve other fields.
+Generated terrain PS and leaf VS are used only for their matching original pairs.
+Every draw transaction restores and bitwise reads back original constants and
+shader objects, including failed original draws. Reports separate original and
+applied values; this is not a full-screen pass or an engine/save/RNG write.
+
+The integrating host must hold its serial device lock and internal/TLS scope,
+validate private paths/ancestors and call cleanup before each external Release.
+It must inspect `unsafe_state` immediately after Begin/End, retry restoration
+inside the same callback and stop the diagnostic renderer if restoration cannot
+be proven. It must not describe that state as an original fallback or feed it to
+the original-program observer. The component preserves caller LastError and FP
+state, has bounded frame references and disables further mutations after a fault.
+The x86 CPU fixture covers partial setter failures, exception unwinding, failed
+restoration reporting/retry and original-state/reference recovery. This remains
+a candidate until the parent's actual GPU, image and pacing tests pass.
+
 ## Verification
 
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_inventory -v` from the
 repository root (17 checks at this milestone).
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_shaderlib -v` for
 eight additional parser, exact-identity and unchanged-program checks.
+Run `rtk proxy python -B -m unittest discover -s tools/material_shaders -p 'test_*.py'`
+for all 53 inventory, format, CTAB, catalog/capture, output-extension and
+recipient-cache checks. `native/material_shader_observer_build.ps1` builds and
+runs an x86 synthetic COM fixture without creating a D3D9 device or GPU work;
+it covers reference cleanup, aliases, successful-draw-only observations,
+capture bounds, nonfinite values, sampler/context descriptors, foreign-thread
+same-device cleanup, caller LastError and MXCSR preservation.
+The three additional `test_terrain` checks exercise packed-normal channel
+preservation and the original square-root domain. `material_shader_effects_build.ps1`
+compiles both the guarded production object and a fixture-only authored-identity
+CPU executable; no GPU/game is started by that script.
 The synthetic checks cover misleading comment tokens, truncation, unknown
 opcodes, token-scan bounds, traversal names, fingerprint/CRC failures, bounded
 decompression, absence of unselected payload/full-file reads in metadata-only
@@ -173,3 +322,5 @@ qualify S7 shader replacement.
 The token format follows Microsoft's [Shader Code Format](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/shader-code-format),
 [Instruction Token](https://learn.microsoft.com/en-us/windows-hardware/drivers/display/instruction-token)
 and [D3D9 opcode definitions](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3d9types/ne-d3d9types-_d3dshader_instruction_opcode_type).
+CTAB reflection follows [D3DXSHADER_CONSTANTTABLE](https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxshader-constanttable)
+and [D3DXSHADER_CONSTANTINFO](https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxshader-constantinfo).
