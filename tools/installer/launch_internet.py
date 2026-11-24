@@ -35,7 +35,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     name = player_settings.player_name(args.player_name)
     invitation = getattr(args, 'invitation', None)
     host = invitation is None
-    physical = enumerate_interfaces(allow_empty=True)
+    physical = enumerate_interfaces(allow_empty=True, include_all=True)
     room = (create(physical, mode=getattr(args, 'mode', 'assisted'),
                    direct_endpoint=getattr(args, 'direct_endpoint', None)) if host else parse(invitation))
     if policy_ready:policy_ready(room.mode)

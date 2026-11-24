@@ -47,7 +47,7 @@ def interface_index_from_table(data, address):
 def select_outgoing_interface(sock, interface):
     if sys.platform == 'linux':
         from lan_interfaces import enumerate_interfaces
-        matches = [row for row in enumerate_interfaces() if row.address == interface.address]
+        matches = [row for row in enumerate_interfaces(include_all=True) if row.address == interface.address]
         if len(matches) != 1:
             raise ValueError('Das ausgewaehlte LAN ist nicht mehr eindeutig verfuegbar.')
         index = socket.if_nametoindex(matches[0].name)

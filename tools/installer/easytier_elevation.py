@@ -264,7 +264,8 @@ class ElevatedEasyTier:
                 raise InternetError(code)
             if value.get('phase') != 'ready' or value.get('crossplay',False) is not self.crossplay:
                 raise ValueError()
-            interface = select_interface(self.room, value['address'], value['device'], enumerate_interfaces())
+            interface = select_interface(self.room, value['address'], value['device'],
+                                         enumerate_interfaces(include_all=True))
             peers = value['peers']
             if not isinstance(peers, dict) or len(peers) > 255:
                 raise ValueError()

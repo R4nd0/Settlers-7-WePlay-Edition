@@ -211,13 +211,14 @@ def bootstrap_connected(raw, room):
 
 class EasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None,
-                 job_factory=ServiceJob, interfaces=enumerate_interfaces, private_parent=None,
+                 job_factory=ServiceJob, interfaces=None, private_parent=None,
                  crossplay=False):
         if type(crossplay) is not bool:
             raise InternetError('internet_runtime_invalid')
         self.root, self.room, self.host = Path(root), room, host
         self.cancel_check, self.progress = cancel_check, progress
-        self.job_factory, self.interfaces = job_factory, interfaces
+        self.job_factory = job_factory
+        self.interfaces = interfaces if interfaces is not None else lambda: enumerate_interfaces(include_all=True)
         self.private_parent = None if private_parent is None else Path(private_parent)
         self.crossplay = crossplay
         self.instance_id = str(uuid.uuid4())

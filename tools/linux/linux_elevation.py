@@ -120,7 +120,8 @@ class ElevatedEasyTier:
         if not isinstance(value,dict) or value.get('phase') != 'ready': raise InternetError('internet_disconnected')
         try:
             if set(value) != {'format','phase','address','device','peers'}: raise ValueError()
-            interface = select_interface(self.room,value['address'],value['device'],enumerate_interfaces())
+            interface = select_interface(self.room, value['address'], value['device'],
+                                         enumerate_interfaces(include_all=True))
             peers = value['peers']
             if not isinstance(peers,dict) or len(peers)>255: raise ValueError()
             for address, cost in peers.items():
