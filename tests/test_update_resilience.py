@@ -292,6 +292,7 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
             status=200
             def getheader(self,name):return str(len(raw)) if name=='Content-Length' else None
             def read1(self,size):return source.read(min(size,17003))
+            def close(self):pass
         class Connection:
             sock=None
             def __init__(self,*a,**kw):pass
@@ -360,6 +361,7 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
                 def read1(self,size):
                     now[0]+=1;stop[0]=cancel
                     return b'x'
+                def close(self):pass
             class Connection:
                 sock=None
                 def __init__(self,*a,**kw):pass

@@ -49,15 +49,20 @@ def copy_tree(source, destination):
             if item.is_dir(): stack.append(item)
             elif item.is_file(): files.append(item)
             else: raise ValueError('Unsupported file in owned game profiles')
+    copied = 0
     for item in files:
         target = compatibility.plain(destination / item.relative_to(source))
         target.parent.mkdir(parents=True,exist_ok=True)
-        if target.exists(): raise ValueError('Profile destination already exists')
         expected = compatibility.digest(item)
+        if target.exists():
+            if target.is_file() and compatibility.digest(target) == expected:
+                continue
+            raise ValueError('Profile destination already exists')
         shutil.copy2(item,target)
         if compatibility.digest(target) != expected or compatibility.digest(item) != expected:
             raise ValueError('Game profile changed during migration')
-    return len(files)
+        copied += 1
+    return copied
 
 
 def migrate(source, destination):
@@ -78,7 +83,7 @@ def migrate(source, destination):
         if path.is_dir(): count += copy_tree(path,new/name)
     for documents in document_roots(source):
         for game in documents.iterdir():
-            if game.name.casefold() in DOCUMENT_GAMES:
+            if game.name.casefold() in DOCUMENT_GAMES and compatibility.plain(game).is_dir():
                 count += copy_tree(game,new/'WineHome/Documents'/game.name)
     return count
 

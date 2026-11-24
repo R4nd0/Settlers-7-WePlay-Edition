@@ -3,6 +3,7 @@ import base64
 from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
+import errno
 import hashlib
 import http.client
 import json
@@ -162,8 +163,12 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
                 url=urljoin(url,location);allowed_url(url);continue
             if response.status!=200:raise UpdateError('update_download_failed')
             size=response.getheader('Content-Length')
-            if size and (not size.isdigit() or int(size)>limit or (expected_size is not None and int(size)!=expected_size)):
-                raise UpdateError('update_download_failed')
+            if size is not None:
+                if not re.fullmatch(r'[0-9]{1,12}',size):
+                    raise UpdateError('update_download_failed')
+                size=int(size)
+                if size>limit or (expected_size is not None and size!=expected_size):
+                    raise UpdateError('update_download_failed')
             chunks=[];received=0;hasher=hashlib.sha256()
             output=compatibility.plain(destination).open('xb') if destination else None
             pending=bytearray();written=0;written_hash=hashlib.sha256()
@@ -197,22 +202,30 @@ def transfer(url,limit,*,destination=None,expected_size=None,progress=None,conne
                         else:output.write(chunk)
                     else:chunks.append(chunk)
                     if progress:progress('update_download',received,expected_size or limit)
-                if expected_size is not None and received!=expected_size:raise UpdateError('update_download_failed')
+                required=expected_size if expected_size is not None else size
+                if required is not None and received!=required:raise UpdateError('update_download_failed')
                 if output and before_write:flush_pending()
                 if output:output.flush();os.fsync(output.fileno())
                 return (received,hasher.hexdigest()) if output else b''.join(chunks)
             finally:
                 if output:output.close()
-        except (OSError,TimeoutError,http.client.HTTPException):
+        except (OSError,http.client.HTTPException) as error:
             if transport_cancelled.is_set():raise UpdateError('cancelled') from None
             checkpoint()
+            if destination and (getattr(error,'errno',None) in (errno.ENOSPC,getattr(errno,'EDQUOT',-1))
+                                or getattr(error,'winerror',None) in (39,112)):
+                raise UpdateError('update_disk_full') from None
             raise UpdateError('update_download_failed') from None
         finally:
             transport_done.set()
             # Join before rebinding connection/response for a redirect; an
             # already-running expiry callback must never touch the next hop.
             transport_watchdog.join()
-            connection.close()
+            try:
+                if response is not None:
+                    response.close()
+            finally:
+                connection.close()
     raise UpdateError('update_download_failed')
 
 def atomic(path,value):
@@ -517,12 +530,13 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
         if cancelled and cancelled():raise UpdateError('cancelled')
     checkpoint()
     app,updates=paths(app);local=current(app)
-    reclaim_jobs(app)
     if parent_pid!=os.getppid() or type(parent_started_ticks) is not int:raise UpdateError('update_parent_invalid')
     parent=process_reader(parent_pid)
     if parent['path'].casefold()!=str(app/'S7Launcher.exe').casefold() or parent['started_ticks']!=parent_started_ticks:raise UpdateError('update_parent_invalid')
     backend=process_reader(os.getpid())
     if backend['path'].casefold()!=str(app/'Package/Runtime/python/python.exe').casefold():raise UpdateError('update_parent_invalid')
+    checkpoint()
+    reclaim_jobs(app)
     with cache_lock(updates):
         envelope=compatibility.plain(updates/'verified-envelope.json').read_bytes();value=verify(envelope)
         preserve_isolation(app,value)
