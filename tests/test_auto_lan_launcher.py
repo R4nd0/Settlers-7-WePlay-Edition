@@ -106,6 +106,33 @@ class AutomaticLauncherTests(unittest.TestCase):
             with self.assertRaises(ValueError): launcher.run(self.args,picker=launcher._fixture_picker)
         hub.assert_not_called(); game.assert_not_called(); membership.close.assert_called_once()
 
+    def test_failed_peer_cleanup_preserves_the_native_network_start_failure(self):
+        from standalone_entry import FAILURE_EXIT_BASE, NativeStartupError
+
+        selected = dict(action='join', network=0, display_name='Anna',
+                        endpoint=LobbyEndpoint('lan-direct', '192.168.1.20'))
+        primary = NativeStartupError(11, FAILURE_EXIT_BASE + 11)
+        cleanup = PermissionError('temporary peer file sharing conflict')
+        membership = Mock(close=Mock(side_effect=cleanup))
+        runtime = self.root / 'LocalData' / 's7-local-runtime.ini'
+        runtime.parent.mkdir()
+        runtime.write_bytes(b'fixture')
+
+        with patch.object(launcher.sys, 'platform', 'win32'), \
+                patch.object(launcher.launch_local, 'choose_graphics_environment', return_value={}), \
+                patch.object(launcher.launch_local, 'game_launch_environment', return_value={}), \
+                patch.object(launcher.launch_local, 'graphics_game_arguments', return_value=()), \
+                patch.object(launcher, 'Membership', return_value=membership), \
+                patch.object(launcher.launch_lan, 'remote_configuration', return_value={'content_id': 'a' * 64}), \
+                patch.object(launcher.launch_local, 'write_configuration', return_value=runtime), \
+                patch.object(launcher.launch_local, 'spawn_game', side_effect=primary), \
+                self.assertRaises(NativeStartupError) as raised:
+            launcher.run(self.args, picker=lambda *_: selected)
+        self.assertIs(raised.exception, primary)
+        self.assertEqual(raised.exception.native_start_stage, 11)
+        self.assertIs(raised.exception.__cause__, cleanup)
+        self.assertFalse(runtime.exists())
+
     def check_failed_host_discovery_socket(self, *, automatic=False, game_exits=False, active_members=0):
         choice = dict(action='create', network=0, display_name='Anna')
         membership = Mock()
@@ -234,6 +261,21 @@ class AutomaticLauncherTests(unittest.TestCase):
                 launcher.start_hub(self.root, self.interface, 'a' * 64, 'Anna', directory,
                                    discovery_port=19112)
         self.assertEqual(failure.exception.winsock_code, 10013)
+
+    def test_hub_stop_failure_keeps_the_original_network_error(self):
+        (self.root / 'LocalData').mkdir()
+        primary = LanHubError('lan_discovery_socket_failed', winsock_code=10049)
+        cleanup = subprocess.TimeoutExpired('owned LAN hub', 5)
+        directory = Mock(list_rooms=Mock(side_effect=primary))
+        process = Mock(poll=Mock(return_value=None))
+        with patch.object(launcher.host_runtime, 'python_command', return_value=sys.executable), \
+                patch.object(launcher.subprocess, 'Popen', return_value=process), \
+                patch.object(launcher, 'stop_hub', side_effect=cleanup) as stop, \
+                self.assertRaises(LanHubError) as raised:
+            launcher.start_hub(self.root, self.interface, 'a' * 64, 'Anna', directory)
+        self.assertIs(raised.exception, primary)
+        self.assertIs(raised.exception.__cause__, cleanup)
+        stop.assert_called_once_with(process)
 
     def test_desktop_picker_and_saved_graphics_are_used_without_second_dialog(self):
         self.args.saved_graphics=True

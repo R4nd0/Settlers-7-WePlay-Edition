@@ -8,8 +8,9 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import ModuleType
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools/linux'), str(ROOT / 'tools/installer'), str(ROOT / 'tools/offline-ui'), str(ROOT / 'tools/lan')]
@@ -27,6 +28,76 @@ class LinuxBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+
+    def run_gui(self, drive):
+        import launcher
+
+        toolkit = ModuleType('tkinter')
+        for name in ('Tk', 'StringVar', 'Text', 'Toplevel', 'ttk', 'filedialog', 'messagebox', 'simpledialog'):
+            setattr(toolkit, name, Mock())
+        toolkit.Text.return_value.index.return_value = '1.0'
+        window = toolkit.Tk.return_value
+        commands = {}
+
+        def button(_parent, *, text, command):
+            commands[text] = command
+            return Mock()
+
+        def poll():
+            window.after.call_args.args[1]()
+
+        toolkit.ttk.Button.side_effect = button
+        toolkit.messagebox.askyesno.return_value = True
+        window.mainloop.side_effect = lambda: drive(commands, poll, toolkit)
+        with patch.dict(sys.modules, {'tkinter': toolkit}), \
+                patch.object(launcher.threading, 'Thread', side_effect=lambda *, target, **_: Mock(start=target)):
+            launcher.gui(bundle=self.root)
+
+    def test_linux_gui_disables_copying_an_invitation_when_its_room_closes(self):
+        import launcher
+
+        def drive(commands, poll, toolkit):
+            window = toolkit.Tk.return_value
+
+            def play(*_args, **options):
+                options['invitation_ready']('private fixture')
+                poll()
+                commands['Copy invitation']()
+                window.clipboard_append.assert_called_once_with('private fixture')
+                return 0
+
+            with patch.object(launcher, 'play', side_effect=play):
+                commands['Private host']()
+                poll()
+                commands['Copy invitation']()
+            window.clipboard_append.assert_called_once_with('private fixture')
+
+        self.run_gui(drive)
+
+    def test_linux_public_browser_does_not_offer_connection_to_full_game(self):
+        import launcher
+        import linux_network
+
+        game = dict(id='a' * 32, title='Fixture game', players=4, capacity=4, compatible=True,
+                    state='full', free_slots=0, expires_at=2_000_000_000)
+
+        def drive(commands, poll, toolkit):
+            toolkit.ttk.Treeview.return_value.selection.return_value = (game['id'],)
+            available = dict(game, state='open', free_slots=1, players=3)
+            with patch.object(linux_network, 'games', side_effect=[[game], [available]]), \
+                    patch.object(launcher, 'play', return_value=0) as play:
+                commands['Public games']()
+                poll()
+                commands['Join / Beitreten']()
+                toolkit.messagebox.askyesno.assert_not_called()
+                play.assert_not_called()
+                commands['Public games']()
+                poll()
+                commands['Join / Beitreten']()
+            toolkit.messagebox.askyesno.assert_called_once()
+            self.assertEqual(play.call_args.kwargs['game_id'], game['id'])
+
+        self.run_gui(drive)
 
     def test_fresh_source_installer_reaches_copy_without_prepare_module_collision(self):
         script = '''import sys

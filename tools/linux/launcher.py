@@ -197,9 +197,11 @@ def gui(package=None, bundle=None):
         button=ttk.Button(network_controls,text=text,command=callback)
         button.pack(side='left',padx=(0,7));buttons.append(button)
     def copy_invitation():
-        if private_invitation[0]:
+        if active[0] and private_invitation[0]:
             window.clipboard_clear(); window.clipboard_append(private_invitation[0])
-    ttk.Button(player,text='Copy invitation',command=copy_invitation).pack(side='right',padx=6)
+    copy_button = ttk.Button(player,text='Copy invitation',command=copy_invitation)
+    copy_button.configure(state='disabled')
+    copy_button.pack(side='right',padx=6)
     ttk.Button(player,text='Close room',command=cancelled.set).pack(side='right',padx=6)
     if package:
         button = ttk.Button(player, text='Install / Update', command=install_game); button.pack(side='right'); buttons.append(button)
@@ -212,27 +214,40 @@ def gui(package=None, bundle=None):
                     name.set(value)
                     continue
                 if kind == 'invitation':
-                    private_invitation[0]=value;log('Private invitation ready. Use Copy invitation to share it.')
+                    if active[0]:
+                        private_invitation[0] = value
+                        copy_button.configure(state='normal')
+                        log('Private invitation ready. Use Copy invitation to share it.')
                     continue
                 if kind == 'switch':
                     pending_game[0] = value
                     continue
                 if kind == 'games':
+                    from game_directory import game_is_open
                     dialog=tk.Toplevel(window);dialog.title('Public games / Öffentliche Partien')
-                    tree=ttk.Treeview(dialog,columns=('title','players','compatible'),show='headings',height=10)
-                    for key,label in [('title','Game / Partie'),('players','Players'),('compatible','Version')]:tree.heading(key,text=label)
+                    tree=ttk.Treeview(dialog,columns=('title','players','state','compatible'),show='headings',height=10)
+                    for key,label in [('title','Game / Partie'),('players','Players'),('state','Status'),('compatible','Version')]:tree.heading(key,text=label)
+                    listed = {row['id']: row for row in value}
                     for row in value:
                         tree.insert('', 'end',iid=row['id'],values=(row['title'],str(row['players'])+'/'+str(row['capacity']),
-                            'OK' if row['compatible'] else 'Different build'))
+                            row['state'].capitalize(), 'OK' if row['compatible'] else 'Different build'))
                     tree.pack(fill='both',expand=True,padx=12,pady=12)
                     def join():
                         selected=tree.selection()
-                        if selected:
-                            game=selected[0];dialog.destroy();launch('public-join',game_id=game)
+                        if not selected:
+                            return
+                        game = listed[selected[0]]
+                        if not game['compatible'] or not game_is_open(game):
+                            messagebox.showinfo('WePlay', 'This game cannot be joined. Refresh Public games to see current availability.')
+                            return
+                        dialog.destroy()
+                        launch('public-join', game_id=game['id'])
                     ttk.Button(dialog,text='Join / Beitreten',command=join).pack(pady=(0,12))
                 else: log(value)
                 if kind in ('done', 'error', 'games'):
                     game, pending_game[0] = pending_game[0], None
+                    private_invitation[0] = None
+                    copy_button.configure(state='disabled')
                     active[0] = False; progress.stop()
                     for button in buttons: button.configure(state='normal')
                     if current[0]: status.set(str(current[0]))

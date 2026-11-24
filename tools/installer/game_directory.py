@@ -156,6 +156,10 @@ def listing(url,*,transport=request):
     return rows
 
 
+def game_is_open(row, *, clock=time.time):
+    return row['state'] == 'open' and row['free_slots'] > 0 and row['expires_at'] > clock()
+
+
 def associated(ticket):
     return json.dumps({key:ticket[key] for key in ('id','game_id','challenge','expires_at')},sort_keys=True,separators=(',',':')).encode('ascii')
 
@@ -174,7 +178,7 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
     if cancel:
         cancel()
     row=next((item for item in listing(url,transport=transport) if item['id']==game_id),None)
-    if row is None or row['state']!='open' or not row['free_slots'] or row['expires_at']<=clock():
+    if row is None or not game_is_open(row, clock=clock):
         raise DirectoryError('directory_join_unavailable')
     if row['content_id'] not in allowed:raise DirectoryError('version_mismatch')
     if cancel:
@@ -228,8 +232,7 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
                 room=parse_room(clear['invitation'])
                 if room.room_id=='0'*32:raise DirectoryError('directory_invalid')
                 current=next((item for item in listing(url,transport=transport) if item['id']==game_id),None)
-                if (current is None or current['state']!='open' or current['content_id']!=row['content_id']
-                        or current['expires_at']<=clock()):
+                if current is None or current['content_id']!=row['content_id'] or not game_is_open(current, clock=clock):
                     raise DirectoryError('directory_join_unavailable')
                 if expired():
                     break

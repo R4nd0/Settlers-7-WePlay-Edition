@@ -88,8 +88,11 @@ def start_hub(root, interface, expected, name, directory, *, cancel_check=None, 
             if any(room.room_id == room_id and room.endpoint.host == interface.address for room in rooms):
                 return process
         raise LanHubError('lan_discovery_timeout')
-    except BaseException:
-        stop_hub(process)
+    except BaseException as primary:
+        try:
+            stop_hub(process)
+        except Exception as cleanup:
+            raise primary from cleanup
         raise
 
 
@@ -178,6 +181,16 @@ def run(args, *, picker=None, network=None):
         membership = Membership(root, interface.address, coordinator, expected)
         runtime = None
         observer = None
+
+        def close_launch():
+            try:
+                try:
+                    if observer is not None:observer.close()
+                finally:membership.close()
+            finally:
+                if runtime is not None and runtime.exists():
+                    compatibility.plain(runtime).unlink()
+
         try:
             lan_autoconnect.checkpoint(cancel, progress, 'lan_connect')
             membership.start()
@@ -201,15 +214,14 @@ def run(args, *, picker=None, network=None):
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
             else:
                 abort_host.pop_all()
-            return 0 if code == 0 else 1
-        finally:
+        except BaseException as primary:
             try:
-                try:
-                    if observer is not None:observer.close()
-                finally:membership.close()
-            finally:
-                if runtime is not None and runtime.exists():
-                    compatibility.plain(runtime).unlink()
+                close_launch()
+            except Exception as cleanup:
+                raise primary from cleanup
+            raise
+        close_launch()
+        return 0 if code == 0 else 1
 
 
 def main():
