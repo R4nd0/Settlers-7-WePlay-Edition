@@ -423,7 +423,7 @@ class Desktop:
                 try:
                     self.verify_instance(root)
                     maximum=choice.lod_maximum(root)
-                    result.update(choice=choice._load_choice(root),quality=quality.load(root),
+                    result.update(choice=choice._read_choice(root),quality=quality.load(root),
                         visual_detail_supported=True,lod_steps_supported=maximum>1,lod_maximum=maximum,
                         midsummer_tone_supported=metadata.get('midsummer_profile',False))
                 except (OSError,ValueError,RuntimeError):result['needs_repair']=True
@@ -434,7 +434,7 @@ class Desktop:
                 result['lod_steps_supported']=result['lod_maximum']>1
                 result['midsummer_tone_supported']=(root/'Launcher/reshade_runtime.py').is_file() and (root/'Launcher/WePlay-Midsummer.fx').is_file()
                 choice._renderer(root,{})
-                result.update(choice=choice._load_choice(root),quality=quality.load(root),
+                result.update(choice=choice._read_choice(root),quality=quality.load(root),
                               player_name=player_settings.load(root))
             except (OSError,ValueError,RuntimeError):result['needs_repair']=True
         return result

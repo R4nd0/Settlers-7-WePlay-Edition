@@ -62,11 +62,12 @@ def prepare_effects(root,selected,**kwargs):
 
 def save_choice(root,selected,*,renderer='dxvk'):
     root=checked_root(root);selected=validate(root,selected)
+    choice._require_visual_support(root,selected)
     if selected.get('display') is not None:
         import display_settings as display
         display.resolve(selected['display'],display.enumerate_displays(),renderer='dxvk',
                         gpu=selected['choice'] if renderer=='dxvk' else None)
-    choice._load_choice(root)
+    choice._read_choice(root)
     if renderer=='dxvk':prepare_effects(root,selected)
     data=graphics._plain(root/'LocalData');data.mkdir(exist_ok=True)
     graphics.atomic_write(data/'graphics-choice.json',graphics.encoded(selected),data)
@@ -82,12 +83,19 @@ def launch_environment(root,inherited=None,*,renderer='dxvk',renderer_package=No
     environment.update(DXVK_LOG_PATH=str(logs),DXVK_SHADER_CACHE_PATH=str(logs),DXVK_STATE_CACHE_PATH=str(logs))
     smaa=selected.get('enhanced_aa',False)
     fallback=False
-    if renderer!='dxvk':
-        environment,smaa,fallback=choice.compatibility_aa(root,renderer,renderer_package,smaa,environment)
+    if renderer == 'dxvk':
+        if any(selected.get(n,False) for n in OPTIONS):
+            environment=runtime(root,selected).launch_environment(root,environment,options=selected)
+    else:
+        display_adapter = None
+        if smaa and renderer in graphics.ASYNC_RENDERERS and selected.get('display') is not None:
+            import display_settings as display
+            _, output = display.resolve(selected['display'], display.enumerate_displays())
+            display_adapter = output['adapter']
+        environment,smaa,fallback=choice.compatibility_aa(root,renderer,renderer_package,smaa,environment,
+                                                           display_adapter=display_adapter)
     import quality_settings as quality
     quality.prepare(root,smaa=smaa,force_game_aa=fallback)
-    if renderer=='dxvk' and any(selected.get(n,False) for n in OPTIONS):
-        environment=runtime(root,selected).launch_environment(root,environment,options=selected)
     return environment
 
 

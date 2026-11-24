@@ -104,17 +104,31 @@ class Windows:
         actual = (rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top)
         if not (style & OVERLAPPED or extended & EX_EDGES) and actual == rectangle:
             return False
-        # HWND ownership is checked again directly before every mutation.
-        for slot, old, mask in ((-16, style, OVERLAPPED), (-20, extended, EX_EDGES)):
-            if old & mask:
-                if not self.owned(window): return False
-                C.set_last_error(0)
-                if not self.set_style(window, slot, old & ~mask) and C.get_last_error():
-                    raise C.WinError(C.get_last_error())
-        if not self.owned(window): return False
-        # FRAMECHANGED | NOACTIVATE | NOZORDER | NOOWNERZORDER | ASYNCWINDOWPOS.
-        if not self.api.SetWindowPos(window, None, *rectangle, 0x4234):
-            raise C.WinError(C.get_last_error())
+        changed = []
+        try:
+            # HWND ownership is checked again directly before every mutation.
+            for slot, old, mask in ((-16, style, OVERLAPPED), (-20, extended, EX_EDGES)):
+                if old & mask:
+                    if not self.owned(window):
+                        return False
+                    new = old & ~mask
+                    C.set_last_error(0)
+                    previous = self.set_style(window, slot, new)
+                    if not previous and C.get_last_error():
+                        raise C.WinError(C.get_last_error())
+                    changed.append((slot, previous, new))
+            if not self.owned(window):
+                return False
+            # FRAMECHANGED | NOACTIVATE | NOZORDER | NOOWNERZORDER | ASYNCWINDOWPOS.
+            if not self.api.SetWindowPos(window, None, *rectangle, 0x4234):
+                raise C.WinError(C.get_last_error())
+        except OSError:
+            # Do not overwrite style changes made since our own write, or
+            # touch a handle that no longer belongs to the original child.
+            for slot, previous, new in reversed(changed):
+                if self.owned(window) and self.get_style(window, slot) == new and self.owned(window):
+                    self.set_style(window, slot, previous)
+            raise
         return True
 
 
@@ -131,9 +145,7 @@ class Controller:
         if len(current) != 1 or bounds(current[0]) != self.rectangle:
             raise ValueError('The target desktop changed.')
         windows = self.api.candidates()
-        if len(windows) > 1:
-            raise ValueError('Ambiguous owned game windows.')
-        if windows and self.api.place(windows[0], self.rectangle):
+        if len(windows) == 1 and self.api.place(windows[0], self.rectangle):
             self.applied += 1
 
     def run(self):

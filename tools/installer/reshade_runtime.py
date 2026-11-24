@@ -419,15 +419,18 @@ def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
 
 def launch_environment(root, inherited, options=None):
     folder = prepare(root, options=options)
+    path_key, layer_key = 'VK_LAYER_PATH', 'VK_INSTANCE_LAYERS'
+    inherited_layers = {key.upper(): value for key, value in inherited.items()
+                        if key.upper() in (path_key, layer_key)}
     result = {key: value for key, value in inherited.items()
-              if key.upper() != 'RESHADE_BASE_PATH_OVERRIDE'}
+              if key.upper() not in ('RESHADE_BASE_PATH_OVERRIDE', path_key, layer_key)}
     # Explicit layer for this child only. Existing unrelated layer paths/names
     # remain usable. No implicit/global installation is performed.
-    paths = result.get('VK_LAYER_PATH', '')
-    layers = result.get('VK_INSTANCE_LAYERS', '')
-    result['VK_LAYER_PATH'] = str(folder) + (os.pathsep + paths if paths else '')
+    paths = inherited.get(path_key, inherited_layers.get(path_key, ''))
+    layers = inherited.get(layer_key, inherited_layers.get(layer_key, ''))
+    result[path_key] = str(folder) + (os.pathsep + paths if paths else '')
     existing = [name for name in layers.split(os.pathsep) if name and name != 'VK_LAYER_reshade']
-    result['VK_INSTANCE_LAYERS'] = os.pathsep.join([*existing, 'VK_LAYER_reshade'])
+    result[layer_key] = os.pathsep.join([*existing, 'VK_LAYER_reshade'])
     result['RESHADE_BASE_PATH_OVERRIDE'] = str(folder)
     return result
 

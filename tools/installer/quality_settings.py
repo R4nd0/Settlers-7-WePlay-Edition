@@ -34,10 +34,7 @@ def without_game_aa(value, smaa):
 def _replace(raw,value):
     if len(raw)>65536:
         raise ValueError('quality_ini_invalid')
-    bom,encoding=b'','utf-8'
-    for prefix,name in ((b'\xff\xfe','utf-16-le'),(b'\xfe\xff','utf-16-be'),(b'\xef\xbb\xbf','utf-8')):
-        if raw.startswith(prefix):bom,encoding=prefix,name;break
-    text=raw[len(bom):].decode(encoding,errors='strict')
+    text, bom, encoding = display._decode_options(raw)
     newline='\r\n' if '\r\n' in text else '\n'
     sections={'quality':{k.casefold():k for k in LEVELS if k in value},
               'effects':{k.casefold():k for k in (*EFFECTS,'Antialiasing') if k in value}}
@@ -67,9 +64,10 @@ def _replace(raw,value):
     for section,keys in sections.items():
         if section not in seen_sections:
             if result and not result[-1].endswith(('\r','\n')):result[-1]+=newline
-            result.append(('\n[Quality]' if section=='quality' else '\n[Effects]')+newline)
+            heading = '[Quality]' if section == 'quality' else '[Effects]'
+            result.extend((newline, heading + newline))
             result.extend(k+' = '+str(value[k])+newline for k in keys.values())
-    after=bom+''.join(result).encode(encoding)
+    after=bom+''.join(result).encode(encoding, errors='surrogateescape')
     if len(after)>65536:raise ValueError('quality_ini_invalid')
     return after
 

@@ -100,11 +100,15 @@ def _record(raw):
     return validate_choice(graphics._json(raw.decode('utf-8', errors='strict')))
 
 
-def _load_choice(root):
+def _read_choice(root):
     path = graphics._plain(root / CHOICE_FILE)
     if not path.exists():
         return {'format': FORMAT, 'choice': None}
-    selected = _record(graphics._read(path, MAX_RECORD))
+    return _record(graphics._read(path, MAX_RECORD))
+
+
+def _load_choice(root):
+    selected = _read_choice(root)
     _require_visual_support(root, selected)
     return selected
 
@@ -193,18 +197,20 @@ def saved_launch_environment(root, inherited=None, *, renderer='dxvk', renderer_
     environment = graphics.launch_environment(root, environment, device_name=gpu,
         anisotropic_filtering=selected.get('anisotropic_filtering', False),
         extended_detail=selected.get('extended_detail', False))
+    output = None
     if selected.get('display') is not None:
-        display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=gpu)
+        _, output = display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=gpu)
     environment=visual_environment(selected,environment)
     smaa=selected.get('enhanced_aa',False)
     fallback=False
-    if renderer!='dxvk':
-        environment,smaa,fallback=compatibility_aa(root,renderer,renderer_package,smaa,environment)
+    if renderer == 'dxvk':
+        environment = tone_environment(root, selected, mode, environment)
+    else:
+        environment,smaa,fallback=compatibility_aa(root,renderer,renderer_package,smaa,environment,
+                                                    display_adapter=output['adapter'] if output else None)
     if smaa or fallback or graphics._plain(root/'LocalData/graphics-quality.json').exists():
         import quality_settings
         quality_settings.prepare(root,smaa=smaa,force_game_aa=fallback)
-    if renderer=='dxvk':
-        return tone_environment(root, selected, mode, environment)
     return environment
 
 
@@ -218,13 +224,13 @@ def alternate_environment(root, renderer, inherited):
     return environment
 
 
-def compatibility_aa(root, renderer, package, requested, inherited):
+def compatibility_aa(root, renderer, package, requested, inherited, *, display_adapter=None):
     environment=alternate_environment(root,renderer,inherited)
     if not requested or renderer not in graphics.ASYNC_RENDERERS:
         return environment,False,False
     import reshade_runtime
     adapter=reshade_runtime.probe_compatibility_smaa(root,package,renderer) if package else None
-    if adapter is None:
+    if adapter is None or (display_adapter is not None and adapter.casefold() != display_adapter.casefold()):
         print('SMAA-Grafikpruefung fehlgeschlagen. Spiel-Kantenglaettung aktiv.',flush=True)
         return environment,False,True
     environment['DXVK_FILTER_DEVICE_NAME']=adapter
@@ -272,7 +278,7 @@ def save_choice(root, value, *, renderer='dxvk'):
     if selected.get('display') is not None:
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode,
                         gpu=selected['choice'] if renderer=='dxvk' else None)
-    _load_choice(root)  # Unknown/damaged preferences are never overwritten.
+    _read_choice(root)  # Unknown/damaged preferences are never overwritten.
     if renderer=='dxvk' and any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
@@ -296,7 +302,7 @@ def choose_launch_environment(root, inherited=None):
     root = graphics._preflight(root)
     mode, environment = _renderer(root, inherited)
     if mode != 'dxvk':raise ValueError('renderer_unsupported')
-    previous = _load_choice(root)
+    previous = _read_choice(root)
     try:
         displays = display.enumerate_displays()
     except (OSError, RuntimeError, ValueError):
@@ -337,7 +343,7 @@ def choose_launch_environment(root, inherited=None):
     target = graphics._plain(root / CHOICE_FILE)
     # Recheck its saved record before replacement. A changed unknown file is
     # not adopted while the user has the dialog open.
-    if _load_choice(root) != previous:
+    if _read_choice(root) != previous:
         raise ValueError('Die Grafikauswahl wurde waehrend des Dialogs veraendert.')
     if selected.get('enhanced_aa',False):
         import quality_settings

@@ -91,7 +91,7 @@ class GoldChoicesTests(unittest.TestCase):
     def test_gold_start_reads_saved_choice_instead_of_history_layout(self):
         with patch.object(gold,'is_gold',return_value=True),patch.object(gold,'launch_environment',return_value={'applied':'yes'}) as launch:
             self.assertEqual(choice.saved_launch_environment(self.root,{}),{'applied':'yes'})
-            launch.assert_called_once_with(self.root,{})
+            launch.assert_called_once_with(self.root,{},renderer='dxvk',renderer_package=None)
 
     def test_black_menu_and_background_choice_produce_real_gold_flags(self):
         for simple in (True,False):

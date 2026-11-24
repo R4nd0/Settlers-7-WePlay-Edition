@@ -106,10 +106,11 @@ def resolve(value, displays, *, renderer='native', gpu=None):
     if len(candidates) != 1:
         raise DisplayUnavailable('The selected display is unavailable. Reopen Graphics.')
     index, display = candidates[0]
-    if [value['width'], value['height']] not in display['resolutions']:
+    if value['mode'] == 'borderless':
+        if (value['width'], value['height']) != (display['width'], display['height']):
+            raise DisplayUnavailable('Borderless fullscreen requires the current desktop resolution. Reopen Graphics.')
+    elif [value['width'], value['height']] not in display['resolutions']:
         raise DisplayUnavailable('The selected resolution is unavailable on this display.')
-    if value['mode'] == 'borderless' and (value['width'], value['height']) != (display['width'], display['height']):
-        raise DisplayUnavailable('Borderless fullscreen requires the current desktop resolution. Reopen Graphics.')
     if renderer == 'dxvk' and gpu is not None and gpu.casefold() != display['adapter'].casefold():
         raise DisplayUnavailable('Choose Automatic or the graphics card connected to the selected display.')
     return index, display
@@ -132,6 +133,16 @@ def game_arguments(value, displays):
             '-screenNumber', str(index), '-x', str(x), '-y', str(y))
 
 
+def _decode_options(raw):
+    for bom, encoding in ((b'\xff\xfe', 'utf-16-le'), (b'\xfe\xff', 'utf-16-be'),
+                          (b'\xef\xbb\xbf', 'utf-8')):
+        if raw.startswith(bom):
+            return raw[len(bom):].decode(encoding), bom, encoding
+    # A BOM-less Windows INI may be ANSI or UTF-8. Keep undecodable bytes
+    # losslessly while editing the fixed ASCII option names and numbers.
+    return raw.decode('utf-8', errors='surrogateescape'), b'', 'utf-8'
+
+
 def windowed_options(raw):
     """Clear only FullScreen, preserving BOM, whitespace and unrelated bytes.
 
@@ -139,12 +150,7 @@ def windowed_options(raw):
     """
     if len(raw) > 65536:
         raise ValueError('The game display settings are unexpectedly large.')
-    bom, encoding = b'', 'utf-8'
-    for prefix, name in ((b'\xff\xfe','utf-16-le'), (b'\xfe\xff','utf-16-be'), (b'\xef\xbb\xbf','utf-8')):
-        if raw.startswith(prefix):
-            bom, encoding = prefix, name
-            break
-    text = raw[len(bom):].decode(encoding, errors='strict')
+    text, bom, encoding = _decode_options(raw)
     newline = '\r\n' if '\r\n' in text else '\n'
     lines = text.splitlines(keepends=True)
     quality = False; section_seen = key_seen = False
@@ -176,7 +182,7 @@ def windowed_options(raw):
             lines.insert(insertion, '[Quality]' + newline)
             insertion += 1
         lines.insert(insertion, 'FullScreen = 0' + newline)
-    result = bom + ''.join(lines).encode(encoding)
+    result = bom + ''.join(lines).encode(encoding, errors='surrogateescape')
     if len(result) > 65536:
         raise ValueError('The game display settings would become too large.')
     return result

@@ -18,14 +18,14 @@ class WindowModeTests(unittest.TestCase):
         self.api = Mock()
         self.controller = mode.Controller(self.api,self.screen)
 
-    def test_only_one_owned_candidate_is_placed_and_ambiguity_is_rejected(self):
+    def test_only_one_owned_candidate_is_placed_and_ambiguous_windows_are_skipped(self):
         self.api.candidates.return_value = []
         self.controller.tick([self.screen]); self.api.place.assert_not_called()
         self.api.candidates.return_value = [37]
         self.controller.tick([self.screen])
         self.api.place.assert_called_once_with(37,(-1920,0,1920,1080))
         self.api.place.reset_mock(); self.api.candidates.return_value = [37,38]
-        with self.assertRaises(ValueError): self.controller.tick([self.screen])
+        self.controller.tick([self.screen])
         self.api.place.assert_not_called()
 
     def test_removed_or_changed_desktop_never_moves_window(self):

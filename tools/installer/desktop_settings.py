@@ -27,7 +27,7 @@ GAME_FILES={'choice':choice.CHOICE_FILE,'quality':quality.FILE,'player':player_s
 def current_graphics(desktop,root):
     policy=desktop.installed()['renderer_policy']
     return dict(renderer_policy='dxvk' if policy=='auto' else policy,
-                choice=choice._load_choice(root),quality=quality.load(root))
+                choice=choice._read_choice(root),quality=quality.load(root))
 
 def graphics_backup(desktop,root):
     try:

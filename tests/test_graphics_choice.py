@@ -180,12 +180,10 @@ class GraphicsChoiceTests(unittest.TestCase):
         (self.root/choice.CHOICE_FILE).write_bytes(graphics.encoded({
             'format':choice.FORMAT,'choice':None,'enhanced_aa':True}))
         (self.root/quality.FILE).write_bytes(graphics.encoded(quality.DEFAULTS))
-        def launch(root,environment,**kwargs):
-            self.assertIn(b'Antialiasing = 0',options.read_bytes())
-            return environment
         with patch.object(choice.display,'options_path',return_value=options), \
-                patch.object(reshade_runtime,'launch_environment',side_effect=launch) as reshade:
+                patch.object(reshade_runtime,'launch_environment',side_effect=lambda root,env,**kw:env) as reshade:
             choice.saved_launch_environment(self.root,{})
+            self.assertIn(b'Antialiasing = 0',options.read_bytes())
             choice.saved_launch_environment(self.root,{},renderer='native')
             self.assertIn(b'Antialiasing = 1',options.read_bytes())
             reshade.assert_called_once()
