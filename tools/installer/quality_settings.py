@@ -86,6 +86,7 @@ def prepare(root, *, smaa=False, use_saved_quality=True, force_game_aa=False):
     before=graphics._read(path,65536) if path.exists() else None
     after=_replace(before or b'',value)
     if after==before:return
+    graphics.ensure_closed()
     parent=graphics._plain(path.parent);parent.mkdir(parents=True,exist_ok=True)
     if (graphics._read(path,65536) if path.exists() else None)!=before:
         raise ValueError('quality_ini_changed')

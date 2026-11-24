@@ -327,6 +327,8 @@ def choose_launch_environment(root, inherited=None):
     if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
+        if selected.get('display') is not None:
+            display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
         import reshade_runtime
         reshade_runtime.prepare(root, options=selected)
     current_mode, environment = _renderer(root, inherited)

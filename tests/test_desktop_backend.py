@@ -65,7 +65,8 @@ class DesktopTests(unittest.TestCase):
         self.desktop=backend.Desktop(self.app,lambda kind,**fields:self.events.append((kind,fields)))
         self.screens=[dict(device=r'\\.\DISPLAY1',adapter='Fixture GPU',primary=True,x=0,y=0,width=1920,height=1080,
                            resolutions=[[1280,720],[1920,1080]])]
-        self.probe={'format':'s7-desktop-probe-v1','probe_sha256':'a'*64,'adapters':['Fixture GPU'],'devices':['Fixture GPU'],'failure':None}
+        self.probe={'format':'s7-desktop-probe-v1','probe_sha256':'a'*64,'renderer_sha256':graphics.DXVK_SHA256,
+                    'adapters':['Fixture GPU'],'devices':['Fixture GPU'],'failure':None}
         def save(root,value,*,renderer='dxvk'):
             value=choice.validate_choice(value);(root/'LocalData').mkdir(exist_ok=True)
             (root/choice.CHOICE_FILE).write_bytes(graphics.encoded(value));return value

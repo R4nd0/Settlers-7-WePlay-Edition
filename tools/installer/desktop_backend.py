@@ -239,11 +239,16 @@ class Desktop:
         signature=manifest['files'].get('payload/graphics/s7graphicsprobe.exe')
         if not signature or content.digest(program)!=signature or content.digest(dll)!=graphics.DXVK_SHA256:
             raise ValueError('package_invalid')
-        previous=self.read(path,limit=65536)
         adapters=sorted({screen['adapter'] for screen in self.displays()})
-        if (not refresh and previous is not None and previous.get('probe_sha256')==signature
-                and previous.get('adapters')==adapters and previous.get('failure')!='probe_failed'):
-            return self.validate_probe(previous)
+        if not refresh:
+            try:
+                previous=self.validate_probe(self.read(path,limit=65536))
+            except (OSError,ValueError,TypeError):
+                previous=None  # Generated telemetry can be rebuilt.
+            if (previous is not None and previous['probe_sha256']==signature
+                    and previous.get('renderer_sha256')==graphics.DXVK_SHA256
+                    and previous['adapters']==adapters and previous['failure']!='probe_failed'):
+                return previous
         graphics.ensure_closed()
         self.progress('graphics_probe')
         environment=dict(os.environ)
@@ -260,30 +265,47 @@ class Desktop:
             parsed=json_record(result.stdout,65536)
             if set(parsed)!={'format','devices'} or parsed['format']!='s7-render-probe-v1':
                 raise ValueError('probe_invalid')
-            devices=parsed['devices']
+            reported=parsed['devices']
+            if not isinstance(reported,list) or len(reported)>16:
+                raise ValueError('probe_invalid')
+            for name in reported:
+                if not isinstance(name,str):
+                    raise ValueError('probe_invalid')
+                try:
+                    choice.validate_choice({'format':choice.FORMAT,'choice':name})
+                except ValueError:
+                    continue  # The driver may leave one adapter description blank.
+                if name not in devices:
+                    devices.append(name)
             if result.returncode not in (0,2):raise ValueError('probe_invalid')
             if result.returncode or not devices:failure='unsupported'
         except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
             devices=[];failure='probe_failed'
-        value=self.validate_probe({'format':'s7-desktop-probe-v1','probe_sha256':signature,'adapters':adapters,
+        value=self.validate_probe({'format':'s7-desktop-probe-v1','probe_sha256':signature,
+                                  'renderer_sha256':graphics.DXVK_SHA256,'adapters':adapters,
                                   'devices':devices,'failure':failure})
         self.write(path,value)
         return value
 
     def cached_graphics_probe(self):
         try:
-            return self.validate_probe(self.read(self.state/'graphics-probe.json',limit=65536))
+            value=self.validate_probe(self.read(self.state/'graphics-probe.json',limit=65536))
+            if value.get('renderer_sha256')==graphics.DXVK_SHA256:
+                return value
         except (OSError,ValueError,TypeError):
-            return {'devices':[], 'failure':None}
+            pass
+        return {'devices':[], 'failure':None}
 
     @staticmethod
     def validate_probe(value):
-        if (not isinstance(value,dict) or set(value)!={'format','probe_sha256','devices','failure','adapters'}
+        fields={'format','probe_sha256','devices','failure','adapters'}
+        if (not isinstance(value,dict) or set(value) not in (fields,fields|{'renderer_sha256'})
                 or value['format']!='s7-desktop-probe-v1' or not isinstance(value['devices'],list)
                 or len(value['devices'])>16 or not isinstance(value['adapters'],list)
                 or len(value['adapters'])>16 or value['failure'] not in (None,'unsupported','probe_failed')):
             raise ValueError('probe_invalid')
-        if (not isinstance(value['probe_sha256'],str) or not re.fullmatch('[0-9a-f]{64}',value['probe_sha256'])
+        hashes=[value['probe_sha256']] + ([value['renderer_sha256']] if 'renderer_sha256' in value else [])
+        if (any(not isinstance(value,str) or not re.fullmatch('[0-9a-f]{64}',value) for value in hashes)
                 or (value['failure'] is None and not value['devices'])):
             raise ValueError('probe_invalid')
         for name in [*value['devices'],*value['adapters']]:
@@ -893,8 +915,6 @@ class Desktop:
             choice=dict(format=choice.FORMAT,choice=None,simple_menu=True,display=self.recovery_display(screens)),
             quality=dict(quality.DEFAULTS))
         selected=dict(settings['choice'])
-        if selected.get('display') is None:
-            selected['display']=self.recovery_display(screens)
         policy=settings['renderer_policy']
         if policy not in renderers:policy='dxvk'
         if policy=='dxvk' and selected['choice'] not in self.cached_graphics_probe()['devices']:
