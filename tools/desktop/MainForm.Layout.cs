@@ -91,6 +91,7 @@ internal sealed partial class MainForm
         {var box=new CheckBox {AutoSize=true,Margin=new Padding(0,8,18,8)};Bind(box,key);effects[key]=box;effectsRow.Controls.Add(box);}
         Add(custom,effectsRow);
 
+        BuildNativeGraphics(root);
         var extras=GraphicsSection(root,"graphicsEffectsGroup");
         var advanced=GraphicsDetails(extras,"graphicsShowEffects",out graphicsEffectDetails);
         detailLevelField=Field("extendedDetail",detailLevel);Add(advanced,detailLevelField);

@@ -72,11 +72,17 @@ def check_output_location(repo, output, inputs):
         raise ValueError('Output overlaps package inputs')
 
 
-def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, memory_scanner=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None):
+def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_license=None, graphics_probe=None, memory_scanner=None, easytier_runtime=None,windows_helpers=None,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,native_graphics=None):
     adapter, service, dotnet, python_zip, output = map(content.plain, (adapter, service, dotnet, python_zip, output))
     repo = Path(__file__).resolve().parents[2]
     if output.exists() or not output.parent.is_dir():
         raise ValueError('Output must be a new directory with an existing parent')
+    if native_graphics is not None:
+        import native_graphics_runtime
+        if platform_runtime is None or dxvk_dll is None or graphics_probe is None:
+            raise ValueError('Native graphics requires platform isolation, pinned DXVK and the desktop launcher')
+        native_graphics=native_graphics_runtime.distribution(native_graphics)
+        check_output_location(repo,output,(native_graphics,))
     if type(game_directory) is not bool:raise ValueError('Invalid directory capability')
     if type(neo_logistics) is not bool:raise ValueError('Invalid NEO-Logistics capability')
     if type(midsummer_profile) is not bool or (midsummer_profile and (not neo_logistics or not game_directory or dxvk_dll is None)):
@@ -189,7 +195,8 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
     names = ['installer/install.py', 'installer/start.py', 'installer/launch_lan.py', 'installer/compatibility.py',
              'offline-ui/launch_local.py', 'offline-ui/patch-spec.json', 'lan/bba.py', 'lan/prepare.py',
              'installer/update_join_menu.py', 'offline-ui/join-menu-update.json']
-    names += ['installer/graphics_profile.py', 'installer/graphics_choice.py', 'installer/gold_graphics.py',
+    names += ['installer/graphics_profile.py', 'installer/graphics_choice.py', 'installer/native_graphics_settings.py',
+              'installer/native_graphics_runtime.py', 'installer/native_graphics_loader.py', 'installer/gold_graphics.py',
               'installer/Choose-Graphics.ps1']
     names += [original for original, _ in DISPLAY_TOOLS]
     names += [original for original, _ in LAN_LOBBY_TOOLS]
@@ -211,6 +218,13 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         if game_directory:names += list(DIRECTORY_PACKAGE_TOOLS)+list(PUBLIC_DIRECTORY_PACKAGE_TOOLS)
     names += [original for original,_ in WINDOWS_API_TOOLS]
     names += ['installer/portable_lock.py', 'installer/host_runtime.py']
+    if native_graphics is not None:
+        from install import NATIVE_MATERIAL_MODULES
+        names += ['material_shaders/'+name for name in NATIVE_MATERIAL_MODULES]
+        native_target=output/'Tools/native_graphics';native_target.mkdir(parents=True)
+        for name in ('WePlayNativeGraphics.dll','native-graphics.json'):
+            shutil.copyfile(native_graphics/name,native_target/name)
+        native_graphics_runtime.distribution(native_target)
     if platform_runtime is not None:names += [original for original,_ in platform_standalone.tool_sources()]
     names = [name for name in names if not name.endswith('.ps1')]
     for name in names:
@@ -225,6 +239,7 @@ def build(adapter, service, dotnet, python_zip, output, *, dxvk_dll=None, dxvk_l
         shutil.copyfile(repo/'tools/lan/LICENSE.S7Packer.txt',licenses/'NEO-Logistics-S7Packer.txt')
     write_json(output / 'package.json', {'format': FORMAT,
         'platform_independent':platform_runtime is not None,
+        'native_graphics':native_graphics is not None,
         'steam_history': True,
         'multiplayer_castles': True,
         'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
@@ -326,7 +341,8 @@ if __name__ == '__main__':
     parser.add_argument('--atmosphere-addon',help='Tested x86 read-only sun-clock bridge (required for Mittsommer)')
     parser.add_argument('--quiet-reshade',help='Pinned ReShade ZIP without GUI (required for Mittsommer)')
     parser.add_argument('--platform-runtime',help='Pinned platform-independent SDK, entry gates and Windows filtering helper')
+    parser.add_argument('--native-graphics',help='Qualified native graphics distribution; no ReShade dependency')
     args = parser.parse_args()
     print(build(args.adapter, args.service, args.dotnet, args.python_zip, args.output,
                 dxvk_dll=args.dxvk_dll, dxvk_license=args.dxvk_license,graphics_probe=args.graphics_probe,memory_scanner=args.memory_scanner,
-                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,quiet_reshade=args.quiet_reshade,platform_runtime=args.platform_runtime))
+                easytier_runtime=args.easytier_runtime,windows_helpers=args.windows_helpers,game_directory=args.game_directory,neo_logistics=args.neo_logistics,midsummer_profile=args.midsummer_profile,atmosphere_addon=args.atmosphere_addon,quiet_reshade=args.quiet_reshade,platform_runtime=args.platform_runtime,native_graphics=args.native_graphics))

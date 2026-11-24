@@ -31,10 +31,13 @@ NEO_DIRECTORY_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e
 LINUX_NEO6_ADAPTER_SHA256 = 'b82a02c149fd3cff6dd3a28d106b168ea6d000f70c98ac85a763df5322825e4b'
 EXPECTED_ARCHIVE = '766ae21ef06709309a68fb5bb792b0fd56373c668f02140122eef181917b0b94'
 GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
-    ('graphics_profile.py', 'graphics_choice.py', 'gold_graphics.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
+    ('graphics_profile.py', 'graphics_choice.py', 'native_graphics_settings.py',
+     'native_graphics_runtime.py', 'native_graphics_loader.py', 'gold_graphics.py', 'Choose-Graphics.ps1', 'update_join_menu.py')) + (
     ('lan/bba.py', 'bba.py'), ('lan/prepare.py', 'prepare.py'))
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
+NATIVE_MATERIAL_MODULES = ('__init__.py','bytecode.py','foliage.py','inventory.py','recipes.py',
+                           'semantics.py','shaderlib.py','terrain.py','staging.py')
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/desktop_settings.py','installer/game_detection.py',
                          'installer/gold_support.py','installer/release_policy.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)
@@ -126,6 +129,10 @@ def launcher_sources(manifest):
                       ('midsummer/WePlay-Midsummer.fx','WePlay-Midsummer.fx'),
                       ('midsummer/WePlay-Midsummer.ini','WePlay-Midsummer.ini')))
         files.extend(('midsummer/effects/' + name, 'effects/' + name) for name in MAXIMUM_ASSETS)
+    if manifest.get('native_graphics',False):
+        files.extend(('material_shaders/'+name,'material_shaders/'+name) for name in NATIVE_MATERIAL_MODULES)
+        files.extend(('native_graphics/'+name,'NativeGraphics/'+name)
+                     for name in ('WePlayNativeGraphics.dll','native-graphics.json'))
     return files
 
 
@@ -220,12 +227,19 @@ def package_manifest(root):
         raise ValueError('Unbekannte Internet-Transportversion.')
     if type(manifest.get('discord_directory',False)) is not bool:
         raise ValueError('Unbekannte Discord-Verzeichnisversion.')
-    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers','compat_smaa_probe'):
+    for capability in ('update_patcher','achievement_notifications_disabled','cartographer_context','windows_helpers','multiplayer_castles','standalone_export','multiplayer_resume','game_directory','public_game_directory','neo_logistics','linux_native','midsummer_profile','platform_independent','main_package','gold_standalone','crossplay_mixed','alternate_renderers','compat_smaa_probe','native_graphics'):
         if type(manifest.get(capability,False)) is not bool:raise ValueError('Unbekannte Paketfunktion.')
     actual = content.inventory(root, ('Payload', 'Runtime', 'Tools'))
     expected = manifest['files']
     if actual != expected:
         raise ValueError('Das Installationspaket ist unvollstaendig oder veraendert.')
+    if manifest.get('native_graphics',False):
+        if not all(manifest.get(key,False) for key in ('platform_independent','graphics_choice','desktop_launcher')):
+            raise ValueError('native_graphics_payload_invalid')
+        import native_graphics_runtime
+        native_graphics_runtime.distribution(root/'Tools/native_graphics')
+        if any(('tools/material_shaders/'+name).lower() not in expected for name in NATIVE_MATERIAL_MODULES):
+            raise ValueError('native_graphics_payload_invalid')
     if manifest.get('alternate_renderers',False):
         import graphics_profile
         if not all(manifest.get(flag,False) for flag in ('platform_independent','desktop_launcher')):

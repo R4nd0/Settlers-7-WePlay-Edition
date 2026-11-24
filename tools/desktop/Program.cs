@@ -599,6 +599,7 @@ internal sealed partial class MainForm : Form
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
         int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
         ApplyCrossplayLanguage();
+        ApplyNativeGraphicsLanguage();
         SetAntialiasingMode(AntialiasingMode);
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
@@ -657,6 +658,7 @@ internal sealed partial class MainForm : Form
         string savedRenderer=replaceFields&&value.TryGetProperty("renderer_policy",out var policy)
             ? policy.GetString()??"dxvk" : RendererMode;
         string preferredAa=AntialiasingMode;
+        LoadNativeGraphics(value,replaceFields);
         if(replaceFields)
         {
             suspendedSmaa=false;
@@ -936,6 +938,7 @@ internal sealed partial class MainForm : Form
     private void DisplayEnabled()
     {
         UpdateGraphicsPresets();
+        UpdateNativeGraphics();
         bool manual=!keepDisplay.Checked&&!busy;
         monitor.Enabled=manual&&monitor.Items.Count>0;
         window.Enabled=manual&&monitor.SelectedIndex>=0;
@@ -1008,7 +1011,8 @@ internal sealed partial class MainForm : Form
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=detailLevel.Value>0,
             detail_level=detailLevel.Value,link_shadow_range=linkShadowRange.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
-            enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,
+            enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked,
+            native_graphics=NativeGraphicsValues()},quality,
             player_name=snapshot.GetProperty("player_name").GetString()};
     }
     private static string ValidName(string name)
@@ -1749,10 +1753,12 @@ internal sealed partial class MainForm : Form
                 }
                 finally{form.testUiBackend=null;}
                 using var setupImage=new Bitmap(form.Width,form.Height);form.DrawToBitmap(setupImage,new Rectangle(0,0,form.Width,form.Height));setupImage.Save(Path.Combine(folder,language+"-setup.png"));
+                form.TestNativeGraphicsUi(folder,language);
                 form.DiscardGraphicsDraft();form.Close();
                 TestPrimaryActionScaling(json.RootElement,folder,language);
             }
             File.WriteAllText(Path.Combine(folder,"result.json"),JsonSerializer.Serialize(new {
+                native_graphics_ui_checked=true,
                 passed=true,checks=new[]{"translation_keys","release_version_exact_rc411_and_update_prefix_hidden","lan_port_save_and_restore","setup_help_and_error_details","setup_diagnostics_without_backend","setup_network_permission_opt_in","borderless_native_resolution","renderer_selection_and_draft","maximum_preset_uses_smaa_without_game_aa","exclusive_antialiasing_and_pipeline_options","compatibility_smaa_and_linked_lod_steps",
                     "graphics_presets_and_filtering","bilingual_pages_rendered","internet_role_choices_and_disclosure","navigation_ready_status","invitation_join_guard","internet_game_lifecycle_guidance",
                     "private_internet_controls","discord_community_and_share","discord_publisher_opt_in","minimum_window_pages_rendered","menus_fit_or_screen_height_limit","home_update_notice_and_busy_guard",

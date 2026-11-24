@@ -422,6 +422,13 @@ class Desktop:
                 'internet_available':metadata.get('internet_easytier',False) is True,
                 'crossplay_available':metadata.get('crossplay_mixed',False) is True}
         result['updates_supported']=metadata.get('update_patcher',False) is True
+        result['native_graphics_features']=[]
+        result['native_graphics_scales']=[100]
+        if value:
+            import native_graphics_runtime
+            native=native_graphics_runtime.available(self.game())
+            result['native_graphics_features']=native['features']
+            result['native_graphics_scales']=native['scales']
         result['update_last_error']=None
         if result['updates_supported']:
             try:
@@ -872,6 +879,8 @@ class Desktop:
             import gold_graphics
             gold_graphics.validate(root,selected)
         choice._require_visual_support(root,selected)
+        import native_graphics_runtime
+        native_graphics_runtime.require(root,selected,renderer=policy,quality=quality_value)
         player_settings.player_name(request['player_name'])
         probe=self.cached_graphics_probe()
         screens=self.displays()

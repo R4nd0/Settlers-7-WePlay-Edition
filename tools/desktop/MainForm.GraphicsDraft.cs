@@ -17,6 +17,7 @@ internal sealed partial class MainForm
     {
         get
         {
+            if(NativeGraphicsIssue is string nativeIssue)return nativeIssue;
             if(keepDisplay.Checked)return null;
             int index=monitor.SelectedIndex;
             if(index<0||index>=screens.Count||resolution.SelectedItem is not Item)return "graphicsDisplayUnavailable";
@@ -34,6 +35,7 @@ internal sealed partial class MainForm
         gpu=(gpu.SelectedItem as Item)?.Key,
         keepDisplay=keepDisplay.Checked,monitor=keepDisplay.Checked?null:(monitor.SelectedItem as Item)?.Key,
         window=keepDisplay.Checked?-1:window.SelectedIndex,resolution=keepDisplay.Checked?null:(resolution.SelectedItem as Item)?.Key,
+        nativeGraphics=NativeGraphicsValues(),
         quality=qualities.ToDictionary(x=>x.Key,x=>x.Value.SelectedIndex),
         effects=effects.ToDictionary(x=>x.Key,x=>x.Value.Checked),
         flags=new[]{simple,anisotropicFiltering,linkShadowRange,detailedShadows,extendedShadowRange,

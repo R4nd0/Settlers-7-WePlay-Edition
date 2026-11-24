@@ -62,6 +62,8 @@ def prepare_effects(root,selected,**kwargs):
 
 def save_choice(root,selected,*,renderer='dxvk'):
     root=checked_root(root);selected=validate(root,selected)
+    import native_graphics_runtime
+    native_graphics_runtime.require(root,selected,renderer=renderer)
     choice._require_visual_support(root,selected)
     if selected.get('display') is not None:
         import display_settings as display

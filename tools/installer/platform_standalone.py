@@ -244,6 +244,14 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
                 environment['DXVK_CONFIG_FILE']=str(config)
                 environment['DXVK_CONFIG']=graphics.SHADER_COMPATIBILITY+'; d3d9.samplerAnisotropy = -1'
             environment[graphics.LAUNCH_RENDERER]=mode
+        choice_file = content.plain(root/'LocalData/graphics-choice.json')
+        if choice_file.is_file():
+            import graphics_choice
+            selected = graphics_choice._read_choice(root)
+            if selected.get('native_graphics') is not None:
+                import native_graphics_runtime
+                arguments,on_initialized=native_graphics_runtime.prepare_launch(
+                    root,arguments,on_initialized,renderer=renderer[0] if renderer else 'dxvk')
         start=dict(
             dll_sha256=value['files'][adapter.relative_to(root).as_posix()],
             policy=helper, policy_sha256=value['files'][POLICY_FILE],

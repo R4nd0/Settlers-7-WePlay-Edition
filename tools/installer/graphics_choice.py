@@ -53,6 +53,9 @@ def detail_level(selected):
 
 
 def _require_visual_support(root, selected):
+    if 'native_graphics' in selected:
+        import native_graphics_runtime
+        native_graphics_runtime.require(root, selected)
     if (detail_level(selected) or any(selected.get(name,False) for name in
             ('detailed_shadows','extended_shadow_range','ultra_shadows'))) and not visual_supported(root):
         raise ValueError('Diese Detailoptionen brauchen den aktualisierten Grafikadapter.')
@@ -65,7 +68,7 @@ def validate_choice(value):
     if (not isinstance(value, dict) or not {'format', 'choice'} <= set(value)
             or not set(value) <= {'format', 'choice', 'simple_menu', 'display', 'anisotropic_filtering',
                                   'extended_detail', 'detail_level', 'link_shadow_range', 'detailed_shadows', 'extended_shadow_range', 'midsummer_tone',
-                                  'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx'}
+                                  'enhanced_aa', 'contact_shadows', 'ultra_shadows', 'maximum_fx', 'native_graphics'}
             or value['format'] != FORMAT):
         raise ValueError('Die gespeicherte Grafikauswahl hat ein unbekanntes Format.')
     if 'simple_menu' in value and type(value['simple_menu']) is not bool:
@@ -92,6 +95,9 @@ def validate_choice(value):
             result[field] = value[field]
     if 'display' in value:
         result['display'] = display.validate(value['display'])
+    if 'native_graphics' in value:
+        import native_graphics_settings
+        result['native_graphics'] = native_graphics_settings.validate(value['native_graphics'])
     return result
 
 
@@ -282,6 +288,8 @@ def visual_environment(selected, inherited):
 
 def save_choice(root, value, *, renderer='dxvk'):
     """The desktop frontend uses the same validator and profile checks as the GUI."""
+    import native_graphics_runtime
+    native_graphics_runtime.require(root, validate_choice(value), renderer=renderer)
     import gold_graphics
     if gold_graphics.is_gold(root):return gold_graphics.save_choice(root,value,renderer=renderer)
     root = graphics._preflight(root)
