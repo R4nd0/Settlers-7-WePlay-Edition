@@ -94,14 +94,23 @@ class Windows:
         # WM_NULL only verifies that the owned window still processes messages.
         return self.owned(window) and bool(self.api.SendMessageTimeoutW(window,0,0,0,0x23,100,C.byref(result)))
 
-    def place(self, window, rectangle):
-        if not self.owned(window):
-            return False
+    def frame(self, window):
         rect = W.RECT()
         if not self.api.GetWindowRect(window, C.byref(rect)):
             raise C.WinError(C.get_last_error())
-        style, extended = self.get_style(window, -16), self.get_style(window, -20)
         actual = (rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top)
+        return actual, self.get_style(window, -16), self.get_style(window, -20)
+
+    def borderless_at(self, window, rectangle):
+        if not self.owned(window):
+            return False
+        actual, style, extended = self.frame(window)
+        return actual == rectangle and not (style & OVERLAPPED or extended & EX_EDGES)
+
+    def place(self, window, rectangle):
+        if not self.owned(window):
+            return False
+        actual, style, extended = self.frame(window)
         if not (style & OVERLAPPED or extended & EX_EDGES) and actual == rectangle:
             return False
         changed = []
@@ -179,25 +188,37 @@ def owned_windows(root,game):
             raise ValueError('Unsupported game executable for borderless placement.')
     return Windows(game,executable)
 
-def wait_until_ready(root,game):
+def wait_until_ready(root,game,*,screen=None):
     if os.name!='nt' or game.poll() is not None:
         return False
     api=owned_windows(root,game)
+    rectangle=bounds(screen) if screen is not None else None
+    previous_dpi=None
+    if rectangle is not None:
+        previous_dpi=api.api.SetThreadDpiAwarenessContext(W.HANDLE(-4))
+        if not previous_dpi:
+            return False
     deadline=time.monotonic()+30
     previous=None
     visible_since=0
-    while api.alive():
-        now=time.monotonic()
-        if now>=deadline:
-            break
-        windows=api.candidates()
-        window=windows[0] if len(windows)==1 and api.responsive(windows[0]) else None
-        if window!=previous:
-            previous,visible_since=window,now
-        if window is not None and now-visible_since>=3:
-            return api.alive()
-        time.sleep(.2)
-    return False
+    try:
+        while api.alive():
+            now=time.monotonic()
+            if now>=deadline:
+                break
+            windows=api.candidates()
+            window=windows[0] if len(windows)==1 and api.responsive(windows[0]) else None
+            if window is not None and rectangle is not None and not api.borderless_at(window,rectangle):
+                window=None
+            if window!=previous:
+                previous,visible_since=window,now
+            if window is not None and now-visible_since>=3:
+                return api.alive()
+            time.sleep(.2)
+        return False
+    finally:
+        if previous_dpi:
+            api.api.SetThreadDpiAwarenessContext(previous_dpi)
 
 def start(root, game, screen):
     bounds(screen)

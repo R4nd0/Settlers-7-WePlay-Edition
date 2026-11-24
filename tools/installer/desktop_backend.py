@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from types import SimpleNamespace
@@ -255,13 +256,18 @@ class Desktop:
         for key in list(environment):
             if key.upper() in ('DXVK_CONFIG','DXVK_FILTER_DEVICE_NAME','DXVK_FILTER_DEVICE_UUID','DXVK_CONFIG_FILE'):
                 del environment[key]
-        environment.update(DXVK_CONFIG='d3d9.floatEmulation = Strict',DXVK_LOG_LEVEL='none',
-                           DXVK_STATE_CACHE='0',DXVK_LOG_PATH=str(self.state))
+        environment.update(DXVK_CONFIG=graphics.SHADER_COMPATIBILITY,DXVK_LOG_LEVEL='none',
+                           DXVK_STATE_CACHE='0',DXVK_SHADER_CACHE='0')
         devices=[];failure=None
         try:
             self.check_start_memory()
-            result=subprocess.run([str(program),str(dll)],cwd=self.state,env=environment,
-                capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
+            # Keep user or wrapper dxvk.conf files out of this hardware test.
+            with tempfile.TemporaryDirectory(prefix='graphics-probe-',dir=self.state) as scratch:
+                config=Path(scratch)/'dxvk.conf'
+                config.write_bytes(graphics.CONFIG)
+                environment.update(DXVK_CONFIG_FILE=str(config),DXVK_LOG_PATH=scratch)
+                result=subprocess.run([str(program),str(dll)],cwd=scratch,env=environment,
+                    capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
             parsed=json_record(result.stdout,65536)
             if set(parsed)!={'format','devices'} or parsed['format']!='s7-render-probe-v1':
                 raise ValueError('probe_invalid')
@@ -290,9 +296,10 @@ class Desktop:
     def cached_graphics_probe(self):
         try:
             value=self.validate_probe(self.read(self.state/'graphics-probe.json',limit=65536))
-            if (value.get('renderer_sha256')==graphics.DXVK_SHA256
-                    and value['probe_sha256']==self.package_manifest()['files'].get('payload/graphics/s7graphicsprobe.exe')):
-                return value
+            if value.get('renderer_sha256')==graphics.DXVK_SHA256:
+                metadata=install.package_metadata(self.package)
+                if value['probe_sha256']==metadata['files'].get('payload/graphics/s7graphicsprobe.exe'):
+                    return value
         except (OSError,ValueError,TypeError):
             pass
         return {'devices':[], 'failure':None}

@@ -26,6 +26,7 @@ import test_installer as package_fixtures
 class DesktopResilienceTests(unittest.TestCase):
     def setUp(self):
         self.base=fixtures.DesktopTests();self.base.setUp();self.addCleanup(self.base.doCleanups)
+        self.base.pin_fixture_probe()
         self.desktop=self.base.desktop;self.base.prepare();self.root=self.desktop.game()
         self.desktop.write(self.desktop.state/'graphics-probe.json',self.base.probe)
 

@@ -72,7 +72,12 @@ class GraphicsRecoveryTests(unittest.TestCase):
         program = payload / 'S7GraphicsProbe.exe'
         program.write_bytes(b'fixture probe executable')
         (payload / 'd3d9.dll').write_bytes(self.dll)
-        manifest = {'files': {'payload/graphics/s7graphicsprobe.exe': graphics.content.digest(program)}}
+        manifest = {
+            'format': backend.install.FORMAT,
+            'capabilities': {'local_test': True, 'lan_host': False, 'lan_join': False},
+            'files': {'payload/graphics/s7graphicsprobe.exe': graphics.content.digest(program)},
+        }
+        (package / 'package.json').write_bytes(graphics.encoded(manifest))
         return Mock(state=self.root / 'LocalData', package=package,
                     package_manifest=Mock(return_value=manifest),
                     displays=Mock(return_value=[]), read=Mock(return_value=previous),
@@ -140,8 +145,9 @@ class GraphicsRecoveryTests(unittest.TestCase):
         desktop = Mock()
         backup = (True, {'old': 'confirmed'})
         game = Mock(poll=Mock(return_value=None))
+        pending = {'choice': {'format': choice.FORMAT, 'choice': None}}
         with patch.object(backend.desktop_settings, 'graphics_backup', return_value=backup), \
-                patch.object(backend.desktop_settings, 'current_graphics', return_value={'new': 'pending'}), \
+                patch.object(backend.desktop_settings, 'current_graphics', return_value=pending), \
                 patch.object(window_mode, 'wait_until_ready', return_value=False):
             with self.assertRaisesRegex(RuntimeError, 'game_failed'):
                 with backend.Desktop.graphics_startup(desktop, self.root) as startup:

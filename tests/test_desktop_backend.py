@@ -81,6 +81,16 @@ class DesktopTests(unittest.TestCase):
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=b'[]')):
             return self.desktop.install_game(self.fixture.source)
 
+    def pin_fixture_probe(self):
+        probe_path=self.desktop.package/'Payload/Graphics/S7GraphicsProbe.exe'
+        probe_path.parent.mkdir(parents=True,exist_ok=True)
+        probe_path.write_bytes(b'fixture probe')
+        self.probe['probe_sha256']=content.digest(probe_path)
+        manifest_path=self.desktop.package/'package.json'
+        manifest=self.desktop.read(manifest_path)
+        manifest['files']['payload/graphics/s7graphicsprobe.exe']=self.probe['probe_sha256']
+        self.desktop.write(manifest_path,manifest)
+
     def test_missing_visual_adapter_keeps_repair_snapshot_available(self):
         self.prepare()
         (self.desktop.game()/graphics.LOADER).unlink()
@@ -537,14 +547,7 @@ class DesktopTests(unittest.TestCase):
                 install_profile.assert_called_once();restore.assert_not_called()
 
     def test_removed_renderer_requests_preserve_preferences_and_automatic_save_needs_no_probe(self):
-        probe_path=self.desktop.package/'Payload/Graphics/S7GraphicsProbe.exe'
-        probe_path.parent.mkdir(parents=True,exist_ok=True)
-        probe_path.write_bytes(b'fixture probe')
-        probe_signature=content.digest(probe_path)
-        manifest_path=self.desktop.package/'package.json'
-        manifest=self.desktop.read(manifest_path)
-        manifest['files']['payload/graphics/s7graphicsprobe.exe']=probe_signature
-        self.desktop.write(manifest_path,manifest)
+        self.pin_fixture_probe()
         self.prepare();root=self.desktop.game()
         before=(self.desktop.state/'installation.json').read_bytes()
         choice_before=(root/choice.CHOICE_FILE).read_bytes()
@@ -555,7 +558,7 @@ class DesktopTests(unittest.TestCase):
                 self.desktop.save_settings(dict(request,renderer_policy=policy))
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
         self.assertEqual((root/choice.CHOICE_FILE).read_bytes(),choice_before)
-        failed=dict(self.probe,probe_sha256=probe_signature,devices=[],failure='unsupported')
+        failed=dict(self.probe,devices=[],failure='unsupported')
         self.desktop.write(self.desktop.state/'graphics-probe.json',failed)
         with patch.object(self.desktop,'probe',side_effect=AssertionError('unexpected GPU check')):
             self.desktop.save_settings(request)

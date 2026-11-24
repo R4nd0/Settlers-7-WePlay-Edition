@@ -54,6 +54,7 @@ class GraphicsStartup:
         self.ready=False
 
     def observe(self,game):
+        import display_settings
         import window_mode
         try:
             active=current_graphics(self.desktop,self.root)
@@ -61,7 +62,11 @@ class GraphicsStartup:
                 self.observed=True
                 self.ready=True
                 return
-            self.ready=window_mode.wait_until_ready(self.root,game)
+            selection=active['choice'].get('display')
+            screen=None
+            if selection is not None and selection['mode']=='borderless':
+                _,screen=display_settings.resolve(selection,display_settings.enumerate_displays())
+            self.ready=window_mode.wait_until_ready(self.root,game,screen=screen)
             # A timeout while the game remains alive does not establish a
             # startup failure. A much later exit must not revert graphics.
             self.observed=self.ready or game.poll() is not None
