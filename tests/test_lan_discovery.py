@@ -170,6 +170,25 @@ class DirectoryTests(unittest.TestCase):
             self.assertEqual([room.room_id for room in directory.list_rooms(timeout=.4)], [self.room.room_id])
         self.assertEqual(client.sendto.call_count, 4)
 
+    def test_discovery_retries_when_first_send_temporarily_fails(self):
+        packet = answer_message(query_message(NONCE), self.room)
+        client = Mock()
+        client.sendto.side_effect = [OSError('interface still coming up'), OSError('interface still coming up'),
+                                     len(packet), len(packet)]
+        client.recvfrom.return_value = packet, (self.room.endpoint.host, DISCOVERY_PORT)
+        now = [0.]
+        def ready(read, _write, _except, wait):
+            if client.sendto.call_count == 4 and not client.recvfrom.called:
+                return read, [], []
+            now[0] += wait
+            return [], [], []
+        directory = LanDiscovery([self.interface], socket_factory=Mock(return_value=client),
+                                 clock=lambda: now[0], route_socket=Mock())
+        with patch('lan_discovery.secrets.token_hex', return_value=NONCE), patch('select.select', side_effect=ready):
+            self.assertEqual([room.room_id for room in directory.list_rooms(timeout=.4)], [self.room.room_id])
+        self.assertEqual(client.sendto.call_count, 4)
+        client.close.assert_called_once()
+
     def test_idle_adapters_do_not_use_up_deadline_before_ready_adapter(self):
         packet = answer_message(query_message(NONCE), self.room)
         sockets = [Mock() for _ in range(6)]

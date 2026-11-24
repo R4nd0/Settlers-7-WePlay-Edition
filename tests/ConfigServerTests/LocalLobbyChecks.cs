@@ -117,6 +117,12 @@ internal static class LocalLobbyChecks
         var generations = new Dictionary<IPEndPoint, ulong> { [endpoint] = lobby.Generation(Address(20)) };
         var sessions = new Dictionary<IPEndPoint, PrudpLocalLoginSession>();
         Check(LocalConfigurationServer.ReclaimUnadmittedContexts(lobby, generations, sessions, contexts) == 0, "live context retained");
+        var abandoned = new IPEndPoint(endpoint.Address, 12346);
+        contexts[abandoned] = new() { SynReplySent = true, HandshakeDeadline = 0 };
+        Check(LocalConfigurationServer.ReclaimClosedLoginSessions(sessions, contexts) == 1
+            && !contexts.ContainsKey(abandoned) && contexts.ContainsKey(endpoint),
+            "unfinished handshake frees the transport slot without leaving the lobby");
+        Check(lobby.Generation(endpoint.Address) == generations[endpoint], "handshake expiry preserves current admission");
         int protocolOperations = 0;
         Check(LocalConfigurationServer.UseCurrentLobbyContext(lobby, endpoint, generations, sessions, contexts,
             () => ++protocolOperations) && protocolOperations == 1, "current generation may mutate protocol state");

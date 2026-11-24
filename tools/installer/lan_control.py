@@ -150,14 +150,23 @@ class Membership:
     def renew(self):
         if self.stop_event.is_set():
             return
+        requested_at = self.clock()
         value = self.transport(self.coordinator, self.local, 'admit', expected=self.expected)
         self.admitted = True
         peers = validate_peers(value, self.local, self.coordinator, self.expected)
         with self.publish_lock:
             if self.stop_event.is_set():
                 return
-            self.path = write_peers(self.root, self.local, peers, clock=self.clock)
-            self.last_success_ms = self.clock()
+            # The coordinator starts its lease before the reply arrives. Use
+            # the beginning of this request as the conservative local bound.
+            expires_at = requested_at + LEASE_SECONDS * 1000
+            if self.clock() >= expires_at:
+                raise TimeoutError('Die LAN-Teilnahme ist waehrend der Anmeldung abgelaufen.')
+            self.path = write_peers(self.root, self.local, peers, clock=lambda: requested_at)
+            published_at = self.clock()
+            if published_at >= expires_at:
+                raise TimeoutError('Die LAN-Teilnahme ist waehrend der Anmeldung abgelaufen.')
+            self.last_success_ms = published_at
 
     def start(self):
         self.renew()  # Must finish before the game can bind or send.

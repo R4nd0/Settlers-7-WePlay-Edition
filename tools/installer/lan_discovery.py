@@ -119,16 +119,13 @@ class LanDiscovery:
         self.cache = RoomCache(clock)
 
     def _send_queries(self, sock, interface, packet):
-        sent = False
         # A NIC may not support broadcast or loopback. Each destination is
         # independent, so failure on one must not discard the other's reply.
         for address in (str(interface.network.broadcast_address), interface.address):
             try:
                 sock.sendto(packet, (address, self.port))
-                sent = True
             except OSError:
                 pass
-        return sent
 
     def scan(self, *, timeout=2):
         """Return fresh replies with each distinct source-bound route intact."""
@@ -148,8 +145,10 @@ class LanDiscovery:
                     sock.bind((interface.address, 0))
                     sock.setblocking(False)
                     self.route_socket(sock, interface)
-                    if self._send_queries(sock, interface, packet):
-                        continue
+                    # Keep an already bound route for the scheduled retries,
+                    # even if the adapter cannot send its first queries yet.
+                    self._send_queries(sock, interface, packet)
+                    continue
                 except (OSError, ValueError):
                     pass
                 if sock is not None:

@@ -55,6 +55,52 @@ class MembershipTests(unittest.TestCase):
         self.assertFalse((self.root / 'LocalData/lan-peers.ini').exists())
         self.assertEqual(transport.call_args.args[2], 'leave')
 
+    def test_admission_response_delay_is_not_added_to_native_lease(self):
+        now = [1000]
+        def transport(_host, _local, operation, **_options):
+            if operation == 'leave':
+                return None
+            now[0] += 2400
+            return response()
+
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=transport, clock=lambda: now[0])
+        self.addCleanup(membership.close)
+        membership.renew()
+        self.assertIn('expires_tick_ms=16000\n', membership.path.read_text())
+
+    def test_admission_that_has_already_expired_cannot_prepare_a_game_launch(self):
+        now = [1000]
+        def transport(_host, _local, operation, **_options):
+            if operation == 'leave':
+                return None
+            now[0] += 15_000
+            return response()
+
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=transport, clock=lambda: now[0])
+        self.addCleanup(membership.close)
+        with self.assertRaises(TimeoutError):
+            membership.renew()
+        self.assertFalse((self.root / 'LocalData/lan-peers.ini').exists())
+
+    def test_lease_can_expire_while_publishing_the_local_peer_file(self):
+        now = [1000]
+        transport = Mock(side_effect=[response(), None])
+        write = lan_control.write_peers
+        def delayed_write(*args, **options):
+            path = write(*args, **options)
+            now[0] += 15_000
+            return path
+
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=transport, clock=lambda: now[0])
+        with patch.object(lan_control, 'write_peers', side_effect=delayed_write), self.assertRaises(TimeoutError):
+            membership.renew()
+        self.assertIsNone(membership.last_success_ms)
+        membership.close()
+        self.assertFalse((self.root / 'LocalData/lan-peers.ini').exists())
+
     def test_coordinator_admits_its_own_game(self):
         transport = Mock(return_value=response([LOCAL]))
         membership = lan_control.Membership(self.root, LOCAL, LOCAL, EXPECTED, transport=transport, clock=lambda: 1)

@@ -154,6 +154,7 @@ namespace S7Patcher.Source
     {
         internal uint Cookie { get; init; }
         internal byte SourceVirtualPort { get; init; }
+        internal long HandshakeDeadline { get; init; } = Environment.TickCount64 + 15_000;
         internal bool SynReplySent { get; set; }
         internal bool ConnectReplySent { get; set; }
         internal PrudpConnectProbe Connect { get; set; }

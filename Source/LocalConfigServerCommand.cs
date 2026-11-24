@@ -534,9 +534,8 @@ namespace S7Patcher.Source
             }
         }
 
-        // Only sessions which already expired/closed through their existing policy
-        // release transport slots. A SYN, changed CONNECT tuple or invalid DATA
-        // never evicts an active context. Run on the UDP owner after all due sends.
+        // Release closed sessions and unfinished handshakes on the UDP owner.
+        // Neither a new SYN nor a changed CONNECT tuple evicts a live session.
         internal static int ReclaimClosedLoginSessions(
             Dictionary<IPEndPoint, PrudpLocalLoginSession> loginSessions,
             Dictionary<IPEndPoint, PrudpProbePeer> peers)
@@ -544,6 +543,10 @@ namespace S7Patcher.Source
             List<IPEndPoint> closed = null;
             foreach (var entry in loginSessions)
                 if (entry.Value.Closed) (closed ??= new()).Add(entry.Key);
+            long now = Environment.TickCount64;
+            foreach (var entry in peers)
+                if (entry.Value.HandshakeDeadline <= now && !loginSessions.ContainsKey(entry.Key))
+                    (closed ??= new()).Add(entry.Key);
             if (closed == null) return 0;
             foreach (IPEndPoint endpoint in closed)
             {
