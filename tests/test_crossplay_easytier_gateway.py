@@ -251,13 +251,16 @@ class TunnelTests(unittest.TestCase):
         o.snapshot.return_value=(LanInterface(o.address,24,o.device_name),{})
         listener,accepted,target=Mock(),Mock(),Mock()
         listener.accept.return_value=(accepted,(peer,12345))
+        now = [10.]
         with patch.object(gateway.socket,'socket',side_effect=[listener,target]) as factory, \
-                patch.object(gateway,'pin_interface'),patch.object(gateway,'StreamBridge') as bridge:
+                patch.object(gateway,'pin_interface'),patch.object(gateway,'StreamBridge') as bridge, \
+                patch.object(gateway.time,'monotonic',side_effect=lambda: now[0]):
             g=gateway.HostGateway(o,broker_port=49155)
             listener.bind.assert_called_once_with((o.address,9113))
             g.pump();self.assertEqual(factory.call_count,1)
             accepted.recv.assert_not_called();target.connect.assert_not_called()
             o.snapshot.return_value=(g.interface,{peer:'p2p'})
+            now[0] += .25
             g.pump();target.bind.assert_called_once_with(('127.0.0.3',0))
             target.connect.assert_called_once_with(('127.0.0.1',49155))
             bridge.assert_called_once_with(accepted,target)
@@ -267,13 +270,37 @@ class TunnelTests(unittest.TestCase):
         for ambiguous in (False,True):
             o,peer=overlay(True);o.snapshot.return_value=(LanInterface(o.address,24,o.device_name),{})
             listener,accepted=Mock(),Mock();listener.accept.return_value=(accepted,(peer,12345))
-            with patch.object(gateway.socket,'socket',return_value=listener),patch.object(gateway,'pin_interface'):
+            now = [10.]
+            with patch.object(gateway.socket,'socket',return_value=listener),patch.object(gateway,'pin_interface'), \
+                    patch.object(gateway.time,'monotonic',side_effect=lambda: now[0]):
                 g=gateway.HostGateway(o,broker_port=49155)
                 g.pump()
-                if ambiguous:o.snapshot.return_value=(g.interface,{peer:'p2p','10.203.77.3':'p2p'})
-                else:g.pending_since-=31
+                if ambiguous:
+                    o.snapshot.return_value=(g.interface,{peer:'p2p','10.203.77.3':'p2p'})
+                    now[0] += .25
+                else:now[0] += 31
                 with self.assertRaises(gateway.GatewayError):g.pump()
                 self.assertTrue(g.closed);accepted.close.assert_called_once();accepted.recv.assert_not_called()
+
+    def test_pending_host_does_not_query_tunnel_status_on_every_service_tick(self):
+        o, peer = overlay(True)
+        o.snapshot.return_value = (LanInterface(o.address, 24, o.device_name), {})
+        listener, accepted = Mock(), Mock()
+        listener.accept.return_value = (accepted, (peer, 12345))
+        now = [10.]
+        with patch.object(gateway.socket, 'socket', return_value=listener), \
+                patch.object(gateway, 'pin_interface'), patch.object(gateway.time, 'monotonic', side_effect=lambda: now[0]):
+            server = gateway.HostGateway(o, broker_port=49155)
+            self.addCleanup(server.close)
+            server.pump()
+            for _ in range(10):
+                now[0] += .005
+                server.pump()
+            self.assertEqual(o.snapshot.call_count, 2)  # setup and immediate socket check
+            now[0] += .25
+            server.pump()
+            self.assertEqual(o.snapshot.call_count, 3)
+            accepted.recv.assert_not_called()
 
     def test_unsupported_interface_pinning_has_no_unpinned_fallback(self):
         with patch.object(gateway.sys,'platform','unsupported'):

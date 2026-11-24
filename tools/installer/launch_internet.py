@@ -60,12 +60,15 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
 
     before = getattr(args, 'before_game', None)
 
-    def before_game():
+    def verify_tunnel_binding():
         selected, peers = overlay.snapshot()
         selected_binding = (selected.address, selected.prefix_length, selected.name)
         expected_binding = (interface.address, interface.prefix_length, interface.name)
         if selected_binding != expected_binding or (not host and room.coordinator not in peers):
             raise InternetError('internet_disconnected')
+
+    def before_game():
+        verify_tunnel_binding()
         if before:
             before()
         # launch_auto_lan has now reached the real coordinator, joined its
@@ -118,7 +121,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                 if not active:
                     break
                 try:
-                    overlay.snapshot()
+                    verify_tunnel_binding()
                 except (OSError, http.client.HTTPException):
                     raise InternetError('internet_disconnected') from None
                 if progress:

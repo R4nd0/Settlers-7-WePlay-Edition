@@ -154,10 +154,17 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
         value=transport(url,'/v1/directory/join','POST',dict(format='weplay-join-request-v1',game_id=game_id,
             content_id=row['content_id'],network_revision=NETWORK_REVISION,public_key=key['public_key'],challenge=challenge,token=token))
         ticket=validate_ticket(value,game_id,challenge,clock)
+        deadline = time.monotonic() + (ticket['expires_at'] - clock())
+
+        def expired():
+            return time.monotonic() >= deadline or clock() >= ticket['expires_at']
+
         misses = 0
-        while clock()<ticket['expires_at']:
+        while not expired():
             if cancel:cancel()
             if progress:progress('directory_join')
+            if expired():
+                break
             try:
                 response = transport(url, '/v1/directory/join/' + ticket['id'], authorization='Join ' + token)
             except DirectoryError as error:
@@ -167,7 +174,7 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
                 sleep(.75)
                 continue
             misses = 0
-            if clock() >= ticket['expires_at']:
+            if expired():
                 break
             if (not isinstance(response,dict) or set(response)!={'format','id','game_id','challenge','expires_at','envelope'}
                     or response['format']!='weplay-join-delivery-v1'
@@ -186,7 +193,7 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
                 current=next((item for item in listing(url,transport=transport) if item['id']==game_id),None)
                 if current is None or current['state']!='open' or current['content_id']!=row['content_id']:
                     raise DirectoryError('directory_join_unavailable')
-                if clock() >= ticket['expires_at']:
+                if expired():
                     break
                 if cancel:
                     cancel()
@@ -220,7 +227,6 @@ class HostBroker:
             raise DirectoryError('directory_invalid')
         self.registered=True;self.last=self.monotonic()
         if self.stopped:self.close();return
-        active={row['id']:row for row in rows}
         for item in response['requests']:
             if self.stopped:return
             if (not isinstance(item,dict) or set(item)!={'id','session_id','game_id','public_key','challenge','expires_at'}
@@ -229,6 +235,11 @@ class HostBroker:
                     or not isinstance(item['public_key'],str) or not 500<=len(item['public_key'])<=700
                     or type(item['expires_at']) is not int or not self.clock()-5<item['expires_at']<=self.clock()+90):
                 raise DirectoryError('directory_invalid')
+        live={item['id'] for item in response['requests']}
+        self.pending={key:value for key,value in self.pending.items() if key in live}
+        active={row['id']:row for row in rows}
+        for item in response['requests']:
+            if self.stopped:return
             game=active.get(item['session_id']);sealed=None
             if game and game['state']=='open' and game['free_slots']>0:
                 context={name:item[name] for name in ('id','game_id','challenge','expires_at')}
@@ -247,8 +258,6 @@ class HostBroker:
                 if error.code != 'directory_join_unavailable':
                     raise
                 self.pending.pop(item['id'], None)
-        live={item['id'] for item in response['requests']}
-        self.pending={key:value for key,value in self.pending.items() if key in live}
 
     def close(self):
         self.pending.clear()

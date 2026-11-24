@@ -255,6 +255,8 @@ class HostGateway:
     the invitation. Accepted bytes stay unread until the owned tunnel snapshot
     confirms that exact source. Native frame authentication remains in the broker.
     """
+    PENDING_STATUS_INTERVAL = .25
+
     def __init__(self, overlay, *, broker_port, pending_seconds=30):
         if (type(broker_port) is not int or not 1024 <= broker_port <= 65535
                 or type(pending_seconds) is not int or not 5 <= pending_seconds <= 60):
@@ -307,11 +309,17 @@ class HostGateway:
                     raise GatewayError('tunnel-source-mismatch')
                 pin_interface(accepted,self.interface)
                 accepted.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
-                self.peer=address[0];self.pending_since=now
+                self.peer = address[0]
+                self.pending_since = now
+                self.next_pending_check = now
+            deadline = self.pending_since + self.pending_seconds
+            if now < self.next_pending_check and now < deadline:
+                return
             interface,peers=self._snapshot()
+            self.next_pending_check = now + self.PENDING_STATUS_INTERVAL
             if interface != self.interface: raise GatewayError('tunnel-interface-changed')
             if self.peer not in peers:
-                if now - self.pending_since >= self.pending_seconds:
+                if now >= deadline:
                     raise GatewayError('tunnel-peer-unobserved')
                 return
             target=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -319,6 +327,7 @@ class HostGateway:
                 target.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1);target.settimeout(3)
                 target.bind(('127.0.0.3',0));target.connect(('127.0.0.1',self.broker_port))
                 self.bridge=StreamBridge(self.accepted,target)
+                self.checked_at=now
                 self.accepted=None
                 self.listener.close();self.listener=None
             except BaseException:

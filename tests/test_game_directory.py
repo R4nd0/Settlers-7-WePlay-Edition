@@ -148,6 +148,36 @@ class DirectoryTests(unittest.TestCase):
             directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto,
                            clock=lambda: now[0])
 
+    def test_clock_rollback_cannot_prolong_public_join_reservation(self):
+        wall, elapsed = [1000], [10.]
+        ticket = None
+        polls = []
+        def transport(_url, path, method='GET', value=None, authorization=None):
+            nonlocal ticket
+            if path.endswith('/games'):
+                return dict(format='weplay-games-directory-v1', games=[row()])
+            if method == 'POST':
+                ticket = dict(format='weplay-join-ticket-v1', id='c'*32, game_id=GAME,
+                              challenge=value['challenge'], expires_at=1001)
+                return ticket
+            if method == 'DELETE':
+                return {'ok': True}
+            polls.append(path)
+            if len(polls) > 2:
+                self.fail('Polling outlived the original ticket lifetime')
+            return dict(ticket, format='weplay-join-delivery-v1', envelope=None)
+
+        def delay(seconds):
+            elapsed[0] += seconds
+            wall[0] = 900
+
+        crypto = Mock(return_value=dict(format=join_crypto.FORMAT, public_key='public', private_key='private'))
+        with patch.object(directory.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                self.assertRaisesRegex(directory.DirectoryError, '^directory_join_unavailable$'):
+            directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto,
+                           clock=lambda: wall[0], sleep=delay)
+        self.assertEqual(len(polls), 2)
+
     def make_broker(self, transport):
         invitation = internet_room.Room('a' * 32, 'b' * 64, '10.203.77.0/24').token()
         return directory.HostBroker(ORIGIN, 's' * 43, 'e' * 32, invitation, CONTENT, '2.0.0-rc4.10',
@@ -170,6 +200,23 @@ class DirectoryTests(unittest.TestCase):
         broker.poll([dict(id='00000001', state='open', free_slots=3)])
         self.assertEqual(delivered, ['/v1/directory/host/' + broker.run_id + '/requests/' + second['id']])
         self.assertNotIn(first['id'], broker.pending)
+
+    def test_delivery_outages_do_not_retain_envelopes_for_replaced_ticket_batches(self):
+        first = dict(id='c'*32, session_id='00000001', game_id=GAME,
+                     public_key='k'*600, challenge='d'*32, expires_at=1045)
+        second = dict(first, id='d'*32)
+        transport = Mock(side_effect=[
+            {'ok': True, 'requests': [first]}, directory.DirectoryError('directory_unavailable'),
+            {'ok': True, 'requests': [second]}, directory.DirectoryError('directory_unavailable')])
+        broker = self.make_broker(transport)
+        rows = [dict(id='00000001', state='open', free_slots=3)]
+        with self.assertRaisesRegex(directory.DirectoryError, '^directory_unavailable$'):
+            broker.poll(rows)
+        self.assertEqual(list(broker.pending), [first['id']])
+        broker.last = -11
+        with self.assertRaisesRegex(directory.DirectoryError, '^directory_unavailable$'):
+            broker.poll(rows)
+        self.assertEqual(list(broker.pending), [second['id']])
 
     def test_failed_host_removal_can_retry_on_next_empty_game_list(self):
         transport = Mock(side_effect=[{'ok': True, 'requests': []},

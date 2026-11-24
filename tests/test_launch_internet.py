@@ -136,6 +136,20 @@ class LaunchTests(unittest.TestCase):
         self.overlay.snapshot.assert_called_once()
         self.overlay.close.assert_called_once()
 
+    def test_creator_rejects_changed_tunnel_binding_while_hosting_after_own_game_exit(self):
+        changed = LanInterface(ROOM.coordinator, 24, 'Different device')
+        self.overlay.snapshot.return_value = changed, {}
+        def run(args, *, picker, network):
+            network()
+            return 0
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=[{'active_members': 1}, {'active_members': 0}]), \
+                patch.object(launch.time, 'sleep'), \
+                self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            launch.run(self.args, overlay_factory=self.factory)
+        self.overlay.close.assert_called_once()
+
     def test_creator_survives_transient_coordinator_status_failures(self):
         def run(args, *, picker, network):
             network()
