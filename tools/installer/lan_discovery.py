@@ -11,7 +11,7 @@ import time
 import sys
 
 from lobby_directory import (BEACON_TTL, DISCOVERY_FORMAT, DISCOVERY_PORT, HTTP_PORT,
-    GAME_SERVICE_PORT, MAX_DATAGRAM, MAX_MEMBERS, LobbyEndpoint, LobbyRoom, RoomCache,
+    GAME_SERVICE_PORT, MAX_DATAGRAM, MAX_MEMBERS, MAX_ROOMS, LobbyEndpoint, LobbyRoom, RoomCache,
     content_id, encode, json_record, private_address, public_name, validate_discovery_port)
 
 
@@ -130,12 +130,14 @@ class LanDiscovery:
                 pass
         return sent
 
-    def list_rooms(self, *, timeout=2):
+    def scan(self, *, timeout=2):
+        """Return fresh replies with each distinct source-bound route intact."""
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or not .1 <= timeout <= 5:
             raise ValueError('Ungueltige Suchdauer.')
         nonce = secrets.token_hex(16)
         packet = query_message(nonce)
         sockets = {}
+        routes = {}
         try:
             for interface in self.interfaces:
                 sock = None
@@ -177,12 +179,19 @@ class LanDiscovery:
                         data, source = sock.recvfrom(MAX_DATAGRAM + 1)
                         answer = read_answer(data, source, sockets[sock], nonce, self.clock(), port=self.port)
                         self.cache.add(answer)
+                        key = (answer.room_id, answer.endpoint.host, answer.local_interface.address)
+                        if key in routes or len(routes) < MAX_ROOMS:
+                            routes[key] = answer
                     except (OSError, ValueError, TypeError):
                         pass
-            return self.cache.list_rooms()
+            return list(routes.values())
         finally:
             for sock in sockets:
                 sock.close()
+
+    def list_rooms(self, *, timeout=2):
+        self.scan(timeout=timeout)
+        return self.cache.list_rooms()
 
     def resolve(self, room_id):
         return self.cache.resolve(room_id)

@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import secrets
 import threading
+import time
 
 import compatibility
 import game_directory
@@ -54,12 +55,18 @@ class Bridge:
                 path.unlink()
         self.write([])
         def refresh():
+            rows = []
             while not self.stop.is_set():
                 try:rows=game_directory.listing(self.url,transport=self.transport)
-                except (OSError,ValueError):rows=[]
+                except (OSError, ValueError):
+                    now = time.time()
+                    rows = [row for row in rows if row['expires_at'] > now]
                 if self.stop.is_set():break
                 try:self.write(rows)
-                except (OSError,ValueError):break
+                except OSError:
+                    pass  # A temporary file-sharing failure should not end refresh.
+                except ValueError:
+                    break
                 self.stop.wait(10)
         self.thread=threading.Thread(target=refresh,name='WePlay-global-games',daemon=True);self.thread.start()
         return self

@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
 from lobby_directory import *
 from lan_discovery import LanBeacon, LanDiscovery, query_message, answer_message, read_answer
-from lan_interfaces import parse_interfaces
+from lan_interfaces import linux_interfaces, parse_interfaces
 from lobby_picker import read_choice, snapshot
 
 EXPECTED = 'a' * 64
@@ -102,6 +102,16 @@ class DirectoryTests(unittest.TestCase):
         records.append({'other': True})
         result = parse_interfaces(json.dumps(records).encode())
         self.assertEqual([x.address for x in result], ['192.168.1.20'])
+
+    def test_linux_ignores_many_unusable_addresses_before_selecting_private_adapter(self):
+        entries = [{'ifname': f'veth{index}', 'flags': ['UP'],
+                    'addr_info': [{'family': 'inet', 'local': f'169.254.1.{index}', 'prefixlen': 16}]}
+                   for index in range(1, 71)]
+        entries.append({'ifname': 'eth0', 'flags': ['UP'],
+                        'addr_info': [{'family': 'inet', 'local': '192.168.1.7', 'prefixlen': 24}]})
+        result = [Mock(returncode=0, stdout=json.dumps(value).encode()) for value in ([{'dev': 'eth0'}], entries)]
+        with patch('lan_interfaces.subprocess.run', side_effect=result):
+            self.assertEqual(linux_interfaces(), [LanInterface('192.168.1.7', 24, 'eth0', True)])
 
     def test_picker_data_has_no_addresses_or_native_ids(self):
         value = snapshot([self.interface], [self.room], EXPECTED, 'Anna', 3)

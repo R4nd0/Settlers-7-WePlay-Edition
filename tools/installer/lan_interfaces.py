@@ -11,8 +11,12 @@ def parse_interfaces(data):
     value = json.loads(data.decode('utf-8-sig'))
     if not isinstance(value, list) or len(value) > 64:
         raise ValueError('Unbekannte Netzwerkausgabe.')
+    return select_private_interfaces(value)
+
+
+def select_private_interfaces(records):
     found = {}
-    for item in value:
+    for item in records:
         if not isinstance(item, dict) or set(item) != {'address', 'prefix_length', 'name', 'default_route'}:
             continue
         try:
@@ -53,4 +57,4 @@ def linux_interfaces():
             if isinstance(address, dict) and address.get('family') == 'inet':
                 rows.append(dict(address=address.get('local'), prefix_length=address.get('prefixlen'),
                                  name=interface.get('ifname'), default_route=interface.get('ifname') in defaults))
-    return parse_interfaces(json.dumps(rows).encode('utf-8'))
+    return select_private_interfaces(rows)

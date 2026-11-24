@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'tools/installer'),str(ROOT/'work/lua-test-runtime')]
@@ -20,6 +21,37 @@ def row(**change):
         content_id=CONTENT,network_revision=7,version='2.0.0-rc3.12',expires_at=2000000000),**change)
 
 class BridgeTests(unittest.TestCase):
+    def run_refresh(self, instance, responses, times):
+        current = [0]
+        instance.stop = Mock()
+        instance.stop.is_set.side_effect = lambda: current[0] >= len(times)
+        def advance(_seconds):
+            current[0] += 1
+        instance.stop.wait.side_effect = advance
+        def thread(*, target, **_options):
+            return Mock(start=Mock(side_effect=target))
+        with patch.object(bridge.threading, 'Thread', side_effect=thread), \
+                patch.object(bridge.game_directory, 'listing', side_effect=responses), \
+                patch('time.time', side_effect=lambda: times[current[0]]):
+            instance.start()
+
+    def test_one_catalogue_fetch_error_keeps_unexpired_rows_visible(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
+            instance = bridge.Bridge(Path(folder), 'unused', {CONTENT})
+            instance.write = Mock()
+            current = row(expires_at=1005)
+            self.run_refresh(instance, [[current], OSError(), OSError()], [1000, 1001, 1010])
+            self.assertEqual([call.args[0] for call in instance.write.call_args_list], [[], [current], [current], []])
+
+    def test_temporary_snapshot_write_error_does_not_end_live_refresh(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
+            instance = bridge.Bridge(Path(folder), 'unused', {CONTENT})
+            instance.write = Mock(side_effect=[None, PermissionError(), None])
+            later = row(title='New match', expires_at=1100)
+            self.run_refresh(instance, [[row()], [later]], [1000, 1010])
+            instance.write.assert_called_with([later])
+            self.assertEqual(instance.write.call_count, 3)
+
     def test_snapshot_is_data_only_bounded_and_marks_incompatible_games(self):
         raw=bridge.snapshot('c'*32,1,[row(title='";os.execute()')],{CONTENT})
         self.assertNotIn(b'os.execute',raw);self.assertNotIn(b'weplay1.',raw)

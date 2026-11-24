@@ -53,6 +53,15 @@ class DirectoryTests(unittest.TestCase):
             with self.assertRaises(ValueError):directory.join(ORIGIN,GAME,allowed,transport=transport,crypto=crypto)
         crypto.assert_not_called()
 
+    def test_cancelled_join_does_not_contact_directory(self):
+        transport = Mock(return_value=dict(format='weplay-games-directory-v1', games=[row()]))
+        crypto = Mock(return_value=dict(format=join_crypto.FORMAT, public_key='public', private_key='private'))
+        cancel = Mock(side_effect=RuntimeError('cancelled'))
+        with self.assertRaisesRegex(RuntimeError, 'cancelled'):
+            directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto, cancel=cancel)
+        transport.assert_not_called()
+        crypto.assert_not_called()
+
     def test_guest_validates_ticket_and_always_consumes_on_cancel_or_bad_envelope(self):
         for cancel in (True,False):
             calls=[];ticket=None
@@ -68,9 +77,12 @@ class DirectoryTests(unittest.TestCase):
             def crypto(action,value,**kw):
                 if action=='keygen':return dict(format=join_crypto.FORMAT,public_key='public',private_key='private')
                 raise ValueError('directory_join_failed')
+            def cancel_after_ticket():
+                if ticket is not None:
+                    raise ValueError('cancelled')
             with self.assertRaises(ValueError):
                 directory.join(ORIGIN,GAME,{CONTENT},transport=transport,crypto=crypto,clock=lambda:1000,
-                    cancel=(lambda:(_ for _ in ()).throw(ValueError('cancelled'))) if cancel else None)
+                    cancel=cancel_after_ticket if cancel else None)
             self.assertEqual(calls[-1],('/v1/directory/join/'+'c'*32,'DELETE'))
 
     def test_join_recovers_from_temporary_delivery_failure_on_same_ticket(self):
@@ -103,6 +115,68 @@ class DirectoryTests(unittest.TestCase):
         ticket_calls = [call for call in calls if call[0].endswith('/' + ticket['id'])]
         self.assertEqual([call[1] for call in ticket_calls], ['GET', 'GET', 'DELETE'])
         self.assertEqual(len({call[2] for call in ticket_calls}), 1)
+
+    def test_delivery_that_arrives_after_ticket_expiry_is_rejected(self):
+        now = [1000]
+        ticket = None
+        invitation = internet_room.Room('a'*32, 'b'*64, '10.203.77.0/24').token()
+        def transport(_url, path, method='GET', value=None, authorization=None):
+            nonlocal ticket
+            if path.endswith('/games'):
+                return dict(format='weplay-games-directory-v1', games=[row(expires_at=1100)])
+            if method == 'POST':
+                ticket = dict(format='weplay-join-ticket-v1', id='c'*32, game_id=GAME,
+                              challenge=value['challenge'], expires_at=1005)
+                return ticket
+            if method == 'DELETE':
+                return {'ok': True}
+            now[0] = 1006
+            return dict(ticket, format='weplay-join-delivery-v1', envelope={'sealed': 'fixture'})
+
+        def crypto(action, _value, **_options):
+            if action == 'keygen':
+                return dict(format=join_crypto.FORMAT, public_key='public', private_key='private')
+            grant = dict(ticket, format='weplay-room-grant-v1', invitation=invitation)
+            return dict(plaintext=join_crypto.encoded(json.dumps(grant).encode('ascii')))
+
+        with self.assertRaisesRegex(directory.DirectoryError, '^directory_join_unavailable$'):
+            directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto,
+                           clock=lambda: now[0])
+
+    def make_broker(self, transport):
+        invitation = internet_room.Room('a' * 32, 'b' * 64, '10.203.77.0/24').token()
+        return directory.HostBroker(ORIGIN, 's' * 43, 'e' * 32, invitation, CONTENT, '2.0.0-rc4.10',
+                                    transport=transport, crypto=Mock(return_value={'sealed': 'fixture'}),
+                                    clock=lambda: 1000, monotonic=lambda: 0)
+
+    def test_cancelled_guest_does_not_abort_delivery_to_next_guest(self):
+        first = dict(id='c'*32, session_id='00000001', game_id=GAME,
+                     public_key='k'*600, challenge='d'*32, expires_at=1045)
+        second = dict(first, id='d'*32)
+        delivered = []
+        def transport(_url, path, _method, _value, **_options):
+            if path.endswith('/host'):
+                return {'ok': True, 'requests': [first, second]}
+            if path.endswith(first['id']):
+                raise directory.DirectoryError('directory_join_unavailable')
+            delivered.append(path)
+            return {'ok': True}
+        broker = self.make_broker(transport)
+        broker.poll([dict(id='00000001', state='open', free_slots=3)])
+        self.assertEqual(delivered, ['/v1/directory/host/' + broker.run_id + '/requests/' + second['id']])
+        self.assertNotIn(first['id'], broker.pending)
+
+    def test_failed_host_removal_can_retry_on_next_empty_game_list(self):
+        transport = Mock(side_effect=[{'ok': True, 'requests': []},
+                                      directory.DirectoryError('directory_unavailable'), {'ok': True}])
+        broker = self.make_broker(transport)
+        broker.poll([dict(id='00000001', state='open', free_slots=3)])
+        with self.assertRaisesRegex(directory.DirectoryError, 'directory_unavailable'):
+            broker.poll([])
+        self.assertTrue(broker.registered)
+        broker.poll([])
+        self.assertFalse(broker.registered)
+        self.assertEqual([call.args[2] for call in transport.call_args_list], ['PUT', 'DELETE', 'DELETE'])
 
     def test_host_only_seals_open_native_sessions_and_caches_retry_envelope(self):
         room=internet_room.Room('a'*32,'b'*64,'10.203.77.0/24')

@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
 import lan_autoconnect as auto
-from lobby_directory import LanInterface, LobbyRoom, LobbyEndpoint, CONTROL_FORMAT, MAX_MEMBERS
+from lan_discovery import LanDiscovery, answer_message, query_message
+from lobby_directory import LanInterface, LobbyRoom, LobbyEndpoint, CONTROL_FORMAT, MAX_MEMBERS, DISCOVERY_PORT
 
 A, B = 'a' * 64, 'b' * 64
 
@@ -102,6 +103,66 @@ class DiscoveryPolicyTests(unittest.TestCase):
         with patch.object(auto, 'request', return_value=status(active=1)) as request:
             self.assertEqual(auto.discover_preferred(self.directory([old, new]), A), new)
         request.assert_called_once()
+
+    def test_new_content_for_same_route_gets_one_authoritative_status_probe(self):
+        old = room('192.168.1.20')
+        current = replace(old, room_id='f' * 32, content_id=B, expires_at=105)
+        with patch.object(auto, 'request', return_value=status(B, active=1)) as request:
+            selected = auto.discover_preferred(self.directory([old, current]), B)
+        self.assertEqual(selected, current)
+        request.assert_called_once()
+
+    def discover_on_interfaces(self, directory, sockets, clock):
+        pending = list(sockets)
+        def ready(_read, _write, _error, wait):
+            if pending:
+                available = pending[:]
+                pending.clear()
+                return available, [], []
+            clock[0] += wait
+            return [], [], []
+        with patch('select.select', side_effect=ready), patch('lan_discovery.secrets.token_hex', return_value='c' * 32):
+            return auto.discover_preferred(directory, A)
+
+    def test_both_live_adapter_routes_are_checked_for_same_room(self):
+        primary = room('192.168.1.20')
+        secondary = LanInterface('192.168.1.30', 24, 'Second adapter')
+        sockets = [Mock(), Mock()]
+        reply = answer_message(query_message('c' * 32), primary)
+        for sock in sockets:
+            sock.recvfrom.return_value = reply, (primary.endpoint.host, DISCOVERY_PORT)
+        clock = [1.]
+        directory = LanDiscovery([primary.local_interface, secondary],
+                                 socket_factory=Mock(side_effect=sockets), route_socket=Mock(),
+                                 clock=lambda: clock[0])
+        def inspect(_host, local, *_args, **_options):
+            if local == secondary.address:
+                raise ConnectionRefusedError()
+            return status()
+        with patch.object(auto, 'request', side_effect=inspect) as request:
+            chosen = self.discover_on_interfaces(directory, sockets, clock)
+        self.assertEqual(chosen.local_interface, primary.local_interface)
+        self.assertEqual({call.args[1] for call in request.call_args_list}, {primary.local_interface.address, secondary.address})
+
+    def test_expired_connection_uses_fresh_scan_instead_of_stale_room_cache(self):
+        old = room('192.168.1.20')
+        clock = [1.]
+        directory = LanDiscovery([old.local_interface], socket_factory=Mock(), route_socket=Mock(),
+                                 clock=lambda: clock[0])
+        directory.cache.add(old)
+        with patch.object(auto, 'request', side_effect=ConnectionRefusedError) as request:
+            self.assertIsNone(self.discover_on_interfaces(directory, [], clock))
+        request.assert_called_once_with(old.endpoint.host, old.local_interface.address, 'status', timeout=.65)
+        self.assertEqual(directory.resolve(old.room_id), old)
+
+    def test_cached_active_room_survives_a_missed_beacon(self):
+        existing = room('192.168.1.20')
+        clock = [1.]
+        directory = LanDiscovery([existing.local_interface], socket_factory=Mock(), route_socket=Mock(),
+                                 clock=lambda: clock[0])
+        directory.cache.add(existing)
+        with patch.object(auto, 'request', return_value=status(active=1)):
+            self.assertEqual(self.discover_on_interfaces(directory, [], clock), existing)
 
     def test_live_group_on_second_adapter_retains_the_bound_source(self):
         other = room('10.20.1.20', local='10.20.1.10', default=False)

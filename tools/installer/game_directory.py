@@ -130,14 +130,20 @@ def validate_ticket(value,game_id,challenge,clock=time.time):
 def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,root=None,
          cancel=None,progress=None,clock=time.time,sleep=time.sleep):
     if not isinstance(game_id,str) or not HEX32.fullmatch(game_id):raise DirectoryError('directory_invalid')
+    if cancel:
+        cancel()
     row=next((item for item in listing(url,transport=transport) if item['id']==game_id),None)
     if row is None or row['state']!='open' or not row['free_slots']:raise DirectoryError('directory_join_unavailable')
     if row['content_id'] not in allowed:raise DirectoryError('version_mismatch')
+    if cancel:
+        cancel()
     key=crypto('keygen',{},root=root)
     if not isinstance(key,dict) or set(key)!={'format','public_key','private_key'} or key['format']!=join_crypto.FORMAT:
         raise DirectoryError('directory_join_failed')
     challenge=secrets.token_hex(16);token=join_crypto.encoded(secrets.token_bytes(32));ticket=None
     try:
+        if cancel:
+            cancel()
         value=transport(url,'/v1/directory/join','POST',dict(format='weplay-join-request-v1',game_id=game_id,
             content_id=row['content_id'],network_revision=NETWORK_REVISION,public_key=key['public_key'],challenge=challenge,token=token))
         ticket=validate_ticket(value,game_id,challenge,clock)
@@ -154,6 +160,8 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
                 sleep(.75)
                 continue
             misses = 0
+            if clock() >= ticket['expires_at']:
+                break
             if (not isinstance(response,dict) or set(response)!={'format','id','game_id','challenge','expires_at','envelope'}
                     or response['format']!='weplay-join-delivery-v1'
                     or any(response[name]!=ticket[name] for name in ('id','game_id','challenge','expires_at'))):
@@ -171,6 +179,10 @@ def join(url,game_id,allowed,*,transport=request,crypto=join_crypto.operation,ro
                 current=next((item for item in listing(url,transport=transport) if item['id']==game_id),None)
                 if current is None or current['state']!='open' or current['content_id']!=row['content_id']:
                     raise DirectoryError('directory_join_unavailable')
+                if clock() >= ticket['expires_at']:
+                    break
+                if cancel:
+                    cancel()
                 return clear['invitation']
             sleep(.75)
         raise DirectoryError('directory_join_unavailable')
@@ -221,12 +233,18 @@ class HostBroker:
                         associated=join_crypto.encoded(associated(context))),root=self.root)
                     self.pending[item['id']]=sealed
             if self.stopped:return
-            self.transport(self.url,'/v1/directory/host/'+self.run_id+'/requests/'+item['id'],'PUT',
-                dict(format='weplay-join-response-v1',envelope=sealed),authorization='Bearer '+self.key)
+            try:
+                self.transport(self.url,'/v1/directory/host/'+self.run_id+'/requests/'+item['id'],'PUT',
+                    dict(format='weplay-join-response-v1',envelope=sealed),authorization='Bearer '+self.key)
+            except DirectoryError as error:
+                if error.code != 'directory_join_unavailable':
+                    raise
+                self.pending.pop(item['id'], None)
         live={item['id'] for item in response['requests']}
         self.pending={key:value for key,value in self.pending.items() if key in live}
 
     def close(self):
+        self.pending.clear()
         if self.registered:
-            try:self.transport(self.url,'/v1/directory/host','DELETE',dict(run_id=self.run_id),authorization='Bearer '+self.key)
-            finally:self.registered=False;self.pending.clear()
+            self.transport(self.url,'/v1/directory/host','DELETE',dict(run_id=self.run_id),authorization='Bearer '+self.key)
+            self.registered=False

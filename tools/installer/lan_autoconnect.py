@@ -11,6 +11,7 @@ import http.client
 import ipaddress
 
 from lan_control import request
+from lan_discovery import LanDiscovery
 from lan_hub import status_counts
 from lobby_directory import LobbyRoom, MAX_MEMBERS, MAX_ROOMS, content_id
 
@@ -43,10 +44,14 @@ def order(room):
             not room.local_interface.default_route, room.local_interface.address)
 
 
-def identity(room):
+def route(room):
     # A restarted beacon may leave two UUIDs cached for one live endpoint.
     # There is one fixed control service at that address, not two groups.
-    return room.endpoint.host, room.local_interface.address, room.content_id
+    return room.endpoint.host, room.local_interface.address
+
+
+def identity(room):
+    return (*route(room), room.content_id)
 
 
 def inspect(room):
@@ -75,14 +80,22 @@ arbitrary endpoint URLs, account data or native game calls are involved.
 """
     allowed = {content_id(expected), *(content_id(x) for x in acceptable_content_ids)}
     checkpoint(cancel_check, progress)
-    rooms = directory.list_rooms(timeout=timeout)
+    if isinstance(directory, LanDiscovery):
+        rooms = directory.scan(timeout=timeout)
+        fresh = bool(rooms)
+        scanned_routes = {route(room) for room in rooms}
+        cached = [room for room in directory.cache.list_rooms() if route(room) not in scanned_routes]
+        rooms.extend(cached[:MAX_ROOMS - len(rooms)])
+    else:
+        rooms = directory.list_rooms(timeout=timeout)
+        fresh = bool(rooms)
     if len(rooms) > MAX_ROOMS or any(not isinstance(room, LobbyRoom) for room in rooms):
         raise ValueError('Ungueltige LAN-Suchergebnisse.')
     # Only distinct source-bound endpoints need a status request. A stale room
     # generation at that address can fail its content guard independently.
     unique = {}
     for room in rooms:
-        key = identity(room)
+        key = route(room)
         if key not in unique or (room.expires_at, room.room_id) > (unique[key].expires_at, unique[key].room_id):
             unique[key] = room
     rooms = sorted(unique.values(), key=order)
@@ -102,8 +115,10 @@ arbitrary endpoint URLs, account data or native game calls are involved.
                 future.cancel()
     checkpoint(cancel_check)
     if not candidates:
-        # A beacon with an unreachable control service often means a missing
-        # private firewall permission. Creating another hub would hide friends.
+        if not fresh:
+            return None
+        # A current beacon with an unreachable control service often means
+        # a missing private firewall permission. Do not create another hub.
         raise LanConnectionError('lan_unreachable',
             'WePlay wurde gefunden, ist aber nicht erreichbar. Private Netzwerkfreigabe pruefen und erneut versuchen.')
     compatible = [item for item in candidates if item.room.content_id in allowed]
