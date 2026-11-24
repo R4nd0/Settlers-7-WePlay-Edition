@@ -45,7 +45,6 @@ internal sealed partial class MainForm
         directoryHost=Button("directoryHost",async()=>{
             bool publish=publicHostingAvailable?discordPublish.Checked:true;
             if(publish&&!discordConnected)throw new BackendError("discord_not_connected","");
-            internetPlayer.Text=directoryPlayer.Text;internetMode.SelectedIndex=0;internetHostChoice.Checked=true;
             await PlayInternet(true,publish:publish,publicLobby:true);
         });
         Add(stack,directoryProgress);
@@ -110,7 +109,8 @@ internal sealed partial class MainForm
         if(directoryHost!=null)directoryHost.Visible=!active;
         directoryProgress.Visible=active;
         directoryProgress.Text=Lang.T(cancelRequested?"cancelRequested":gameRunning?"directoryPlaying":
-            internetStage=="connecting"?"directoryConnecting":internetStage=="hosting"?"directoryHosting":internetCreating?"directoryHostReady":"directoryGuestReady");
+            internetStage=="connecting"?"directoryConnecting":internetStage=="hosting"
+                ?(internetCreating?"directoryHosting":"internetGuestEnding"):internetCreating?"directoryHostReady":"directoryGuestReady");
         if(directoryEnd!=null){directoryEnd.Visible=active;directoryEnd.Enabled=active&&!gameRunning&&!cancelRequested;}
     }
 
@@ -201,9 +201,10 @@ internal sealed partial class MainForm
     private async Task JoinDirectoryGame(string id)
     {
         if(!await ResolveGraphicsDraft())return;
-        player.Text=directoryPlayer.Text;string name=ValidName();internetPlayer.Text=name;
+        string name=ValidName(directoryPlayer.Text);
         if(!ConfirmInternetConnection(publicLobby:true))return;
         publicRoomOperation=true;
+        activeInternetDirect=null;
         internetCreating=false;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();
         SetBusy(true);tabs.SelectedTab=directoryPage;
         try
@@ -212,6 +213,6 @@ internal sealed partial class MainForm
             QueueDirectorySwitch(result);
             SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
-        finally{internetOperation=false;publicRoomOperation=false;internetInvite.Clear();UpdateInternetControls();}
+        finally{internetOperation=false;publicRoomOperation=false;activeInternetDirect=null;internetInvite.Clear();UpdateInternetControls();}
     }
 }

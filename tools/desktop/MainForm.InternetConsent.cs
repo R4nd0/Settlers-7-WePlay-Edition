@@ -2,8 +2,10 @@ namespace S7Desktop;
 
 internal sealed partial class MainForm
 {
+    private Func<bool,bool>? testInternetConsent;
     private bool ConfirmInternetConnection(bool publicLobby)
     {
+        if(testing&&testInternetConsent!=null)return testInternetConsent(publicLobby);
         var consent=BuildInternetConsent(publicLobby);
         using var dialog=consent.Dialog;
         return dialog.ShowDialog(this)==DialogResult.OK&&consent.Choice.Checked;

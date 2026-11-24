@@ -11,7 +11,19 @@ internal sealed partial class MainForm
     private Button graphicsDiscard=null!,graphicsSave=null!,graphicsRestore=null!;
     private string? graphicsBackup;
     private bool GraphicsDirty=>savedGraphicsDraft!=null&&savedGraphicsDraft!=CaptureGraphicsDraft();
-    private bool GraphicsDisplayValid=>keepDisplay.Checked||monitor.SelectedItem is Item&&resolution.SelectedItem is Item;
+    private string? GraphicsDisplayIssue
+    {
+        get
+        {
+            if(keepDisplay.Checked)return null;
+            int index=monitor.SelectedIndex;
+            if(index<0||index>=screens.Count||resolution.SelectedItem is not Item)return "graphicsDisplayUnavailable";
+            if(RendererMode=="dxvk"&&gpu.SelectedItem is Item {Key.Length:>0} selected
+                &&!string.Equals(screens[index].GetProperty("adapter").GetString(),selected.Key,StringComparison.OrdinalIgnoreCase))
+                return "graphicsDisplayGpuMismatch";
+            return null;
+        }
+    }
 
     private string CaptureGraphicsDraft()=>JsonSerializer.Serialize(new {
         renderer=RendererMode,
@@ -48,8 +60,10 @@ internal sealed partial class MainForm
         bool dirty=GraphicsDirty;
         graphicsDraftNotice.Text=Lang.T(dirty?"graphicsUnsaved":"graphicsSavedDraft");
         graphicsDraftNotice.ForeColor=dirty?Color.FromArgb(137,87,15):SystemColors.GrayText;
-        if(graphicsSave!=null)graphicsSave.Enabled=!busy&&GraphicsDisplayValid;
-        graphicsDisplayUnavailable.Visible=!GraphicsDisplayValid;
+        string? displayIssue=GraphicsDisplayIssue;
+        if(graphicsSave!=null)graphicsSave.Enabled=!busy&&displayIssue==null;
+        graphicsDisplayUnavailable.Visible=displayIssue!=null;
+        if(displayIssue!=null)graphicsDisplayUnavailable.Text=Lang.T(displayIssue);
         if(graphicsDiscard!=null)graphicsDiscard.Enabled=dirty&&!busy;
         if(graphicsRestore!=null)
         {

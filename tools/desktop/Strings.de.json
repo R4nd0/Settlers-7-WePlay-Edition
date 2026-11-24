@@ -213,6 +213,7 @@
   "permissionFailed": "Windows hat den LAN-Zugriff nicht eingerichtet. Eine abgelehnte Administratorfreigabe oder verwaltete Firewall-Richtlinien können dies verhindern. Sicherheitsrichtlinien bleiben unverändert.",
   "unsupportedSize": "Diese Desktopgröße liegt über den unterstützten Grenzen. Wähle eine Auflösung im Fenstermodus.",
   "graphicsDisplayUnavailable": "Wähle einen verfügbaren Bildschirm mit passender Auflösung oder behalte die aktuellen Anzeigeeinstellungen des Spiels bei.",
+  "graphicsDisplayGpuMismatch": "Wähle die automatische Grafikkartenauswahl oder einen Bildschirm, der an die ausgewählte Grafikkarte angeschlossen ist.",
   "nameInvalid": "Verwende einen Namen mit 1–24 UTF-8-Bytes, ohne Leerzeichen am Rand oder Steuerzeichen.",
   "language": "Sprache",
   "resetConfirm": "Die beschädigte Installationszuordnung sichern und die geführte Einrichtung neu starten? Alle vorhandenen Spieldateien und Spielstände bleiben erhalten.",

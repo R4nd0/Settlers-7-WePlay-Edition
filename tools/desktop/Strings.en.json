@@ -213,6 +213,7 @@
   "permissionFailed": "Windows did not configure LAN access. A declined administrator prompt or managed firewall policy can prevent this. Security policies remain unchanged.",
   "unsupportedSize": "This desktop size exceeds the supported limits. Select a windowed resolution.",
   "graphicsDisplayUnavailable": "Select an available display and resolution or keep the current game display settings.",
+  "graphicsDisplayGpuMismatch": "Choose Automatic GPU selection or select a display attached to the selected GPU.",
   "nameInvalid": "Use a name of 1–24 UTF-8 bytes, without leading/trailing spaces or control characters.",
   "language": "Language",
   "resetConfirm": "Back up the damaged installation record and start guided setup again? All existing game files and saves will be kept.",
