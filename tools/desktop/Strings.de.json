@@ -302,7 +302,7 @@
   "updates": "Updates",
   "updatesTitle": "WePlay aktuell halten",
   "updatesIntro": "Der Starter prüft beim Öffnen automatisch auf neue Versionen. Hier kannst du die Prüfung wiederholen und ein verfügbares Update installieren.",
-  "updatesPreserve": "Für die Installation werden Spiel und Starter geschlossen. Deine Spielstände, Einstellungen und die private Discord-Verbindung bleiben erhalten. Wenn sich Spieldateien ändern, bereitet WePlay beim nächsten Start eine neue Spielkopie vor und übernimmt deine lokalen Daten.",
+  "updatesPreserve": "Beende Siedler 7 vor dem Update. Der Starter schließt sich für die Installation automatisch. Deine Spielstände, Einstellungen und die private Discord-Verbindung bleiben erhalten. Wenn sich Spieldateien ändern, bereitet WePlay beim nächsten Start eine neue Spielkopie vor und übernimmt deine lokalen Daten.",
   "updateAutomatic": "Neue Versionen werden beim Start automatisch geprüft.",
   "updateCheck": "Nach Updates suchen",
   "updateInstall": "Update installieren",

@@ -25,6 +25,20 @@ import test_installer as fixture
 
 
 class DesktopTests(unittest.TestCase):
+    def test_update_blocked_by_running_game_reports_game_running(self):
+        import update_join_menu
+
+        manifest=self.desktop.read(self.desktop.package/'package.json')
+        manifest['update_patcher']=True
+        self.desktop.write(self.desktop.package/'package.json',manifest)
+        for process in ('settlers7r.exe','settlers7.exe'):
+            with self.subTest(process=process), \
+                    patch.object(graphics,'ensure_closed',update_join_menu.ensure_closed), \
+                    patch('windows_system.process_names',return_value=[process]), \
+                    self.assertRaises(update_join_menu.GameRunningError) as failure:
+                self.desktop.install_update({'sequence':40})
+            self.assertEqual(backend.error_code(failure.exception),'game_running')
+
     def test_changed_visual_effect_assets_require_updating_the_owned_copy(self):
         manifest=self.desktop.read(self.desktop.package/'package.json')
         manifest['midsummer_profile']=True

@@ -42,6 +42,7 @@ from lan_interfaces import enumerate_interfaces
 from lobby_directory import DISCOVERY_PORT, json_record, encode, validate_discovery_port
 from lobby_picker import read_choice
 from standalone_entry import NativeStartupError
+from update_join_menu import GameRunningError
 
 FORMAT='s7-desktop-install-v1'
 INSTALL_FORMAT='s7-desktop-install-v2'
@@ -1758,6 +1759,8 @@ def _dispatch(desktop,request):
 
 
 def error_code(error):
+    if isinstance(error,GameRunningError):
+        return 'game_running'
     if isinstance(error,content.InventoryMismatch):
         return 'game_copy_changed'
     if isinstance(error,display.DisplayGpuMismatch):

@@ -48,10 +48,14 @@ def menu_plan():
                        'Base/Bin/uplay_r1_loader.dll': ADAPTER}, build_archive)
 
 
+class GameRunningError(ValueError):
+    """A running game prevents changes to the installation."""
+
+
 def ensure_closed():
     from windows_system import process_names
     if any(name in ('settlers7r.exe','settlers7.exe') for name in process_names()):
-        raise ValueError('Bitte S7 vollstaendig beenden und das Update erneut starten.')
+        raise GameRunningError('Bitte S7 vollstaendig beenden und das Update erneut starten.')
 
 
 @contextmanager
