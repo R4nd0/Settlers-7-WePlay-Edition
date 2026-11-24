@@ -172,7 +172,7 @@ def peer_snapshot(raw, room, device_name):
                 raise InternetError('internet_address_conflict')
             cost = row.get('cost')
             if (row.get('cidr') != address + '/24' or not isinstance(cost, str) or
-                    not (cost == 'p2p' or re.fullmatch(r'relay\([2-9][0-9]?\)', cost))):
+                    not (cost == 'p2p' or re.fullmatch(r'relay\((?:[2-9]|[1-9][0-9])\)', cost))):
                 raise ValueError()
             peers[address] = 'p2p' if cost == 'p2p' else 'relay'
         return local, peers
@@ -225,6 +225,7 @@ class EasyTier:
         self.address = str(room.network.network_address + (1 if host else secrets.randbelow(253) + 2))
         self.job = self.child = self.private = self.runtime = None
         self.adapter_pending = False
+        self.bootstrap_verified = False
         self.portal = None
 
     def checkpoint(self, phase='internet_connect'):
@@ -234,6 +235,7 @@ class EasyTier:
             self.progress(phase)
 
     def start(self):
+        self.bootstrap_verified = False
         self.checkpoint()
         self.runtime = verify_runtime(self.root)
         import ctypes
@@ -297,9 +299,11 @@ class EasyTier:
         if self.room.mode == 'direct' and any(cost != 'p2p' for cost in peers.values()):
             raise InternetError('internet_direct_unavailable')
         interface = select_interface(self.room, address, self.device_name, self.interfaces())
-        if self.host and self.room.mode == 'assisted':
+        direct_room = bool(peers) and all(cost == 'p2p' for cost in peers.values())
+        if self.host and self.room.mode == 'assisted' and (not self.bootstrap_verified or not direct_room):
             if not bootstrap_connected(self.query('connector', 'list'), self.room):
                 raise InternetError('internet_relay_unavailable')
+            self.bootstrap_verified = True
         return interface, peers
 
     def wait_ready(self, timeout=45):
@@ -312,7 +316,8 @@ class EasyTier:
                     self.checkpoint('internet_connected')
                     return interface
             except (InternetError, OSError, subprocess.TimeoutExpired) as error:
-                if isinstance(error, InternetError) and error.code in ('internet_disconnected', 'internet_address_conflict'):
+                if isinstance(error, InternetError) and error.code in (
+                        'internet_disconnected', 'internet_address_conflict', 'internet_network_overlap'):
                     raise
             time.sleep(.2)
         code = ('internet_direct_unavailable' if self.room.mode == 'direct' else

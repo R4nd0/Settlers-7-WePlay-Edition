@@ -95,6 +95,37 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(error.exception.code,'internet_relay_unavailable')
         self.assertNotIn(unittest.mock.call('internet_ready'),progress.call_args_list)
 
+    def test_host_keeps_established_direct_peers_when_bootstrap_disconnects(self):
+        interface = LanInterface(ROOM.coordinator, 24, 'WePlay-test')
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=True, interfaces=lambda: [interface])
+        overlay.device_name = interface.name
+        overlay.child = Mock(poll=Mock(return_value=None))
+        guest = '10.203.77.2'
+        own = row(ROOM.coordinator, 'Local', interface.name)
+        rows = [own, row(guest)]
+        bootstrap = [0]
+        def query(*command):
+            if command == ('peer',):
+                return json.dumps(rows).encode()
+            return json.dumps([dict(url=dict(url=PUBLIC_BOOTSTRAP), status=bootstrap[0])]).encode()
+        overlay.query = query
+        self.assertEqual(overlay.wait_ready(), interface)
+        bootstrap[0] = 1
+        self.assertEqual(overlay.snapshot(), (interface, {guest: 'p2p'}))
+        rows[:] = [own]
+        with self.assertRaisesRegex(InternetError, '^internet_relay_unavailable$'):
+            overlay.snapshot()
+
+    def test_route_overlap_discovered_during_start_fails_without_retry(self):
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=True)
+        overlay.snapshot = Mock(side_effect=InternetError('internet_network_overlap'))
+        with patch.object(runtime.time, 'monotonic', side_effect=[0., 0., 1.2]), \
+                patch.object(runtime.time, 'sleep') as delay, \
+                self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
+            overlay.wait_ready(timeout=1)
+        overlay.snapshot.assert_called_once()
+        delay.assert_not_called()
+
     def test_guest_still_requires_room_coordinator_not_only_relay(self):
         overlay=runtime.EasyTier(Path('.'),ROOM,host=False)
         interface=LanInterface(overlay.address,24,overlay.device_name)
@@ -156,6 +187,14 @@ class RuntimeTests(unittest.TestCase):
         address, peers = runtime.peer_snapshot(json.dumps(rows).encode(), ROOM, 'WePlay-id')
         self.assertEqual(address, '10.203.77.2')
         self.assertEqual(peers, {ROOM.coordinator: 'p2p', '10.203.77.3': 'relay'})
+
+    def test_cli_snapshot_accepts_two_digit_relay_costs_starting_with_one(self):
+        host = row(ROOM.coordinator, 'Local', 'WePlay-test')
+        guest = '10.203.77.2'
+        for cost in ('relay(10)', 'relay(19)'):
+            data = json.dumps([host, row(guest, cost)]).encode()
+            self.assertEqual(runtime.peer_snapshot(data, ROOM, 'WePlay-test'),
+                             (ROOM.coordinator, {guest: 'relay'}))
 
     def test_snapshot_rejects_wrong_instance_other_subnets_and_duplicate_addresses(self):
         local = row('10.203.77.2', 'Local', 'WePlay-id')
