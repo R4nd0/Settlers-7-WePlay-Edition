@@ -1,8 +1,8 @@
 # Settlers 7: WePlay Edition
 
-**[Windows x64 — rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/Setup.exe)** · **[Linux x64 — rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/WePlay-rc4.11-Linux-x64.tar.gz)**
+**[Windows x64 — rc4.12](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.12/Setup.exe)** · **[Linux x64 — rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/WePlay-rc4.11-Linux-x64.tar.gz)**
 
-[Release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.11) · [SHA-256 checksums](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
+[Windows release notes](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/tag/rc4.12) · [Windows SHA-256](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.12/SHA256SUMS) · [Linux SHA-256](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/SHA256SUMS) · [Discord](https://discord.gg/j2eQgVzssc)
 
 WePlay is a community launcher for **The Settlers 7 Gold Edition 1.12.1396, Ubisoft History Edition and Steam History Edition**. One Windows installer prepares a separate game copy with its own profile. You supply the original game files.
 
@@ -18,7 +18,7 @@ Requires Windows 10 build 19045 or newer, or Windows 11, on x64. Allow about 7 G
 
 For support after a launcher error, choose **Save diagnostic report** in Help or Setup and share `S7-Diagnose.json`. If the Windows network isolation check (startup stage 11) fails during LAN or private internet startup, the report identifies the first failed socket test, the operation and any Winsock error code.
 
-When Windows unexpectedly allows the stage 11 IPv4 TCP test connection, WePlay refreshes its own network filters and retries once. The launcher also keeps the last confirmed graphics configuration for recovery after an early startup failure.
+The Windows setup updates the game copy's network filters to use explicit IPv4 and IPv6 address boundaries. WePlay verifies isolation at startup. The launcher also keeps the last confirmed graphics configuration for recovery after an early startup failure.
 
 ### Linux
 
@@ -42,7 +42,7 @@ archives, including maps, for editing the contained files.
 
 ## Deutsch
 
-Mit **[Setup.exe für rc4.11](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.11/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
+Mit **[Setup.exe für rc4.12](https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/rc4.12/Setup.exe)** installierst oder aktualisierst du WePlay für **Gold Edition 1.12.1396, Ubisoft History Edition und Steam History Edition**. WePlay verwendet deine Originaldateien, um eine getrennte Spielkopie mit eigenem Profil anzulegen.
 
 Schließe WePlay und das Spiel vor dem Update. Wähle im Installer den bisherigen WePlay-Ordner oder den vollständigen Standalone-Export. Im Launcher kannst du die vorhandene Kopie über **Aktualisieren / reparieren** übernehmen. Bei einem zu langen Zielpfad wähle über **Ändern…** einen kürzeren Ordner. **Hilfe / Diagnose** steht direkt in der Einrichtung.
 
@@ -52,7 +52,7 @@ Im **LAN-Tab** kannst du den UDP-Suchport ändern oder den Standard `9112` wiede
 
 Nach einem Launcher-Fehler kannst du unter **Hilfe** oder direkt in der **Einrichtung** den Diagnosebericht `S7-Diagnose.json` für den Support speichern. Scheitert beim LAN- oder Privatraumstart die Windows-Netzisolationsprüfung (Startstufe 11), enthält er den ersten fehlgeschlagenen Socket-Test, den konkreten Aufruf und den verfügbaren Winsock-Code.
 
-Lässt Windows die lokale IPv4-TCP-Testverbindung in Stufe 11 unerwartet zu, erneuert WePlay die Netzfilter der Spielkopie und versucht den Start einmal erneut. Der Launcher sichert zudem die letzte bestätigte Grafikkonfiguration. Der LOD-Regler bietet jetzt auch `+400 %`.
+Die Windows-Einrichtung aktualisiert die Netzfilter der Spielkopie auf explizite IPv4- und IPv6-Adressgrenzen. WePlay prüft die Isolation beim Spielstart. Der Launcher sichert zudem die letzte bestätigte Grafikkonfiguration.
 
 [LAN auf Deutsch](docs/LAN-SPIELER.md) · [Update und Wiederherstellung](docs/UPDATE-RECOVERY.md)
 
