@@ -55,13 +55,16 @@ class GraphicsStartup:
 
     def observe(self,game):
         import window_mode
-        self.observed=True
         try:
             active=current_graphics(self.desktop,self.root)
             if graphics_backup(self.desktop,self.root)==(True,active):
+                self.observed=True
                 self.ready=True
                 return
             self.ready=window_mode.wait_until_ready(self.root,game)
+            # A timeout while the game remains alive does not establish a
+            # startup failure. A much later exit must not revert graphics.
+            self.observed=self.ready or game.poll() is not None
             if self.ready:
                 remember_graphics(self.desktop,self.root,active,confirmed=True)
         except (OSError,RuntimeError,ValueError):

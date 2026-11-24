@@ -4,7 +4,7 @@ No free-form command execution or endpoint entry. The GUI supplies selections;
 the existing installer, profile journal, launch locks and LAN checks do the work.
 """
 import argparse
-from contextlib import contextmanager, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from functools import wraps
 import hashlib
 import http.client
@@ -521,6 +521,8 @@ class Desktop:
                     if (preferred is None and (selected['display']['width'],selected['display']['height'])
                             ==(target['width'],target['height'])):
                         selected['display']['mode']='borderless'
+        elif selected.get('display') is not None:
+            selected['display']=None
         if renderer=='native':
             selected['choice']=None
             for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx'):
@@ -1282,26 +1284,30 @@ class Desktop:
         import gold_graphics
         renderer=self.launch_renderer()
         policy=renderer[0] if renderer else 'dxvk'
-        game=observer=window=None
-        try:
-            with graphics.session_lock(root):
-                environment=choice.saved_launch_environment(root,environment,renderer=policy,
-                    renderer_package=renderer[1] if renderer else None)
-                arguments=choice.game_arguments(root,renderer=policy)
-                game=platform_standalone.launch(root,environment=environment,arguments=arguments,
-                    graphics_options=gold_graphics.launch_options(root) if renderer is None else None,renderer=renderer)
-                window=launch_local.try_window_mode(root,game)
-                observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
-                    memory_guard.Probe(game,root/gold_support.EXE),
-                    warn=lambda level:self.emit('warning',code='memory_warning',level=level))
-                observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
-                if startup is not None:startup.observe(game)
-                code=game.wait(close=False)
-        finally:
-            if window:window.close()
-            if observer:observer.close()
-            if game:game.close()
-            self.operation_state('cancellable')
+        with graphics.session_lock(root), ExitStack() as cleanup:
+            cleanup.callback(self.operation_state,'cancellable')
+            preferred=choice._load_choice(root)
+            selected=self.default_choice(root,'dxvk',self.cached_graphics_probe(),preferred)
+            if renderer is not None:
+                selected['choice']=preferred['choice']
+            if selected!=preferred:
+                choice.save_choice(root,selected,renderer=policy)
+            environment=choice.saved_launch_environment(root,environment,renderer=policy,
+                renderer_package=renderer[1] if renderer else None)
+            arguments=choice.game_arguments(root,renderer=policy)
+            game=platform_standalone.launch(root,environment=environment,arguments=arguments,
+                graphics_options=gold_graphics.launch_options(root) if renderer is None else None,renderer=renderer)
+            cleanup.callback(game.close)
+            window=launch_local.try_window_mode(root,game)
+            if window:
+                cleanup.callback(window.close)
+            observer=memory_guard.Sentinel(game,root/'LocalData/desktop-memory-summary.json',
+                memory_guard.Probe(game,root/gold_support.EXE),
+                warn=lambda level:self.emit('warning',code='memory_warning',level=level))
+            cleanup.callback(observer.close)
+            observer.start();self.emit('game_started',pid=game.pid,invitation_run=None);self.operation_state('live_game')
+            if startup is not None:startup.observe(game)
+            code=game.wait(close=False)
         self.emit('game_finished',exit_code=code)
         if code:raise RuntimeError('game_failed')
         return {'exit_code':code}
