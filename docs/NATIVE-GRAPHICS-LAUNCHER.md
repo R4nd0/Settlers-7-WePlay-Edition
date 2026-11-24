@@ -43,3 +43,20 @@ Actual production-loader lifecycle, all-edition installed-package tests, 4K
 memory/performance and visible material/shadow comparisons remain separate
 requirements. See [qualification](GRAPHICS-QUALIFICATION.md) and the
 [native integration contract](NATIVE-GRAPHICS-INTEGRATION.md).
+
+## Local launcher startup checks
+
+Use `dotnet publish`, rather than the executable from `dotnet build`, when
+checking the portable EXE. The SDK applies `AppHostDotNetSearch=AppRelative` and
+`AppHostRelativeDotNet=DesktopRuntime` to the published apphost only. A normal
+build EXE still searches the global runtime and can display a misleading .NET
+installation dialog even when DesktopRuntime is present beside it. This is
+[documented SDK behavior](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#apphostdotnetsearch).
+
+Retain the project's exact 10.0.15 runtime pin. Place the verified redistributable
+DesktopRuntime beside the published EXE and run that EXE's existing `--self-test`
+with inherited `DOTNET_ROOT*` overrides removed. Host tracing can verify the
+actual local hostfxr/framework paths; keep traces private under work/. The local
+native-graphics launcher check resolved that app-relative runtime and started
+the UI without requiring a global .NET10 installation. A developer DLL-only
+build can instead be run through the explicitly selected bundled dotnet.exe.
