@@ -63,6 +63,10 @@ class InvitationTests(unittest.TestCase):
         self.assertNotEqual(actual.secret, rooms.create([]).secret)
         self.assertNotIn(actual.secret, repr(actual))
 
+    def test_direct_room_refuses_address_that_only_denotes_limited_broadcast(self):
+        with self.assertRaisesRegex(rooms.InternetError, 'internet_invitation_invalid'):
+            rooms.create([], mode='direct', direct_endpoint='udp://255.255.255.255:19112')
+
     def test_corporate_vpn_using_all_of_10_can_choose_another_private_range(self):
         interfaces = [LanInterface('10.70.1.2', 8), LanInterface('172.16.0.5', 24)]
         with patch.object(rooms.secrets, 'randbelow', return_value=0):

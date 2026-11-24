@@ -132,8 +132,8 @@ arbitrary endpoint URLs, account data or native game calls are involved.
             'Die aktive LAN-Gruppe verwendet eine andere WePlay-Version. Bitte alle PCs aktualisieren.')
     # Multiple established groups indicate a partition/startup race. Do not
     # silently strand a new player in one of two disconnected session lists.
-    active_hosts = {item.room.endpoint.host for item in all_active}
-    if len(active_hosts) > 1:
+    active_rooms = {(item.room.endpoint.host, item.room.room_id) for item in all_active}
+    if len(active_rooms) > 1:
         raise LanConnectionError('lan_multiple',
             'Mehrere getrennte WePlay-Gruppen sind aktiv. Nach den Partien WePlay auf allen PCs neu starten.')
     # All starters must elect from the same idle view, even across renderer

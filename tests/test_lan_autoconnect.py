@@ -64,6 +64,13 @@ class DiscoveryPolicyTests(unittest.TestCase):
             self.discover(rows, statuses={r.endpoint.host: status(active=1) for r in rows})
         self.assertEqual(error.exception.code, 'lan_multiple')
 
+    def test_two_active_rooms_with_reused_ip_on_different_adapters_are_distinct(self):
+        first = room('192.168.1.20', local='192.168.1.10', key=1)
+        second = room('192.168.1.20', local='192.168.1.11', key=2, default=False)
+        with self.assertRaises(auto.LanConnectionError) as error:
+            self.discover([first, second], statuses={first.endpoint.host: status(active=1)})
+        self.assertEqual(error.exception.code, 'lan_multiple')
+
     def test_known_renderer_alternative_is_live_and_selected_before_alignment(self):
         candidate = room('192.168.1.20', expected=B)
         self.assertEqual(self.discover([candidate], acceptable_content_ids=(B,)), candidate)

@@ -39,7 +39,8 @@ def endpoint(value):
         # credentials aren't accepted.
         if value != PUBLIC_BOOTSTRAP:
             address = ipaddress.ip_address(u.hostname)
-            if address.is_unspecified or address.is_multicast or address.is_loopback or address.is_link_local:
+            if (address.is_unspecified or address.is_multicast or address.is_loopback or address.is_link_local
+                    or address == ipaddress.IPv4Address('255.255.255.255')):
                 raise ValueError()
             canonical = f'[{address}]' if address.version == 6 else str(address)
             if value != f'{u.scheme}://{canonical}:{u.port}':
