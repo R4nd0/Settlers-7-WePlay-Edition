@@ -81,6 +81,7 @@ class ElevatedEasyTier:
                     if time.monotonic() >= deadline:
                         break
                     if self.host or self.room.coordinator in peers:
+                        if self.cancel_check: self.cancel_check()
                         if self.progress: self.progress('internet_connected')
                         return interface
                 if not reading:
@@ -126,6 +127,10 @@ class ElevatedEasyTier:
             # EOF is also the fail-closed root-worker lifetime boundary.
             try: child.stdin.close()
             except OSError: pass
+
+    def alive(self):
+        child = self.child
+        return child is not None and child.poll() is None
 
     def snapshot(self):
         with self.lock: value, updated = self.latest, self.updated

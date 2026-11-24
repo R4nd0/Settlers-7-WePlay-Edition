@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
 import unittest
@@ -36,6 +37,43 @@ class LaunchTests(unittest.TestCase):
         interfaces, directory = network()
         picker(None, directory, interfaces, EXPECTED)
         args.before_game()
+
+    def test_lost_private_tunnel_is_reported_while_game_remains_running(self):
+        self.args.invitation = ROOM.token()
+        interface = LanInterface('10.203.77.2', 24, 'WePlay-id')
+        self.overlay.start.return_value = interface
+        self.overlay.snapshot.return_value = interface, {ROOM.coordinator: 'p2p'}
+        self.args.game_monitor = Mock(return_value=Mock())
+        game = Mock(poll=Mock(return_value=None))
+        warn = self.args.warn = Mock()
+
+        def wait(*, timeout=None):
+            if timeout is not None and game.wait.call_count <= 2:
+                self.overlay.alive.return_value = False
+                raise subprocess.TimeoutExpired('fixture game', timeout)
+            if timeout is not None:
+                warn.assert_called_once_with('internet_disconnected')
+                self.overlay.close.assert_not_called()
+            game.poll.return_value = 0
+            return 0
+
+        game.wait.side_effect = wait
+
+        def run(args, *, picker, network):
+            self.game_ready(args, picker, network)
+            during_game = getattr(args, 'during_game', None)
+            options = {'during_game': during_game} if during_game is not None else {}
+            return launch.launch_auto_lan.launch_local.wait_for_graphics_game(
+                args.bundle, game, enabled=False, monitor=args.game_monitor, **options)
+
+        with patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            launch.run(self.args, overlay_factory=self.factory)
+        warn.assert_called_once_with('internet_disconnected')
+        self.args.game_monitor.assert_called_once_with(game)
+        self.args.game_monitor.return_value.close.assert_called_once()
+        game.terminate.assert_not_called()
+        self.overlay.close.assert_called_once()
 
     def test_missing_or_unchecked_consent_starts_no_overlay(self):
         for value in (None,False,True,0,'1',2):

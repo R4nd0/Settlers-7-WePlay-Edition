@@ -79,6 +79,30 @@ class LinuxTunnelTests(unittest.TestCase):
         self.assertEqual(snapshot.call_count, 2)
         self.overlay.progress.assert_called_once_with('internet_connected')
 
+    def test_linux_room_cancelled_during_ready_probe_never_reports_connected(self):
+        self.overlay.progress = Mock()
+        self.overlay.latest = {'phase': 'ready'}
+        cancelled = False
+
+        def cancel():
+            if cancelled:
+                raise InternetError('internet_cancelled')
+
+        def snapshot():
+            nonlocal cancelled
+            cancelled = True
+            return LanInterface(self.overlay.room.coordinator, 24, 'WePlay-Test'), {}
+
+        self.overlay.cancel_check = cancel
+        with patch.object(elevation.os, 'geteuid', return_value=1000, create=True), \
+                patch('easytier_runtime.verify_runtime'), patch.object(elevation.subprocess, 'Popen'), \
+                patch.object(elevation.threading, 'Thread'), patch.object(self.overlay, 'close') as close, \
+                patch.object(self.overlay, 'snapshot', side_effect=snapshot), \
+                self.assertRaisesRegex(InternetError, '^internet_cancelled$'):
+            self.overlay.start()
+        close.assert_called_once()
+        self.overlay.progress.assert_not_called()
+
     def test_linux_close_reports_worker_exit_failure_after_reaping(self):
         child = self.overlay.child = Mock(wait=Mock(return_value=2))
         child.stdin.closed = False

@@ -1429,6 +1429,7 @@ class Desktop:
                     raise ValueError('discord_not_connected' if internet.get('publish_discord',False) else 'directory_unavailable') from None
             code=launch_internet.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],progress=self.progress,
+                warn=lambda code:self.emit('warning',code=code),
                 cancel_check=lambda:self.progress('internet_connect'),before_game=before,game_monitor=monitor,
                 game_startup=startup.observe,
                 switch_requested=lambda:directory_bridge[0] is not None and directory_bridge[0].pending is not None,

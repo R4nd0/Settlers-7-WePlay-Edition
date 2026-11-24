@@ -98,7 +98,7 @@ def try_window_mode(root,game):
         return None
 
 
-def wait_for_graphics_game(root, game, *, enabled=True, monitor=None, startup=None):
+def wait_for_graphics_game(root, game, *, enabled=True, monitor=None, startup=None, during_game=None):
     """Keep the owned window controller alive until this game's exit."""
     controller = None
     observer = None
@@ -110,7 +110,14 @@ def wait_for_graphics_game(root, game, *, enabled=True, monitor=None, startup=No
             controller = try_window_mode(root,game)
         if startup is not None:
             startup(game)
-        return game.wait(close=False) if managed else game.wait()
+        wait_options = {'close': False} if managed else {}
+        if during_game is not None:
+            while True:
+                try:
+                    return game.wait(timeout=1, **wait_options)
+                except subprocess.TimeoutExpired:
+                    during_game(game)
+        return game.wait(**wait_options)
     finally:
         try:
             if controller is not None:

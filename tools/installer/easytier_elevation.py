@@ -220,6 +220,7 @@ class ElevatedEasyTier:
                     if time.monotonic() >= deadline:
                         break
                     if self.host or self.room.coordinator in peers:
+                        if self.cancel_check: self.cancel_check()
                         if self.progress: self.progress('internet_connected')
                         return interface
                 if winapi().WaitForSingleObject(self.handle, 0) != 0x102:

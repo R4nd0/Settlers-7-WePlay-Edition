@@ -132,6 +132,36 @@ class ElevationTests(unittest.TestCase):
             self.assertEqual(snapshot.call_count, 2)
             self.assertEqual([call.args[0] for call in overlay.progress.call_args_list].count('internet_connected'), 1)
 
+    def test_windows_room_cancelled_during_ready_probe_never_reports_connected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in ('Runtime/python/python.exe', 'Launcher/easytier_elevation.py'):
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'fixture')
+            cancelled = False
+
+            def cancel():
+                if cancelled:
+                    raise InternetError('internet_cancelled')
+
+            def snapshot(**_options):
+                nonlocal cancelled
+                cancelled = True
+                return LanInterface(ROOM.coordinator, 24, 'WePlay-Test'), {}
+
+            progress = Mock()
+            overlay = elevation.ElevatedEasyTier(root, ROOM, host=True, cancel_check=cancel, progress=progress)
+            api = Mock()
+            with patch('easytier_runtime.verify_runtime'), patch.object(elevation, 'verify_worker'), \
+                    patch.object(elevation, 'parent_process', return_value=(api, 1, 123, Path(sys.executable))), \
+                    patch.object(elevation, 'inherit_private_access'), patch.object(elevation, 'elevate', return_value=2), \
+                    patch.object(overlay, 'snapshot', side_effect=snapshot), patch.object(overlay, 'close') as close, \
+                    self.assertRaisesRegex(InternetError, '^internet_cancelled$'):
+                overlay.start()
+            close.assert_called_once()
+            self.assertNotIn(unittest.mock.call('internet_connected'), progress.call_args_list)
+
     def test_close_checks_worker_exit_and_cleans_owned_ipc(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

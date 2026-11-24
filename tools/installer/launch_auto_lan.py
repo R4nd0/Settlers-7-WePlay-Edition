@@ -209,7 +209,8 @@ def run(args, *, picker=None, network=None):
             game = launch_local.spawn_game(root,game_arguments,environment,
                 lan={'local':interface.address,'coordinator':coordinator,'group':True},**renderer_option)
             code = launch_local.wait_for_graphics_game(root, game, enabled=sys.platform != 'linux',
-                monitor=getattr(args, 'game_monitor', None),startup=getattr(args, 'game_startup', None))
+                monitor=getattr(args, 'game_monitor', None),startup=getattr(args, 'game_startup', None),
+                during_game=getattr(args, 'during_game', None))
             if code:
                 print('Das Spiel wurde mit einem Fehler beendet.', flush=True)
             else:

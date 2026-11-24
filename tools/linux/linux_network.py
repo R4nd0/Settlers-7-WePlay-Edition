@@ -98,6 +98,7 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
     else:
         args = SimpleNamespace(bundle=root, check_only=False, saved_graphics=True, player_name=player_name,
             game_monitor=monitor, cancel_check=cancel_check, public_observer=public_observer,
+            warn=notify,
             switch_requested=lambda: any(bridge and bridge.pending for bridge in bridges))
         if network:
             import launch_internet

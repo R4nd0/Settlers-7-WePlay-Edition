@@ -46,6 +46,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     interface = None
     expected_content = None
     host_ready = False
+    tunnel_lost = False
 
     def network():
         nonlocal interface
@@ -86,7 +87,25 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             invitation_ready(room.token())
         host_ready = host
 
-    options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game)
+    def during_game(game):
+        nonlocal tunnel_lost
+        if tunnel_lost or game.poll() is not None:
+            return
+        try:
+            connected = overlay.alive()
+        except OSError:
+            return
+        if not connected and game.poll() is None:
+            tunnel_lost = True
+            warn = getattr(args, 'warn', None)
+            if warn is not None:
+                try:
+                    warn('internet_disconnected')
+                except OSError:
+                    pass  # An unavailable warning channel does not end the game.
+
+    options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game,
+                   during_game=during_game)
     observer = getattr(args, 'public_observer', None)
     if observer is not None:
         def public_observer(interface, coordinator, expected):
@@ -102,7 +121,9 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         if network_ready:
             network()
         code = launch_auto_lan.run(SimpleNamespace(**options), picker=select, network=network)
-        if host_ready:
+        if tunnel_lost and code == 0:
+            raise InternetError('internet_disconnected')
+        if host_ready and not tunnel_lost:
             deadline = time.monotonic() + 86400
             missed_status = 0
             while time.monotonic() < deadline:
@@ -167,6 +188,7 @@ def main():
         if input('EasyTier fuer diese Verbindung ausdruecklich zulassen? [ja/Nein] ').strip().lower() != 'ja':
             return 0
         args.internet_consent=1
+        args.warn = lambda _: print('Internetraum nicht mehr erreichbar. Das Spiel bleibt geoeffnet.', flush=True)
         def private_file(value):
             import tempfile
             directory = Path(tempfile.mkdtemp(prefix='internet-invitation-', dir=args.bundle / 'LocalData'))
