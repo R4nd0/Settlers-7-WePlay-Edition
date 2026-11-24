@@ -274,6 +274,8 @@ class Desktop:
             reported=parsed['devices']
             if not isinstance(reported,list) or len(reported)>16:
                 raise ValueError('probe_invalid')
+            if result.returncode not in (0,2) or (result.returncode==2 and reported):
+                raise ValueError('probe_invalid')
             for name in reported:
                 if not isinstance(name,str):
                     raise ValueError('probe_invalid')
@@ -283,8 +285,7 @@ class Desktop:
                     continue  # The driver may leave one adapter description blank.
                 if name not in devices:
                     devices.append(name)
-            if result.returncode not in (0,2):raise ValueError('probe_invalid')
-            if result.returncode or not devices:failure='unsupported'
+            if not devices:failure='unsupported'
         except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired):
             devices=[];failure='probe_failed'
         value=self.validate_probe({'format':'s7-desktop-probe-v1','probe_sha256':signature,
@@ -314,7 +315,7 @@ class Desktop:
             raise ValueError('probe_invalid')
         hashes=[value['probe_sha256']] + ([value['renderer_sha256']] if 'renderer_sha256' in value else [])
         if (any(not isinstance(value,str) or not re.fullmatch('[0-9a-f]{64}',value) for value in hashes)
-                or (value['failure'] is None and not value['devices'])):
+                or (value['failure'] is None) != bool(value['devices'])):
             raise ValueError('probe_invalid')
         for name in [*value['devices'],*value['adapters']]:
             if not isinstance(name,str):raise ValueError('probe_invalid')
@@ -1588,7 +1589,7 @@ class Desktop:
         display_summary=section('display_preferences',diagnostic_display)
         raw=section('memory',lambda:self.read(root/'LocalData/desktop-memory-summary.json',limit=4096)
                     if root else None,{})
-        if not isinstance(raw,dict):
+        if not isinstance(raw,dict) or raw.get('format','s7-memory-summary-v1')!='s7-memory-summary-v1':
             collection['memory']='unreadable'
             raw={}
         fields=('samples','max_pressure','peak_private_mib','min_free_mib','min_largest_mib','monitor_failed',

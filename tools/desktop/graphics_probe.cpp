@@ -2,10 +2,23 @@
 #include <windows.h>
 #include <d3d9.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <string>
 #include <vector>
+
+static bool expose_device_names() {
+    // DXVK may give D3D9 games a compatibility vendor and description.
+    // Selection uses the physical Vulkan name, so disable that disguise
+    // inside the probe while retaining the game's renderer behavior.
+    const auto* inherited = _wgetenv(L"DXVK_CONFIG");
+    std::wstring config = inherited ? inherited : L"";
+    if (!config.empty()) config += L';';
+    config += L"d3d9.hideIntelGpu = False;d3d9.hideAmdGpu = False;"
+              L"d3d9.hideNvidiaGpu = False;d3d9.hideNvkGpu = False";
+    return SetEnvironmentVariableW(L"DXVK_CONFIG", config.c_str()) != 0;
+}
 
 static std::string dxvk_description(const char (&text)[MAX_DEVICE_IDENTIFIER_STRING]) {
     // DXVK copies the Vulkan device name as UTF-8 into the D3D9 description.
@@ -32,6 +45,7 @@ int wmain(int argc, wchar_t** argv) {
     }
     const bool smaa=argc==3&&std::wcscmp(argv[2],L"--smaa")==0;
     if (argc!=2&&!smaa) return 3;
+    if (!expose_device_names()) return 3;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     HMODULE dll = LoadLibraryExW(argv[1], nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     if (!dll) { std::puts("{\"format\":\"s7-render-probe-v1\",\"devices\":[]}"); return 2; }

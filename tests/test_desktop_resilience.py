@@ -53,6 +53,14 @@ class DesktopResilienceTests(unittest.TestCase):
         actual=self.desktop.diagnostics()['memory_summary']
         self.assertFalse(any(key.startswith('failure_') for key in actual))
 
+    def test_diagnostics_does_not_interpret_an_unknown_memory_summary_layout(self):
+        path=self.root/'LocalData/desktop-memory-summary.json'
+        self.desktop.write(path,{'format':'other-summary-v2','samples':3,
+                                 'peak_private_mib':2600,'monitor_failed':True})
+        report=self.desktop.diagnostics()
+        self.assertEqual(report['collection_status']['memory'],'unreadable')
+        self.assertEqual(report['memory_summary'],{})
+
     def test_graphics_startup_restores_confirmed_settings_after_an_early_exit(self):
         import window_mode
         good=self.request();good['quality']['WaterQuality']=1

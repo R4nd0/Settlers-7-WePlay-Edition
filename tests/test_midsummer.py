@@ -220,6 +220,22 @@ class ReShadePreparationTests(unittest.TestCase):
             if any(options[name] for name in ('midsummer_tone', 'contact_shadows', 'maximum_fx')):
                 self.assertIn(b'EdgeStrength=0.000000', preset)
 
+    def test_an_unmanaged_effect_in_the_active_shader_directory_is_rejected_and_preserved(self):
+        options = {'enhanced_aa': True}
+        for extension in ('.fx', '.addonfx'):
+            with self.subTest(extension=extension), self.prepared(options) as (root, folder, _):
+                shaders = folder / 'Shaders'
+                (shaders / 'notes.txt').write_bytes(b'Unrelated text')
+                self.assertEqual(reshade_runtime.verify(root, options), folder)
+                extra = shaders / ('Unmanaged' + extension)
+                source = (shaders / 'SMAA.fx').read_bytes()
+                extra.write_bytes(source)
+                with self.assertRaisesRegex(ValueError, 'reshade_preparation_changed'):
+                    reshade_runtime.verify(root, options)
+                with self.assertRaisesRegex(ValueError, 'reshade_preparation_changed'):
+                    reshade_runtime.prepare(root, options=options)
+                self.assertEqual(extra.read_bytes(), source)
+
     def test_maximum_profile_uses_current_frame_without_motion_or_feedback(self):
         options = {'maximum_fx': True}
         self.assertNotIn(b'WEPLAY_CURRENT_FRAME_GI', reshade_runtime._config({'enhanced_aa': True}))

@@ -134,6 +134,17 @@ class GraphicsRecoveryTests(unittest.TestCase):
             self.assertEqual(backend.Desktop.probe(desktop)['devices'], ['Fixture GPU'])
         self.assertFalse(any(name.upper() == 'DXVK_FILTER_DEVICE_UUID' for name in child.call_args.kwargs['env']))
 
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows GPU probe path')
+    def test_failed_probe_cannot_offer_devices_from_a_contradictory_response(self):
+        desktop = self.probe_desktop(previous=None)
+        result = SimpleNamespace(returncode=2, stdout=b'{"format":"s7-render-probe-v1","devices":["Fixture GPU"]}')
+        with patch.object(subprocess, 'run', return_value=result):
+            report = backend.Desktop.probe(desktop, refresh=True)
+        self.assertEqual(report['devices'], [])
+        self.assertEqual(report['failure'], 'probe_failed')
+        with self.assertRaises(ValueError):
+            backend.Desktop.validate_probe({**report, 'devices': ['Fixture GPU']})
+
     def test_missing_display_inventory_uses_automatic_output_for_a_stale_choice(self):
         desktop = Mock(displays=Mock(return_value=[]))
         preferred = dict(format=choice.FORMAT, choice=None,

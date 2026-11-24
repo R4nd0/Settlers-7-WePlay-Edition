@@ -237,7 +237,16 @@ def _verify(root, options, *, check_preset, allow_missing_config=False):
     managed = _plain(folder / 'ManagedAddons')
     if _options(options)[3] and (not managed.is_dir() or {p.name for p in managed.iterdir()} != {'WePlayAtmosphere.addon32'}):
         raise ValueError('Der verwaltete ReShade-Sonnenzeitgeber-Ordner wurde veraendert.')
-    if (any(_read(folder / name, 4 * 1024 * 1024) != data for name, data in _profile_files(options, root).items())
+    assets = _profile_files(options, root)
+    shaders = _plain(folder / 'Shaders')
+    if shaders.is_dir():
+        # ReShade compiles effect files found in this configured search
+        # directory, including files absent from the selected technique list.
+        expected = {Path(name).name.casefold() for name in assets if name.startswith('Shaders/')}
+        if any(path.suffix.casefold() in ('.fx', '.addonfx') and not path.is_dir()
+               and path.name.casefold() not in expected for path in shaders.iterdir()):
+            raise ValueError('reshade_preparation_changed')
+    if (any(_read(folder / name, 4 * 1024 * 1024) != data for name, data in assets.items())
             or check_preset and _read(folder / 'WePlay-Midsummer.ini', 65536) != _preset(options)):
         raise ValueError('Das WePlay-Grafikprofil wurde veraendert. Grafikauswahl erneut speichern.')
     # ReShade writes UI/style defaults on a clean exit. Compare managed values,
