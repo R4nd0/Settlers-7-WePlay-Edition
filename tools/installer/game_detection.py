@@ -22,9 +22,16 @@ def registry_locations():
                             with winreg.OpenKey(parent, winreg.EnumKey(parent, index)) as key:
                                 name = winreg.QueryValueEx(key, 'DisplayName')[0]
                                 if isinstance(name, str) and ('settlers' in name.casefold() or 'siedler' in name.casefold()) and '7' in name:
-                                    location = winreg.QueryValueEx(key, 'InstallLocation')[0]
+                                    location, kind = winreg.QueryValueEx(key, 'InstallLocation')
                                     if isinstance(location, str) and 0 < len(location) < 32768:
-                                        found.append(Path(location))
+                                        if kind == winreg.REG_EXPAND_SZ:
+                                            location = winreg.ExpandEnvironmentStrings(location)
+                                        location = location.strip()
+                                        if len(location) >= 2 and location.startswith('"') and location.endswith('"'):
+                                            location = location[1:-1]
+                                        path = Path(location)
+                                        if path.is_absolute():
+                                            found.append(path)
                         except OSError:
                             continue
             except OSError:
@@ -52,7 +59,12 @@ def candidates():
     # A Steam installation's public library directory list has no login data.
     # It is intentionally not read in RC2: registry/common locations and the
     # single folder-picker fallback remain the bounded discovery boundary.
-    return found[:256]
+    unique = {}
+    for path in found:
+        unique.setdefault(os.path.normcase(str(path)),path)
+        if len(unique) >= 256:
+            break
+    return list(unique.values())
 
 
 def detect(locations=None, *, steam_supported=False,gold_package=None):

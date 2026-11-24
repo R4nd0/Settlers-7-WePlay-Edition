@@ -1,6 +1,7 @@
 """Fault injection for update publication, allocation tracking and package swap checks."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -61,6 +62,42 @@ class PackageTests(unittest.TestCase):
         with patch.object(check.shutil,'disk_usage',return_value=type('Disk',(),{'free':0})()):
             with self.assertRaises(ValueError):check.stage(self.f.package,self.expected,app,target)
         self.assertFalse(target.exists())
+
+    def test_staging_accepts_relative_package_and_manifest_paths(self):
+        app=self.f.root/'App';app.mkdir()
+        target=app/('.weplay-package-'+'c'*32)
+        current=Path.cwd()
+        try:
+            os.chdir(self.f.root)
+            check.stage(Path(self.f.package.name),Path(self.expected.name),app,target)
+        finally:
+            os.chdir(current)
+        check.verify(target,self.expected)
+
+    def test_busy_backup_file_does_not_abort_retirement_of_other_files(self):
+        app=self.f.root/'App';backup=app/'State/PackageBackups'/('.weplay-package-'+'e'*32)
+        shutil.copytree(self.f.package,backup)
+        locked=backup/'Payload/uplay_r1_loader.dll';remaining=locked.read_bytes()
+        digest=check.digest
+        def read(path):
+            if Path(path)==locked:
+                raise PermissionError('temporary backup file lock')
+            return digest(path)
+        with patch.object(check,'digest',side_effect=read):
+            result=check.retire(app,backup)
+        self.assertGreater(result['removed'],0)
+        self.assertEqual(result['kept_modified_or_busy'],1)
+        self.assertEqual(locked.read_bytes(),remaining)
+        self.assertTrue((backup/'package.json').is_file())
+
+    def test_backup_retirement_preserves_unknown_empty_folder(self):
+        app=self.f.root/'App';backup=app/'State/PackageBackups'/('.weplay-package-'+'f'*32)
+        shutil.copytree(self.f.package,backup)
+        unknown=backup/'Personal archive';unknown.mkdir()
+        result=check.retire(app,backup)
+        self.assertGreater(result['removed'],0)
+        self.assertTrue(result['remaining'])
+        self.assertTrue(unknown.is_dir())
 
     def test_backup_retirement_keeps_modified_unknown_and_personal_files(self):
         app=self.f.root/'App';backup=app/'State/PackageBackups'/('.weplay-package-'+'a'*32+'.previous')

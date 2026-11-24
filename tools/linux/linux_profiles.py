@@ -68,6 +68,11 @@ def copy_tree(source, destination):
 def migrate(source, destination):
     source, destination = map(compatibility.plain, (source, destination))
     old = compatibility.plain(source / 'LocalData')
+    games = []
+    for documents in document_roots(source):
+        for game in documents.iterdir():
+            if game.name.casefold() in DOCUMENT_GAMES and compatibility.plain(game).is_dir():
+                games.append(game)
     new = compatibility.plain(destination / 'LocalData'); new.mkdir(mode=0o700,exist_ok=True)
     count = 0
     for name in RECORDS:
@@ -81,10 +86,8 @@ def migrate(source, destination):
     for name in FOLDERS:
         path = compatibility.plain(old / name)
         if path.is_dir(): count += copy_tree(path,new/name)
-    for documents in document_roots(source):
-        for game in documents.iterdir():
-            if game.name.casefold() in DOCUMENT_GAMES and compatibility.plain(game).is_dir():
-                count += copy_tree(game,new/'WineHome/Documents'/game.name)
+    for game in games:
+        count += copy_tree(game,new/'WineHome/Documents'/game.name)
     return count
 
 

@@ -76,25 +76,54 @@ def retire(app,backup):
         raise ValueError('Invalid package backup')
     record=backup/'package.json';before=digest(record);value=manifest(record)
     removed=0;kept=0
+    indexed={}
+    owned_parents=set()
+
+    def recorded_path(name):
+        cursor=backup
+        for component in name.split('/'):
+            if not cursor.is_dir():
+                return None
+            if cursor not in indexed:
+                children={}
+                for child in cursor.iterdir():
+                    key=child.name.lower()
+                    children[key]=None if key in children else child
+                indexed[cursor]=children
+            children=indexed[cursor]
+            if component not in children:
+                return None
+            child=children[component]
+            if child is None:
+                raise ValueError('Ambiguous package backup path')
+            cursor=plain(child)
+        return cursor
+
     for name,hashed in value['files'].items():
-        path=plain(backup/name)
-        if path.is_file():
-            if digest(path)==hashed:
-                try:path.unlink();removed+=1
-                except OSError:kept+=1
-            else:kept+=1
+        try:
+            path=recorded_path(name)
+            if path is None:
+                continue
+            if not path.is_file() or digest(path)!=hashed:
+                kept+=1
+                continue
+            path.unlink()
+            removed+=1
+            owned_parents.update(directory for directory in path.parents
+                                 if directory!=backup and directory.is_relative_to(backup))
+        except (OSError,ValueError):
+            kept+=1
     if kept==0 and digest(record)==before:record.unlink()
-    for directory in sorted((p for p in backup.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):
-        plain(directory)
-        try:directory.rmdir()
-        except OSError:pass
+    for directory in sorted(owned_parents,key=lambda p:len(p.parts),reverse=True):
+        try:plain(directory).rmdir()
+        except (OSError,ValueError):pass
     try:backup.rmdir()
     except OSError:pass
     return {'removed':removed,'kept_modified_or_busy':kept,'remaining':backup.exists()}
 
 
 def stage(package,expected,app,target):
-    app,target=plain(app),plain(target)
+    package,expected,app,target=map(plain,(package,expected,app,target))
     if target.parent!=app or not re.fullmatch(r'\.weplay-package-[a-f0-9]{32}',target.name):
         raise ValueError('Invalid staging slot')
     verify(package,expected)
