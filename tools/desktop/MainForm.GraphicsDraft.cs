@@ -6,6 +6,8 @@ namespace S7Desktop;
 internal sealed partial class MainForm
 {
     private string? savedGraphicsDraft;
+    private Dictionary<string,string> savedWindowedResolutions=new(StringComparer.Ordinal);
+    private string? visibleErrorCode;
     private bool closingDraft,closeDraftApproved,changingLanguage;
     private readonly Label graphicsDraftNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),Margin=new Padding(0,4,0,2)};
     private Button graphicsDiscard=null!,graphicsSave=null!,graphicsRestore=null!;
@@ -37,7 +39,12 @@ internal sealed partial class MainForm
         flags=new[]{simple,anisotropicFiltering,linkShadowRange,detailedShadows,extendedShadowRange,
             ultraShadows,midsummerTone,contactShadows,maximumFx}.Select(x=>x.Checked).ToArray()
     });
-    private void AcceptGraphicsDraft(){savedGraphicsDraft=CaptureGraphicsDraft();UpdateGraphicsDraft();}
+    private void AcceptGraphicsDraft()
+    {
+        savedGraphicsDraft=CaptureGraphicsDraft();
+        savedWindowedResolutions=new(windowedResolutions,StringComparer.Ordinal);
+        UpdateGraphicsDraft();
+    }
     private void ApplySettingsResult(JsonElement value)
     {
         bool refreshFailed=value.TryGetProperty("refresh_failed",out var failed)&&failed.GetBoolean();
@@ -78,8 +85,12 @@ internal sealed partial class MainForm
     }
     private void TrackGraphicsDraft()
     {
-        foreach(var combo in new[]{renderer,gpu,monitor,window,resolution,antialiasing}.Concat(qualities.Values))
+        foreach(var combo in new[]{renderer,gpu,monitor,window,resolution}.Concat(qualities.Values))
             combo.SelectedIndexChanged+=(_,_)=>UpdateGraphicsDraft();
+        antialiasing.SelectedIndexChanged+=(_,_)=>{
+            if(!loading&&!changingAntialiasingChoices)suspendedSmaa=false;
+            UpdateGraphicsDraft();
+        };
         detailLevel.ValueChanged+=(_,_)=>UpdateGraphicsDraft();
         foreach(var box in new[]{keepDisplay,simple,anisotropicFiltering,linkShadowRange,detailedShadows,extendedShadowRange,
             ultraShadows,midsummerTone,contactShadows,maximumFx}.Concat(effects.Values))
@@ -87,7 +98,10 @@ internal sealed partial class MainForm
     }
     private void DiscardGraphicsDraft()
     {
-        if(snapshot.ValueKind==JsonValueKind.Object)LoadGraphicsSettings(snapshot);
+        if(snapshot.ValueKind!=JsonValueKind.Object)return;
+        windowedResolutions.Clear();
+        foreach(var saved in savedWindowedResolutions)windowedResolutions.Add(saved.Key,saved.Value);
+        LoadGraphicsSettings(snapshot);
     }
     private void LoadGraphicsSettings(JsonElement value)
     {
@@ -115,7 +129,13 @@ internal sealed partial class MainForm
     {
         if(changingLanguage||language.SelectedItem is not Item item)return;
         string previous=Lang.Current;
-        try{(persist??Lang.Set)(item.Key,!testing);ApplyLanguage();FitMenuHeight();UpdateGraphicsDraft();}
+        string? activeError=visibleErrorCode is string errorCode&&status.Text==Lang.T(errorCode)?errorCode:null;
+        try
+        {
+            (persist??Lang.Set)(item.Key,!testing);ApplyLanguage();
+            if(activeError!=null)status.Text=Lang.T(activeError);
+            FitMenuHeight();UpdateGraphicsDraft();
+        }
         catch(Exception error)when(error is IOException or UnauthorizedAccessException)
         {
             Lang.Set(previous,false);changingLanguage=true;

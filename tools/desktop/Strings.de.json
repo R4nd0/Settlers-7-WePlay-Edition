@@ -400,6 +400,7 @@
   "directoryStarted": "Gestartet",
   "directoryFull": "Voll",
   "directoryOpen": "Offen",
+  "directoryExpired": "Abgelaufen",
   "phase_directory_join": "Beitritt beim Host anfragen …",
   "directory_invalid": "Das Spieleverzeichnis hat ungültige Daten geliefert. Bitte aktualisieren.",
   "directory_code_invalid": "Der Verzeichnis- oder Beitrittscode ist ungültig. Bitte den vollständigen WePlay-Code verwenden.",

@@ -400,6 +400,7 @@
   "directoryStarted": "Started",
   "directoryFull": "Full",
   "directoryOpen": "Open",
+  "directoryExpired": "Expired",
   "phase_directory_join": "Requesting admission from the host …",
   "directory_invalid": "The game directory returned invalid data. Please refresh.",
   "directory_code_invalid": "Invalid directory or join code. Please use the complete WePlay code.",

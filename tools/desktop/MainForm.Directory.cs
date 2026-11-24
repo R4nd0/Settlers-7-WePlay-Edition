@@ -80,11 +80,14 @@ internal sealed partial class MainForm
 
     private JsonElement? SelectedDirectoryGame()=>directoryGames.SelectedIndices.Count==1
         &&directoryGames.SelectedIndices[0]<directoryRows.Count?directoryRows[directoryGames.SelectedIndices[0]]:null;
-    private static bool DirectoryJoinable(JsonElement row)=>row.GetProperty("compatible").GetBoolean()
+    private static bool DirectoryExpired(JsonElement row)=>row.TryGetProperty("expires_at",out var expiry)
+        &&expiry.ValueKind==JsonValueKind.Number&&expiry.TryGetInt64(out long seconds)
+        &&seconds<=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    private static bool DirectoryJoinable(JsonElement row)=>!DirectoryExpired(row)&&row.GetProperty("compatible").GetBoolean()
         &&row.GetProperty("state").GetString()=="open"&&row.GetProperty("free_slots").GetInt32()>0;
 
-    private static string DirectoryStateLabel(JsonElement row)=>Lang.T(!row.GetProperty("compatible").GetBoolean()
-        ?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted"
+    private static string DirectoryStateLabel(JsonElement row)=>Lang.T(DirectoryExpired(row)?"directoryExpired":
+        !row.GetProperty("compatible").GetBoolean()?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted"
         :row.GetProperty("free_slots").GetInt32()==0?"directoryFull":"directoryOpen");
 
     private void TranslateDirectoryRows()

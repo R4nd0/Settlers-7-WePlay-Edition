@@ -278,6 +278,7 @@ internal sealed partial class MainForm : Form
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
     private bool compatSmaaAvailable;
+    private bool suspendedSmaa,changingAntialiasingChoices;
     private bool AdvancedReshadeAvailable=>RendererMode=="dxvk"&&midsummerToneAvailable;
     private bool CanUseSmaa(string renderer)=>midsummerToneAvailable&&(renderer=="dxvk"||
         (compatSmaaAvailable&&renderer is ("async" or "gplasync")));
@@ -287,11 +288,16 @@ internal sealed partial class MainForm : Form
 
     private void SetAntialiasingMode(string mode)
     {
-        antialiasing.Items.Clear();
-        antialiasing.Items.Add(new Item("off",Lang.T("antialiasingOff")));
-        antialiasing.Items.Add(new Item("game",Lang.T("antialiasingGame")));
-        if(SmaaAvailable)antialiasing.Items.Add(new Item("smaa",Lang.T("antialiasingSmaa")));
-        antialiasing.SelectedIndex=mode=="off"?0:mode=="smaa"&&SmaaAvailable?2:1;
+        changingAntialiasingChoices=true;
+        try
+        {
+            antialiasing.Items.Clear();
+            antialiasing.Items.Add(new Item("off",Lang.T("antialiasingOff")));
+            antialiasing.Items.Add(new Item("game",Lang.T("antialiasingGame")));
+            if(SmaaAvailable)antialiasing.Items.Add(new Item("smaa",Lang.T("antialiasingSmaa")));
+            antialiasing.SelectedIndex=mode=="off"?0:mode=="smaa"&&SmaaAvailable?2:1;
+        }
+        finally{changingAntialiasingChoices=false;}
     }
     private Button openGraphics = null!;
 
@@ -652,6 +658,7 @@ internal sealed partial class MainForm : Form
         string preferredAa=AntialiasingMode;
         if(replaceFields)
         {
+            suspendedSmaa=false;
             setupNetwork.Checked=value.TryGetProperty("network_setup_preferred",out var networkSetup)&&networkSetup.GetBoolean();
             savedLanDiscoveryPort=value.TryGetProperty("lan_discovery_port",out var port)&&port.TryGetInt32(out int savedPort)
                 &&savedPort is >=1024 and <=65535?savedPort:DefaultLanDiscoveryPort;
@@ -754,6 +761,8 @@ internal sealed partial class MainForm : Form
             }
         }
         foreach(var item in labels.Where(x=>x.Value=="modeConsentInfo"))item.Key.Visible=!singlePlayerOnly;
+        foreach(var item in labels.Where(x=>x.Value is "roomGuide" or "invitationGuide"))item.Key.Visible=!singlePlayerOnly;
+        foreach(var item in labels.Where(x=>x.Value=="startGuide"))item.Key.Text=Lang.T(singlePlayerOnly?IdleHomeInfo:"startGuide");
         openGraphics.Visible=true;
         if(!gameRunning)homeInfo.Text=Lang.T(IdleHomeInfo);
         UpdateCrossplayControls();
@@ -924,7 +933,13 @@ internal sealed partial class MainForm : Form
         resolution.Enabled=manual&&window.SelectedIndex==0&&resolution.Items.Count>0;
         renderer.Enabled=!busy&&renderer.Items.Count>1;
         bool modern=RendererMode=="dxvk";
-        if(!loading&&antialiasing.Items.Count!=(SmaaAvailable?3:2))SetAntialiasingMode(AntialiasingMode);
+        bool smaaAvailable=SmaaAvailable;
+        if(!loading&&antialiasing.Items.Count!=(smaaAvailable?3:2))
+        {
+            string mode=smaaAvailable&&suspendedSmaa?"smaa":AntialiasingMode;
+            suspendedSmaa=!smaaAvailable&&mode=="smaa";
+            SetAntialiasingMode(mode);
+        }
         antialiasing.Enabled=!busy;
         graphicsGpuField.Visible=modern;
         gpu.Enabled=!busy&&modern&&gpu.Items.Count>1;
@@ -943,6 +958,7 @@ internal sealed partial class MainForm : Form
     }
     private void ApplyQualityPreset(bool maximumObjects)
     {
+        suspendedSmaa=false;
         foreach(var pair in qualities)pair.Value.SelectedIndex=pair.Key=="ObjectQuality"&&!maximumObjects?1:2;
         foreach(var pair in effects)pair.Value.Checked=pair.Key!="DepthOfField";
         SetAntialiasingMode(SmaaAvailable?"smaa":"game");
@@ -1308,7 +1324,7 @@ internal sealed partial class MainForm : Form
             setupDetails.Visible=true;
             if(setupDetails.Parent?.Parent is Panel scroll)scroll.ScrollControlIntoView(setupDetails);
         }
-        status.Text=Lang.T(code);
+        visibleErrorCode=code;status.Text=Lang.T(code);
         if(!testing)MessageBox.Show(this,Lang.T(code)+Environment.NewLine+Environment.NewLine+
             string.Format(Lang.T("diagnosticErrorHint"),code),Lang.T("errorTitle"),MessageBoxButtons.OK,MessageBoxIcon.Warning);
     }
@@ -1391,6 +1407,7 @@ internal sealed partial class MainForm : Form
                 form.TestLauncherResilience(json.RootElement);
                 TestLauncherAudit(json.RootElement);
                 TestLauncherInteractions(json.RootElement);
+                TestLauncherPresentation(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
