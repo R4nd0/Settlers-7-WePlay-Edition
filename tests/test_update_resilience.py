@@ -1,5 +1,6 @@
 """Updater transport and owned-cache fault tests; no executable is launched."""
 import hashlib
+from contextlib import contextmanager
 import io
 import json
 import os
@@ -10,7 +11,7 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/installer'))
@@ -344,6 +345,66 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
         with self.assertRaisesRegex(client.UpdateError,'cancelled'):
             client.check(self.app,fetch=fetch,cancelled=lambda:stop[0])
         self.assertFalse((self.updates/'verified-envelope.json').exists())
+
+    def fetch_current_offer(self,url,_limit,**_options):
+        return self.listing(self.value['tag']) if url==client.RELEASES else self.raw
+
+    def test_cancel_after_entering_cache_scope_never_publishes_offer(self):
+        stop=threading.Event()
+        @contextmanager
+        def lock(_updates):
+            stop.set()
+            yield
+        with patch.object(client,'cache_lock',lock), \
+                self.assertRaisesRegex(client.UpdateError,'^cancelled$'):
+            client.check(self.app,fetch=self.fetch_current_offer,cancelled=stop.is_set)
+        self.assertFalse((self.updates/'highest.json').exists())
+        self.assertFalse((self.updates/'verified-envelope.json').exists())
+
+    def test_unchanged_offer_can_be_polled_while_existing_cache_is_read_locked(self):
+        first=client.check(self.app,fetch=self.fetch_current_offer)
+        with patch.object(client,'atomic',side_effect=PermissionError('cache file open for reading')) as replace:
+            self.assertEqual(client.check(self.app,fetch=self.fetch_current_offer),first)
+        replace.assert_not_called()
+
+    def test_oversized_installed_update_metadata_is_not_read_unbounded(self):
+        metadata=self.app/'desktop-release.json'
+        metadata.write_bytes(b' '*65537)
+        unbounded=Path.read_bytes
+        def read(path):
+            if path==metadata:
+                raise AssertionError('installed metadata read in an unbounded call')
+            return unbounded(path)
+        with patch.object(Path,'read_bytes',read), \
+                self.assertRaisesRegex(client.UpdateError,'^update_unavailable$'):
+            client.current(self.app)
+
+    def test_missing_expected_compiled_helper_is_a_typed_update_failure(self):
+        package=self.app/'Package';package.mkdir()
+        (package/'package.json').write_bytes(client.canonical(dict(windows_helpers=True,files={})))
+        with self.assertRaisesRegex(client.UpdateError,'^update_invalid$'):
+            client.handoff_source(self.app)
+
+    def test_receiving_wrong_ready_record_stops_owned_helper_before_returning(self):
+        job=self.updates/('f'*32);job.mkdir()
+        record=dict(format='weplay-update-handoff-v1',app=str(self.app),version='2.0.0-rc3.23',sequence=23,
+                    parent={'pid':os.getppid()},backend={'pid':os.getpid()})
+        client.atomic(job/'handoff.json',record)
+        helper=self.app/'WePlay.UpdateHelper.exe';helper.write_bytes(b'authored fixture')
+        (job/helper.name).write_bytes(helper.read_bytes())
+        (job/'update-key.json').write_bytes(client.KEY.read_bytes())
+        child=Mock(pid=812)
+        child.poll.return_value=None
+        def start(*_arguments,**_options):
+            client.atomic(job/'ready.json',dict(format='weplay-update-ready-v1',helper_pid=813,
+                                               version=record['version'],sequence=23))
+            return child
+        with (patch.object(client,'handoff_source',return_value=helper),
+              patch.object(client.subprocess,'Popen',side_effect=start),
+              self.assertRaisesRegex(client.UpdateError,'^update_handoff_failed$')):
+            client.start_handoff(self.app,job)
+        child.terminate.assert_called_once()
+        child.wait.assert_called_once()
 
     def test_streaming_transfer_obeys_total_deadline_and_cancellation(self):
         for cancel in (False,True):

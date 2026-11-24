@@ -57,6 +57,12 @@ def decode(raw,limit=MAX_MANIFEST):
     try:return json.loads(raw.decode('utf-8'),object_pairs_hook=unique)
     except (UnicodeError,ValueError):raise UpdateError('update_invalid') from None
 
+def read_bounded(path,limit=MAX_MANIFEST):
+    with compatibility.plain(path).open('rb') as stream:
+        value=stream.read(limit+1)
+    if len(value)>limit:raise UpdateError('update_invalid')
+    return value
+
 def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode('ascii')
 
 def b64(value):
@@ -67,7 +73,7 @@ def b64(value):
     return raw
 
 def public_key(path=KEY):
-    value=decode(compatibility.plain(path).read_bytes(),4096)
+    value=decode(read_bounded(path,4096),4096)
     if (not isinstance(value,dict) or set(value)!={'format','key_id','n','e'} or value['format']!='weplay-update-key-v1'
             or not isinstance(value['n'],str) or not re.fullmatch('[0-9a-f]{768}',value['n'])
             or type(value['e']) is not int or value['e']!=65537):raise UpdateError('update_signature_invalid')
@@ -241,7 +247,7 @@ def paths(app):
     return app,updates
 
 def current(app):
-    try:value=decode(compatibility.plain(app/'desktop-release.json').read_bytes(),65536)
+    try:value=decode(read_bounded(app/'desktop-release.json',65536),65536)
     except (OSError,ValueError):raise UpdateError('update_unavailable') from None
     if (not isinstance(value,dict) or not isinstance(value.get('version'),str) or not VERSION.fullmatch(value['version'])
             or type(value.get('update_sequence')) is not int or value['update_sequence']<1 or value.get('update_channel')!='preview'):
@@ -251,7 +257,7 @@ def current(app):
 def highwater(updates):
     path=compatibility.plain(updates/'highest.json')
     if not path.exists():return {'sequence':0,'payload_sha256':None}
-    value=decode(path.read_bytes(),4096)
+    value=decode(read_bounded(path,4096),4096)
     if (not isinstance(value,dict) or set(value)!={'sequence','payload_sha256'} or type(value['sequence']) is not int
             or value['sequence']<1 or not isinstance(value['payload_sha256'],str) or not HEX.fullmatch(value['payload_sha256'])):raise UpdateError('update_invalid')
     return value
@@ -403,13 +409,13 @@ def reclaim_jobs(app,*,now=None,alive=process_running,max_age=MAX_JOB_AGE,
                 if value is None or value['created']>now+300 or alive(value['creator_pid']):continue
                 active=compatibility.plain(job/'handoff-active.json')
                 if active.exists():
-                    record=decode(active.read_bytes(),4096)
+                    record=decode(read_bounded(active,4096),4096)
                     if (not isinstance(record,dict) or set(record)!={'format','pid'}
                             or record['format']!='weplay-update-active-v1' or type(record['pid']) is not int
                             or alive(record['pid'])):continue
                 ready=compatibility.plain(job/'ready.json')
                 if ready.exists():
-                    record=decode(ready.read_bytes(),4096)
+                    record=decode(read_bounded(ready,4096),4096)
                     if (not isinstance(record,dict) or record.get('format')!='weplay-update-ready-v1'
                             or type(record.get('helper_pid')) is not int or alive(record['helper_pid'])):continue
                 entries=list(job.iterdir())
@@ -485,12 +491,18 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
         return base
     if newest['sequence']>local['update_sequence']:preserve_isolation(app,newest)
     with cache_lock(updates):
+        cancellation()
         seen=highwater(updates);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
         if newest['sequence']<seen['sequence'] or (newest['sequence']==seen['sequence'] and fingerprint!=seen['payload_sha256']):raise UpdateError('update_downgrade')
-        atomic(updates/'highest.json',{'sequence':newest['sequence'],'payload_sha256':fingerprint})
+        if newest['sequence']!=seen['sequence']:
+            atomic(updates/'highest.json',{'sequence':newest['sequence'],'payload_sha256':fingerprint})
         if newest['sequence']<=local['update_sequence']:return {**base,'reason':'current',**({'incomplete':True} if transport_failures else {})}
         # Commit a signed envelope only after signature, scope and replay checks.
-        atomic(updates/'verified-envelope.json',decode(raw_newest))
+        envelope_path=updates/'verified-envelope.json'
+        envelope=decode(raw_newest)
+        try:cached=decode(read_bounded(envelope_path))
+        except (FileNotFoundError,UpdateError):cached=None
+        if cached!=envelope:atomic(envelope_path,envelope)
     return {**base,'available':True,'version':newest['version'],'sequence':newest['sequence'],
             'release_url':'https://github.com/'+REPOSITORY+'/releases/tag/'+newest['tag'],'notes':newest['notes'],'reason':'available',
             **({'incomplete':True} if transport_failures else {})}
@@ -516,10 +528,13 @@ def process_info(pid):
 def handoff_source(app):
     package=compatibility.plain(app/'Package/package.json')
     if package.is_file():
-        manifest=decode(package.read_bytes(),4*1024*1024)
+        manifest=decode(read_bounded(package,4*1024*1024),4*1024*1024)
+        if not isinstance(manifest,dict):raise UpdateError('update_invalid')
         if manifest.get('windows_helpers',False) is True:
             source=compatibility.plain(app/'Package/Payload/Helpers/WePlay.UpdateHelper.exe')
-            if compatibility.digest(source)!=manifest.get('files',{}).get('payload/helpers/weplay.updatehelper.exe'):
+            files=manifest.get('files')
+            if (not source.is_file() or not isinstance(files,dict) or
+                    compatibility.digest(source)!=files.get('payload/helpers/weplay.updatehelper.exe')):
                 raise UpdateError('update_invalid')
             return source
     # Compatibility for RC3.4 packages; RC3.5 neither ships nor executes this script.
@@ -538,7 +553,7 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
     checkpoint()
     reclaim_jobs(app)
     with cache_lock(updates):
-        envelope=compatibility.plain(updates/'verified-envelope.json').read_bytes();value=verify(envelope)
+        envelope=read_bounded(updates/'verified-envelope.json');value=verify(envelope)
         preserve_isolation(app,value)
         if expected_sequence is not None and value['sequence']!=expected_sequence:raise UpdateError('update_changed')
         seen=highwater(updates)
@@ -590,7 +605,7 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
 def start_handoff(app,job):
     app,updates=paths(app);job=compatibility.plain(job)
     if job.parent!=updates or not re.fullmatch('[0-9a-f]{32}',job.name):raise UpdateError('update_invalid')
-    record=decode(compatibility.plain(job/'handoff.json').read_bytes(),4096)
+    record=decode(read_bounded(job/'handoff.json',4096),4096)
     if record.get('app')!=str(app) or record.get('format')!='weplay-update-handoff-v1':raise UpdateError('update_invalid')
     if record.get('backend',{}).get('pid')!=os.getpid() or record.get('parent',{}).get('pid')!=os.getppid():raise UpdateError('update_parent_invalid')
     if compatibility.plain(job/'ready.json').exists():raise UpdateError('update_invalid')
@@ -603,21 +618,32 @@ def start_handoff(app,job):
          '-NoProfile','-NonInteractive','-File',str(job/'update_handoff.ps1'),'-Job',str(job/'handoff.json')])
     try:child=subprocess.Popen(command,cwd=job,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),close_fds=True)
     except OSError:raise UpdateError('update_handoff_failed') from None
-    if child.poll() is not None:raise UpdateError('update_handoff_failed')
-    owner=owned_job(app,job)
-    if owner is not None:
-        atomic(job/'handoff-active.json',{'format':'weplay-update-active-v1','pid':child.pid})
-        owner['files']=job_inventory(job)
-        atomic(job/'job-owner.json',owner)
-    deadline=time.monotonic()+90
-    while time.monotonic()<deadline:
+    try:
         if child.poll() is not None:raise UpdateError('update_handoff_failed')
-        ready=compatibility.plain(job/'ready.json')
-        if ready.exists():
-            value=decode(ready.read_bytes(),4096)
-            if value!={'format':'weplay-update-ready-v1','helper_pid':child.pid,'version':record['version'],'sequence':record['sequence']}:
-                raise UpdateError('update_handoff_failed')
-            return {'helper_pid':child.pid,'version':record['version']}
-        time.sleep(.1)
-    child.terminate()
-    raise UpdateError('update_handoff_failed')
+        owner=owned_job(app,job)
+        if owner is not None:
+            atomic(job/'handoff-active.json',{'format':'weplay-update-active-v1','pid':child.pid})
+            owner['files']=job_inventory(job)
+            atomic(job/'job-owner.json',owner)
+        deadline=time.monotonic()+90
+        while time.monotonic()<deadline:
+            if child.poll() is not None:raise UpdateError('update_handoff_failed')
+            ready=compatibility.plain(job/'ready.json')
+            if ready.exists():
+                value=decode(read_bounded(ready,4096),4096)
+                if value!={'format':'weplay-update-ready-v1','helper_pid':child.pid,'version':record['version'],'sequence':record['sequence']}:
+                    raise UpdateError('update_handoff_failed')
+                return {'helper_pid':child.pid,'version':record['version']}
+            time.sleep(.1)
+        raise UpdateError('update_handoff_failed')
+    except BaseException:
+        # A helper that never completed the handshake must not install
+        # later when the launcher and backend eventually exit.
+        try:
+            if child.poll() is None:
+                child.terminate()
+            try:child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill();child.wait(timeout=5)
+        except (OSError,subprocess.TimeoutExpired):pass
+        raise
