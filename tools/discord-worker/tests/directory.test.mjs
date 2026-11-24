@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
 import {readFileSync} from "node:fs";
 import worker from "../src/worker.mjs";
-import {expireDirectory} from "../src/directory.mjs";
+import {directoryRate,expireDirectory} from "../src/directory.mjs";
 
 const NOW=1793700000,ORIGIN="https://weplay-multiplayer.testing.workers.dev";
 const run="a".repeat(32),content="b".repeat(64),owner="c".repeat(64),token=Buffer.alloc(32,9).toString("base64url");
@@ -100,6 +100,41 @@ test("Expired hosts, closed reports and expired tickets cannot be revived or con
   assert.equal((await f.request(`/v1/directory/join/${ticket.id}`,"GET",undefined,"Join "+a.token)).status,410);
   await f.report("DELETE",2);
   assert.equal((await f.list()).games.length,0);assert.equal((await f.host()).status,409);
+});
+test("Public game expiry is capped by its actual report lifetime",async t=>{
+  const f=await setup(t);
+  await f.env.DB.prepare("UPDATE weplay_reports SET expires_at=? WHERE owner=?").bind(NOW+10,owner).run();
+  const {games}=await f.list();
+  assert.equal(games[0].expires_at,NOW+10);
+});
+test("Cancelling a ticket while its host reconnects releases its reserved slot",async t=>{
+  const f=await setup(t),first=await guest(),second=await guest();
+  assert.equal((await f.report("PUT",2,[game({free_slots:1})])).status,200);
+  const response=await join(first,f);assert.equal(response.status,200);
+  const ticket=await response.json();
+  f.setTime(NOW+36);
+  const cancelled=await f.request(`/v1/directory/join/${ticket.id}`,"DELETE",undefined,"Join "+first.token);
+  assert.equal(cancelled.status,200);
+  assert.equal((await f.host()).status,200);
+  assert.equal((await join(second,f)).status,200);
+});
+test("Concurrent legitimate requests reserve exactly the final rate slot",async t=>{
+  const {env}=await setup(t),request=new Request(ORIGIN+"/v1/directory/join");
+  for(let count=0;count<11;count++)await directoryRate(env,request,NOW);
+  // Let both old-style commits finish before either caller could read the
+  // counter. This represents request latency at the storage boundary.
+  const batch=env.DB.batch.bind(env.DB);
+  let release,committed=0;
+  const both=new Promise(resolve=>{release=resolve;});
+  t.mock.method(env.DB,"batch",async statements=>{
+    const result=await batch(statements);
+    if(++committed===2)release();
+    await both;
+    return result;
+  });
+  const results=await Promise.allSettled([directoryRate(env,request,NOW),directoryRate(env,request,NOW)]);
+  assert.equal(results.filter(result=>result.status==="fulfilled").length,1);
+  assert.equal(results.find(result=>result.status==="rejected").reason.status,429);
 });
 test("Reservations cannot exceed native free places and owner cannot be changed",async t=>{
   const f=await setup(t),a=await guest();await f.report("PUT",2,[game({free_slots:1})]);

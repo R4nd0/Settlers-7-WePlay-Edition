@@ -129,14 +129,15 @@ async function directoryComponents(env,now){
     options:rows.map(row=>({label:row.title,value:row.id,description:`Spieler ${row.players}/${row.capacity} · ${row.free_slots} freie Plätze`}))}]}]:[];
 }
 
-export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
+export async function updateBoard(env,now=Math.floor(Date.now()/1000),{verifyMessage=false}={}) {
+  const leaseUntil=now+60;
   const lock=await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1 AND lease_until<=? RETURNING message_id,digest")
-    .bind(now+60,now).first();if(!lock)return;
+    .bind(leaseUntil,now).first();if(!lock)return;
   let retry=5;
   try {
     const embed=await board(env,now),components=await directoryComponents(env,now);
     const digest=await hash(JSON.stringify({embed,components}));
-    if(lock.digest===digest && lock.message_id)return;
+    if(lock.digest===digest && lock.message_id&&!verifyMessage)return;
     const app=await discord(env,"/applications/@me");
     if(app.id!==env.APPLICATION_ID)throw new Refusal(503);
     // The optional application.bot object may be absent in real API replies.
@@ -150,15 +151,19 @@ export async function updateBoard(env,now=Math.floor(Date.now()/1000)) {
       try {
         const previous=await discord(env,"/channels/"+env.CHANNEL_ID+"/messages/"+messageId);
         if(previous.author?.id!==bot.id || !previous.embeds?.[0]?.footer?.text?.startsWith(MARKER))throw new Refusal(503);
+        if(lock.digest===digest)return;
       } catch(error){if(error.missing)messageId=null;else throw error;}
     }
+    if(!await env.DB.prepare("SELECT slot FROM weplay_board WHERE slot=1 AND lease_until=?").bind(leaseUntil).first())return;
     const payload=JSON.stringify({content:"",embeds:[embed],components,allowed_mentions:{parse:[]}});
     const sent=await discord(env,"/channels/"+env.CHANNEL_ID+"/messages"+(messageId?"/"+messageId:""),
                              {method:messageId?"PATCH":"POST",body:payload});
     if(!id(sent.id))throw new Refusal(503);
-    await env.DB.prepare("UPDATE weplay_board SET message_id=?,digest=? WHERE slot=1").bind(sent.id,digest).run();
+    await env.DB.prepare("UPDATE weplay_board SET message_id=?,digest=? WHERE slot=1 AND lease_until=?")
+      .bind(sent.id,digest,leaseUntil).run();
   } catch(error){retry=error.retry || 30;}
-  finally {await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1").bind(now+retry).run();}
+  finally {await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1 AND lease_until=?")
+    .bind(now+retry,leaseUntil).run();}
 }
 
 async function publisher(request,env,allowPublic=false) {
@@ -258,6 +263,6 @@ export default {
   },
   async scheduled(controller,env,ctx){ctx.waitUntil((async()=>{
     const now=Math.floor(Date.now()/1000);
-    await expirePublicPublishers(env,now);await expireDirectory(env,now);await updateBoard(env,now);
+    await expirePublicPublishers(env,now);await expireDirectory(env,now);await updateBoard(env,now,{verifyMessage:true});
   })());}
 };

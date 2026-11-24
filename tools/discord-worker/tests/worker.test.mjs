@@ -150,7 +150,7 @@ test("The 16-active-publisher limit cannot be bypassed with an expired owner row
   assert.equal((await report(key,"POST")).status,409);
 });
 
-function fakeDiscord(t,env,{wrongApp=false,wrongBot=false,wrongChannel=false,foreign=false,missing=false,rate=false}={}){
+function fakeDiscord(t,env,{wrongApp=false,wrongBot=false,wrongChannel=false,foreign=false,missing=false,rate=false,waitForChannel=null}={}){
   const calls=[];let message=null;
   t.mock.method(globalThis,"fetch",async(url,options)=>{
     calls.push({url,method:options.method||"GET",body:options.body});
@@ -161,7 +161,10 @@ function fakeDiscord(t,env,{wrongApp=false,wrongBot=false,wrongChannel=false,for
     if(rate)return result({retry_after:120},429);
     if(path==="/applications/@me")return result({id:wrongApp?"1":APP});
     if(path==="/users/@me")return result({id:APP,bot:!wrongBot});
-    if(path==="/channels/"+CHANNEL)return result({guild_id:wrongChannel?"1":GUILD,type:0});
+    if(path==="/channels/"+CHANNEL){
+      if(waitForChannel)await waitForChannel();
+      return result({guild_id:wrongChannel?"1":GUILD,type:0});
+    }
     if(options.method==="POST" || options.method==="PATCH"){
       const value=JSON.parse(options.body);assert.deepEqual(value.allowed_mentions,{parse:[]});
       message={id:"1565350833854353777",author:{id:APP},embeds:value.embeds};return result(message);
@@ -210,6 +213,33 @@ test("Board leases prevent duplicate creates and honor Discord rate-limit backof
   await updateBoard(env,NOW+30);assert.equal(calls.length,1);
   calls=fakeDiscord(t,env);await Promise.all([updateBoard(env,NOW+121),updateBoard(env,NOW+121)]);
   assert.equal(calls.filter(x=>x.method==="POST").length,1);
+});
+
+test("Periodic verification recreates a deleted board even with unchanged games",async t=>{
+  const {env}=await setup(t);
+  fakeDiscord(t,env);
+  await updateBoard(env,NOW);
+  const calls=fakeDiscord(t,env,{missing:true});
+  await updateBoard(env,NOW+61,{verifyMessage:true});
+  assert.equal(calls.filter(call=>call.method==="POST").length,1);
+});
+
+test("An expired board update does not overwrite the next worker's lease",async t=>{
+  const {env}=await setup(t);
+  let arrive,resume;
+  const waiting=new Promise(resolve=>{arrive=resolve;});
+  const released=new Promise(resolve=>{resume=resolve;});
+  const calls=fakeDiscord(t,env,{waitForChannel:async()=>{arrive();await released;}});
+  const original=updateBoard(env,NOW);
+  await waiting;
+  const laterLease=NOW+121;
+  await env.DB.prepare("UPDATE weplay_board SET lease_until=? WHERE slot=1").bind(laterLease).run();
+  resume();
+  await original;
+  const state=await env.DB.prepare("SELECT lease_until,message_id FROM weplay_board WHERE slot=1").first();
+  assert.equal(state.lease_until,laterLease);
+  assert.equal(state.message_id,null);
+  assert.equal(calls.filter(call=>call.method==="POST").length,0);
 });
 
 test("The public API never returns publisher data or exception details on rejection",async t=>{

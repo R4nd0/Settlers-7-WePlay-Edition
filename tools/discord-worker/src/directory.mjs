@@ -23,7 +23,8 @@ async function input(request,limit=8192){
 }
 
 export async function directoryGames(env,now,validateGames){
-  const result=await env.DB.prepare(`SELECT h.*,r.payload,p.owner IS NOT NULL AS anonymous FROM weplay_directory_hosts h
+  const result=await env.DB.prepare(`SELECT h.*,r.payload,r.expires_at AS report_expires_at,
+    p.owner IS NOT NULL AS anonymous FROM weplay_directory_hosts h
     JOIN weplay_reports r ON r.owner=h.owner AND r.run_id=h.run_id
     LEFT JOIN weplay_public_publishers p ON p.owner=h.owner
     WHERE h.expires_at>? AND r.expires_at>? AND r.closed=0 ORDER BY h.owner LIMIT 16`).bind(now,now).all();
@@ -32,7 +33,8 @@ export async function directoryGames(env,now,validateGames){
     for(const game of validateGames(JSON.parse(host.payload))){
       const id=(await sha(host.owner+":"+host.run_id+":"+game.id)).slice(0,32);
       rows.push({...game,id,network_revision:host.network_revision,content_id:host.content_id,
-        version:host.version,expires_at:Math.min(host.expires_at,now+35),_host:host,_session:game.id});
+        version:host.version,expires_at:Math.min(host.expires_at,host.report_expires_at,now+HOST_TTL),
+        _host:host,_session:game.id});
     }
   }
   rows.sort((a,b)=>a.title.localeCompare(b.title)||a.id.localeCompare(b.id));
@@ -66,7 +68,6 @@ async function guest(env,request,id,now){
     .bind(id,await sha(auth.slice(5))).first();
   if(!row)fail(404);
   if(row.expires_at<=now)fail(410);
-  await liveHost(env,row.owner,row.run_id,now);
   return row;
 }
 export async function directoryRate(env,request,now,scope="join",window=60,limit=12){
@@ -76,11 +77,9 @@ export async function directoryRate(env,request,now,scope="join",window=60,limit
   if(!/^[A-Za-z0-9_-]{43}$/.test(env.PUBLISHER_MASTER_KEY||""))fail(503);
   const key=await crypto.subtle.importKey("raw",encode.encode(env.PUBLISHER_MASTER_KEY),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const bucket=hex(await crypto.subtle.sign("HMAC",key,encode.encode(scope+":"+Math.floor(now/window)+":"+source)));
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM weplay_join_rates WHERE expires_at<=?").bind(now),
-    env.DB.prepare(`INSERT INTO weplay_join_rates VALUES(?,1,?) ON CONFLICT(bucket) DO UPDATE SET count=count+1`).bind(bucket,now+window*2)
-  ]);
-  const value=await env.DB.prepare("SELECT count FROM weplay_join_rates WHERE bucket=?").bind(bucket).first();
+  await env.DB.prepare("DELETE FROM weplay_join_rates WHERE expires_at<=?").bind(now).run();
+  const value=await env.DB.prepare(`INSERT INTO weplay_join_rates VALUES(?,1,?)
+    ON CONFLICT(bucket) DO UPDATE SET count=count+1 RETURNING count`).bind(bucket,now+window*2).first();
   if(value.count>limit)fail(429);
 }
 
@@ -168,6 +167,7 @@ export async function directoryRequest(request,env,now,{publisher,games}){
         .bind(row.id,row.token_hash).run();return reply({ok:true});
     }
     if(request.method!=="GET")fail(405);
+    await liveHost(env,row.owner,row.run_id,now);
     if(row.consumed)fail(410);
     return reply({format:"weplay-join-delivery-v1",id:row.id,game_id:row.game_id,challenge:row.challenge,
       expires_at:row.expires_at,envelope:row.envelope?JSON.parse(row.envelope):null});
