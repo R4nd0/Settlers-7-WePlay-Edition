@@ -33,9 +33,15 @@ function WriteStatus([string]$Phase,[string]$Code) {
     $status=PlainPath (Join-Path $app 'State\Updates\status.json')
     $temporary=$status+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
     $value=@{format='weplay-update-status-v1';phase=$Phase;code=$Code;version=$record.version;sequence=$record.sequence}
-    [IO.File]::WriteAllText($temporary,($value|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
-    if(Test-Path -LiteralPath $status) { [IO.File]::Replace($temporary,$status,[System.Management.Automation.Language.NullString]::Value) }
-    else { [IO.File]::Move($temporary,$status) }
+    try {
+        [IO.File]::WriteAllText($temporary,($value|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+        if(Test-Path -LiteralPath $status) { [IO.File]::Replace($temporary,$status,[System.Management.Automation.Language.NullString]::Value) }
+        else { [IO.File]::Move($temporary,$status) }
+    } catch [IO.IOException],[UnauthorizedAccessException] {
+        # Progress is advisory. ready.json remains the required handshake.
+    } finally {
+        try { [IO.File]::Delete($temporary) } catch [IO.IOException],[UnauthorizedAccessException] {}
+    }
 }
 function OpenOwned($Identity,[string]$ExpectedPath) {
     try { $process=[Diagnostics.Process]::GetProcessById([int]$Identity.pid) }
@@ -128,12 +134,13 @@ try {
     $setup=Start-Process -FilePath $installer -ArgumentList $arguments -WorkingDirectory $jobDir -WindowStyle Hidden -Wait -PassThru
     if($setup.ExitCode -ne 0) { throw 'update_install_failed' }
     WriteStatus 'installed' ''
+    $stage='installed'
     $updateMutex.ReleaseMutex();$ownedMutex=$false;$updateMutex.Dispose();$updateMutex=$null
     Start-Process -FilePath (Join-Path $app 'S7Launcher.exe') -WorkingDirectory $app -WindowStyle Normal | Out-Null
 } catch {
     $code=[string]$_.Exception.Message
     if($code -cnotmatch '^update_[a-z_]+$') { $code='update_handoff_failed' }
-    try { WriteStatus 'failed' $code } catch { }
+    if($stage -ne 'installed') { try { WriteStatus 'failed' $code } catch { } }
     if($ValidateOnly) { Write-Output ('FAIL: '+$code) }
     exit 2
 } finally {

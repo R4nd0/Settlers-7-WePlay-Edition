@@ -15,7 +15,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         bool validate=args.Length==2&&args[0]=="--validate";
-        Mutex? mutex=null;bool owned=false,statusAllowed=false;
+        Mutex? mutex=null;bool owned=false,statusAllowed=false,installed=false;
         try
         {
             if(args.Length!=2||args[0] is not ("--job" or "--validate"))Fail("update_invalid");
@@ -93,14 +93,15 @@ internal static class Program
                 using var process=Process.Start(start)??throw new InvalidDataException("update_install_failed");
                 process.WaitForExit();if(process.ExitCode!=0)Fail("update_install_failed");
             }
-            Status("installed","");mutex!.ReleaseMutex();owned=false;mutex.Dispose();mutex=null;
+            Status("installed","");installed=true;
+            mutex!.ReleaseMutex();owned=false;mutex.Dispose();mutex=null;
             Process.Start(new ProcessStartInfo(SafePaths.FileAt(app,"S7Launcher.exe")){UseShellExecute=false,WorkingDirectory=app});
             return 0;
         }
         catch(Exception error)
         {
             string code=Match(error.Message,"update_[a-z_]+")?error.Message:error.Message.StartsWith("helper_",StringComparison.Ordinal)?"update_invalid":"update_handoff_failed";
-            if(!validate&&statusAllowed&&app!=null&&updates!=null){try{Status("failed",code);}catch(Exception){}}
+            if(!validate&&!installed&&statusAllowed&&app!=null&&updates!=null){try{Status("failed",code);}catch(Exception){}}
             if(validate)Console.WriteLine("FAIL: "+code);
             return 2;
         }
@@ -169,11 +170,20 @@ internal static class Program
     }
     private static void VerifySetup(string path,long size,string hash)
     {if(new FileInfo(path).Length!=size||SafePaths.Hash(path)!=hash)Fail("update_hash_invalid");}
-    private static void Status(string phase,string code)=>Atomic(SafePaths.Plain(Path.Combine(updates!,"status.json")),writer=>
+    private static void Status(string phase,string code)
     {
-        writer.WriteString("format","weplay-update-status-v1");writer.WriteString("phase",phase);writer.WriteString("code",code);
-        writer.WriteString("version",version);writer.WriteNumber("sequence",sequence);
-    });
+        try
+        {
+            Atomic(SafePaths.Plain(Path.Combine(updates!,"status.json")),writer=>
+            {
+                writer.WriteString("format","weplay-update-status-v1");writer.WriteString("phase",phase);writer.WriteString("code",code);
+                writer.WriteString("version",version);writer.WriteNumber("sequence",sequence);
+            });
+        }
+        // Progress is advisory. ready.json remains the required handshake.
+        catch(IOException){}
+        catch(UnauthorizedAccessException){}
+    }
     private static void Atomic(string path,Action<Utf8JsonWriter> content,bool overwrite=true)
     {
         string temporary=SafePaths.Plain(path+"."+Guid.NewGuid().ToString("N")+".tmp");

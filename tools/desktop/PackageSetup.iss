@@ -54,21 +54,33 @@ begin
   Result := True;
 end;
 
+procedure QueueRetainedPackage(Target: String);
+var I, N: Integer;
+begin
+  N := GetArrayLength(PackageRetained);
+  for I := 0 to N - 1 do
+    if CompareText(PackageRetained[I], Target) = 0 then exit;
+  SetArrayLength(PackageRetained, N + 1);
+  PackageRetained[N] := Target;
+end;
+
 function PreservePackageSlot(App, Slot: String): Boolean;
-var Folder, Target: String; N: Integer;
+var Folder, Target: String;
 begin
   Result := True;
-  if not DirExists(Slot) then exit;
   Folder := AddBackslash(App) + 'State\PackageBackups';
   Target := AddBackslash(Folder) + ExtractFileName(Slot);
+  if not DirExists(Slot) then begin
+    { The prior setup may have moved the backup before retiring it. }
+    if DirExists(Target) and PlainPackagePath(Target) then
+      QueueRetainedPackage(Target);
+    exit;
+  end;
   Result := PlainPackagePath(Slot) and PlainPackagePath(Folder) and
     (not DirExists(Target)) and ForceDirectories(Folder);
   if Result then begin
     Result := RenameFile(Slot, Target);
-    if Result then begin
-      N := GetArrayLength(PackageRetained);SetArrayLength(PackageRetained, N + 1);
-      PackageRetained[N] := Target;
-    end;
+    if Result then QueueRetainedPackage(Target);
   end;
 end;
 

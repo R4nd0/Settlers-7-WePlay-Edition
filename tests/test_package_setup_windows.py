@@ -54,6 +54,9 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := 'Package fixture preparation failed';
   if not PreparePackageUpgrade(WizardDirValue) then exit;
+  if ExpandConstant('{{param:WePlayPackageTest|}}') = 'inspect-recovered' then
+    SaveStringToFile(AddBackslash(WizardDirValue) + 'retained-count.fixture',
+      IntToStr(GetArrayLength(PackageRetained)), False);
   if not ForceDirectories(PackageStage('')) then exit;
   if not SaveStringToFile(AddBackslash(PackageStage('')) + 'payload.fixture', 'incoming payload', False) then exit;
   Result := '';
@@ -105,6 +108,20 @@ end;
         self.assertEqual((app/'Package/payload.fixture').read_bytes(),b'incoming payload')
         self.assertEqual((app/'published-launcher.fixture').read_bytes(),b'small authored fixture')
         self.assertFalse((app/'State/package-upgrade.ini').exists())
+
+    def test_recovery_requeues_backup_moved_before_previous_setup_interruption(self):
+        app=self.root/'retained'
+        (app/'Package').mkdir(parents=True)
+        name='.weplay-package-'+'c'*32
+        backup=app/'State/PackageBackups'/(name+'.previous')
+        backup.mkdir(parents=True)
+        existing=backup/'payload.fixture';existing.write_bytes(b'previous payload')
+        (app/'State/package-upgrade.ini').write_text('[Transaction]\nformat=weplay-package-swap-v1\n'
+            f'stage={name}\nphase=committed\n',encoding='ascii')
+        result=self.run_fixture(app,'inspect-recovered')
+        self.assertEqual(result.returncode,0)
+        self.assertEqual((app/'retained-count.fixture').read_text(),'1')
+        self.assertEqual(existing.read_bytes(),b'previous payload')
 
 
 if __name__ == '__main__':

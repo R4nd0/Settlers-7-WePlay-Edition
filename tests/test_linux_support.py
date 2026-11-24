@@ -49,6 +49,37 @@ with patch.object(install, 'package_manifest', return_value={'linux_native': Tru
                                 capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
 
+    def test_linux_copy_stays_marked_incomplete_through_renderer_setup(self):
+        import launcher
+        import install
+        import graphics_profile
+        from contextlib import contextmanager
+        source=self.root/'source';source.mkdir()
+        destination=self.root/'new copy'
+        marker=destination/'INSTALLATION-INCOMPLETE.txt'
+        def copied(_package,_source,target,**options):
+            target.mkdir()
+            if options.get('defer_completion'):
+                marker.write_text('fixture incomplete setup',encoding='utf8')
+            return target
+        @contextmanager
+        def renderer_lock(_root):
+            self.assertTrue(marker.is_file(),'Preparation exposed the new copy before Linux setup completed.')
+            yield
+        def fail_renderer(_root,*_args,**_options):
+            self.assertTrue(marker.is_file())
+            raise OSError('renderer installation failed')
+        with (patch.object(launcher.linux_runtime,'require_linux_filesystem'),
+              patch.object(install,'package_manifest',return_value={'linux_native':True}),
+              patch.object(install,'prepare',side_effect=copied),
+              patch.object(graphics_profile,'session_lock',renderer_lock),
+              patch.object(graphics_profile,'_change_locked',side_effect=fail_renderer),
+              patch.object(launcher,'dxvk_source',return_value=self.root/'d3d9.dll')):
+            with self.assertRaisesRegex(OSError,'renderer installation failed'):
+                launcher.prepare(self.root,source,destination)
+        self.assertTrue(marker.is_file())
+        self.assertFalse((destination/'WePlay.sh').exists())
+
     def test_installed_launcher_and_solo_dependencies_work_without_installer_tree(self):
         import install
         manifest = dict(linux_native=True, automatic_lan=True, graphics_choice=True, display_selection=True,

@@ -504,7 +504,7 @@ def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=N
 
 
 def prepare(package, source, destination, emit=print, *, progress=None, publish_starters=True, managed=False,
-            additional_bytes=0,on_created=None,tracker=None):
+            additional_bytes=0,on_created=None,tracker=None,defer_completion=False):
     package, source, destination = map(content.plain, (package, source, destination))
     for protected in (source, package):
         if destination.is_relative_to(protected) or protected.is_relative_to(destination):
@@ -737,7 +737,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     if tracker:
         for name in ('local-bundle.json','compatibility.json'):tracker(destination/name,content.digest(destination/name))
     if not publish_starters:
-        incomplete.unlink()
+        if not defer_completion:incomplete.unlink()
         emit('Spielkopie ist fuer den gemeinsamen Starter vorbereitet.')
         return destination
     (destination / 'LIESMICH.txt').write_text(
@@ -768,7 +768,7 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
                 'Das richtet nach Windows-Bestaetigung nur private Freigaben fuer diese Kopie im lokalen Subnetz ein.\n'
                 'Der Lobbyrechner muss erreichbar bleiben; sein Spiel darf beendet werden, waehrend andere spielen.\n'
                 'Im LAN ist der Entwicklermodus immer deaktiviert.\n')
-    incomplete.unlink()
+    if not defer_completion:incomplete.unlink()
     emit('Testkopie ist vorbereitet. Start: ' + ('Start-S7-LAN.cmd.' if manifest.get('automatic_lan') else 'Test-LAN-Verbindung.cmd.'))
     return destination
 

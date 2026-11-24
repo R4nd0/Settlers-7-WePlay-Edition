@@ -32,15 +32,12 @@ def prepare(package, source, destination, *, emit=print, progress=None):
     from launch_auto_lan import session_lock
     with session_lock(source) if native_update else nullcontext():
         result = install.prepare(package, source, destination, emit=emit, progress=progress,
-                                 managed=managed, publish_starters=False)
+                                 managed=managed, publish_starters=False, defer_completion=True)
         incomplete = result / 'INSTALLATION-INCOMPLETE.txt'
-        # The renderer verifies the complete base copy before changing its
-        # files. Keep launches locked until the Linux preparation marker is set.
+        # The renderer verifies the complete base copy before changing its files.
+        # The setup marker stays present until the Linux starter is published.
         with graphics_profile.session_lock(result):
-            try:
-                graphics_profile._change_locked(result, True, dxvk_source(result, package))
-            finally:
-                incomplete.write_text('Linux setup is still completing.\n', encoding='utf-8')
+            graphics_profile._change_locked(result, True, dxvk_source(result, package), preparing=True)
         if native_update:
             import linux_profiles
             linux_profiles.migrate(source,result)

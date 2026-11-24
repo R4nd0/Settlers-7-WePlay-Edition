@@ -46,6 +46,8 @@ class Fixture {
                 catch(ArgumentException) { return false; }
             }
             File.WriteAllText(Path.Combine(directory, "setup.marker"), JsonSerializer.Serialize(new { parent_alive=Alive("parent"), backend_alive=Alive("backend"), arguments=args }));
+            if(File.Exists(Path.Combine(directory,"no-launcher-after-install.fixture")))
+                File.Delete(Path.Combine(directory,"S7Launcher.exe"));
             return File.Exists(Path.Combine(directory, "fail-installer.fixture")) ? 23 : 0;
         }
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(executable)!, "restarted.marker"), "restarted");
@@ -274,6 +276,44 @@ class WindowsHandoffTests(unittest.TestCase):
         self.assertEqual(self.status()['phase'], 'failed')
         self.assertEqual(self.status()['code'], 'update_install_failed')
         self.assertFalse((self.app / 'restarted.marker').exists())
+        self.preserved()
+
+    def test_restart_failure_does_not_replace_successful_installation_status(self):
+        (self.app/'no-launcher-after-install.fixture').write_bytes(b'owned restart failure test')
+        helper=self.helper()
+        self.ready(helper)
+        self.exit_parent(0)
+        self.exit_parent(1)
+        self.finished(helper,2)
+        self.assertTrue((self.app/'setup.marker').is_file())
+        self.assertEqual(self.status()['phase'],'installed')
+        self.assertFalse((self.app/'restarted.marker').exists())
+        self.preserved()
+
+    def test_busy_status_reader_cannot_veto_a_verified_installation(self):
+        status=self.job.parent/'status.json'
+        previous={'format':'weplay-update-status-v1','phase':'installed','code':'','sequence':1}
+        self.write(status,previous)
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,wintypes.LPVOID,
+                                    wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+        kernel.CreateFileW.restype=wintypes.HANDLE
+        kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+        handle=kernel.CreateFileW(str(status),0x80000000,1,None,3,0,None)
+        self.assertNotEqual(handle,ctypes.c_void_p(-1).value)
+        try:
+            helper=self.helper()
+            ready=self.job/'ready.json'
+            self.until(ready.is_file,helper)
+            self.assertEqual(json.loads(ready.read_bytes())['helper_pid'],helper.pid)
+            self.exit_parent(0)
+            self.exit_parent(1)
+            self.finished(helper,0)
+            self.until(lambda:(self.app/'restarted.marker').exists())
+            self.assertTrue((self.app/'setup.marker').exists())
+            self.assertEqual(self.status(),previous)
+        finally:
+            kernel.CloseHandle(handle)
         self.preserved()
 
     def test_exact_start_token_mismatch_blocks_before_ready_or_setup(self):

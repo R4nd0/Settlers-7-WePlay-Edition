@@ -124,9 +124,10 @@ def _bundle(root, expected):
     _pe32_dll(_read(root / LOADER, MAX_DLL))
 
 
-def _preflight(root):
+def _preflight(root, *, preparing=False):
     root = _plain(root)
-    if not root.is_dir() or _plain(root / 'INSTALLATION-INCOMPLETE.txt').exists():
+    incomplete = _plain(root / 'INSTALLATION-INCOMPLETE.txt')
+    if not root.is_dir() or (incomplete.exists() and not preparing):
         raise ValueError('Die lokale Testkopie ist unvollstaendig.')
     # These must exist before session_lock is allowed to create LocalData.
     for name in (BUNDLE, COMPAT):
@@ -307,9 +308,9 @@ def _change(root, enable, source=None):
         return _change_locked(root, enable, source)
 
 
-def _change_locked(root, enable, source=None):
+def _change_locked(root, enable, source=None, *, preparing=False):
     """Internal transition; caller owns the same game session lock."""
-    root = _preflight(root)
+    root = _preflight(root, preparing=preparing)
     ensure_closed()
     folder = _plain(root / STATE)
     prepared = False
