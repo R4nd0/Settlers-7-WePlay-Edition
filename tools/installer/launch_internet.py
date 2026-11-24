@@ -15,6 +15,7 @@ from easytier_elevation import open_overlay
 from internet_room import InternetError, create, parse, check_overlap
 from lan_control import request
 from lan_discovery import LanDiscovery
+from lan_hub import status_counts
 from lan_interfaces import enumerate_interfaces
 from lobby_directory import LobbyEndpoint
 import launch_auto_lan
@@ -43,6 +44,8 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     cancel, progress = getattr(args, 'cancel_check', None), getattr(args, 'progress', None)
     overlay = overlay_factory(root, room, host=host, cancel_check=cancel, progress=progress)
     interface = None
+    expected_content = None
+    host_ready = False
 
     def network():
         nonlocal interface
@@ -52,9 +55,11 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                 network_ready(interface, room.coordinator, host)
         return [interface], LanDiscovery([interface])
 
-    def select(_root, _directory, interfaces, _expected):
+    def select(_root, _directory, interfaces, expected):
+        nonlocal expected_content
         if len(interfaces) != 1 or interfaces[0] != interface:
             raise InternetError('internet_adapter_invalid')
+        expected_content = expected
         return dict(action='create' if host else 'join', network=0, display_name=name,
                     endpoint=LobbyEndpoint('lan-direct', room.coordinator))
 
@@ -68,6 +73,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             raise InternetError('internet_disconnected')
 
     def before_game():
+        nonlocal host_ready
         verify_tunnel_binding()
         if before:
             before()
@@ -78,6 +84,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             progress('internet_ready')
         if host and invitation_ready:
             invitation_ready(room.token())
+        host_ready = host
 
     options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game)
     observer = getattr(args, 'public_observer', None)
@@ -95,7 +102,7 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         if network_ready:
             network()
         code = launch_auto_lan.run(SimpleNamespace(**options), picker=select, network=network)
-        if host and interface is not None:
+        if host_ready:
             deadline = time.monotonic() + 86400
             missed_status = 0
             while time.monotonic() < deadline:
@@ -104,7 +111,11 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                 if cancel:
                     cancel()
                 try:
-                    status = request(room.coordinator, interface.address, 'status', timeout=2)
+                    status = request(room.coordinator, interface.address, 'status',
+                                     expected=expected_content, timeout=2)
+                    _, active = status_counts(status, expected_content)
+                except ValueError:
+                    raise InternetError('internet_status_invalid') from None
                 except (OSError, http.client.HTTPException):
                     if code:
                         # A failed game's newly created idle hub may already be gone.
@@ -115,9 +126,6 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                     time.sleep(.5)
                     continue
                 missed_status = 0
-                active = status.get('active_members')
-                if type(active) is not int or not 0 <= active <= 8:
-                    raise InternetError('internet_status_invalid')
                 if not active:
                     break
                 try:

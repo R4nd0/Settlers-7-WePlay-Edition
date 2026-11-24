@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 import http.client
 import ipaddress
 
-from lan_control import request
+from lan_control import request, validate_peers
 from lan_discovery import LanDiscovery
 from lan_hub import status_counts
 from lobby_directory import LobbyRoom, MAX_MEMBERS, MAX_ROOMS, content_id
@@ -150,8 +150,19 @@ arbitrary endpoint URLs, account data or native game calls are involved.
     if preferred.room.content_id not in allowed:
         raise LanConnectionError('lan_version',
             'Die ausgewaehlte LAN-Gruppe verwendet einen anderen Spiel- oder Grafikstand. Bitte WePlay erneut starten.')
-    if preferred.members >= MAX_MEMBERS and preferred.room.endpoint.host != preferred.room.local_interface.address:
-        raise LanConnectionError('lan_full', 'Die LAN-Gruppe ist voll. Bitte warten, bis ein Platz frei wird.')
+    host, local = route(preferred.room)
+    if preferred.members >= MAX_MEMBERS and host != local:
+        # After a lost leave request, a restarting player may still own one
+        # of the occupied slots. Only the coordinator can confirm that lease.
+        checkpoint(cancel_check)
+        expected_content = preferred.room.content_id
+        try:
+            peers = request(host, local, 'peers', expected=expected_content, timeout=.65)
+            validate_peers(peers, local, host, expected_content)
+        except (OSError, ValueError, http.client.HTTPException):
+            raise LanConnectionError('lan_full',
+                'Die LAN-Gruppe ist voll. Bitte warten, bis ein Platz frei wird.') from None
+        checkpoint(cancel_check)
     return preferred.room
 
 

@@ -9,7 +9,8 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/installer'))
 import lan_autoconnect as auto
 from lan_discovery import LanDiscovery, answer_message, query_message
-from lobby_directory import LanInterface, LobbyRoom, LobbyEndpoint, CONTROL_FORMAT, MAX_MEMBERS, DISCOVERY_PORT
+from lobby_directory import (LanInterface, LobbyRoom, LobbyEndpoint, CONTROL_FORMAT,
+                             MAX_MEMBERS, DISCOVERY_PORT, LEASE_SECONDS)
 
 A, B = 'a' * 64, 'b' * 64
 
@@ -30,6 +31,8 @@ class DiscoveryPolicyTests(unittest.TestCase):
 
     def discover(self, rooms, *, statuses=None, **kwargs):
         def response(host, local, path, **options):
+            if path == 'peers':
+                raise ValueError('No existing admission')
             self.assertEqual(path, 'status')
             self.assertLessEqual(options['timeout'], 1)
             if statuses is None:
@@ -208,6 +211,26 @@ class DiscoveryPolicyTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 'lan_full')
         own = room('192.168.1.10')
         self.assertEqual(self.discover([own], statuses={own.endpoint.host: status(members=8, active=7)}), own)
+
+    def test_full_group_allows_an_already_admitted_source_to_reconnect(self):
+        full = room('192.168.1.20')
+        host, local = auto.route(full)
+        peers = dict(format=CONTROL_FORMAT, content_id=A, revision=1,
+                     lease_seconds=LEASE_SECONDS, peers=[host, local])
+        with patch.object(auto, 'request', side_effect=[status(members=8, active=8), peers]) as request:
+            self.assertEqual(auto.discover_preferred(self.directory([full]), A), full)
+        request.assert_called_with(host, local, 'peers', expected=A, timeout=.65)
+
+    def test_full_group_does_not_allow_an_unverified_lease(self):
+        full = room('192.168.1.20')
+        host, local = auto.route(full)
+        peers = dict(format=CONTROL_FORMAT, content_id=B, revision=1,
+                     lease_seconds=LEASE_SECONDS, peers=[host, local])
+        for unverified in (peers, dict(peers, content_id=A, peers=[host])):
+            with self.subTest(unverified=unverified), \
+                    patch.object(auto, 'request', side_effect=[status(members=8, active=8), unverified]), \
+                    self.assertRaisesRegex(auto.LanConnectionError, 'LAN-Gruppe ist voll'):
+                auto.discover_preferred(self.directory([full]), A)
 
     def test_status_wrong_version_or_bad_counts_do_not_pass_beacon_check(self):
         item = room('192.168.1.20')
