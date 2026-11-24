@@ -494,6 +494,7 @@
   "reshade_download_failed": "Der Grafikdownload ist fehlgeschlagen. Prüfe deine Verbindung und versuche es erneut.",
   "reshade_download_invalid": "Der Grafikdownload entspricht nicht der geprüften Version. Keine heruntergeladene Komponente wurde aktiviert.",
   "reshade_preparation_changed": "Die Dateien der Grafikvorbereitung wurden verändert und bleiben erhalten. Exportiere vor einem weiteren Versuch eine Diagnose.",
+  "reshade_layer_path_unavailable": "ReShade benötigt einen Speicherpfad ohne Semikolon. Wähle bei der Reparatur einen anderen Speicherort oder schalte ReShade in den Grafikeinstellungen aus.",
   "phase_reshade_download": "Geprüfte Grafikkomponente wird heruntergeladen…",
   "settingsRecoveryField_unreadable": "unlesbare oder veränderte Einstellungsdateien",
   "settingsRecoveryField_detach_pending": "unterbrochene Neueinrichtung",

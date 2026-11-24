@@ -871,16 +871,19 @@ class Desktop:
             raise ValueError('renderer_unsupported')
         if policy=='dxvk' and selected.get('display') is not None:
             display.resolve(selected['display'],screens,renderer='dxvk',gpu=selected['choice'])
+        prepare_effects=policy=='dxvk' and any(selected.get(name,False) for name in choice.RESHADE_OPTIONS)
+        if prepare_effects:
+            import reshade_runtime
+            reshade_runtime.require_layer_path(root)
         with graphics.session_lock(root):
             # Validate all old user records before staging their before-images.
             before=desktop_settings.current_graphics(self,root);player_settings.load(root)
             after=dict(renderer_policy=policy,choice=selected,quality=quality_value)
             if remember_previous and after!=before and desktop_settings.graphics_backup(self,root) is None:
                 desktop_settings.remember_graphics(self,root,before,confirmed=False)
-            if policy=='dxvk' and any(selected.get(name,False) for name in ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')):
+            if prepare_effects:
                 if gold:gold_graphics.prepare_effects(root,selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
                 else:
-                    import reshade_runtime
                     reshade_runtime.prepare(root,options=selected,cancelled=lambda:self.cancel.exists(),progress=self.progress)
             if self.cancel.exists():raise Cancelled('cancelled')
             value=self.installed();value['renderer_policy']=policy
@@ -1774,6 +1777,7 @@ def error_code(error):
     known={'request_invalid','not_installed','installation_invalid','package_invalid','operation_busy','cleanup_required',
         'renderer_unsupported','renderer_payload_invalid','destination_invalid','destination_too_long','preferences_invalid','recovery_changed','quality_invalid','quality_ini_invalid','standalone_invalid',
         'reshade_download_timeout','reshade_download_failed','reshade_download_invalid','reshade_preparation_changed',
+        'reshade_layer_path_unavailable',
         'quality_ini_changed','lobby_gone','version_mismatch','network_changed','ownership_invalid',
         'managed_copy_busy','source_missing','game_failed','cancelled','probe_invalid','update_required','firewall_remove_failed','internet_consent_required',
                 'lan_discovery_port_busy','lan_discovery_port_invalid','lan_discovery_socket_failed','lan_coordinator_start_failed','lan_coordinator_timeout','lan_discovery_timeout',

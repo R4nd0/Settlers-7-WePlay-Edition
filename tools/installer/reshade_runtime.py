@@ -36,6 +36,7 @@ CLOCK_FILE = 'Runtime/Graphics/WePlayAtmosphere.addon32'
 # a shader/configuration which an already running game may have loaded.
 FOLDER = 'LocalData/ReShade-Visual-v2'
 OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')
+LAYER_PATH_ERROR = 'reshade_layer_path_unavailable'
 SMAA_ASSETS = ('SMAA.fx', 'SMAA.fxh', 'ReShade.fxh', 'ReShadeUI.fxh',
                'AreaTex.png', 'SearchTex.png', 'SweetFX-LICENSE.txt', 'THIRD-PARTY.md')
 SMAA_PRESET = '''
@@ -424,7 +425,18 @@ def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
     return verify(root, options)
 
 
+def layer_path_supported(root):
+    # Vulkan splits VK_LAYER_PATH on the platform's path separator.
+    return os.pathsep not in str(Path(root).absolute())
+
+
+def require_layer_path(root):
+    if not layer_path_supported(root):
+        raise ValueError(LAYER_PATH_ERROR)
+
+
 def launch_environment(root, inherited, options=None):
+    require_layer_path(root)
     folder = prepare(root, options=options)
     path_key, add_key, layer_key = 'VK_LAYER_PATH', 'VK_ADD_LAYER_PATH', 'VK_INSTANCE_LAYERS'
     inherited_layers = {key.upper(): value for key, value in inherited.items()

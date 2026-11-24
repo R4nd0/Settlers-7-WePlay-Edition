@@ -494,6 +494,7 @@
   "reshade_download_failed": "The graphics download failed. Check your connection and try again.",
   "reshade_download_invalid": "The graphics download did not match the verified version. No downloaded component was activated.",
   "reshade_preparation_changed": "The graphics preparation files were changed. They have been preserved. Export diagnostics before retrying.",
+  "reshade_layer_path_unavailable": "ReShade requires a storage path without a semicolon. Choose another location when repairing the game copy or turn off ReShade in Graphics.",
   "phase_reshade_download": "Downloading the verified graphics component…",
   "settingsRecoveryField_unreadable": "unreadable or changed settings files",
   "settingsRecoveryField_detach_pending": "interrupted setup reset",

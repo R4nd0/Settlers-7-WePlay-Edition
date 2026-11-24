@@ -19,6 +19,7 @@ FORMAT = 's7-graphics-choice-v1'
 CHOICE_FILE = 'LocalData/graphics-choice.json'
 MAX_RECORD = 4096
 CANCELLED = 10
+RESHADE_OPTIONS = ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')
 VISUAL_ADAPTER_SHA256 = 'be3954590e196e1f205db71af8f81a2ed717083e1fe3045e6e29f16d18594ffe'
 
 
@@ -203,9 +204,10 @@ def saved_launch_environment(root, inherited=None, *, renderer='dxvk', renderer_
     environment=visual_environment(selected,environment)
     smaa=selected.get('enhanced_aa',False)
     fallback=False
-    if renderer == 'dxvk':
-        environment = tone_environment(root, selected, mode, environment)
-    else:
+    if renderer == 'dxvk' and any(selected.get(name,False) for name in RESHADE_OPTIONS):
+        import reshade_runtime
+        environment,smaa,fallback=launch_managed_effects(root,selected,environment,reshade_runtime)
+    elif renderer != 'dxvk':
         environment,smaa,fallback=compatibility_aa(root,renderer,renderer_package,smaa,environment,
                                                     display_adapter=output['adapter'] if output else None)
     if smaa or fallback or graphics._plain(root/'LocalData/graphics-quality.json').exists():
@@ -238,8 +240,16 @@ def compatibility_aa(root, renderer, package, requested, inherited, *, display_a
     return environment,True,False
 
 
+def launch_managed_effects(root, selected, environment, runtime):
+    smaa=selected.get('enhanced_aa',False)
+    if not runtime.layer_path_supported(root):
+        print(runtime.LAYER_PATH_ERROR,flush=True)
+        return environment,False,smaa
+    return runtime.launch_environment(root,environment,options=selected),smaa,False
+
+
 def tone_environment(root, selected, mode, environment):
-    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
+    if any(selected.get(name, False) for name in RESHADE_OPTIONS):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
@@ -279,7 +289,7 @@ def save_choice(root, value, *, renderer='dxvk'):
         display.resolve(selected['display'], display.enumerate_displays(), renderer=mode,
                         gpu=selected['choice'] if renderer=='dxvk' else None)
     _read_choice(root)  # Unknown/damaged preferences are never overwritten.
-    if renderer=='dxvk' and any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
+    if renderer=='dxvk' and any(selected.get(name, False) for name in RESHADE_OPTIONS):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         import reshade_runtime
@@ -324,12 +334,13 @@ def choose_launch_environment(root, inherited=None):
         raise ValueError('Der Grafikauswahldialog konnte nicht abgeschlossen werden.')
     selected = _record(result.stdout)
     _require_visual_support(root, selected)
-    if any(selected.get(name, False) for name in ('midsummer_tone', 'enhanced_aa', 'contact_shadows', 'maximum_fx')):
+    if any(selected.get(name, False) for name in RESHADE_OPTIONS):
         if mode != 'dxvk':
             raise ValueError('Das ReShade-Farbprofil braucht Moderne Grafik.')
         if selected.get('display') is not None:
             display.resolve(selected['display'], display.enumerate_displays(), renderer=mode, gpu=selected['choice'])
         import reshade_runtime
+        reshade_runtime.require_layer_path(root)
         reshade_runtime.prepare(root, options=selected)
     current_mode, environment = _renderer(root, inherited)
     if current_mode != mode:

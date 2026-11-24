@@ -11,7 +11,7 @@ EXE = 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe'
 INTERFACE = 'Data/Base/BBA/Interface.bba'
 INTERFACE_SHA256 = '9f8e4c7a4d26732dccff437df09028656c7dd198bc1ce065e243016fd560f928'
 MIXED_INTERFACE_SHA256 = '6188cf2a999eabb93427fa1df236f01226b47a61d6d3bd3c29df5d6556006734'
-OPTIONS = ('midsummer_tone','enhanced_aa','contact_shadows','maximum_fx')
+OPTIONS = choice.RESHADE_OPTIONS
 
 
 def is_gold(root):
@@ -85,7 +85,7 @@ def launch_environment(root,inherited=None,*,renderer='dxvk',renderer_package=No
     fallback=False
     if renderer == 'dxvk':
         if any(selected.get(n,False) for n in OPTIONS):
-            environment=runtime(root,selected).launch_environment(root,environment,options=selected)
+            environment,smaa,fallback=choice.launch_managed_effects(root,selected,environment,runtime(root,selected))
     else:
         display_adapter = None
         if smaa and renderer in graphics.ASYNC_RENDERERS and selected.get('display') is not None:

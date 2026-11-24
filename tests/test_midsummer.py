@@ -253,6 +253,43 @@ class ReShadePreparationTests(unittest.TestCase):
                     reshade_runtime.prepare(root,options={'enhanced_aa':True})
             self.assertEqual((old/'ReShade32.dll').read_bytes(),b'old GUI runtime')
 
+    def test_reshade_can_be_prepared_at_a_valid_install_path_but_cannot_load_an_unrepresentable_vulkan_path(self):
+        options = {'enhanced_aa': True}
+        with self.prepared(options) as (root, folder, closed):
+            moved = root / ('WePlay' + os.pathsep + 'Games')
+            moved.mkdir()
+            prepared = reshade_runtime.prepare(moved, setup=root/'setup.exe', options=options)
+            self.assertTrue(prepared.is_dir())
+            with self.assertRaisesRegex(ValueError, 'reshade_layer_path_unavailable'):
+                reshade_runtime.launch_environment(moved, {}, options)
+
+    def test_setup_with_default_smaa_publishes_a_path_containing_the_layer_separator(self):
+        from test_desktop_backend import DesktopTests
+        import graphics_choice as choice
+        import display_settings as display
+
+        save_choice = choice.save_choice
+        prepare = reshade_runtime.prepare
+        desktop_case = DesktopTests()
+        with self.prepared({'enhanced_aa': True}) as (runtime, _, _), ExitStack() as stack:
+            desktop_case.setUp()
+            stack.callback(desktop_case.doCleanups)
+            desktop = desktop_case.desktop
+            manifest = dict(desktop.package_manifest(), midsummer_profile=True)
+            destination = desktop_case.fixture.root / ('Game' + os.pathsep + 'Library')
+            stack.enter_context(patch.object(desktop, 'package_manifest', return_value=manifest))
+            stack.enter_context(patch.object(display, 'enumerate_displays', return_value=desktop_case.screens))
+            stack.enter_context(patch.object(choice, '_renderer', return_value=('dxvk', {})))
+            stack.enter_context(patch.object(choice, 'save_choice', wraps=save_choice))
+            stack.enter_context(patch.object(
+                reshade_runtime, 'prepare',
+                side_effect=lambda root, **kwargs: prepare(root, setup=runtime / 'setup.exe', **kwargs),
+            ))
+            result = desktop.install_game(desktop_case.fixture.source, destination)
+            self.assertTrue(result['installed'])
+            self.assertTrue(result['choice']['enhanced_aa'])
+            self.assertEqual(desktop.game().parent, destination)
+
     def test_runtime_preset_rewrites_can_be_saved_and_launched_repeatedly(self):
         for maximum in (False,True):
             options=dict(midsummer_tone=True,enhanced_aa=True,contact_shadows=True,maximum_fx=maximum)
