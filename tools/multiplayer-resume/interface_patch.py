@@ -57,6 +57,139 @@ def decoded_view(raw):
     return source, ''.join(pieces), offsets
 
 
+def replace_lua(raw, before, after):
+    source, body, offsets = decoded_view(raw)
+    if body.count(before) != 1:
+        raise ValueError('Board Lua anchor mismatch: ' + before[:80])
+    at = body.index(before)
+    return (source[:offsets[at]] + after + source[offsets[at + len(before)]:]).encode('utf8')
+
+
+LAYOUT_READY = '''local function weplayLayoutReady(layout, slots)
+    if _G.type(layout) ~= "table" or _G.type(layout.nodes) ~= "table"
+            or _G.type(slots) ~= "table" or _G.next(slots) == nil then return false end
+    if l.misc.getTableCount(layout.nodes) ~= l.misc.getTableCount(slots) then return false end
+    for key in _G.pairs(slots) do
+        local node = layout.nodes[key]
+        if _G.type(node) ~= "table" or _G.type(node.x) ~= "number" or _G.type(node.y) ~= "number" then
+            return false
+        end
+    end
+    return true
+end
+'''
+
+
+def guard_research_panel(raw):
+    raw = replace_lua(raw,
+        '''local r=l["Technology"]["GetSlots"](l["GUI"]["GetCurrentPlayer"]())local u=l["misc"]["getTableCount"](r)if u==0then
+return
+end''', LAYOUT_READY + '''local function weplayCreate()
+local r=l.Technology.GetSlots(l.GUI.GetCurrentPlayer())
+if not weplayLayoutReady(a.techBoardLayout, r) then return end
+local u=l.misc.getTableCount(r)
+''')
+    raw = replace_lua(raw, '''return n
+end
+local i=nil''', '''return n
+end
+local ok, board = _G.pcall(weplayCreate)
+if not ok then
+    if e.frame then p() end
+    return nil
+end
+return board
+end
+local i=nil''')
+    return replace_lua(raw,
+        '''l["Sound"]["PlayAsOneshot"](l["Sounds"]["UIMenuBigOpen"])i=o()end
+else''', '''i=o()
+if i then l.Sound.PlayAsOneshot(l.Sounds.UIMenuBigOpen) end
+end
+return i ~= nil
+else''')
+
+
+def guard_trade_panel(raw):
+    raw = replace_lua(raw, 'if not l["misc"]["getTableCount"](i["tradeBoardLayout"]["nodes"])==a then',
+                      'if l.misc.getTableCount(i.tradeBoardLayout.nodes) ~= a then')
+    raw = replace_lua(raw, '''local function T(e)local t,c=l["system"]["getScreenSize"]()''', LAYOUT_READY + '''local function T(e)
+a()
+local layout = i.tradeBoardLayout
+if not weplayLayoutReady(layout, d.staticTradeSlots) or d.startLocation == nil then return false end
+local image = layout.backgroundImage
+if _G.type(image) ~= "table" or _G.type(image.name) ~= "string"
+        or _G.type(image.w) ~= "number" or _G.type(image.h) ~= "number"
+        or image.w <= 0 or image.h <= 0 then return false end
+local t,c=l.system.getScreenSize()''')
+    raw = replace_lua(raw, 'a()C(e)e["graph"]=y(e)', 'C(e)e.graph=y(e)')
+    raw = replace_lua(raw, '''h(e["mainFrame"])e["blinkImages"]["updateAvailability"]()end
+end''', '''h(e.mainFrame)e.blinkImages.updateAvailability()
+return true
+end
+return false
+end''')
+    _, body, _ = decoded_view(raw)
+    cleanup = next(line for line in body.splitlines() if line.startswith('local function v()_G["assert"](e["mainFrame"])'))
+    raw = replace_lua(raw, cleanup, '''local weplayHandlers = {}
+local function weplayRegister(kind, handler)
+    t.addEventHandler(kind, handler)
+    weplayHandlers[#weplayHandlers + 1] = kind
+end
+local function v()
+    if e.mainFrame then l.frame.destroy(e.mainFrame) end
+    for _, kind in _G.ipairs(weplayHandlers) do t.removeEventHandler(kind, a) end
+    e=nil''')
+    _, body, _ = decoded_view(raw)
+    creation = next(line for line in body.splitlines() if line.startswith('T(e)t["addEventHandler"]'))
+    raw = replace_lua(raw, creation, '''local function weplayCreate()
+if not T(e) then return end
+''' + creation.removeprefix('T(e)').replace('t["addEventHandler"]', 'weplayRegister'))
+    raw = replace_lua(raw, '''return e
+end
+local e={}function e.isCreated()return u~=nil''', '''return e
+end
+local ok, board = _G.pcall(weplayCreate)
+if not ok or not board then
+    v()
+    return nil
+end
+return board
+end
+local e={}function e.isCreated()return u~=nil''')
+    raw = replace_lua(raw, '''function e.show(l)if e["isCreated"]()then
+u["show"](l)end
+end''', '''function e.show(visible)
+    if visible and not u then u=p() end
+    if not u then return false end
+    local ok = _G.pcall(u.show, visible)
+    if not ok then e.destroy() end
+    return ok
+end''')
+    return replace_lua(raw, 'return l["misc"]["getTableCount"](e)>0end',
+                       'return _G.type(e)=="table" and l.misc.getTableCount(e)>0 end')
+
+
+def guard_toolbar(raw):
+    return replace_lua(raw, '''l["bottomBar"]["activePanel"]["show"](true)if(l["bottomBar"]["clickedButtonKey"]==t)then''',
+        '''local panel = l.bottomBar.activePanel
+local opened = panel.show(true)
+if (panel == t or panel == o) and opened == false then
+    l.bottomBar.activePanel = nil
+    l.bottomBar.preferredGameInfoMode = l.gameInfo.modes.default
+elseif(l.bottomBar.clickedButtonKey==t)then''')
+
+
+def guard_boards(raw):
+    archive = Archive(raw)
+    changes = {
+        'Script/local/menu/panel/' + name: patch(archive.read('Script/local/menu/panel/' + name))
+        for name, patch in (('techBoardPanel.lua', guard_research_panel), ('tradeBoard.lua', guard_trade_panel),
+                            ('bottomBar.lua', guard_toolbar))
+    }
+    return archive.replace(changes)
+
+
 def build(raw):
     if hashlib.sha256(raw).hexdigest() != SOURCE:
         raise ValueError('Multiplayer checkpoints require the fingerprinted WePlay interface')

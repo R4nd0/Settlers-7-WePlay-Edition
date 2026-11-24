@@ -47,6 +47,42 @@ def copy_documents(app,*,platform_independent=False):
     shutil.copyfile(REPO/'LICENSE',app/'LICENSE')
 
 
+def update_board_catalog(package, manifest):
+    if not manifest.get('crossplay_mixed') or manifest.get('patched_archive_sha256') != install.BOARD_RECOVERY_SOURCE:
+        return
+    import crossplay_content
+    path = package / crossplay_content.PACKAGE_CATALOG
+    catalog = crossplay_content.read(path)
+    if catalog.digest.hex() not in crossplay_content.APPROVED_DIGESTS:
+        raise ValueError('crossplay_catalog_unapproved')
+    data = json.loads(catalog.canonical)
+    for profile in data['editions'][1:]:
+        rows = [row for row in profile['files'] if row['id'] == 'Base/BBA/Interface.bba']
+        if len(rows) != 1 or rows[0]['sha256'] != install.BOARD_RECOVERY_SOURCE:
+            raise ValueError('crossplay_content_changed')
+        rows[0]['sha256'] = install.BOARD_RECOVERY_ARCHIVE
+    raw = json.dumps(data, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    if crossplay_content.Catalog(raw).digest.hex() not in crossplay_content.APPROVED_DIGESTS:
+        raise ValueError('crossplay_catalog_unapproved')
+    # Gold launchers also validate the shared catalog. An incrementally
+    # refreshed stage can still have the previous validator in its Gold bundle.
+    gold = package / 'Payload/Gold'
+    gold_manifest_path = gold / 'package.json'
+    gold_manifest = json.loads(gold_manifest_path.read_bytes())
+    name = 'Tools/gold/crossplay_content.py'
+    validator = gold / name
+    source = REPO / 'tools/installer/crossplay_content.py'
+    if gold_manifest['files'][name] != content.digest(validator):
+        raise ValueError('crossplay_content_changed')
+    digest = content.digest(source)
+    if gold_manifest['files'][name] != digest:
+        shutil.copyfile(source, validator)
+        gold_manifest['files'][name] = digest
+        gold_manifest_path.write_text(json.dumps(gold_manifest, indent=2) + '\n', encoding='utf-8')
+    path.write_bytes(raw)
+    manifest['patched_archive_sha256'] = install.BOARD_RECOVERY_ARCHIVE
+
+
 def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None,service=None,adapter=None,python_zip=None,dxvk_dll=None,dxvk_license=None,memory_scanner=None,easytier_runtime=None,easytier_source=None,windows_helpers=None,update_sequence=UPDATE_SEQUENCE,game_directory=False,neo_logistics=False,midsummer_profile=False,atmosphere_addon=None,quiet_reshade=None,platform_runtime=None,gold_package=None,gold_adapter=None,crossplay_catalog=None,alternate_renderers=None):
     stage,output,desktop_publish,dotnet,probe,compiler=map(content.plain,(stage,output,desktop_publish,dotnet,probe,compiler))
     if stage.exists() or not stage.parent.is_dir():raise ValueError('Use a new stage directory')
@@ -74,6 +110,8 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
                        else build_package.MIXED_DIRECTORY_ARCHIVE_SHA256)
         mixed_gold=gold_support.module(gold_package,source_root=REPO).gold.MIXED_MENU_SHA256
         gold_files,ubisoft_files,steam_files=map(dict,catalog.profiles)
+        if (midsummer_profile and ubisoft_files.get('Base/BBA/Interface.bba') == install.BOARD_RECOVERY_ARCHIVE):
+            mixed_history = install.BOARD_RECOVERY_ARCHIVE
         if (gold_files.get('Data/Base/BBA/Interface.bba')!=mixed_gold
                 or any(profile.get('Base/BBA/Interface.bba')!=mixed_history
                        for profile in (ubisoft_files,steam_files))):
@@ -116,6 +154,7 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
         target.parent.mkdir(parents=True);target.write_bytes(catalog.canonical)
         package_record['crossplay_mixed']=True
         package_record['patched_archive_sha256']=mixed_history
+        update_board_catalog(app/'Package', package_record)
     package_record['files']=content.inventory(app/'Package',('Payload','Runtime','Tools'))
     (app/'Package/package.json').write_text(json.dumps(package_record,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(app/'Package')
@@ -205,6 +244,7 @@ def refresh_stage(app,desktop_publish):
         if name.startswith('tools/') and name!='tools/license.txt':
             source=content.plain(license_sources.get(name,REPO/name))
             shutil.copyfile(source,package/name)
+    update_board_catalog(package, manifest)
     manifest['files']=content.inventory(package,('Payload','Runtime','Tools'))
     (package/'package.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
     install.package_manifest(package)

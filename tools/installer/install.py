@@ -51,6 +51,8 @@ ACHIEVEMENT_PACKAGE_TOOLS = ('installer/achievement_notifications.py','offline-u
 CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/cartographer-context.json')
 MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
     ('interface_patch.py', 'runtime.lua', 'session_list.lua', 'host_lobby.lua'))
+BOARD_RECOVERY_SOURCE = '6308bcedbe4f3399b6ab192a2a131cec9f276e00659f81e394a8c6b12e16822e'
+BOARD_RECOVERY_ARCHIVE = '2bb84454cb4bd2224018a13ef16b15d6c49d92bb84f17ba69e271258ae5158b6'
 NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
     ('interface_patch.py','runtime.lua','map_setup.lua','session_creation.lua','lobby_ui.lua','logistics_ui.lua'))
 MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
@@ -259,7 +261,13 @@ def package_manifest(root):
         gold_support.verify_package(root/gold_support.FOLDER)
     if manifest.get('crossplay_mixed',False):
         from crossplay_content import package_catalog
-        package_catalog(root,manifest)
+        catalog = package_catalog(root,manifest)
+        expected_archive = manifest.get('patched_archive_sha256')
+        if expected_archive in (BOARD_RECOVERY_SOURCE, BOARD_RECOVERY_ARCHIVE) and any(
+                dict(profile).get('Base/BBA/Interface.bba') != expected_archive for profile in catalog.profiles[1:]):
+            raise ValueError('crossplay_content_changed')
+    elif manifest.get('patched_archive_sha256') == BOARD_RECOVERY_ARCHIVE:
+        raise ValueError('crossplay_package_invalid')
     if manifest.get('midsummer_profile',False) and (not manifest.get('neo_logistics',False)
             or not manifest.get('graphics_choice',False)
             or any(('tools/'+name).lower() not in expected for name in MIDSUMMER_PACKAGE_TOOLS)):
@@ -718,6 +726,16 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
             target.write_bytes(mixed.build(target.read_bytes(),'history',history_decoder=resume))
         finally:
             sys.path[:]=previous
+        record_archive()
+    if manifest.get('patched_archive_sha256') == BOARD_RECOVERY_ARCHIVE:
+        target = destination / 'Base/BBA/Interface.bba'
+        raw = target.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != BOARD_RECOVERY_SOURCE:
+            raise ValueError('crossplay_content_changed')
+        repaired = resume.guard_boards(raw)
+        if hashlib.sha256(repaired).hexdigest() != BOARD_RECOVERY_ARCHIVE:
+            raise ValueError('crossplay_content_changed')
+        target.write_bytes(repaired)
         record_archive()
     if content.digest(destination / 'Base/BBA/Interface.bba') != manifest['patched_archive_sha256']:
         raise ValueError('Der vorbereitete Menuepatch stimmt nicht mit dem Paket ueberein.')

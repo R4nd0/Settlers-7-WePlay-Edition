@@ -17,6 +17,8 @@ MAX_FILES = 30000
 # gameplay receipts for this exact package and every host edition.
 APPROVED_DIGESTS = frozenset({
     '4ef33244ee5a6ed86c37f26b4629a3477c6aeeeb511ca81e59d897b52cdfb6b8',
+    # Same input inventory with the verified History board recovery patch.
+    '2e3e58624335713d7011914c89c167fdacae492784aa4ca16e18049d83e4e85a',
 })
 PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {
