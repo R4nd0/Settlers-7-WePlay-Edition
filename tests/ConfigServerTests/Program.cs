@@ -35,6 +35,11 @@ if (args.Length == 1 && args[0] == "--login-network-only")
     Console.WriteLine($"PASS: {await LocalLoginSessionChecks.RunNetworkAsync()} local login network checks.");
     return;
 }
+if (args.Length == 1 && args[0] == "--syn-only")
+{
+    Console.WriteLine($"PASS: {await PrudpSynProbeChecks.RunAsync()} local UDP checks.");
+    return;
+}
 if (args.Length != 2) throw new ArgumentException("Supply dotnet path and the built S7Patcher.dll path.");
 Console.WriteLine("Independent synthetic peer: " + ClientCryptoFixtures.Provider);
 string dotnet = Path.GetFullPath(args[0]);

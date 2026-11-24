@@ -305,8 +305,17 @@ namespace S7Patcher.Source
                                 ReclaimClosedLoginSessions(loginSessions, peers);
                                 if (!receive.IsCompleted) continue;
                             }
-                            UdpReceiveResult packet = await receive;
-                            receive = null;
+                            UdpReceiveResult packet;
+                            try { packet = await receive; }
+                            catch (SocketException error) when (OperatingSystem.IsWindows()
+                                && error.SocketErrorCode == SocketError.ConnectionReset)
+                            {
+                                // Winsock reports ICMP Port Unreachable from an
+                                // earlier send as a reset on the shared receive.
+                                // Continue listening for the other peers.
+                                continue;
+                            }
+                            finally { receive = null; }
                             if (network.Lobby != null)
                                 ReclaimUnadmittedContexts(network.Lobby, admissionGenerations, loginSessions, peers);
                             if (!network.Allows(packet.RemoteEndPoint.Address)) continue;

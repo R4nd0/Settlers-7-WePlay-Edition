@@ -36,11 +36,18 @@ internal static class PrudpSynProbeChecks
 
         ConcurrentQueue<ConfigServerEvent> events = new();
         TaskCompletionSource<ConfigServerEvent> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource peerClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        UdpClient departing = null;
         using CancellationTokenSource stop = new();
         Task service = LocalConfigurationServer.RunAsync(new() { HttpPort = 0, UdpPort = 0, SynProbe = true, Seconds = 15 }, item =>
         {
             events.Enqueue(item);
             if (item.Event == "configuration-server-ready") ready.TrySetResult(item);
+            if (item.Event == "udp-datagram-observed" && Interlocked.Exchange(ref departing, null) is UdpClient peer)
+            {
+                peer.Dispose();
+                peerClosed.TrySetResult();
+            }
         }, stop.Token);
         ConfigServerEvent info = await ready.Task.WaitAsync(TimeSpan.FromSeconds(4));
         List<UdpClient> senders = [];
@@ -100,6 +107,14 @@ internal static class PrudpSynProbeChecks
                 Check((await Exchange(Sender(), syn)).Length == 18, "Allowed bounded sender was rejected");
             await Silent(Sender(), syn); // Ninth sender gets no cookie or reply.
             Check((await Exchange(first, syn)).SequenceEqual(reply), "Capacity limit evicted an existing sender's cookie");
+
+            // Close an ordinary client after the coordinator receives its SYN
+            // and before the coordinator can deliver that SYN's reply.
+            departing = first;
+            await first.SendAsync(syn);
+            await peerClosed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Check((await Exchange(senders[1], syn)).Length == 18,
+                "Another client lost its coordinator when a UDP peer closed");
         }
         finally
         {
