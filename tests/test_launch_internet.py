@@ -93,6 +93,18 @@ class LaunchTests(unittest.TestCase):
         event.assert_not_called();progress.assert_not_called()
         self.overlay.close.assert_called_once()
 
+    def test_default_route_flag_change_does_not_invalidate_same_private_adapter(self):
+        import dataclasses
+        self.overlay.snapshot.return_value = dataclasses.replace(self.host_interface, default_route=True), {}
+        def run(args, *, picker, network):
+            network()
+            args.before_game()
+            return 0
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', return_value={'active_members': 0}):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+
     def test_guest_cannot_elect_or_create_a_physical_lan_coordinator(self):
         self.args.invitation = ROOM.token()
         guest = LanInterface('10.203.77.2', 24, 'WePlay-id')

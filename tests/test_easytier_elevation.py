@@ -1,5 +1,6 @@
 import ctypes
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -240,6 +241,38 @@ class ElevationTests(unittest.TestCase):
             firewall.assert_any_call(root,'a'*32,crossplay=True)
             self.assertTrue(any(call.args[1].get('crossplay') is True for call in write.call_args_list))
             overlay.close.assert_called_once();self.assertFalse(request.exists())
+
+    def test_temporary_status_command_timeout_does_not_end_owned_room(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            private = root / 'LocalData/easytier-uac-fixture'
+            private.mkdir(parents=True)
+            image = root / 'Runtime/python/python.exe'
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b'python')
+            request = private / 'request.json'
+            request.write_text(json.dumps(dict(format=elevation.FORMAT, root=str(root), room=ROOM.token(),
+                                               host=True, parent_pid=123, parent_start=456, nonce='a'*32)))
+            api = Mock()
+            api.WaitForSingleObject.return_value = 0x102
+            interface = LanInterface(ROOM.coordinator, 24, 'WePlay-fixture')
+            overlay = Mock(start=Mock(return_value=interface), snapshot=Mock(side_effect=[
+                subprocess.TimeoutExpired('status fixture', 3), (interface, {})]))
+
+            def publish(_directory, state):
+                if state['phase'] == 'ready':
+                    (private / 'stop').touch()
+
+            with patch.object(elevation, '__file__', str(root / 'Launcher/easytier_elevation.py')), \
+                    patch.object(elevation, 'parent_process', return_value=(api, 1, 456, image)), \
+                    patch('easytier_runtime.EasyTier', return_value=overlay), \
+                    patch('launch_local.verify_bundle'), patch.object(elevation, 'firewall'), \
+                    patch.object(elevation.time, 'sleep'), \
+                    patch.object(elevation, 'write_state', side_effect=publish) as write:
+                elevation.worker(request)
+            self.assertEqual([call.args[1]['phase'] for call in write.call_args_list], ['ready', 'error'])
+            self.assertEqual(write.call_args.args[1]['code'], 'internet_cancelled')
+            overlay.close.assert_called_once()
 
     def test_worker_imports_and_python_must_match_trusted_package_inventory(self):
         import compatibility, install

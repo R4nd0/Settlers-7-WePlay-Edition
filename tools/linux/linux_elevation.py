@@ -158,7 +158,7 @@ def worker():
     root = compatibility.plain(value['root'])
     if root.stat().st_uid != int(user): return 2
     room = parse(value['room'])
-    from easytier_runtime import EasyTier
+    from easytier_runtime import EasyTier, refresh_snapshot
     parent = Path(tempfile.mkdtemp(prefix='weplay-',dir='/run'))
     overlay = None
     selector = selectors.DefaultSelector()
@@ -195,7 +195,7 @@ def worker():
         overlay.start()
         while True:
             check_parent(.5)
-            interface,peers = overlay.snapshot()
+            interface,peers = refresh_snapshot(overlay, check_parent)
             send(dict(phase='ready',address=interface.address,device=interface.name,peers=peers))
     except ParentClosed:
         return 0

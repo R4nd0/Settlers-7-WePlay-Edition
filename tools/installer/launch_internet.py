@@ -62,7 +62,9 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
 
     def before_game():
         selected, peers = overlay.snapshot()
-        if selected != interface or (not host and room.coordinator not in peers):
+        selected_binding = (selected.address, selected.prefix_length, selected.name)
+        expected_binding = (interface.address, interface.prefix_length, interface.name)
+        if selected_binding != expected_binding or (not host and room.coordinator not in peers):
             raise InternetError('internet_disconnected')
         if before:
             before()

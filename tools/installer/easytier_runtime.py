@@ -209,6 +209,15 @@ def bootstrap_connected(raw, room):
         raise InternetError('internet_status_invalid') from None
 
 
+def refresh_snapshot(overlay, checkpoint):
+    """Retry a transient local query failure without publishing stale peers."""
+    try:
+        return overlay.snapshot()
+    except (OSError, subprocess.TimeoutExpired):
+        checkpoint()
+        return overlay.snapshot()
+
+
 class EasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None,
                  job_factory=ServiceJob, interfaces=None, private_parent=None,

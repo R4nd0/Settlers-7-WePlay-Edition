@@ -345,7 +345,7 @@ def worker(request):
                 compatibility.digest(compatibility.plain(image)) !=
                 compatibility.digest(compatibility.plain(root / 'Runtime/python/python.exe'))):
             raise InternetError('internet_parent_invalid')
-        from easytier_runtime import EasyTier
+        from easytier_runtime import EasyTier, refresh_snapshot
         import launch_local
         if crossplay:
             import platform_standalone,crossplay_session
@@ -367,7 +367,7 @@ def worker(request):
         deadline = time.monotonic() + 86400
         while crossplay or time.monotonic() < deadline:
             cancel()
-            interface, peers = overlay.snapshot()
+            interface, peers = refresh_snapshot(overlay, cancel)
             state=dict(format=FORMAT, nonce=nonce, phase='ready',
                 address=interface.address, device=interface.name, peers=peers)
             if crossplay: state['crossplay']=True
