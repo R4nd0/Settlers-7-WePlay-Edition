@@ -4,6 +4,7 @@ from ctypes import wintypes as W
 import ipaddress
 import os
 from pathlib import Path
+import re
 import tempfile
 import threading
 import time
@@ -67,32 +68,83 @@ class Session:
                 primary.add_note('windows_network_cleanup_failed')
             raise
 
-    def _recover(self):
-        if not self.path.exists():
-            if self.ready.exists():raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
-            return
-        if self.path.stat().st_size>4096:raise ValueError('Ungültiger alter Netzbereich.')
-        raw=self.path.read_text(encoding='ascii')
-        fields=dict(line.split('=',1) for line in raw.splitlines())
-        if fields.get('format')!='weplay-wfp-peers-v1' or len(fields.get('nonce',''))!=32:
+    @staticmethod
+    def _read_previous_lease(path):
+        with content.plain(path).open('rb') as stream:
+            raw = stream.read(4097)
+        if len(raw) > 4096:
+            raise ValueError('Ungültiger alter Netzbereich.')
+        entries = raw.decode('ascii').splitlines()
+        fields = dict(line.split('=', 1) for line in entries)
+        if (len(fields) != len(entries) or fields.get('format') != 'weplay-wfp-peers-v1'
+                or not re.fullmatch('[0-9a-f]{32}', fields.get('nonce', ''))
+                or not 0 < int(fields.get('parent', '0')) <= 0xffffffff
+                or int(fields.get('parent_created', '0')) <= 0
+                or int(fields.get('expires_tick_ms', '-1')) < 0):
             raise ValueError('Ein unbekannter Netzbereich bleibt unverändert.')
-        pid=int(fields['parent']);live=False
-        handle=self.api.k.OpenProcess(0x1000,False,pid)
-        if handle:
-            try:
-                created,ended,kernel,user=(W.FILETIME() for _ in range(4))
-                self.api.check(self.api.k.GetProcessTimes(handle,C.byref(created),C.byref(ended),C.byref(kernel),C.byref(user)))
-                live=(created.dwLowDateTime|(created.dwHighDateTime<<32))==int(fields['parent_created'])
-            finally:self.api.k.CloseHandle(handle)
-        if live and int(fields['expires_tick_ms'])>self.api.k.GetTickCount64():
+        return fields
+
+    def _require_inactive(self, fields):
+        if int(fields['expires_tick_ms']) <= self.api.k.GetTickCount64():
+            return
+        C.set_last_error(0)
+        handle = self.api.k.OpenProcess(0x1000, False, int(fields['parent']))
+        if not handle:
+            if C.get_last_error() == 87:  # ERROR_INVALID_PARAMETER: the PID is gone.
+                return
             raise RuntimeError('Diese Kopie hat bereits einen aktiven WePlay-Netzbereich.')
-        has_ready = self.ready.exists()
-        if has_ready and self.ready.read_bytes() != (fields['nonce'] + '\n').encode('ascii'):
+        try:
+            created, ended, kernel, user = (W.FILETIME() for _ in range(4))
+            self.api.check(self.api.k.GetProcessTimes(handle, C.byref(created), C.byref(ended),
+                                                       C.byref(kernel), C.byref(user)))
+            live = (created.dwLowDateTime | (created.dwHighDateTime << 32)) == int(fields['parent_created'])
+        finally:
+            self.api.k.CloseHandle(handle)
+        if live:
+            raise RuntimeError('Diese Kopie hat bereits einen aktiven WePlay-Netzbereich.')
+
+    def _read_ready_marker(self):
+        try:
+            with content.plain(self.ready).open('rb') as stream:
+                marker = stream.read(34)
+        except FileNotFoundError:
+            return None
+        if not re.fullmatch(rb'[0-9a-f]{32}\n', marker):
             raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
-        backup=content.plain(self.folder/('wfp-peers-recovered-'+uuid.uuid4().hex+'.ini'))
-        self.path.rename(backup)
-        if has_ready:
+        return marker
+
+    def _recover(self):
+        marker = self._read_ready_marker()
+        if not self.path.exists():
+            if marker is None:
+                return
+            # Older recoveries could archive the lease before removing its
+            # readiness marker. Use only a matching, inactive retained lease.
+            matched = None
+            for path in self.folder.glob('wfp-peers-recovered-*.ini'):
+                if not re.fullmatch(r'wfp-peers-recovered-[0-9a-f]{32}\.ini', path.name):
+                    continue
+                try:
+                    fields = self._read_previous_lease(path)
+                except (OSError, ValueError):
+                    continue
+                if marker == (fields['nonce'] + '\n').encode('ascii'):
+                    if matched is not None:
+                        raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
+                    matched = fields
+            if matched is None:
+                raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
+            self._require_inactive(matched)
             self.ready.unlink(missing_ok=True)
+            return
+        fields = self._read_previous_lease(self.path)
+        self._require_inactive(fields)
+        if marker is not None:
+            if marker != (fields['nonce'] + '\n').encode('ascii'):
+                raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
+            self.ready.unlink(missing_ok=True)
+        backup = content.plain(self.folder / ('wfp-peers-recovered-' + uuid.uuid4().hex + '.ini'))
+        self.path.rename(backup)
 
     def _publish(self,*,expired=False):
         if self.path.exists():

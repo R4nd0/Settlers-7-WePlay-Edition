@@ -289,6 +289,54 @@ class PlatformStandaloneTests(unittest.TestCase):
         self.assertEqual(session.path.read_bytes(), lease.encode('ascii'))
         self.assertEqual(list(session.folder.glob('wfp-peers-recovered-*.ini')), [])
 
+    def test_peer_policy_recovers_interrupted_archive_with_owned_readiness_marker(self):
+        session = self.make_peer_policy()
+        archive = session.folder / ('wfp-peers-recovered-' + 'c' * 32 + '.ini')
+        lease = f'format=weplay-wfp-peers-v1\nnonce={session.nonce}\nparent=123\nparent_created=12\nexpires_tick_ms=0\n'
+        archive.write_text(lease, encoding='ascii', newline='\n')
+        session.ready.write_bytes((session.nonce + '\n').encode('ascii'))
+        session._recover()
+        self.assertFalse(session.ready.exists())
+        self.assertEqual(archive.read_bytes(), lease.encode('ascii'))
+
+    def test_peer_policy_keeps_unmatched_orphan_readiness(self):
+        session = self.make_peer_policy()
+        marker = (session.nonce + '\n').encode('ascii')
+        session.ready.write_bytes(marker)
+        with self.assertRaises(ValueError):
+            session._recover()
+        self.assertEqual(session.ready.read_bytes(), marker)
+
+    def test_peer_policy_keeps_lease_intact_if_stale_readiness_cannot_be_removed(self):
+        session = self.make_peer_policy()
+        lease = f'format=weplay-wfp-peers-v1\nnonce={session.nonce}\nparent=123\nparent_created=12\nexpires_tick_ms=0\n'
+        session.path.write_bytes(lease.encode('ascii'))
+        session.ready.write_bytes((session.nonce + '\n').encode('ascii'))
+        session.api.k.OpenProcess.return_value = 0
+        with patch.object(Path, 'unlink', side_effect=PermissionError), self.assertRaises(PermissionError):
+            session._recover()
+        self.assertEqual(session.path.read_bytes(), lease.encode('ascii'))
+        session._recover()
+        self.assertFalse(session.ready.exists())
+
+    def test_peer_policy_cannot_retire_unexpired_lease_when_owner_lookup_is_denied(self):
+        session = self.make_peer_policy()
+        lease = f'format=weplay-wfp-peers-v1\nnonce={session.nonce}\nparent=123\nparent_created=12\nexpires_tick_ms=5100\n'
+        session.path.write_bytes(lease.encode('ascii'))
+        session.ready.write_bytes((session.nonce + '\n').encode('ascii'))
+        session.api.k.OpenProcess.return_value = 0
+        with patch.object(network_peer_policy.C, 'get_last_error', return_value=5, create=True), \
+                patch.object(network_peer_policy.C, 'set_last_error', create=True), \
+                self.assertRaisesRegex(RuntimeError, 'aktiven WePlay-Netzbereich'):
+            session._recover()
+        self.assertEqual(session.path.read_bytes(), lease.encode('ascii'))
+        self.assertTrue(session.ready.exists())
+        with patch.object(network_peer_policy.C, 'get_last_error', return_value=87, create=True), \
+                patch.object(network_peer_policy.C, 'set_last_error', create=True):
+            session._recover()
+        self.assertFalse(session.path.exists())
+        self.assertFalse(session.ready.exists())
+
     def test_peer_policy_reaps_helper_when_lease_cannot_be_expired_explicitly(self):
         session = self.make_peer_policy()
         session.path.write_bytes(f'nonce={session.nonce}\n'.encode('ascii'))
