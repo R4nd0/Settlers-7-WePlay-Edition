@@ -82,9 +82,6 @@ def detect(locations=None, *, steam_supported=False,gold_package=None):
                     gold_support.inspect(gold_package,root)
                     good.append({'path':str(root),'name':'The Settlers 7 - Gold Edition'})
                     continue
-            # Quick existence check before hashing a candidate.
-            if not any((root/name/'Bin/Settlers7R.exe').is_file() for name in ('Base','Data/Base')):
-                continue
             install.source_base(root,steam_supported=steam_supported)
             good.append({'path':str(root),'name':'The Settlers 7 - History Edition'})
         except (OSError, ValueError):

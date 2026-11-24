@@ -208,10 +208,10 @@ def fetch(url,limit,**kw):
         os._exit(73)
     target.write_bytes(raw)
     return len(raw),hashlib.sha256(raw).hexdigest()
-def copied(source,target):
-    Path(target).write_bytes(Path(source).read_bytes());os._exit(74)
+def copied(source,target,*_):
+    target.write(source.read());target.flush();os.fsync(target.fileno());os._exit(74)
 helper=app/'WePlay.UpdateHelper.exe';helper.write_bytes(b'inert helper bytes')
-with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source',return_value=helper),patch.object(c.shutil,'copyfile',copied):
+with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source',return_value=helper),patch.object(c.shutil,'copyfileobj',copied):
     c.prepare(app,os.getppid(),1,fetch=fetch,process_reader=process)
 '''
         result=subprocess.run([sys.executable,'-B','-c',script,str(self.app),str(ROOT/'tools/installer'),mode],capture_output=True,text=True,timeout=30)
@@ -384,6 +384,49 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
         (package/'package.json').write_bytes(client.canonical(dict(windows_helpers=True,files={})))
         with self.assertRaisesRegex(client.UpdateError,'^update_invalid$'):
             client.handoff_source(self.app)
+
+    def test_manual_app_update_completed_during_check_is_reported_as_current(self):
+        def fetch(url,limit,**options):
+            if url==client.RELEASES:
+                return self.fetch_current_offer(url,limit,**options)
+            client.atomic(self.app/'desktop-release.json',dict(version=self.value['version'],
+                update_sequence=self.value['sequence'],update_channel='preview'))
+            return self.raw
+        result=client.check(self.app,fetch=fetch)
+        self.assertFalse(result['available'])
+        self.assertEqual(result['current_version'],self.value['version'])
+        self.assertFalse((self.updates/'verified-envelope.json').exists())
+
+    def test_failed_helper_copy_does_not_leave_authored_partial_update_job(self):
+        binary=b'fixture downloaded installer'
+        binary_hash=hashlib.sha256(binary).hexdigest()
+        value=dict(sequence=23,version='2.0.0-rc3.23',
+                   setup=dict(size=len(binary),sha256=binary_hash,url='fixture'))
+        (self.updates/'verified-envelope.json').write_bytes(b'{}')
+        client.atomic(self.updates/'highest.json',dict(sequence=23,
+            payload_sha256=hashlib.sha256(client.canonical(value)).hexdigest()))
+        helper=self.app/'WePlay.UpdateHelper.exe';helper.write_bytes(b'owned helper payload')
+        def process(pid):
+            return dict(pid=pid,path=str(self.app/('S7Launcher.exe' if pid==os.getppid()
+                                                     else 'Package/Runtime/python/python.exe')),started_ticks=1)
+        def fetch(url,limit,**options):
+            options['destination'].write_bytes(binary)
+            return len(binary),binary_hash
+        def copy_prefix(source,destination,*_arguments):
+            data=source.read() if hasattr(source,'read') else Path(source).read_bytes()
+            if hasattr(destination,'write'):
+                destination.write(data[:4])
+            else:
+                Path(destination).write_bytes(data[:4])
+            raise OSError('owned helper copy interrupted')
+        with (patch.object(client,'verify',return_value=value),
+              patch.object(client,'handoff_source',return_value=helper),
+              patch.object(client.shutil,'copyfile',side_effect=copy_prefix),
+              patch.object(client.shutil,'copyfileobj',side_effect=copy_prefix),
+              self.assertRaisesRegex(OSError,'owned helper copy interrupted')):
+            client.prepare(self.app,os.getppid(),1,fetch=fetch,process_reader=process)
+        self.assertEqual(list(self.updates.glob('*/WePlay.UpdateHelper.exe')),[])
+        self.assertEqual(list(self.updates.glob('*/Setup.exe')),[])
 
     def test_receiving_wrong_ready_record_stops_owned_helper_before_returning(self):
         job=self.updates/('f'*32);job.mkdir()

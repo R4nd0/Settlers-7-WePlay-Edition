@@ -62,6 +62,25 @@ class DesktopSetupTransactionTests(unittest.TestCase):
         self.assertFalse(pending.exists())
         self.assertEqual(self.d.game(),self.old)
 
+    def test_busy_abandoned_copy_does_not_prevent_preparing_a_new_generation(self):
+        instance='d'*32
+        root=self.old.parent/instance;root.mkdir()
+        self.d.write(root/'desktop-owner.json',dict(format=backend.FORMAT,owner=self.d.owner,instance=instance))
+        pending=self.d.state/'Preparations'/(instance+'.json')
+        self.d.write(pending,dict(format='weplay-preparation-v1',owner=self.d.owner,
+            instance=instance,container=str(root.parent),allocated=True))
+        cleanup=self.d.cleanup_instance
+        def busy(container,name):
+            if name==instance:
+                raise ValueError('managed_copy_busy')
+            return cleanup(container,name)
+        with patch.object(self.d,'cleanup_instance',side_effect=busy):
+            result=self.fixture.prepare()
+        self.assertTrue(result['installed'])
+        self.assertNotEqual(self.d.game(),self.old)
+        self.assertTrue(root.exists())
+        self.assertTrue(pending.exists())
+
     def test_oversized_old_preferences_do_not_block_save_preserving_repair(self):
         old_settings = self.old/'LocalData/graphics-choice.json'
         old_settings.write_bytes(b' '*65537)

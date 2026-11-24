@@ -489,9 +489,11 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
     if newest is None:
         if transport_failures:raise UpdateError('update_download_failed')
         return base
-    if newest['sequence']>local['update_sequence']:preserve_isolation(app,newest)
     with cache_lock(updates):
         cancellation()
+        # A manual Setup run can finish while the release feed is loading.
+        local=current(app);base['current_version']=local['version']
+        if newest['sequence']>local['update_sequence']:preserve_isolation(app,newest)
         seen=highwater(updates);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
         if newest['sequence']<seen['sequence'] or (newest['sequence']==seen['sequence'] and fingerprint!=seen['payload_sha256']):raise UpdateError('update_downgrade')
         if newest['sequence']!=seen['sequence']:
@@ -540,6 +542,19 @@ def handoff_source(app):
     # Compatibility for RC3.4 packages; RC3.5 neither ships nor executes this script.
     return compatibility.plain(Path(__file__).with_name('update_handoff.ps1'))
 
+
+def discard_partial_copy(source,target,expected):
+    """Remove only a matching written prefix of this job's pinned input."""
+    try:
+        if compatibility.digest(source)!=expected:return
+        with compatibility.plain(source).open('rb') as original,compatibility.plain(target).open('rb') as partial:
+            while block:=partial.read(65536):
+                if block!=original.read(len(block)):return
+        compatibility.plain(target).unlink()
+    except (OSError,ValueError):
+        pass
+
+
 def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequence=None,fetch=transfer,process_reader=process_info,cancelled=None):
     def checkpoint():
         if cancelled and cancelled():raise UpdateError('cancelled')
@@ -581,7 +596,18 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
         def declare(name,digest):
             checkpoint();marker['files'][name]=digest;atomic(job/'job-owner.json',marker)
         def copy_owned(source):
-            declare(source.name,compatibility.digest(source));shutil.copyfile(source,job/source.name);checkpoint()
+            target=compatibility.plain(job/source.name)
+            expected=compatibility.digest(source)
+            declare(source.name,expected)
+            created=False
+            try:
+                with compatibility.plain(source).open('rb') as incoming,target.open('xb') as outgoing:
+                    created=True
+                    shutil.copyfileobj(incoming,outgoing,65536)
+            except OSError:
+                if created:discard_partial_copy(source,target,expected)
+                raise
+            checkpoint()
         def write_owned(name,data):
             declare(name,hashlib.sha256(canonical(data)+b'\n').hexdigest());atomic(job/name,data);checkpoint()
         helper=handoff_source(app);copy_owned(helper)

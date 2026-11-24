@@ -35,7 +35,7 @@ def digest(path):
         return result.hexdigest()
 
 
-def member(root, relative):
+def member(root, relative, *, missing_ok=False):
     """Resolve a lower-case manifest name on a case-sensitive filesystem.
 
     Ambiguous names and links are rejected, just as in the full inventory.
@@ -46,7 +46,11 @@ def member(root, relative):
         raise ValueError('Ungueltiger Dateipfad.')
     current = plain(root)
     for part in parts:
+        if missing_ok and not current.is_dir():
+            return None
         matches = [p for p in current.iterdir() if p.name.casefold() == part.casefold()]
+        if missing_ok and not matches:
+            return None
         if len(matches) != 1:
             raise ValueError('Datei fehlt oder hat einen mehrdeutigen Namen: ' + relative)
         current = plain(matches[0])

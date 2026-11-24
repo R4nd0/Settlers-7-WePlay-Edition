@@ -94,6 +94,21 @@ class SetupOwnershipTests(unittest.TestCase):
         self.assertTrue((installed/'first.s7local').is_file())
         self.assertTrue((installed/'second.s7local').is_file())
 
+    def test_linux_migration_detects_owned_record_changed_before_its_copy(self):
+        source,destination=self.root/'source',self.root/'destination'
+        record=source/'LocalData/player-settings.json'
+        record.parent.mkdir(parents=True);record.write_bytes(b'initial user preferences')
+        destination.mkdir()
+        copy=linux_profiles.shutil.copy2
+        def change_then_copy(path,target,*args,**kwargs):
+            if path==record:
+                path.write_bytes(b'new user preferences')
+            return copy(path,target,*args,**kwargs)
+        with (patch.object(linux_profiles.shutil,'copy2',side_effect=change_then_copy),
+              self.assertRaisesRegex(ValueError,'Profile copy differs')):
+            linux_profiles.migrate(source,destination)
+        self.assertEqual(record.read_bytes(),b'new user preferences')
+
     @unittest.skipUnless(sys.platform=='linux','requires real Wine profile symlinks')
     def test_foreign_wine_documents_are_refused_before_any_profile_is_copied(self):
         source, destination = self.root/'source', self.root/'destination'

@@ -649,7 +649,16 @@ class Desktop:
                         graphics._plain(root/name).unlink()
                 root.rmdir();path.unlink()
                 continue
-            self.cleanup_instance(value['container'],value['instance'])
+            try:
+                self.cleanup_instance(value['container'],value['instance'])
+            except ValueError as error:
+                if str(error) not in ('managed_copy_busy','firewall_remove_failed'):
+                    raise
+                pending=True
+                continue
+            except (OSError,subprocess.TimeoutExpired):
+                pending=True
+                continue
             # Keep a receipt for preserved personal/unknown/modified files.
             receipt=folder/'Retained';receipt.mkdir(exist_ok=True)
             self.write(receipt/path.name,value)

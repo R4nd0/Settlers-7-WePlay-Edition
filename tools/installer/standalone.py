@@ -300,7 +300,7 @@ def build(app, source, output):
         raise ValueError('Eine saubere Release-App ohne State/Instances verwenden.')
     manifest = backend.install.package_manifest(app / 'Package')
     base = backend.install.source_base(source, steam_supported=manifest.get('steam_history', False))
-    executable = backend.content.digest(base / 'Bin/Settlers7R.exe')
+    executable = backend.content.digest(backend.content.member(base,'Bin/Settlers7R.exe'))
     if executable not in accepted_executables(backend, manifest):
         raise ValueError('Nur eine unterstuetzte History Edition kann exportiert werden.')
     edition = 'Steam' if executable == backend.install.STEAM_EXE else 'Ubisoft'

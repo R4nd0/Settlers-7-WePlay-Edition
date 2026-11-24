@@ -80,8 +80,10 @@ def migrate(source, destination):
         if path.is_file():
             target = compatibility.plain(new / name)
             if target.exists(): raise ValueError('Profile destination already exists')
+            expected=compatibility.digest(path)
             shutil.copy2(path,target)
-            if compatibility.digest(path)!=compatibility.digest(target): raise ValueError('Profile copy differs')
+            if compatibility.digest(path)!=expected or compatibility.digest(target)!=expected:
+                raise ValueError('Profile copy differs')
             count += 1
     for name in FOLDERS:
         path = compatibility.plain(old / name)

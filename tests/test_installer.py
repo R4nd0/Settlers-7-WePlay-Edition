@@ -209,6 +209,22 @@ def prepare(source, output, specification, profile):
         self.assertTrue((self.destination / 'Base/Bin/Settlers7R.exe').is_file())
         content.verify(self.destination)
 
+    def test_history_setup_canonicalizes_known_paths_from_case_sensitive_source(self):
+        if (self.source/'base').exists():
+            self.skipTest('requires case-sensitive source storage')
+        base=self.source/'base'
+        (self.source/'Base').rename(base)
+        (base/'Bin').rename(base/'bin')
+        (base/'BBA').rename(base/'bba')
+        (base/'bin/Settlers7R.exe').rename(base/'bin/settlers7r.exe')
+        (base/'bba/Interface.bba').rename(base/'bba/interface.bba')
+        self.prepare()
+        self.assertEqual((self.destination/'Base/Bin/Settlers7R.exe').read_bytes(),b'invented exe')
+        self.assertTrue((self.destination/'Base/BBA/Interface.bba').is_file())
+        self.assertTrue((self.destination/'Base/BBA/map.bba').is_file())
+        self.assertEqual((base/'bba/interface.bba').read_bytes(),b'invented archive')
+        content.verify(self.destination)
+
     def test_legacy_archive_recovery_requires_exact_original_bytes(self):
         from test_lan_tools import synthetic_archive,specification,bba
         self.prepare()

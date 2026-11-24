@@ -363,12 +363,16 @@ def source_base(root, *, steam_supported=False):
     if any(content.plain(candidate / 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe').is_file()
            for candidate in (root, content.plain(root / 'Settlers 7'))):
         raise UnsupportedGoldBuild()
-    bases = [root / name for name in ('Base', 'Data/Base') if (root / name / 'Bin/Settlers7R.exe').is_file()]
-    if len(bases) != 1:
+    executables=[]
+    for name in ('Base','Data/Base'):
+        exe=content.member(root,name+'/Bin/Settlers7R.exe',missing_ok=True)
+        if exe is not None and exe.is_file():
+            executables.append(exe)
+    if len(executables) != 1:
         raise ValueError('Bitte den S7-Installationsordner mit genau einem Base-Ordner auswaehlen.')
-    base = content.plain(bases[0])
-    exe = content.plain(base / 'Bin/Settlers7R.exe')
-    archive = content.plain(base / 'BBA/Interface.bba')
+    exe=executables[0]
+    base=exe.parent.parent
+    archive=content.member(base,'BBA/Interface.bba')
     exe_hash = content.digest(exe)
     if exe_hash == STEAM_EXE and steam_supported:
         if content.digest(archive) != EXPECTED_ARCHIVE:
@@ -472,7 +476,15 @@ def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=N
         for index,original in enumerate(files,1):
             path=(overrides or {}).get(original,original)
             content.plain(path)
-            target=content.plain(destination/'Base'/original.relative_to(base))
+            relative=original.relative_to(base)
+            name=('base/'+relative.as_posix()).lower()
+            layout=REPAIR_LAYOUT.get(name)
+            if name=='base/bin/uplay_r1_loader.dll':
+                layout='Base/Bin/uplay_r1_loader.dll'
+            if layout is None:
+                folder={'bin':'Bin','bba':'BBA'}.get(relative.parts[0].lower(),relative.parts[0])
+                layout=Path('Base',folder,*relative.parts[1:])
+            target=content.plain(destination/layout)
             target.parent.mkdir(parents=True,exist_ok=True)
             hasher=hashlib.sha256();identity=None
             try:
@@ -492,7 +504,7 @@ def _copy_sources(files,base,destination,emit,progress,overrides=None,expected=N
             copied_digest=content.digest(target)
             if copied_digest!=content.digest(path) or (expected and original in expected and copied_digest!=expected[original]):
                 raise ValueError('Spieldatei hat sich waehrend des Kopierens geaendert.')
-            verified[('base/'+original.relative_to(base).as_posix()).lower()]=copied_digest
+            verified[name]=copied_digest
             if tracker:tracker(target,copied_digest)
             emit(f'Spieldateien kopiert: {index}/{len(files)}')
         # The last cancellable boundary precedes patching/renderer transactions.
@@ -520,11 +532,12 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         validate_location(destination)
     if progress: progress('source',0,0)
     recovery = repair_source(source,steam_supported=manifest.get('steam_history',False),tools=package/'Tools') if managed else None
-    base = content.plain(source/'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
+    base = content.member(source,'Base') if managed else source_base(source,steam_supported=manifest.get('steam_history',False))
     repair_names = tuple(recovery[1]) if managed else REPAIR_INPUTS
     if manifest.get('platform_independent',False):
         needed=tuple(name for name,relative in PLATFORM_REPAIR.items()
-                     if name.endswith('mss32.dll') or (hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe'))==STEAM_EXE)
+                     if name.endswith('mss32.dll') or (hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest()
+                     if managed else content.digest(content.member(base,'Bin/Settlers7R.exe')))==STEAM_EXE)
         for name in needed:
             if name not in repair_names:
                 raw=content.member(base,name.removeprefix('base/')).read_bytes()
@@ -534,17 +547,18 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
                 repair_names=(*repair_names,name)
                 if managed:recovery[1][name]=raw
     if manifest.get('midsummer_profile',False) and SHARED_REPAIR_INPUT not in repair_names:
-        shared = content.plain(base / 'BBA/shr.bba')
-        if not shared.is_file() or content.digest(shared) != SHARED_ARCHIVE_SHA256:
+        shared = content.member(base,'BBA/shr.bba',missing_ok=True)
+        if shared is None or not shared.is_file() or content.digest(shared) != SHARED_ARCHIVE_SHA256:
             raise ValueError('Die Original-Lichtressource fehlt. Diese Entwicklungskopie aus der Originalquelle neu vorbereiten.')
         repair_names = (*repair_names, SHARED_REPAIR_INPUT)
         if managed:recovery[1][SHARED_REPAIR_INPUT]=shared.read_bytes()
-    input_paths={name:base/REPAIR_LAYOUT[name].removeprefix('Base/') for name in repair_names}
+    input_paths={name:(content.member(base,name.removeprefix('base/'),missing_ok=managed)
+                       or base/REPAIR_LAYOUT[name].removeprefix('Base/')) for name in repair_names}
     def retained_path(name):
         # These original inputs may be missing/corrupt in an owned copy;
         # their independently fingerprinted RepairSource bytes rebuild them.
         return input_paths[name] if name in repair_names else content.member(source,name)
-    source_exe_hash = hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(base/'Bin/Settlers7R.exe')
+    source_exe_hash = hashlib.sha256(recovery[1][REPAIR_INPUTS[0]]).hexdigest() if managed else content.digest(input_paths[REPAIR_INPUTS[0]])
     accepted_executables = (EXPECTED_EXE, STEAM_EXE) if manifest.get('steam_history', False) else (EXPECTED_EXE,)
     if source_exe_hash not in accepted_executables:
         raise ValueError('Spielprogramm hat sich nach der Versionspruefung geaendert.')
@@ -584,7 +598,6 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
     incomplete.write_text('Vorbereitung nicht abgeschlossen. Diesen Ordner nicht starten.\n', encoding='utf-8')
     if tracker:tracker(incomplete,content.digest(incomplete))
     saved=destination/REPAIR
-    input_paths={name:base/REPAIR_LAYOUT[name].removeprefix('Base/') for name in repair_names}
     inputs=recovery[1] if managed else {name:content.plain(path).read_bytes() for name,path in input_paths.items()}
     for name,raw in inputs.items():
         target=content.plain(saved/REPAIR_LAYOUT[name]);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
