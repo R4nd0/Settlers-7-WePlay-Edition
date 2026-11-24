@@ -84,6 +84,16 @@ internal sealed partial class MainForm
     private static bool DirectoryJoinable(JsonElement row)=>row.GetProperty("compatible").GetBoolean()
         &&row.GetProperty("state").GetString()=="open"&&row.GetProperty("free_slots").GetInt32()>0;
 
+    private static string DirectoryStateLabel(JsonElement row)=>Lang.T(!row.GetProperty("compatible").GetBoolean()
+        ?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted"
+        :row.GetProperty("free_slots").GetInt32()==0?"directoryFull":"directoryOpen");
+
+    private void TranslateDirectoryRows()
+    {
+        for(int i=0;i<directoryRows.Count;i++)
+            directoryGames.Items[i].SubItems[1].Text=DirectoryStateLabel(directoryRows[i]);
+    }
+
     private void UpdateDirectoryControls()
     {
         if(directoryRefresh==null)return;
@@ -112,8 +122,7 @@ internal sealed partial class MainForm
         if(value.TryGetProperty("games",out var games))foreach(var row in games.EnumerateArray())
         {
             rows.Add(row.Clone());
-            string state=!row.GetProperty("compatible").GetBoolean()?"directoryIncompatible":row.GetProperty("state").GetString()=="started"?"directoryStarted":row.GetProperty("free_slots").GetInt32()==0?"directoryFull":"directoryOpen";
-            var item=new ListViewItem([row.GetProperty("title").GetString()!,Lang.T(state),row.GetProperty("players")+" / "+row.GetProperty("capacity"),Program.DisplayVersion(row.GetProperty("version").GetString()!)]);
+            var item=new ListViewItem([row.GetProperty("title").GetString()!,DirectoryStateLabel(row),row.GetProperty("players")+" / "+row.GetProperty("capacity"),Program.DisplayVersion(row.GetProperty("version").GetString()!)]);
             items.Add(item);
             if(row.GetProperty("id").GetString()==select)item.Selected=true;
         }
@@ -201,7 +210,7 @@ internal sealed partial class MainForm
         {
             var result=await Backend.Run("directory-join",new {game_id=id,player_name=name,internet_consent=1},Receive);
             QueueDirectorySwitch(result);
-            gameRunning=false;RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+            SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
         finally{internetOperation=false;publicRoomOperation=false;internetInvite.Clear();UpdateInternetControls();}
     }

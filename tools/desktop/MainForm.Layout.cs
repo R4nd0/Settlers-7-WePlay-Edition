@@ -12,6 +12,7 @@ internal sealed partial class MainForm
     private Control graphicsGpuField=null!;
     private Control detailLevelField=null!;
     private Label detailLevelValue=null!;
+    private Label graphicsDisplayUnavailable=null!;
     private readonly Dictionary<CheckBox,Label> additionalGraphics = [];
     private string? graphicsProbeFailure;
     private readonly Label graphicsPresetNotice=new() {AutoSize=true,MaximumSize=new Size(840,0),ForeColor=SystemColors.GrayText};
@@ -65,6 +66,7 @@ internal sealed partial class MainForm
         outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));outputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
         outputs.Controls.Add(Field("display",monitor),0,0);outputs.Controls.Add(Field("window",window),1,0);
         outputs.Controls.Add(Field("resolution",resolution),0,1);Add(display,outputs);
+        graphicsDisplayUnavailable=Label("graphicsDisplayUnavailable");Add(display,graphicsDisplayUnavailable);
         var displayInfo=GraphicsDetails(display,"graphicsDisplayInfo",out _);
         Add(displayInfo,Label("rendererInfo"));Add(displayInfo,Label("graphicsModeInfo"));Add(displayInfo,Label("borderlessInfo"));
 

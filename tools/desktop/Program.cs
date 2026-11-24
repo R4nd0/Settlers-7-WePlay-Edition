@@ -272,6 +272,8 @@ internal sealed partial class MainForm : Form
     private readonly Dictionary<Control,string> accessibleFields = [];
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Top, Height = 120, ScrollBars = ScrollBars.Vertical };
     private readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Visible = false };
+    private readonly ContextMenuStrip trayMenu = new();
+    private readonly ToolStripMenuItem trayRestore = new(), trayExit = new();
     private TabPage homePage = null!, lanPage = null!, internetPage = null!, graphicsPage = null!, helpPage = null!,updatesPage=null!;
     private bool automaticMenuHeight = true;
     private bool singlePlayerOnly;
@@ -351,13 +353,14 @@ internal sealed partial class MainForm : Form
         tabs.Visible=false;
         language.SelectedIndexChanged+=(_,_)=>ChangeLanguage();
         tray.DoubleClick += (_,_) => RestoreWindow();
-        var trayMenu = new ContextMenuStrip(); trayMenu.Items.Add(Lang.T("show"),null,(_,_)=>RestoreWindow()); trayMenu.Items.Add(Lang.T("exit"),null,(_,_)=>Close()); tray.ContextMenuStrip = trayMenu;
+        trayRestore.Click+=(_,_)=>RestoreWindow();trayExit.Click+=(_,_)=>Close();
+        trayMenu.Items.AddRange([trayRestore,trayExit]);tray.ContextMenuStrip=trayMenu;
         Resize += (_,_) => { if (gameRunning && WindowState == FormWindowState.Minimized) { ShowInTaskbar = false; tray.Visible = true; } };
         FormClosing += async (_,e) =>
         {
             if(updateExit)return;
             if (gameRunning) { e.Cancel = true; WindowState = FormWindowState.Minimized; ShowInTaskbar = false; tray.Visible = true; }
-            else if (busy) { e.Cancel = true; if (MessageBox.Show(this,Lang.T("closeBusy"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) RequestCancellation(); }
+            else if (busy) { e.Cancel = true; if (!cancelRequested&&MessageBox.Show(this,Lang.T("closeBusy"),Lang.T("app"),MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes) RequestCancellation(); }
             else if(GraphicsDirty&&!closeDraftApproved)
             {
                 e.Cancel=true;if(closingDraft)return;closingDraft=true;bool accepted=false;
@@ -365,7 +368,7 @@ internal sealed partial class MainForm : Form
                 if(accepted&&!IsDisposed){closeDraftApproved=true;Close();}
             }
         };
-        FormClosed += (_,_) => { tray.Dispose();discordSymbol.Dispose();coffeeSymbol.Dispose(); };
+        FormClosed += (_,_) => { tray.Dispose();trayMenu.Dispose();discordSymbol.Dispose();coffeeSymbol.Dispose(); };
         Shown += async (_,_) => { if (!testing) await Initialise(); };
         Load += (_,_) =>
         {
@@ -581,7 +584,7 @@ internal sealed partial class MainForm : Form
         ApplyPlayModeLanguage();UpdateMaintenanceNotice();
         UpdateGraphicsPresets();ApplyEditionCapabilities();if(recoveryVisible)ShowSettingsRecovery(recoveryStatus);
         foreach (var item in accessibleFields) item.Key.AccessibleName = Lang.T(item.Value);
-        Text=Lang.T("app"); tray.Text=Lang.T("app");
+        Text=Lang.T("app"); tray.Text=Lang.T("app");trayRestore.Text=Lang.T("show");trayExit.Text=Lang.T("exit");
         loading=true;
         int oldWindow=window.SelectedIndex;
         window.Items.Clear();window.Items.AddRange([Lang.T("windowed"),Lang.T("borderless")]); window.SelectedIndex=Math.Max(0,oldWindow);
@@ -590,8 +593,9 @@ internal sealed partial class MainForm : Form
         SetAntialiasingMode(AntialiasingMode);
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
-        if(snapshot.ValueKind==JsonValueKind.Object) LoadSnapshot(snapshot,false);
-        homeTitle.Text=Lang.T(gameRunning?"running":"playTitle"); homeInfo.Text=Lang.T(gameRunning?"runningInfo":"playIntro");
+        if(snapshot.ValueKind==JsonValueKind.Object)LoadSnapshot(snapshot,false,preserveDirectoryConnection:true);
+        TranslateDirectoryRows();
+        SetGameRunning(gameRunning);
         if(!busy) status.Text=Lang.T("ready");
         UpdateInternetControls();
         RefreshUpdateControls();
@@ -625,7 +629,7 @@ internal sealed partial class MainForm : Form
         finally {SetBusy(false);}
         if(!testing&&updatesSupported)_=CheckUpdates(true);
     }
-    private void LoadSnapshot(JsonElement value,bool replaceFields=true,bool acceptGraphics=false)
+    private void LoadSnapshot(JsonElement value,bool replaceFields=true,bool acceptGraphics=false,bool preserveDirectoryConnection=false)
     {
         if(GraphicsDirty&&!acceptGraphics)replaceFields=false;
         snapshot=value.Clone();loading=true;
@@ -676,7 +680,8 @@ internal sealed partial class MainForm : Form
         discordConnected=value.TryGetProperty("discord_connected",out var connected)&&connected.GetBoolean();
         directoryAvailable=value.TryGetProperty("directory_available",out var directoryCapability)&&directoryCapability.GetBoolean();
         publicHostingAvailable=value.TryGetProperty("public_directory_available",out var publicCapability)&&publicCapability.GetBoolean();
-        directoryConnected=value.TryGetProperty("directory_connected",out var directoryConnection)&&directoryConnection.GetBoolean();
+        if(!preserveDirectoryConnection)
+            directoryConnected=value.TryGetProperty("directory_connected",out var directoryConnection)&&directoryConnection.GetBoolean();
         if(replaceFields)directoryPlayer.Text=player.Text;
         UpdateDirectoryControls();
         if(replaceFields)discordPublish.Checked=value.TryGetProperty("discord_publish_enabled",out var publication)&&publication.GetBoolean();
@@ -748,10 +753,17 @@ internal sealed partial class MainForm : Form
         }
         foreach(var item in labels.Where(x=>x.Value=="modeConsentInfo"))item.Key.Visible=!singlePlayerOnly;
         openGraphics.Visible=true;
-        if(!gameRunning)homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");
+        if(!gameRunning)homeInfo.Text=Lang.T(IdleHomeInfo);
         UpdateCrossplayControls();
     }
-    private void ShowMain(){setup.Visible=false;tabs.Visible=true;startupDiagnosticsLink.Visible=false;forceSetup=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T(singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro");status.Text=Lang.T("ready");FitMenuHeight();}
+    private string IdleHomeInfo=>singlePlayerOnly?(crossplayAvailable?"goldMixedIntro":"goldIntro"):"playIntro";
+    private void SetGameRunning(bool running)
+    {
+        gameRunning=running;
+        homeTitle.Text=Lang.T(running?"running":"playTitle");
+        homeInfo.Text=Lang.T(running?"runningInfo":IdleHomeInfo);
+    }
+    private void ShowMain(){setup.Visible=false;tabs.Visible=true;startupDiagnosticsLink.Visible=false;forceSetup=false;SetGameRunning(false);status.Text=Lang.T("ready");FitMenuHeight();}
     private async Task ShowSetup()
     {
         if(!await ResolveGraphicsDraft())return;
@@ -904,7 +916,10 @@ internal sealed partial class MainForm : Form
     private void DisplayEnabled()
     {
         UpdateGraphicsPresets();
-        monitor.Enabled=window.Enabled=!keepDisplay.Checked&&!busy;resolution.Enabled=!keepDisplay.Checked&&!busy&&window.SelectedIndex==0;
+        bool manual=!keepDisplay.Checked&&!busy;
+        monitor.Enabled=manual&&monitor.Items.Count>0;
+        window.Enabled=manual&&monitor.SelectedIndex>=0;
+        resolution.Enabled=manual&&window.SelectedIndex==0&&resolution.Items.Count>0;
         renderer.Enabled=!busy&&renderer.Items.Count>1;
         bool modern=RendererMode=="dxvk";
         if(!loading&&antialiasing.Items.Count!=(SmaaAvailable?3:2))SetAntialiasingMode(AntialiasingMode);
@@ -965,7 +980,8 @@ internal sealed partial class MainForm : Form
             anisotropic_filtering=anisotropicFiltering.Checked,extended_detail=detailLevel.Value>0,
             detail_level=detailLevel.Value,link_shadow_range=linkShadowRange.Checked,
             detailed_shadows=detailedShadows.Checked,extended_shadow_range=extendedShadowRange.Checked,midsummer_tone=midsummerTone.Checked,
-            enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,player_name=ValidName()};
+            enhanced_aa=AntialiasingMode=="smaa",contact_shadows=contactShadows.Checked,ultra_shadows=ultraShadows.Checked,maximum_fx=maximumFx.Checked},quality,
+            player_name=snapshot.GetProperty("player_name").GetString()};
     }
     private string ValidName()
     {
@@ -1029,7 +1045,7 @@ internal sealed partial class MainForm : Form
         }
         else result=await Backend.Run("play",new {},Receive);
         QueueDirectorySwitch(result);
-        gameRunning=false;RestoreWindow();homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+        SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
     }
     private void UpdateInternetControls()
     {
@@ -1153,7 +1169,7 @@ internal sealed partial class MainForm : Form
             else result=await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=false,internet_consent=1},Receive);
             QueueDirectorySwitch(result);
             channel.Dispose();await privateTask;
-            gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+            SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
         }
         finally
         {
@@ -1191,13 +1207,13 @@ internal sealed partial class MainForm : Form
         {
             CloseGameInvitation();
             if(value.TryGetProperty("invitation_run",out var run)&&run.ValueKind==JsonValueKind.String)invitationRun=run.GetString();
-            gameRunning=true;homeTitle.Text=Lang.T("running");homeInfo.Text=Lang.T("runningInfo");status.Text=Lang.T("running");progress.Visible=false;
+            SetGameRunning(true);status.Text=Lang.T("running");progress.Visible=false;
             if(internetOperation)internetStage="playing";UpdateInternetControls();
         }
         else if(kind=="game_finished")
         {
             CloseGameInvitation();
-            gameRunning=false;homeTitle.Text=Lang.T("playTitle");homeInfo.Text=Lang.T("playIntro");
+            SetGameRunning(false);
             if(internetOperation)internetStage="hosting";status.Text=Lang.T("ready");UpdateInternetControls();
         }
         else if(kind=="invitation_requested")OpenGameInvitation(value);
@@ -1243,7 +1259,7 @@ internal sealed partial class MainForm : Form
         {
             if(showErrors)
             {
-                gameRunning=false;RestoreWindow();
+                SetGameRunning(false);RestoreWindow();
                 if(error is BackendError {Code:"graphics_start_reverted"})
                 {
                     try{LoadSnapshot(await RunUiBackend("snapshot",new {}),acceptGraphics:true);}
@@ -1279,7 +1295,12 @@ internal sealed partial class MainForm : Form
         if(!testing)MessageBox.Show(this,Lang.T(code)+Environment.NewLine+Environment.NewLine+
             string.Format(Lang.T("diagnosticErrorHint"),code),Lang.T("errorTitle"),MessageBoxButtons.OK,MessageBoxIcon.Warning);
     }
-    private void RestoreWindow(){ShowInTaskbar=true;WindowState=FormWindowState.Normal;tray.Visible=false;Show();}
+    private void RestoreWindow()
+    {
+        ShowInTaskbar=true;
+        if(WindowState==FormWindowState.Minimized)WindowState=FormWindowState.Normal;
+        tray.Visible=false;Show();
+    }
 
     internal static int SelfTest(string folder)
     {
@@ -1351,6 +1372,7 @@ internal sealed partial class MainForm : Form
                 form.TestStandaloneEdition(json.RootElement,folder,language);
                 form.TestCrossplayEdition(json.RootElement,folder,language);
                 form.TestLauncherResilience(json.RootElement);
+                TestLauncherAudit(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))

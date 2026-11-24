@@ -11,6 +11,7 @@ internal sealed partial class MainForm
     private Button graphicsDiscard=null!,graphicsSave=null!,graphicsRestore=null!;
     private string? graphicsBackup;
     private bool GraphicsDirty=>savedGraphicsDraft!=null&&savedGraphicsDraft!=CaptureGraphicsDraft();
+    private bool GraphicsDisplayValid=>keepDisplay.Checked||monitor.SelectedItem is Item&&resolution.SelectedItem is Item;
 
     private string CaptureGraphicsDraft()=>JsonSerializer.Serialize(new {
         renderer=RendererMode,
@@ -36,9 +37,9 @@ internal sealed partial class MainForm
             var merged=JsonNode.Parse(snapshot.GetRawText())!.AsObject();
             foreach(var field in value.GetProperty("committed_settings").EnumerateObject())
                 merged[field.Name]=JsonNode.Parse(field.Value.GetRawText());
-            LoadSnapshot(JsonSerializer.SerializeToElement(merged),acceptGraphics:true);
+            LoadGraphicsSettings(JsonSerializer.SerializeToElement(merged));
         }
-        else LoadSnapshot(value,acceptGraphics:true);
+        else LoadGraphicsSettings(value);
         status.Text=Lang.T(refreshFailed?"settings_saved_refresh_failed":"saved");
     }
     private void UpdateGraphicsDraft()
@@ -47,6 +48,8 @@ internal sealed partial class MainForm
         bool dirty=GraphicsDirty;
         graphicsDraftNotice.Text=Lang.T(dirty?"graphicsUnsaved":"graphicsSavedDraft");
         graphicsDraftNotice.ForeColor=dirty?Color.FromArgb(137,87,15):SystemColors.GrayText;
+        if(graphicsSave!=null)graphicsSave.Enabled=!busy&&GraphicsDisplayValid;
+        graphicsDisplayUnavailable.Visible=!GraphicsDisplayValid;
         if(graphicsDiscard!=null)graphicsDiscard.Enabled=dirty&&!busy;
         if(graphicsRestore!=null)
         {
@@ -70,13 +73,18 @@ internal sealed partial class MainForm
     }
     private void DiscardGraphicsDraft()
     {
-        if(snapshot.ValueKind!=JsonValueKind.Object)return;
-        // Discard belongs to this form, not to name, storage or publishing edits
-        // elsewhere in the launcher.
+        if(snapshot.ValueKind==JsonValueKind.Object)LoadGraphicsSettings(snapshot);
+    }
+    private void LoadGraphicsSettings(JsonElement value)
+    {
+        // Graphics operations leave independent inputs as the player entered them.
         string name=player.Text,internetName=internetPlayer.Text,directoryName=directoryPlayer.Text,storage=destination.Text;
         bool publish=discordPublish.Checked;
-        LoadSnapshot(snapshot,acceptGraphics:true);
+        decimal port=lanDiscoveryPort.Value;
+        int savedPort=savedLanDiscoveryPort;
+        LoadSnapshot(value,acceptGraphics:true);
         player.Text=name;internetPlayer.Text=internetName;directoryPlayer.Text=directoryName;destination.Text=storage;discordPublish.Checked=publish;
+        savedLanDiscoveryPort=savedPort;lanDiscoveryPort.Value=port;
     }
     private async Task<bool> ResolveGraphicsDraft(DialogResult? decision=null,Func<Task>? save=null)
     {
@@ -104,6 +112,7 @@ internal sealed partial class MainForm
     }
     private void RequestCancellation(Action? request=null)
     {
+        if(cancelRequested)return;
         if(testing&&request==null)request=testCancellation;
         if(request==null&&Backend.Operation==null)return;
         try
