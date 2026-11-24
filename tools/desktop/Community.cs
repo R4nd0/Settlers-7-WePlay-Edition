@@ -48,16 +48,28 @@ internal static class Community
 
     public static string InvitationCode(string text)
     {
+        if(TryInvitationCode(text,out var code))return code;
+        throw new BackendError("internet_invitation_invalid", "");
+    }
+
+    internal static bool TryInvitationCode(string text,out string code)
+    {
         // Accept either a raw invitation or the exact share message generated
         // above. Do not scan arbitrary links/messages for embedded secrets.
-        if(text.Length>4096)throw new BackendError("internet_invitation_invalid", "");
-        string[] lines=text.Trim().Replace("\r\n","\n").Split('\n');
-        string code=lines[0];
-        if(!IsInvitationToken(code) ||
+        code="";
+        if(text.Length==0||text.Length>4096)return false;
+        string plain=text.Trim().Replace("\r\n","\n");
+        if(plain.Length>=8&&plain.StartsWith("```\n",StringComparison.Ordinal)&&plain.EndsWith("\n```",StringComparison.Ordinal))
+            plain=plain[4..^4];
+        else if(plain.Length>=2&&plain[0]=='`'&&plain[^1]=='`')
+            plain=plain[1..^1];
+        string[] lines=plain.Split('\n');
+        if(!IsInvitationToken(lines[0]) ||
             (lines.Length>1 && !(lines.Length>=3 && lines[1]=="" &&
                 lines[2] is "WePlay – private Raumeinladung" or "WePlay – private room invitation" or
                     "WePlay – private Gold/History-Einladung" or "WePlay – private Gold/History invitation")))
-            throw new BackendError("internet_invitation_invalid", "");
-        return code;
+            return false;
+        code=lines[0];
+        return true;
     }
 }

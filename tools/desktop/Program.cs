@@ -557,6 +557,7 @@ internal sealed partial class MainForm : Form
         internetAdvanced.CheckedChanged+=(_,_)=>{UpdateInternetControls();FitMenuHeight();if(internetAdvanced.Checked)internetScroll.ScrollControlIntoView(internetAdvancedPanel);};
         internetJoin.TextChanged+=(_,_)=>UpdateInvitationRoute();discordPublish.CheckedChanged+=(_,_)=>UpdateInternetControls();
         internetMode.SelectedIndexChanged += (_,_)=>UpdateInternetControls();
+        internetEndpoint.TextChanged+=(_,_)=>UpdateInternetControls();
         BuildGraphicsPage();
         var helpScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true }; helpPage.Controls.Add(helpScroll); var h = Stack(helpScroll);
         Add(h,Label("helpIntro"));
@@ -1017,7 +1018,15 @@ internal sealed partial class MainForm : Form
         ApplySettingsResult(await RunUiBackend("restore-graphics",new {}));
         if(status.Text!=Lang.T("settings_saved_refresh_failed"))status.Text=Lang.T("graphics_restored");
     }
-    private async Task Probe(){await RunUiBackend("probe",new {});LoadSnapshot(await RunUiBackend("snapshot",new {}),false,preserveDirectoryConnection:true);}
+    private async Task Probe()
+    {
+        await RunUiBackend("probe",new {});
+        LoadSnapshot(await RunUiBackend("snapshot",new {}),false,preserveDirectoryConnection:true);
+        status.Text=Lang.T(graphicsProbeFailure switch {
+            "unsupported"=>"graphicsProbeUnconfirmed",
+            "probe_failed"=>"graphicsProbeFailed",
+            _=>"graphicsProbeComplete"});
+    }
     private async Task Verify(){await Backend.Run("verify",new {},Receive);status.Text=Lang.T("verified");}
     private async Task ShowRepair(){forceSetup=true;await ShowSetup();}
     private async Task Cleanup()
@@ -1071,10 +1080,12 @@ internal sealed partial class MainForm : Form
     {
         bool available=MixedInternet?crossplayAvailable:internetAvailable;
         bool direct=internetMode.SelectedIndex==1;
+        bool endpointRequired=direct&&string.IsNullOrWhiteSpace(internetEndpoint.Text);
         internetPolicy.Text=Lang.T(direct?"internetDirectInfo":"internetAssistedInfo");
         bool fromInvite=internetOperation?!internetCreating&&activeInternetDirect==null:internetGuestChoice.Checked;
         bool connectionDirect=internetOperation?activeInternetDirect??direct:direct;
-        internetConnection.Text=Lang.T(fromInvite?"internetConnectionFromInvite":
+        internetConnection.Text=Lang.T(!internetOperation&&internetHostChoice.Checked&&endpointRequired?"internetEndpointRequired":
+            fromInvite?"internetConnectionFromInvite":
             connectionDirect?"internetConnectionDirect":"internetConnectionAuto");
         internetUnavailable.Visible=!available;
         internetNext.Visible=internetOperation&&!publicRoomOperation;
@@ -1089,8 +1100,8 @@ internal sealed partial class MainForm : Form
         }
         internetEndpoint.Enabled=!busy&&direct;
         internetMode.Enabled=internetPlayer.Enabled=internetJoin.Enabled=!busy;
-        if(internetCreate!=null)internetCreate.Enabled=!busy&&available;
-        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&available&&!string.IsNullOrWhiteSpace(internetJoin.Text);
+        if(internetCreate!=null)internetCreate.Enabled=!busy&&available&&!endpointRequired;
+        if(internetJoinButton!=null)internetJoinButton.Enabled=!busy&&available&&Community.TryInvitationCode(internetJoin.Text,out _);
         if(internetPaste!=null)internetPaste.Enabled=!busy&&available;
         if(internetCopy!=null)internetCopy.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
         if(internetShare!=null)internetShare.Enabled=internetOperation&&!publicRoomOperation&&internetInvite.Text.Length>0;
@@ -1122,9 +1133,8 @@ internal sealed partial class MainForm : Form
     }
     private void UpdateInvitationRoute()
     {
-        if(!internetOperation&&crossplayAvailable&&!singlePlayerOnly)
+        if(!internetOperation&&crossplayAvailable&&!singlePlayerOnly&&Community.TryInvitationCode(internetJoin.Text,out var code))
         {
-            string code=internetJoin.Text.TrimStart();
             if(code.StartsWith("weplayx1.",StringComparison.Ordinal))internetSessionKind.SelectedIndex=1;
             else if(code.StartsWith("weplay1.",StringComparison.Ordinal))internetSessionKind.SelectedIndex=0;
         }
@@ -1162,6 +1172,20 @@ internal sealed partial class MainForm : Form
         await Backend.Run("discord-disconnect",new {},Receive);
         LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("discordNotConnected");
     }
+    private void BeginInternetOperation(bool create,bool publicRoom,bool direct)
+    {
+        publicRoomOperation=publicRoom;
+        activeInternetDirect=create?direct:null;
+        internetCreating=create;internetStage="connecting";internetOperation=true;
+        internetInvite.Clear();SetBusy(true);
+        tabs.SelectedTab=publicRoomOperation?directoryPage:internetPage;
+    }
+    private void EndInternetOperation()
+    {
+        CloseGameInvitation();internetInvite.Clear();
+        internetOperation=false;publicRoomOperation=false;activeInternetDirect=null;
+        UpdateInternetControls();
+    }
     private async Task PlayInternet(bool create,bool publish=false,bool publicLobby=false)
     {
         if(!await ResolveGraphicsDraft())return;
@@ -1173,11 +1197,9 @@ internal sealed partial class MainForm : Form
         if(!create&&(string.IsNullOrWhiteSpace(invitation)||invitation.Length>2048))throw new BackendError("internet_invitation_invalid","");
         bool direct=!publicLobby&&internetMode.SelectedIndex==1;
         string? endpoint=direct?internetEndpoint.Text:null;
+        if(create&&direct&&string.IsNullOrWhiteSpace(endpoint))throw new BackendError("internetEndpointRequired","");
         if(!ConfirmInternetConnection(publicLobby||publish))return;
-        publicRoomOperation=publicLobby||publish;
-        activeInternetDirect=create?direct:null;
-        internetCreating=create;internetStage="connecting";internetOperation=true;internetInvite.Clear();internetJoin.Clear();SetBusy(true);
-        tabs.SelectedTab=publicRoomOperation?directoryPage:internetPage;
+        BeginInternetOperation(create,publicLobby||publish,direct);
         using var channel=new InternetChannel();
         Task privateTask=channel.Run(invitation,code=>
         {
@@ -1188,27 +1210,28 @@ internal sealed partial class MainForm : Form
         {
             JsonElement result;
             if(mixed&&create)
-                result=await Backend.Run("crossplay-create",new {player_name=name,channel=channel.Name,history_edition=crossplayHistory.SelectedIndex==0?2:3,
-                    mode=direct?"direct":"assisted",direct_endpoint=endpoint,internet_consent=1},Receive);
+                result=await RunUiBackend("crossplay-create",new {player_name=name,channel=channel.Name,history_edition=crossplayHistory.SelectedIndex==0?2:3,
+                    mode=direct?"direct":"assisted",direct_endpoint=endpoint,internet_consent=1});
             else if(mixed)
-                result=await Backend.Run("crossplay-join",new {player_name=name,channel=channel.Name,internet_consent=1},Receive);
+                result=await RunUiBackend("crossplay-join",new {player_name=name,channel=channel.Name,internet_consent=1});
             else if(create)
             {
                 var request=new Dictionary<string,object?> { ["player_name"]=name,["channel"]=channel.Name,["mode"]=direct?"direct":"assisted",
                     ["direct_endpoint"]=endpoint,["publish_discord"]=publish,["internet_consent"]=1 };
                 if(publicHostingAvailable)request["public_lobby"]=publicLobby;
-                result=await Backend.Run("internet-create",request,Receive);
+                result=await RunUiBackend("internet-create",request);
             }
-            else result=await Backend.Run("internet-join",new {player_name=name,channel=channel.Name,publish_discord=false,internet_consent=1},Receive);
+            else result=await RunUiBackend("internet-join",new {player_name=name,channel=channel.Name,publish_discord=false,internet_consent=1});
             QueueDirectorySwitch(result);
             channel.Dispose();await privateTask;
-            SetGameRunning(false);RestoreWindow();LoadSnapshot(await Backend.Run("snapshot",new {},Receive));status.Text=Lang.T("ready");
+            if(!create)internetJoin.Clear();
+            SetGameRunning(false);RestoreWindow();LoadSnapshot(await RunUiBackend("snapshot",new {}));status.Text=Lang.T("ready");
         }
         finally
         {
             channel.Dispose();
             try{await privateTask;}catch(Exception){/* No private bytes enter exception details. */}
-            CloseGameInvitation();internetInvite.Clear();internetOperation=false;publicRoomOperation=false;activeInternetDirect=null;UpdateInternetControls();
+            EndInternetOperation();
         }
     }
     private void Receive(JsonElement value)
@@ -1408,6 +1431,7 @@ internal sealed partial class MainForm : Form
                 TestLauncherAudit(json.RootElement);
                 TestLauncherInteractions(json.RootElement);
                 TestLauncherPresentation(json.RootElement);
+                TestLauncherRooms(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
