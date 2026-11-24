@@ -70,6 +70,24 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(instance.pending,'b'*32 if token=='current' and state=='open' else None)
                 self.assertFalse((root/'LocalData'/bridge.SNAPSHOT).exists())
 
+    def test_repeated_close_does_not_delete_successor_display_or_join_request(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
+            root = Path(folder)
+            data = root / 'LocalData'
+            data.mkdir()
+            dismissed = bridge.Bridge(root, 'unused', {CONTENT})
+            dismissed.write([row()])
+            dismissed.close()
+            successor = bridge.Bridge(root, 'unused', {CONTENT})
+            successor.write([row()])
+            request = data / bridge.REQUEST
+            request.write_text(successor.nonce + ':' + 'b'*32)
+            dismissed.close()
+            self.assertTrue((data / bridge.SNAPSHOT).is_file())
+            self.assertEqual(request.read_text(), successor.nonce + ':' + 'b'*32)
+            successor.close()
+            self.assertEqual(successor.pending, 'b'*32)
+
 class InterfaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

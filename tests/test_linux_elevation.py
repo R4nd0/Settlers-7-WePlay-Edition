@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -60,6 +61,41 @@ class LinuxTunnelTests(unittest.TestCase):
             self.overlay._receive()
         self.assertEqual(self.overlay.latest, record)
         worker.stdin.write.assert_called_once_with(b'ping\n')
+
+    def test_worker_checks_parent_eof_before_starting_tunnel(self):
+        value = dict(format=elevation.FORMAT, root=str(self.overlay.root),
+                     room=self.overlay.room.token(), host=True)
+        stdin = Mock()
+        stdin.buffer.readline.return_value = json.dumps(value).encode('ascii') + b'\n'
+        root = Mock()
+        root.stat.return_value.st_uid = 1000
+        selector = Mock()
+        selector.select.return_value = [(None, None)]
+        overlay = Mock()
+        start_tunnel = Mock()
+        def create_overlay(*_args, cancel_check=None, **_options):
+            def start():
+                if cancel_check:
+                    cancel_check()
+                start_tunnel()
+            overlay.start.side_effect = start
+            return overlay
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
+            private = Path(folder) / 'owned-tunnel'
+            private.mkdir()
+            with patch.object(elevation.os, 'geteuid', return_value=0, create=True), \
+                    patch.dict(elevation.os.environ, {'PKEXEC_UID': '1000'}), \
+                    patch.object(elevation.sys, 'stdin', stdin), \
+                    patch.object(elevation.compatibility, 'plain', return_value=root), \
+                    patch.object(elevation.tempfile, 'mkdtemp', return_value=str(private)), \
+                    patch.object(elevation.selectors, 'DefaultSelector', return_value=selector), \
+                    patch.object(elevation.os, 'read', return_value=b''), \
+                    patch('easytier_runtime.EasyTier', side_effect=create_overlay):
+                self.assertEqual(elevation.worker(), 0)
+            self.assertFalse(private.exists())
+        start_tunnel.assert_not_called()
+        overlay.close.assert_called_once()
 
     @unittest.skipUnless(sys.platform == 'linux', 'requires native Linux pipes')
     def test_start_reports_buffered_failure_from_real_exited_worker(self):

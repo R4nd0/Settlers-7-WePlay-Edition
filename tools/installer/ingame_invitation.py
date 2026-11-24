@@ -42,7 +42,9 @@ class Bridge:
         # Native CREATE_NEW coalesces repeated clicks; read only a fixed nonce.
         try:
             with path.open('rb') as stream:raw=stream.read(33)
-        finally:path.unlink(missing_ok=True)
+        except FileNotFoundError:
+            return
+        path.unlink(missing_ok=True)
         if (self.stop.is_set() or raw!=self.nonce.encode('ascii')
                 or self.mode not in ('private','public') or self.clock()-self.last<2):return
         self.last=self.clock()
@@ -68,7 +70,10 @@ class Bridge:
         def loop():
             while not self.stop.wait(.2):
                 try:self.poll()
-                except (OSError,ValueError):break
+                except OSError:
+                    pass  # Let the native writer close before trying again.
+                except ValueError:
+                    break
         self.thread=threading.Thread(target=loop,name='WePlay-invitation',daemon=True);self.thread.start()
         return self
 

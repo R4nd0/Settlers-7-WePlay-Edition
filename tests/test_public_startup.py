@@ -123,6 +123,38 @@ class PublicStartupTests(unittest.TestCase):
     @unittest.skipIf(desktop_backend is None,'Windows desktop backend is tested by the Windows job')
     def test_windows_public_host_has_broker_before_native_start(self):self.exercise('windows')
     def test_linux_public_host_has_broker_before_native_start(self):self.exercise('linux')
+
+    def test_linux_optional_directory_configuration_failure_keeps_lan_available(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'work') as folder, ExitStack() as stack:
+            root = Path(folder)
+            stack.enter_context(patch.object(linux_network.compatibility, 'load', return_value={}))
+            stack.enter_context(patch.object(linux_network.compatibility, 'network_id', return_value=CONTENT))
+            stack.enter_context(patch.object(game_directory, 'configured', side_effect=game_directory.DirectoryError('directory_invalid')))
+            run = stack.enter_context(patch.object(lan, 'run', return_value=0))
+            self.assertEqual(linux_network.run(root, 'lan'), 0)
+            run.assert_called_once()
+
+    def test_linux_browser_failure_preserves_working_invitation_bridge(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'work') as folder, ExitStack() as stack:
+            root = Path(folder)
+            stack.enter_context(patch.object(linux_network.compatibility, 'load', return_value={}))
+            stack.enter_context(patch.object(linux_network.compatibility, 'network_id', return_value=CONTENT))
+            stack.enter_context(patch.object(game_directory, 'configured', return_value='fixture'))
+            invitation = Mock()
+            stack.enter_context(patch.object(linux_network, 'InvitationBridge',
+                                             return_value=Mock(start=Mock(return_value=invitation))))
+            stack.enter_context(patch.object(linux_network, 'DirectoryBridge', side_effect=OSError()))
+            def run(args):
+                observer = args.game_monitor(Mock(pid=7, poll=Mock(return_value=0)))
+                invitation.close.assert_not_called()
+                observer.close()
+                return 0
+            stack.enter_context(patch.object(lan, 'run', side_effect=run))
+            notify = Mock()
+            self.assertEqual(linux_network.run(root, 'lan', notify=notify), 0)
+            notify.assert_any_call('directory_unavailable')
+            invitation.close.assert_called_once()
+
     def test_unreachable_coordinator_exposes_no_room_or_game(self):
         for kind in self.platforms:
             with self.subTest(kind=kind):self.exercise(kind,configuration_error=True)

@@ -153,35 +153,54 @@ def worker():
     room = parse(value['room'])
     from easytier_runtime import EasyTier
     parent = Path(tempfile.mkdtemp(prefix='weplay-',dir='/run'))
-    overlay = EasyTier(root,room,host=value['host'],private_parent=parent)
+    overlay = None
     selector = selectors.DefaultSelector()
+    pending = b''
+    last = time.monotonic()
+
+    class ParentClosed(Exception):
+        pass
+
     def send(record):
         print(json.dumps(dict(format=FORMAT,**record),separators=(',',':')),flush=True)
+
+    def check_parent(timeout=0):
+        nonlocal pending, last
+        for _, _ in selector.select(timeout):
+            raw = os.read(sys.stdin.fileno(), 1024)
+            if not raw:
+                raise ParentClosed()
+            pending += raw
+            if len(pending) > 4096:
+                raise InternetError('internet_request_invalid')
+            while b'\n' in pending:
+                message, pending = pending.split(b'\n', 1)
+                if message != b'ping':
+                    raise InternetError('internet_request_invalid')
+                last = time.monotonic()
+        if time.monotonic() - last >= 15:
+            raise InternetError('internet_disconnected')
+
     try:
+        selector.register(sys.stdin.buffer, selectors.EVENT_READ)
+        overlay = EasyTier(root, room, host=value['host'], private_parent=parent,
+                           cancel_check=check_parent)
         overlay.start()
-        selector.register(sys.stdin.buffer,selectors.EVENT_READ)
-        last = time.monotonic()
-        pending = b''
-        while time.monotonic()-last < 15:
-            for _,_ in selector.select(.5):
-                line = os.read(sys.stdin.fileno(),1024)
-                if not line: return 0
-                pending += line
-                if len(pending)>4096: return 2
-                while b'\n' in pending:
-                    message,pending = pending.split(b'\n',1)
-                    if message != b'ping': return 2
-                    last = time.monotonic()
+        while True:
+            check_parent(.5)
             interface,peers = overlay.snapshot()
             send(dict(phase='ready',address=interface.address,device=interface.name,peers=peers))
-        return 2
+    except ParentClosed:
+        return 0
     except (OSError,ValueError,RuntimeError,TimeoutError,subprocess.SubprocessError):
         try: send(dict(phase='error'))
         except BrokenPipeError: pass
         return 2
     finally:
         selector.close()
-        try: overlay.close()
+        try:
+            if overlay is not None:
+                overlay.close()
         finally: shutil.rmtree(parent)
 
 

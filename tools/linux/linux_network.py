@@ -30,9 +30,16 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
                else compatibility.verify(root))
     expected = compatibility.network_id(content)
     state = compatibility.plain(root / 'LocalData'); state.mkdir(mode=0o700, exist_ok=True)
-    url = game_directory.configured(state)
     if mode not in ('solo','lan','private-host','private-join','public-host','public-join'):
         raise ValueError('Unknown Linux play mode')
+    try:
+        url = game_directory.configured(state)
+    except (OSError, ValueError):
+        if mode.startswith('public-'):
+            raise
+        url = None
+        if notify:
+            notify('directory_unavailable')
     network = None
     if mode.startswith(('private-', 'public-')):
         if consent is not True: raise ValueError('internet_consent_required')
@@ -50,19 +57,20 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
         if invitation_ready: invitation_ready(value)
 
     def monitor(game):
-        kind, code = configuration(request, network, state)
         invitation_bridge = directory_bridge = None
         try:
+            kind, code = configuration(request, network, state)
             invitation_bridge = InvitationBridge(root, kind,
                 lambda **fields: notify('invitation_requested', **fields) if notify else None,
                 public_code=code).start()
+        except (OSError, ValueError, RuntimeError):
+            if notify:
+                notify('invitation_unavailable')
+        try:
             directory_bridge = DirectoryBridge(root, url, {expected}).start() if url else None
-        except (OSError,ValueError,RuntimeError):
-            if invitation_bridge: invitation_bridge.close()
-            invitation_bridge = None
-            if directory_bridge: directory_bridge.close()
-            directory_bridge = None
-            if notify: notify('directory_unavailable')
+        except (OSError, ValueError, RuntimeError):
+            if notify:
+                notify('directory_unavailable')
         bridges.append(directory_bridge)
         if notify: notify('game_started', pid=game.pid)
         class Observer:

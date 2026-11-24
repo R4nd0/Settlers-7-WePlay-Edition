@@ -139,6 +139,13 @@ class ReporterTests(unittest.TestCase):
         connection.request.assert_called_once_with('GET','/v1/publisher',headers={'Authorization':'Bearer '+KEY})
         connection.close.assert_called_once()
 
+    def test_connection_drop_during_pairing_reports_directory_connection_error(self):
+        connection = Mock()
+        connection.getresponse.side_effect = directory.http.client.RemoteDisconnected()
+        with self.assertRaisesRegex(credentials.DiscordError, '^discord_connection_failed$'):
+            directory.check_connection(ORIGIN, KEY, connection_factory=Mock(return_value=connection))
+        connection.close.assert_called_once()
+
 
 class BackendPairingTests(unittest.TestCase):
     def test_private_code_is_checked_then_stored_without_entering_public_state_or_events(self):

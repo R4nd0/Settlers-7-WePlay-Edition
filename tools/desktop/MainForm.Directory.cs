@@ -134,15 +134,14 @@ internal sealed partial class MainForm
     private async Task RefreshDirectoryCore(bool automatic,Func<CancellationToken,Task<JsonElement>>? fetch=null)
     {
         if(IsDisposed||Disposing||directoryRefreshing||busy||!directoryAvailable)return;
-        var selected=SelectedDirectoryGame();
-        string? identifier=selected.HasValue?selected.Value.GetProperty("id").GetString():null;
         using var request=CancellationTokenSource.CreateLinkedTokenSource(backgroundLifetime.Token);
         directoryRequest=request;long generation=++directoryGeneration;directoryRefreshing=true;UpdateDirectoryControls();
         try
         {
             var value=await (fetch!=null?fetch(request.Token):Backend.Run("directory-list",new {},_=>{},trackOperation:false,cancellationToken:request.Token));
             if(!CanApplyDirectoryRefresh(generation))return;
-            ShowDirectory(value,identifier);
+            string? currentSelection=SelectedDirectoryGame()?.GetProperty("id").GetString();
+            ShowDirectory(value,currentSelection);
         }
         catch(OperationCanceledException)when(request.IsCancellationRequested){}
         catch(Exception error)

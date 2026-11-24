@@ -125,7 +125,9 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     except BaseException as primary:
         try:
             overlay.close()
-        except Exception:
+        except Exception as cleanup:
+            if not hasattr(primary, 'add_note'):
+                raise primary from cleanup  # Python 3.10 on Linux
             primary.add_note('internet_cleanup_failed')
         raise
     else:

@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'tools/installer'),str(ROOT/'work/lua-test-runtime')]
@@ -58,6 +58,35 @@ class BridgeTests(unittest.TestCase):
             calls=[];instance=bridge.Bridge(temporary,'public',lambda **value:calls.append(value)).start()
             (instance.data/bridge.REQUEST).write_text(instance.nonce);instance.poll()
             instance.close();self.assertEqual(calls,[])
+
+    def test_invitation_click_survives_temporary_request_file_sharing(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
+            notify = Mock()
+            instance = bridge.Bridge(folder, 'private', notify)
+            loops = []
+            def thread(*, target, **_options):
+                loops.append(target)
+                return Mock()
+            with patch.object(bridge.threading, 'Thread', side_effect=thread):
+                instance.start()
+            request = instance.data / bridge.REQUEST
+            request.write_text(instance.nonce)
+            instance.stop = Mock()
+            instance.stop.is_set.return_value = False
+            instance.stop.wait.side_effect = [False, False, True]
+            original_open = Path.open
+            tries = []
+            def open_after_native_write(path, mode='r', *args, **kwargs):
+                if path == request and mode == 'rb':
+                    tries.append(path)
+                    if len(tries) == 1:
+                        raise PermissionError('native writer still holds request')
+                return original_open(path, mode, *args, **kwargs)
+            with patch.object(Path, 'open', open_after_native_write):
+                loops[0]()
+            self.assertEqual(tries, [request, request])
+            notify.assert_called_once_with(run=instance.nonce, mode='private')
+            self.assertFalse(request.exists())
 
 
 @unittest.skipIf(LuaRuntime is None,'Optional private Lua 5.1 runtime')

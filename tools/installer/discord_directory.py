@@ -17,8 +17,13 @@ def check_connection(url,key,connection_factory=http.client.HTTPSConnection):
     try:
         connection.request('GET','/v1/publisher',headers={'Authorization':'Bearer '+key})
         response=connection.getresponse();raw=response.read(4097)
-        if response.status!=200 or len(raw)>4096 or json.loads(raw)!={'ok':True}:
+        if response.status!=200 or len(raw)>4096:
             raise DiscordError('discord_connection_failed')
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) != {'ok'} or value['ok'] is not True:
+            raise DiscordError('discord_connection_failed')
+    except (OSError, ValueError, http.client.HTTPException):
+        raise DiscordError('discord_connection_failed') from None
     finally:connection.close()
 
 

@@ -72,6 +72,8 @@ class Bridge:
         return self
 
     def close(self):
+        if self.stop.is_set():
+            return
         self.stop.set()
         if self.thread:self.thread.join(timeout=7)
         request=compatibility.plain(self.data/REQUEST)
@@ -79,8 +81,18 @@ class Bridge:
             if request.is_file() and request.stat().st_size==65:
                 value=request.read_bytes().decode('ascii')
                 nonce,identifier=value.split(':')
-                if nonce==self.nonce and identifier in self.ids:self.pending=identifier
+                if nonce == self.nonce:
+                    request.unlink(missing_ok=True)
+                    if identifier in self.ids:
+                        self.pending = identifier
         except (ValueError,UnicodeError):pass
         finally:
-            request.unlink(missing_ok=True)
-            compatibility.plain(self.data/SNAPSHOT).unlink(missing_ok=True)
+            path = compatibility.plain(self.data / SNAPSHOT)
+            prefix = (HEADER + self.nonce + '|').encode('ascii')
+            try:
+                with path.open('rb') as stream:
+                    owned = stream.read(len(prefix)) == prefix
+                if owned:
+                    path.unlink(missing_ok=True)
+            except FileNotFoundError:
+                pass

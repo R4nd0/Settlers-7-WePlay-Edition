@@ -158,6 +158,21 @@ class LaunchTests(unittest.TestCase):
         self.assertIs(error.exception, primary)
         self.assertEqual(primary.__notes__, ['internet_cleanup_failed'])
 
+    def test_python310_cleanup_keeps_native_start_error(self):
+        class Python310Error(OSError):
+            def __getattribute__(self, name):
+                if name == 'add_note':
+                    raise AttributeError(name)
+                return super().__getattribute__(name)
+
+        primary = Python310Error('native start failed')
+        self.overlay.close.side_effect = InternetError('internet_cleanup_failed')
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=primary):
+            with self.assertRaises(Python310Error) as reported:
+                launch.run(self.args, overlay_factory=self.factory)
+        self.assertIs(reported.exception, primary)
+
     def test_game_start_failure_closes_only_owned_overlay(self):
         with patch.object(launch, 'create', return_value=ROOM), \
                 patch.object(launch.launch_auto_lan, 'run', side_effect=RuntimeError('fixture')):

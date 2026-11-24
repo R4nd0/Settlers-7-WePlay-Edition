@@ -263,7 +263,9 @@ class EasyTier:
         except BaseException as primary:
             try:
                 self.close()
-            except Exception:
+            except Exception as cleanup:
+                if not hasattr(primary, 'add_note'):
+                    raise primary from cleanup  # Python 3.10 on Linux
                 primary.add_note('internet_cleanup_failed')
             raise
 

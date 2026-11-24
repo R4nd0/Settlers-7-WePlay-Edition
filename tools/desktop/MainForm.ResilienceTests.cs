@@ -63,6 +63,17 @@ internal sealed partial class MainForm
         if(!directoryLoadFailed||directoryRows.Count!=1||directoryJoin.Enabled)throw new Exception("Failed refresh loses stale rows or enables joining");
         AwaitUi(RefreshDirectoryCore(true,_=>Task.FromResult(listed.RootElement.Clone())));
         if(directoryLoadFailed||directoryRefreshing||!directoryJoin.Enabled)throw new Exception("Successful refresh does not restore safe joining");
+        string firstId="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",secondId="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        string firstRow=listed.RootElement.GetProperty("games")[0].GetRawText();
+        using var twoGames=JsonDocument.Parse("{\"connected\":true,\"games\":["+firstRow+","+firstRow.Replace(firstId,secondId)+"]}");
+        ShowDirectory(twoGames.RootElement,firstId);Application.DoEvents();
+        var refreshed=new TaskCompletionSource<JsonElement>();
+        Task pendingRefresh=RefreshDirectoryCore(true,_=>refreshed.Task);
+        directoryGames.Items[0].Selected=false;directoryGames.Items[1].Selected=true;
+        Application.DoEvents();
+        refreshed.SetResult(twoGames.RootElement.Clone());AwaitUi(pendingRefresh);
+        if(SelectedDirectoryGame()?.GetProperty("id").GetString()!=secondId)
+            throw new Exception("Directory refresh overwrote a selection made while waiting");
         ShowDirectory(listed.RootElement,"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         LoadSnapshot(original,acceptGraphics:true);tabs.SelectedTab=homePage;
         maintenanceCount=2;UpdateMaintenanceNotice();

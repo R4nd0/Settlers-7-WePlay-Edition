@@ -30,6 +30,11 @@ class DirectoryTests(unittest.TestCase):
                 with self.assertRaises(directory.DirectoryError):directory.parse_code(prefix+join_crypto.encoded(json.dumps(bad).encode()))
         with self.assertRaises(directory.DirectoryError):directory.record('{"a":1,"a":2}')
 
+    def test_join_code_requires_an_actual_game_identifier(self):
+        code = 'weplay-join1.' + join_crypto.encoded(json.dumps(dict(v=1, origin=ORIGIN, game_id=None)).encode())
+        with self.assertRaisesRegex(directory.DirectoryError, 'directory_code_invalid'):
+            directory.parse_code(code)
+
     def test_metadata_rejects_private_fields_duplicates_and_bad_types(self):
         self.assertEqual(directory.validate_game(row()),row())
         for change in ({'token':'never'},{'players':True},{'title':'weplay1.secret'},{'id':'bad'},
@@ -177,6 +182,16 @@ class DirectoryTests(unittest.TestCase):
         broker.poll([])
         self.assertFalse(broker.registered)
         self.assertEqual([call.args[2] for call in transport.call_args_list], ['PUT', 'DELETE', 'DELETE'])
+
+    def test_reopened_native_match_registers_without_waiting_for_old_poll_interval(self):
+        transport = Mock(side_effect=[{'ok': True, 'requests': []}, {'ok': True},
+                                      {'ok': True, 'requests': []}])
+        broker = self.make_broker(transport)
+        rows = [dict(id='00000001', state='open', free_slots=3)]
+        broker.poll(rows)
+        broker.poll([])
+        broker.poll([dict(rows[0], id='00000002')])
+        self.assertEqual([call.args[2] for call in transport.call_args_list], ['PUT', 'DELETE', 'PUT'])
 
     def test_host_only_seals_open_native_sessions_and_caches_retry_envelope(self):
         room=internet_room.Room('a'*32,'b'*64,'10.203.77.0/24')

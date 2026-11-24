@@ -43,7 +43,8 @@ def parse_code(code):
         if not isinstance(value,dict) or set(value)!=keys or type(value['v']) is not int or value['v']!=1:raise ValueError()
         url=origin(value['origin'])
         game=value.get('game_id')
-        if game is not None and (not isinstance(game,str) or not HEX32.fullmatch(game)):raise ValueError()
+        if prefix == 'weplay-join1.' and (not isinstance(game, str) or not HEX32.fullmatch(game)):
+            raise ValueError()
         return url,game
     except (ValueError,KeyError,TypeError):raise DirectoryError('directory_code_invalid') from None
 
@@ -206,7 +207,7 @@ class HostBroker:
         if self.stopped:return
         if not rows:
             self.close();return
-        if self.monotonic()-self.last<10:return
+        if self.registered and self.monotonic()-self.last<10:return
         response=self.transport(self.url,'/v1/directory/host','PUT',dict(format='weplay-directory-host-v1',run_id=self.run_id,
             room_id=self.room.room_id,content_id=self.expected,network_revision=NETWORK_REVISION,version=self.version),authorization='Bearer '+self.key)
         if not isinstance(response,dict) or set(response)!={'ok','requests'} or response['ok'] is not True or not isinstance(response['requests'],list) or len(response['requests'])>8:
