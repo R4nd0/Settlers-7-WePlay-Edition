@@ -70,6 +70,21 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(instance.pending,'b'*32 if token=='current' and state=='open' else None)
                 self.assertFalse((root/'LocalData'/bridge.SNAPSHOT).exists())
 
+    def test_previously_displayed_game_expiry_prevents_a_pending_switch(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder, \
+                patch.object(bridge.time, 'time', return_value=1000) as clock:
+            root = Path(folder)
+            data = root / 'LocalData'
+            data.mkdir()
+            instance = bridge.Bridge(root, 'unused', {CONTENT})
+            instance.write([row(expires_at=1005)])
+            request = data / bridge.REQUEST
+            request.write_text(instance.nonce + ':' + 'b' * 32)
+            clock.return_value = 1005
+            instance.close()
+            self.assertIsNone(instance.pending)
+            self.assertFalse(request.exists())
+
     def test_repeated_close_does_not_delete_successor_display_or_join_request(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as folder:
             root = Path(folder)

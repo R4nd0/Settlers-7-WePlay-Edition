@@ -27,7 +27,7 @@ import launch_internet as internet
 import linux_network
 import public_directory
 from internet_room import Room
-from lobby_directory import LanInterface
+from lobby_directory import CONTROL_FORMAT, MAX_MEMBERS, LanInterface
 
 CONTENT='a'*64
 ROOM=Room('a'*32,'b'*64,'10.203.77.0/24')
@@ -69,7 +69,8 @@ class PublicStartupTests(unittest.TestCase):
             patcher(internet,'enumerate_interfaces',return_value=[LanInterface('192.168.1.7',24)])
             patcher(internet,'create',return_value=ROOM)
             patcher(internet,'LanDiscovery',return_value=directory)
-            patcher(internet,'request',return_value={'active_members':0})
+            patcher(internet,'request',return_value=dict(format=CONTROL_FORMAT, content_id=CONTENT,
+                    members=1, active_members=0, max_members=MAX_MEMBERS))
             real_run=internet.run
             patcher(internet,'run',side_effect=lambda args,**kwargs:real_run(args,overlay_factory=lambda *a,**kw:overlay,**kwargs))
             patcher(lan,'session_lock',side_effect=lambda *a:nullcontext(root/'LocalData'))
@@ -154,6 +155,30 @@ class PublicStartupTests(unittest.TestCase):
             self.assertEqual(linux_network.run(root, 'lan', notify=notify), 0)
             notify.assert_any_call('directory_unavailable')
             invitation.close.assert_called_once()
+
+    def test_linux_only_offers_the_requested_room_after_a_normal_game_exit(self):
+        for exit_code in (0, 1):
+            with self.subTest(exit_code=exit_code), tempfile.TemporaryDirectory(dir=ROOT/'work') as folder, ExitStack() as stack:
+                root = Path(folder)
+                stack.enter_context(patch.object(linux_network.compatibility, 'load', return_value={}))
+                stack.enter_context(patch.object(linux_network.compatibility, 'network_id', return_value=CONTENT))
+                stack.enter_context(patch.object(game_directory, 'configured', return_value='fixture'))
+                stack.enter_context(patch.object(linux_network, 'InvitationBridge'))
+                directory = Mock(pending=None)
+                directory.close.side_effect = lambda: setattr(directory, 'pending', 'c' * 32)
+                stack.enter_context(patch.object(linux_network, 'DirectoryBridge', return_value=Mock(start=Mock(return_value=directory))))
+
+                def run(args):
+                    game = Mock(pid=7, poll=Mock(return_value=exit_code))
+                    args.game_monitor(game).close()
+                    return exit_code
+
+                stack.enter_context(patch.object(lan, 'run', side_effect=run))
+                notify = Mock()
+                self.assertEqual(linux_network.run(root, 'lan', notify=notify), exit_code)
+                directory.close.assert_called_once()
+                switched = [call.kwargs['game_id'] for call in notify.call_args_list if call.args[0] == 'directory_switch']
+                self.assertEqual(switched, ['c' * 32] if exit_code == 0 else [])
 
     def test_unreachable_coordinator_exposes_no_room_or_game(self):
         for kind in self.platforms:

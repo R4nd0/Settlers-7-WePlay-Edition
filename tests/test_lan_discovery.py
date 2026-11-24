@@ -2,6 +2,7 @@ import json
 from itertools import chain, repeat
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import threading
 import unittest
@@ -112,6 +113,18 @@ class DirectoryTests(unittest.TestCase):
         result = [Mock(returncode=0, stdout=json.dumps(value).encode()) for value in ([{'dev': 'eth0'}], entries)]
         with patch('lan_interfaces.subprocess.run', side_effect=result):
             self.assertEqual(linux_interfaces(), [LanInterface('192.168.1.7', 24, 'eth0', True)])
+
+    def test_linux_address_inventory_survives_a_failed_default_route_probe(self):
+        entries = [{'ifname': 'eth0', 'flags': ['UP'],
+                    'addr_info': [{'family': 'inet', 'local': '192.168.1.7', 'prefixlen': 24}]}]
+        address_result = Mock(returncode=0, stdout=json.dumps(entries).encode())
+        failures = (Mock(returncode=1), subprocess.TimeoutExpired('ip route', 10))
+        for failure in failures:
+            with self.subTest(failure=failure), patch('lan_interfaces.subprocess.run', side_effect=[failure, address_result]):
+                self.assertEqual(linux_interfaces(), [LanInterface('192.168.1.7', 24, 'eth0')])
+        with patch('lan_interfaces.subprocess.run', side_effect=[Mock(returncode=1), Mock(returncode=1)]), \
+                self.assertRaises(ValueError):
+            linux_interfaces()
 
     def test_picker_data_has_no_addresses_or_native_ids(self):
         value = snapshot([self.interface], [self.room], EXPECTED, 'Anna', 3)

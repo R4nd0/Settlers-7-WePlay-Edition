@@ -232,12 +232,12 @@ def gui(package=None, bundle=None):
                     ttk.Button(dialog,text='Join / Beitreten',command=join).pack(pady=(0,12))
                 else: log(value)
                 if kind in ('done', 'error', 'games'):
+                    game, pending_game[0] = pending_game[0], None
                     active[0] = False; progress.stop()
                     for button in buttons: button.configure(state='normal')
                     if current[0]: status.set(str(current[0]))
                     if kind == 'error': messagebox.showerror('WePlay', value)
-                    if kind == 'done' and pending_game[0] is not None:
-                        game, pending_game[0] = pending_game[0], None
+                    if kind == 'done' and game is not None:
                         window.after_idle(lambda selected=game: launch('public-join', game_id=selected))
         except queue.Empty: pass
         window.after(100, poll)

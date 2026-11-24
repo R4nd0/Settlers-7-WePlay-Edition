@@ -54,8 +54,13 @@ def linux_interfaces(*, allow_empty=False, include_all=False):
         if not isinstance(value, list) or len(value) > 256:
             raise ValueError('Unbekannte Netzwerkausgabe.')
         return value
-    routes = query(['-4', 'route', 'show', 'default'])
-    defaults = {row.get('dev') for row in routes if isinstance(row, dict)}
+    try:
+        routes = query(['-4', 'route', 'show', 'default'])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        # The default route only ranks adapters. The address inventory below
+        # remains mandatory for selecting or validating an interface.
+        routes = []
+    defaults = {row['dev'] for row in routes if isinstance(row, dict) and isinstance(row.get('dev'), str)}
     rows = []
     for interface in query(['-4', 'address', 'show', 'up']):
         if not isinstance(interface, dict) or 'UP' not in interface.get('flags', []):

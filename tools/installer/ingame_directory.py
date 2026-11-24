@@ -27,7 +27,7 @@ def snapshot(nonce,sequence,rows,allowed):
 class Bridge:
     def __init__(self,root,url,allowed,*,transport=game_directory.request):
         self.data=compatibility.plain(Path(root)/'LocalData');self.url=url;self.allowed=set(allowed)
-        self.transport=transport;self.nonce=secrets.token_hex(16);self.sequence=0;self.ids=set()
+        self.transport=transport;self.nonce=secrets.token_hex(16);self.sequence=0;self.join_expiry={}
         self.stop=threading.Event();self.thread=None;self.pending=None
 
     def write(self,rows):
@@ -40,8 +40,9 @@ class Bridge:
             os.replace(temporary,target)
         finally:temporary.unlink(missing_ok=True)
         displayed={line.split('|',1)[0] for line in raw.decode('ascii').splitlines()[1:]}
-        self.ids={row['id'] for row in rows if row['id'] in displayed and row['state']=='open'
-                  and row['free_slots']>0 and row['content_id'] in self.allowed}
+        self.join_expiry={row['id']:row['expires_at'] for row in rows
+                          if row['id'] in displayed and row['state']=='open'
+                          and row['free_slots']>0 and row['content_id'] in self.allowed}
 
     def start(self):
         self.data.mkdir(exist_ok=True)
@@ -58,9 +59,9 @@ class Bridge:
             rows = []
             while not self.stop.is_set():
                 try:rows=game_directory.listing(self.url,transport=self.transport)
-                except (OSError, ValueError):
-                    now = time.time()
-                    rows = [row for row in rows if row['expires_at'] > now]
+                except (OSError, ValueError):pass
+                now = time.time()
+                rows = [row for row in rows if row['expires_at'] > now]
                 if self.stop.is_set():break
                 try:self.write(rows)
                 except OSError:
@@ -83,7 +84,7 @@ class Bridge:
                 nonce,identifier=value.split(':')
                 if nonce == self.nonce:
                     request.unlink(missing_ok=True)
-                    if identifier in self.ids:
+                    if self.join_expiry.get(identifier, 0) > time.time():
                         self.pending = identifier
         except (ValueError,UnicodeError):pass
         finally:

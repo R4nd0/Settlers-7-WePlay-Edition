@@ -91,7 +91,15 @@ class DirectoryTests(unittest.TestCase):
         crypto=Mock()
         for change,allowed in [({},set()),({'state':'full','free_slots':0},{CONTENT}),({'state':'started','free_slots':0},{CONTENT})]:
             transport=Mock(return_value=dict(format='weplay-games-directory-v1',games=[row(**change)]))
-            with self.assertRaises(ValueError):directory.join(ORIGIN,GAME,allowed,transport=transport,crypto=crypto)
+            with self.assertRaises(ValueError):directory.join(ORIGIN,GAME,allowed,transport=transport,crypto=crypto,clock=lambda:1000)
+        crypto.assert_not_called()
+
+    def test_expired_catalogue_game_does_not_request_new_join_credentials(self):
+        crypto = Mock()
+        transport = Mock(return_value=dict(format='weplay-games-directory-v1', games=[row(expires_at=1000)]))
+        with self.assertRaisesRegex(directory.DirectoryError, '^directory_join_unavailable$'):
+            directory.join(ORIGIN, GAME, {CONTENT}, transport=transport, crypto=crypto, clock=lambda: 1000)
+        transport.assert_called_once_with(ORIGIN, '/v1/directory/games')
         crypto.assert_not_called()
 
     def test_cancelled_join_does_not_contact_directory(self):

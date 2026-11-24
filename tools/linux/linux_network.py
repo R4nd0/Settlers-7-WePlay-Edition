@@ -106,5 +106,6 @@ def run(root, mode, *, player_name='LocalPlayer', consent=False, invitation=None
         else:
             code = launch_auto_lan.run(args)
     pending = next((bridge.pending for bridge in bridges if bridge and bridge.pending),None)
-    if pending and notify: notify('directory_switch',game_id=pending)
+    if code == 0 and pending and notify:
+        notify('directory_switch', game_id=pending)
     return code
