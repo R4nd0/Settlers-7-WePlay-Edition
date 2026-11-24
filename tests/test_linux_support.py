@@ -99,6 +99,22 @@ class LinuxBoundaryTests(unittest.TestCase):
 
         self.run_gui(drive)
 
+    def test_linux_console_reports_a_room_outage_and_recovery_during_play(self):
+        import launcher
+
+        def play(*_args, **options):
+            options['notify']('internet_disconnected')
+            log.assert_called_once_with(launcher.ROOM_NOTICES['internet_disconnected'], flush=True)
+            options['notify']('internet_reconnected')
+            return 0
+
+        argv = ['WePlay', '--bundle', str(self.root), 'play', '--mode', 'public-join',
+                '--game-id', 'b' * 32, '--allow-internet']
+        with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), \
+                patch.object(launcher, 'play', side_effect=play), patch('builtins.print') as log:
+            self.assertEqual(launcher.main(), 0)
+        log.assert_called_with(launcher.ROOM_NOTICES['internet_reconnected'], flush=True)
+
     def test_fresh_source_installer_reaches_copy_without_prepare_module_collision(self):
         script = '''import sys
 from pathlib import Path

@@ -262,6 +262,7 @@
   "internet_runtime_invalid": "EasyTier-Dateien fehlen oder wurden verändert. Aktualisiere oder repariere WePlay.",
   "internet_admin_required": "Für den Internetadapter wird die Windows-Freigabe benötigt.",
   "internet_disconnected": "Der Internetraum oder sein Ersteller ist nicht mehr erreichbar.",
+  "internet_reconnected": "Der Internetraum ist wieder erreichbar.",
   "internet_direct_unavailable": "Eine direkte Verbindung war nicht möglich. Prüfe den erreichbaren Endpunkt oder verwende öffentliche Vermittlung.",
   "internet_connect_timeout": "Der Internetraum wurde nicht bereit. Prüfe Ersteller, Verbindung und Windows-Freigabe.",
   "internet_relay_unavailable": "Der Vermittlungsserver ist nicht erreichbar. Der Internetraum ist noch nicht bereit. Versuche es später erneut.",

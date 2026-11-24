@@ -47,6 +47,10 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
     expected_content = None
     host_ready = False
     tunnel_lost = False
+    guest_disconnected = False
+    guest_status_misses = 0
+    next_guest_probe = -float('inf')
+    switch_requested = getattr(args, 'switch_requested', None)
 
     def network():
         nonlocal interface
@@ -87,22 +91,48 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
             invitation_ready(room.token())
         host_ready = host
 
+    def coordinator_active(timeout):
+        status = request(room.coordinator, interface.address, 'status', expected=expected_content, timeout=timeout)
+        return status_counts(status, expected_content)[1]
+
+    def connection_notice(code):
+        warn = getattr(args, 'warn', None)
+        if warn is not None:
+            try:
+                warn(code)
+            except OSError:
+                pass  # An unavailable warning channel does not end the game.
+
     def during_game(game):
-        nonlocal tunnel_lost
+        nonlocal tunnel_lost, guest_disconnected, guest_status_misses, next_guest_probe
         if tunnel_lost or game.poll() is not None:
             return
         try:
             connected = overlay.alive()
         except OSError:
             return
-        if not connected and game.poll() is None:
-            tunnel_lost = True
-            warn = getattr(args, 'warn', None)
-            if warn is not None:
-                try:
-                    warn('internet_disconnected')
-                except OSError:
-                    pass  # An unavailable warning channel does not end the game.
+        if not connected:
+            if game.poll() is None:
+                tunnel_lost = True
+                if not guest_disconnected:
+                    connection_notice('internet_disconnected')
+            return
+        if host:
+            return
+        now = time.monotonic()
+        if now < next_guest_probe:
+            return
+        next_guest_probe = now + 3
+        try:
+            coordinator_active(.65)
+        except (OSError, ValueError, http.client.HTTPException):
+            guest_status_misses += 1
+        else:
+            guest_status_misses = 0
+        disconnected = guest_status_misses >= 3
+        if guest_disconnected != disconnected and game.poll() is None:
+            guest_disconnected = disconnected
+            connection_notice('internet_disconnected' if disconnected else 'internet_reconnected')
 
     options = dict(vars(args), bundle=root, check_only=False, player_name=name, before_game=before_game,
                    during_game=during_game)
@@ -121,24 +151,29 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         if network_ready:
             network()
         code = launch_auto_lan.run(SimpleNamespace(**options), picker=select, network=network)
-        if tunnel_lost and code == 0:
-            raise InternetError('internet_disconnected')
+        if (tunnel_lost or guest_disconnected) and code == 0:
+            if switch_requested is None or not switch_requested():
+                raise InternetError('internet_disconnected')
         if host_ready and not tunnel_lost:
             deadline = time.monotonic() + 86400
             missed_status = 0
+            saw_guests = False
             while time.monotonic() < deadline:
-                if getattr(args,'switch_requested',None) is not None and args.switch_requested():
+                if switch_requested is not None and switch_requested():
                     break
                 if cancel:
                     cancel()
                 try:
-                    status = request(room.coordinator, interface.address, 'status',
-                                     expected=expected_content, timeout=2)
-                    _, active = status_counts(status, expected_content)
+                    active = coordinator_active(2)
+                    if active:
+                        saw_guests = True
+                        verify_tunnel_binding()
+                except InternetError:
+                    raise  # A confirmed invalid binding is not a temporary probe failure.
                 except ValueError:
                     raise InternetError('internet_status_invalid') from None
                 except (OSError, http.client.HTTPException):
-                    if code:
+                    if code and not saw_guests:
                         # A failed game's newly created idle hub may already be gone.
                         break
                     missed_status += 1
@@ -149,10 +184,6 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
                 missed_status = 0
                 if not active:
                     break
-                try:
-                    verify_tunnel_binding()
-                except (OSError, http.client.HTTPException):
-                    raise InternetError('internet_disconnected') from None
                 if progress:
                     progress('internet_hosting')
                 time.sleep(.5)
@@ -188,7 +219,9 @@ def main():
         if input('EasyTier fuer diese Verbindung ausdruecklich zulassen? [ja/Nein] ').strip().lower() != 'ja':
             return 0
         args.internet_consent=1
-        args.warn = lambda _: print('Internetraum nicht mehr erreichbar. Das Spiel bleibt geoeffnet.', flush=True)
+        args.warn = lambda code: print(
+            'Internetraum wieder erreichbar.' if code == 'internet_reconnected' else
+            'Internetraum nicht mehr erreichbar. Das Spiel bleibt geoeffnet.', flush=True)
         def private_file(value):
             import tempfile
             directory = Path(tempfile.mkdtemp(prefix='internet-invitation-', dir=args.bundle / 'LocalData'))

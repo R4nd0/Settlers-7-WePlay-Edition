@@ -262,6 +262,7 @@
   "internet_runtime_invalid": "EasyTier files are missing or changed. Update or repair WePlay.",
   "internet_admin_required": "Windows permission is needed to create the Internet adapter.",
   "internet_disconnected": "The Internet room or its creator is no longer reachable.",
+  "internet_reconnected": "The Internet room is reachable again.",
   "internet_direct_unavailable": "A direct connection could not be established. Check the reachable endpoint or use public-assisted mode.",
   "internet_connect_timeout": "The Internet room did not become ready. Check the creator, connection and Windows permission.",
   "internet_relay_unavailable": "The relay server is unreachable. The Internet room is not ready yet. Try again later.",

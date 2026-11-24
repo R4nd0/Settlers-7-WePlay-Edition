@@ -75,6 +75,50 @@ class LaunchTests(unittest.TestCase):
         game.terminate.assert_not_called()
         self.overlay.close.assert_called_once()
 
+    def test_guest_detects_persistent_coordinator_loss_and_allows_recovery(self):
+        self.args.invitation = ROOM.token()
+        interface = LanInterface('10.203.77.2', 24, 'WePlay-id')
+        self.overlay.start.return_value = interface
+        self.overlay.snapshot.return_value = interface, {ROOM.coordinator: 'p2p'}
+        self.overlay.alive.return_value = True
+        game = Mock(poll=Mock(return_value=None))
+
+        for recovered, switching in ((False, False), (True, False), (False, True)):
+            with self.subTest(recovered=recovered, switching=switching):
+                elapsed = [0.]
+                warn = self.args.warn = Mock()
+                self.args.switch_requested = Mock(return_value=switching)
+                replies = [ConnectionRefusedError(), ConnectionRefusedError(), status(1),
+                           ConnectionRefusedError(), ConnectionRefusedError(), ConnectionRefusedError()]
+                if recovered:
+                    replies.append(status(1))
+
+                def run(args, *, picker, network):
+                    self.game_ready(args, picker, network)
+                    for second in range((len(replies) - 1) * 3 + 1):
+                        elapsed[0] = second
+                        args.during_game(game)
+                        if second < 15:
+                            warn.assert_not_called()
+                    return 0
+
+                self.overlay.close.reset_mock()
+                with patch.object(launch.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                        patch.object(launch, 'request', side_effect=replies) as request, \
+                        patch.object(launch.launch_auto_lan, 'run', side_effect=run):
+                    if recovered or switching:
+                        self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+                    else:
+                        with self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+                            launch.run(self.args, overlay_factory=self.factory)
+                self.assertEqual(request.call_count, len(replies))
+                request.assert_called_with(ROOM.coordinator, interface.address, 'status',
+                                           expected=EXPECTED, timeout=.65)
+                notices = ['internet_disconnected', 'internet_reconnected'] if recovered else ['internet_disconnected']
+                self.assertEqual([call.args[0] for call in warn.call_args_list], notices)
+                self.overlay.close.assert_called_once()
+        game.terminate.assert_not_called()
+
     def test_missing_or_unchecked_consent_starts_no_overlay(self):
         for value in (None,False,True,0,'1',2):
             self.args.internet_consent=value
@@ -182,6 +226,39 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
         self.assertEqual([call.args[0] for call in progress.call_args_list], ['internet_ready', 'internet_hosting'])
         self.assertEqual(self.overlay.snapshot.call_count, 2)
+        self.overlay.close.assert_called_once()
+
+    def test_creator_keeps_guests_online_during_a_transient_tunnel_status_error(self):
+        self.overlay.snapshot.side_effect = [(self.host_interface, {}), OSError('temporary adapter probe'),
+                                             (self.host_interface, {'10.203.77.2': 'p2p'})]
+
+        def run(args, *, picker, network):
+            self.game_ready(args, picker, network)
+            return 0
+
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=[status(1), status(1), status(0)]) as request, \
+                patch.object(launch.time, 'sleep'):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(self.overlay.snapshot.call_count, 3)
+        self.overlay.close.assert_called_once()
+
+    def test_creator_does_not_keep_room_after_repeated_tunnel_status_errors(self):
+        self.overlay.snapshot.side_effect = [(self.host_interface, {}), OSError(), OSError(), OSError()]
+
+        def run(args, *, picker, network):
+            self.game_ready(args, picker, network)
+            return 0
+
+        with patch.object(launch, 'create', return_value=ROOM), \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', return_value=status(1)) as request, \
+                patch.object(launch.time, 'sleep'), \
+                self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            launch.run(self.args, overlay_factory=self.factory)
+        self.assertEqual(request.call_count, 3)
         self.overlay.close.assert_called_once()
 
     def test_creator_rejects_changed_tunnel_binding_while_hosting_after_own_game_exit(self):

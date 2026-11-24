@@ -13,6 +13,10 @@ from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
+ROOM_NOTICES = {
+    'internet_disconnected': 'The Internet room is no longer reachable. The game stays open.',
+    'internet_reconnected': 'The Internet room is reachable again.',
+}
 if (TOOLS / 'installer').is_dir():
     sys.path[:0] = [str(HERE), str(TOOLS / 'installer'), str(TOOLS / 'offline-ui'), str(TOOLS / 'lan')]
 import compatibility
@@ -152,7 +156,7 @@ def gui(package=None, bundle=None):
             if cancelled.is_set(): raise RuntimeError('Room closed / Raum geschlossen')
         def notify(kind, **fields):
             if kind == 'directory_switch': events.put(('switch', fields['game_id']))
-            else: events.put(('log', kind))
+            else: events.put(('log', ROOM_NOTICES.get(kind, kind)))
         def play_selected():
             code = play(current[0], mode, check_only=check, player_name=selected_name,
                 consent=consent,invitation=invitation,game_id=game_id,
@@ -312,6 +316,8 @@ def main():
                 if kind == 'directory_switch':
                     print('Public game selected: ' + fields['game_id'] +
                           '. Use play --mode public-join --game-id ID --allow-internet to connect.', flush=True)
+                elif kind in ROOM_NOTICES:
+                    print(ROOM_NOTICES[kind], flush=True)
             if args.mode == 'private-join':
                 from getpass import getpass
                 invitation=getpass('WePlay invitation: ')
