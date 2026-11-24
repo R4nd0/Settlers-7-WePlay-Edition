@@ -4,7 +4,7 @@ Room discovery is not admission or simulation synchronization. A future remote
 directory can implement the same list/resolve interface with another endpoint
 kind without teaching the native game how to browse HTTP services.
 """
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 import ipaddress
 import json
 import math
@@ -81,14 +81,16 @@ class LanInterface:
     prefix_length: int
     name: str = 'Lokales Netzwerk'
     default_route: bool = False
+    allow_host_routes: InitVar[bool] = False
 
-    def __post_init__(self):
+    def __post_init__(self, allow_host_routes):
         private_address(self.address)
-        if type(self.prefix_length) is not int or not 8 <= self.prefix_length <= 30:
+        maximum = 32 if allow_host_routes else 30
+        if type(self.prefix_length) is not int or not 8 <= self.prefix_length <= maximum:
             raise ValueError('Nicht unterstuetztes LAN-Netz.')
         public_name(self.name, 128)
-        if type(self.default_route) is not bool or ipaddress.IPv4Address(self.address) in (
-                self.network.network_address, self.network.broadcast_address):
+        if type(self.default_route) is not bool or (self.prefix_length <= 30 and ipaddress.IPv4Address(self.address) in (
+                self.network.network_address, self.network.broadcast_address)):
             raise ValueError('Ungueltige Netzwerkschnittstelle.')
 
     @property

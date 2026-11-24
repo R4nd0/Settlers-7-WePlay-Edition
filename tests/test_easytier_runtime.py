@@ -161,6 +161,20 @@ class RuntimeTests(unittest.TestCase):
                 self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
             overlay.snapshot()
 
+    def test_point_to_point_adapter_with_host_route_can_conflict_with_tunnel(self):
+        overlay = runtime.EasyTier(Path('.'), ROOM, host=False)
+        interface = LanInterface(overlay.address, 24, overlay.device_name)
+        competing = dict(address=overlay.address, prefix_length=32,
+                         name='Point-to-point VPN', default_route=False)
+        overlay.child = Mock(poll=Mock(return_value=None))
+        overlay.query = Mock(return_value=json.dumps([
+            row(overlay.address, 'Local', overlay.device_name), row(ROOM.coordinator)]).encode())
+        records = [competing, vars(interface)]
+        with patch.object(sys, 'platform', 'win32'), \
+                patch('windows_system.command', return_value=json.dumps(records).encode()), \
+                self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
+            overlay.snapshot()
+
     def test_guest_retries_address_collision_after_reaping_original_overlay(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -213,6 +227,24 @@ class RuntimeTests(unittest.TestCase):
             self.assertTrue(config['flags']['disable_kcp_input'])
             self.assertTrue(config['flags']['disable_quic_input'])
         with self.assertRaises(InternetError):runtime.configuration(ROOM,'192.168.0.1','id','WePlay-id')
+
+    def test_explicit_ipv6_direct_host_has_matching_underlay_listener(self):
+        room = Room(ROOM.room_id, ROOM.secret, ROOM.subnet, 'direct',
+                    ('udp://[2001:db8::2]:21010',))
+        host = tomllib.loads(runtime.configuration(room, room.coordinator, 'host-fixture', 'WePlay-host'))
+        guest = tomllib.loads(runtime.configuration(room, '10.203.77.2', 'guest-fixture', 'WePlay-guest'))
+        self.assertIn('udp://[::]:11010', host['listeners'])
+        self.assertNotIn('tcp://[::]:11010', host['listeners'])
+        self.assertNotIn('udp://[::]:11010', guest['listeners'])
+        self.assertFalse(host['flags']['enable_ipv6'])
+
+    def test_direct_room_host_does_not_connect_to_its_own_advertised_endpoint(self):
+        room = Room(ROOM.room_id, ROOM.secret, ROOM.subnet, 'direct', ('tcp://192.0.2.10:21010',))
+        host = tomllib.loads(runtime.configuration(room, room.coordinator, 'host-fixture', 'WePlay-host'))
+        guest = tomllib.loads(runtime.configuration(room, '10.203.77.2', 'guest-fixture', 'WePlay-guest'))
+        self.assertNotIn('peer', host)
+        self.assertEqual(guest['peer'], [{'uri': room.bootstrap[0]}])
+
     def test_config_is_private_encrypted_and_has_no_exit_routes_or_broadcast_capture(self):
         text = runtime.configuration(ROOM, ROOM.coordinator, 'id', 'WePlay-id')
         config = tomllib.loads(text)

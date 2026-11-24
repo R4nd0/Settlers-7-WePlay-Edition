@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from urllib.parse import urlsplit
 
 import compatibility
 from internet_room import InternetError, select_interface
@@ -120,16 +121,25 @@ def configuration(room, address, instance_id, device_name, *, crossplay=False):
     # JSON strings are valid TOML basic strings for these strictly validated
     # values. No invitation text is interpreted as TOML or a shell command.
     quote = json.dumps
+    direct_host = room.mode == 'direct' and address == room.coordinator
+    listeners = ['udp://0.0.0.0:11010', 'tcp://0.0.0.0:11010']
+    if direct_host:
+        endpoints = [urlsplit(peer) for peer in room.bootstrap]
+        protocols = {peer.scheme for peer in endpoints if ipaddress.ip_address(peer.hostname).version == 6}
+        # Explicit IPv6 transport for the requested protocol. Overlay IPv6
+        # and automatic dual-stack listening remain disabled below.
+        listeners.extend(f'{protocol}://[::]:11010' for protocol in sorted(protocols))
     lines = [f'instance_id = {quote(instance_id)}', f'instance_name = {quote(device_name)}',
              f'hostname = {quote(device_name)}', f'ipv4 = {quote(address + "/24")}',
              'dhcp = false', f'routes = [{quote(room.subnet)}]',
-             'listeners = ["udp://0.0.0.0:11010", "tcp://0.0.0.0:11010"]']
+             f'listeners = {quote(listeners)}']
     if room.mode == 'direct':
         # A direct room must not quietly depend on the compiled-in STUN list.
         lines += ['stun_servers = []', 'stun_servers_v6 = []']
     lines += ['[network_identity]', f'network_name = {quote("weplay-" + room.room_id)}',
               f'network_secret = {quote(room.secret)}']
-    for peer in room.bootstrap:
+    # A direct invitation advertises the host from the guest's perspective.
+    for peer in (() if direct_host else room.bootstrap):
         lines += ['[[peer]]', f'uri = {quote(peer)}']
     flags = dict(dev_name=device_name, default_protocol='udp', enable_encryption=True,
                  encryption_algorithm='aes-gcm', enable_exit_node=False, accept_dns=False,

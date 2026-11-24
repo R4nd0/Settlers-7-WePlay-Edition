@@ -20,7 +20,7 @@ def select_private_interfaces(records, *, allow_empty=False, include_all=False):
         if not isinstance(item, dict) or set(item) != {'address', 'prefix_length', 'name', 'default_route'}:
             continue
         try:
-            interface = LanInterface(**item)
+            interface = LanInterface(**item, allow_host_routes=include_all)
             key = (interface.address, interface.prefix_length)
             if include_all:
                 # Two separate devices can advertise the same address. Keep
