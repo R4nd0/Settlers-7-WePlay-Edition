@@ -194,8 +194,9 @@ def _load_state(root, *, full_inventory=True):
         if actual != baseline['files']:
             raise ValueError('Spieldateien ausserhalb des Grafikprofils wurden veraendert.')
     for name in ('logs', 'cache'):
-        if not _plain(folder / name).is_dir():
-            raise ValueError('Ein lokaler Grafikprofil-Ordner fehlt.')
+        path = _plain(folder / name)
+        if path.exists() and not path.is_dir():
+            raise ValueError('Ein lokaler Grafikprofil-Ausgabeordner ist ungueltig.')
     return folder, {False: {DLL: None, CONF: None, COMPAT: before},
                     True: {DLL: dll, CONF: CONFIG, COMPAT: after}}, status['active']
 
@@ -370,6 +371,13 @@ def launch_payload(package, mode):
     return value
 
 
+def _canonical_launch_payload(package):
+    original = _read(Path(package) / 'Payload/Graphics/d3d9.dll', MAX_DLL)
+    if _hash(original) != DXVK_SHA256:
+        raise ValueError('renderer_payload_invalid')
+    return original
+
+
 def recover_launch_renderer(root, executable, package):
     """Restore the canonical DLL from the package after this session ends."""
     journal = _plain(root / RENDERER_JOURNAL)
@@ -384,10 +392,7 @@ def recover_launch_renderer(root, executable, package):
     if current not in (DXVK_SHA256, ASYNC_RENDERERS.get(mode)):
         raise ValueError('renderer_payload_invalid')
     if current != DXVK_SHA256:
-        original = _read(_plain(Path(package) / 'Payload/Graphics/d3d9.dll'), MAX_DLL)
-        if _hash(original) != DXVK_SHA256:
-            raise ValueError('renderer_payload_invalid')
-        atomic_write(target, original, journal.parent)
+        atomic_write(target, _canonical_launch_payload(package), journal.parent)
     journal.unlink()
 
 
@@ -398,6 +403,7 @@ def apply_launch_renderer(root, executable, package, mode):
     if journal.exists() or _hash(_read(target, MAX_DLL)) != DXVK_SHA256:
         raise ValueError('renderer_payload_invalid')
     value = launch_payload(package, mode)
+    _canonical_launch_payload(package)  # Never arm a swap we cannot restore.
     atomic_create(journal, encoded({'renderer':mode}), journal.parent)
     try:
         if value is None:
@@ -410,7 +416,7 @@ def apply_launch_renderer(root, executable, package, mode):
 
 
 def launch_environment(root, inherited=None, *, device_name=None, anisotropic_filtering=False, extended_detail=False):
-    """Return a child environment for a verified active profile; perform no writes.
+    """Return a child environment for a verified active profile.
 
     The caller must hold its launcher session lock until its game exits. Logs
     and caches stay in LocalData, outside Base/Server/Launcher fingerprints.
@@ -441,14 +447,16 @@ def launch_environment(root, inherited=None, *, device_name=None, anisotropic_fi
     for name in list(result):
         if name.upper() in owned:
             del result[name]
+    logs, cache = (_plain(folder / name) for name in ('logs', 'cache'))
+    for directory in (logs, cache):
+        directory.mkdir(exist_ok=True)  # Disposable output, not renderer state.
     result.update(DXVK_CONFIG_FILE=str(_plain(root / CONF)),
                   # Model visibility must not silently change sampling of every
                   # texture, including alpha cards and native shadow resources.
                   # Keep the game's mip selection/clamping when extending LODs.
                   DXVK_CONFIG=SHADER_COMPATIBILITY + (
                       '; d3d9.samplerAnisotropy = 16' if anisotropic_filtering else ''),
-                  DXVK_LOG_PATH=str(_plain(folder / 'logs')),
-                  DXVK_SHADER_CACHE_PATH=str(_plain(folder / 'cache')))
+                  DXVK_LOG_PATH=str(logs), DXVK_SHADER_CACHE_PATH=str(cache))
     if device_name is not None:
         result['DXVK_FILTER_DEVICE_NAME'] = device_name
     return result

@@ -14,6 +14,9 @@ import re
 
 MAX_PIXELS = 3840 * 2160  # Bound render-target pressure in the 32-bit game.
 DEVICE = re.compile(r'\\\\\.\\DISPLAY[1-9][0-9]{0,2}')
+ATTACHED_TO_DESKTOP = 0x00000001
+PRIMARY_DEVICE = 0x00000004
+MIRRORING_DRIVER = 0x00000008
 
 
 def validate(value):
@@ -64,13 +67,16 @@ def enumerate_displays():
         device = Device(); device.size = C.sizeof(device)
         if not api.EnumDisplayDevicesW(None, index, C.byref(device), 0):
             break
-        if not device.flags & 1:
+        if not device.flags & ATTACHED_TO_DESKTOP or device.flags & MIRRORING_DRIVER:
             continue
         if not DEVICE.fullmatch(device.name):
             raise ValueError('Unexpected Windows display name.')
         current = Mode(); current.size = C.sizeof(current)
+        primary = bool(device.flags & PRIMARY_DEVICE)
         if not api.EnumDisplaySettingsW(device.name, 0xffffffff, C.byref(current)):
-            raise RuntimeError('The current display mode could not be read.')
+            if primary:
+                raise RuntimeError('The current primary display mode could not be read.')
+            continue  # A secondary output can detach while the list is read.
         modes = set()
         for number in range(4096):
             mode = Mode(); mode.size = C.sizeof(mode)
@@ -83,7 +89,7 @@ def enumerate_displays():
         if len(modes) > 128:
             raise ValueError('Unexpectedly many distinct resolutions.')
         found.append({'device': device.name, 'adapter': device.description,
-            'primary': bool(device.flags & 4), 'x': current.x, 'y': current.y,
+            'primary': primary, 'x': current.x, 'y': current.y,
             'width': current.width, 'height': current.height,
             'resolutions': [list(size) for size in sorted(modes, key=lambda size: (size[0]*size[1], size))]})
     if not found or sum(display['primary'] for display in found) != 1:
