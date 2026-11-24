@@ -213,10 +213,11 @@ def _assert_state(root, values):
 
 def atomic_create(path, value, staging):
     """Publish a complete new file without replacing a concurrently created file."""
-    with tempfile.NamedTemporaryFile(dir=staging, prefix='graphics-', delete=False) as stream:
-        temporary = Path(stream.name)
-        stream.write(value); stream.flush(); os.fsync(stream.fileno())
+    temporary = None
     try:
+        with tempfile.NamedTemporaryFile(dir=staging, prefix='graphics-', delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(value); stream.flush(); os.fsync(stream.fileno())
         if os.name == 'nt':
             os.rename(temporary, path)
         else:
@@ -224,7 +225,8 @@ def atomic_create(path, value, staging):
             # The temporary's other name is unlinked immediately below.
             os.link(temporary, path)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _write_values(root, folder, values, permitted):
@@ -393,7 +395,11 @@ def recover_launch_renderer(root, executable, package):
     if current not in (DXVK_SHA256, ASYNC_RENDERERS.get(mode)):
         raise ValueError('renderer_payload_invalid')
     if current != DXVK_SHA256:
-        atomic_write(target, _canonical_launch_payload(package), journal.parent)
+        original = _canonical_launch_payload(package)
+        if current is None:
+            atomic_create(target, original, journal.parent)
+        else:
+            atomic_write(target, original, journal.parent)
     journal.unlink()
 
 
