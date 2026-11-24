@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/offline-ui'))
@@ -62,5 +62,20 @@ class LanLauncherTests(unittest.TestCase):
             with self.subTest(config=config), self.assertRaises(ValueError):
                 launch_lan.check_content(config, 'a'*64)
         launch_lan.check_content({'content_id':'a'*64}, 'a'*64)
+
+    def test_remote_configuration_rejects_response_completed_after_deadline(self):
+        now = [0.]
+        payload = json.dumps(self.config()).encode('ascii')
+        def finish(_limit):
+            now[0] = 5.1
+            return payload
+        response = Mock(status=200, read=Mock(side_effect=finish))
+        connection = Mock(getresponse=Mock(return_value=response))
+        with patch.object(launch_lan.time, 'monotonic', side_effect=lambda: now[0]), \
+                patch.object(launch_lan.http.client, 'HTTPConnection', return_value=connection), \
+                self.assertRaises(TimeoutError):
+            launch_lan.remote_configuration('192.168.10.10', '192.168.10.20')
+        response.close.assert_called_once()
+        connection.close.assert_called_once()
 
 if __name__ == '__main__': unittest.main()

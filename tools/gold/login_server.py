@@ -580,6 +580,7 @@ class GoldLoginAdapter:
                 else:
                     response = b""
                 state.connected, state.client, state.session = True, packet.connection, packet.session
+                state.expires = now + 120
                 self.event("backend_connect" if backend else "auth_connect")
                 return [encode(1, 72, packet.session, packet.connection, 1, response, packet.connection)]
             if not state.connected or state.session != packet.session:

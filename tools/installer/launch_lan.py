@@ -7,6 +7,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import threading
 import time
 import uuid
 
@@ -25,11 +26,31 @@ def check_content(configuration, expected):
 
 def remote_configuration(address, local):
     # Numeric address only, no DNS discovery, HTTP redirects or system proxy.
-    connection = http.client.HTTPConnection(address, HTTP_PORT, timeout=5, source_address=(local, 0))
+    timeout = 5
+    deadline = time.monotonic() + timeout
+    connection = http.client.HTTPConnection(address, HTTP_PORT, timeout=timeout, source_address=(local, 0))
+    timer = response = None
     try:
+        connection.connect()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Die LAN-Konfiguration wurde nicht rechtzeitig empfangen.')
+        # Keep the socket reference even if HTTPConnection detaches it for a
+        # Connection: close response.
+        owned_socket = connection.sock
+        def interrupt():
+            try:
+                owned_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        timer = threading.Timer(remaining, interrupt)
+        timer.daemon = True
+        timer.start()
         connection.request('GET', '/public/rendezvous/v1/configuration')
         response = connection.getresponse()
         body = response.read(8193)
+        if time.monotonic() >= deadline:
+            raise TimeoutError('Die LAN-Konfiguration wurde nicht rechtzeitig empfangen.')
         if response.status != 200 or len(body) > 8192:
             raise ValueError('Der Host liefert keine passende LAN-Konfiguration.')
         value = json.loads(body)
@@ -37,7 +58,15 @@ def remote_configuration(address, local):
             raise ValueError('Ungueltige LAN-Konfiguration.')
         return value
     finally:
-        connection.close()
+        if timer is not None:
+            timer.cancel()
+            if timer.ident is not None:
+                timer.join()
+        try:
+            if response is not None:
+                response.close()
+        finally:
+            connection.close()
 
 
 def run(args):

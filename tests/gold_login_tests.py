@@ -146,6 +146,14 @@ class GoldTests(unittest.TestCase):
         self.assertEqual(self.adapter.handle(False, self.auth, data, 12), [])
         self.assertEqual(self.adapter.retransmissions(13), [])
 
+    def test_successful_delayed_connect_renews_the_gold_transport_lease(self):
+        replies = self.adapter.handle(False, self.auth, incoming(0), 10)
+        server = int.from_bytes(replies[0][10:14], "little")
+        connect = incoming(1, 48, 17, server, 1, b"", 0x12345678)
+        self.assertEqual(len(self.adapter.handle(False, self.auth, connect, 129)), 1)
+        ping = incoming(4, 32, 17, server, 2)
+        self.assertEqual(len(self.adapter.handle(False, self.auth, ping, 131)), 1)
+
     def test_reject_changed_session_signature_order_and_expiry(self):
         server, _, _ = self.login()
         payload = request(10, 2, 3, struct.pack("<II", self.adapter.principal, 1))
