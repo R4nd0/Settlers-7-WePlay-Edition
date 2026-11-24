@@ -568,7 +568,14 @@ class Desktop:
             # interruption leaves the journal for the next locked startup.
             self.recover_publication()
             raise
-        graphics._plain(journal).unlink()
+        try:
+            graphics._plain(journal).unlink()
+        except OSError:
+            # Both records committed. Keep this exact generation until its
+            # journal can be retired before changing history again.
+            self.emit('warning',code='cleanup_deferred')
+            return False
+        return True
 
     def preference_bytes(self,old):
         if old is None:return 0
@@ -601,8 +608,24 @@ class Desktop:
                 path.unlink();continue
             if not root.exists():path.unlink();continue
             if not value['allocated']:
-                if not any(root.iterdir()):root.rmdir();path.unlink()
-                else:pending=True
+                names=set()
+                ownership_files={'desktop-owner.json','desktop-files.json'}
+                for child in root.iterdir():
+                    names.add(child.name)
+                    if child.name not in ownership_files:
+                        break
+                if names:
+                    marker={'format':FORMAT,'owner':self.owner,'instance':value['instance']}
+                    empty={'format':FORMAT,'owner':self.owner,'files':{}}
+                    if (not names<=ownership_files or self.read(root/'desktop-owner.json')!=marker
+                            or ('desktop-files.json' in names and self.read(root/'desktop-files.json')!=empty)):
+                        pending=True
+                        continue
+                    # Allocation was interrupted before any payload was
+                    # copied. Remove only the exact receipts already written.
+                    for name in sorted(names):
+                        graphics._plain(root/name).unlink()
+                root.rmdir();path.unlink()
                 continue
             self.cleanup_instance(value['container'],value['instance'])
             # Keep a receipt for preserved personal/unknown/modified files.
@@ -620,8 +643,8 @@ class Desktop:
         for name in ('local-profile-id.txt','player-settings.json','graphics-choice.json','graphics-quality.json'):
             source=graphics._plain(old/'LocalData'/name)
             if source.is_file():
-                if source.stat().st_size>65536:raise ValueError('preferences_invalid')
                 try:
+                    if source.stat().st_size>65536:raise ValueError('preferences_invalid')
                     if name=='player-settings.json':player_settings.load(old)
                     elif name=='graphics-choice.json':choice._load_choice(old)
                     elif name=='graphics-quality.json':quality.load(old)
@@ -693,8 +716,7 @@ class Desktop:
             validate_location(root,gold=gold)
         base.mkdir(parents=True,exist_ok=True)
         self.progress('source')
-        old=self.game() if previous else None
-        if old is None and repairable:old=source
+        old=source if repairable else self.game() if previous else None
         if old is None:
             retained=self.read(self.state/'retained-profile.json')
             if retained:
@@ -724,37 +746,38 @@ class Desktop:
             else:
                 install.prepare(self.package,source,root,emit=lambda text:self.emit('log',text=text),progress=self.progress,
                     publish_starters=False,additional_bytes=self.preference_bytes(old),on_created=created,tracker=track,**options)
+            if old:
+                self.transfer_preferences(old,root)
+                if self.is_gold(old)==gold:
+                    backup=desktop_settings.graphics_backup(self,old)
+                    if backup is not None:
+                        desktop_settings.remember_graphics(self,root,backup[1],confirmed=backup[0])
+            policy=previous['renderer_policy'] if previous else 'dxvk'
+            if policy not in self.supported_renderers():policy='dxvk'
+            probe=self.cached_graphics_probe()
+            mode=self.renderer(root,'dxvk')
+            with graphics.session_lock(root):
+                selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
+                if old is None and policy=='dxvk' and manifest.get('midsummer_profile',False):
+                    selected['enhanced_aa']=True
+                choice.save_choice(root,selected,renderer=policy)
+                self.write(root/quality.FILE,quality.without_game_aa(
+                    quality.load(root),policy=='dxvk' and selected.get('enhanced_aa',False)))
+            self.progress('verify')
+            verified=self.verify_instance(root)
+            self.record_ownership(root,verified)
+            record={'format':INSTALL_FORMAT,'source':'' if managed else str(source),'container':str(base),'current':instance,
+                    'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
+                    'package_id':self.package_id(),'renderer_policy':policy}
+            self.progress('finish')
+            history_writable=self.publish_installation(record)
         except BaseException:
             self.finalizing=True
             try:self.cleanup_preparations()
             except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
             raise
-        if old:
-            self.transfer_preferences(old,root)
-            if self.is_gold(old)==gold:
-                backup=desktop_settings.graphics_backup(self,old)
-                if backup is not None:
-                    desktop_settings.remember_graphics(self,root,backup[1],confirmed=backup[0])
-        policy=previous['renderer_policy'] if previous else 'dxvk'
-        if policy not in self.supported_renderers():policy='dxvk'
-        probe=self.cached_graphics_probe()
-        mode=self.renderer(root,'dxvk')
-        with graphics.session_lock(root):
-            selected=self.default_choice(root,mode,probe,choice._load_choice(root) if old and self.is_gold(old)==gold else None)
-            if old is None and policy=='dxvk' and manifest.get('midsummer_profile',False):
-                selected['enhanced_aa']=True
-            choice.save_choice(root,selected,renderer=policy)
-            self.write(root/quality.FILE,quality.without_game_aa(
-                quality.load(root),policy=='dxvk' and selected.get('enhanced_aa',False)))
-        self.progress('verify')
-        verified=self.verify_instance(root)
-        self.record_ownership(root,verified)
-        record={'format':INSTALL_FORMAT,'source':'' if managed else str(source),'container':str(base),'current':instance,
-                'previous':([{'container':previous['container'],'instance':previous['current']},*previous['previous']] if previous else []),
-                'package_id':self.package_id(),'renderer_policy':policy}
-        self.progress('finish')
-        self.publish_installation(record)
-        pending.unlink()
+        try:pending.unlink()
+        except OSError:self.emit('warning',code='cleanup_deferred')
         network_failures=[]
         if prepare_network is not None and not self.remember_network_setup(prepare_network):
             network_failures.append('network_setup_preference_failed')
@@ -764,8 +787,9 @@ class Desktop:
         # Publish and verify first. Only then retire the old owned game files;
         # cleanup failure must not turn a successful installation into failure.
         self.finalizing=True
-        try:self.clean_old(automatic=True)
-        except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
+        if history_writable:
+            try:self.clean_old(automatic=True)
+            except (OSError,ValueError,subprocess.TimeoutExpired):self.emit('warning',code='cleanup_deferred')
         return {**self.snapshot(),'network_setup_failures':network_failures}
 
     def record_ownership(self,root,manifest=None):
@@ -1428,15 +1452,17 @@ class Desktop:
             try:windows_system.lan_firewall(root,remove=True)
             except (OSError,ValueError,subprocess.TimeoutExpired):raise ValueError('firewall_remove_failed')
         kept=0
+        owned_folders=set()
         for index,(path,digest) in enumerate(validated):
             self.progress('cleanup',index,len(validated))
             if path.is_file():
                 if content.digest(path)==digest:path.unlink()
                 else:kept+=1
-        # Empty directories only. Personal/unknown/modified files remain.
-        for directory in sorted((p for p in root.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):
-            graphics._plain(directory)
-            try:directory.rmdir()
+            owned_folders.update(parent for parent in path.parents if parent!=root and parent.is_relative_to(root))
+        # Prune only directories covered by the owned inventory. Empty
+        # personal folders outside it are just as much user data as files.
+        for directory in sorted(owned_folders,key=lambda p:len(p.parts),reverse=True):
+            try:graphics._plain(directory).rmdir()
             except OSError:pass
         return {'kept_modified':kept}
 

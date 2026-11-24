@@ -268,7 +268,9 @@ class DesktopTests(unittest.TestCase):
             return write(path,value)
         with patch.object(self.desktop,'write',side_effect=fail_publish),patch.object(self.desktop,'cleanup_instance') as cleanup:
             with self.assertRaises(OSError):self.prepare()
-            cleanup.assert_not_called()
+            cleanup.assert_called_once()
+            container,instance=cleanup.call_args.args
+            self.assertNotEqual(Path(container)/instance,old)
         self.assertEqual((self.desktop.state/'installation.json').read_bytes(),before)
         self.assertTrue((old/'Base/Bin/Settlers7R.exe').is_file())
 
