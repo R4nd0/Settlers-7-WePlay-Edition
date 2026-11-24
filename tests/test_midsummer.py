@@ -298,6 +298,20 @@ class ReShadePreparationTests(unittest.TestCase):
             self.assertEqual(reshade_runtime.prepare(root,options={'midsummer_tone':True}),folder)
             self.assertEqual(preset.read_bytes(),expected)
 
+    def test_missing_generated_runtime_ini_is_rebuilt_only_for_an_intact_profile(self):
+        options={'enhanced_aa':True}
+        with self.prepared(options) as (root,folder,closed):
+            config=folder/'ReShade.ini'
+            expected=config.read_bytes()
+            config.unlink()
+            self.assertEqual(reshade_runtime.prepare(root,options=options),folder)
+            self.assertEqual(config.read_bytes(),expected)
+            config.unlink()
+            (folder/'Shaders/SMAA.fx').write_bytes(b'foreign shader')
+            with self.assertRaises(ValueError):
+                reshade_runtime.prepare(root,options=options)
+            self.assertFalse(config.exists())
+
     def test_normal_exit_defaults_allow_a_second_launch(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get('S7_TEST_TEMP_ROOT')) as path:
             root = Path(path)

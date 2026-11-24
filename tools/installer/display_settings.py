@@ -103,6 +103,10 @@ class DisplayUnavailable(ValueError):
     """The saved display or its requested mode is unavailable at launch."""
 
 
+class DisplayGpuMismatch(DisplayUnavailable):
+    """The explicitly filtered GPU cannot drive the selected output."""
+
+
 def resolve(value, displays, *, renderer='native', gpu=None):
     value = validate(value)
     if value is None:
@@ -118,7 +122,7 @@ def resolve(value, displays, *, renderer='native', gpu=None):
     elif [value['width'], value['height']] not in display['resolutions']:
         raise DisplayUnavailable('The selected resolution is unavailable on this display.')
     if renderer == 'dxvk' and gpu is not None and gpu.casefold() != display['adapter'].casefold():
-        raise DisplayUnavailable('Choose Automatic or the graphics card connected to the selected display.')
+        raise DisplayGpuMismatch('Choose Automatic or the graphics card connected to the selected display.')
     return index, display
 
 

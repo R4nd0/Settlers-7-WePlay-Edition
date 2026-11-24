@@ -1757,6 +1757,10 @@ def _dispatch(desktop,request):
 def error_code(error):
     if isinstance(error,content.InventoryMismatch):
         return 'game_copy_changed'
+    if isinstance(error,display.DisplayGpuMismatch):
+        return 'graphicsDisplayGpuMismatch'
+    if isinstance(error,display.DisplayUnavailable):
+        return 'graphicsDisplayUnavailable'
     if isinstance(error,NativeStartupError) and error.native_start_stage==11:
         return 'network_isolation_failed'
     code=getattr(error,'code','')

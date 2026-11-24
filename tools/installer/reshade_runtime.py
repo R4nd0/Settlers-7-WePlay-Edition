@@ -215,7 +215,7 @@ def _profile_files(options, root):
 def verify(root, options=None):
     return _verify(root, options, check_preset=True)
 
-def _verify(root, options, *, check_preset):
+def _verify(root, options, *, check_preset, allow_missing_config=False):
     """Keep executable/assets/configuration checks strict during preset repair."""
     folder = _folder(root, options)
     dll = _plain(folder / 'ReShade32.dll')
@@ -240,7 +240,10 @@ def _verify(root, options, *, check_preset):
         raise ValueError('Das WePlay-Grafikprofil wurde veraendert. Grafikauswahl erneut speichern.')
     # ReShade writes UI/style defaults on a clean exit. Compare managed values,
     # not the complete byte stream, so the next ordinary launch still works.
-    config = _read(folder / 'ReShade.ini', 65536)
+    config_path = _plain(folder / 'ReShade.ini')
+    if allow_missing_config and not config_path.exists():
+        return folder
+    config = _read(config_path, 65536)
     actual = configparser.ConfigParser(interpolation=None)
     expected = configparser.ConfigParser(interpolation=None)
     try:
@@ -363,7 +366,11 @@ def prepare(root, *, setup=None, options=None, cancelled=None, progress=None):
         # ReShade serializes this generated preset on normal exit (ordering,
         # transient uniforms, technique defaults). It is not the user's choice
         # record. Validate every immutable component before restoring the recipe.
-        _verify(root, options, check_preset=False)
+        _verify(root, options, check_preset=False, allow_missing_config=True)
+        config = _plain(folder / 'ReShade.ini')
+        if not config.exists():
+            graphics_profile.ensure_closed()
+            graphics_profile.atomic_create(config, _config(options), folder)
         preset = _plain(folder / 'WePlay-Midsummer.ini')
         previous = _read(preset, 65536) if preset.exists() else None
         expected = _preset(options)
