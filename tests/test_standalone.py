@@ -150,6 +150,38 @@ class StandaloneTests(unittest.TestCase):
         self.assertEqual(opened.installed(),previous)
         self.assertTrue(opened.snapshot()['update_available'])
 
+    def test_moving_bound_export_after_launcher_update_keeps_it_repairable(self):
+        desktop=standalone.bind(self.root)
+        old_package=desktop.installed()['package_id']
+        saves=self.game/'LocalData/saves';saves.mkdir(parents=True)
+        (saves/'keep.s7s').write_bytes(b'pending update save')
+        tool=self.app/'Package/Tools/installer/start.py'
+        tool.write_bytes(tool.read_bytes()+b'\n# next package fixture\n')
+        package=self.app/'Package/package.json';record=json.loads(package.read_bytes())
+        record['files']=content.inventory(self.app/'Package',('Payload','Runtime','Tools'))
+        package.write_text(json.dumps(record))
+        moved=self.fixture.root/'moved pending update'
+        shutil.move(str(self.root),moved)
+        moved_desktop=standalone.bind(moved)
+        self.assertEqual(moved_desktop.game(),moved/'App/Instances'/self.instance)
+        self.assertEqual(moved_desktop.installed()['package_id'],old_package)
+        self.assertTrue(moved_desktop.snapshot()['update_available'])
+        self.assertEqual((moved_desktop.game()/'LocalData/saves/keep.s7s').read_bytes(),b'pending update save')
+
+    def test_setup_preflight_keeps_owned_copy_with_rebuildable_archive_eligible(self):
+        standalone.bind(self.root)
+        archive=self.game/'Base/BBA/Interface.bba'
+        archive.write_bytes(b'interrupted game archive write')
+        args=['standalone.py','--root',str(self.root),'--check-only']
+        report=io.StringIO()
+        with patch.object(sys,'argv',args),redirect_stdout(report):
+            self.assertEqual(standalone.main(),0,report.getvalue())
+        self.assertEqual(archive.read_bytes(),b'interrupted game archive write')
+        self.assertIn('Reparaturdaten',report.getvalue())
+        (self.game/'Base/BBA/map.bba').write_bytes(b'damaged retained game asset')
+        with patch.object(sys,'argv',args),redirect_stdout(io.StringIO()):
+            self.assertEqual(standalone.main(),2)
+
     def test_installer_preflight_then_package_update_repairs_without_original_and_keeps_saves(self):
         self.assertFalse((self.app/'State/installation.json').exists())
         saves=self.game/'LocalData/saves';saves.mkdir(parents=True)

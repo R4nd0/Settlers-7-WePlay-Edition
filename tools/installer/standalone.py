@@ -47,6 +47,24 @@ def accepted_executables(backend, manifest):
             if manifest.get('steam_history', False) else (backend.install.EXPECTED_EXE,))
 
 
+def relocated_ownership(backend, desktop, root, old_owner):
+    marker=desktop.read(root/'desktop-owner.json')
+    files=desktop.read(root/'desktop-files.json')
+    owners=(old_owner,desktop.owner)
+    if (marker not in ({'format':backend.FORMAT,'owner':owner,'instance':root.name} for owner in owners)
+            or not isinstance(files,dict) or set(files)!={'format','owner','files'}
+            or files['format']!=backend.FORMAT or files['owner'] not in owners
+            or not isinstance(files['files'],dict) or len(files['files'])>30000):
+        raise ValueError('Standalone-Verwaltung hat keine passende Besitzkennung.')
+    for name,digest in files['files'].items():
+        if (not isinstance(name,str) or not name or name.startswith('/') or '\\' in name or ':' in name
+                or any(part in ('','.','..') for part in name.split('/')) or name.split('/')[0].casefold()=='localdata'
+                or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest)):
+            raise ValueError('Ungueltiger Standalone-Dateistand.')
+        backend.graphics._plain(root/name)
+    return files
+
+
 def recover_renderer_overlay(backend, desktop, game, package_id):
     """Retire only known renderer files after a pristine ZIP was overlaid.
 
@@ -188,22 +206,33 @@ def bind(root):
                         or not re.fullmatch('[0-9a-f]{32}',item['instance']) or item['instance'] in seen):
                     raise ValueError('Standalone-Verlauf verweist auf einen externen oder ungueltigen Ordner.')
                 seen.add(item['instance']);prior=backend.graphics._plain(game.parent/item['instance'])
-                marker=desktop.read(prior/'desktop-owner.json');files=desktop.read(prior/'desktop-files.json')
-                if (marker not in ({'format':backend.FORMAT,'owner':owner,'instance':prior.name} for owner in (old_owner,desktop.owner))
-                        or not isinstance(files,dict) or set(files)!={'format','owner','files'}
-                        or files['format']!=backend.FORMAT or files['owner'] not in (old_owner,desktop.owner)
-                        or not isinstance(files['files'],dict) or len(files['files'])>30000):
-                    raise ValueError('Standalone-Verlauf hat keine passende Besitzkennung.')
-                for name,digest in files['files'].items():
-                    if (not isinstance(name,str) or not name or name.startswith('/') or '\\' in name or ':' in name
-                            or any(p in ('','.','..') for p in name.split('/')) or name.split('/')[0].casefold()=='localdata'
-                            or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest)):
-                        raise ValueError('Ungueltiger Standalone-Verlauf.')
-                    backend.graphics._plain(prior/name)
-                previous.append((prior,files))
+                previous.append((prior,relocated_ownership(backend,desktop,prior,old_owner)))
         package_id = desktop.package_id(full=True)
         if package_id != value['package_id']:
-            raise ValueError('Standalone-Spiel und Launcher-Paket passen nicht zusammen.')
+            if (raw is None or raw['package_id']!=value['package_id']
+                    or Path(raw['container'])==game.parent):
+                raise ValueError('Standalone-Spiel und Launcher-Paket passen nicht zusammen.')
+            # Rebind a moved installation using its existing, verified
+            # ownership. Retain the old package ID to keep repair mandatory.
+            files=relocated_ownership(backend,desktop,game,old_owner)
+            backend.graphics.ensure_closed()
+            with backend.graphics.session_lock(game):
+                verified=backend.content.verify(game)['files']
+                owned=files['files']
+                expected_runtime={name:digest for name,digest in owned.items() if name.startswith('runtime/')}
+                if (any(owned.get(name)!=digest for name,digest in verified.items())
+                        or backend.content.inventory(game,('Runtime',))!=expected_runtime):
+                    raise ValueError('Die verschobene Spielkopie stimmt nicht mit ihrer Verwaltung ueberein.')
+                for instance,record in ((game,files),*previous):
+                    desktop.write(instance/'desktop-files.json',{**record,'owner':desktop.owner})
+                    desktop.write(instance/'desktop-owner.json',{
+                        'format':backend.FORMAT,'owner':desktop.owner,'instance':instance.name})
+                policy=raw['renderer_policy']
+                modes=desktop.supported_renderers() if hasattr(desktop,'supported_renderers') else ('dxvk',)
+                desktop.write(desktop.state/'installation.json',{**raw,'source':'','container':str(game.parent),
+                    'previous':[{'container':str(game.parent),'instance':prior.name} for prior,_ in previous],
+                    'renderer_policy':policy if policy in modes else 'dxvk'})
+            return desktop
         if not game.is_dir():
             raise ValueError('Die mitgelieferte Spielkopie fehlt. Gesamten Standalone-Ordner kopieren.')
         backend.graphics.ensure_closed()
@@ -339,6 +368,29 @@ def build(app, source, output):
     return output
 
 
+def check_game_preflight(backend,desktop):
+    desktop.package_id(full=True)
+    game=desktop.game()
+    try:
+        backend.content.verify(game)
+    except (OSError,ValueError):
+        if not hasattr(backend,'install'):
+            raise
+        # Existing standalone instances may have rebuildable changed files.
+        # Verify all retained assets and stock repair inputs before replacing
+        # the launcher; the actual play path still verifies the full copy.
+        backend.content.load(game/'compatibility.json')
+        package=desktop.package_manifest()
+        files,originals=backend.install.repair_source(game,steam_supported=package.get('steam_history',False),
+                                                      tools=desktop.package/'Tools')
+        for name,digest in files.items():
+            if name not in originals and backend.content.digest(backend.content.member(game,name))!=digest:
+                raise ValueError('Unveraenderte Spieldatei fehlt oder ist beschaedigt: '+name)
+        print('Die Spielkopie kann aus geprueften Reparaturdaten wiederhergestellt werden.',flush=True)
+    else:
+        print('Standalone-Spielkopie und Starter sind gueltig.',flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path)
@@ -360,9 +412,7 @@ def main():
             print('Pruefe Standalone-Verwaltung ...', flush=True)
             desktop = bind(root)
             if args.check_only:
-                desktop.package_id(full=True)
-                modules(desktop.app).content.verify(desktop.game())
-                print('Standalone-Spielkopie und Starter sind gueltig.', flush=True)
+                check_game_preflight(modules(desktop.app),desktop)
             else:
                 environment = {key: value for key, value in os.environ.items()
                                if not key.upper().startswith(('DOTNET_', 'CORECLR_', 'COR_', 'COMPLUS_'))}
