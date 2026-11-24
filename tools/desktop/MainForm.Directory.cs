@@ -31,8 +31,9 @@ internal sealed partial class MainForm
     }
     private void QueueDirectorySwitch(JsonElement result)
     {
-        if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String)
-            pendingDirectoryGame=id.GetString();
+        if(result.TryGetProperty("directory_game_id",out var id)&&id.ValueKind==JsonValueKind.String
+            &&id.GetString() is {Length:32} gameId&&gameId.All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            pendingDirectoryGame=gameId;
     }
 
     private TabPage BuildDirectory()
@@ -123,7 +124,12 @@ internal sealed partial class MainForm
         directoryProgress.Text=Lang.T(cancelRequested?"cancelRequested":gameRunning?"directoryPlaying":
             internetStage=="connecting"?"directoryConnecting":internetStage=="hosting"
                 ?(internetCreating?"directoryHosting":"internetGuestEnding"):internetCreating?"directoryHostReady":"directoryGuestReady");
-        if(directoryEnd!=null){directoryEnd.Visible=active;directoryEnd.Enabled=active&&!gameRunning&&!cancelRequested;}
+        if(directoryEnd!=null)
+        {
+            directoryEnd.Visible=active;directoryEnd.Enabled=active&&!gameRunning&&!cancelRequested;
+            directoryEnd.Text=Lang.T(gameRunning?(internetCreating?"internetEndGameHost":"internetEndGameGuest"):
+                internetStage=="connecting"?"internetCancel":internetCreating?"internetEnd":"internetLeave");
+        }
     }
 
     private void ShowDirectory(JsonElement value,string? select=null)

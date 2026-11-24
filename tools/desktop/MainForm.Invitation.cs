@@ -19,8 +19,9 @@ internal sealed partial class MainForm
     {
         // Delayed events from a previous game may never expose a later room.
         if(!gameRunning||!internetOperation||!internetCreating||invitationRun is null||
-            !value.TryGetProperty("run",out var run)||run.GetString()!=invitationRun)return;
-        string? mode=value.GetProperty("mode").GetString();
+            !value.TryGetProperty("run",out var run)||run.ValueKind!=JsonValueKind.String||run.GetString()!=invitationRun||
+            !value.TryGetProperty("mode",out var requestMode)||requestMode.ValueKind!=JsonValueKind.String)return;
+        string? mode=requestMode.GetString();
         string requestedRun=invitationRun;
         if(mode!=(publicRoomOperation?"public":"private"))return;
         if(invitationDialog is not null){if(!testing)invitationDialog.Activate();return;}
@@ -32,7 +33,8 @@ internal sealed partial class MainForm
         }
         else
         {
-            code=value.GetProperty("code").GetString()??"";
+            if(!value.TryGetProperty("code",out var requestCode)||requestCode.ValueKind!=JsonValueKind.String)return;
+            code=requestCode.GetString()??"";
             if(!code.StartsWith("weplay-directory1.",StringComparison.Ordinal)||code.Length>2048)return;
         }
         if(!testing)RestoreWindow();
@@ -41,13 +43,16 @@ internal sealed partial class MainForm
             MaximizeBox=false,MinimizeBox=false,ShowInTaskbar=false};
         var info=new Label {Text=Lang.T(mode=="public"?"gameInvitationPublic":"gameInvitationPrivate"),
             Left=20,Top=20,Width=520,Height=110};
-        var copy=new Button {Text=Lang.T("gameInvitationCopy"),Left=20,Top=150,Width=240,Height=38};
+        var copy=new Button {Name="copyInvitation",Text=Lang.T("gameInvitationCopy"),Left=20,Top=150,Width=240,Height=38};
+        var close=new Button {Text=Lang.T("gameInvitationClose"),Left=280,Top=150,Width=140,Height=38,DialogResult=DialogResult.Cancel};
+        close.Click+=(_,_)=>dialog.Close();
         copy.Click+=(_,_)=>{
             if(!gameRunning||requestedRun!=invitationRun)return;
             try{invitationCopy(code);dialog.Close();}
             catch(ExternalException){info.Text=Lang.T("gameInvitationClipboardFailed");}
         };
-        dialog.Controls.Add(info);dialog.Controls.Add(copy);
+        dialog.Controls.AddRange([info,copy,close]);
+        dialog.CancelButton=close;
         invitationDialog=dialog;
         dialog.FormClosed+=(_,_)=>{code="";if(ReferenceEquals(invitationDialog,dialog))invitationDialog=null;dialog.Dispose();};
         if(testing){dialog.StartPosition=FormStartPosition.Manual;dialog.Location=new Point(-30000,-30000);}
@@ -67,12 +72,12 @@ internal sealed partial class MainForm
         var opened=invitationDialog??throw new Exception("Host invitation dialog missing");
         Receive(current.RootElement);if(!ReferenceEquals(opened,invitationDialog))throw new Exception("Repeated click created another dialog");
         invitationCopy=_=>throw new ExternalException("Synthetic clipboard contention");
-        opened.Controls.OfType<Button>().Single().PerformClick();
+        ((Button)opened.Controls["copyInvitation"]!).PerformClick();
         if(invitationDialog is null||copied is not null)throw new Exception("Clipboard failure reported success");
         invitationCopy=value=>copied=value;
         Application.DoEvents();using(var bitmap=new Bitmap(opened.Width,opened.Height))
         {opened.DrawToBitmap(bitmap,new Rectangle(0,0,opened.Width,opened.Height));bitmap.Save(Path.Combine(folder,language+"-game-invitation.png"));}
-        opened.Controls.OfType<Button>().Single().PerformClick();
+        ((Button)opened.Controls["copyInvitation"]!).PerformClick();
         if(copied!="weplay1.synthetic-invitation"||invitationDialog is not null)throw new Exception("Private invitation copy failed");
         publicRoomOperation=true;copied=null;
         Receive(current.RootElement);if(invitationDialog is not null)throw new Exception("Public room accepted private invitation action");
@@ -80,7 +85,7 @@ internal sealed partial class MainForm
         Receive(publicRequest.RootElement);
         Application.DoEvents();using(var bitmap=new Bitmap(invitationDialog!.Width,invitationDialog.Height))
         {invitationDialog.DrawToBitmap(bitmap,new Rectangle(0,0,bitmap.Width,bitmap.Height));bitmap.Save(Path.Combine(folder,language+"-public-game-invitation.png"));}
-        invitationDialog!.Controls.OfType<Button>().Single().PerformClick();
+        ((Button)invitationDialog!.Controls["copyInvitation"]!).PerformClick();
         if(copied!="weplay-directory1.synthetic-public-directory")throw new Exception("Public invitation exposed private room code");
         Receive(publicRequest.RootElement);CloseGameInvitation();
         if(invitationDialog is not null||invitationRun is not null)throw new Exception("Game exit left an invitation dialog alive");

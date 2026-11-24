@@ -4,6 +4,7 @@
   "gameInvitationPrivate": "Copy the private room invitation and send it to your friends. They paste it under Private Internet in WePlay. The invitation grants access to this room; share it only with people you trust.",
   "gameInvitationPublic": "Copy the public lobby code. Recipients paste it under Public Internet → Connect directory, then select your game from the list. This code opens the shared directory, not a specific game.",
   "gameInvitationCopy": "Copy invitation code",
+  "gameInvitationClose": "Close",
   "gameInvitationClipboardFailed": "The clipboard is busy. Try copying again.",
   "invitation_unavailable": "In-game invitations are unavailable. Share the invitation through the launcher.",
   "setupTitle": "Set up WePlay Edition",

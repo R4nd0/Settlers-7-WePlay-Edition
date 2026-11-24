@@ -1251,8 +1251,8 @@ internal sealed partial class MainForm : Form
         if(kind=="directory_switch")
         {
             // The awaited result owns the switch. Progress notifications may
-            // arrive later and must never start a connection or leave UI busy.
-            status.Text=Lang.T("internet_consent_required");
+            // arrive later and must not change a subsequent operation's status.
+            return;
         }
         else if(kind=="progress")
         {
@@ -1290,8 +1290,12 @@ internal sealed partial class MainForm : Form
         }
         else if(kind=="warning")
         {
-            string code=value.GetProperty("code").GetString()!;status.Text=Lang.T(code);
-            tray.BalloonTipTitle=Lang.T("app");tray.BalloonTipText=Lang.T(code);tray.Visible=true;tray.ShowBalloonTip(10000);
+            string code=value.GetProperty("code").GetString()!;
+            if(!cancelRequested)status.Text=Lang.T(code);
+            if(!testing)
+            {
+                tray.BalloonTipTitle=Lang.T("app");tray.BalloonTipText=Lang.T(code);tray.Visible=true;tray.ShowBalloonTip(10000);
+            }
         }
     }
     private void SetBusy(bool value)
@@ -1323,6 +1327,7 @@ internal sealed partial class MainForm : Form
         try{await action();}
         catch(Exception error)
         {
+            pendingDirectoryGame=null;
             if(showErrors)
             {
                 SetGameRunning(false);RestoreWindow();
@@ -1443,6 +1448,7 @@ internal sealed partial class MainForm : Form
                 TestLauncherPresentation(json.RootElement);
                 TestLauncherRooms(json.RootElement);
                 TestLauncherDirectoryState(json.RootElement);
+                TestLauncherLifecycle(json.RootElement);
                 form.TestGameInvitation(folder,language);
                 form.tabs.SelectedTab=form.homePage;Application.DoEvents();
                 if(form.playModes.Count!=4||!form.playModes.Select(x=>x.Card.Mode).SequenceEqual(Enum.GetValues<PlayMode>()))
