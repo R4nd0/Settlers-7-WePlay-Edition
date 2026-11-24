@@ -6,6 +6,7 @@ creation. Never include it in diagnostic logs, command lines or package files.
 import base64
 from dataclasses import dataclass, field
 import ipaddress
+from itertools import chain
 import json
 import re
 import secrets
@@ -125,15 +126,25 @@ def check_overlap(room, interfaces):
 def create(interfaces, *, mode='assisted', direct_endpoint=None):
     if mode not in ('direct', 'assisted') or (mode == 'direct') != (direct_endpoint is not None):
         raise InternetError('internet_invitation_invalid')
-    for _ in range(32):
-        subnet = f'10.{secrets.randbelow(192) + 32}.{secrets.randbelow(256)}.0/24'
-        room = Room(secrets.token_hex(16), secrets.token_hex(32), subnet, mode,
-                    (endpoint(direct_endpoint),) if mode == 'direct' else (PUBLIC_BOOTSTRAP,))
-        try:
-            check_overlap(room, interfaces)
-            return room
-        except InternetError:
-            continue
+    bootstrap = (endpoint(direct_endpoint),) if mode == 'direct' else (PUBLIC_BOOTSTRAP,)
+    occupied = tuple(interface.network for interface in interfaces)
+
+    def candidates():
+        for _ in range(32):
+            yield ipaddress.IPv4Network(f'10.{secrets.randbelow(192) + 32}.{secrets.randbelow(256)}.0/24')
+        # Corporate VPNs commonly reserve the entire 10/8 range. Check the
+        # remaining supported private pools from a random starting subnet.
+        for value in ('172.16.0.0/12', '192.168.0.0/16'):
+            pool = ipaddress.IPv4Network(value)
+            count = pool.num_addresses // 256
+            start = secrets.randbelow(count)
+            base = int(pool.network_address)
+            for offset in chain(range(start, count), range(start)):
+                yield ipaddress.IPv4Network((base + 256 * offset, 24))
+
+    for subnet in candidates():
+        if not any(subnet.overlaps(network) for network in occupied):
+            return Room(secrets.token_hex(16), secrets.token_hex(32), str(subnet), mode, bootstrap)
     raise InternetError('internet_network_overlap')
 
 

@@ -33,6 +33,23 @@ class LaunchTests(unittest.TestCase):
                 launch.run(self.args,overlay_factory=self.factory)
         self.factory.assert_not_called()
 
+    def test_private_room_can_start_from_an_uplink_without_private_ipv4(self):
+        import lan_interfaces
+        def run(args, *, picker, network):
+            interfaces, _ = network()
+            self.assertEqual(interfaces, [self.host_interface])
+            args.before_game()
+            return 0
+        with patch.object(launch, 'enumerate_interfaces', lan_interfaces.enumerate_interfaces), \
+                patch.object(lan_interfaces.sys, 'platform', 'win32'), \
+                patch('windows_system.command', return_value=b'[]'), \
+                patch.object(launch, 'create', return_value=ROOM) as create, \
+                patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', return_value={'active_members': 0}):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+        self.assertEqual(create.call_args.args[0], [])
+        self.overlay.start.assert_called_once()
+
     def test_host_uses_only_overlay_and_emits_private_invitation_after_readiness(self):
         event = Mock()
         def run(args, *, picker, network):

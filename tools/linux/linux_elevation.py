@@ -44,8 +44,11 @@ class ElevatedEasyTier:
                              separators=(',',':')).encode('ascii') + b'\n'
         if len(payload) > 8192:
             raise InternetError('internet_request_invalid')
-        self.child = subprocess.Popen(['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I', '-B', str(script), '--worker'],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        try:
+            self.child = subprocess.Popen(['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I', '-B', str(script), '--worker'],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        except FileNotFoundError:
+            raise InternetError('internet_elevation_failed') from None
         try:
             try:
                 self.child.stdin.write(payload)
@@ -124,7 +127,10 @@ class ElevatedEasyTier:
                 if not interface.contains(address) or address==interface.address or cost not in ('p2p','relay'): raise ValueError()
                 if self.room.mode=='direct' and cost!='p2p': raise ValueError()
             return interface,peers
-        except (ValueError,KeyError,TypeError): raise InternetError('internet_status_invalid') from None
+        except InternetError:
+            raise
+        except (ValueError,KeyError,TypeError):
+            raise InternetError('internet_status_invalid') from None
 
     def close(self):
         self.stop.set()

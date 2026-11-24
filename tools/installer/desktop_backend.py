@@ -1154,11 +1154,11 @@ class Desktop:
             if (invitation is None)!=host:raise ValueError('crossplay_invitation_invalid')
             if host:
                 if request['mode']=='direct':endpoint(request['direct_endpoint'])
-                room=create(enumerate_interfaces(),mode=request['mode'],direct_endpoint=request['direct_endpoint'])
+                room=create(enumerate_interfaces(allow_empty=True),mode=request['mode'],direct_endpoint=request['direct_endpoint'])
             else:
                 invite=parse(invitation)
                 if invite.edition!=edition:raise ValueError('crossplay_edition_mismatch')
-                check_overlap(invite.room,enumerate_interfaces())
+                check_overlap(invite.room,enumerate_interfaces(allow_empty=True))
             options=dict(name=name,consent=1,cancel_check=lambda:self.progress('internet_connect'),progress=self.progress)
             with self.graphics_startup(root) as startup,graphics.session_lock(root):
                 owner=(NetworkSession.host(root,catalog,room=room,history=request['history_edition'],**options)

@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/linux'))
 import linux_elevation as elevation
 from internet_room import InternetError, Room
+from lobby_directory import LanInterface
 
 
 class LinuxTunnelTests(unittest.TestCase):
@@ -32,6 +34,25 @@ class LinuxTunnelTests(unittest.TestCase):
         worker.stdin.close.assert_called_once()
         worker.stdout.close.assert_called_once()
         self.assertIsNone(self.overlay.child)
+
+    def test_missing_polkit_returns_network_helper_error_without_starting_tunnel(self):
+        with patch.object(elevation.os, 'geteuid', return_value=1000, create=True), \
+                patch('easytier_runtime.verify_runtime'), \
+                patch.object(elevation.subprocess, 'Popen', side_effect=FileNotFoundError):
+            with self.assertRaisesRegex(InternetError, '^internet_elevation_failed$'):
+                self.overlay.start()
+        self.assertIsNone(self.overlay.child)
+
+    def test_snapshot_reports_physical_route_overlap_as_network_overlap(self):
+        self.overlay.child = Mock(poll=Mock(return_value=None))
+        adapter = LanInterface('10.203.77.1', 24, 'WePlay-Test')
+        self.overlay.latest = dict(format=elevation.FORMAT, phase='ready',
+                                   address=adapter.address, device=adapter.name, peers={})
+        self.overlay.updated = time.monotonic()
+        competing = LanInterface('10.203.1.2', 16, 'Corporate VPN')
+        with patch.object(elevation, 'enumerate_interfaces', return_value=[adapter, competing]), \
+                self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
+            self.overlay.snapshot()
 
     def test_reader_drains_worker_error_already_in_exited_process_pipe(self):
         self.overlay.child = worker = Mock()

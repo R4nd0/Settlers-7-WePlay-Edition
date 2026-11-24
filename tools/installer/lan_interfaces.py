@@ -5,16 +5,16 @@ import sys
 
 from lobby_directory import LanInterface
 
-def parse_interfaces(data):
+def parse_interfaces(data, *, allow_empty=False):
     if not isinstance(data, bytes) or len(data) > 32768:
         raise ValueError('Netzwerkschnittstellen konnten nicht gelesen werden.')
     value = json.loads(data.decode('utf-8-sig'))
     if not isinstance(value, list) or len(value) > 64:
         raise ValueError('Unbekannte Netzwerkausgabe.')
-    return select_private_interfaces(value)
+    return select_private_interfaces(value, allow_empty=allow_empty)
 
 
-def select_private_interfaces(records):
+def select_private_interfaces(records, *, allow_empty=False):
     found = {}
     for item in records:
         if not isinstance(item, dict) or set(item) != {'address', 'prefix_length', 'name', 'default_route'}:
@@ -24,19 +24,19 @@ def select_private_interfaces(records):
             found[(interface.address, interface.prefix_length)] = interface
         except (ValueError, TypeError):
             continue
-    if not found:
+    if not found and not allow_empty:
         raise ValueError('Kein aktives privates LAN gefunden. Bitte Netzwerkverbindung pruefen.')
     return sorted(found.values(), key=lambda x: (not x.default_route, x.name.casefold(), x.address))[:16]
 
 
-def enumerate_interfaces():
+def enumerate_interfaces(*, allow_empty=False):
     if sys.platform == 'linux':
-        return linux_interfaces()
+        return linux_interfaces(allow_empty=allow_empty)
     from windows_system import command
-    return parse_interfaces(command('interfaces',timeout=15))
+    return parse_interfaces(command('interfaces',timeout=15), allow_empty=allow_empty)
 
 
-def linux_interfaces():
+def linux_interfaces(*, allow_empty=False):
     """iproute2 JSON only; no shell or privileged system changes."""
     def query(arguments):
         result = subprocess.run(['/usr/sbin/ip' if __import__('pathlib').Path('/usr/sbin/ip').exists() else '/usr/bin/ip',
@@ -57,4 +57,4 @@ def linux_interfaces():
             if isinstance(address, dict) and address.get('family') == 'inet':
                 rows.append(dict(address=address.get('local'), prefix_length=address.get('prefixlen'),
                                  name=interface.get('ifname'), default_route=interface.get('ifname') in defaults))
-    return select_private_interfaces(rows)
+    return select_private_interfaces(rows, allow_empty=allow_empty)

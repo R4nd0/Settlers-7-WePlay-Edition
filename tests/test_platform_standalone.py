@@ -247,6 +247,62 @@ class PlatformStandaloneTests(unittest.TestCase):
         self.assertFalse(session.ready.exists())
         self.assertFalse(session.path.exists())
 
+    def make_peer_policy(self):
+        session = network_peer_policy.Session.__new__(network_peer_policy.Session)
+        session.stop, session.thread = threading.Event(), None
+        session.error, session.process = None, None
+        session.nonce = 'a' * 32
+        session.folder = self.fixture.root
+        session.path = session.folder / 'wfp-peers.ini'
+        session.ready = session.folder / 'wfp-peers.ready'
+        session.api = Mock()
+        session.api.k.GetTickCount64.return_value = 100
+        session.created = 12
+        session.value = dict(group=True, local='192.168.1.2', coordinator='192.168.1.3')
+        return session
+
+    def test_peer_policy_heartbeat_survives_temporary_lease_file_sharing(self):
+        session = self.make_peer_policy()
+        session.stop = Mock()
+        session.stop.wait.side_effect = [False, True]
+        replace = network_peer_policy.os.replace
+        calls = []
+        def replace_after_sharing(source, target):
+            calls.append(target)
+            if len(calls) == 1:
+                raise PermissionError()
+            replace(source, target)
+        with patch.object(network_peer_policy.os, 'replace', side_effect=replace_after_sharing):
+            session._heartbeat()
+        self.assertIsNone(session.error)
+        self.assertIn('expires_tick_ms=5100', session.path.read_text('ascii'))
+        self.assertEqual(calls, [session.path, session.path])
+
+    def test_peer_policy_recovery_checks_readiness_ownership_before_moving_lease(self):
+        session = self.make_peer_policy()
+        session.api.k.OpenProcess.return_value = 0
+        lease = f'format=weplay-wfp-peers-v1\nnonce={session.nonce}\nparent=123\nparent_created=12\nexpires_tick_ms=0\n'
+        session.path.write_bytes(lease.encode('ascii'))
+        session.ready.write_bytes(('b' * 32 + '\n').encode('ascii'))
+        with self.assertRaises(ValueError):
+            session._recover()
+        self.assertEqual(session.path.read_bytes(), lease.encode('ascii'))
+        self.assertEqual(list(session.folder.glob('wfp-peers-recovered-*.ini')), [])
+
+    def test_peer_policy_reaps_helper_when_lease_cannot_be_expired_explicitly(self):
+        session = self.make_peer_policy()
+        session.path.write_bytes(f'nonce={session.nonce}\n'.encode('ascii'))
+        session.ready.write_bytes(f'{session.nonce}\n'.encode('ascii'))
+        child = session.process = Mock(wait=Mock(return_value=0))
+        session._publish = Mock(side_effect=PermissionError())
+        with self.assertRaises(PermissionError):
+            session.close()
+        child.wait.assert_called_once_with(timeout=10)
+        child.close.assert_called_once()
+        self.assertIsNone(session.process)
+        self.assertFalse(session.path.exists())
+        self.assertFalse(session.ready.exists())
+
     def test_desktop_repair_preserves_portable_progress_and_refuses_to_replace_a_newer_target_save(self):
         import desktop_backend
         root=self.prepare();f=self.fixture

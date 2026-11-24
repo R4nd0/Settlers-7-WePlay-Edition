@@ -63,6 +63,14 @@ class InvitationTests(unittest.TestCase):
         self.assertNotEqual(actual.secret, rooms.create([]).secret)
         self.assertNotIn(actual.secret, repr(actual))
 
+    def test_corporate_vpn_using_all_of_10_can_choose_another_private_range(self):
+        interfaces = [LanInterface('10.70.1.2', 8), LanInterface('172.16.0.5', 24)]
+        with patch.object(rooms.secrets, 'randbelow', return_value=0):
+            selected = rooms.create(interfaces)
+        self.assertEqual(selected.subnet, '172.16.1.0/24')
+        self.assertEqual(rooms.parse(selected.token()), selected)
+        rooms.check_overlap(selected, interfaces)
+
     def test_overlay_match_requires_exact_core_ip_prefix_and_device(self):
         r = room(); overlay = LanInterface('10.203.77.2', 24, 'WePlay-test')
         physical = LanInterface('192.168.1.20', 24, 'Ethernet', True)

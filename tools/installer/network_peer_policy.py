@@ -86,12 +86,13 @@ class Session:
             finally:self.api.k.CloseHandle(handle)
         if live and int(fields['expires_tick_ms'])>self.api.k.GetTickCount64():
             raise RuntimeError('Diese Kopie hat bereits einen aktiven WePlay-Netzbereich.')
+        has_ready = self.ready.exists()
+        if has_ready and self.ready.read_bytes() != (fields['nonce'] + '\n').encode('ascii'):
+            raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
         backup=content.plain(self.folder/('wfp-peers-recovered-'+uuid.uuid4().hex+'.ini'))
         self.path.rename(backup)
-        if self.ready.exists():
-            if self.ready.read_bytes()!=(fields['nonce']+'\n').encode('ascii'):
-                raise ValueError('Eine unbekannte Netzbereichsbestätigung bleibt unverändert.')
-            self.ready.unlink()
+        if has_ready:
+            self.ready.unlink(missing_ok=True)
 
     def _publish(self,*,expired=False):
         if self.path.exists():
@@ -108,7 +109,15 @@ class Session:
         try:
             with tempfile.NamedTemporaryFile(dir=self.folder,prefix='wfp-lease-',suffix='.tmp',delete=False) as target:
                 temporary=Path(target.name);target.write(raw);target.flush();os.fsync(target.fileno())
-            os.replace(temporary,self.path)
+            deadline = time.monotonic() + .25
+            while True:
+                try:
+                    os.replace(temporary, self.path)
+                    break
+                except PermissionError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(.02)
         finally:
             if temporary is not None and temporary.exists():temporary.unlink()
 
@@ -124,8 +133,13 @@ class Session:
     def close(self):
         self.stop.set()
         if self.thread:self.thread.join(timeout=3)
-        if self.path.exists() and ('nonce='+self.nonce+'\n').encode('ascii') in self.path.read_bytes():
-            self._publish(expired=True)
+        expire_error = None
+        try:
+            if self.path.exists() and ('nonce='+self.nonce+'\n').encode('ascii') in self.path.read_bytes():
+                self._publish(expired=True)
+        except (OSError, ValueError) as error:
+            # A failed write leaves the existing short expiry in force.
+            expire_error = error
         code = 0
         if self.process:
             code = self.process.wait(timeout=10)
@@ -137,3 +151,5 @@ class Session:
             self.path.unlink()
         if code:
             raise RuntimeError('Der Windows-Netzhelfer meldet einen Fehler beim Schließen.')
+        if expire_error is not None:
+            raise expire_error
