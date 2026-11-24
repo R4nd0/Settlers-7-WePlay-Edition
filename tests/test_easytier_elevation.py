@@ -230,23 +230,51 @@ class ElevationTests(unittest.TestCase):
             parent.assert_not_called()
 
     def test_failed_worker_removes_secret_and_reaps_ipc_when_exact_parent_exited(self):
-        for parent_exited in (False,True):
-            with self.subTest(parent_exited=parent_exited),tempfile.TemporaryDirectory() as folder:
+        for parent_exited, code, exit_status in ((False, 'internet_cancelled', 0),
+                                                (True, 'internet_cancelled', 0),
+                                                (False, 'internet_runtime_invalid', 2)):
+            with self.subTest(parent_exited=parent_exited, code=code),tempfile.TemporaryDirectory() as folder:
                 root=Path(folder);private=root/'LocalData/easytier-uac-fixture';private.mkdir(parents=True)
                 image=root/'Runtime/python/python.exe';image.parent.mkdir(parents=True);image.write_bytes(b'python')
                 request=private/'request.json'
                 request.write_text(json.dumps(dict(format=elevation.FORMAT,root=str(root),room=ROOM.token(),
                     host=True,parent_pid=123,parent_start=456,nonce='a'*32)))
                 api=Mock();api.WaitForSingleObject.return_value=0 if parent_exited else 0x102
-                overlay=Mock();overlay.start.side_effect=InternetError('internet_cancelled')
+                overlay=Mock();overlay.start.side_effect=InternetError(code)
                 with patch.object(elevation,'__file__',str(root/'Launcher/easytier_elevation.py')), \
                         patch.object(elevation,'parent_process',return_value=(api,1,456,image)), \
                         patch('easytier_runtime.EasyTier',return_value=overlay), \
                         patch('launch_local.verify_bundle'),patch.object(elevation,'firewall'):
-                    elevation.worker(request)
+                    self.assertEqual(elevation.worker(request), exit_status)
                 self.assertFalse(request.exists())
                 self.assertEqual(private.exists(),not parent_exited)
                 overlay.close.assert_called_once();api.CloseHandle.assert_called_once_with(1)
+
+    def test_ready_worker_waits_for_adapter_to_appear_in_parent_inventory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in ('Runtime/python/python.exe', 'Launcher/easytier_elevation.py'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'fixture')
+            overlay = elevation.ElevatedEasyTier(root, ROOM, host=True, progress=Mock())
+            adapter = LanInterface(ROOM.coordinator, 24, 'WePlay-fixture')
+            api = Mock(WaitForSingleObject=Mock(return_value=0x102))
+
+            def start_worker(_python, _script, request):
+                elevation.write_state(request.parent, dict(format=elevation.FORMAT, nonce=overlay.nonce, phase='ready',
+                    address=adapter.address, device=adapter.name, peers={}))
+                return 2
+
+            with patch('easytier_runtime.verify_runtime'), patch.object(elevation, 'verify_worker'), \
+                    patch.object(elevation, 'parent_process', return_value=(api, 1, 123, Path(sys.executable))), \
+                    patch.object(elevation, 'inherit_private_access'), patch.object(elevation, 'elevate', side_effect=start_worker), \
+                    patch.object(elevation, 'winapi', return_value=api), patch.object(elevation.time, 'sleep'), \
+                    patch.object(overlay, 'close'), \
+                    patch.object(elevation, 'enumerate_interfaces', side_effect=[[], [adapter]]) as inventory:
+                self.assertEqual(overlay.start(), adapter)
+            self.assertEqual(inventory.call_count, 2)
+            self.assertEqual([call.args[0] for call in overlay.progress.call_args_list].count('internet_connected'), 1)
 
     def test_firewall_only_invokes_fixed_helper_with_structured_arguments(self):
         root = ROOT / 'work/fictional-internet-copy'

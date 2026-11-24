@@ -47,8 +47,7 @@ class LinuxTunnelTests(unittest.TestCase):
         self.overlay.child = Mock(poll=Mock(return_value=None))
         adapter = LanInterface('10.203.77.1', 24, 'WePlay-Test')
         self.overlay.latest = dict(format=elevation.FORMAT, phase='ready',
-                                   address=adapter.address, device=adapter.name, peers={})
-        self.overlay.updated = time.monotonic()
+                                   address=adapter.address, device=adapter.name, peers={}, written_monotonic_ns=time.monotonic_ns())
         competing = LanInterface('10.203.1.2', 16, 'Corporate VPN')
         with patch.object(elevation, 'enumerate_interfaces', return_value=[adapter, competing]), \
                 self.assertRaisesRegex(InternetError, '^internet_network_overlap$'):
@@ -58,9 +57,19 @@ class LinuxTunnelTests(unittest.TestCase):
         self.overlay.child = Mock(poll=Mock(side_effect=[None, 2]))
         adapter = LanInterface('10.203.77.1', 24, 'WePlay-Test')
         self.overlay.latest = dict(format=elevation.FORMAT, phase='ready',
-                                   address=adapter.address, device=adapter.name, peers={})
-        self.overlay.updated = time.monotonic()
+                                   address=adapter.address, device=adapter.name, peers={}, written_monotonic_ns=time.monotonic_ns())
         with patch.object(elevation, 'enumerate_interfaces', return_value=[adapter]), \
+                self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
+            self.overlay.snapshot()
+
+    def test_recently_received_but_old_worker_sample_cannot_confirm_the_tunnel(self):
+        self.overlay.child = Mock(poll=Mock(return_value=None))
+        adapter = LanInterface('10.203.77.1', 24, 'WePlay-Test')
+        self.overlay.latest = dict(format=elevation.FORMAT, phase='ready', address=adapter.address,
+                                   device=adapter.name, peers={}, written_monotonic_ns=1_000_000_000)
+        with patch.object(elevation.time, 'monotonic', return_value=20.0), \
+                patch.object(elevation.time, 'monotonic_ns', return_value=20_000_000_000), \
+                patch.object(elevation, 'enumerate_interfaces', return_value=[adapter]), \
                 self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
             self.overlay.snapshot()
 

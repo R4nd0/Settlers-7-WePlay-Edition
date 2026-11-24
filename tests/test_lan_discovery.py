@@ -126,6 +126,20 @@ class DirectoryTests(unittest.TestCase):
                 self.assertRaises(ValueError):
             linux_interfaces()
 
+    def test_linux_discovery_skips_disconnected_adapter_but_overlap_inventory_keeps_its_prefix(self):
+        entries = [dict(ifname=name, flags=['UP'], operstate=state,
+                        addr_info=[dict(family='inet', local=address, prefixlen=24)])
+                   for name, state, address in (('eth0', 'DOWN', '192.168.1.7'),
+                                                ('wlan0', 'UP', '192.168.2.7'),
+                                                ('tun0', 'UNKNOWN', '10.20.30.7'))]
+        for include_all in (False, True):
+            with self.subTest(include_all=include_all), \
+                    patch('lan_interfaces.subprocess.run', side_effect=[
+                        Mock(returncode=0, stdout=b'[{"dev":"eth0"}]'),
+                        Mock(returncode=0, stdout=json.dumps(entries).encode())]):
+                detected = linux_interfaces(include_all=include_all)
+            self.assertEqual({i.name for i in detected}, {'eth0', 'wlan0', 'tun0'} if include_all else {'wlan0', 'tun0'})
+
     def test_picker_data_has_no_addresses_or_native_ids(self):
         value = snapshot([self.interface], [self.room], EXPECTED, 'Anna', 3)
         self.assertNotIn('192.168', json.dumps(value))

@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 if (HERE.parent / 'installer').is_dir(): sys.path.insert(0, str(HERE.parent / 'installer'))
 import compatibility
-from internet_room import InternetError, parse, select_interface
+from internet_room import AdapterNotReady, InternetError, parse, select_interface
 from lan_interfaces import enumerate_interfaces
 
 FORMAT = 'weplay-linux-tunnel-v1'
@@ -35,13 +35,18 @@ def failure_code(value):
     return code if code in REPORTED_FAILURES else 'internet_connect_failed'
 
 
+class StaleTunnelState(InternetError):
+    def __init__(self):
+        super().__init__('internet_disconnected')
+
+
 class ElevatedEasyTier:
     def __init__(self, root, room, *, host, cancel_check=None, progress=None):
         self.root, self.room, self.host = compatibility.plain(root), room, host
         self.cancel_check, self.progress = cancel_check, progress
         self.child = self.thread = None
         self.stop = threading.Event(); self.lock = threading.Lock()
-        self.latest = None; self.updated = 0
+        self.latest = None
 
     def start(self):
         if os.geteuid() == 0:
@@ -77,13 +82,17 @@ class ElevatedEasyTier:
                 if value is not None:
                     if value.get('phase') == 'error':
                         raise InternetError(failure_code(value))
-                    interface, peers = self.snapshot()
-                    if time.monotonic() >= deadline:
-                        break
-                    if self.host or self.room.coordinator in peers:
-                        if self.cancel_check: self.cancel_check()
-                        if self.progress: self.progress('internet_connected')
-                        return interface
+                    try:
+                        interface, peers = self.snapshot()
+                    except (AdapterNotReady, StaleTunnelState):
+                        pass
+                    else:
+                        if time.monotonic() >= deadline:
+                            break
+                        if self.host or self.room.coordinator in peers:
+                            if self.cancel_check: self.cancel_check()
+                            if self.progress: self.progress('internet_connected')
+                            return interface
                 if not reading:
                     code = 'internet_elevation_cancelled' if self.child.poll() is not None else 'internet_connect_failed'
                     raise InternetError(code)
@@ -114,7 +123,7 @@ class ElevatedEasyTier:
                         line, pending = pending.split(b'\n',1)
                         value = json.loads(line)
                         if not isinstance(value,dict) or value.get('format') != FORMAT: return
-                        with self.lock: self.latest, self.updated = value, time.monotonic()
+                        with self.lock: self.latest = value
                 if heartbeat and child.poll() is None:
                     try:
                         child.stdin.write(b'ping\n')
@@ -133,9 +142,9 @@ class ElevatedEasyTier:
         return child is not None and child.poll() is None
 
     def snapshot(self):
-        with self.lock: value, updated = self.latest, self.updated
+        with self.lock: value = self.latest
         child = self.child
-        if child is None or time.monotonic()-updated > 10:
+        if child is None:
             raise InternetError('internet_disconnected')
         if isinstance(value, dict) and value.get('phase') == 'error':
             raise InternetError(failure_code(value))
@@ -143,9 +152,14 @@ class ElevatedEasyTier:
             raise InternetError('internet_disconnected')
         if not isinstance(value,dict) or value.get('phase') != 'ready': raise InternetError('internet_disconnected')
         try:
-            if set(value) != {'format','phase','address','device','peers'}: raise ValueError()
+            if set(value) != {'format','phase','address','device','peers','written_monotonic_ns'}: raise ValueError()
+            written = value['written_monotonic_ns']
+            if type(written) is not int or written < 0:
+                raise ValueError()
+            if not 0 <= time.monotonic_ns() - written <= 10_000_000_000:
+                raise StaleTunnelState()
             interface = select_interface(self.room, value['address'], value['device'],
-                                         enumerate_interfaces(include_all=True))
+                                         enumerate_interfaces(allow_empty=True, include_all=True))
             peers = value['peers']
             if not isinstance(peers,dict) or len(peers)>255: raise ValueError()
             for address, cost in peers.items():
@@ -153,6 +167,8 @@ class ElevatedEasyTier:
                 if self.room.mode=='direct' and cost!='p2p': raise ValueError()
             if self.child is not child or child.poll() is not None:
                 raise InternetError('internet_disconnected')
+            if time.monotonic_ns() - written > 10_000_000_000:
+                raise StaleTunnelState()
             return interface,peers
         except InternetError:
             raise
@@ -224,7 +240,8 @@ def worker():
         while True:
             check_parent(.5)
             interface,peers = refresh_snapshot(overlay, check_parent)
-            send(dict(phase='ready',address=interface.address,device=interface.name,peers=peers))
+            send(dict(phase='ready',address=interface.address,device=interface.name,peers=peers,
+                      written_monotonic_ns=time.monotonic_ns()))
     except ParentClosed:
         return 0
     except (OSError,ValueError,RuntimeError,TimeoutError,subprocess.SubprocessError) as error:

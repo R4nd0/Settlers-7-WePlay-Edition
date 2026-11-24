@@ -14,7 +14,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compatibility
-from internet_room import InternetError, parse, select_interface
+from internet_room import AdapterNotReady, InternetError, parse, select_interface
 from lan_interfaces import enumerate_interfaces
 
 FORMAT = 'weplay-easytier-ipc-v1'
@@ -214,7 +214,7 @@ class ElevatedEasyTier:
                 self.checkpoint()
                 try:
                     interface, peers = self.snapshot(wait_for_initial_state=True)
-                except FileNotFoundError:
+                except (FileNotFoundError, AdapterNotReady):
                     pass
                 else:
                     if time.monotonic() >= deadline:
@@ -270,7 +270,7 @@ class ElevatedEasyTier:
             if value.get('phase') != 'ready' or value.get('crossplay',False) is not self.crossplay:
                 raise ValueError()
             interface = select_interface(self.room, value['address'], value['device'],
-                                         enumerate_interfaces(include_all=True))
+                                         enumerate_interfaces(allow_empty=True, include_all=True))
             peers = value['peers']
             if not isinstance(peers, dict) or len(peers) > 255:
                 raise ValueError()
@@ -383,6 +383,7 @@ def worker(request):
     except BaseException as error:
         code = getattr(error, 'code', 'internet_failed')
         write_state(directory, dict(format=FORMAT, nonce=nonce, phase='error', code=code))
+        return 0 if isinstance(error, InternetError) and code == 'internet_cancelled' else 2
     finally:
         try:
             if overlay:
@@ -401,13 +402,15 @@ def worker(request):
                     shutil.rmtree(compatibility.plain(directory))
             finally:
                 api.CloseHandle(parent)
+    return 0
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--request', type=Path, required=True)
     try:
-        worker(parser.parse_args().request)
+        result = worker(parser.parse_args().request)
     except BaseException:
         # The parent receives fixed state categories; never emit request secrets.
         sys.exit(2)
+    sys.exit(result)

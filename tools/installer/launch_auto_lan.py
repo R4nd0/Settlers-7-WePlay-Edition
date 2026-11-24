@@ -153,13 +153,33 @@ def run(args, *, picker=None, network=None):
             return hub
 
         def start_automatic():
-            for target in interfaces[:-1]:
+            def binding(interface):
+                return interface.address, interface.prefix_length, interface.name
+
+            available = None
+            failure = None
+            for index, target in enumerate(interfaces):
+                if available is not None and binding(target) not in available:
+                    continue
                 try:
                     return start_owned(target)
                 except LanHubError as error:
-                    if error.code != 'lan_discovery_socket_failed':
+                    if index == len(interfaces) - 1:
                         raise
-            return start_owned(interfaces[-1])
+                    failure = error
+                    if error.code == 'lan_discovery_socket_failed':
+                        continue
+                    if network is not None or error.code != 'lan_coordinator_start_failed':
+                        raise
+                    try:
+                        available = {binding(current) for current in enumerate_interfaces(allow_empty=True)}
+                    except (OSError, ValueError, subprocess.TimeoutExpired):
+                        raise error from None
+                    if binding(target) in available:
+                        raise
+            if failure is not None:
+                raise failure
+            raise LanHubError('lan_discovery_socket_failed')
 
         if choice is None:
             room = lan_autoconnect.connect(directory, expected, start_automatic,

@@ -149,11 +149,18 @@ def create(interfaces, *, mode='assisted', direct_endpoint=None):
     raise InternetError('internet_network_overlap')
 
 
+class AdapterNotReady(InternetError):
+    def __init__(self):
+        super().__init__('internet_adapter_invalid')
+
+
 def select_interface(room, address, name, interfaces):
     private_address(address)
     if ipaddress.IPv4Address(address) not in room.network:
         raise InternetError('internet_adapter_invalid')
     matches = [i for i in interfaces if i.name == name]
+    if not matches:
+        raise AdapterNotReady()
     if len(matches) != 1 or matches[0].address != address or matches[0].prefix_length != 24:
         raise InternetError('internet_adapter_invalid')
     # The requested device cannot be accepted merely because its display name

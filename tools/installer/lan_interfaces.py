@@ -65,6 +65,10 @@ def linux_interfaces(*, allow_empty=False, include_all=False):
     for interface in query(['-4', 'address', 'show', 'up']):
         if not isinstance(interface, dict) or 'UP' not in interface.get('flags', []):
             continue
+        # Discovery needs a usable link. Overlap validation still needs every
+        # configured prefix, including addresses on a disconnected adapter.
+        if not include_all and interface.get('operstate') not in (None, 'UNKNOWN', 'UP'):
+            continue
         for address in interface.get('addr_info', []):
             if isinstance(address, dict) and address.get('family') == 'inet':
                 rows.append(dict(address=address.get('local'), prefix_length=address.get('prefixlen'),

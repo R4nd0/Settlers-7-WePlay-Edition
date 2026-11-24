@@ -201,7 +201,7 @@ class AutomaticLauncherTests(unittest.TestCase):
     def test_internet_host_game_failure_preserves_coordinator_with_guests(self):
         self.check_failed_host_discovery_socket(game_exits=True, active_members=1)
 
-    def test_automatic_lan_falls_back_only_for_interface_socket_failure(self):
+    def test_automatic_lan_fallback_requires_an_interface_failure(self):
         other = LanInterface('10.20.1.10', 24, 'Kabel')
         room = LobbyRoom('c' * 32, 'WePlay LAN', 'a' * 64,
                          LobbyEndpoint('lan-direct', other.address), other)
@@ -210,9 +210,12 @@ class AutomaticLauncherTests(unittest.TestCase):
             start()
             return room
 
-        for error, attempts in [('lan_discovery_socket_failed', 2), ('lan_discovery_port_busy', 1)]:
-            with self.subTest(error=error), \
-                    patch.object(launcher, 'enumerate_interfaces', return_value=[self.interface, other]), \
+        for error, remaining, attempts in [
+                ('lan_discovery_socket_failed', None, 2), ('lan_discovery_port_busy', None, 1),
+                ('lan_coordinator_start_failed', [self.interface, other], 1),
+                ('lan_coordinator_start_failed', [other], 2)]:
+            with self.subTest(error=error, remaining=remaining), \
+                    patch.object(launcher, 'enumerate_interfaces', side_effect=[[self.interface, other], remaining]), \
                     patch.object(launcher.lan_autoconnect, 'connect', side_effect=connect), \
                     patch.object(launcher, 'start_hub', side_effect=[LanHubError(error), Mock()]) as start, \
                     patch.object(launcher, 'Membership') as membership, \
