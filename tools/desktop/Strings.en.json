@@ -158,6 +158,7 @@
   "request_invalid": "The selected settings are invalid.",
   "not_installed": "Please finish game setup first.",
   "installation_invalid": "This installation needs repair. Run Setup again or select Repair.",
+  "game_copy_changed": "The WePlay game copy no longer matches its recorded files. Choose Repair installation under Help, or Update / repair if Setup is already open.",
   "package_invalid": "Installer files are missing or changed. Run the complete Setup again.",
   "operation_busy": "Another operation is already using this installation.",
   "renderer_unsupported": "DXVK or the selected GPU has not been confirmed for this copy. Select Automatic in Graphics or repeat the optional graphics check.",

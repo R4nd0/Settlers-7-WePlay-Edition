@@ -153,6 +153,7 @@
   "request_invalid": "Die gewählten Einstellungen sind ungültig.",
   "not_installed": "Schließe zuerst die Spieleinrichtung ab.",
   "installation_invalid": "Diese Installation muss repariert werden. Starte Setup erneut oder wähle Reparieren.",
+  "game_copy_changed": "Die WePlay-Spielkopie weicht vom gespeicherten Dateistand ab. Wähle unter Hilfe „Installation reparieren“ oder in der Einrichtung „Aktualisieren / reparieren“.",
   "package_invalid": "Installer-Dateien fehlen oder wurden verändert. Starte das vollständige Setup erneut.",
   "operation_busy": "Ein anderer Vorgang verwendet diese Installation bereits.",
   "renderer_unsupported": "DXVK oder die gewählte GPU ist für diese Kopie nicht bestätigt. Wähle unter Grafik die automatische GPU-Auswahl oder wiederhole die optionale Grafikprüfung.",

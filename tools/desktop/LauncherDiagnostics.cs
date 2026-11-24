@@ -45,7 +45,7 @@ internal static class LauncherDiagnostics
     private static string? Code(string? value)=>value is not null&&Codes.Value.Contains(value)?value:null;
     private static string? Phase(string? value)=>value is not null&&Code("phase_"+value)!=null?value:null;
     private static string? Kind(string? value)=>value is "os_error" or "timeout" or "http_error" or "invalid_input"
-        or "runtime_error" or "unexpected" or "cancelled" or "backend_error"?value:null;
+        or "runtime_error" or "unexpected" or "cancelled" or "backend_error" or "inventory_mismatch"?value:null;
     private static string? Stage(string? value)=>value is "request" or "process_start" or "ipc" or "process_exit" or "ui"?value:null;
     private static string? Status(string? value)=>value is "cancellable" or "critical" or "live_game"?value:null;
     private static string? String(JsonElement item,string name)=>
@@ -59,9 +59,43 @@ internal static class LauncherDiagnostics
         item.ValueKind==JsonValueKind.Object&&item.TryGetProperty(name,out var value)&&value.ValueKind==JsonValueKind.Number
             &&value.TryGetUInt32(out uint number)?number:null;
 
+    internal sealed record InventoryStatus(int Missing,int Modified,int Unexpected,string[] Areas)
+    {
+        internal InventoryStatus? Safe()
+        {
+            if(Missing is <0 or >20000||Modified is <0 or >20000||Unexpected is <0 or >20000
+                ||Missing+Modified+Unexpected==0)return null;
+            string[] areas=(Areas??[]).Where(area=>area is "game_executable" or "game_adapter" or "renderer"
+                or "game_binaries" or "game_data" or "runtime_output" or "server" or "launcher")
+                .Distinct(StringComparer.Ordinal).ToArray();
+            return new InventoryStatus(Missing,Modified,Unexpected,areas);
+        }
+    }
+
+    private static InventoryStatus? ReadInventory(JsonElement fault)
+    {
+        if(fault.ValueKind!=JsonValueKind.Object||!fault.TryGetProperty("inventory",out var value)
+            ||Number(value,"missing") is not int missing||Number(value,"modified") is not int modified
+            ||Number(value,"unexpected") is not int unexpected||!value.TryGetProperty("areas",out var areas)
+            ||areas.ValueKind!=JsonValueKind.Array)return null;
+        var names=areas.EnumerateArray().Take(8).Where(area=>area.ValueKind==JsonValueKind.String)
+            .Select(area=>area.GetString()).OfType<string>().ToArray();
+        return new InventoryStatus(missing,modified,unexpected,names);
+    }
+
+    private static JsonObject? ReadDisplay(JsonElement preferences,string key)
+    {
+        if(!preferences.TryGetProperty(key,out var value))return null;
+        string? mode=String(value,"mode");
+        int? width=Number(value,"width"),height=Number(value,"height");
+        if(mode is not ("windowed" or "borderless")||width is not (>=800 and <=3840)
+            ||height is not (>=600 and <=3840)||width.Value*height.Value>3840*2160)return null;
+        return new JsonObject{["mode"]=mode,["width"]=width.Value,["height"]=height.Value};
+    }
+
     internal sealed record Fault(string? Kind,string? Component,int? Line,int? SystemCode,
         int? NativeStartStage=null,uint? NativeExitCode=null,int? WinsockCode=null,
-        string? NetworkProbe=null,string? NetworkProbeStep=null)
+        string? NetworkProbe=null,string? NetworkProbeStep=null,InventoryStatus? Inventory=null)
     {
         internal Fault Safe()
         {
@@ -73,7 +107,7 @@ internal static class LauncherDiagnostics
             return new(LauncherDiagnostics.Kind(Kind),
                 Component is not null&&Components.Contains(Component)?Component:null,Line is >0 and <100000?Line:null,SystemCode,
                 NativeStartStage is >0 and <=255?NativeStartStage:null,NativeExitCode,WinsockCode is >0 and <=65535?WinsockCode:null,
-                knownProbe?NetworkProbe:null,knownProbe?NetworkProbeStep:null);
+                knownProbe?NetworkProbe:null,knownProbe?NetworkProbeStep:null,Kind=="inventory_mismatch"?Inventory?.Safe():null);
         }
     }
     internal sealed record Entry(
@@ -125,7 +159,7 @@ internal static class LauncherDiagnostics
                     if(item.TryGetProperty("diagnostic",out var data))
                         fault=new Fault(String(data,"kind"),String(data,"component"),Number(data,"line"),Number(data,"system_code"),
                             Number(data,"native_start_stage"),UnsignedNumber(data,"native_exit_code"),Number(data,"winsock_code"),
-                            String(data,"network_probe"),String(data,"network_probe_step")).Safe();
+                            String(data,"network_probe"),String(data,"network_probe_step"),ReadInventory(data)).Safe();
                     break;
             }
         }
@@ -217,6 +251,9 @@ internal static class LauncherDiagnostics
         if(backend.ValueKind==JsonValueKind.Object) {
             foreach(string name in ReportFields)
                 if(backend.TryGetProperty(name,out var value))result[name]=JsonNode.Parse(value.GetRawText());
+            if(backend.TryGetProperty("display_preferences",out var displays)&&displays.ValueKind==JsonValueKind.Object)
+                result["display_preferences"]=new JsonObject{
+                    ["selected"]=ReadDisplay(displays,"selected"),["last_confirmed"]=ReadDisplay(displays,"last_confirmed")};
             if(backend.TryGetProperty("recovery",out var recovery)&&recovery.ValueKind==JsonValueKind.Object) {
                 var safeRecovery=new JsonObject();
                 foreach(string name in new[]{"pending","recoverable","can_detach","conflicts"})

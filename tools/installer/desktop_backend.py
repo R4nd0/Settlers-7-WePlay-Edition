@@ -1501,6 +1501,18 @@ class Desktop:
             value=self.read(self.state/'graphics-probe.json',limit=65536)
             return self.validate_probe(value) if value is not None else None
         probe=section('graphics_probe',read_probe,{'devices':[],'failure':None})
+        def diagnostic_display():
+            if root is None:
+                return None
+            def size(selected):
+                value = display.validate(selected.get('display')) if selected is not None else None
+                return {key:value[key] for key in ('mode','width','height')} if value is not None else None
+            backup = desktop_settings.graphics_backup(self,root)
+            return {
+                'selected': size(choice._load_choice(root)),
+                'last_confirmed': size(backup[1]['choice']) if backup and backup[0] else None,
+            }
+        display_summary=section('display_preferences',diagnostic_display)
         raw=section('memory',lambda:self.read(root/'LocalData/desktop-memory-summary.json',limit=4096)
                     if root else None,{})
         if not isinstance(raw,dict):
@@ -1533,6 +1545,7 @@ class Desktop:
                 'directory_protocol_revision':NETWORK_REVISION,'neo_wire_revision':neo,
                 'game_bits':32,'renderer':mode,
                 'graphics_devices':probe['devices'],'probe_status':probe['failure'],
+                'display_preferences':display_summary,
                 'last_lan_start':last_lan,'lan_discovery_port':self.lan_discovery_port(),
                 'memory_summary':summary,
                 'collection_status':collection,
@@ -1680,6 +1693,8 @@ def _dispatch(desktop,request):
 
 
 def error_code(error):
+    if isinstance(error,content.InventoryMismatch):
+        return 'game_copy_changed'
     if isinstance(error,NativeStartupError) and error.native_start_stage==11:
         return 'network_isolation_failed'
     code=getattr(error,'code','')
@@ -1723,6 +1738,9 @@ def diagnostic_failure(error):
         elif isinstance(error,(TimeoutError,subprocess.TimeoutExpired)):kind='timeout'
         elif isinstance(error,http.client.HTTPException):kind='http_error'
         elif isinstance(error,OSError):kind='os_error'
+        elif isinstance(error,content.InventoryMismatch):
+            kind='inventory_mismatch'
+            result['inventory']=error.inventory
         elif isinstance(error,(ValueError,KeyError,TypeError)):kind='invalid_input'
         elif isinstance(error,RuntimeError):kind='runtime_error'
         else:kind='unexpected'

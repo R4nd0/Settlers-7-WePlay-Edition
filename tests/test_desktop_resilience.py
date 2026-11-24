@@ -392,6 +392,23 @@ class DesktopResilienceTests(unittest.TestCase):
         self.assertEqual(report['memory_summary'],{})
         self.assertIsNone(report['renderer'])
 
+    def test_diagnostics_reports_selected_and_confirmed_display_without_monitor_identifier(self):
+        import window_mode
+        request = self.request()
+        request['choice']['display'] = dict(device=self.base.screens[0]['device'], mode='windowed', width=1280, height=720)
+        self.desktop.save_settings(request)
+        with patch.object(window_mode, 'wait_until_ready', return_value=True):
+            with self.desktop.graphics_startup(self.root) as startup:
+                startup.observe(SimpleNamespace(poll=lambda:None))
+        request['choice']['display'] = dict(device=self.base.screens[0]['device'], mode='borderless', width=1920, height=1080)
+        self.desktop.save_settings(request)
+        report = self.dispatch('diagnostics')
+        self.assertEqual(report['display_preferences'], {
+            'selected': {'mode': 'borderless', 'width': 1920, 'height': 1080},
+            'last_confirmed': {'mode': 'windowed', 'width': 1280, 'height': 720},
+        })
+        self.assertNotIn(self.base.screens[0]['device'], json.dumps(report['display_preferences']))
+
     def test_diagnostic_failure_keeps_system_codes_and_drops_exception_text(self):
         try:
             try:raise OSError(10048,'private address 192.168.1.24 and C:/private/player')
@@ -401,6 +418,25 @@ class DesktopResilienceTests(unittest.TestCase):
         self.assertEqual(info['kind'],'os_error')
         self.assertEqual(info['system_code'],10048)
         self.assertNotIn('private',json.dumps(info))
+
+    def test_inventory_failure_blocks_play_and_reports_only_shareable_categories(self):
+        previous = settings.current_graphics(self.desktop, self.root)
+        (self.root/'Base/Bin/Settlers7R.exe').write_bytes(b'changed executable')
+        (self.root/'Base/BBA/map.bba').unlink()
+        (self.root/'Base/Bin/private-player.log').write_bytes(b'private data')
+        with patch.object(backend.launch_local, 'run') as launch:
+            with self.assertRaises(graphics.content.InventoryMismatch) as failure:
+                self.desktop.play()
+        launch.assert_not_called()
+        self.assertEqual(backend.error_code(failure.exception), 'game_copy_changed')
+        diagnostic = backend.diagnostic_failure(failure.exception)
+        self.assertEqual(diagnostic['kind'], 'inventory_mismatch')
+        self.assertEqual(diagnostic['inventory'], {
+            'missing': 1, 'modified': 1, 'unexpected': 1,
+            'areas': ['game_data', 'game_executable', 'runtime_output'],
+        })
+        self.assertNotIn('private-player', json.dumps(diagnostic))
+        self.assertEqual(settings.current_graphics(self.desktop, self.root), previous)
 
     def test_diagnostic_failure_keeps_native_start_and_socket_details(self):
         from lan_hub import LanHubError
@@ -462,6 +498,22 @@ class RendererGroupTests(unittest.TestCase):
     def fail_quality(self,path,value):
         if path==self.root/quality.FILE:raise OSError('synthetic quality failure')
         return self.write(path,value)
+
+    def test_4k_monitor_mode_switch_preserves_verified_game_inventory(self):
+        graphics.install(self.root, self.desktop.package/'Payload/Graphics/d3d9.dll')
+        before = graphics.content.verify(self.root)
+        screen = dict(device=r'\\.\DISPLAY1', adapter='Fixture GPU', primary=True,
+                      x=0, y=0, width=3840, height=2160, resolutions=[[1920,1080],[3840,2160]])
+        with patch.object(self.desktop, 'displays', return_value=[screen]), \
+                patch.object(choice.display, 'enumerate_displays', return_value=[screen]):
+            for mode, width, height in [('windowed',1920,1080),('borderless',3840,2160),('windowed',1920,1080)]:
+                with self.subTest(mode=mode):
+                    request = self.request('dxvk')
+                    display = dict(device=screen['device'], mode=mode, width=width, height=height)
+                    request['choice']['display'] = display
+                    self.assertTrue(self.desktop.save_settings(request)['settings_committed'])
+                    self.assertEqual(choice._load_choice(self.root)['display'], display)
+                    self.assertEqual(graphics.content.verify(self.root), before)
 
     def test_failed_dxvk_save_restores_previous_native_or_dxvk_state(self):
         for previous,policy in (('native','dxvk'),('dxvk','dxvk')):

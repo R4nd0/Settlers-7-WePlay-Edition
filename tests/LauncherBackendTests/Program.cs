@@ -42,6 +42,7 @@ internal static class Tests
             await Scenario(root,"diagnostic-lan","lan-play","operation_failed",null);
             await Scenario(root,"diagnostic-native","internet-create","operation_failed",null);
             await Scenario(root,"diagnostic-native","lan-play","operation_failed",null);
+            await Scenario(root,"diagnostic-inventory","play","game_copy_changed",null);
             await Scenario(root,"failed-cancel","directory-list","backend_timeout",null);
             await Scenario(root,"descendant","directory-list","backend_timeout",null);
             var missing=new ProcessStartInfo(Path.Combine(root,"missing-child")){RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
@@ -134,6 +135,29 @@ internal static class Tests
             Check(fault.GetProperty("winsock_code").GetInt32()==10013,"native socket error survives persistence and export");
             Check(!entry.GetProperty("game_started").GetBoolean(),"native initialization failure is recorded before game start");
         }
+        if(mode=="diagnostic-inventory") {
+            string reopened=folder+"-reopened";
+            Directory.CreateDirectory(Path.Combine(reopened,"State"));
+            File.Copy(Path.Combine(folder,"State","launcher-history.json"),Path.Combine(reopened,"State","launcher-history.json"));
+            using var payload=JsonDocument.Parse("""
+                {"display_preferences":{"selected":{"mode":"borderless","width":3840,"height":2160,"device":"private-monitor"},
+                  "last_confirmed":{"mode":"windowed","width":100000,"height":1080}}}
+                """);
+            using var report=JsonDocument.Parse(LauncherDiagnostics.Export(reopened,"fixture",payload.RootElement,null).ToJsonString());
+            var entry=report.RootElement.GetProperty("launcher_history").EnumerateArray().Single();
+            var fault=entry.GetProperty("fault");
+            Check(entry.GetProperty("code").GetString()=="game_copy_changed","repair code survives persistence and export");
+            Check(fault.GetProperty("kind").GetString()=="inventory_mismatch","reports inventory verification failure");
+            var inventory=fault.GetProperty("inventory");
+            Check(inventory.GetProperty("missing").GetInt32()==1&&inventory.GetProperty("modified").GetInt32()==2
+                &&inventory.GetProperty("unexpected").GetInt32()==3,"keeps bounded inventory counts");
+            Check(inventory.GetProperty("areas").EnumerateArray().Select(item=>item.GetString()).SequenceEqual(["renderer","game_data"]),
+                "only known inventory categories are exported");
+            var displays=report.RootElement.GetProperty("display_preferences");
+            Check(displays.GetProperty("selected").GetProperty("width").GetInt32()==3840,"keeps the attempted display width");
+            Check(displays.GetProperty("last_confirmed").ValueKind==JsonValueKind.Null,"drops impossible display sizes");
+            Check(!report.RootElement.GetRawText().Contains("private-"),"does not expose file names or local paths");
+        }
     }
 
     private static async Task<int> Child(string[] args) {
@@ -154,6 +178,11 @@ internal static class Tests
         if(mode=="diagnostic-native") {
             Console.WriteLine("""{"kind":"progress","phase":"starting"}""");
             Console.WriteLine("""{"kind":"error","code":"operation_failed","detail":"","diagnostic":{"kind":"runtime_error","component":"isolated_process","line":395,"native_start_stage":11,"native_exit_code":3779274525,"network_probe":"ipv4_nonloopback_udp","network_probe_step":"bind","winsock_code":10013}}""");
+            return 2;
+        }
+        if(mode=="diagnostic-inventory") {
+            Console.WriteLine("""{"kind":"progress","phase":"verify"}""");
+            Console.WriteLine("""{"kind":"error","code":"game_copy_changed","detail":"C:/private-path","diagnostic":{"kind":"inventory_mismatch","component":"compatibility","line":175,"inventory":{"missing":1,"modified":2,"unexpected":3,"areas":["renderer","private-filename","game_data"]}}}""");
             return 2;
         }
         if(mode=="normal"){Result();return 0;}

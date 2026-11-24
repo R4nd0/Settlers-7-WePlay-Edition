@@ -142,11 +142,42 @@ def compare(left, right):
                   if left['files'].get(name) != right['files'].get(name))
 
 
+def inventory_area(name):
+    if name == 'base/bin/settlers7r.exe':
+        return 'game_executable'
+    if name == 'base/bin/uplay_r1_loader.dll':
+        return 'game_adapter'
+    if name in LOCAL_GRAPHICS_FILES:
+        return 'renderer'
+    if name.startswith('base/bin/'):
+        if name.endswith(('.log', '.dxvk-cache', '.dxvk.bin', '.dxvk.lut')):
+            return 'runtime_output'
+        return 'game_binaries'
+    if name.startswith('base/'):
+        return 'game_data'
+    return 'launcher' if name.startswith('launcher/') else 'server'
+
+
+class InventoryMismatch(ValueError):
+    """A verified comparison found files that differ from the recorded copy."""
+
+    def __init__(self, expected, actual, changed):
+        self.inventory = {
+            'missing': sum(name not in actual for name in changed),
+            'modified': sum(name in expected and name in actual for name in changed),
+            'unexpected': sum(name not in expected for name in changed),
+            'areas': sorted({inventory_area(name) for name in changed}),
+        }
+        super().__init__('Spieldateien wurden veraendert; bitte Testkopie neu vorbereiten: ' +
+                         ', '.join(changed[:8]))
+
+
 def verify(root):
     expected = load(plain(Path(root) / 'compatibility.json'))
-    changed = compare(expected, create(root))
+    actual = create(root)
+    changed = compare(expected, actual)
     if changed:
-        raise ValueError('Spieldateien wurden veraendert; bitte Testkopie neu vorbereiten: ' + ', '.join(changed[:8]))
+        raise InventoryMismatch(expected['files'], actual['files'], changed)
     return expected
 
 
