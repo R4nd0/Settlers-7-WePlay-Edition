@@ -2,19 +2,19 @@
 #include <windows.h>
 #include <d3d9.h>
 #include <cstdio>
+#include <cstring>
 #include <cwchar>
 #include <string>
 #include <vector>
 
-static std::string utf8(const char* text) {
-    const int n = MultiByteToWideChar(CP_ACP, 0, text, -1, nullptr, 0);
-    if (n <= 1 || n > 1024) return {};
-    std::vector<wchar_t> w(static_cast<size_t>(n));
-    MultiByteToWideChar(CP_ACP, 0, text, -1, w.data(), n);
-    const int m = WideCharToMultiByte(CP_UTF8, 0, w.data(), n - 1, nullptr, 0, nullptr, nullptr);
-    std::string out(static_cast<size_t>(m), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.data(), n - 1, out.data(), m, nullptr, nullptr);
-    return out;
+static std::string dxvk_description(const char (&text)[MAX_DEVICE_IDENTIFIER_STRING]) {
+    // DXVK copies the Vulkan device name as UTF-8 into the D3D9 description.
+    // Preserve those exact bytes for the later DXVK device-name filter.
+    const auto* end = static_cast<const char*>(std::memchr(text, 0, sizeof(text)));
+    if (!end || end == text) return {};
+    const auto length = static_cast<int>(end - text);
+    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, length, nullptr, 0)) return {};
+    return std::string(text, static_cast<size_t>(length));
 }
 static void json_string(const std::string& text) {
     std::putchar('"');
@@ -67,7 +67,10 @@ int wmain(int argc, wchar_t** argv) {
                         Sleep(12);
                     }
                 }
-                if (SUCCEEDED(clear) && SUCCEEDED(present)) devices.push_back(utf8(id.Description));
+                if (SUCCEEDED(clear) && SUCCEEDED(present)) {
+                    const auto name = dxvk_description(id.Description);
+                    if (!name.empty()) devices.push_back(name);
+                }
                 device->Release();
             }
         }
