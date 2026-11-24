@@ -51,7 +51,7 @@ def route(room):
 
 
 def identity(room):
-    return (*route(room), room.content_id)
+    return (*route(room), room.room_id, room.content_id)
 
 
 def inspect(room):

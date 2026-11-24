@@ -193,7 +193,7 @@ def run(args, *, picker=None, network=None):
 
         try:
             lan_autoconnect.checkpoint(cancel, progress, 'lan_connect')
-            membership.start()
+            membership.start(cancel_check=cancel)
             lan_autoconnect.checkpoint(cancel)
             configuration = launch_lan.remote_configuration(coordinator, interface.address)
             launch_lan.check_content(configuration, expected)

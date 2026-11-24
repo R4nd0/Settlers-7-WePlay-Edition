@@ -336,6 +336,16 @@ class StartupElectionTests(unittest.TestCase):
         self.assertEqual(self.connect([selected, None, selected, selected], start), selected)
         start.assert_not_called()
 
+    def test_same_endpoint_restart_requires_two_matching_room_generations(self):
+        old = room('192.168.1.20')
+        restarted = replace(old, room_id='e' * 32)
+        with patch.object(auto, 'discover_preferred', side_effect=[old, old, restarted, restarted]) as discover:
+            self.assertEqual(auto.connect(Mock(), A, Mock()), restarted)
+        self.assertEqual(discover.call_count, 4)
+
+        with self.assertRaisesRegex(auto.LanConnectionError, 'LAN wird gerade eingerichtet'):
+            self.connect([old, old, restarted, old, restarted])
+
     def test_cancel_before_start_has_no_side_effects(self):
         start = Mock()
         with self.assertRaisesRegex(RuntimeError, 'cancelled'):

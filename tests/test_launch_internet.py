@@ -21,6 +21,34 @@ def status(active, *, expected=EXPECTED):
                 active_members=active, max_members=MAX_MEMBERS)
 
 
+class CoordinatorReadinessTests(unittest.TestCase):
+    def test_startup_rejects_a_live_coordinator_with_a_different_content_id(self):
+        with patch.object(launch, 'request', return_value=status(1, expected='d' * 64)) as request, \
+                self.assertRaisesRegex(ValueError, '^version_mismatch$'):
+            launch.wait_for_coordinator(ROOM.coordinator, '10.203.77.2', EXPECTED)
+        request.assert_called_once_with(ROOM.coordinator, '10.203.77.2', 'status', timeout=3)
+
+    def test_started_coordinator_reply_after_deadline_is_rejected(self):
+        elapsed = [0.]
+
+        def delayed(*_args, **_options):
+            elapsed[0] = 45.1
+            return status(1)
+
+        with patch.object(launch.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                patch.object(launch, 'request', side_effect=delayed) as request, \
+                self.assertRaisesRegex(InternetError, '^internet_coordinator_unreachable$'):
+            launch.wait_for_coordinator(ROOM.coordinator, '10.203.77.2', EXPECTED)
+        request.assert_called_once()
+
+    def test_invalid_status_cannot_bypass_readiness_and_cancel_is_rechecked(self):
+        cancel = Mock(side_effect=[None, None, RuntimeError('cancelled')])
+        with patch.object(launch, 'request', side_effect=[dict(status(1), active_members=True), status(1)]) as request, \
+                patch.object(launch.time, 'sleep'), self.assertRaisesRegex(RuntimeError, '^cancelled$'):
+            launch.wait_for_coordinator(ROOM.coordinator, '10.203.77.2', EXPECTED, cancel=cancel)
+        self.assertEqual(request.call_count, 2)
+
+
 class LaunchTests(unittest.TestCase):
     def setUp(self):
         self.args = SimpleNamespace(bundle=ROOT / 'work/fictional-internet-copy', player_name='Anna',
@@ -67,6 +95,7 @@ class LaunchTests(unittest.TestCase):
                 args.bundle, game, enabled=False, monitor=args.game_monitor, **options)
 
         with patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', return_value=status(1)), \
                 self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
             launch.run(self.args, overlay_factory=self.factory)
         warn.assert_called_once_with('internet_disconnected')
@@ -104,14 +133,14 @@ class LaunchTests(unittest.TestCase):
 
                 self.overlay.close.reset_mock()
                 with patch.object(launch.time, 'monotonic', side_effect=lambda: elapsed[0]), \
-                        patch.object(launch, 'request', side_effect=replies) as request, \
+                        patch.object(launch, 'request', side_effect=[status(1), *replies]) as request, \
                         patch.object(launch.launch_auto_lan, 'run', side_effect=run):
                     if recovered or switching:
                         self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
                     else:
                         with self.assertRaisesRegex(InternetError, '^internet_disconnected$'):
                             launch.run(self.args, overlay_factory=self.factory)
-                self.assertEqual(request.call_count, len(replies))
+                self.assertEqual(request.call_count, len(replies) + 1)
                 request.assert_called_with(ROOM.coordinator, interface.address, 'status',
                                            expected=EXPECTED, timeout=.65)
                 notices = ['internet_disconnected', 'internet_reconnected'] if recovered else ['internet_disconnected']
@@ -149,12 +178,13 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(interfaces, [self.host_interface])
             self.assertEqual(directory.interfaces, (self.host_interface,))
             self.assertEqual(picker(None, directory, interfaces, EXPECTED)['action'], 'create')
+            request.assert_not_called()
             event.assert_not_called()
             args.before_game()
             return 0
         with patch.object(launch, 'create', return_value=ROOM), \
                 patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
-                patch.object(launch, 'request', return_value=status(0)):
+                patch.object(launch, 'request', return_value=status(0)) as request:
             self.assertEqual(launch.run(self.args, invitation_ready=event, overlay_factory=self.factory), 0)
         event.assert_called_once_with(ROOM.token())
         self.overlay.close.assert_called_once()
@@ -202,16 +232,40 @@ class LaunchTests(unittest.TestCase):
         self.overlay.snapshot.return_value = guest, {ROOM.coordinator: 'p2p'}
         def run(args, *, picker, network):
             interfaces, directory = network()
-            selected = picker(None, directory, interfaces, None)
+            selected = picker(None, directory, interfaces, EXPECTED)
             self.assertEqual(selected['action'], 'join')
             self.assertEqual(selected['endpoint'].host, ROOM.coordinator)
             args.before_game()
             return 0
         event = Mock()
-        with patch.object(launch.launch_auto_lan, 'run', side_effect=run), patch.object(launch, 'request') as request:
+        with patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', return_value=status(1)) as request:
             self.assertEqual(launch.run(self.args, invitation_ready=event, overlay_factory=self.factory), 0)
-        request.assert_not_called(); event.assert_not_called()
+        request.assert_called_once_with(ROOM.coordinator, guest.address, 'status', timeout=3)
+        event.assert_not_called()
         self.assertFalse(self.factory.call_args.kwargs['host'])
+        self.overlay.close.assert_called_once()
+
+    def test_guest_waits_for_native_coordinator_after_the_tunnel_is_ready(self):
+        self.args.invitation = ROOM.token()
+        interface = LanInterface('10.203.77.2', 24, 'WePlay-id')
+        self.overlay.start.return_value = interface
+        self.overlay.snapshot.return_value = interface, {ROOM.coordinator: 'p2p'}
+
+        def run(args, *, picker, network):
+            interfaces, directory = network()
+            selected = picker(None, directory, interfaces, EXPECTED)
+            self.assertEqual(selected['action'], 'join')
+            self.assertEqual(request.call_count, 2)
+            args.before_game()
+            return 0
+
+        with patch.object(launch.launch_auto_lan, 'run', side_effect=run), \
+                patch.object(launch, 'request', side_effect=[ConnectionRefusedError(), status(1)]) as request, \
+                patch.object(launch.time, 'sleep'):
+            self.assertEqual(launch.run(self.args, overlay_factory=self.factory), 0)
+        self.assertTrue(all(call.args == (ROOM.coordinator, interface.address, 'status')
+                            for call in request.call_args_list))
         self.overlay.close.assert_called_once()
 
     def test_creator_keeps_overlay_until_guests_leave_after_own_game_exit(self):

@@ -43,7 +43,7 @@ class PublicStartupTests(unittest.TestCase):
             overlay=Mock();overlay.start.return_value=interface;overlay.snapshot.return_value=(interface,{})
             directory=Mock();directory.list_rooms.return_value=[Mock(endpoint=Mock(host=ROOM.coordinator),compatible=Mock(return_value=True))]
             events=[];reporters=[];native_rows=[]
-            def admitted():events.append('admitted')
+            def admitted(**_):events.append('admitted')
             membership=Mock();membership.start.side_effect=admitted
             def invite(value):
                 self.assertIn('admitted',events);self.assertEqual(value,ROOM.token());events.append('invitation_ready')
@@ -98,7 +98,7 @@ class PublicStartupTests(unittest.TestCase):
                 desktop.package_manifest=lambda:desktop_backend.install.package_manifest(desktop.package)
                 for name,value in {'game':root,'installed':{'package_id':'fixture','renderer_policy':'dxvk'},
                     'package_id':'fixture','probe':{},'renderer':'dxvk','default_choice':{}}.items():setattr(desktop,name,Mock(return_value=value))
-                for name in ('progress','emit','validate_lan','align_internet'):setattr(desktop,name,Mock())
+                for name in ('progress','emit','validate_lan'):setattr(desktop,name,Mock())
                 desktop.read=Mock(return_value={'version':'2.0.0-rc3.19'})
                 desktop.check_start_memory=Mock(side_effect=OSError('preflight failed') if preflight_error else None)
                 patcher(desktop_backend.install,'package_manifest',return_value={'game_directory':True})

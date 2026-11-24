@@ -17,9 +17,42 @@ from lan_control import request
 from lan_discovery import LanDiscovery
 from lan_hub import status_counts
 from lan_interfaces import enumerate_interfaces
-from lobby_directory import LobbyEndpoint
+from lobby_directory import LobbyEndpoint, content_id
 import launch_auto_lan
 import player_settings
+
+
+def wait_for_coordinator(coordinator, local, expected, *, cancel=None, progress=None):
+    """Wait for the native room service before any membership request."""
+    deadline = time.monotonic() + 45
+    while True:
+        if cancel:
+            cancel()
+        if progress:
+            progress('internet_connect')
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            # The public status is available before admission. Configuration
+            # and game data remain protected by the membership check.
+            status = request(coordinator, local, 'status', timeout=min(3, remaining))
+            actual = content_id(status.get('content_id'))
+            status_counts(status, actual)
+        except (OSError, ValueError, http.client.HTTPException):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(.2, remaining))
+            continue
+        if cancel:
+            cancel()
+        if time.monotonic() >= deadline:
+            break
+        if actual != expected:
+            raise ValueError('version_mismatch')
+        return
+    raise InternetError('internet_coordinator_unreachable')
 
 
 def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, overlay_factory=open_overlay):
@@ -64,6 +97,8 @@ def run(args, *, invitation_ready=None, network_ready=None, policy_ready=None, o
         nonlocal expected_content
         if len(interfaces) != 1 or interfaces[0] != interface:
             raise InternetError('internet_adapter_invalid')
+        if not host:
+            wait_for_coordinator(room.coordinator, interface.address, expected, cancel=cancel, progress=progress)
         expected_content = expected
         return dict(action='create' if host else 'join', network=0, display_name=name,
                     endpoint=LobbyEndpoint('lan-direct', room.coordinator))

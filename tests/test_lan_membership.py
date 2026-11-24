@@ -108,6 +108,37 @@ class MembershipTests(unittest.TestCase):
         self.assertEqual(transport.call_args_list[0].args[2], 'admit')
         self.assertEqual(transport.call_args_list[-1].args[2], 'leave')
 
+    def test_initial_admission_retries_a_lost_reply_before_starting_the_game(self):
+        now = [1000]
+
+        def transport(_host, _local, operation, **_options):
+            if operation == 'leave':
+                return None
+            if now[0] == 1000:
+                now[0] = 3500
+                raise TimeoutError('first admission reply was lost')
+            return response()
+
+        sender = Mock(side_effect=transport)
+        membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,
+                                            transport=sender, clock=lambda: now[0])
+        self.addCleanup(membership.close)
+        membership.start()
+        self.assertEqual([call.args[2] for call in sender.call_args_list], ['admit', 'admit'])
+        self.assertIn('expires_tick_ms=18500\n', membership.path.read_text())
+
+    def test_initial_admission_does_not_retry_rejection_or_a_cancelled_attempt(self):
+        for error, cancel in ((ValueError('rejected'), None),
+                              (TimeoutError('lost reply'), Mock(side_effect=RuntimeError('cancelled')))):
+            with self.subTest(error=error):
+                sender = Mock(side_effect=error)
+                membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED, transport=sender)
+                with self.assertRaisesRegex(ValueError if cancel is None else RuntimeError,
+                                            'rejected' if cancel is None else 'cancelled'):
+                    membership.start(cancel_check=cancel)
+                sender.assert_called_once()
+                self.assertIsNone(membership.thread)
+
     def test_renewal_thread_start_failure_still_leaves_and_removes_peer_file(self):
         transport = Mock(side_effect=[response(), None])
         membership = lan_control.Membership(self.root, LOCAL, COORDINATOR, EXPECTED,

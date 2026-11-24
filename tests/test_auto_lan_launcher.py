@@ -64,7 +64,7 @@ class AutomaticLauncherTests(unittest.TestCase):
         choice = dict(action='create', network=0, display_name='Anna')
         order = []
         membership = Mock()
-        membership.start.side_effect = lambda: order.append('admit')
+        membership.start.side_effect = lambda **_: order.append('admit')
         membership.close.side_effect = lambda: order.append('leave')
         game = Mock(); game.wait.return_value = 0
         runtime = self.root / 'LocalData/s7-local-runtime.ini'

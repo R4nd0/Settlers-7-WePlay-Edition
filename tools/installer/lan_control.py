@@ -147,11 +147,18 @@ class Membership:
         self.admitted = False
         self.last_success_ms = None
 
-    def renew(self):
+    def renew(self, *, before_retry=None):
         if self.stop_event.is_set():
             return
         requested_at = self.clock()
-        value = self.transport(self.coordinator, self.local, 'admit', expected=self.expected)
+        try:
+            value = self.transport(self.coordinator, self.local, 'admit', expected=self.expected)
+        except (OSError, http.client.HTTPException):
+            if before_retry is None:
+                raise
+            before_retry()
+            requested_at = self.clock()
+            value = self.transport(self.coordinator, self.local, 'admit', expected=self.expected)
         self.admitted = True
         peers = validate_peers(value, self.local, self.coordinator, self.expected)
         with self.publish_lock:
@@ -168,8 +175,16 @@ class Membership:
                 raise TimeoutError('Die LAN-Teilnahme ist waehrend der Anmeldung abgelaufen.')
             self.last_success_ms = published_at
 
-    def start(self):
-        self.renew()  # Must finish before the game can bind or send.
+    def start(self, *, cancel_check=None):
+        def before_retry():
+            if self.stop_event.wait(.1):
+                raise RuntimeError('cancelled')
+            if cancel_check is not None:
+                cancel_check()
+
+        # A lost first reply can be recovered by one exact, source-bound
+        # admission retry; explicit rejection and invalid peers still fail.
+        self.renew(before_retry=before_retry)
         thread = threading.Thread(target=self._run, name='s7-lan-membership', daemon=True)
         thread.start()
         self.thread = thread

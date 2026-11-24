@@ -1160,24 +1160,6 @@ class Desktop:
         return self.play({'player_name':data['player_name']},internet={'invitation':invitation,
             'mode':'assisted','direct_endpoint':None,'publish_discord':False,'internet_consent':1})
 
-    def align_internet(self,root,interface,coordinator,host):
-        if host:return
-        from lan_control import request
-        from internet_room import InternetError
-        deadline=time.monotonic()+45
-        while True:
-            self.progress('internet_connect')
-            try:
-                # Alignment precedes LAN admission. The bootstrap status is
-                # public; the full configuration correctly requires membership.
-                status=request(coordinator,interface.address,'status')
-                break
-            except (OSError,ValueError,http.client.HTTPException):
-                if time.monotonic()>=deadline:raise InternetError('internet_coordinator_unreachable') from None
-                time.sleep(.2)
-        actual=status.get('content_id')
-        if actual!=self.network_id(root):raise ValueError('version_mismatch')
-
     def check_start_memory(self):
         import memory_guard
         sample=memory_guard.require_game_headroom()
@@ -1435,8 +1417,7 @@ class Desktop:
                 switch_requested=lambda:directory_bridge[0] is not None and directory_bridge[0].pending is not None,
                 public_observer=observe,**internet),
                 invitation_ready=room_ready,
-                policy_ready=lambda mode:self.emit('internet_policy',mode=mode),
-                network_ready=lambda interface,coordinator,host:self.align_internet(root,interface,coordinator,host))
+                policy_ready=lambda mode:self.emit('internet_policy',mode=mode))
         else:
             code=launch_auto_lan.run(SimpleNamespace(bundle=root,check_only=False,saved_graphics=True,renderer=renderer,
                 player_name=request['player_name'],discovery_port=discovery_port,progress=self.progress,
