@@ -87,3 +87,51 @@ were preserved; private options were restored, with no cleanup error. Its
 memory monitor stayed healthy with pressure 0 and peak private memory 1982 MiB.
 Debugger timings are diagnostic observations, not performance measurements.
 There is no production release qualification from these cases.
+
+## Subsequent V2 trial: technical pass, visual rejection
+
+The separate Steam trial `work/t30` used the immutable `work/n30` build,
+source set `effects-v3` with25 source snapshots. Its SHA256 is
+`27b0542433492aca2ccbdfcf5406e5ea5b9db635f7c0a2def7e8764442ab7a1c`.
+Material V2 is an explicitly declared6180-byte/version2 transport; the original
+4132-byte/version1 allocation remains supported independently. Guard-page tests
+verify that a legacy allocation is not overread as V2. The actual owned-worker
+prefix was392 bytes, giving6572 bytes including V2 within the8192-byte bound.
+
+The new terrain/leaf backend supports five pinned recipient-generated programs.
+It uses a positive-only identity cache, accepts a matching shader after cache
+capacity is reached, binds device/thread ownership only after an eligible draw,
+and retains original query references independently of cache capacity through
+mutation/restoration. CPU transactions and real GPU V1/comparison regressions
+passed. Those checks establish safe machinery, not visual quality.
+
+Actual t30 loaded the existing private checkpoint and created a new manual
+slot75 through the original UI. It captured separate terrain0/2/0 sequences
+1/3/5 and vegetation0/4/0 sequences6/8/10. Both triplets matched measured raw
+camera, lighting and River comparison phase at the fixed4K→1080p dimensions.
+All five programs were created once,635 material draws were applied/restored,
+and query/set/restore/cache faults were zero. No original query references
+remained held after the transactions.
+
+**Neither triplet establishes a convincing visual gain in that normal view.**
+Terrain-region changes were similar to control-repeat movement. The leaf view
+was a front-lit/zero-backlight control; its measured centre-view dot with the
+sun was approximately−0.792. A sun-facing view remains necessary to assess the
+candidate's changed angular lobe. Lossless images and the independent review
+are under `work/material-t30-analysis`; no improvement percentage is inferred.
+
+The observer now measures31 explicitly available render states only for
+selected, budgeted capture samples. The original952-byte request is unchanged;
+output samples/Stats have exact-size guards. Actual observations identified
+River, cascade mask, SSAO, Decal and menu UI. A rearmed snapshot separately
+records later world observations. They do not establish the generating pass
+for the black streaks. Coverage still excludes DrawPrimitiveUP/DrawIndexedUP;
+absence on the currently observed Draw/Indexed path must not be reported as
+global absence.
+
+t30 again exited with the original StormMM access violation, with first- and
+second-chance captures in `work/c30`. Its shared profiles, game binaries and
+private options were preserved/restored; memory pressure stayed0 with healthy
+monitoring and peak private memory1976 MiB. The strict same-case role review and
+modern source/ABI aggregate are in `work/t30-qualification-20261125-01`; the
+whole case and visual/release qualifications remain false.

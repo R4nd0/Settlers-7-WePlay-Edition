@@ -101,3 +101,12 @@ This is one successful actual Ubi load/save/exit observation for the exact
 candidate23 checkpoint. It supports the earlier engine-deinit boundary on that
 path, but does not identify the native22 crash's faulting instruction, prove its
 root cause, establish repeated-session reliability, or qualify Gold/Steam exit.
+
+The later actual candidate25 Ubi run again exited with `0xc0000005` after the
+original UI exit confirmation. It was not forced; private/shared profiles and
+verified binaries were restored, and the memory monitor remained healthy. Its
+final report again showed two original engine-deinit returns and complete early
+cleanup, with no reported material/comparison restoration fault. Those counters
+therefore do not localize the exception or establish reliable exit. Further
+functional teardown changes are held pending an actual exception module/context
+and stack from the owned child. No crash cause is inferred from cleanup success.

@@ -89,12 +89,23 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
-def native_command(raw, previous, material_flags=0):
+def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False):
     if not isinstance(raw,bytes) or len(raw)>4096:
         raise ValueError('Native command exceeds its bound.')
     value=graphics_profile._json(raw)
     if isinstance(value,dict) and value.get('operation')=='capture':
         return value if capture_command(raw,previous) is not None else None
+    if isinstance(value,dict) and value.get('operation')=='crash-watch-admit':
+        if (set(value)!={'operation','sequence'} or not crash_watch_allowed
+                or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000):
+            raise ValueError('Crash watcher admission requires the explicit diagnostic owner mode.')
+        return value if value['sequence']>previous else None
+    if isinstance(value,dict) and value.get('operation')=='comparison':
+        if (set(value)!={'operation','sequence','enabled'} or not comparison_allowed
+                or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
+                or type(value['enabled'])is not int or value['enabled']not in(0,1)):
+            raise ValueError('Comparison requires the explicit initialized diagnostic mode.')
+        return value if value['sequence']>previous else None
     if (not isinstance(value,dict) or set(value)!={'operation','sequence','enabled'}
             or value['operation']!='effects' or type(value['sequence'])is not int
             or not 1<=value['sequence']<=1000000 or type(value['enabled'])is not int
@@ -111,7 +122,8 @@ def measurement_budget_expired(now, deadline, already_reported):
 def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=None,
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
-        high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False):
+        high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
+        crash_watch=False,material_config_version=1):
     if os.name != 'nt':
         raise ValueError('The portable graphics laboratory requires Windows.')
     root, output = lab_path(root), lab_path(output)
@@ -140,9 +152,14 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     material_keys=('improved_water','improved_terrain','improved_vegetation')
     if (not isinstance(material_effects,(list,tuple)) or len(set(material_effects))!=len(material_effects)
             or any(key not in material_keys for key in material_effects)
-            or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool
+            or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool or type(comparison_uv)is not bool
+            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2)
+            or (material_config_version==2 and 'improved_water'in material_effects)
             or (material_effects and (hook is None or not high_quality))):
         raise ValueError('Native materials require an explicit exact hook and High shader quality.')
+    if comparison_uv and (hook is None or observer_catalog is None):
+        raise ValueError('Comparison requires an explicit source-bound OBSERVE diagnostic.')
+    if crash_watch and hook is None:raise ValueError('Crash watcher requires the exact owned native build checkpoint.')
     if material_capture is not None:
         material_capture = lab_path(material_capture)
         with material_capture.open('rb') as stream:
@@ -156,15 +173,22 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     material_flags=0
     if material_effects:
         from tools.installer import native_graphics_settings
-        from tools.material_shaders import staging
+        from tools.material_shaders import staging,staging_v2
         axis=width*100//output_width
         if width*100!=axis*output_width or height*100!=axis*output_height:
             raise ValueError('Material laboratory requires a supported exact render scale.')
         selected={**native_graphics_settings.DEFAULTS,'render_scale':axis}
         selected.update(dict.fromkeys(material_effects,True))
-        prepared=staging.prepare(root,selected,dict(width=output_width,height=output_height,mode='windowed'),
+        extra={}
+        stage=staging.prepare
+        if material_config_version==2:
+            _,build=load_hook.verify_build(hook)
+            if build.get('abi',{}).get('effects_v2')!=6180:raise ValueError('This exact build does not declare material V2.')
+            stage=staging_v2.prepare
+            extra=dict(config_version=2,available_config_versions=(2,),worker_overhead_bytes=load_hook.worker_overhead(executable,hook))
+        prepared=stage(root,selected,dict(width=output_width,height=output_height,mode='windowed'),
             available_features=('supersampling',*material_keys),available_scales=(100,150,200),
-            native_report=output/'hook-state.private.json',verified_platform=value,private_case=True)
+            native_report=output/'hook-state.private.json',verified_platform=value,private_case=True,**extra)
         effects_config=prepared.pop('config');material_flags=prepared['material_flags']
         (output/'effects-config.bin').write_bytes(effects_config)
         (output/'material-stage.private.json').write_text(json.dumps(prepared,indent=2),encoding='utf-8')
@@ -186,6 +210,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         ROOT / 'tools/installer/isolated_process.py', ROOT / 'tools/d3d11/memory_guard.py',
         ROOT / 'tools/shadow_detail/profile_guard.py', ROOT / 'tools/graphics_lab/recover.py',
         ROOT / 'tools/graphics_lab/load_hook.py', ROOT / 'tools/supersampling/hook_probe.py')}
+    if crash_watch:
+        watcher=ROOT/'tools/graphics_lab/crash_watch.py'
+        checkpoint[watcher.relative_to(ROOT).as_posix()]=digest(watcher)
     for name, pin in checkpoint.items():
         source = ROOT / name
         target = output / 'source' / name
@@ -195,7 +222,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             raise RuntimeError('The graphics controller changed during source checkpoint creation.')
     (output / 'checkpoint.private.json').write_text(json.dumps(dict(
         files=immutable, sources=checkpoint, requested_render_size=[width, height],
-        reshade_requested=False,detailed_shadows_requested=detailed_shadows), indent=2), encoding='utf-8')
+        reshade_requested=False,detailed_shadows_requested=detailed_shadows,
+        comparison_uv_requested=comparison_uv,crash_watch_allowed=crash_watch,
+        material_config_version=material_config_version), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
         targets={'options': options, 'runtime': runtime, 'config': config_file},
         shared=shared_profile_roots())
@@ -249,6 +278,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                     if effects_initially_off:struct.pack_into('<I',initial,8,0)
                     configured=load_hook.invoke(owned,hook,'effects',bytes(initial))
                     (output/'effects-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                if comparison_uv:
+                    configured=load_hook.invoke(owned,hook,'comparison',struct.pack('<3I',12,1,1))
+                    (output/'comparison-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -286,15 +318,22 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        request = native_command(raw, last_sequence, material_flags)
+                        request = native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch)
                         if request is not None:
                             sequence=request['sequence'];last_sequence=sequence
                             operation=request['operation']
-                            payload=struct.pack('<3I',12,1,sequence)
-                            if operation=='effects':
-                                payload=bytearray(effects_config)
-                                struct.pack_into('<I',payload,8,request['enabled']);payload=bytes(payload)
-                            receipt = load_hook.invoke(game, hook, operation, payload)
+                            if operation=='crash-watch-admit':
+                                from tools.graphics_lab import crash_watch as watcher
+                                # Explicit owner command is issued after the
+                                # original UI loaded and saved a new free slot.
+                                receipt=watcher.admit(game,output,load_and_new_save_confirmed=True)
+                            else:
+                                payload=struct.pack('<3I',12,1,sequence)
+                                if operation=='effects':
+                                    payload=bytearray(effects_config)
+                                    struct.pack_into('<I',payload,8,request['enabled']);payload=bytes(payload)
+                                elif operation=='comparison':payload=struct.pack('<3I',12,1,request['enabled'])
+                                receipt = load_hook.invoke(game, hook, operation, payload)
                             (output / f'command-{sequence}.private.json').write_text(
                                 json.dumps(receipt, indent=2), encoding='utf-8')
                     except (ValueError, RuntimeError, OSError) as error:
@@ -374,14 +413,19 @@ def main():
     parser.add_argument('--high-quality', action='store_true', help='Matched high native quality with DOF off in private options only')
     parser.add_argument('--material-effects',nargs='+',choices=('improved_water','improved_terrain','improved_vegetation'),default=[])
     parser.add_argument('--effects-initially-off',action='store_true')
+    parser.add_argument('--material-config-version',type=int,choices=(1,2),default=1,
+        help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
     parser.add_argument('--detailed-shadows',action='store_true',help='Existing guarded adapter 4096 shadow baseline; no new filter activation')
+    parser.add_argument('--comparison-uv',action='store_true',help='Diagnostic-only draw-local original River PS80 isolation, never a production option')
+    parser.add_argument('--crash-watch',action='store_true',help='Permit explicit post-save admission of a bounded own-child crash watcher')
     args = parser.parse_args()
     run(args.bundle, args.output, width=args.width, height=args.height, seconds=args.seconds,
         hook=args.hook, output_width=args.output_width, output_height=args.output_height,
         observer_catalog=args.observer_catalog, observer_sha256=args.observer_sha256,
         material_capture=args.material_capture, material_capture_sha256=args.material_capture_sha256,
         high_quality=args.high_quality,material_effects=args.material_effects,effects_initially_off=args.effects_initially_off,
-        detailed_shadows=args.detailed_shadows)
+        detailed_shadows=args.detailed_shadows,comparison_uv=args.comparison_uv,crash_watch=args.crash_watch,
+        material_config_version=args.material_config_version)
 
 
 if __name__ == '__main__':

@@ -16,11 +16,14 @@ NATIVE20_SOURCES = ('supersampling_hook.cpp', 'supersampling_hook.h', 'supersamp
            'supersampling_hook_fixture.cpp', 'supersampling_probe.cpp', 'material_shader_observer.h',
            'material_shader_observer.cpp', 'graphics_observation.h', 'graphics_observation.cpp',
            'atmosphere_clock.h', 'atmosphere_fp.h')
-SOURCES = NATIVE20_SOURCES + ('supersampling_hook_effects_contract.h', 'supersampling_hook_effects_draw.h',
+EFFECTS_V1_SOURCES = NATIVE20_SOURCES + ('supersampling_hook_effects_contract.h', 'supersampling_hook_effects_draw.h',
                             'supersampling_hook_effects_gpu.cpp', 'material_shader_effects.h', 'material_shader_effects.cpp')
+SOURCES = EFFECTS_V1_SOURCES + ('supersampling_hook_comparison_draw.h', 'material_comparison.h', 'material_comparison.cpp')
+MODERN_SOURCES = SOURCES + ('native_effects_wire.h','material_shader_config_v2.h','material_shader_effects_contract_v2.h')
 NATIVE20_BINARIES = ('WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe')
 BINARIES = NATIVE20_BINARIES + ('supersampling_effects_gpu.exe',)
 BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132, 'observation': 952, 'effects': 4132, 'capture': 12}
+BUILD_ABI_V2 = {**BUILD_ABI,'effects_v2':6180}
 
 
 def verify_build(directory):
@@ -32,14 +35,20 @@ def verify_build(directory):
     current = manifest.get('format') == 's7-native-graphics-build-v2'
     if not current and manifest.get('format') != 's7-supersampling-hook-build-v1':
         raise ValueError('Unknown native build schema.')
-    sources, binaries = (SOURCES, BINARIES) if current else (NATIVE20_SOURCES, NATIVE20_BINARIES)
+    source_set = manifest.get('source_set')
+    if current and source_set not in ('effects-v1', 'effects-v2','effects-v3'):
+        raise ValueError('Unknown native source set.')
+    sources = (MODERN_SOURCES if source_set=='effects-v3' else SOURCES if source_set == 'effects-v2' else EFFECTS_V1_SOURCES) if current else NATIVE20_SOURCES
+    binaries = BINARIES if current else NATIVE20_BINARIES
     expected = {
         'format': manifest['format'],
         'build_sha256': probe.sha256(probe.REPOSITORY / 'native/supersampling_hook_build.ps1'),
         'files': {name: probe.sha256(probe.REPOSITORY / 'native' / name) for name in sources},
     }
     if current:
-        expected.update({'source_set': 'effects-v1', 'compiled_capabilities': 15, 'abi': BUILD_ABI})
+        expected.update({'source_set': source_set, 'compiled_capabilities': 15, 'abi': BUILD_ABI_V2 if source_set=='effects-v3' else BUILD_ABI})
+        if source_set in ('effects-v2','effects-v3'):
+            expected['diagnostic_abi'] = {'comparison': 12}
     expected['files'].update({name: probe.sha256(probe.plain(directory / name)) for name in binaries})
     if manifest != expected:
         raise ValueError('Stale or changed hook build; rebuild from current source.')

@@ -2,6 +2,7 @@
 #include "supersampling_hook.h"
 #include "graphics_observation.h"
 #include "material_shader_observer.h"
+#include "material_comparison.h"
 #include <array>
 #include <string>
 
@@ -16,6 +17,8 @@ struct Result {
     GraphicsObservation::Snapshot observation{};
     MaterialShaderObserver::FrameSnapshot scene_uniforms{};
     bool scene_uniforms_available=false;
+    MaterialComparison::State comparison{};
+    bool comparison_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };

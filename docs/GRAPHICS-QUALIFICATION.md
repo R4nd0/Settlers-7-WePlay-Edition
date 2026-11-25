@@ -70,9 +70,13 @@ must match the controller checkpoint. Candidate initialization must match the
 hook build's DLL identity and native source identities. Current game binaries
 must match their checkpoint, including the original edition EXE and DXVK pin.
 Historical native20 builds retain fourteen native source/header inputs plus the
-DLL and fixture EXE. The effects-v1 build has nineteen source inputs, three
-binaries, capabilities 15, and explicit initialization/observation/effects/capture
-ABI sizes. Both schemas remain supported. Their retained build-directory
+DLL and fixture EXE. The effects-v1 build has nineteen source inputs; effects-v2
+adds three comparison inputs and a separate diagnostic comparison ABI of 12
+bytes. The effects-v3 build has twenty-five source inputs, adding the versioned
+wire/config/host-contract headers and an explicit effects_v2 ABI of 6180 bytes.
+All effects sets retain three binaries, capabilities 15, and explicit
+initialization/observation/effects/capture ABI sizes. All four source sets
+remain supported. Their retained build-directory
 snapshots are hashed against the exact build manifest; the report does not
 substitute current edited sources for the files actually compiled. Unknown
 source sets, capabilities, ABI sizes, extra/missing identities and changed
@@ -113,13 +117,33 @@ lifecycle/fallback, material, shadow and release gates remain separate.
 The original private `.s7s`/`.s7local` files from the portable-profile checkpoint
 are checked against the still-retained owned profile. New save slots are allowed;
 overwriting an original manual save rejects the preservation evidence. A narrow
-Gold exception classifies the original rotating autosave only when the guarded
+Gold/History exception classifies the original rotating autosave only when the guarded
 original GetSaveGameSlotRangeSP code and original Lua mapping establish its
 role, and its matching before-image remains in the case backup. This preserves
 `all_original_private_saves_unchanged=false` truthfully while separately requiring
 all manual originals unchanged. Unknown changed files are never waived. This
 tool never restores a file. Actual recovery remains in
 [the interruption journal](../tools/graphics_lab/recover.py).
+
+Ubisoft History additionally verifies its original registration initializer,
+complete save-range callback and read-only double values 30/50. Its original
+Interface archive contains the same verified Lua slot mapping as Gold. The
+classification applies only to the exact edition's slot-31 relative path and
+matching retained before-image. Steam's original code is packed, so matching
+script text or an analogous Ubisoft callback cannot qualify its slot policy.
+The query/read-only `tools/graphics_lab/save_role_read.py` inspected the actual
+registered Steam callback during the owned R27 run. After closing, independent
+review matched the entire 66-byte callback against the verified Ubisoft
+instructions after only two constant-address and two call-relocation changes.
+Both calls use the guarded original Lua-number insertion routine, with actual
+first/count values 30/50. The original Steam Interface member then matched the
+same verified Lua hash as Gold/Ubisoft, establishing quick index 1 and auto
+index 2. Steam classification now additionally requires that exact retained
+runtime receipt, the reviewed reader checkpoint, same-case process identity,
+completed actual-case result and exact original packed EXE/Lua identities.
+Only a changed original slot 31 with a matching retained before-image can use
+this role classification; unknown/manual changes still reject preservation.
+No reader launches a game or restores a save.
 
 ### Draw-correlated camera and lighting uniforms
 
@@ -148,6 +172,18 @@ disabled or module-failure state. This describes the configuration used for
 geometry; it does not prove any individual material was changed. Per-material
 draw/substitution records and visual review remain separate requirements.
 
+For an actual material case, the aggregator can also bind `effects-config.bin`
+and `effects-configured.private.json`. It checks the immutable 4132-byte/version-1
+or 6180-byte/version-2 header, dimensions, finite parameters, bounded terminated
+UTF16 path arrays and exact initialized DLL/export/guard receipt. It opens no
+program path contained in that binary. A native `effects_config_version=2`
+requires the effects-v3 source set, exact V2 ABI and matching config/receipt.
+Active masks must remain within the prepared resource flags. A legacy V1 version
+inferred from the bound historical transport is explicitly distinguished from
+a version measured in the capture. Unknown versions, size/version mismatches or
+a receipt from another DLL reject consistency. Neither configuration nor a
+matching drawn epoch automatically establishes a visible improvement.
+
 ### Diagnostic water-scroll isolation
 
 `native/material_comparison.h/.cpp` is a separately staged diagnostic component,
@@ -165,8 +201,11 @@ before observing the original shader, and stop any unsafe rendering/fallback
 claim if immediate restoration retry fails. An explicit diagnostic-only
 12-byte configuration is separate from read-only observation configuration;
 the production loader must not expose it. Reconfiguration/disable clears the
-pin. Reset drops all shader identities/device references but retains the pin;
-Shutdown clears everything after all transactions are restored.
+pin. Routine Release cleanup drops all shader identities/device references while
+retaining the pin and already-recorded frame evidence. An actual device Reset
+or attachment-context change additionally calls `InvalidateFrame()` to discard
+current/completed frame evidence. Shutdown clears everything after all
+transactions are restored.
 
 A retained pin alone proves no capture used it. State includes local frame,
 last application/restoration frames and completed-frame counters; the integrating
@@ -176,12 +215,73 @@ be isolated this way, but reflected/refracted scene texture animation remains
 possible. A residual original/original image comparison is still required.
 Diagnostic constant-setting costs also must not be reported as production cost.
 
+The qualifier binds this diagnostic to `comparison_uv_requested=true` in the
+frozen source checkpoint, a successful OBSERVE initialization with catalog hash,
+and `comparison-configured.private.json` from the exact diagnostic export and
+initialized DLL. The raw capture record must explicitly say `diagnostic_only`,
+match the capture frame and its last application/restoration frames, record
+positive equal completed application/restoration counts, retain a finite float4
+pin from a valid earlier/current frame and a positive epoch, and show requested,
+active, pinned and fault-free state. It reports
+`draw_local_ps80_isolation_recorded` separately from shader observation and
+filtered-presentation evidence. Matching the same pin across separate captures
+still requires the material comparison utility and a residual control/control
+image comparison; it never qualifies visual quality automatically.
+
 The standalone x86 build compiles production code and a synthetic COM fixture
-under `/W4 /WX /fp:strict`. Its 676 CPU checks cover matching/context refusals,
+under `/W4 /WX /fp:strict`. Its 1,232 CPU checks cover matching/context refusals,
 finite inputs, successful and failed draws, partial/silent/throwing setters,
 bitwise restoration and retry, bounded identity references, foreign-thread
-cleanup, no-geometry frame counters, LastError and FPU/SSE controls. No game or
-GPU is started; runtime integration and visual isolation remain unverified.
+cleanup, no-geometry frame counters, LastError and FPU/SSE controls. This
+standalone build starts no game or GPU; its CPU checks alone establish neither
+runtime integration nor visual isolation. Actual observations follow below.
+
+The first actual 24 comparison attempt did not commit a pin and supplies no
+water-isolation proof. Independent read-only samples confirmed the original
+River programs, eligible 4K context and finite changing PS80 values. Review found
+that caching negative shader identities could fill the 128-entry cache before a
+later River program appeared. The corrected component retains only positive
+identities, still hashes/matches valid programs when that positive cache is full,
+and chooses its device/thread only after an eligible River input. CPU regressions
+cover 129 wrong pairs at the actual 2592/3740 byte sizes before a valid pair,
+positive-cache saturation, and an unrelated first draw on another thread. These
+checks establish the source correction; actual pinning was subsequently observed
+in the R25 run described below.
+
+The subsequent actual Ubisoft History R25 case recorded three 4K/off-on-off
+captures with material masks 0/7/0 and drawn revisions 1/2/3. Their original River
+view-projection, eye, raw sun direction and sun specular vectors matched exactly.
+All three retained the same diagnostic PS80 float4, epoch and initial pin frame,
+with 120 applications and 120 bitwise restorations in each captured frame. The
+recorded cumulative failed-original-draw counters were zero. These are positive
+render-time diagnostic and filtered-buffer observations; application/restoration
+counters generally include transactions whose original draw later fails and
+must not be renamed successful original-draw counts.
+
+R25 still exited with access violation `0xc0000005`. Whole-case consistency and
+release qualification remain rejected despite all five binary pins, shared
+profiles and private configuration verifying restoration, a 1,914-MiB process-private
+peak and no recorded pressure/monitor failure. The exact source-verified owned
+rotating autosave change retained its before-image; manual originals were
+unchanged and no save was restored. A separate Windows GPU Process Memory
+snapshot recorded approximately 1,974.69 MiB dedicated, 394.54 MiB shared and
+2,183.22 MiB committed. Those are separate overlapping counter views, not values
+to add together or to process-private memory; one snapshot is not a peak or FPS
+measurement. Exit reliability and final visual/control-residual review remain
+open independently of the successful UV isolation.
+
+Steam History R27 likewise retained three filtered 4K/off-on-off captures with
+exactly matching River view-projection, eye and raw sunlight vectors, one stable
+PS80 pin/epoch and 120 applications/restorations per captured frame. All original
+private saves remained unchanged; two added saves were retained. The verified
+slot-31 policy therefore required no changed-original exception in this case.
+R27 still ended with `0xc0000005` through the original exit path, without a forced
+stop. Whole-case consistency remains rejected. Shared profiles, binaries and
+configuration verified restoration; process-private peak was 1,982 MiB with no
+recorded pressure or monitor failure. Its separate GPU-memory point snapshot
+was 1,974.69 MiB dedicated, 410.54 MiB shared and 2,199.22 MiB committed, again
+independent overlapping views rather than quantities to sum or a peak. The
+positive graphics observations do not establish a reliable exit or a release.
 
 `tools/graphics_lab/camera_read.py` is a separate, bounded read-only process
 reader for an existing owned case. Ubisoft and Gold mappings follow the actual

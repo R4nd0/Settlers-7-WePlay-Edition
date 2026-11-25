@@ -346,6 +346,20 @@ stager and native program pins do not accept this candidate, and no actual GPU
 or visual qualification has been claimed. A view whose dot already clamps to
 zero will remain unchanged with either exponent.
 
+`compare.py` can compare an off/on/off sequence with `--repeat-control` and
+`--repeat-control-meta`. Each image needs its original native capture receipt.
+The diagnostic River PS80 pin must have positive, balanced completed-frame
+application/restoration counters in that exact capture frame; a retained global
+pin alone is insufficient. All four float32 components, pin epoch and commit
+frame must match across the sequence. The helper also checks image hashes,
+original camera/light vectors, actual material masks/revisions and fault fields.
+It reports the effect difference separately from control/control residual
+motion. That residual remains required because frozen shader UV scrolling does
+not freeze reflected or refracted scene textures. Source checkpoint, OBSERVE
+admission and DLL identity checks belong to the separate runtime qualifier;
+this pixel helper does not claim to supply them. No difference metric or valid
+receipt sequence automatically qualifies visual quality.
+
 ## Verification
 
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_inventory -v` from the
@@ -353,7 +367,7 @@ repository root (17 checks at this milestone).
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_shaderlib -v` for
 eight additional parser, exact-identity and unchanged-program checks.
 Run `rtk proxy python -B -m unittest discover -s tools/material_shaders -p 'test_*.py'`
-for all 73 inventory, format, CTAB, catalog/capture, output-extension,
+for all 76 inventory, format, CTAB, catalog/capture, output-extension,
 recipient staging, comparison and candidate checks. `native/material_shader_observer_build.ps1` builds and
 runs an x86 synthetic COM fixture without creating a D3D9 device or GPU work;
 it covers reference cleanup, aliases, successful-draw-only observations,

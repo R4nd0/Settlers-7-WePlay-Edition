@@ -18,6 +18,7 @@ struct Api {
 struct Result {
     HRESULT original_result=D3DERR_DEVICELOST;
     bool original_called=false,observer_called=false,unsafe=false,exception=false;
+    bool material_unsafe=false,comparison_unsafe=false;
     DWORD role=0;
     HRESULT CallerResult() const {return unsafe?D3DERR_DEVICELOST:original_result;}
 };
@@ -28,7 +29,7 @@ Result Execute(IDirect3DDevice9* device,bool enable_effects,Draw&& draw,Observe&
     MaterialShaderEffects::DrawTransaction transaction{};
     const auto restore=[&]() {
         if(transaction.unsafe_state && (!EffectApi::Retry(&transaction) || transaction.unsafe_state)) {
-            result.unsafe=true;return false;
+            result.unsafe=true;result.material_unsafe=true;return false;
         }
         return true;
     };

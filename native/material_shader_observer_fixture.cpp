@@ -1,5 +1,6 @@
 // Synthetic COM lifecycle fixture. Creates no D3D9 device, window or GPU work.
 #include "material_shader_observer.h"
+#include <atomic>
 #include <bcrypt.h>
 #include <cstdio>
 #include <cstring>
@@ -11,7 +12,8 @@
 
 namespace {
 using namespace MaterialShaderObserver;
-void Check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
+std::atomic<unsigned> checks{0};
+void Check(bool value,const char* message){++checks;if(!value)throw std::runtime_error(message);}
 std::array<unsigned char,32> Hash(const void* data,size_t bytes) {
     BCRYPT_ALG_HANDLE algorithm=nullptr;BCRYPT_HASH_HANDLE hash=nullptr;std::array<unsigned char,32> result{};
     Check(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)>=0,"fixture hash provider");
@@ -50,7 +52,8 @@ struct FakeSurface {void** table=nullptr;ULONG refs=1;};
 ULONG STDMETHODCALLTYPE SurfaceAddRef(FakeSurface* surface){return ++surface->refs;}
 ULONG STDMETHODCALLTYPE SurfaceRelease(FakeSurface* surface){Check(surface->refs>1,"surface reference underflow");return --surface->refs;}
 HRESULT STDMETHODCALLTYPE SurfaceDesc(FakeSurface*,D3DSURFACE_DESC* output){*output={};output->Width=1920;output->Height=1080;output->Format=D3DFMT_A8R8G8B8;return S_OK;}
-struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;FakeSurface* surface=nullptr;unsigned uniform_reads=0;bool unused_nan=false;};
+struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;FakeSurface* surface=nullptr;unsigned uniform_reads=0;bool unused_nan=false;
+    std::uint32_t fail_render_states=0;std::uint64_t render_state_queries=0;bool blob_state=false;};
 HRESULT STDMETHODCALLTYPE Vertex(FakeDevice* device,IDirect3DVertexShader9** output) {
     if(!output)return D3DERR_INVALIDCALL;
     *output=reinterpret_cast<IDirect3DVertexShader9*>(device->vertex);
@@ -76,7 +79,31 @@ HRESULT STDMETHODCALLTYPE Texture(FakeDevice* device,DWORD index,IDirect3DBaseTe
 }
 HRESULT STDMETHODCALLTYPE Target(FakeDevice* device,DWORD,IDirect3DSurface9** output){*output=reinterpret_cast<IDirect3DSurface9*>(device->surface);if(device->surface)SurfaceAddRef(device->surface);return device->surface?S_OK:E_FAIL;}
 HRESULT STDMETHODCALLTYPE Viewport(FakeDevice*,D3DVIEWPORT9* output){*output={0,0,1920,1080,0,1};return S_OK;}
-HRESULT STDMETHODCALLTYPE RenderState(FakeDevice*,D3DRENDERSTATETYPE,DWORD* output){*output=0;return S_OK;}
+HRESULT STDMETHODCALLTYPE RenderState(FakeDevice* device,D3DRENDERSTATETYPE field,DWORD* output){
+    using namespace MaterialShaderObserver;++device->render_state_queries;*output=0;
+    switch(field){
+    case D3DRS_ALPHABLENDENABLE:case D3DRS_ALPHATESTENABLE:*output=device->blob_state?1u:0u;break;
+    case D3DRS_SRCBLEND:case D3DRS_DESTBLENDALPHA:*output=D3DBLEND_ZERO;break;
+    case D3DRS_DESTBLEND:*output=D3DBLEND_INVSRCCOLOR;break;
+    case D3DRS_SRCBLENDALPHA:*output=D3DBLEND_ONE;break;
+    case D3DRS_BLENDOP:case D3DRS_BLENDOPALPHA:*output=D3DBLENDOP_ADD;break;
+    case D3DRS_ZENABLE:*output=D3DZB_TRUE;break;
+    case D3DRS_ZFUNC:*output=D3DCMP_EQUAL;break;
+    case D3DRS_ALPHAFUNC:*output=D3DCMP_GREATER;break;
+    case D3DRS_ALPHAREF:*output=100;break;
+    case D3DRS_COLORWRITEENABLE:*output=15;break;
+    case D3DRS_STENCILMASK:case D3DRS_STENCILWRITEMASK:*output=0xffffffffu;break;
+    case D3DRS_STENCILFUNC:case D3DRS_CCW_STENCILFUNC:*output=D3DCMP_ALWAYS;break;
+    case D3DRS_STENCILFAIL:case D3DRS_STENCILZFAIL:case D3DRS_STENCILPASS:
+    case D3DRS_CCW_STENCILFAIL:case D3DRS_CCW_STENCILZFAIL:case D3DRS_CCW_STENCILPASS:*output=D3DSTENCILOP_KEEP;break;
+    case D3DRS_CULLMODE:*output=D3DCULL_NONE;break;
+    default:break;
+    }
+    for(size_t i=0;i<CapturedRenderStateCount;++i)if(CapturedRenderStateTypes[i]==field&&(device->fail_render_states&(1u<<i))){
+        *output=0xdeadbeefu;return D3DERR_INVALIDCALL; // Poisoned failed output must never become a valid zero/default.
+    }
+    return S_OK;
+}
 void Write(const std::wstring& path,const void* data,size_t bytes) {
     HANDLE file=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
     Check(file!=INVALID_HANDLE_VALUE,"new fixture output");DWORD count=0;
@@ -84,6 +111,15 @@ void Write(const std::wstring& path,const void* data,size_t bytes) {
     CloseHandle(file);Check(valid,"fixture write");
 }
 Stats Snapshot(){Stats value{};Check(ReadStats(&value),"stats read");return value;}
+std::string ReadText(const std::wstring& path){
+    HANDLE file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    Check(file!=INVALID_HANDLE_VALUE,"read fixture report");LARGE_INTEGER size{};
+    const bool sized=GetFileSizeEx(file,&size)&&size.QuadPart>=0&&size.QuadPart<=1024*1024;
+    if(!sized){CloseHandle(file);Check(false,"bounded report size");}
+    std::string text(static_cast<size_t>(size.QuadPart),'\0');DWORD got=0;
+    const bool valid=ReadFile(file,text.data(),static_cast<DWORD>(text.size()),&got,nullptr)&&got==text.size();
+    CloseHandle(file);Check(valid,"read complete report");return text;
+}
 }
 
 int wmain(int argc,wchar_t** argv) {
@@ -102,6 +138,8 @@ int wmain(int argc,wchar_t** argv) {
         std::array<void*,22> texture_table{};texture_table[1]=reinterpret_cast<void*>(&TextureAddRef);texture_table[2]=reinterpret_cast<void*>(&TextureRelease);
         texture_table[10]=reinterpret_cast<void*>(&TextureType);texture_table[13]=reinterpret_cast<void*>(&TextureLevels);texture_table[17]=reinterpret_cast<void*>(&TextureDesc);
         FakeTexture texture{texture_table.data(),1};
+        std::array<void*,17> surface_table{};surface_table[1]=reinterpret_cast<void*>(&SurfaceAddRef);surface_table[2]=reinterpret_cast<void*>(&SurfaceRelease);surface_table[12]=reinterpret_cast<void*>(&SurfaceDesc);
+        FakeSurface surface{surface_table.data(),1};
         FakeDevice owner{device_table.data(),&vertex,&pixel,&texture,false};
         auto* device=reinterpret_cast<IDirect3DDevice9*>(&owner);
         std::array<unsigned char,16+3*sizeof(CatalogEntry)> catalog{};
@@ -119,6 +157,7 @@ int wmain(int argc,wchar_t** argv) {
         SetLastError(0x37570001);
         Check(Initialize(path.c_str(),catalog_hash.data(),report.c_str()),"catalog initialization");
         Check(GetLastError()==0x37570001,"initialization preserves LastError");
+        Stats wrong_size{};wrong_size.size-=128;Check(!ReadStats(&wrong_size),"old or mismatched output-Stats size is refused before copying");
         CaptureConfig capture{};capture.target_count=1;capture.frame_stride=1;
         auto& target=capture.targets[0];target.vertex_id=1;target.pixel_id=2;target.sample_limit=2;
         target.constant_count=2;target.sampler_mask=1u<<3;target.constants[0]={1,68,15};target.constants[1]={2,100,7};
@@ -130,6 +169,9 @@ int wmain(int argc,wchar_t** argv) {
         Check(GetLastError()==0x37570002,"draw observation preserves LastError");
         Check(_mm_getcsr()==observed_mxcsr,"observer preserves caller MXCSR");_mm_setcsr(original_mxcsr);
         auto first=Snapshot();Check(first.shader_reads==2 && first.cached_refs==2 && vertex.refs==2 && pixel.refs==2,"cache owns exact shader references");
+        Check(sizeof(CaptureConfig)==952&&first.captures[0].render_states.available==AllCapturedRenderStates,"input ABI remains952 and successful state availability is complete");
+        Check(first.captures[0].render_states.values[static_cast<size_t>(CapturedRenderState::SourceBlend)]==D3DBLEND_ZERO
+            &&first.captures[0].render_states.values[static_cast<size_t>(CapturedRenderState::DepthWriteEnable)]==0,"successful zero state is observed, not missing");
         Check(first.records[0].draws==1 && first.records[1].draws==1 && first.records[2].draws==1,"all identity aliases counted");
         Check(first.pair_count==1 && first.pairs[0].pixel_aliases==2,"pair ambiguity retained");
         Check(first.capture_sample_count==1 && first.captures[0].constants[0].valid
@@ -138,7 +180,9 @@ int wmain(int argc,wchar_t** argv) {
         Check(first.captures[0].samplers[0].valid && first.captures[0].samplers[0].width==512
             && first.captures[0].samplers[0].height==256 && texture.refs==1,"sampler description only and balanced refs");
         Check(first.captures[0].viewport_width==1920 && first.captures[0].context_valid==6,"draw context validity distinguishes missing target");
+        const auto first_state_queries=owner.render_state_queries;
         ObserveDraw(device,Indexed,S_OK);Check(Snapshot().shader_reads==2 && Snapshot().cache_hits==2,"immutable shader cache hit");
+        Check(owner.render_state_queries==first_state_queries,"no new render-state queries outside selected-target stride eligibility");
         Check(Snapshot().capture_sample_count==1,"capture frame stride is bounded");
         EndFrame(device);Check(vertex.refs==1 && pixel.refs==1 && !Snapshot().cached_refs,"frame releases cache");
         pixel.code=Program(0xffff0300,1);ObserveDraw(device,Draw,S_OK);
@@ -169,6 +213,33 @@ int wmain(int argc,wchar_t** argv) {
         Check(ConfigureCapture(&capture),"reset capture series");owner.nonfinite=true;ObserveDraw(device,Draw,S_OK);
         Check(Snapshot().capture_sample_count==1 && !Snapshot().captures[0].constants[0].valid
             && Snapshot().capture_failures>0,"nonfinite constants are never exported as numbers");owner.nonfinite=false;Reset(device);
+        // Partial failures remain individually unavailable even when a driver
+        // writes a nonzero poison output on failure. Later fields are still read.
+        owner.surface=&surface;owner.blob_state=true;
+        Check(ConfigureCapture(&capture),"fresh partial render-state series");
+        owner.fail_render_states=RenderStateBit(CapturedRenderState::SourceBlend)|RenderStateBit(CapturedRenderState::StencilReference);
+        const auto queries_before_partial=owner.render_state_queries;SetLastError(0x37570031);ObserveDraw(device,Draw,S_OK);
+        Check(GetLastError()==0x37570031,"extended state capture preserves LastError");
+        const auto partial=Snapshot().captures[0];
+        Check(owner.render_state_queries==queries_before_partial+CapturedRenderStateCount,"all bounded states queried independently after partial failure");
+        Check(partial.context_valid==7&&partial.render_states.available==(AllCapturedRenderStates&~owner.fail_render_states),"legacy context remains separate from missing extended states");
+        Check(partial.render_states.values[static_cast<size_t>(CapturedRenderState::SourceBlend)]==0
+            &&partial.render_states.values[static_cast<size_t>(CapturedRenderState::StencilReference)]==0,"failed poisoned outputs are not stored as measurements");
+        Check(Snapshot().render_state_query_failures==2&&Snapshot().render_state_partial_samples==1,"explicit query and partial-sample failure counters");
+        Flush();auto partial_json=ReadText(report);
+        Check(partial_json.find("\"source_blend\":null")!=std::string::npos
+            &&partial_json.find("\"stencil_reference\":null")!=std::string::npos
+            &&partial_json.find("\"depth_write_enable\":0")!=std::string::npos,"JSON distinguishes unavailable null from successful zero");
+        Check(partial_json.find("\"capture_frame_basis\":\"completed_presents_before_draw\"")!=std::string::npos,"selected sample frame convention is explicit, never implicitly GPU-frame proof");
+        Check(ConfigureCapture(&capture),"legacy alpha-state failure series");owner.fail_render_states=RenderStateBit(CapturedRenderState::AlphaTestEnable);ObserveDraw(device,Draw,S_OK);
+        Check(Snapshot().captures[0].context_valid==3
+            &&!(Snapshot().captures[0].render_states.available&RenderStateBit(CapturedRenderState::AlphaTestEnable)),"failed legacy alpha state never gets context-ready bit");
+        EndFrame(device);owner.fail_render_states=0;ObserveDraw(device,Draw,S_OK);
+        Check(Snapshot().captures[1].render_states.available==AllCapturedRenderStates
+            &&Snapshot().captures[1].render_states.values[static_cast<size_t>(CapturedRenderState::AlphaTestEnable)]==1,"later success recovers without stale unavailable fields");
+        const auto exhausted_queries=owner.render_state_queries;ObserveDraw(device,Draw,S_OK);EndFrame(device);ObserveDraw(device,Draw,S_OK);
+        Check(owner.render_state_queries==exhausted_queries,"exhausted selected-target budget adds no hot per-draw state overhead");
+        owner.blob_state=false;Reset(device);
         owner.vertex=nullptr;
         std::vector<FakeShader> many;many.reserve(300);
         for(unsigned index=0;index<300;++index)many.push_back(FakeShader{shader_table.data(),1,0,false,Program(0xffff0300,0)});
@@ -178,8 +249,7 @@ int wmain(int argc,wchar_t** argv) {
         // Frame-coupled raw uniforms use authored fixture identities only. The
         // production observer's River hashes remain fixed when this macro is off.
         owner.vertex=&vertex;owner.pixel=&pixel;
-        std::array<void*,17> surface_table{};surface_table[1]=reinterpret_cast<void*>(&SurfaceAddRef);surface_table[2]=reinterpret_cast<void*>(&SurfaceRelease);surface_table[12]=reinterpret_cast<void*>(&SurfaceDesc);
-        FakeSurface surface{surface_table.data(),1};owner.surface=&surface;
+        owner.surface=&surface;
         const auto vertex_hash=Hash(vertex.code.data(),vertex.code.size()),pixel_hash=Hash(pixel.code.data(),pixel.code.size());
         Check(FixtureFrameIdentity(vertex_hash.data(),static_cast<UINT>(vertex.code.size()),pixel_hash.data(),static_cast<UINT>(pixel.code.size())),"fixture-only frame identities");
         Check(ConfigureFrameSnapshot(1920,1080),"configure trusted frame target");owner.unused_nan=true;
@@ -200,6 +270,8 @@ int wmain(int argc,wchar_t** argv) {
         SetLastError(0x37570004);Flush();Check(GetLastError()==0x37570004,"report flush preserves LastError");
         Shutdown();Check(!Snapshot().enabled,"shutdown disables observer");
         Check(vertex.refs==1 && pixel.refs==1,"all original references balanced");
-        std::puts("material observer synthetic lifecycle checks passed; no GPU or game started");return 0;
+        std::printf("{\"format\":\"s7-observer-render-state-cpu-v1\",\"checks\":%u,\"passed\":true,\"capture_config_bytes\":%u,\"capture_sample_bytes\":%u,\"stats_bytes\":%u,\"render_state_fields\":%u,\"game_started\":false,\"gpu_started\":false}\n",
+            checks.load(),static_cast<unsigned>(sizeof(CaptureConfig)),static_cast<unsigned>(sizeof(CaptureSample)),
+            static_cast<unsigned>(sizeof(Stats)),static_cast<unsigned>(CapturedRenderStateCount));return 0;
     } catch(const std::exception& error) {std::fprintf(stderr,"material observer fixture failed: %s\n",error.what());return 1;}
 }

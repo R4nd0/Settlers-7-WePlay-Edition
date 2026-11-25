@@ -137,8 +137,10 @@ void Report() {
         std::snprintf(buffer,sizeof(buffer),"{\"vertex_id\":%u,\"pixel_id\":%u,\"vertex_aliases\":%u,\"pixel_aliases\":%u,\"draws\":%llu}",
                       row.vertex_id,row.pixel_id,row.vertex_aliases,row.pixel_aliases,static_cast<unsigned long long>(row.draws));json+=buffer;
     }
-    std::snprintf(buffer,sizeof(buffer),"],\"capture_target_count\":%u,\"capture_failures\":%llu,\"captures\":[",
-                  s.capture_target_count,static_cast<unsigned long long>(s.capture_failures));json+=buffer;
+    std::snprintf(buffer,sizeof(buffer),"],\"capture_target_count\":%u,\"capture_failures\":%llu,\"capture_frame_basis\":\"completed_presents_before_draw\",\"render_state_schema\":1,\"render_state_query_failures\":%llu,\"render_state_partial_samples\":%llu,\"captures\":[",
+                  s.capture_target_count,static_cast<unsigned long long>(s.capture_failures),
+                  static_cast<unsigned long long>(s.render_state_query_failures),
+                  static_cast<unsigned long long>(s.render_state_partial_samples));json+=buffer;
     for(size_t index=0;index<s.capture_sample_count;++index) {
         const auto& row=s.captures[index];if(index)json+=',';
         std::snprintf(buffer,sizeof(buffer),"{\"frame\":%llu,\"successful_draw\":%llu,\"target\":%u,\"requested_vertex_id\":%u,\"requested_pixel_id\":%u,\"vertex_aliases\":%u,\"pixel_aliases\":%u,\"constants\":[",
@@ -157,9 +159,15 @@ void Report() {
             std::snprintf(buffer,sizeof(buffer),"{\"index\":%u,\"valid\":%u,\"type\":%u,\"format\":%u,\"width\":%u,\"height\":%u,\"depth\":%u,\"levels\":%u}",
                           value.index,value.valid,value.type,value.format,value.width,value.height,value.depth,value.levels);json+=buffer;
         }
-        std::snprintf(buffer,sizeof(buffer),"],\"context_valid\":%u,\"target_width\":%u,\"target_height\":%u,\"target_format\":%u,\"viewport_width\":%u,\"viewport_height\":%u,\"alpha_blend\":%u,\"alpha_test\":%u,\"srgb_write\":%u}",
+        std::snprintf(buffer,sizeof(buffer),"],\"context_valid\":%u,\"target_width\":%u,\"target_height\":%u,\"target_format\":%u,\"viewport_width\":%u,\"viewport_height\":%u,\"alpha_blend\":%u,\"alpha_test\":%u,\"srgb_write\":%u,\"viewport_x\":%u,\"viewport_y\":%u,\"render_state_available\":%u,\"render_states\":{",
                       row.context_valid,row.target_width,row.target_height,row.target_format,row.viewport_width,row.viewport_height,
-                      row.alpha_blend,row.alpha_test,row.srgb_write);json+=buffer;
+                      row.alpha_blend,row.alpha_test,row.srgb_write,row.viewport_x,row.viewport_y,row.render_states.available);json+=buffer;
+        for(size_t field=0;field<CapturedRenderStateCount;++field) {
+            if(field)json+=',';json+='\"';json+=CapturedRenderStateNames[field];json+="\":";
+            if(row.render_states.available&(1u<<field))json+=std::to_string(row.render_states.values[field]);
+            else json+="null";
+        }
+        json+="}}";
     }
     json+="]}\n";
     const std::wstring temporary=current.report_path+L".tmp";
@@ -310,12 +318,25 @@ void Capture(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
         }
         if(render_target)render_target->Release();
         D3DVIEWPORT9 viewport{};
-        if(SUCCEEDED(device->GetViewport(&viewport))){sample.viewport_width=viewport.Width;sample.viewport_height=viewport.Height;sample.context_valid|=2;}
-        DWORD blend=0,alpha=0,srgb=0;
-        if(SUCCEEDED(device->GetRenderState(D3DRS_ALPHABLENDENABLE,&blend))
-            && SUCCEEDED(device->GetRenderState(D3DRS_ALPHATESTENABLE,&alpha))
-            && SUCCEEDED(device->GetRenderState(D3DRS_SRGBWRITEENABLE,&srgb))) {
-            sample.alpha_blend=blend;sample.alpha_test=alpha;sample.srgb_write=srgb;sample.context_valid|=4;
+        if(SUCCEEDED(device->GetViewport(&viewport))){sample.viewport_x=viewport.X;sample.viewport_y=viewport.Y;
+            sample.viewport_width=viewport.Width;sample.viewport_height=viewport.Height;sample.context_valid|=2;}
+        // Only reached after exact target identity, stride and sample-budget
+        // checks. No additional render-state queries on ordinary hot draws.
+        for(size_t field=0;field<CapturedRenderStateCount;++field) {
+            DWORD value=0;
+            if(SUCCEEDED(device->GetRenderState(CapturedRenderStateTypes[field],&value))) {
+                sample.render_states.values[field]=value;sample.render_states.available|=1u<<field;
+            } else ++current.stats.render_state_query_failures;
+        }
+        if(sample.render_states.available!=AllCapturedRenderStates) {
+            ++current.stats.render_state_partial_samples;++current.stats.capture_failures;
+        }
+        const auto get=[&](CapturedRenderState field){return sample.render_states.values[static_cast<size_t>(field)];};
+        constexpr std::uint32_t legacy=RenderStateBit(CapturedRenderState::AlphaBlendEnable)
+            |RenderStateBit(CapturedRenderState::AlphaTestEnable)|RenderStateBit(CapturedRenderState::SrgbWriteEnable);
+        if((sample.render_states.available&legacy)==legacy) {
+            sample.alpha_blend=get(CapturedRenderState::AlphaBlendEnable);sample.alpha_test=get(CapturedRenderState::AlphaTestEnable);
+            sample.srgb_write=get(CapturedRenderState::SrgbWriteEnable);sample.context_valid|=4;
         }
         if(sample.context_valid!=7)++current.stats.capture_failures;
         for(size_t constant=0;constant<target.constant_count;++constant) {
@@ -435,6 +456,7 @@ bool ConfigureCapture(const CaptureConfig* config) noexcept {
         }
         current.capture=*config;current.captured.fill(0);current.last_capture.fill(0);
         current.stats.capture_target_count=config->target_count;current.stats.capture_sample_count=0;current.stats.capture_failures=0;
+        current.stats.render_state_query_failures=0;current.stats.render_state_partial_samples=0;
         current.stats.captures.fill(CaptureSample{});return true;
     }catch(...){Exception();return false;}
 }

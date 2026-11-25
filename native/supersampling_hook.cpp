@@ -6,6 +6,9 @@
 #include "supersampling_hook_capture.h"
 #include "supersampling_hook_effects_contract.h"
 #include "supersampling_hook_effects_draw.h"
+#include "supersampling_hook_comparison_draw.h"
+#include "native_effects_wire.h"
+#include "material_shader_effects_contract_v2.h"
 #include "atmosphere_fp.h"
 #include <bcrypt.h>
 #include <array>
@@ -69,8 +72,14 @@ constexpr DWORD CompiledCapabilities=NativeGraphicsConfig::Observe|NativeGraphic
     |NativeGraphicsConfig::Terrain|NativeGraphicsConfig::Vegetation;
 DWORD capture_pending=0,capture_last_sequence=0;
 MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
+MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
+DWORD effects_pending_version=1,effects_loaded_version=0;
 bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
 DWORD effects_loaded_flags=0;
+MaterialComparison::Config comparison_pending_config{};
+MaterialComparison::State comparison_last_state{};
+bool comparison_initialized=false,comparison_waiting=false;
+bool comparison_state_valid=false;
 SupersamplingStats stats{sizeof(SupersamplingStats),1};
 SRWLOCK state_lock=SRWLOCK_INIT;
 State* state=nullptr;
@@ -166,7 +175,7 @@ bool PinIdentity(HMODULE module,const char* expected) {
 void Report() {
     DiagnosticScope diagnostic;
     if(!configuration.report_path[0])return;
-    char text[4096]{};
+    char text[8192]{};
     const int count=std::snprintf(text,sizeof(text),
         "{\"format\":\"s7-supersampling-hook-v1\",\"lab_only\":true,\"draw_counter_semantics\":\"successful_nonzero\",\"attached\":%lu,"
         "\"present_calls\":%lu,\"output_present_calls\":%lu,\"fallback_calls\":%lu,"
@@ -182,13 +191,20 @@ void Report() {
         "\"edition\":%lu,\"cached_release_calls\":%lu,\"output_cache_drops\":%lu,\"window_shutdowns\":%lu,\"terminal_cleanup\":%lu,"
         "\"capture_requests\":%lu,\"capture_completed\":%lu,\"capture_failures\":%lu,\"capture_frame\":%lu,"
         "\"effects_requested\":%lu,\"effects_configured\":%lu,\"effects_active\":%lu,\"effects_pending\":%lu,"
-        "\"effects_revision\":%lu,\"effects_config_errors\":%lu,\"effects_unsafe\":%lu,\"effects_blocked_draws\":%lu,"
+        "\"effects_config_version\":%lu,\"effects_revision\":%lu,\"effects_config_errors\":%lu,\"effects_unsafe\":%lu,\"effects_blocked_draws\":%lu,"
         "\"effects_drawn_revision\":%lu,\"effects_drawn_active\":%lu,\"effects_frame_has_geometry\":%lu,"
         "\"effects_module_faulted\":%lu,\"effects_module_shader_failures\":%lu,\"effects_module_set_failures\":%lu,"
         "\"effects_module_restore_failures\":%lu,\"effects_module_exceptions\":%lu,"
         "\"effects_faulted\":%lu,\"effects_disabled_reason\":%lu,\"effects_fallback_draws\":%lu,"
         "\"engine_deinit_calls\":%lu,\"engine_deinit_rejected\":%lu,\"engine_deinit_cleanup\":%lu,"
-        "\"engine_deinit_returned\":%lu,\"shutdown_stage\":%lu}\n",
+        "\"engine_deinit_returned\":%lu,\"shutdown_stage\":%lu,\"comparison_requested\":%lu,"
+        "\"comparison_active\":%lu,\"comparison_pinned\":%lu,\"comparison_pending\":%lu,"
+        "\"comparison_faulted\":%lu,\"comparison_unsafe\":%lu,\"comparison_epoch\":%lu,\"render_unsafe\":%lu,\"comparison_config_errors\":%lu,"
+        "\"comparison_state_valid\":%s,\"comparison_frames\":%llu,\"comparison_draws\":%llu,\"comparison_matched\":%llu,"
+        "\"comparison_context_rejections\":%llu,\"comparison_input_rejections\":%llu,\"comparison_query_failures\":%llu,"
+        "\"comparison_cache_overflows\":%llu,\"comparison_cached_refs\":%lu,\"comparison_applications\":%llu,"
+        "\"comparison_restorations\":%llu,\"comparison_failed_draws\":%llu,\"comparison_set_failures\":%llu,"
+        "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -203,12 +219,19 @@ void Report() {
         stats.edition,stats.cached_release_calls,stats.output_cache_drops,stats.window_shutdowns,stats.terminal_cleanup,
         stats.capture_requests,stats.capture_completed,stats.capture_failures,stats.capture_frame,
         stats.effects_requested,stats.effects_configured,stats.effects_active,stats.effects_pending,
-        stats.effects_revision,stats.effects_config_errors,stats.effects_unsafe,stats.effects_blocked_draws,
+        stats.effects_config_version,stats.effects_revision,stats.effects_config_errors,stats.effects_unsafe,stats.effects_blocked_draws,
         stats.effects_drawn_revision,stats.effects_drawn_active,stats.effects_frame_has_geometry,
         stats.effects_module_faulted,stats.effects_module_shader_failures,stats.effects_module_set_failures,
         stats.effects_module_restore_failures,stats.effects_module_exceptions,
         stats.effects_faulted,stats.effects_disabled_reason,stats.effects_fallback_draws,
-        stats.engine_deinit_calls,stats.engine_deinit_rejected,stats.engine_deinit_cleanup,stats.engine_deinit_returned,stats.shutdown_stage);
+        stats.engine_deinit_calls,stats.engine_deinit_rejected,stats.engine_deinit_cleanup,stats.engine_deinit_returned,stats.shutdown_stage,
+        stats.comparison_requested,stats.comparison_active,stats.comparison_pinned,stats.comparison_pending,
+        stats.comparison_faulted,stats.comparison_unsafe,stats.comparison_epoch,stats.render_unsafe,stats.comparison_config_errors,
+        comparison_state_valid?"true":"false",comparison_last_state.frames,comparison_last_state.draws,comparison_last_state.matched,
+        comparison_last_state.context_rejections,comparison_last_state.input_rejections,comparison_last_state.query_failures,
+        comparison_last_state.cache_overflows,comparison_last_state.cached_refs,comparison_last_state.applications,
+        comparison_last_state.restorations,comparison_last_state.failed_draws,comparison_last_state.set_failures,
+        comparison_last_state.restore_failures,comparison_last_state.exceptions);
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -227,14 +250,53 @@ bool SameEffectsIdentity(MaterialShaderEffects::Config first,MaterialShaderEffec
 }
 
 void ApplyPendingEffects() {
-    if(!effects_waiting || (effects_faulted && effects_pending_config.flags) || stats.effects_unsafe)return;
+    if(effects_pending_version==2) {
+        if(!effects_waiting || (effects_faulted && effects_pending_v2.flags) || stats.render_unsafe)return;
+        DiagnosticScope diagnostic;
+        const auto next=effects_pending_v2;
+        bool valid=false;
+        if(effects_faulted && !next.flags) {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;valid=true;
+        } else if(effects_initialized && effects_loaded_version==2
+            && NativeEffectsContractV2::SamePinnedConfig(next,effects_loaded_v2)
+            && !(next.flags&~effects_loaded_flags)) {
+            valid=MaterialShaderEffects::SetEnabled(next.flags);
+        } else {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;
+            MaterialShaderConfigV2::Config initial{};
+            auto error=NativeEffectsContractV2::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV2::Layout::PrivateCase,initial);
+            if(error!=NativeEffectsContractV2::Error::None)error=NativeEffectsContractV2::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV2::Layout::RecipientLocalData,initial);
+            valid=error==NativeEffectsContractV2::Error::None && MaterialShaderEffects::InitializeV2(&initial);
+            if(valid) {
+                effects_initialized=true;effects_loaded_v2=initial;effects_loaded_flags=initial.flags;effects_loaded_version=2;
+                MaterialShaderEffects::SetDiagnostics((native_configuration.flags&NativeGraphicsConfig::Observe)!=0);
+                valid=MaterialShaderEffects::SetEnabled(next.flags);
+            }
+        }
+        effects_waiting=false;stats.effects_pending=0;
+        if(valid) {
+            effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
+            stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=2;++stats.effects_revision;
+        } else {
+            effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
+            stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
+            if(capture_pending){capture_pending=0;++stats.capture_failures;}
+            stats.effects_frame_has_geometry=0;
+        }
+        Report();return;
+    }
+    if(!effects_waiting || (effects_faulted && effects_pending_config.flags) || stats.render_unsafe)return;
     DiagnosticScope diagnostic;
     const auto next=effects_pending_config;
     bool valid=false;
     if(effects_faulted && !next.flags) {
         if(effects_initialized)MaterialShaderEffects::Shutdown();
         effects_initialized=false;effects_loaded_flags=0;valid=true;
-    } else if(effects_initialized && SameEffectsIdentity(next,effects_loaded_config)
+    } else if(effects_initialized && effects_loaded_version==1 && SameEffectsIdentity(next,effects_loaded_config)
         && !(next.flags&~effects_loaded_flags)) {
         valid=MaterialShaderEffects::SetEnabled(next.flags);
     } else {
@@ -243,14 +305,14 @@ void ApplyPendingEffects() {
         if(!next.flags)valid=true;
         else {
             valid=MaterialShaderEffects::Initialize(&next);
-            if(valid){effects_initialized=true;effects_loaded_config=next;effects_loaded_flags=next.flags;
+            if(valid){effects_initialized=true;effects_loaded_config=next;effects_loaded_flags=next.flags;effects_loaded_version=1;
                 MaterialShaderEffects::SetDiagnostics((native_configuration.flags&NativeGraphicsConfig::Observe)!=0);}
         }
     }
     effects_waiting=false;stats.effects_pending=0;
     if(valid) {
         effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
-        stats.effects_configured=1;stats.effects_active=next.flags;++stats.effects_revision;
+        stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=1;++stats.effects_revision;
     } else {
         effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
         stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
@@ -261,7 +323,7 @@ void ApplyPendingEffects() {
 }
 
 bool EffectsDrawAllowed() {
-    return !stats.effects_unsafe && (!stats.effects_requested || effects_received);
+    return !stats.render_unsafe && (!stats.effects_requested || effects_received);
 }
 
 void CancelEffectsCapture() {
@@ -300,8 +362,41 @@ void LatchEffectsDraw() {
 
 bool CaptureEpochReady() {
     return !stats.effects_requested || ((stats.effects_configured || effects_faulted) && !effects_waiting
-        && !stats.effects_unsafe && stats.effects_frame_has_geometry
+        && !stats.render_unsafe && stats.effects_frame_has_geometry
         && stats.effects_drawn_revision==stats.effects_revision && stats.effects_drawn_active==stats.effects_active);
+}
+
+void ReadComparisonState() {
+    if(!comparison_initialized)return;
+    MaterialComparison::State current{};
+    comparison_state_valid=MaterialComparison::ReadState(&current);
+    if(!comparison_state_valid){stats.comparison_faulted=1;return;}
+    comparison_last_state=current;
+    stats.comparison_requested=current.requested;stats.comparison_active=current.active;
+    stats.comparison_pinned=current.pinned;stats.comparison_faulted=current.faulted;
+    stats.comparison_unsafe=current.unsafe_state;stats.comparison_epoch=static_cast<DWORD>(current.epoch);
+    if(current.unsafe_state){stats.render_unsafe=1;CancelEffectsCapture();}
+    else if(current.faulted && capture_pending)CancelEffectsCapture();
+}
+
+void ApplyPendingComparison() {
+    if(!comparison_initialized || !comparison_waiting || stats.render_unsafe)return;
+    DiagnosticScope diagnostic;
+    const bool valid=MaterialComparison::Configure(&comparison_pending_config);
+    comparison_waiting=false;stats.comparison_pending=0;
+    ReadComparisonState();
+    if(!valid){stats.comparison_faulted=1;++stats.comparison_config_errors;CancelEffectsCapture();}
+    Report();
+}
+
+bool CaptureComparisonReady() {
+    if(!comparison_initialized)return true;
+    MaterialComparison::State current{};
+    if(!MaterialComparison::ReadState(&current))return false;
+    if(!current.requested)return !comparison_waiting && !current.unsafe_state;
+    return !comparison_waiting && current.active && current.pinned && !current.faulted && !current.unsafe_state
+        && current.frames==stats.present_calls && current.completed_frame_applications>0
+        && current.completed_frame_applications==current.completed_frame_restorations;
 }
 
 bool OwnedWindow(HWND window) {
@@ -550,6 +645,7 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
     {
         Internal inside(current);
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
+        if(comparison_initialized)MaterialComparison::Reset(device);
         if(effects_initialized)MaterialShaderEffects::Reset(device);
         // Keep the output chain across ordinary temporary references. Its public
         // child reference deliberately retains the parent until Reset, fallback,
@@ -573,6 +669,7 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     OriginalCallScope original_state;
     Internal inside(state);
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
+    if(comparison_initialized){MaterialComparison::Reset(device);MaterialComparison::InvalidateFrame();}
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
     if(effects_initialized)MaterialShaderEffects::Reset(device);
     DropOutput(*state);
@@ -601,6 +698,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     OriginalCallScope original_state;
     Internal inside(state);auto& current=*state;
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::EndFrame(device);
+    if(comparison_initialized){MaterialComparison::EndFrame(device);ReadComparisonState();}
     if(effects_initialized)MaterialShaderEffects::EndFrame(device);
     CheckEffectsState();
     if(current.terminal_cleanup) {
@@ -610,13 +708,14 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         original_state.returned();return returned;
     }
     ++stats.present_calls;
-    if(effects_faulted && effects_waiting && !effects_pending_config.flags && !stats.effects_unsafe)ApplyPendingEffects();
+    const DWORD pending_flags=effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
+    if(effects_faulted && effects_waiting && !pending_flags && !stats.render_unsafe)ApplyPendingEffects();
     if(!EffectsDrawAllowed()) {
         stats.last_failure=221;Report();return D3DERR_DEVICELOST;
     }
     NativeGraphicsCapture::Result captured{};bool capture_attempted=false;
     if(configuration.render_width==configuration.output_width && configuration.render_height==configuration.output_height) {
-        if(capture_pending && CaptureEpochReady()) {
+        if(capture_pending && CaptureEpochReady() && CaptureComparisonReady()) {
             IDirect3DSurface9* backbuffer=nullptr;
             if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
                 D3DSURFACE_DESC description{};RECT physical{};
@@ -644,6 +743,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         stats.effects_frame_has_geometry=0;
         if(current.shutdown_requested)TerminalCleanup(current);
         else ApplyPendingEffects();
+        if(!current.shutdown_requested)ApplyPendingComparison();
         if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0))Report();
         return original;
     }
@@ -688,7 +788,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
                         stats.output_width=output.Width;stats.output_height=output.Height;
                         result=device->StretchRect(high,nullptr,low,nullptr,D3DTEXF_LINEAR);
                         if(FAILED(result))failure=11;
-                        else if(capture_pending && CaptureEpochReady() && !current.shutdown_requested) {
+                        else if(capture_pending && CaptureEpochReady() && CaptureComparisonReady() && !current.shutdown_requested) {
                             NativeGraphicsCapture::Read(device,high,low,configuration.report_path,capture_pending,stats,captured);
                             capture_pending=0;capture_attempted=true;
                         }
@@ -724,6 +824,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     stats.effects_frame_has_geometry=0;
     if(current.shutdown_requested)TerminalCleanup(current);
     else ApplyPendingEffects();
+    if(!current.shutdown_requested)ApplyPendingComparison();
     if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0) || failure)Report();
     return result;
 }
@@ -750,7 +851,8 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeEffectsDraw::Execute(device,effects_initialized && stats.effects_active && count,
+    const auto transaction=NativeComparisonDraw::Execute(device,comparison_initialized && stats.comparison_requested && count,
+        effects_initialized && stats.effects_active && count,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -759,7 +861,9 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
         [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count)
             MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Draw,result);});
     if(transaction.unsafe) {
-        stats.effects_unsafe=1;stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
+        stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
+        stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
+        stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
     if(SUCCEEDED(transaction.original_result) && count){CountDraw(false);LatchEffectsDraw();QueueWindowTransition(*state);}
@@ -773,7 +877,8 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeEffectsDraw::Execute(device,effects_initialized && stats.effects_active && count && vertices,
+    const auto transaction=NativeComparisonDraw::Execute(device,comparison_initialized && stats.comparison_requested && count && vertices,
+        effects_initialized && stats.effects_active && count && vertices,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -782,7 +887,9 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
         [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count && vertices)
             MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Indexed,result);});
     if(transaction.unsafe) {
-        stats.effects_unsafe=1;stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
+        stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
+        stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
+        stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
     if(SUCCEEDED(transaction.original_result) && count && vertices){CountDraw(true);LatchEffectsDraw();QueueWindowTransition(*state);}
@@ -814,6 +921,8 @@ bool TerminalCleanup(State& current) {
     if(native_configuration.flags&NativeGraphicsConfig::Observe) {
         MaterialShaderObserver::Reset(current.device);MaterialShaderObserver::Flush();MaterialShaderObserver::Shutdown();
     }
+    if(comparison_initialized){MaterialComparison::Reset(current.device);MaterialComparison::Shutdown();comparison_initialized=false;}
+    comparison_waiting=false;stats.comparison_pending=0;stats.comparison_active=0;
     if(effects_initialized) {
         MaterialShaderEffects::Reset(current.device);MaterialShaderEffects::Flush();MaterialShaderEffects::Shutdown();effects_initialized=false;
     }
@@ -963,6 +1072,7 @@ bool Attach(IDirect3DDevice9* device) {
     }
     state=current;stats.attached=1;
     {Internal inside(current);Target(*current);
+        if(comparison_initialized)MaterialComparison::InvalidateFrame();
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
         IDirect3DSurface9* backbuffer=nullptr;D3DSURFACE_DESC description{};
         if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
@@ -1079,6 +1189,12 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
         && !MaterialShaderObserver::ConfigureFrameSnapshot(configuration.render_width,configuration.render_height)) {
         stats.last_failure=209;Report();return 0;
     }
+    if(native_configuration.flags&NativeGraphicsConfig::Observe) {
+        if(!MaterialComparison::Initialize(configuration.render_width,configuration.render_height,false)) {
+            stats.last_failure=212;Report();return 0;
+        }
+        comparison_initialized=true;
+    }
 #ifndef S7_SUPERSAMPLING_FIXTURE
     HMODULE executable=GetModuleHandleW(nullptr),base=GetModuleHandleW(L"vbase90.dll"),vision=GetModuleHandleW(L"vision90.dll");
     for(const auto& profile:Executables)if(PinIdentity(executable,profile.sha256)){stats.edition=profile.edition;break;}
@@ -1137,13 +1253,35 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
     using namespace SupersamplingHook;
     DiagnosticScope diagnostic;
-    MaterialShaderEffects::Config config{};SIZE_T read=0;
-    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read) || read!=sizeof(config))return 0;
+    NativeEffectsWire::Pending wire{};
+    if(!NativeEffectsWire::Decode(opaque,&wire))return 0;
     Lock lock;
-    if(!initialization_ready || effects_waiting || (effects_faulted && config.flags) || stats.effects_unsafe
-        || (state && state->terminal_cleanup)
-        || NativeEffectsContract::Validate(config,native_configuration)!=NativeEffectsContract::Error::None)return 0;
-    effects_pending_config=config;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
+    if(!initialization_ready || effects_waiting || (effects_faulted && wire.Flags()) || stats.render_unsafe
+        || (state && state->terminal_cleanup))return 0;
+    if(wire.version==1) {
+        if(NativeEffectsContract::Validate(wire.v1,native_configuration)!=NativeEffectsContract::Error::None)return 0;
+        effects_pending_config=wire.v1;
+    } else {
+        auto error=NativeEffectsContractV2::Validate(wire.v2,native_configuration,NativeEffectsContractV2::Layout::PrivateCase);
+        if(error!=NativeEffectsContractV2::Error::None)error=NativeEffectsContractV2::Validate(wire.v2,native_configuration,
+            NativeEffectsContractV2::Layout::RecipientLocalData);
+        if(error!=NativeEffectsContractV2::Error::None)return 0;
+        effects_pending_v2=wire.v2;
+    }
+    effects_pending_version=wire.version;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
+}
+
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureComparison(void* opaque) {
+    using namespace SupersamplingHook;
+    DiagnosticScope diagnostic;
+    MaterialComparison::Config config{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read) || read!=sizeof(config)
+        || config.size!=sizeof(config) || config.version!=1 || config.enabled>1)return 0;
+    Lock lock;
+    if(!initialization_ready || !(native_configuration.flags&NativeGraphicsConfig::Observe)
+        || !comparison_initialized || comparison_waiting || stats.render_unsafe
+        || (state && state->terminal_cleanup))return 0;
+    comparison_pending_config=config;comparison_waiting=true;stats.comparison_pending=1;Report();return 1;
 }
 
 extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
@@ -1153,7 +1291,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
         || request.size!=sizeof(request) || request.version!=1 || !request.sequence)return 0;
     Lock lock;
     if(!state || !stats.attached || state->shutdown_requested || state->terminal_cleanup || capture_pending
-        || effects_waiting || stats.effects_unsafe
+        || effects_waiting || comparison_waiting || stats.render_unsafe
         || request.sequence<=capture_last_sequence || !NativeGraphicsCapture::TargetAvailable(configuration.report_path,request.sequence))return 0;
     capture_pending=request.sequence;capture_last_sequence=request.sequence;++stats.capture_requests;Report();return 1;
 }

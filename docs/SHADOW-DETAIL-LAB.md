@@ -1,5 +1,10 @@
 # Native shadow/detail comparison lab
 
+The current source-based streak investigation and normal-camera shadow targets
+are in [the original-pass diagnostic plan](BLACK-STREAK-DIAGNOSTIC.md). The new
+blob neutral-RGB policy is a disabled pure diagnostic plan; it has no runtime or
+visible-improvement proof and does not change the 2048/4096/8192 filter guards.
+
 2026-11-24. The first implementation in this stage is an **offline capture
 comparison tool**, not a new renderer effect or a native patch. No game was
 launched, no reserved test copy was changed, and no shader or shadow improvement

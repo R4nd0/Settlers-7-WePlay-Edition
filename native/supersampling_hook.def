@@ -5,3 +5,4 @@ EXPORTS
     WePlayNativeGraphicsRequestCapture=_WePlayNativeGraphicsRequestCapture@4
     WePlayNativeGraphicsConfigureObservation=_WePlayNativeGraphicsConfigureObservation@4
     WePlayNativeGraphicsConfigureEffects=_WePlayNativeGraphicsConfigureEffects@4
+    WePlayNativeGraphicsConfigureComparison=_WePlayNativeGraphicsConfigureComparison@4

@@ -208,6 +208,39 @@ class QualificationTests(unittest.TestCase):
         self.assertIn(relative,result['unapproved_original_private_save_changes'])
         self.assertEqual(auto.read_bytes(),b'newer owned progress')
 
+    def steam_observation(self):
+        from tools.graphics_lab import save_role_read
+        case=self.work/'steam-role-read';case.mkdir()
+        reader=case/'save-role.private.reader.py';reader.write_bytes(Path(save_role_read.__file__).read_bytes())
+        owned={'pid':123,'parent':456,'sha256':q.EDITIONS['steam-history']}
+        value=deepcopy(q.STEAM_SLOT_OBSERVATION)
+        value.update(format='s7-original-steam-save-role-read-v1',edition='steam-history',read_only=True,
+            automatic_classification_accepted=False,restoration_performed=False,identity=dict(owned),
+            runtime_mapping='original registration plus complete verified instruction template',
+            observer_started_monotonic_ns=100,observer_finished_monotonic_ns=200,reader_source=q._ref(reader))
+        return case,reader,owned,value
+
+    def test_steam_slot_observation_requires_reviewed_reader_identity_and_exact_runtime_code(self):
+        case,reader,owned,value=self.steam_observation()
+        q._verify_steam_slot_read(value,owned,case)
+        for key,invalid in [('first',31),('callback_rva',0x13d590),('template_fnv64','0'*16),
+                            ('normalized_callback_sha256','0'*64),('automatic_classification_accepted',True)]:
+            changed=deepcopy(value);changed[key]=invalid
+            with self.assertRaises(ValueError):q._verify_steam_slot_read(changed,owned,case)
+        changed=deepcopy(value);changed['registration']['name_slot_rva']+=4
+        with self.assertRaises(ValueError):q._verify_steam_slot_read(changed,owned,case)
+        changed=deepcopy(value);changed['identity']['pid']+=1
+        with self.assertRaises(ValueError):q._verify_steam_slot_read(changed,owned,case)
+        reader.write_bytes(b'changed retained reader')
+        with self.assertRaises(ValueError):q._verify_steam_slot_read(value,owned,case)
+
+    def test_steam_role_policy_requires_closed_actual_case_before_original_archive_access(self):
+        case,reader,owned,value=self.steam_observation()
+        path=case/'save-role-read.private.json';path.write_text(json.dumps(value))
+        with self.assertRaises(FileNotFoundError):q.steam_save_role_proof(self.bundle,path,owned=owned)
+        (case/'result.private.json').write_text(json.dumps({'game_started':True,'exit_code':None}))
+        with self.assertRaisesRegex(ValueError,'completed actual game'):q.steam_save_role_proof(self.bundle,path,owned=owned)
+
     def test_hook_build_identity_must_match_the_initialized_binary(self):
         self.change_artifact(1, 'hook_build', lambda data: data['files'].update(WePlaySupersamplingLab_dll='different'))
         self.change_artifact(1, 'hook_init', lambda data: data.update(dll_sha256='c' * 64))
@@ -269,6 +302,136 @@ class QualificationTests(unittest.TestCase):
         self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
         self.change_artifact(1, 'hook_build', lambda data: data.update(source_set='effects-v1', compiled_capabilities=31))
         self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def comparison_build(self):
+        directory=self.effects_build()
+        def update(data):
+            data.update(source_set='effects-v2',diagnostic_abi={'comparison':12})
+            for name in q.COMPARISON_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic comparison snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def modern_build(self):
+        directory=self.comparison_build()
+        def update(data):
+            data.update(source_set='effects-v3',abi=dict(q.MODERN_BUILD_ABI))
+            for name in q.MODERN_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic modern snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def test_modern_v3_25_immutable_sources_and_effects_v2_abi(self):
+        self.modern_build()
+        self.assertEqual(len(q.MODERN_HOOK_SOURCES),25)
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data['abi'].update(effects_v2=4132))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_material_transport_versions_and_bounds(self):
+        def config(size,version):
+            return struct.pack('<5I4f',size,version,6,512,512,1.15,.94,1.2,1.1)+bytes(size-36)
+        self.assertEqual(q._material_configuration(config(6180,2))['version'],2)
+        self.assertEqual(q._material_configuration(config(4132,1))['version'],1)
+        for raw in (config(6180,1),config(4132,2),config(6180,2)[:-1]):
+            with self.assertRaises(ValueError):q._material_configuration(raw)
+        bad=bytearray(config(6180,2));struct.pack_into('<f',bad,20,float('nan'))
+        with self.assertRaises(ValueError):q._material_configuration(bytes(bad))
+        bad=bytearray(config(6180,2));bad[40]=1
+        with self.assertRaises(ValueError):q._material_configuration(bytes(bad))
+
+    def test_native_v2_material_capture_requires_matching_config_receipt_and_version(self):
+        directory=self.modern_build();case=self.data['cases'][1]
+        self.change_artifact(1,'checkpoint',lambda data:data.update(requested_render_size=[512,512]))
+        self.change_artifact(1,'hook',lambda data:data.update(source=[512,512],selected_target=[512,512],
+            viewport=[512,512],output=[256,256],client=[256,256]))
+        for capture in case['captures']:
+            path=Path(capture['file']['path']);side=512 if capture['stage']=='source' else 256
+            path.write_bytes(png(side,side));capture['file']=q._ref(path)
+        obs_path=Path(case['observation']['path']);obs=json.loads(obs_path.read_text())
+        obs.update(render_size=[512,512],output_size=[256,256])
+        for frame in obs['frames']:
+            for capture in case['captures']:frame[capture['stage']+'_image_sha256']=capture['file']['sha256']
+        obs_path.write_text(json.dumps(obs));case['observation']=q._ref(obs_path)
+        self.add_native_capture(source_size=512,output_size=256)
+        raw=struct.pack('<5I4f',6180,2,6,512,512,1.15,.94,1.2,1.1)+bytes(6180-36)
+        config=directory/'effects-config.bin';config.write_bytes(raw);case['artifacts']['effects_config']=q._ref(config)
+        initialized=json.loads(Path(case['artifacts']['hook_init']['path']).read_text())
+        receipt=directory/'effects-configured.private.json';receipt.write_text(json.dumps({
+            'succeeded':True,'worker_code_rx':True,'original_entry_guarded':True,
+            'export':'WePlayNativeGraphicsConfigureEffects','dll_sha256':initialized['dll_sha256']}))
+        case['artifacts']['effects_configured']=q._ref(receipt)
+        path=Path(case['native_captures'][0]['path']);frame=json.loads(path.read_text())
+        epoch=dict.fromkeys(q.EFFECT_EPOCH_FIELDS,0);epoch.update(effects_requested=6,effects_configured=1,
+            effects_active=2,effects_revision=2,effects_drawn_active=2,effects_drawn_revision=2,effects_frame_has_geometry=1)
+        frame.update(epoch,effects_config_version=2);path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+        result=q.aggregate(self.manifest);row=result['cases'][1]
+        self.assertTrue(row['runtime_records_consistent'],row['rejected'])
+        self.assertTrue(row['native_frame_pairs'][0]['material_configuration_bound'])
+        self.assertTrue(row['native_frame_pairs'][0]['material_config_version_measured'])
+        self.assertEqual(row['material_configuration']['version'],2)
+        self.assertFalse(result['visual_qualified'])
+        frame['effects_config_version']=1;path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+        self.assertIn('native material version/configuration mismatch',q.aggregate(self.manifest)['cases'][1]['rejected'])
+        frame['effects_config_version']=2;path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+        self.change_artifact(1,'effects_configured',lambda data:data.update(dll_sha256='f'*64))
+        self.assertIn('material configuration/source receipt binding missing',q.aggregate(self.manifest)['cases'][1]['rejected'])
+
+    def test_comparison_build_requires_exact_22_sources_and_diagnostic_abi(self):
+        self.comparison_build()
+        self.assertEqual(len(q.COMPARISON_HOOK_SOURCES),22)
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data.update(diagnostic_abi={'comparison':16}))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    @staticmethod
+    def comparison_record():
+        return {'diagnostic_only':True,'frame':80,'requested':1,'active':1,'pinned':1,
+                'faulted':0,'unsafe':0,'epoch':2,'pinned_ps80':[.2,.2,.2,.2],
+                'pin_committed_frame':10,'completed_frame_applications':5,
+                'completed_frame_restorations':5,'last_applied_frame':80,'last_restored_frame':80}
+
+    def test_comparison_pin_alone_stale_counts_fault_or_nonfinite_cannot_qualify(self):
+        record=self.comparison_record()
+        self.assertTrue(q._comparison_record({'frame':80,'comparison':record})[1])
+        for key,value in [('completed_frame_applications',0),('completed_frame_restorations',4),
+                          ('faulted',1),('unsafe',1),('last_applied_frame',79)]:
+            changed=deepcopy(record);changed[key]=value
+            self.assertFalse(q._comparison_record({'frame':80,'comparison':changed})[1])
+        for key,value in [('frame',79),('epoch',0),('pinned_ps80',[0,0,0,float('nan')])]:
+            changed=deepcopy(record);changed[key]=value
+            with self.assertRaises(ValueError):q._comparison_record({'frame':80,'comparison':changed})
+
+    def test_diagnostic_comparison_requires_source_request_observe_and_configured_dll_receipt(self):
+        directory=self.comparison_build();self.add_native_capture()
+        self.change_artifact(1,'checkpoint',lambda data:data.update(comparison_uv_requested=True))
+        self.change_artifact(1,'hook_init',lambda data:data.update(observer_catalog_sha256='c'*64))
+        initialized=json.loads(Path(self.data['cases'][1]['artifacts']['hook_init']['path']).read_text())
+        configured={'succeeded':True,'worker_code_rx':True,'original_entry_guarded':True,
+                    'dll_sha256':initialized['dll_sha256'],'export':'WePlayNativeGraphicsConfigureComparison'}
+        path=directory/'comparison-configured.private.json';path.write_text(json.dumps(configured))
+        self.data['cases'][1]['artifacts']['comparison_configured']=q._ref(path)
+        capture=Path(self.data['cases'][1]['native_captures'][0]['path'])
+        frame=json.loads(capture.read_text());frame['comparison']=self.comparison_record();capture.write_text(json.dumps(frame))
+        self.data['cases'][1]['native_captures'][0]=q._ref(capture);self.write_manifest()
+        result=q.aggregate(self.manifest);row=result['cases'][1]
+        self.assertTrue(row['runtime_records_consistent'])
+        self.assertTrue(row['native_frame_pairs'][0]['draw_local_ps80_isolation_recorded'])
+        self.assertFalse(result['visual_qualified'])
+        self.change_artifact(1,'checkpoint',lambda data:data.update(comparison_uv_requested=False))
+        row=q.aggregate(self.manifest)['cases'][1]
+        self.assertFalse(row['native_frame_pairs'][0]['draw_local_ps80_isolation_recorded'])
+        self.assertIn('unsupported or unbound diagnostic comparison record',row['rejected'])
+        self.change_artifact(1,'checkpoint',lambda data:data.update(comparison_uv_requested=True))
+        self.change_artifact(1,'hook_init',lambda data:data.pop('observer_catalog_sha256'))
+        self.assertIn('diagnostic comparison request/configuration binding missing',q.aggregate(self.manifest)['cases'][1]['rejected'])
+        self.change_artifact(1,'hook_init',lambda data:data.update(observer_catalog_sha256='c'*64))
+        self.change_artifact(1,'comparison_configured',lambda data:data.update(dll_sha256='b'*64))
+        row=q.aggregate(self.manifest)['cases'][1]
+        self.assertFalse(row['native_frame_pairs'][0]['draw_local_ps80_isolation_recorded'])
+        self.assertIn('diagnostic comparison request/configuration binding missing',row['rejected'])
 
     def test_changed_artifact_hash_is_rejected_without_rebinding(self):
         path = Path(self.data['cases'][1]['artifacts']['hook']['path'])
@@ -335,17 +498,17 @@ class QualificationTests(unittest.TestCase):
         self.assertIn('unhealthy memory monitoring', result['cases'][1]['rejected'])
         self.assertFalse(result['cases'][1]['native_ssaa_records_consistent'])
 
-    def add_native_capture(self, *, fallback=False):
+    def add_native_capture(self, *, fallback=False, source_size=4, output_size=2):
         case = self.work / 'candidate'
-        source, output = bmp(4, 4), bmp(2, 2)
+        source, output = bmp(source_size, source_size), bmp(output_size, output_size)
         (case / 'capture-1-source.bmp').write_bytes(source)
         (case / 'capture-1-output.bmp').write_bytes(output)
         data = {'format': 's7-native-frame-capture-v1', 'sequence': 1, 'frame': 80, 'edition': 1,
-                'complete': True, 'status': 0, 'source': [4, 4], 'output': [2, 2],
+                'complete': True, 'status': 0, 'source': [source_size, source_size], 'output': [output_size, output_size],
                 'source_bmp_sha256': digest(source), 'output_bmp_sha256': digest(output),
                 'capture_stall_ms': 42.0, 'desktop_capture': False, 'exclude_from_pacing': True,
                 'present_hresult': 0, 'final_present_hresult': 0,
-                'readback_hresult': 0, 'client': [2, 2], 'viewport': [4, 4], 'selected_target': [4, 4],
+                'readback_hresult': 0, 'client': [output_size, output_size], 'viewport': [source_size, source_size], 'selected_target': [source_size, source_size],
                 'high_resolution_draws': 900, 'indexed_draws': 800,
                 'attempted_path_hresult': 0x88760868 if fallback else 0,
                 'filtered_present_hresult': 0x88760868 if fallback else 0,

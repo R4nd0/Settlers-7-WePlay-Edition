@@ -20,6 +20,14 @@ needed; the loader can allow only these named operations:
 | Configure material effects | `WePlayNativeGraphicsConfigureEffects` | 4132 | Required before first draw when a material intent is selected |
 | Capture a frame | `WePlayNativeGraphicsRequestCapture` | 12 | Existing queued owning-thread operation |
 
+The later `effects-v2` diagnostic build additionally exports
+`WePlayNativeGraphicsConfigureComparison` with a fixed 12-byte
+`(size, version, enabled)` command. It requires OBSERVE and is excluded from the
+production loader allowlist and user graphics choices. Its manifest records
+`diagnostic_abi.comparison: 12` separately from compiled feature capabilities.
+Historical native20 fourteen-source and `effects-v1` nineteen-source manifests
+remain distinct from the new twenty-two-source checkpoint.
+
 ConfigureEffects exists in `effects-v1`, not native20.
 Use separate fixed worker invocations for initialization, observation and effects.
 Their combined configurations alone total 8,216 bytes; combining them would
@@ -108,6 +116,20 @@ Keep the independently tested output-swapchain lifetime policy; ordinary tempora
 device releases must not unnecessarily recreate the output swapchain.
 
 ## Capabilities and package qualification
+
+Diagnostic comparison wraps the material transaction: comparison Begin, material
+Begin, original draw, material restoration, comparison restoration, then the
+original-program observer. It pins only the exact original River pair's finite
+PS c80 float4 after a successful draw and restoration. The original register is
+restored immediately; no game clock, simulation, RNG or asset is modified.
+Comparison remains applied to the material-off control while enabled, and an
+explicit disable clears the pin.
+
+Captured comparison proof requires active/pinned/nonfaulted state, an exact
+local/native Present frame match, and positive equal application/restoration
+counts in that completed frame. A retained global pin by itself proves no
+captured-frame modification. Ordinary cache cleanup retains copied frame proof;
+actual Reset/attach or explicit reconfiguration invalidates it.
 
 Distinguish three facts:
 

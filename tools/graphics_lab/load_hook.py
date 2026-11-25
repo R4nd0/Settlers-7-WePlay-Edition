@@ -17,13 +17,14 @@ import struct
 ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
-from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,
-                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI)
+from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,EFFECTS_V1_SOURCES,
+                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
     'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
     'configure': (b'WePlayNativeGraphicsConfigureObservation\0', 952),
     'effects': (b'WePlayNativeGraphicsConfigureEffects\0', 4132),
+    'comparison': (b'WePlayNativeGraphicsConfigureComparison\0', 12),
 }
 
 
@@ -44,16 +45,22 @@ def verify_build(dll):
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
     current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
-    sources = SOURCES if current else set(NATIVE20_SOURCES)
+    modern=current and value.get('source_set')=='effects-v3'
+    comparison=current and value.get('source_set')in('effects-v2','effects-v3')
+    sources = (set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
     expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
     keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
+    if comparison:keys.add('diagnostic_abi')
     if (not isinstance(value, dict) or set(value) != keys
             or value['format'] not in ('s7-supersampling-hook-build-v1','s7-native-graphics-build-v2')
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
-    if current and (value['source_set']!='effects-v1' or value['compiled_capabilities']!=15 or value['abi']!=BUILD_ABI):
+    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3') or value['compiled_capabilities']!=15
+                    or value['abi']!=(BUILD_ABI_V2 if modern else BUILD_ABI)):
         raise ValueError('Unexpected compiled graphics ABI or capabilities.')
+    if comparison and value['diagnostic_abi']!={'comparison':12}:
+        raise ValueError('Unexpected diagnostic comparison ABI.')
     for name, pin in value['files'].items():
         path = ROOT / 'native' / name if name in sources else dll.parent / name
         if pin != digest(path):
@@ -170,16 +177,38 @@ def initialize(owned, dll, *, render, output, report, observer_catalog=None, obs
         return receipt
 
 
+def _payload_prefix(renderer,dll,export):
+    payload=bytearray(8)
+    renderer_offset=len(payload);payload.extend(str(renderer).encode('utf-16le')+b'\0\0')
+    path_offset=len(payload);payload.extend(str(dll).encode('utf-16le')+b'\0\0')
+    export_offset=len(payload);payload.extend(export)
+    while len(payload)%4:payload.append(0)
+    return payload,renderer_offset,path_offset,export_offset,len(payload)
+
+
+def worker_overhead(executable,dll):
+    """Exact non-config bytes from the same encoder used by the owned worker."""
+    from .game import lab_path
+    executable,dll=lab_path(executable),lab_path(dll)
+    return len(_payload_prefix(executable.with_name('d3d9.dll'),dll,OPERATIONS['effects'][0])[0])
+
+
 def invoke(owned, dll, operation, payload):
     if operation not in OPERATIONS:
         raise ValueError('Unsupported native graphics operation.')
     export, size = OPERATIONS[operation]
-    if (not isinstance(payload, bytes) or len(payload) != size
-            or struct.unpack_from('<2I', payload) != (size, 1)):
+    modern=operation=='effects' and isinstance(payload,bytes) and len(payload)==6180
+    expected_size=6180 if modern else size
+    if (not isinstance(payload, bytes) or len(payload) != expected_size
+            or struct.unpack_from('<2I', payload) != (expected_size, 2 if modern else 1)):
         raise ValueError('Invalid fixed native graphics command ABI.')
     if operation == 'capture' and not 1 <= struct.unpack_from('<I', payload, 8)[0] <= 1000000:
         raise ValueError('Capture sequence exceeds the bounded command range.')
-    dll, _ = verify_build(dll)
+    if operation == 'comparison' and struct.unpack_from('<I',payload,8)[0]not in(0,1):
+        raise ValueError('Comparison diagnostic accepts only an explicit Boolean.')
+    dll, build = verify_build(dll)
+    if modern and build.get('abi',{}).get('effects_v2')!=6180:
+        raise ValueError('This exact source-bound build does not support material V2.')
     with file_lease(dll):
         return _invoke_pinned(owned, dll, payload, export)
 
@@ -225,17 +254,12 @@ def _invoke_pinned(owned, dll, config, export):
     pointers = [struct.unpack('<I', read(slot, 4))[0] for slot in slots]
     if any(not 0x10000 <= ptr < 0xffff0000 for ptr in pointers):
         raise RuntimeError('The original kernel import pointers are invalid.')
-    payload = bytearray(8)
     renderer = owned.executable.with_name('d3d9.dll')
     from .game import graphics_profile
     if digest(renderer) != graphics_profile.DXVK_SHA256:
         raise ValueError('The owned renderer changed before hook initialization.')
-    renderer_offset = len(payload); payload.extend(str(renderer).encode('utf-16le') + b'\0\0')
-    path_offset = len(payload); payload.extend(str(dll).encode('utf-16le') + b'\0\0')
-    export_offset = len(payload); payload.extend(export)
-    while len(payload) % 4:
-        payload.append(0)
-    config_offset = len(payload); payload.extend(config)
+    payload,renderer_offset,path_offset,export_offset,config_offset=_payload_prefix(renderer,dll,export)
+    payload.extend(config)
     if len(payload) > 8192:
         raise ValueError('Hook configuration exceeds the fixed bounded data allocation.')
     data_base = code_base = thread = None

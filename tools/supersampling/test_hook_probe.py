@@ -24,7 +24,8 @@ class HookBuildIdentityTests(unittest.TestCase):
             (self.build / name).write_bytes(('fixture binary, never executed: ' + name).encode())
         self.manifest = {
             'format': 's7-native-graphics-build-v2',
-            'source_set': 'effects-v1',
+            'source_set': 'effects-v2',
+            'diagnostic_abi': {'comparison': 12},
             'compiled_capabilities': 15,
             'abi': hook_probe.BUILD_ABI,
             'build_sha256': probe.sha256(script),
@@ -39,6 +40,21 @@ class HookBuildIdentityTests(unittest.TestCase):
 
     def test_accepts_exact_header_cpp_script_dll_and_fixture_binding(self):
         self.assertEqual(hook_probe.verify_build(self.build), self.manifest)
+
+    def test_modern_build_requires_all_three_extra_sources_and_v2_abi(self):
+        for name in set(hook_probe.MODERN_SOURCES)-set(hook_probe.SOURCES):
+            source=self.root/'native'/name;source.write_bytes(('modern source: '+name).encode())
+            self.manifest['files'][name]=probe.sha256(source)
+        self.manifest.update(source_set='effects-v3',abi=hook_probe.BUILD_ABI_V2)
+        self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
+        self.assertEqual(hook_probe.verify_build(self.build),self.manifest)
+        self.manifest['abi']=hook_probe.BUILD_ABI
+        self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'Stale'):hook_probe.verify_build(self.build)
+        self.manifest['abi']=hook_probe.BUILD_ABI_V2
+        self.manifest['files'].pop('native_effects_wire.h')
+        self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'Stale'):hook_probe.verify_build(self.build)
 
     def test_rejects_changed_header_even_if_dll_and_cpp_are_unchanged(self):
         (self.root / 'native/supersampling_hook.h').write_bytes(b'changed ABI')

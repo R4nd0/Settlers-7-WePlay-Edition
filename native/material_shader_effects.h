@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 
+namespace MaterialShaderConfigV2 { struct Config; }
 namespace MaterialShaderEffects {
 constexpr DWORD River=1,Terrain=2,Leaf=4,AllowedFlags=River|Terrain|Leaf;
 struct Config {
@@ -28,6 +29,7 @@ struct DrawTransaction {
 };
 struct Sample {
     DWORD role=0,constant_count=0,restored=0,shader_changed=0;
+    DWORD vertex_changed=0,pixel_changed=0;
     std::uint64_t epoch=0;
     std::array<ConstantBackup,2> constants{};
 };
@@ -36,12 +38,13 @@ struct Stats {
     DWORD initialized_flags=0,active_transactions=0,periodic_reporting=0;
     // Bounded device-program cache (one leaf VS and two terrain PS), separate
     // from cached_refs, which counts borrowed original identities this frame.
-    DWORD retained_programs=0,peak_retained_programs=0;
+    DWORD retained_programs=0,peak_retained_programs=0,config_version=0,active_original_refs=0;
     std::uint64_t draws=0,matched=0,context_rejections=0,input_rejections=0,query_failures=0;
     std::uint64_t shader_creations=0,shader_failures=0,set_failures=0,restored_draws=0,restore_failures=0;
     std::uint64_t failed_draws=0,frames=0,resets=0,cache_overflows=0,exceptions=0,report_failures=0;
     std::uint64_t enable_changes=0,last_change_frame=0;
     std::array<std::uint64_t,4> applied{};
+    std::array<std::uint64_t,5> program_creations{};
     std::array<Sample,32> samples{};
 };
 
@@ -52,6 +55,10 @@ struct Stats {
 // component additionally requires absolute paths and a .private.json report.
 // No feature is enabled without an explicit supported configuration.
 bool Initialize(const Config* config) noexcept;
+// Separate exact 6180-byte/version2 transport. The trusted host must dispatch
+// only after its full readable-buffer, source/ABI and worker-budget guards.
+// V2 terrain binds BOTH VS and PS; V1 allocation and recipe pins stay intact.
+bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.
 // Zero/subset of initialized resources only; pinned CPU programs stay loaded.
 // Counters survive; bounded per-role samples start a new labeled epoch.
@@ -66,11 +73,12 @@ void EndDraw(DrawTransaction* state,HRESULT original_result) noexcept;
 // Inspect unsafe_state after Begin/End. Retry immediately inside the same serial
 // draw callback; if still false, stop the diagnostic renderer rather than claim
 // an original fallback or observe potentially modified inputs. Do not retain a
-// transaction across Present/Release/Reset (its pointers borrow frame-cache refs).
+// transaction across Present/Release/Reset (its pointers borrow the module's
+// explicitly retained active-original refs, independent of frame-cache capacity).
 bool RetryRestore(DrawTransaction* state) noexcept;
 void EndFrame(IDirect3DDevice9* device) noexcept;
 // EndFrame drops original identity refs only. Generated programs survive warm
-// frames, bounded at three. Before EVERY external device Release/Reset/detach,
+// frames, bounded at three for V1 and five for V2. Before EVERY external device Release/Reset/detach,
 // call Reset inside hook internal/TLS: it drops BOTH reference classes before
 // the external call, preventing a generated shader -> device lifetime cycle.
 void Reset(IDirect3DDevice9* device) noexcept;
@@ -85,5 +93,6 @@ bool TerrainPolicy(const float original[4],float output[4],bool parallax,float d
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 bool FixtureCompatibility(unsigned role,const unsigned char vertex[32],const unsigned char pixel[32],DWORD vertex_bytes,DWORD pixel_bytes,
                           const unsigned char replacement[32]) noexcept;
+bool FixtureProgramCompatibility(unsigned version,unsigned slot,const unsigned char replacement[32],DWORD bytes) noexcept;
 #endif
 }

@@ -3,12 +3,43 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from contextlib import nullcontext
 from unittest.mock import patch
 
 from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_material_v2_requires_exact_header_and_explicit_build_abi(self):
+        payload=struct.pack('<2I',6180,2)+bytes(6172)
+        dll=Path('fixture-native.dll')
+        with patch.object(load_hook,'verify_build',return_value=(dll,{'abi':load_hook.BUILD_ABI})):
+            with patch.object(load_hook,'_invoke_pinned') as call, self.assertRaisesRegex(ValueError,'does not support'):
+                load_hook.invoke(None,dll,'effects',payload)
+            call.assert_not_called()
+        with patch.object(load_hook,'verify_build',return_value=(dll,{'abi':load_hook.BUILD_ABI_V2})), \
+                patch.object(load_hook,'file_lease',return_value=nullcontext()), \
+                patch.object(load_hook,'_invoke_pinned',return_value={'accepted':True}) as call:
+            self.assertEqual(load_hook.invoke(None,dll,'effects',payload),{'accepted':True})
+            call.assert_called_once_with(None,dll,payload,b'WePlayNativeGraphicsConfigureEffects\0')
+        for size,version,count in ((4132,2,4132),(6180,1,6180),(6180,2,4132),(4132,1,6180),(6181,2,6181)):
+            with self.subTest(size=size,version=version,count=count),patch.object(load_hook,'verify_build') as verify:
+                with self.assertRaises(ValueError):load_hook.invoke(None,dll,'effects',struct.pack('<2I',size,version)+bytes(count-8))
+                verify.assert_not_called()
+
+    def test_worker_prefix_counts_utf16_and_alignment_for_v2_budget(self):
+        renderer=Path('C:/private/renderer-\U0001f30a/d3d9.dll')
+        dll=Path('C:/private/build/WePlaySupersamplingLab.dll')
+        export=b'WePlayNativeGraphicsConfigureEffects\0'
+        payload,renderer_at,dll_at,export_at,config_at=load_hook._payload_prefix(renderer,dll,export)
+        self.assertEqual(renderer_at,8)
+        self.assertEqual(payload[renderer_at:dll_at],str(renderer).encode('utf-16-le')+b'\0\0')
+        self.assertEqual(payload[dll_at:export_at],str(dll).encode('utf-16-le')+b'\0\0')
+        self.assertEqual(payload[export_at:export_at+len(export)],export)
+        self.assertEqual(config_at,len(payload))
+        self.assertEqual(config_at%4,0)
+        self.assertLessEqual(config_at+6180,8192)
+
     def test_material_commands_only_toggle_prepared_subsets(self):
         self.assertEqual(game.native_command(b'{"operation":"effects","sequence":2,"enabled":0}',1,7)['enabled'],0)
         self.assertEqual(game.native_command(b'{"operation":"effects","sequence":2,"enabled":5}',1,7)['enabled'],5)
@@ -18,6 +49,20 @@ class GraphicsControllerTests(unittest.TestCase):
                           (b'{"operation":"effects","sequence":2,"enabled":0}',0),
                           (b'{"operation":"effects","sequence":2,"enabled":7,"path":"foreign"}',7)):
             with self.assertRaises(ValueError):game.native_command(raw,0,flags)
+
+    def test_comparison_is_explicit_diagnostic_not_general_memory_command(self):
+        raw=b'{"operation":"comparison","sequence":3,"enabled":1}'
+        self.assertEqual(game.native_command(raw,2,0,True)['enabled'],1)
+        with self.assertRaises(ValueError):game.native_command(raw,2,7,False)
+        with self.assertRaises(ValueError):game.native_command(raw.replace(b':1}',b':2}'),2,7,True)
+        with self.assertRaises(ValueError):load_hook.invoke(None,Path('unloaded.dll'),'comparison',struct.pack('<3I',12,1,2))
+
+    def test_crash_watcher_admission_has_no_pid_selector_and_is_opt_in(self):
+        raw=b'{"operation":"crash-watch-admit","sequence":3}'
+        self.assertEqual(game.native_command(raw,2,0,False,True)['sequence'],3)
+        self.assertIsNone(game.native_command(raw,3,0,False,True))
+        with self.assertRaises(ValueError):game.native_command(raw,0)
+        with self.assertRaises(ValueError):game.native_command(raw.replace(b'}',b',"pid":123}'),0,0,False,True)
     def test_elapsed_measurement_budget_only_requests_regular_close_once(self):
         self.assertFalse(game.measurement_budget_expired(29, 30, False))
         self.assertTrue(game.measurement_budget_expired(30, 30, False))
@@ -132,7 +177,7 @@ class GraphicsControllerTests(unittest.TestCase):
             fixture.write_bytes(b'fixture EXE, never run')
             effects_fixture=build/'supersampling_effects_gpu.exe'
             effects_fixture.write_bytes(b'authored fixture, never run')
-            manifest = {'format': 's7-native-graphics-build-v2','source_set':'effects-v1',
+            manifest = {'format': 's7-native-graphics-build-v2','source_set':'effects-v2','diagnostic_abi':{'comparison':12},
                         'compiled_capabilities':15,'abi':load_hook.BUILD_ABI,
                         'build_sha256': load_hook.digest(script), 'files': {
                             name: load_hook.digest(root / 'native' / name) for name in load_hook.SOURCES}}

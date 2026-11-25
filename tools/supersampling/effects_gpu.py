@@ -15,7 +15,7 @@ else:
     import probe
 
 
-def run(build, runtime, output):
+def run(build, runtime, output, *, catalog=None, catalog_sha256=None):
     if os.name != 'nt':
         raise ValueError('Windows is required.')
     build, runtime, output = map(probe.plain, (build, runtime, output))
@@ -43,6 +43,14 @@ def run(build, runtime, output):
             environment.pop(key)
     environment['DXVK_LOG_PATH'] = str(output)
     command = [str(build / 'supersampling_effects_gpu.exe'), str(owned_runtime), str(output / 'frames')]
+    compare = catalog is not None or catalog_sha256 is not None
+    if compare:
+        if catalog is None or catalog_sha256 is None:
+            raise ValueError('Both catalog and SHA256 are required for diagnostic comparison.')
+        catalog = probe.plain(catalog)
+        if not catalog.is_relative_to(work) or probe.sha256(catalog) != catalog_sha256:
+            raise ValueError('Observer catalog identity changed.')
+        command.extend((str(catalog), catalog_sha256))
     try:
         completed = subprocess.run(command, cwd=output, env=environment, capture_output=True,
                                    timeout=45, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -65,6 +73,16 @@ def run(build, runtime, output):
             or epoch.get('effects_drawn_revision') != epoch.get('effects_revision')
             or epoch.get('effects_drawn_active') != epoch.get('effects_active')):
         raise RuntimeError('Captured effects epoch was not latched to fresh successful geometry.')
+    if compare:
+        captured = json.loads((output / 'frames/capture-10.json').read_text('utf-8'))
+        state = captured.get('comparison') or {}
+        if (receipt.get('comparison_gpu_enabled') is not True or receipt.get('comparison_saturated_wrong_hash_programs') != 129
+                or state.get('frame') != captured.get('frame')
+                or state.get('requested') != 1 or state.get('active') != 1 or state.get('pinned') != 1
+                or state.get('faulted') != 0 or state.get('unsafe') != 0
+                or not state.get('completed_frame_applications')
+                or state.get('completed_frame_applications') != state.get('completed_frame_restorations')):
+            raise RuntimeError('Comparison pin was not applied and restored in the captured GPU frame.')
     receipt['renderer_sha256'] = probe.DXVK_SHA256
     receipt['build'] = manifest
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
@@ -76,9 +94,11 @@ def main():
     parser.add_argument('--build', required=True, type=Path)
     parser.add_argument('--dxvk', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--catalog', type=Path)
+    parser.add_argument('--catalog-sha256')
     args = parser.parse_args()
     try:
-        print(json.dumps(run(args.build, args.dxvk, args.output), indent=2))
+        print(json.dumps(run(args.build, args.dxvk, args.output, catalog=args.catalog, catalog_sha256=args.catalog_sha256), indent=2))
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         parser.exit(1, f'{error}\n')
 

@@ -154,6 +154,26 @@ std::string SceneUniforms(const Result& result) {
         +",\"ps5_sun_direction\":"+FloatArray(s.ps5_sun_direction.data(),3,true)
         +",\"ps7_sun_specular\":"+FloatArray(s.ps7_sun_specular.data(),3,true)+"}";
 }
+std::string Comparison(const Result& result) {
+    if(!result.comparison_state_available)return "null";
+    const auto& s=result.comparison;
+    return "{\"diagnostic_only\":true,\"frame\":"+std::to_string(s.frames)+",\"requested\":"+std::to_string(s.requested)
+        +",\"active\":"+std::to_string(s.active)+",\"pinned\":"+std::to_string(s.pinned)
+        +",\"faulted\":"+std::to_string(s.faulted)+",\"unsafe\":"+std::to_string(s.unsafe_state)
+        +",\"epoch\":"+std::to_string(s.epoch)+",\"pinned_ps80\":"+FloatArray(s.pinned_ps80.data(),4,s.pinned!=0)
+        +",\"pin_committed_frame\":"+std::to_string(s.pin_committed_frame)
+        +",\"completed_frame_applications\":"+std::to_string(s.completed_frame_applications)
+        +",\"completed_frame_restorations\":"+std::to_string(s.completed_frame_restorations)
+        +",\"last_applied_frame\":"+std::to_string(s.last_applied_frame)
+        +",\"last_restored_frame\":"+std::to_string(s.last_restored_frame)
+        +",\"draws\":"+std::to_string(s.draws)+",\"matched\":"+std::to_string(s.matched)
+        +",\"context_rejections\":"+std::to_string(s.context_rejections)+",\"input_rejections\":"+std::to_string(s.input_rejections)
+        +",\"query_failures\":"+std::to_string(s.query_failures)+",\"cache_overflows\":"+std::to_string(s.cache_overflows)
+        +",\"cached_refs\":"+std::to_string(s.cached_refs)+",\"applications\":"+std::to_string(s.applications)
+        +",\"restorations\":"+std::to_string(s.restorations)+",\"failed_draws\":"+std::to_string(s.failed_draws)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+"}";
+}
 }
 
 bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept {
@@ -180,6 +200,8 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
         result.scene_uniforms_available=MaterialShaderObserver::CopyLatestFrameSnapshot(graphics.present_calls,&result.scene_uniforms)
             && result.scene_uniforms.available && result.scene_uniforms.context_valid
             && result.scene_uniforms.frame==graphics.present_calls;
+        result.comparison_state_available=MaterialComparison::ReadState(&result.comparison)
+            && result.comparison.initialized && result.comparison.frames==graphics.present_calls;
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -234,6 +256,7 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
             +",\"effects_requested\":"+std::to_string(result.graphics.effects_requested)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
+            +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
             +",\"effects_active\":"+std::to_string(result.graphics.effects_active)
             +",\"effects_revision\":"+std::to_string(result.graphics.effects_revision)
             +",\"effects_unsafe\":"+std::to_string(result.graphics.effects_unsafe)
@@ -249,6 +272,7 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"effects_module_exceptions\":"+std::to_string(result.graphics.effects_module_exceptions)
             +",\"observation_available\":"+std::to_string(o.available)+",\"observation_status\":"+std::to_string(o.status)
             +",\"scene_uniforms\":"+SceneUniforms(result)
+            +",\"comparison\":"+Comparison(result)
             +",\"camera_world_source\":\"vision_main_context_export\",\"camera_world\":"+FloatArray(o.camera_world,16,camera)+",\"fov_native\":"+FloatArray(o.fov_native,2,camera)
             +",\"clip_native\":"+FloatArray(o.clip_native,2,camera)+",\"context_size\":"
             +(context?("["+std::to_string(o.context_width)+","+std::to_string(o.context_height)+"]"):"null")
