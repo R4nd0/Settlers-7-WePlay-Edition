@@ -77,6 +77,16 @@ Native v2 flags and effect-module flags are different namespaces:
 | Vegetation | 8 | Leaf | 4 |
 | Stable shadows | 16 | Separate implementation | — |
 
+The River role in this table describes the older V1 constant-scaling path.
+The accepted Water B production wiring retains native intent bit 2 but sends
+the separate 1076-byte `WePlayNativeGraphicsConfigureWater` command. Its legacy
+River effects bit is zero; water-only startup supplies a zero-role V1 bootstrap.
+The host refuses overlap between WaterProgram and legacy River VS68/69 scaling.
+The production loader pins B's recipe/hash and never exposes diagnostic comparison
+or observation. The existing `improved_water` setting selects this one path,
+still gated by the empty qualified-build table; no production activation follows
+from lab evidence or from adding this wiring.
+
 `supersampling_hook_effects_contract.h` binds the 4,132-byte configuration to the
 native render dimensions and selected roles. It validates finite bounded factors,
 private reports, recipient artifact presence, canonical paths, ancestor reparse

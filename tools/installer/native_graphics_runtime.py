@@ -139,6 +139,15 @@ def render_arguments(arguments, dimensions):
     return tuple(result)
 
 
+def _water_bootstrap(dimensions, report):
+    """Satisfy the material-startup contract without legacy River VS68/69 edits."""
+    path = str(loader.plain(report.parent / 'material-effects.private.json')).encode('utf-16le')
+    if len(path) > 1022:
+        raise ValueError('native_graphics_path_invalid')
+    return (struct.pack('<5I4f', 4132, 1, 0, dimensions['render_width'], dimensions['render_height'],
+                        1.15, .94, 1.20, 1.10) + bytes(3072) + path.ljust(1024, b'\0'))
+
+
 def prepare_launch(root, arguments, callback, *, renderer='dxvk'):
     import graphics_choice
     selected = graphics_choice._read_choice(root)
@@ -158,16 +167,28 @@ def prepare_launch(root, arguments, callback, *, renderer='dxvk'):
     material_flags=sum(bit for bit,key in ((1,'improved_water'),(2,'improved_terrain'),(4,'improved_vegetation'))
                        if selected['native_graphics'][key])
     initial = configuration(dimensions, report,material_flags=material_flags)
-    material = None
-    if any(selected['native_graphics'][key] for key in
-           ('improved_water', 'improved_terrain', 'improved_vegetation')):
+    material = water = None
+    selection = dict(selected['native_graphics'], improved_water=False)
+    if any(selection[key] for key in ('improved_terrain', 'improved_vegetation')):
         try:
             from material_shaders import staging
         except ImportError:
             from tools.material_shaders import staging
-        material = staging.prepare(root, selected['native_graphics'], selected['display'],
+        material = staging.prepare(root, selection, selected['display'],
             available_features=capability.features, available_scales=capability.scales,
             native_report=report, verified_platform=platform)
+    if selected['native_graphics']['improved_water']:
+        try:
+            from material_shaders import water_variants
+        except ImportError:
+            from tools.material_shaders import water_variants
+        water = water_variants.prepare(root, (dimensions['render_width'], dimensions['render_height']),
+            variant='B', native_report=report, verified_platform=platform,
+            available_features=capability.features)
+        # Validate the fixed production variant before any owned child callback.
+        loader.validate_command('water', water['config'])
+        if material is None:
+            material = {'config': _water_bootstrap(dimensions, report)}
 
     def initialize(owned):
         if callback is not None:
@@ -175,5 +196,7 @@ def prepare_launch(root, arguments, callback, *, renderer='dxvk'):
         loader.invoke(owned, capability.dll, capability.sha256, 'initialize', initial)
         if material is not None:
             loader.invoke(owned, capability.dll, capability.sha256, 'effects', material['config'])
+        if water is not None:
+            loader.invoke(owned, capability.dll, capability.sha256, 'water', water['config'])
 
     return render_arguments(arguments, dimensions), initialize

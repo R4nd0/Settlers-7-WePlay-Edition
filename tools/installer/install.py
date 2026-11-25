@@ -37,7 +37,8 @@ GRAPHICS_TOOLS = tuple(('installer/' + name, name) for name in
 DISPLAY_TOOLS = tuple(('installer/' + name, name) for name in ('display_settings.py', 'window_mode.py'))
 DESKTOP_TOOLS = (('installer/quality_settings.py','quality_settings.py'),)
 NATIVE_MATERIAL_MODULES = ('__init__.py','bytecode.py','foliage.py','inventory.py','recipes.py',
-                           'semantics.py','shaderlib.py','terrain.py','staging.py')
+                           'semantics.py','shaderlib.py','terrain.py','staging.py',
+                           'water.py','water_balanced.py','water_staging.py','water_variants.py')
 DESKTOP_PACKAGE_TOOLS = ('installer/desktop_backend.py','installer/desktop_settings.py','installer/game_detection.py',
                          'installer/gold_support.py','installer/release_policy.py','d3d11/memory_guard.py')
 STANDALONE_PACKAGE_TOOLS = ('installer/standalone.py',)

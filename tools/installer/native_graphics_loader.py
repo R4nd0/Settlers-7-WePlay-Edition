@@ -15,9 +15,12 @@ import re
 import struct
 
 DXVK_SHA256 = '265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa'
+WATER_B_SHA256 = 'a8a591b346911622bfc9899fa28cbb022a42152df41ed822ef3cfff7c254e2f4'
+WATER_B_RECIPE = 'river-depth-fresnel-v2-balanced'
 OPERATIONS = {
     'initialize': (b'WePlaySupersamplingInitialize\0', (1048, 3132)),
     'effects': (b'WePlayNativeGraphicsConfigureEffects\0', (4132,)),
+    'water': (b'WePlayNativeGraphicsConfigureWater\0', (1076,)),
 }
 
 
@@ -44,6 +47,23 @@ def validate_command(operation, payload):
     expected_version = 2 if operation == 'initialize' and size == 3132 else 1
     if size != len(payload) or version != expected_version:
         raise ValueError('native_graphics_command_invalid')
+    if operation == 'water':
+        width, height, enabled = struct.unpack_from('<3I', payload, 8)
+        try:
+            wide = payload[20:1044].decode('utf-16le')
+        except UnicodeDecodeError:
+            raise ValueError('native_graphics_command_invalid') from None
+        path, separator, padding = wide.partition('\0')
+        normalized = path.replace('/', '\\')
+        ending = '\\MaterialShaders\\' + WATER_B_RECIPE + '\\' + WATER_B_SHA256 + '.ps.bin'
+        if (not 800 <= width <= 3840 or not 600 <= height <= 2160 or enabled not in (0, 1)
+                or not separator or padding.strip('\0') or not normalized.endswith(ending)
+                or len(normalized) < len(ending) + 3 or normalized[1:3] != ':\\'
+                or not normalized[0].isascii() or not normalized[0].isalpha()
+                or any(character < ' ' or character in '<>:"|?*' for character in normalized[3:])
+                or any(part in ('', '.', '..') or part.endswith((' ', '.')) for part in normalized[3:].split('\\'))
+                or payload[1044:] != bytes.fromhex(WATER_B_SHA256)):
+            raise ValueError('native_graphics_command_invalid')
     return export
 
 

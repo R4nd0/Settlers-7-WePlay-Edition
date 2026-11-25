@@ -15,7 +15,8 @@ import struct
 from . import inventory,recipes,shaderlib
 
 PUBLIC_MODULES=("__init__.py","bytecode.py","foliage.py","inventory.py","recipes.py",
-                "semantics.py","shaderlib.py","terrain.py","staging.py")
+                "semantics.py","shaderlib.py","terrain.py","staging.py",
+                "water.py","water_balanced.py","water_staging.py","water_variants.py")
 MATERIAL_KEYS=("improved_water","improved_terrain","improved_vegetation")
 WATER_RESOURCE="Graphics/Shaders/Water_ATI_High.ShaderLib"
 WATER_RESOURCE_SHA256="f5c575f9015fefd2f33e4a7fdce00bcadc68b54590844b3c08d1c4e48df1efe2"

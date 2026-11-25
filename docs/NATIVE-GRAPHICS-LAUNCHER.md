@@ -22,6 +22,24 @@ programs are generated only under its LocalData. The package carries authored
 parsers/recipes and the native DLL, never original or generated game shaders.
 Ocean water is not covered by the current river option.
 
+The existing river-water option now prepares the accepted balanced B recipe
+explicitly. There is no second A/B user setting. All three pinned High vendor
+resources must generate the same 3840-byte B program in recipient LocalData;
+the fixed production loader accepts only B's recipe/hash path and SHA256. It
+queues `WePlayNativeGraphicsConfigureWater` with the separate 1076-byte transport
+after native initialization and the material configuration. When only water is
+selected, a 4132-byte V1 material bootstrap with flags zero satisfies the startup
+contract. Water is removed from legacy material staging, so River VS68/69
+scaling cannot overlap the new PS. Terrain/leaf preparation remains independent.
+Native Water intent and the material-role mask are different fields.
+
+This wiring remains behind the unchanged empty `QUALIFIED_BUILDS` admission
+table. The static Steam and sampled Ubi lab evidence does not qualify a production
+DLL or installed package. No payload is admitted or option enabled by this
+implementation. Preparation/identity failure returns no initializer; a fixed
+native command refusal follows the owned pre-entry failure path. Production's
+export allowlist excludes observer, comparison and capture operations.
+
 `platform_standalone.launch` composes native graphics with its existing owned
 pre-entry callback. The fixed x86 worker uses the original executable's kernel
 imports, exact entry/identity checks, a DLL read lease, bounded separate RW data
@@ -39,6 +57,11 @@ graphics recovery. Disabled legacy settings do not inspect or load the payload.
 Development validation includes the bilingual GUI self-test, exact request and
 dirty-state round trips, per-scale availability, renderer/effect conflicts,
 backend sizing/quality checks, callback composition and payload drift rejection.
+Water-specific CPU checks cover explicit B selection, zero legacy flags, combined
+terrain/water ordering, malformed/A/unknown payload refusal, denied qualification,
+recipient preparation failure and imports from the exact packaged recipe whitelist
+without repository modules. These are authored fixture checks, not a production
+loader game run.
 Actual production-loader lifecycle, all-edition installed-package tests, 4K
 memory/performance and visible material/shadow comparisons remain separate
 requirements. See [qualification](GRAPHICS-QUALIFICATION.md) and the
