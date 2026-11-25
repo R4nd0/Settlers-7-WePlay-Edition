@@ -6,10 +6,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>S7Launcher</AssemblyName>
-    <Version>2.0.0-rc4.12</Version>
-    <InformationalVersion>rc4.12</InformationalVersion>
-    <AssemblyVersion>2.0.0.41</AssemblyVersion>
-    <FileVersion>2.0.0.41</FileVersion>
+    <Version>2.0.0-rc4.13</Version>
+    <InformationalVersion>rc4.13</InformationalVersion>
+    <AssemblyVersion>2.0.0.42</AssemblyVersion>
+    <FileVersion>2.0.0.42</FileVersion>
     <RuntimeFrameworkVersion>10.0.15</RuntimeFrameworkVersion>
     <Product>Settlers-7-WePlay-Edition</Product>
     <Description>Settlers 7: WePlay Edition - The community fixes what Ubisoft left behind.</Description>

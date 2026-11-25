@@ -1423,7 +1423,7 @@ internal sealed partial class MainForm : Form
                     consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
-                if(form.releaseVersion.Text!="rc4.12"||Program.ReleaseVersion!="rc4.12")throw new Exception("Release version label must be exactly rc4.12");
+                if(form.releaseVersion.Text!="rc4.13"||Program.ReleaseVersion!="rc4.13")throw new Exception("Release version label must be exactly rc4.13");
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.tabs.SelectedTab=form.lanPage;
