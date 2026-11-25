@@ -362,6 +362,61 @@ receipt sequence automatically qualifies visual quality.
 
 ## Verification
 
+The explicit `staging_macro.prepare` candidate preserves the version2/6180-byte
+transport and historical `staging_v2.prepare` defaults. It generates new
+`terrain-macro-relief-*-v3` VS recipes from the recipient's pinned originals;
+it does not overwrite earlier recipe paths or receipts. The native loader
+accepts a complete historical set or a complete macro set and rejects mixed
+VS variants. Macro uses unit detail/relief factors; the existing bounded1.1
+normal PS remains shared. No whole-image colour multiplier is added.
+
+The macro recipe halves the original region-local detail UV frequency using
+an existing local0.5 literal and one extra vertex MUL. Bump normal fade changes
+to12000..18000 world units; Parallax stays8000..12800 so its expensive ray work
+is not extended farther. Original position, other interpolants, far alpha
+fade15000..19200, mip selection rules and texture fetch counts survive.
+Larger world-space features select a correspondingly finer mip; this does not
+invent texture information. The native draw guard requires the observed
+region size3200², VS detail512/9/8, DXT5 diffuse/normal512² with10 levels, and
+for Parallax the L8 height256² with9 levels. Meaningless components are not
+interpreted. Unknown inputs fall back before shader mutation. Query refs and
+both original shader stages retain the existing draw-local rollback contract.
+
+Actual read-only Ubi observation recorded eight samples across both exact
+original pairs with these inputs. Earlier t30 normal-view images established
+no convincing terrain improvement; they did not capture these terrain
+registers. Macro is a new unqualified candidate, not a retrospective visual
+pass. Its required positive test is visible terrain depth at normal camera
+on unobstructed earth/stone, an off/on/off comparison against control motion,
+and a slow pan/zoom and region-boundary check for shimmer or swimming.
+
+Run `rtk proxy python -B -m unittest tools.material_shaders.test_terrain_macro
+tools.material_shaders.test_staging_macro` for authored recipe/preflight/cache
+checks. `native/material_shader_effects_v2_build.ps1` also runs the macro fake
+COM fixture: complete-set guards, measured-state refusals, unused components,
+texture getter exceptions after owned outputs, rollback, warm cache and
+toggle cleanup. CPU/disassembler acceptance does not establish driver or
+actual-game visual qualification. Private reports label `terrain_recipe_variant`
+separately from the unchanged transport `config_version`.
+
+Actual t41 (Steam, native build38) applied macro recipe3 at normal camera but
+did not establish a convincing overall terrain-depth improvement. A small
+coarser soil pattern is visible locally. The first off/on/off series had
+unequal427/42-frame gaps; temporal control differences dominated it. A second
+series used7/7-frame gaps and matching captured camera/sun vectors. Open-field
+RGB differences remained comparable to the off/off control. The ON module
+report was stale: its first automated counter check reported false and remains
+retained. Counters before/after the phase establish applications/restorations,
+not per-image role counts. Both image series remain available in the local
+terrain gallery. No metric establishes a visual-quality pass.
+
+The test ended through the existing memory guardian (`0xe0537021`, pressure1)
+before the initiated menu exit completed. Original binaries, shared profiles
+and private options were preserved/restored with no cleanup errors; the new
+private save was retained. This was no clean-menu-exit qualification. The
+terrain recipe is frozen as visually unqualified; further low-gain variants
+are deferred.
+
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_inventory -v` from the
 repository root (17 checks at this milestone).
 Run `rtk proxy python -B -m unittest tools.material_shaders.test_shaderlib -v` for

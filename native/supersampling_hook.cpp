@@ -73,6 +73,10 @@ SupersamplingConfig configuration{};
 NativeGraphicsConfig::Version2 native_configuration{};
 constexpr DWORD CompiledCapabilities=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Water
     |NativeGraphicsConfig::Terrain|NativeGraphicsConfig::Vegetation;
+bool ShadowIntentAuthorized(DWORD flags) {
+    constexpr DWORD required=NativeGraphicsConfig::Observe|NativeGraphicsConfig::StableShadows;
+    return (flags&required)==required;
+}
 DWORD capture_pending=0,capture_last_sequence=0;
 MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
 MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
@@ -83,6 +87,46 @@ WaterShaderEffects::Config water_pending_config{};
 bool water_received=false,water_waiting=false,water_initialized=false;
 DWORD water_frame_origin=0;
 WaterShaderEffects::Stats water_state{};
+ShadowFilterEffects::Config shadow_pending_config{};
+ShadowFilterEffects::Stats shadow_state{};
+bool shadow_received=false,shadow_waiting=false,shadow_initialized=false,shadow_state_valid=false,shadow_frame_good=false;
+bool shadow_frame_counters_valid=false;
+DWORD shadow_frame_origin=0;
+std::uint64_t shadow_successful_total=0,shadow_failed_total=0,shadow_frame_successful=0,shadow_frame_failed=0;
+std::string ShadowJson() {
+    const auto& s=shadow_state;
+    const auto frame=[](std::uint64_t value){return value?value+shadow_frame_origin:0;};
+    const auto bits=[](const std::array<DWORD,4>& values) {
+        return "["+std::to_string(values[0])+","+std::to_string(values[1])+","+std::to_string(values[2])+","+std::to_string(values[3])+"]";
+    };
+    return "{\"diagnostic_only\":true,\"received\":"+std::to_string(shadow_received?1:0)
+        +",\"pending\":"+std::to_string(shadow_waiting?1:0)+",\"state_valid\":"+(shadow_state_valid?"true":"false")
+        +",\"initialized\":"+std::to_string(s.initialized)+",\"authorized\":"+std::to_string(s.authorized)
+        +",\"requested\":"+std::to_string(s.requested)+",\"enabled\":"+std::to_string(s.enabled)
+        +",\"faulted\":"+std::to_string(s.faulted)+",\"unsafe\":"+std::to_string(s.unsafe_state)
+        +",\"epoch\":"+std::to_string(s.epoch)+",\"frame_origin\":"+std::to_string(shadow_frame_origin)
+        +",\"frames\":"+std::to_string(s.frames)+",\"completed_frame\":"+std::to_string(frame(s.completed_frame))
+        +",\"frame_good\":"+(shadow_frame_good?"true":"false")
+        +",\"frame_counters_valid\":"+(shadow_frame_counters_valid?"true":"false")
+        +",\"frame_successful_draws\":"+std::to_string(shadow_frame_successful)+",\"frame_failed_draws\":"+std::to_string(shadow_frame_failed)
+        +",\"draws\":"+std::to_string(s.draws)+",\"matched\":"+std::to_string(s.matched)
+        +",\"applications\":"+std::to_string(s.applications)+",\"restorations\":"+std::to_string(s.restorations)
+        +",\"successful_draws\":"+std::to_string(s.successful_draws)+",\"failed_draws\":"+std::to_string(s.failed_draws)
+        +",\"completed_applications\":"+std::to_string(s.completed_applications)
+        +",\"completed_restorations\":"+std::to_string(s.completed_restorations)
+        +",\"last_applied_frame\":"+std::to_string(frame(s.last_applied_frame))
+        +",\"last_restored_frame\":"+std::to_string(frame(s.last_restored_frame))
+        +",\"query_failures\":"+std::to_string(s.query_failures)+",\"context_rejections\":"+std::to_string(s.context_rejections)
+        +",\"policy_rejections\":"+std::to_string(s.policy_rejections)+",\"cache_bypasses\":"+std::to_string(s.cache_bypasses)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+",\"cached_refs\":"+std::to_string(s.cached_refs)
+        +",\"active_transactions\":"+std::to_string(s.active_transactions)+",\"last_failure\":"+std::to_string(s.last_failure)
+        +",\"last_policy_decision\":"+std::to_string(s.last_policy_decision)
+        +",\"sampler_available\":"+std::to_string(s.sampler_available)+",\"sampler_min\":"+std::to_string(s.sampler_min)
+        +",\"sampler_mag\":"+std::to_string(s.sampler_mag)+",\"sampler_mip\":"+std::to_string(s.sampler_mip)
+        +",\"sampler_address_u\":"+std::to_string(s.sampler_address_u)+",\"sampler_address_v\":"+std::to_string(s.sampler_address_v)
+        +",\"last_original_bits\":"+bits(s.last_original_bits)+",\"last_applied_bits\":"+bits(s.last_applied_bits)+"}";
+}
 std::string WaterJson() {
     WaterShaderEffects::Stats value{};
     if(water_initialized&&WaterShaderEffects::ReadStats(&value))water_state=value;
@@ -227,7 +271,7 @@ void Report() {
         "\"comparison_context_rejections\":%llu,\"comparison_input_rejections\":%llu,\"comparison_query_failures\":%llu,"
         "\"comparison_cache_overflows\":%llu,\"comparison_cached_refs\":%lu,\"comparison_applications\":%llu,"
         "\"comparison_restorations\":%llu,\"comparison_failed_draws\":%llu,\"comparison_set_failures\":%llu,"
-        "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu,\"water\":%s}\n",
+        "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu,\"water\":%s,\"shadow\":%s}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -254,7 +298,7 @@ void Report() {
         comparison_last_state.context_rejections,comparison_last_state.input_rejections,comparison_last_state.query_failures,
         comparison_last_state.cache_overflows,comparison_last_state.cached_refs,comparison_last_state.applications,
         comparison_last_state.restorations,comparison_last_state.failed_draws,comparison_last_state.set_failures,
-        comparison_last_state.restore_failures,comparison_last_state.exceptions,WaterJson().c_str());
+        comparison_last_state.restore_failures,comparison_last_state.exceptions,WaterJson().c_str(),ShadowJson().c_str());
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -368,6 +412,74 @@ bool WaterHealthy() {
     return !value.faulted;
 }
 
+bool ShadowHealthy() {
+    if(!shadow_initialized)return !shadow_received||shadow_waiting;
+    ShadowFilterEffects::Stats value{};
+    shadow_state_valid=ShadowFilterEffects::ReadStats(&value);
+    if(!shadow_state_valid)return false;
+    shadow_state=value;stats.shadow_active=value.enabled;stats.shadow_unsafe=value.unsafe_state;
+    if(value.unsafe_state) {
+        stats.render_unsafe=1;shadow_frame_good=false;stats.shadow_frame_good=0;
+        if(capture_pending){capture_pending=0;++stats.capture_failures;}
+        return false;
+    }
+    return value.initialized && !value.faulted;
+}
+
+void ClearShadowFrameProof() {
+    shadow_frame_good=false;shadow_frame_counters_valid=false;shadow_frame_successful=shadow_frame_failed=0;
+    stats.shadow_frame_good=stats.shadow_frame_successful_draws=stats.shadow_frame_failed_draws=0;
+    shadow_successful_total=shadow_state.successful_draws;shadow_failed_total=shadow_state.failed_draws;
+}
+
+void ApplyPendingShadow() {
+    if(!shadow_waiting||stats.render_unsafe)return;
+    DiagnosticScope diagnostic;
+    if(!shadow_initialized) {
+        shadow_initialized=ShadowFilterEffects::Initialize(configuration.render_width,configuration.render_height,true);
+        if(shadow_initialized){shadow_frame_origin=stats.present_calls;stats.shadow_frame_origin=shadow_frame_origin;}
+    }
+    const bool valid=shadow_initialized&&ShadowFilterEffects::Configure(&shadow_pending_config);
+    shadow_waiting=false;++stats.effects_revision;stats.effects_frame_has_geometry=0;
+    const bool healthy=ShadowHealthy();ClearShadowFrameProof();
+    if(!valid||!healthy){stats.last_failure=226;if(capture_pending){++stats.capture_failures;capture_pending=0;}}
+    Report();
+}
+
+bool CompletedShadowFrameGood(const ShadowFilterEffects::Stats& value,bool healthy,std::uint64_t previous_successful,
+                             std::uint64_t previous_failed,std::uint64_t expected_frame,DWORD origin,
+                             std::uint64_t& successful,std::uint64_t& failed) {
+    successful=failed=0;
+    if(value.successful_draws<previous_successful || value.failed_draws<previous_failed)return false;
+    successful=value.successful_draws-previous_successful;failed=value.failed_draws-previous_failed;
+    return healthy && value.initialized && value.authorized && value.enabled && !value.faulted && !value.unsafe_state
+        && successful>0 && successful<=MAXDWORD && !failed && value.completed_applications>0
+        && value.completed_frame>0 && value.completed_frame<=std::numeric_limits<std::uint64_t>::max()-origin
+        && value.completed_applications==value.completed_restorations && value.completed_frame==value.frames
+        && value.last_applied_frame==value.completed_frame && value.last_restored_frame==value.completed_frame
+        && value.completed_frame+origin==expected_frame;
+}
+
+void EndShadowFrame(IDirect3DDevice9* device) {
+    shadow_frame_good=false;shadow_frame_counters_valid=false;shadow_frame_successful=shadow_frame_failed=0;
+    stats.shadow_frame_good=stats.shadow_frame_successful_draws=stats.shadow_frame_failed_draws=0;
+    if(!shadow_initialized)return;
+    ShadowFilterEffects::EndFrame(device);
+    const bool healthy=ShadowHealthy();
+    if(shadow_state_valid) {
+        shadow_frame_good=CompletedShadowFrameGood(shadow_state,healthy,shadow_successful_total,shadow_failed_total,
+            static_cast<std::uint64_t>(stats.present_calls)+1,shadow_frame_origin,shadow_frame_successful,shadow_frame_failed);
+        shadow_frame_counters_valid=shadow_state.successful_draws>=shadow_successful_total
+            && shadow_state.failed_draws>=shadow_failed_total && shadow_frame_successful<=MAXDWORD && shadow_frame_failed<=MAXDWORD;
+        if(shadow_frame_counters_valid) {
+            stats.shadow_frame_successful_draws=static_cast<DWORD>(shadow_frame_successful);
+            stats.shadow_frame_failed_draws=static_cast<DWORD>(shadow_frame_failed);
+        }
+        stats.shadow_frame_good=shadow_frame_good?1u:0u;
+        shadow_successful_total=shadow_state.successful_draws;shadow_failed_total=shadow_state.failed_draws;
+    }
+}
+
 bool EffectsDrawAllowed() {
     return !stats.render_unsafe && (!stats.effects_requested || effects_received);
 }
@@ -407,6 +519,13 @@ void LatchEffectsDraw() {
 }
 
 bool CaptureEpochReady() {
+    if(shadow_received&&(shadow_waiting||!shadow_initialized||!ShadowHealthy()||!shadow_frame_counters_valid
+        ||shadow_state.completed_frame+shadow_frame_origin!=stats.present_calls))return false;
+    if(shadow_received&&shadow_state.enabled && (!shadow_frame_good || !shadow_state.completed_applications
+        ||shadow_state.completed_applications!=shadow_state.completed_restorations
+        ||shadow_state.completed_frame+shadow_frame_origin!=stats.present_calls
+        ||shadow_state.last_applied_frame!=shadow_state.completed_frame
+        ||shadow_state.last_restored_frame!=shadow_state.completed_frame))return false;
     if(water_received&&(water_waiting||!water_initialized||!WaterHealthy()))return false;
     if(water_received&&water_state.enabled && (!water_state.completed_applications
         ||water_state.completed_applications!=water_state.completed_restorations
@@ -728,6 +847,9 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
     ULONG count=0;
     {
         Internal inside(current);
+        if(shadow_initialized&&!ShadowFilterEffects::Reset(device)) {
+            stats.render_unsafe=stats.shadow_unsafe=1;ClearShadowFrameProof();stats.last_failure=227;Report();return 1;
+        }
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
         if(comparison_initialized)MaterialComparison::Reset(device);
         if(effects_initialized)MaterialShaderEffects::Reset(device);
@@ -755,6 +877,12 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     if(!state || state->device!=device)return reinterpret_cast<Reset>(saved_methods[16])(device,parameters);
     OriginalCallScope original_state;
     Internal inside(state);
+    if(shadow_initialized) {
+        if(!ShadowFilterEffects::Reset(device)||!ShadowFilterEffects::InvalidateFrame()) {
+            stats.render_unsafe=stats.shadow_unsafe=1;ClearShadowFrameProof();stats.last_failure=227;Report();return D3DERR_DEVICELOST;
+        }
+        ShadowHealthy();ClearShadowFrameProof();
+    }
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
     if(comparison_initialized){MaterialComparison::Reset(device);MaterialComparison::InvalidateFrame();}
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
@@ -788,6 +916,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     if(!state || state->device!=device)return reinterpret_cast<Present>(saved_methods[17])(device,source,destination,override_window,dirty);
     OriginalCallScope original_state;
     Internal inside(state);auto& current=*state;
+    EndShadowFrame(device);
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::EndFrame(device);
     if(comparison_initialized){MaterialComparison::EndFrame(device);ReadComparisonState();}
     if(effects_initialized)MaterialShaderEffects::EndFrame(device);
@@ -836,6 +965,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         if(current.shutdown_requested)TerminalCleanup(current);
         else ApplyPendingEffects();
         if(!current.shutdown_requested)ApplyPendingWater();
+        if(!current.shutdown_requested)ApplyPendingShadow();
         if(!current.shutdown_requested)ApplyPendingComparison();
         if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0))Report();
         return original;
@@ -918,6 +1048,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     if(current.shutdown_requested)TerminalCleanup(current);
     else ApplyPendingEffects();
     if(!current.shutdown_requested)ApplyPendingWater();
+    if(!current.shutdown_requested)ApplyPendingShadow();
     if(!current.shutdown_requested)ApplyPendingComparison();
     if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0) || failure)Report();
     return result;
@@ -945,9 +1076,10 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeMaterialDraw::Execute(device,comparison_initialized && stats.comparison_requested && count,
+    const auto transaction=NativeMaterialDraw::ExecuteFour(device,comparison_initialized && stats.comparison_requested && count,
         effects_initialized && stats.effects_active && count,
         water_initialized && water_state.enabled && count,
+        shadow_initialized && shadow_state.enabled && count,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -959,6 +1091,8 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
         stats.water_unsafe=transaction.water_unsafe?1u:0u;
+        stats.shadow_unsafe=transaction.shadow_unsafe?1u:0u;
+        ClearShadowFrameProof();
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
@@ -973,9 +1107,10 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeMaterialDraw::Execute(device,comparison_initialized && stats.comparison_requested && count && vertices,
+    const auto transaction=NativeMaterialDraw::ExecuteFour(device,comparison_initialized && stats.comparison_requested && count && vertices,
         effects_initialized && stats.effects_active && count && vertices,
         water_initialized && water_state.enabled && count && vertices,
+        shadow_initialized && shadow_state.enabled && count && vertices,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -987,6 +1122,8 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
         stats.water_unsafe=transaction.water_unsafe?1u:0u;
+        stats.shadow_unsafe=transaction.shadow_unsafe?1u:0u;
+        ClearShadowFrameProof();
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
@@ -1017,6 +1154,14 @@ bool TerminalCleanup(State& current) {
     if(current.terminal_cleanup)return true;
     current.shutdown_requested=true;current.logical_window_active=false;current.startup_window_pending=false;
     current.startup_client_width=current.startup_client_height=0;
+    if(shadow_initialized) {
+        if(!ShadowFilterEffects::Reset(current.device)||!ShadowFilterEffects::Shutdown()) {
+            stats.render_unsafe=stats.shadow_unsafe=1;ClearShadowFrameProof();stats.last_failure=227;Report();return false;
+        }
+        shadow_state_valid=ShadowFilterEffects::ReadStats(&shadow_state);
+        shadow_initialized=false;stats.shadow_active=0;
+    }
+    shadow_waiting=false;ClearShadowFrameProof();
     if(water_initialized) {
         if(!WaterShaderEffects::Reset(current.device)||!WaterShaderEffects::Shutdown()) {
             stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return false;
@@ -1059,7 +1204,15 @@ bool PrepareEngineDeinit(const void* caller,DWORD thread) {
     DiagnosticScope diagnostic;
     const auto prepare=[&](State* current) {
         ++stats.engine_deinit_calls;
-        if(!current || current->terminal_cleanup)return true;
+        if(!current || current->terminal_cleanup) {
+            // A missing/retired host epoch does not establish that a live
+            // module's durable GPU backup is safe. Never force stale recovery.
+            if(shadow_initialized) {
+                ++stats.engine_deinit_rejected;stats.render_unsafe=stats.shadow_unsafe=1;
+                ClearShadowFrameProof();stats.last_failure=227;Report();return false;
+            }
+            return true;
+        }
         MEMORY_BASIC_INFORMATION origin{};
         const bool image=GameCaller(caller) && VirtualQuery(caller,&origin,sizeof(origin))==sizeof(origin);
 #ifdef S7_SUPERSAMPLING_FIXTURE
@@ -1088,13 +1241,13 @@ bool PrepareEngineDeinit(const void* caller,DWORD thread) {
 
 void __cdecl HookDeinitD3D() {
     OriginalCallScope original_state;
-    PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId());
+    if(!PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId()))return;
     original_state.before();original_deinit_d3d();original_state.returned();
     ++stats.engine_deinit_returned;stats.shutdown_stage=3;Report();
 }
 bool __cdecl HookDeinitScreen(void* config) {
     OriginalCallScope original_state;
-    PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId());
+    if(!PrepareEngineDeinit(_ReturnAddress(),GetCurrentThreadId()))return false;
     original_state.before();const bool result=original_deinit_screen(config);original_state.returned();
     ++stats.engine_deinit_returned;stats.shutdown_stage=3;Report();return result;
 }
@@ -1179,6 +1332,12 @@ bool Attach(IDirect3DDevice9* device) {
     }
     state=current;stats.attached=1;
     {Internal inside(current);Target(*current);
+        if(shadow_initialized) {
+            if(!ShadowFilterEffects::InvalidateFrame()) {
+                stats.render_unsafe=stats.shadow_unsafe=1;ClearShadowFrameProof();return fail(227);
+            }
+            ShadowHealthy();ClearShadowFrameProof();
+        }
         if(comparison_initialized)MaterialComparison::InvalidateFrame();
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
         IDirect3DSurface9* backbuffer=nullptr;D3DSURFACE_DESC description{};
@@ -1268,7 +1427,11 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
         || (header[0]!=sizeof(SupersamplingConfig) && header[0]!=sizeof(NativeGraphicsConfig::Version2)))return 0;
     std::array<unsigned char,sizeof(NativeGraphicsConfig::Version2)> bytes{};
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,bytes.data(),header[0],&read) || read!=header[0]
-        || NativeGraphicsConfig::Decode(bytes.data(),header[0],CompiledCapabilities,native_configuration)!=NativeGraphicsConfig::Error::None)return 0;
+        || NativeGraphicsConfig::Decode(bytes.data(),header[0],CompiledCapabilities|NativeGraphicsConfig::StableShadows,
+            native_configuration)!=NativeGraphicsConfig::Error::None)return 0;
+    // StableShadows is a diagnostic intent, never a reported release capability.
+    if((native_configuration.flags&NativeGraphicsConfig::StableShadows)
+        && !ShadowIntentAuthorized(native_configuration.flags))return 0;
     configuration=native_configuration.base;
     stats.effects_requested=NativeEffectsContract::Requested(native_configuration.flags);
     renderer=GetModuleHandleW(L"d3d9.dll");
@@ -1401,6 +1564,19 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* opaque) {
     water_pending_config=config;water_received=true;water_waiting=true;stats.water_protocol_received=1;Report();return 1;
 }
 
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureShadow(void* opaque) {
+    using namespace SupersamplingHook;
+    DiagnosticScope diagnostic;
+    ShadowFilterEffects::Config config{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
+        ||config.size!=sizeof(config)||config.version!=1||config.enabled>1)return 0;
+    Lock lock;
+    if(!initialization_ready||!ShadowIntentAuthorized(native_configuration.flags)||shadow_waiting||stats.render_unsafe
+        ||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
+    shadow_pending_config=config;shadow_received=true;shadow_waiting=true;stats.shadow_protocol_received=1;
+    shadow_frame_good=false;stats.shadow_frame_good=0;Report();return 1;
+}
+
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureComparison(void* opaque) {
     using namespace SupersamplingHook;
     DiagnosticScope diagnostic;
@@ -1421,7 +1597,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
         || request.size!=sizeof(request) || request.version!=1 || !request.sequence)return 0;
     Lock lock;
     if(!state || !stats.attached || state->shutdown_requested || state->terminal_cleanup || capture_pending
-        || effects_waiting || comparison_waiting || stats.render_unsafe
+        || effects_waiting || comparison_waiting || shadow_waiting || stats.render_unsafe
         || request.sequence<=capture_last_sequence || !NativeGraphicsCapture::TargetAvailable(configuration.report_path,request.sequence))return 0;
     capture_pending=request.sequence;capture_last_sequence=request.sequence;++stats.capture_requests;Report();return 1;
 }

@@ -1,8 +1,9 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$ConfigPath='')
 $ErrorActionPreference='Stop'
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if (!$output.StartsWith((Join-Path $repository 'work')+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $output)) {throw 'Use a new directory inside repository work/.'}
+if($ConfigPath){$ConfigPath=[IO.Path]::GetFullPath($ConfigPath);if(!$ConfigPath.StartsWith((Join-Path $repository 'work')+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or !(Test-Path -LiteralPath $ConfigPath -PathType Leaf)){throw 'Use an owned actual config under work/.'}}
 $finder=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 $installation=& $finder -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (!$installation) {throw 'Visual Studio C++ Build Tools are required.'}
@@ -18,7 +19,8 @@ try {
     foreach($name in $names) {$bytes=[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $name));$hashes[$name]=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','').ToLowerInvariant();$snapshot=Join-Path $output $name;[IO.File]::WriteAllBytes($snapshot,$bytes);$leases+=,[IO.File]::Open($snapshot,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 material_shader_effects_contract_v2_fixture.cpp /Fe:material_shader_effects_contract_v2_fixture.exe /link /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'V2 policy CPU contract compile failed.'}
-    & (Join-Path $output 'material_shader_effects_contract_v2_fixture.exe') (Join-Path $output 'fixture')
+    if($ConfigPath){& (Join-Path $output 'material_shader_effects_contract_v2_fixture.exe') (Join-Path $output 'fixture') $ConfigPath}
+    else {& (Join-Path $output 'material_shader_effects_contract_v2_fixture.exe') (Join-Path $output 'fixture')}
     if($LASTEXITCODE){throw 'V2 policy CPU fixture failed.'}
     foreach($name in $names){$after=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $name)))).Replace('-','').ToLowerInvariant();if($after -ne $hashes[$name]){throw 'Source changed during build; rebuild.'}}
     $manifest=@{format='s7-native-effects-contract-v2-cpu-build-v1';sources=$hashes;gpu_started=$false;game_started=$false;effects_linked=$false;fixture_artifacts_are_dummy=$true;cpu_checks_passed=$true}

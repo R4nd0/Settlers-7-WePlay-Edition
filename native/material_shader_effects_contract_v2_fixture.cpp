@@ -16,14 +16,16 @@ NativeGraphicsConfig::Version2 Native(const std::wstring& root,DWORD intent=Nati
     native.base.render_width=3840;native.base.render_height=2160;native.base.output_width=1920;native.base.output_height=1080;
     Assign(native.base.report_path,root+L"\\native.private.json");return native;
 }
-Config ConfigFor(const NativeGraphicsConfig::Version2& native,Layout layout){
+Config ConfigFor(const NativeGraphicsConfig::Version2& native,Layout layout,bool macro=false){
     Config value{};value.flags=Requested(native.flags);value.render_width=native.base.render_width;value.render_height=native.base.render_height;
     const std::wstring report=native.base.report_path;const auto slash=report.find_last_of(L'\\');const auto root=report.substr(0,slash);
     const auto base=root+(layout==Layout::PrivateCase?L"\\LocalData\\MaterialShaders\\":L"\\MaterialShaders\\");
     Assign(value.report_path,root+L"\\material-effects.private.json");
     wchar_t (*paths[])[512]={&value.leaf_vertex_path,&value.bump_pixel_path,&value.parallax_pixel_path,&value.bump_vertex_path,&value.parallax_vertex_path};
-    for(size_t slot=0;slot<5;++slot)if(Requested(native.flags)&Programs[slot].role)
-        Assign(*paths[slot],base+Programs[slot].directory+L"\\"+Programs[slot].digest+Programs[slot].suffix);
+    const auto& programs=macro?MacroPrograms:Programs;
+    for(size_t slot=0;slot<5;++slot)if(Requested(native.flags)&programs[slot].role)
+        Assign(*paths[slot],base+programs[slot].directory+L"\\"+programs[slot].digest+programs[slot].suffix);
+    if(macro)value.terrain_detail_scale=value.terrain_relief_scale=1;
     return value;
 }
 void File(const std::wstring& path){
@@ -33,7 +35,7 @@ void File(const std::wstring& path){
 }
 }
 int wmain(int argc,wchar_t** argv){using namespace NativeEffectsContractV2;try{
-    Check(argc==2,"new private CPU fixture root");const std::wstring folder=argv[1];Check(CreateDirectoryW(folder.c_str(),nullptr)!=0,"new policy fixture root");
+    Check(argc==2||argc==3,"new private CPU fixture root and optional owned actual config");const std::wstring folder=argv[1];Check(CreateDirectoryW(folder.c_str(),nullptr)!=0,"new policy fixture root");
     auto native=Native(folder);auto value=ConfigFor(native,Layout::PrivateCase);
     SetLastError(0x37573001);Check(Validate(value,native,Layout::PrivateCase,false)==Error::None,"valid fixed private paths");Check(GetLastError()==0x37573001,"policy preserves caller LastError");
     for(DWORD flags:{0u,2u,4u,6u}){auto request=value;request.flags=flags;Check(Validate(request,native,Layout::PrivateCase,false)==Error::None,"explicit safe-boundary mask subset");
@@ -77,5 +79,37 @@ int wmain(int argc,wchar_t** argv){using namespace NativeEffectsContractV2;try{
     Check(Validate(recipient,recipient_native,Layout::PrivateCase,false)==Error::FixedPath,"production layout never silently adds diagnostic LocalData");
     changed_native=recipient_native;changed_native.flags|=NativeGraphicsConfig::Observe;Assign(changed_native.catalog_path,folder+L"\\catalog.bin");changed_native.catalog_sha256[0]=1;Assign(changed_native.observer_report_path,recipient.report_path);
     Check(Validate(recipient,changed_native,Layout::RecipientLocalData,false)==Error::ReportCollision,"observer/effects report collision refused");
+    // Full production-shaped macro path, including all five preflighted files.
+    auto macro_native=Native(folder+L"\\macro-recipient\\LocalData");
+    auto macro=ConfigFor(macro_native,Layout::RecipientLocalData,true);
+    Check(Validate(macro,macro_native,Layout::RecipientLocalData,false)==Error::None,"complete macro set on wire2 accepted");
+    const wchar_t* macro_artifacts[]={macro.leaf_vertex_path,macro.bump_pixel_path,macro.parallax_pixel_path,macro.bump_vertex_path,macro.parallax_vertex_path};
+    for(const auto* path:macro_artifacts)File(path);
+    Check(Validate(macro,macro_native,Layout::RecipientLocalData,true)==Error::None,"full production macro paths preflight");
+    auto historical=ConfigFor(macro_native,Layout::RecipientLocalData);
+    for(unsigned stage=0;stage<2;++stage){auto mixed=macro;
+        if(stage==0)Assign(mixed.bump_vertex_path,historical.bump_vertex_path);else Assign(mixed.parallax_vertex_path,historical.parallax_vertex_path);
+        Check(Validate(mixed,macro_native,Layout::RecipientLocalData,false)==Error::FixedPath,"mixed historical and macro VS rejected");}
+    for(unsigned field=0;field<2;++field){auto gained=macro;if(field==0)gained.terrain_detail_scale=1.2f;else gained.terrain_relief_scale=1.1f;
+        Check(Validate(gained,macro_native,Layout::RecipientLocalData,false)==Error::Parameters,"macro requires unit factors");}
+    auto renamed=macro;Assign(renamed.bump_vertex_path,std::wstring(historical.bump_vertex_path).substr(0,std::wstring(historical.bump_vertex_path).find_last_of(L'\\')+1)+MacroPrograms[3].digest+L".vs.bin");
+    Check(Validate(renamed,macro_native,Layout::RecipientLocalData,false)==Error::FixedPath,"macro hash in old recipe folder rejected");
+    Check(!SamePinnedConfig(macro,historical),"safe-boundary hot toggle cannot switch recipes implicitly");
+    for(DWORD flags:{0u,2u,4u,6u}){auto off=macro;off.flags=flags;Config initial{};
+        Check(Validate(off,macro_native,Layout::RecipientLocalData,true)==Error::None,"macro subset toggle retains complete pinned paths");
+        Check(PrepareInitial(off,macro_native,Layout::RecipientLocalData,initial,true)==Error::None&&initial.flags==6,"macro off preloads complete declared intent");
+        Check(SamePinnedConfig(off,macro),"macro toggles change flags only");}
+    auto terrain_native=Native(folder+L"\\macro-only",NativeGraphicsConfig::Terrain);
+    auto terrain_macro=ConfigFor(terrain_native,Layout::PrivateCase,true);
+    Check(Validate(terrain_macro,terrain_native,Layout::PrivateCase,false)==Error::None,"terrain-only private macro layout");
+    if(argc==3){Config actual{};HANDLE input=CreateFileW(argv[2],GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+        Check(input!=INVALID_HANDLE_VALUE,"open actual recipient-generated config");LARGE_INTEGER size{};DWORD bytes=0;BY_HANDLE_FILE_INFORMATION info{};
+        const bool read=GetFileInformationByHandle(input,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
+            &&GetFileSizeEx(input,&size)&&size.QuadPart==sizeof(actual)&&ReadFile(input,&actual,sizeof(actual),&bytes,nullptr)&&bytes==sizeof(actual);CloseHandle(input);Check(read,"bounded actual6180 read");
+        const std::wstring report=actual.report_path;const auto slash=report.find_last_of(L'\\');const auto slash2=report.find_last_of(L'/');
+        const auto separator=slash==std::wstring::npos?slash2:slash2==std::wstring::npos?slash:(std::max)(slash,slash2);
+        Check(separator!=std::wstring::npos,"actual report root");auto actual_native=Native(report.substr(0,separator),NativeGraphicsConfig::Terrain|(actual.leaf_vertex_path[0]?NativeGraphicsConfig::Vegetation:0));
+        actual_native.base.render_width=actual.render_width;actual_native.base.render_height=actual.render_height;
+        Check(Validate(actual,actual_native,Layout::PrivateCase,true)==Error::None,"actual recipient-source macro config passes HOST contract preflight");}
     std::printf("NativeEffectsContractV2 CPU policy: %u checks passed; no effects linkage, GPU or game\n",checks);return 0;
 }catch(const std::exception& error){std::fprintf(stderr,"V2 policy fixture failed: %s\n",error.what());return 1;}}

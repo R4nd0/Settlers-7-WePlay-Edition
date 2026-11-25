@@ -354,6 +354,75 @@ class QualificationTests(unittest.TestCase):
         self.change_artifact(1,'hook_build',lambda data:data['abi'].update(water=1060))
         self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
 
+    def terrain_macro_build(self):
+        directory=self.water_build()
+        def update(data):
+            data.update(source_set='effects-v5')
+            for name in q.TERRAIN_MACRO_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic macro snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def test_terrain_v5_requires_exact29_sources_and_unchanged_abi(self):
+        self.terrain_macro_build()
+        self.assertEqual(len(q.TERRAIN_MACRO_HOOK_SOURCES),29)
+        result=q.aggregate(self.manifest)
+        self.assertTrue(result['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(result['visual_qualified'])
+        self.change_artifact(1,'hook_build',lambda data:data['abi'].update(effects_v2=6184))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_terrain_v5_missing_changed_or_mislabeled_guard_rejected(self):
+        directory=self.terrain_macro_build()
+        path=directory/'terrain_macro_guard.h'
+        original=path.read_bytes();path.write_bytes(original+b'changed')
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        path.write_bytes(original)
+        self.change_artifact(1,'hook_build',lambda data:data.update(source_set='effects-v4'))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:(data.update(source_set='effects-v5'),data['files'].pop('terrain_macro_guard.h')))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_terrain_v5_keeps_terminal_failure_rejection(self):
+        self.terrain_macro_build()
+        self.change_artifact(1,'result',lambda data:data.update(exit_code=0xc0000005))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def shadow_build(self):
+        directory=self.terrain_macro_build()
+        def update(data):
+            data.update(source_set='effects-v6',diagnostic_abi={'comparison':12,'shadow':12})
+            for name in q.SHADOW_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic shadow snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def test_shadow_v6_requires32_sources_and_separate_fixed_diagnostic_abi(self):
+        self.shadow_build()
+        self.assertEqual(len(q.SHADOW_HOOK_SOURCES),32)
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(q.aggregate(self.manifest)['visual_qualified'])
+        for abi in ({'comparison':12},{'comparison':12,'shadow':16},{'comparison':12,'shadow':12,'arbitrary':12}):
+            self.change_artifact(1,'hook_build',lambda data:data.update(diagnostic_abi=abi))
+            self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_shadow_v6_changed_missing_or_mislabeled_sources_rejected(self):
+        directory=self.shadow_build()
+        path=directory/'shadow2048_filter_policy.h';original=path.read_bytes();path.write_bytes(original+b'changed')
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        path.write_bytes(original)
+        self.change_artifact(1,'hook_build',lambda data:data.update(source_set='effects-v5',diagnostic_abi={'comparison':12}))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:(data.update(source_set='effects-v6',diagnostic_abi={'comparison':12,'shadow':12}),data['files'].pop('shadow_filter_effects.cpp')))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_shadow_v6_diagnostic_intent_is_not_release_capability(self):
+        self.shadow_build()
+        self.change_artifact(1,'hook_build',lambda data:data.update(compiled_capabilities=31))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
     @staticmethod
     def water_record(on=True):
         return {'frame':80,'requested':int(on),'enabled':int(on),'configured':int(on),'epoch':2 if on else 1,

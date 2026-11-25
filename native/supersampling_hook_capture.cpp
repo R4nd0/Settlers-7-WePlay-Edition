@@ -190,6 +190,34 @@ std::string Water(const Result& result) {
         +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
         +",\"exceptions\":"+std::to_string(s.exceptions)+",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+"}";
 }
+std::string Shadow(const Result& result) {
+    if(!result.graphics.shadow_protocol_received||!result.shadow_state_available)return "null";
+    const auto& s=result.shadow;
+    const auto frame=[&](std::uint64_t value){return value?value+result.graphics.shadow_frame_origin:0;};
+    const auto words=[](const std::array<DWORD,4>& value){return "["+std::to_string(value[0])+","+
+        std::to_string(value[1])+","+std::to_string(value[2])+","+std::to_string(value[3])+"]";};
+    return "{\"diagnostic_only\":true,\"frame\":"+std::to_string(frame(s.completed_frame))
+        +",\"requested\":"+std::to_string(s.requested)+",\"enabled\":"+std::to_string(s.enabled)
+        +",\"epoch\":"+std::to_string(s.epoch)+",\"faulted\":"+std::to_string(s.faulted)
+        +",\"unsafe\":"+std::to_string(s.unsafe_state)+",\"active_transactions\":"+std::to_string(s.active_transactions)
+        +",\"completed_applications\":"+std::to_string(s.completed_applications)
+        +",\"completed_restorations\":"+std::to_string(s.completed_restorations)
+        +",\"last_applied_frame\":"+std::to_string(frame(s.last_applied_frame))
+        +",\"last_restored_frame\":"+std::to_string(frame(s.last_restored_frame))
+        +",\"frame_good\":"+std::to_string(result.graphics.shadow_frame_good)
+        +",\"frame_successful_draws\":"+std::to_string(result.graphics.shadow_frame_successful_draws)
+        +",\"frame_failed_draws\":"+std::to_string(result.graphics.shadow_frame_failed_draws)
+        +",\"successful_draws\":"+std::to_string(s.successful_draws)+",\"failed_draws\":"+std::to_string(s.failed_draws)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+",\"query_failures\":"+std::to_string(s.query_failures)
+        +",\"policy_rejections\":"+std::to_string(s.policy_rejections)
+        +",\"original_ps57_bits\":"+words(s.last_original_bits)+",\"applied_ps57_bits\":"+words(s.last_applied_bits)
+        +",\"sampler_available\":"+std::to_string(s.sampler_available)
+        +",\"sampler_min\":"+std::to_string(s.sampler_min)+",\"sampler_mag\":"+std::to_string(s.sampler_mag)
+        +",\"sampler_mip\":"+std::to_string(s.sampler_mip)
+        +",\"sampler_address_u\":"+std::to_string(s.sampler_address_u)
+        +",\"sampler_address_v\":"+std::to_string(s.sampler_address_v)+"}";
+}
 }
 
 bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept {
@@ -220,6 +248,8 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
             && result.comparison.initialized && result.comparison.frames==graphics.present_calls;
         result.water_state_available=graphics.water_protocol_received&&WaterShaderEffects::ReadStats(&result.water)
             &&result.water.initialized;
+        result.shadow_state_available=graphics.shadow_protocol_received&&ShadowFilterEffects::ReadStats(&result.shadow)
+            &&result.shadow.initialized;
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -274,6 +304,7 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
             +",\"effects_requested\":"+std::to_string(result.graphics.effects_requested)
             +",\"water\":"+Water(result)
+            +",\"shadow\":"+Shadow(result)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
             +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
             +",\"effects_active\":"+std::to_string(result.graphics.effects_active)

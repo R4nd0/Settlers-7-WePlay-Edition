@@ -10,6 +10,42 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_shadow_toggle_has_no_arbitrary_profile_or_export_and_requires_opt_in(self):
+        raw=b'{"operation":"shadow","sequence":3,"enabled":1}'
+        self.assertEqual(game.native_command(raw,2,shadow_allowed=True)['enabled'],1)
+        self.assertIsNone(game.native_command(raw,3,shadow_allowed=True))
+        with self.assertRaises(ValueError):game.native_command(raw,0)
+        for value in (raw.replace(b':1}',b':true}'),raw.replace(b':1}',b':2}'),
+                      raw.replace(b'}',b',"radius":3}'),raw.replace(b'}',b',"export":"other"}')):
+            with self.subTest(value=value),self.assertRaises(ValueError):
+                game.native_command(value,0,shadow_allowed=True)
+        with self.assertRaises(ValueError):
+            load_hook.invoke(None,Path('never-loaded.dll'),'shadow',struct.pack('<3I',12,1,2))
+        with patch.object(load_hook,'verify_build',return_value=(Path('old.dll'),{'diagnostic_abi':{'comparison':12}})):
+            with self.assertRaisesRegex(ValueError,'does not support the fixed shadow'):
+                load_hook.invoke(None,Path('old.dll'),'shadow',struct.pack('<3I',12,1,1))
+
+    def test_shadow_cannot_enter_unobserved_or_baseline_startup(self):
+        valid=dict(hook=Path('never-loaded.dll'),high_quality=True,observer_catalog=Path('catalog.bin'),shadow_filter=True)
+        for changes in ({'shadow_filter':1},{'baseline_crash_watch':True},{'hook':None},
+                        {'high_quality':False},{'observer_catalog':None}):
+            with self.subTest(changes=changes),patch.object(game.platform,'load') as load:
+                with self.assertRaisesRegex(ValueError,'Shadow filter requires'):
+                    game.run(Path('never-read'),Path('never-created'),**{**valid,**changes})
+                load.assert_not_called()
+
+    def test_macro_recipe_cannot_enter_baseline_or_legacy_material_modes(self):
+        valid=dict(hook=Path('not-loaded.dll'),high_quality=True,
+                   material_config_version=2,material_effects=('improved_terrain',),terrain_macro=True)
+        for changes in ({'terrain_macro':1},{'baseline_crash_watch':True},
+                        {'material_config_version':1},{'hook':None},{'high_quality':False},
+                        {'material_effects':()},
+                        {'material_effects':('improved_terrain','improved_water')}):
+            with self.subTest(changes=changes),patch.object(game.platform,'load') as load:
+                with self.assertRaisesRegex(ValueError,'Terrain macro requires'):
+                    game.run(Path('never-read'),Path('never-created'),**{**valid,**changes})
+                load.assert_not_called()
+
     def test_water_command_is_separate_explicit_boolean_and_never_legacy_material_enable(self):
         raw=b'{"operation":"water","sequence":3,"enabled":1}'
         self.assertEqual(game.native_command(raw,2,0,water_allowed=True)['enabled'],1)

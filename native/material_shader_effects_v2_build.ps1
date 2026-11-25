@@ -18,11 +18,13 @@ if ($LASTEXITCODE) {throw 'Cannot initialize x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
 $paths=@{}
-foreach($name in @('material_shader_effects.cpp','material_shader_effects.h','material_shader_effects_fixture.cpp','material_shader_config_v2.h')) {$paths[$name]=Join-Path $source $name}
+foreach($name in @('material_shader_effects.cpp','material_shader_effects.h','material_shader_effects_fixture.cpp','material_shader_config_v2.h','terrain_macro_guard.h')) {$paths[$name]=Join-Path $source $name}
 $fixture=Join-Path $PSScriptRoot 'material_shader_effects_v2_fixture.cpp'
 if(Test-Path -LiteralPath $fixture){$paths['material_shader_effects_v2_fixture.cpp']=$fixture}
 $loadFixture=Join-Path $PSScriptRoot 'material_shader_effects_v2_load_fixture.cpp'
 if(Test-Path -LiteralPath $loadFixture){$paths['material_shader_effects_v2_load_fixture.cpp']=$loadFixture}
+$macroFixture=Join-Path $PSScriptRoot 'material_shader_effects_macro_fixture.cpp'
+if(Test-Path -LiteralPath $macroFixture){$paths['material_shader_effects_macro_fixture.cpp']=$macroFixture}
 $leases=@();$hashes=@{};$sha=[Security.Cryptography.SHA256]::Create()
 Push-Location $output
 try {
@@ -35,6 +37,12 @@ try {
     if($LASTEXITCODE){throw 'V1/V2 material effects CPU fixture compile failed.'}
     & (Join-Path $output 'material_shader_effects_v2_fixture.exe') (Join-Path $output 'fixture')
     if($LASTEXITCODE){throw 'V1/V2 material effects CPU fixture failed.'}
+    if($paths.ContainsKey('material_shader_effects_macro_fixture.cpp')){
+        & cl.exe @flags /DS7_MATERIAL_EFFECTS_FIXTURE material_shader_effects.cpp material_shader_effects_macro_fixture.cpp /Fe:material_shader_effects_macro_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
+        if($LASTEXITCODE){throw 'Macro material effects CPU fixture compile failed.'}
+        & (Join-Path $output 'material_shader_effects_macro_fixture.exe') (Join-Path $output 'macro-fixture')
+        if($LASTEXITCODE){throw 'Macro material effects CPU fixture failed.'}
+    }
     if($paths.ContainsKey('material_shader_effects_v2_load_fixture.cpp')){
         & cl.exe @flags material_shader_effects.cpp material_shader_effects_v2_load_fixture.cpp /Fe:material_shader_effects_v2_load_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
         if($LASTEXITCODE){throw 'Production V2 pin-load CPU fixture compile failed.'}

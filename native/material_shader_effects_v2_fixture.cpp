@@ -60,7 +60,10 @@ void OverwriteFixture(const std::wstring& path,const std::vector<unsigned char>&
 }
 bool WritableFixture(const std::wstring& path){HANDLE file=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);if(file==INVALID_HANDLE_VALUE)return false;CloseHandle(file);return true;}
 }
-int wmain(int argc,wchar_t** argv){using namespace MaterialShaderEffects;try{
+#ifndef S7_MATERIAL_V2_ENTRY
+#define S7_MATERIAL_V2_ENTRY wmain
+#endif
+int S7_MATERIAL_V2_ENTRY(int argc,wchar_t** argv){using namespace MaterialShaderEffects;try{
     Verify(argc==2,"use a new private fixture path");
     Verify(LegacyFixtureMain(argc,argv)==0,"unchanged V1 regression fixture");
     const std::wstring folder=std::wstring(argv[1])+L"-v2";

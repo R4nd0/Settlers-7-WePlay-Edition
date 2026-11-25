@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
 from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,EFFECTS_V1_SOURCES,
-                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER)
+                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER,MACRO_SOURCES,SHADOW_SOURCES)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
     'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
@@ -26,6 +26,7 @@ OPERATIONS = {
     'effects': (b'WePlayNativeGraphicsConfigureEffects\0', 4132),
     'comparison': (b'WePlayNativeGraphicsConfigureComparison\0', 12),
     'water': (b'WePlayNativeGraphicsConfigureWater\0',1076),
+    'shadow': (b'WePlayNativeGraphicsConfigureShadow\0',12),
 }
 
 
@@ -46,10 +47,12 @@ def verify_build(dll):
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
     current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
-    water=current and value.get('source_set')=='effects-v4'
-    modern=current and value.get('source_set')in('effects-v3','effects-v4')
-    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4')
-    sources = (set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
+    shadow=current and value.get('source_set')=='effects-v6'
+    macro=current and value.get('source_set')in('effects-v5','effects-v6')
+    water=current and value.get('source_set')in('effects-v4','effects-v5','effects-v6')
+    modern=current and value.get('source_set')in('effects-v3','effects-v4','effects-v5','effects-v6')
+    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6')
+    sources = (set(SHADOW_SOURCES) if shadow else set(MACRO_SOURCES) if macro else set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
     expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
     keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
     if comparison:keys.add('diagnostic_abi')
@@ -58,10 +61,10 @@ def verify_build(dll):
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
-    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4') or value['compiled_capabilities']!=15
+    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4','effects-v5','effects-v6') or value['compiled_capabilities']!=15
                     or value['abi']!=(BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
         raise ValueError('Unexpected compiled graphics ABI or capabilities.')
-    if comparison and value['diagnostic_abi']!={'comparison':12}:
+    if comparison and value['diagnostic_abi']!={'comparison':12,**({'shadow':12} if shadow else {})}:
         raise ValueError('Unexpected diagnostic comparison ABI.')
     for name, pin in value['files'].items():
         path = ROOT / 'native' / name if name in sources else dll.parent / name
@@ -71,7 +74,7 @@ def verify_build(dll):
 
 
 def configuration(render, output, report, *, observer_catalog=None, observer_sha256=None,
-                  observer_report=None, material_flags=0):
+                  observer_report=None, material_flags=0,shadow_filter=False):
     from .game import lab_path
     report = lab_path(report)
     if not report.parent.is_dir() or report.exists():
@@ -88,6 +91,8 @@ def configuration(render, output, report, *, observer_catalog=None, observer_sha
         raise ValueError('Hook report path exceeds the fixed UTF16 ABI.')
     if type(material_flags)is not int or material_flags<0 or material_flags&~7:
         raise ValueError('Invalid explicit material intent.')
+    if type(shadow_filter)is not bool or (shadow_filter and observer_catalog is None):
+        raise ValueError('Shadow filter requires explicit OBSERVE laboratory intent.')
     version = 2 if observer_catalog is not None or render == output or material_flags else 1
     base = struct.pack('<6I', 3132 if version == 2 else 1048, version, *values) + name.ljust(1024, b'\0')
     if version == 1:
@@ -113,7 +118,7 @@ def configuration(render, output, report, *, observer_catalog=None, observer_sha
         if '\0' in text or len(encoded) > 1022:
             raise ValueError('Observer path exceeds its fixed UTF16 ABI.')
         return encoded.ljust(1024, b'\0')
-    return base + struct.pack('<I', 1|(material_flags<<1)) + wide(catalog) + bytes.fromhex(observer_sha256) + wide(destination)
+    return base + struct.pack('<I', 1|(material_flags<<1)|(16 if shadow_filter else 0)) + wide(catalog) + bytes.fromhex(observer_sha256) + wide(destination)
 
 
 def worker(code_base, data_base, load_slot, export_slot, path_offset, export_offset, config_offset,
@@ -167,11 +172,11 @@ def file_lease(path):
         k.CloseHandle(handle)
 
 
-def initialize(owned, dll, *, render, output, report, observer_catalog=None, observer_sha256=None,material_flags=0):
+def initialize(owned, dll, *, render, output, report, observer_catalog=None, observer_sha256=None,material_flags=0,shadow_filter=False):
     dll, _ = verify_build(dll)
     with file_lease(dll):
         config = configuration(render, output, report, observer_catalog=observer_catalog,
-                               observer_sha256=observer_sha256,material_flags=material_flags)
+                               observer_sha256=observer_sha256,material_flags=material_flags,shadow_filter=shadow_filter)
         receipt = _invoke_pinned(owned, dll, config, EXPORT)
         receipt['initialized'] = True
         if observer_catalog is not None:
@@ -208,11 +213,15 @@ def invoke(owned, dll, operation, payload):
         raise ValueError('Capture sequence exceeds the bounded command range.')
     if operation == 'comparison' and struct.unpack_from('<I',payload,8)[0]not in(0,1):
         raise ValueError('Comparison diagnostic accepts only an explicit Boolean.')
+    if operation=='shadow' and struct.unpack_from('<I',payload,8)[0]not in(0,1):
+        raise ValueError('Shadow diagnostic accepts only an explicit Boolean.')
     if operation=='water' and struct.unpack_from('<I',payload,16)[0]not in(0,1):raise ValueError('WaterProgram enable must be Boolean.')
     dll, build = verify_build(dll)
     if modern and build.get('abi',{}).get('effects_v2')!=6180:
         raise ValueError('This exact source-bound build does not support material V2.')
     if operation=='water' and build.get('abi',{}).get('water')!=1076:raise ValueError('This exact build does not support WaterProgram.')
+    if operation=='shadow' and build.get('diagnostic_abi',{}).get('shadow')!=12:
+        raise ValueError('This exact build does not support the fixed shadow diagnostic.')
     with file_lease(dll):
         return _invoke_pinned(owned, dll, payload, export)
 

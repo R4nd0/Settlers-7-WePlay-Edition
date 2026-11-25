@@ -57,7 +57,9 @@ struct Stats {
 bool Initialize(const Config* config) noexcept;
 // Separate exact 6180-byte/version2 transport. The trusted host must dispatch
 // only after its full readable-buffer, source/ABI and worker-budget guards.
-// V2 terrain binds BOTH VS and PS; V1 allocation and recipe pins stay intact.
+// V2 terrain binds BOTH VS and PS; V1 allocation and historical V2 recipe pins
+// stay intact. An explicitly staged macro v3 recipe is accepted only as a full
+// hash/filename-bound alternative set with its runtime input guards. Wire stays2.
 bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.
 // Zero/subset of initialized resources only; pinned CPU programs stay loaded.

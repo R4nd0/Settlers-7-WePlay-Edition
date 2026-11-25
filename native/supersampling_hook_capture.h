@@ -4,6 +4,7 @@
 #include "material_shader_observer.h"
 #include "material_comparison.h"
 #include "water_shader_effects.h"
+#include "shadow_filter_effects.h"
 #include <array>
 #include <string>
 
@@ -22,6 +23,8 @@ struct Result {
     bool comparison_state_available=false;
     WaterShaderEffects::Stats water{};
     bool water_state_available=false;
+    ShadowFilterEffects::Stats shadow{};
+    bool shadow_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };

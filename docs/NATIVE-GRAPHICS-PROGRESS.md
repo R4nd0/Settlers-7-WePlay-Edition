@@ -9,10 +9,10 @@ local artifacts.
 
 | Area | Actual evidence | Remaining limit |
 | --- | --- | --- |
-| Water | Steam w34/w36 separately captured original/new/original with matching measured camera, light and pinned River UV phase within each case. The new pixel program visibly reduces dense silvery surface detail and clarifies shallow stones. Both states use 3840×2160 → 1920×1080. | The initial A variant appears too matte. B raises the reflection floor, but A/B use different phases and do not establish a controlled gloss gain. Natural motion, additional views and three-edition qualification remain open. |
-| Terrain | Steam t30 executed the extended near-detail-distance and normal-strength variant in separate off/on/off captures. | The normal-distance images did not establish convincing visible improvement; the technical pass is not a visual pass. |
+| Water | Water B is visually accepted by the user. Steam w36 retained controlled original/new/original images; Ubisoft w39 subsequently rendered the 4K source and natural water motion, with a zero exit and healthy pressure-0 monitoring. | Keep B's optics fixed. Performance, final-package testing and all three editions remain separate requirements. A successful individual exit does not resolve the intermittent menu-exit crash. |
+| Terrain | Steam t30 executed the near-detail/normal variant. The later t41 macro recipe used version-2 configuration and two actual off/on/off capture sequences. | No new terrain visual acceptance is established. t41 ended through the memory guard, so its per-frame evidence cannot qualify the whole run. |
 | Vegetation | Steam t30 executed the changed Leaf lobe in separate off/on/off captures. | The captured light/view direction is a negative control for the intended backlight. No convincing normal-distance benefit established. |
-| Shadows | Original shadow binding, map and sampling parameters were inspected. A guarded near-filter candidate is prepared. | No new controlled before/after result without ReShade, and no claim of reduced flicker. |
+| Shadows | Ubisoft sh42 retained real off/on/off GPU images without ReShade. The fixed 2048-map filter was applied and restored within the captured ON frame, with matching measured pose/light. | No convincing improvement at normal output size. Selected thin contacts remain visible, but general contact preservation and cost are unproven. The original-menu exit again failed with an access violation. |
 
 ## Water images and controls
 
@@ -40,7 +40,12 @@ The subsequent Ubisoft w38 motion attempt was stopped normally before loading:
 Windows clipped the oversized startup client, and an engine Reset changed the
 render target before the first admitted 4K draw. The hook correctly declined the
 mismatched context. It produced no qualified water or motion evidence. Startup
-ordering is being corrected without relaxing render-context guards.
+ordering was subsequently corrected without relaxing render-context guards.
+Ubisoft w39 then retained natural-motion captures at3840×2160 →1920×1080,
+with the diagnostic UV pin omitted. It ended with code0, pressure0 and no
+monitor failure; shared profiles and binaries were preserved and private
+options restored. That isolated exit used the window-close route and does not
+establish reliable original-menu shutdown or all-edition compatibility.
 
 The following section describes the earlier constant-only trial, not the new
 River pixel-program result.
@@ -70,6 +75,40 @@ a successful lifecycle or visual release qualification.
 
 ## Shadow evidence boundary
 
+The new actual comparison is
+`outputs/Schattenvergleich-20261125/Vergleich.html`. It contains lossless full
+output/source PNGs, four unscaled region comparisons and the second OFF
+control. All six full PNG RGB images were checked against their original GPU
+BMP pixels. Amplified difference maps are separately labelled diagnostics.
+
+The Ubisoft case `work/sh42` used immutable `work/n39`, source set
+`effects-v6` with32 source snapshots. Sequences1/3/5 are OFF/ON/OFF, at native
+frames10669/10675/10681. The measured original River projection, eye and raw
+sun direction/specular values match exactly. Materials and the separate water
+program were disabled. The ON frame records one application, one restoration,
+one successful affected draw and zero failed draws, setter/restore faults or
+exceptions. Original PS57.xy was1/2048; applied xy was1.75/2048, with zw bits
+preserved. Actual sampler1 used linear minification/magnification and clamp.
+
+**This execution did not establish a convincing visible gain at normal size.**
+The selected thin flag, tree and wall contacts remain visible in the inspected
+regions; that is not proof for every contact or view. Animation already changes
+the two OFF controls. Whole-image RGB mean absolute difference is2.168 for
+OFF/ON and2.307 for OFF/OFF; far-ground values are0.438 and0.471 of255.
+Those differences cannot certify better shadows. The original sixteen shadow
+samples and2048-map size are unchanged; added CPU guard/set/restore work exists,
+but GPU time and FPS cost were not measured. Capture-export stalls are excluded
+from performance interpretation. The candidate is not visually accepted.
+
+The retained aggregate is `work/sh42-qualification-20261125-01`. The whole case
+is rejected: original-menu exit failed with`0xc0000005`. Memory monitoring was
+healthy at pressure0, peak private memory1879MiB and minimum host commit
+headroom8018MiB. Shared profiles, game binaries and private options were
+preserved/restored, with no cleanup error. A new free manual save was verified
+against the before snapshot. A changed original private autosave remains a
+strict rejection because a fresh same-case save-role observation was not
+recorded; nothing was restored or silently exempted.
+
 The earlier native distant-shadow correction is documented in
 [SHADOW-DOF-REVIEW.md](SHADOW-DOF-REVIEW.md). Its retained comparison used
 SMAA through ReShade and does not establish a new result for the current work
@@ -77,7 +116,7 @@ without ReShade. Its reversal counts also did not establish a general flicker
 cure. Existing code and synthetic fixture success must not be presented as new
 visible shadow progress.
 
-The new near-filter candidate and the offline temporal comparator remain
+The older near-filter candidate and the offline temporal comparator remain
 separate from an actual-game visual pass. See
 [SHADOW-DETAIL-LAB.md](SHADOW-DETAIL-LAB.md).
 
@@ -87,7 +126,7 @@ frames 69244–69246, observer target 1, vertex/pixel IDs 3/4. Each records samp
 1 as a valid 2048×2048 D16 texture, pixel constant 57.xy as exactly 1/2048 and
 constant 33 as [2.75, 2.75, 0, 0]. The gallery's `Schatten-Messwerte.json`
 contains those selected draw records and the original snapshot SHA256. This is
-a binding observation, not a before/after result. The unintegrated new near
+a binding observation, not a before/after result. The separate older near
 candidate rejects a 2048 map and was not active in those observations.
 
 ## Reported black streaks
@@ -104,6 +143,19 @@ review is `work/ui-streak-analysis-20261125/findings.private.json`. No native
 functional change or extra game launch was made during that review.
 
 ## Stability remains open
+
+The later sh42 original-menu exit repeats an access-violation pattern despite
+successful earlier isolated exits. Its admitted debugger retained one first-
+and one second-chance exception and two dumps; it did not terminate the game.
+The Ubisoft original EXE faults at RVA`0x935ab0`, writing through a null EDX to
+address`0x30` with instruction bytes`89 42 30`. Steam c30 and actual27 recorded
+the corresponding write at RVA`0x9350e0`. Export-symbol labels are not reliable
+function names. The matching instruction/failure shape and the previous
+original-code analysis support comparison of these teardown failures; they do
+not establish the origin of corruption or exonerate the integration. Both
+graphics deinitialization calls had returned in sh42. No suppression, skipped
+free or speculative causal fix was added. Private comparison:
+`work/sh42-qualification-20261125-01/crash-comparison.private.json`.
 
 Actual25 Ubisoft and actual27 Steam exited with `0xc0000005` after the original
 desktop-exit action. Steam27 now has first- and second-chance exception captures.

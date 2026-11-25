@@ -7,3 +7,4 @@ EXPORTS
     WePlayNativeGraphicsConfigureEffects=_WePlayNativeGraphicsConfigureEffects@4
     WePlayNativeGraphicsConfigureComparison=_WePlayNativeGraphicsConfigureComparison@4
     WePlayNativeGraphicsConfigureWater=_WePlayNativeGraphicsConfigureWater@4
+    WePlayNativeGraphicsConfigureShadow=_WePlayNativeGraphicsConfigureShadow@4

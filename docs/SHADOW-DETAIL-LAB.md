@@ -5,7 +5,50 @@ are in [the original-pass diagnostic plan](BLACK-STREAK-DIAGNOSTIC.md). The new
 blob neutral-RGB policy is a disabled pure diagnostic plan; it has no runtime or
 visible-improvement proof and does not change the 2048/4096/8192 filter guards.
 
-2026-11-24. The first implementation in this stage is an **offline capture
+## Actual 2048-map trial: execution proven, visual gain unproven
+
+On 2026-11-25, owned Ubisoft case `work/sh42` captured OFF/ON/OFF without
+ReShade using immutable `work/n39`, source set `effects-v6` with32 inputs.
+The fixed diagnostic component is `native/shadow_filter_effects.h/.cpp`, with
+`native/shadow2048_filter_policy.h`. Config12 enables one fixed profile only;
+there is no arbitrary shader/constant input. It requires explicit Observe and
+StableShadows intent, the exact original MaskShader pair, a2048 D16 map and
+the measured original kernel/radius/fade/context. It changes only PS57.xy from
+1/2048 to1.75/2048, preserving zw bits. All4096/8192 maps remain excluded, so
+the existing distant correction is not applied twice.
+
+Native frames10669/10675/10681 have identical measured original projection,
+eye and raw sunlight values. The ON frame records1 application,1 restoration,
+1 successful affected draw, no failed draw and no setter/restore fault. The
+sampler's actual min/mag filters are linear. Backup precedes mutation;
+unrestored state blocks further draw modifications and cleanup until verified
+owner-thread recovery. The CPU fixture passed1334 checks plus25 policy checks;
+these are separate from actual image evidence.
+
+The lossless local gallery is
+`outputs/Schattenvergleich-20261125/Vergleich.html`. It retains full1920×1080
+outputs,3840×2160 sources, four regions and the second OFF control. All six full
+PNG RGB images were verified against their native BMP pixels. **No convincing
+improvement at normal view size was established.** Selected thin contacts
+remain visible, but general contact preservation and GPU/FPS cost are unproven.
+The two OFF images already differ through animation; aggregate differences
+are not a quality metric. Sample count remains16, with no map-size increase.
+
+The original-menu exit failed with`0xc0000005`, despite pressure0, healthy
+monitoring and preserved/restored shared profiles, binaries and options.
+The strict aggregate at `work/sh42-qualification-20261125-01` rejects the case;
+an unclassified changed private autosave is not silently exempted. No new
+shadow visual or release pass follows from the per-frame application count.
+
+The current952 observer also has a sampling limit: a target captures at most8
+samples, only the first matching draw in each frame. Duplicate targets with
+the same shader hashes are rejected. A new read-only probe cannot establish
+later same-pair near/far passes just by requesting more frames. Their bindings
+must be observed before choosing another filter candidate.
+
+## Historical offline starting point
+
+2026-11-24. The first implementation in this stage was an **offline capture
 comparison tool**, not a new renderer effect or a native patch. No game was
 launched, no reserved test copy was changed, and no shader or shadow improvement
 was runtime-qualified by this work. Supersampling is the preceding stage; the
@@ -161,7 +204,7 @@ Seven synthetic filesystem tests cover copy-time mutation, unreadable paths,
 timestamp/hash/file-set changes and preservation of a newer save. They do not
 qualify actual game-profile isolation.
 
-## Staged guarded filter candidate
+## Earlier staged high-resolution filter candidate
 
 `native/shadow_detail_candidate.h` contains a pure, disabled-by-default policy
 for a later per-draw experiment. It matches the exact original ATI High

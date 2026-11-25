@@ -21,6 +21,12 @@ inline constexpr std::array<Program,5> Programs{{
     {L"terrain-near-distance-BumpLayerShader-v2",L"46a8dd89646f84cb761f832f47739f3d0c4fe5494688b3104b56c43fac8d3f07",L".vs.bin",MaterialShaderEffects::Terrain},
     {L"terrain-near-distance-ParallaxLayerShader-v2",L"d985366573816225b04473b762fd6f899241849185274347f513c1f4cf7de6c6",L".vs.bin",MaterialShaderEffects::Terrain}
 }};
+// Explicit immutable recipe alternative on the same wire2 ABI. Common PS/leaf
+// identities stay equal; both terrain VS paths must select this set together.
+inline constexpr auto MacroPrograms=[](){auto result=Programs;
+    result[3]={L"terrain-macro-relief-BumpLayerShader-v3",L"da8154477a4fd3c44ace75d9c42d6d3714dc196c9c0f30fc332f06493539a21b",L".vs.bin",MaterialShaderEffects::Terrain};
+    result[4]={L"terrain-macro-relief-ParallaxLayerShader-v3",L"b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",L".vs.bin",MaterialShaderEffects::Terrain};
+    return result;}();
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 // Authored GPU fixtures must explicitly pin their synthetic programs in BOTH
 // this policy and the effects component. This API is absent from production.
@@ -31,7 +37,8 @@ inline bool FixtureDigest(unsigned slot,const wchar_t* value) noexcept {
     std::memcpy(fixture_digests[slot].data(),value,64*sizeof(wchar_t));return true;
 }
 #endif
-inline const wchar_t* Digest(size_t slot) noexcept {
+inline const wchar_t* Digest(size_t slot,bool macro=false) noexcept {
+    if(macro&&slot>=3)return MacroPrograms[slot].digest;
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
     if(fixture_digests[slot][0])return fixture_digests[slot].data();
 #endif
@@ -107,15 +114,21 @@ inline Error Validate(const Config& effects,const NativeGraphicsConfig::Version2
             artifacts=root+L"\\MaterialShaders\\";}
         else return Error::Path;
         const wchar_t (*paths[])[512]={&effects.leaf_vertex_path,&effects.bump_pixel_path,&effects.parallax_pixel_path,&effects.bump_vertex_path,&effects.parallax_vertex_path};
+        bool historical=true,macro=(intent&MaterialShaderEffects::Terrain)!=0;
         for(size_t slot=0;slot<5;++slot){const auto& spec=Programs[slot];
             const auto& value=*paths[slot];
             if(!(intent&spec.role)){if(!MaterialShaderConfigV2::Path(value,spec.suffix,false))return Error::Flags;continue;}
             std::wstring full;if(!Canonical(value,spec.suffix,full))return Error::Path;
             if(!Within(full,root))return Error::OutsideRoot;
             const std::wstring expected=artifacts+spec.directory+L"\\"+Digest(slot)+spec.suffix;
-            if(_wcsicmp(full.c_str(),expected.c_str()))return Error::FixedPath;
+            const auto& macro_spec=MacroPrograms[slot];
+            const std::wstring macro_expected=artifacts+macro_spec.directory+L"\\"+Digest(slot,true)+macro_spec.suffix;
+            historical=historical&&!_wcsicmp(full.c_str(),expected.c_str());
+            macro=macro&&!_wcsicmp(full.c_str(),macro_expected.c_str());
+            if(!historical&&!macro)return Error::FixedPath;
             if(inspect_files){const auto check=Preflight(full,false);if(check!=Error::None)return check;}
         }
+        if(!historical&&macro&&(!PositiveRange(effects.terrain_detail_scale,1,1)||!PositiveRange(effects.terrain_relief_scale,1,1)))return Error::Parameters;
         if(inspect_files){const auto first=Preflight(native_report,true);if(first!=Error::None)return first;
             const auto second=Preflight(report,true);if(second!=Error::None)return second;}
         return Error::None;

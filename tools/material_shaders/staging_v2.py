@@ -65,8 +65,9 @@ def _river(name,data):
             "original_vertex_sha256":staging.RIVER_VERTEX,"original_pixel_sha256":staging.RIVER_PIXEL,"scope":"river"}
 
 
-def _versioned(role,item):
-    recipe,stage,size,digest=PROGRAMS[role];key="generated_"+stage+"_sha256"
+def _versioned(role,item,*,programs=None):
+    catalog=PROGRAMS if programs is None else programs
+    recipe,stage,size,digest=catalog[role];key="generated_"+stage+"_sha256"
     if (not isinstance(item,recipes.Generated) or len(item.program)!=size or shaderlib.digest(item.program)!=digest
             or item.manifest.get(key)!=digest or item.manifest.get("active")is not False):
         raise ValueError("V2 generated program identity mismatch")
@@ -77,11 +78,11 @@ def _versioned(role,item):
     if (item.manifest.get("original_vertex_sha256"),item.manifest.get("original_pixel_sha256"))!=pair:
         raise ValueError("V2 original shader pair mismatch")
     return recipes.Generated(item.program,{**item.manifest,"recipe":recipe,"material_config_version":2,
-        "recipe_version":2,"active":False,"runtime_qualified":False,"production_runtime_enabled":False})
+        "recipe_version":3 if recipe.endswith("-v3") else 2,"active":False,"runtime_qualified":False,"production_runtime_enabled":False})
 
 
-def _plan(cache_root,report_root,role,item):
-    recipe,stage,_,digest=PROGRAMS[role]
+def _plan(cache_root,report_root,role,item,*,programs=None):
+    recipe,stage,_,digest=(PROGRAMS if programs is None else programs)[role]
     target=staging.plain(cache_root/"LocalData/MaterialShaders"/recipe)
     if not target.is_relative_to(report_root):raise ValueError("V2 cache escapes trusted native report root")
     suffix=".vs.bin"if stage=="vertex"else".ps.bin"
@@ -104,8 +105,11 @@ def _existing(path,data):
         raise ValueError("Existing V2 immutable cache identity mismatch")
 
 
-def prepare(recipient_root,selection,display,*,config_version,available_config_versions,worker_overhead_bytes,
-            available_features,available_scales,native_report,verified_platform=None,private_case=False):
+def _prepare(recipient_root,selection,display,*,config_version,available_config_versions,worker_overhead_bytes,
+            available_features,available_scales,native_report,verified_platform=None,private_case=False,
+            programs=None,terrain_vertex_generator=None,terrain_scales=(1.20,1.10),recipe_variant=2):
+    catalog=PROGRAMS if programs is None else programs
+    vertex_generator=terrain_distance.generate if terrain_vertex_generator is None else terrain_vertex_generator
     settings=staging._settings();selected=settings.validate(selection)
     settings.require_features(selected,available_features)
     flags=sum(bit for bit,key in ((1,"improved_water"),(2,"improved_terrain"),(4,"improved_vegetation"))if selected[key])
@@ -159,16 +163,16 @@ def prepare(recipient_root,selection,display,*,config_version,available_config_v
             for name in recipes.TERRAIN_RESOURCES:
                 data=inventory.read_payload(archive,name)
                 for record,prefix in (("BumpLayerShader","bump"),("ParallaxLayerShader","parallax")):
-                    generated.append((prefix+"_vertex",_versioned(prefix+"_vertex",terrain_distance.generate(name,data,record))))
-                    generated.append((prefix+"_pixel",_versioned(prefix+"_pixel",recipes.generate_terrain(name,data,record))))
+                    generated.append((prefix+"_vertex",_versioned(prefix+"_vertex",vertex_generator(name,data,record),programs=catalog)))
+                    generated.append((prefix+"_pixel",_versioned(prefix+"_pixel",recipes.generate_terrain(name,data,record),programs=catalog)))
         if flags&4:
             for name in recipes.RESOURCES:
-                generated.append(("leaf",_versioned("leaf",leaf_lobe.generate(name,inventory.read_payload(archive,name)))))
+                generated.append(("leaf",_versioned("leaf",leaf_lobe.generate(name,inventory.read_payload(archive,name)),programs=catalog)))
         reread=inventory.bba.Archive(raw,copy=False)
         if hashlib.sha256(reread.header+reread.directory).hexdigest()!=directory_hash:raise ValueError("V2 source directory changed during generation")
-    plans=[_plan(cache_root,report.parent,role,item) for role,item in generated]
+    plans=[_plan(cache_root,report.parent,role,item,programs=catalog) for role,item in generated]
     paths={plan["role"]:plan["program"] for plan in plans};paths["report"]=effects_report
-    config=struct.pack("<5I4f",CONFIG_BYTES,2,flags,dimensions["render_width"],dimensions["render_height"],1.15,.94,1.20,1.10)
+    config=struct.pack("<5I4f",CONFIG_BYTES,2,flags,dimensions["render_width"],dimensions["render_height"],1.15,.94,*terrain_scales)
     for role in PATH_ORDER:config+=_path(str(paths[role]),".private.json"if role=="report"else".vs.bin"if role in ("leaf","bump_vertex","parallax_vertex")else".ps.bin")if role in paths else bytes(1024)
     if len(config)!=CONFIG_BYTES or len(config)+worker_overhead_bytes>WORKER_BUDGET:raise AssertionError("V2 transport shape mismatch")
     pending={};artifacts={}
@@ -188,7 +192,7 @@ def prepare(recipient_root,selection,display,*,config_version,available_config_v
         else:
             with path.open("xb") as stream:stream.write(data)
     source_receipts.extend({key:item.manifest[key]for key in ("source_resource","source_resource_sha256","original_vertex_sha256","original_pixel_sha256","recipe")}for _,item in generated)
-    return {"format":"s7-recipient-material-stage-v2","config_version":2,"config":config,"material_flags":flags,
+    result={"format":"s7-recipient-material-stage-v2","config_version":2,"config":config,"material_flags":flags,
         "worker_overhead_bytes":worker_overhead_bytes,"worker_payload_bytes":len(config)+worker_overhead_bytes,
         "render_scale":selected["render_scale"],"dimensions":dimensions,"artifact_root":str(cache_root),"artifacts":artifacts,
         "source_receipts":source_receipts,"source_directory_sha256":directory_hash,"full_archive_fingerprint_verified":False,
@@ -196,3 +200,14 @@ def prepare(recipient_root,selection,display,*,config_version,available_config_v
         "required_shader_quality":"high","water_scope":"river"if flags&1 else None,"ocean_enabled":False,
         "active":False,"runtime_qualified":False,"numeric_policy_qualified":False,"production_runtime_enabled":False,
         "all_sources_generated_before_cache_writes":True,"all_paths_and_existing_cache_checked_before_writes":True}
+    if recipe_variant!=2:result["terrain_recipe_variant"]=recipe_variant
+    return result
+
+
+def prepare(recipient_root,selection,display,*,config_version,available_config_versions,worker_overhead_bytes,
+            available_features,available_scales,native_report,verified_platform=None,private_case=False):
+    """Retained V2 default recipe and serialized pins; no implicit macro upgrade."""
+    return _prepare(recipient_root,selection,display,config_version=config_version,
+        available_config_versions=available_config_versions,worker_overhead_bytes=worker_overhead_bytes,
+        available_features=available_features,available_scales=available_scales,native_report=native_report,
+        verified_platform=verified_platform,private_case=private_case)

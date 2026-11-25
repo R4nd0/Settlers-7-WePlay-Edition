@@ -76,8 +76,27 @@ bytes. The effects-v3 build has twenty-five source inputs, adding the versioned
 wire/config/host-contract headers and an explicit effects_v2 ABI of 6180 bytes.
 The effects-v4 build has twenty-eight source inputs, adding the separate water
 module/draw contract and water ABI of 1076 bytes.
+The effects-v5 build has twenty-nine source inputs, adding only
+`terrain_macro_guard.h`. It keeps the effects-v4 ABI sizes, capabilities and
+12-byte diagnostic comparison ABI. The larger source set establishes support
+for the fixed terrain recipe; it does not establish that recipe was enabled or
+visibly improved an actual frame. Recipe variant 3 uses the existing version-2,
+6180-byte material transport and requires its explicit stage/configuration and
+runtime substitution evidence. It is separate from the fixed shadow diagnostic.
+The effects-v6 build has thirty-two source inputs: the effects-v5 set plus the
+fixed shadow policy and its module header/implementation. Main ABI sizes and
+reported capabilities stay unchanged. Its separate diagnostic ABI must contain
+exactly `comparison: 12` and `shadow: 12`; the extra shadow intent is not a
+release capability. Build consistency alone does not qualify shadow activation,
+restoration, pixels or performance.
+The actual32-source sh42 trial retained valid native GPU pairs and a separate
+same-frame shadow application/restoration review, but established no convincing
+normal-view gain. Its original-menu access violation and unclassified changed
+private autosave keep the whole case rejected. The retained aggregate is
+`work/sh42-qualification-20261125-01`; successful native deinitialization counters
+do not waive the failed process exit.
 All effects sets retain three binaries, capabilities 15, and explicit
-initialization/observation/effects/capture ABI sizes. All five source sets
+initialization/observation/effects/capture ABI sizes. All seven source sets
 remain supported. Their retained build-directory
 snapshots are hashed against the exact build manifest; the report does not
 substitute current edited sources for the files actually compiled. Unknown

@@ -67,6 +67,8 @@ MODERN_HOOK_SOURCES = COMPARISON_HOOK_SOURCES | {
     'native_effects_wire.h', 'material_shader_config_v2.h', 'material_shader_effects_contract_v2.h',
 }
 WATER_HOOK_SOURCES = MODERN_HOOK_SOURCES | {'water_shader_effects.h', 'water_shader_effects.cpp', 'native_material_draw.h'}
+TERRAIN_MACRO_HOOK_SOURCES = WATER_HOOK_SOURCES | {'terrain_macro_guard.h'}
+SHADOW_HOOK_SOURCES = TERRAIN_MACRO_HOOK_SOURCES | {'shadow2048_filter_policy.h', 'shadow_filter_effects.h', 'shadow_filter_effects.cpp'}
 HOOK_BINARIES = {'supersampling_hook_fixture.exe', 'WePlaySupersamplingLab.dll'}
 EFFECTS_HOOK_BINARIES = HOOK_BINARIES | {'supersampling_effects_gpu.exe'}
 EFFECTS_BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132,
@@ -80,18 +82,20 @@ def _build_contract(build):
     if build.get('format') == 's7-supersampling-hook-build-v1':
         return HOOK_SOURCES, HOOK_BINARIES, set(build) == {'format', 'build_sha256', 'files'}
     if build.get('format') == 's7-native-graphics-build-v2':
-        water = build.get('source_set') == 'effects-v4'
-        modern = build.get('source_set') in ('effects-v3', 'effects-v4')
-        comparison = build.get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4')
+        shadow = build.get('source_set') == 'effects-v6'
+        terrain_macro = build.get('source_set') in ('effects-v5', 'effects-v6')
+        water = build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6')
+        modern = build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6')
+        comparison = build.get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6')
         keys = {'format', 'source_set', 'compiled_capabilities', 'abi', 'build_sha256', 'files'}
         if comparison:
             keys.add('diagnostic_abi')
-        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4') and set(build) == keys
+        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6') and set(build) == keys
                  and type(build.get('compiled_capabilities')) is int
                  and build['compiled_capabilities'] == 15
                  and build.get('abi') == (WATER_BUILD_ABI if water else MODERN_BUILD_ABI if modern else EFFECTS_BUILD_ABI)
-                 and (not comparison or build.get('diagnostic_abi') == {'comparison': 12}))
-        sources = WATER_HOOK_SOURCES if water else MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
+                 and (not comparison or build.get('diagnostic_abi') == ({'comparison': 12, 'shadow': 12} if shadow else {'comparison': 12})))
+        sources = SHADOW_HOOK_SOURCES if shadow else TERRAIN_MACRO_HOOK_SOURCES if terrain_macro else WATER_HOOK_SOURCES if water else MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
         return sources, EFFECTS_HOOK_BINARIES, valid
     return set(), set(), False
 
@@ -819,7 +823,7 @@ def _case(value, base):
     comparison_requested = checkpoint.get('comparison_uv_requested') is True
     if 'comparison_uv_requested' in checkpoint:
         check(type(checkpoint['comparison_uv_requested']) is bool, 'invalid comparison request in source checkpoint')
-    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4')
+    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6')
                         and _build_contract(data['hook_build'])[2])
     configured = data.get('comparison_configured', {})
     comparison_admitted = bool(comparison_requested and comparison_build and value['role'] == 'candidate'
@@ -833,10 +837,10 @@ def _case(value, base):
     material_config = data.get('effects_config')
     material_receipt = data.get('effects_configured', {})
     source_build = data.get('hook_build', {})
-    modern_build = source_build.get('source_set') in ('effects-v3', 'effects-v4') and _build_contract(source_build)[2]
+    modern_build = source_build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6') and _build_contract(source_build)[2]
     material_admitted = bool(material_config and value['role'] == 'candidate'
         and _build_contract(source_build)[2]
-        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4')
+        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6')
         and (material_config['version'] == 1 or modern_build)
         and material_config['render_size'] == requested
         and material_receipt.get('succeeded') is True and material_receipt.get('worker_code_rx') is True
@@ -851,7 +855,7 @@ def _case(value, base):
     water_requested = checkpoint.get('water_program_requested') is True
     if 'water_program_requested' in checkpoint:
         check(type(checkpoint['water_program_requested']) is bool, 'invalid separate-water request checkpoint')
-    water_build = source_build.get('source_set') == 'effects-v4' and _build_contract(source_build)[2]
+    water_build = source_build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6') and _build_contract(source_build)[2]
     water_admitted = False
     if water_requested or any(key in data for key in ('water_config', 'water_stage', 'water_configured', 'water_program')):
         try:

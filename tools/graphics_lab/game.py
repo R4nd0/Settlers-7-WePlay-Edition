@@ -89,10 +89,16 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
-def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False):
+def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False,shadow_allowed=False):
     if not isinstance(raw,bytes) or len(raw)>4096:
         raise ValueError('Native command exceeds its bound.')
     value=graphics_profile._json(raw)
+    if isinstance(value,dict)and value.get('operation')=='shadow':
+        if(set(value)!={'operation','sequence','enabled'}or shadow_allowed is not True
+            or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
+            or type(value['enabled'])is not int or value['enabled']not in(0,1)):
+            raise ValueError('Shadow filter requires explicit fixed-profile laboratory intent.')
+        return value if value['sequence']>previous else None
     if isinstance(value,dict)and value.get('operation')=='water':
         if(set(value)!={'operation','sequence','enabled'}or water_allowed is not True
             or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
@@ -129,7 +135,14 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A'):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False):
+    if (type(shadow_filter)is not bool or (shadow_filter and
+            (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality))):
+        raise ValueError('Shadow filter requires explicit source-bound OBSERVE and High-quality laboratory mode.')
+    if (type(terrain_macro)is not bool or (terrain_macro and
+            (baseline_crash_watch or hook is None or not high_quality or material_config_version!=2
+             or 'improved_terrain'not in material_effects or 'improved_water'in material_effects))):
+        raise ValueError('Terrain macro requires explicit source-bound High-quality V2 terrain without legacy River.')
     if type(water_variant)is not str or water_variant not in('A','B'):raise ValueError('Select fixed WaterProgram variant A or B.')
     if type(water_program)is not bool or(water_program and(baseline_crash_watch or hook is None or not high_quality or 'improved_water'not in material_effects)):
         raise ValueError('WaterProgram requires explicit source-bound High-quality graphics mode.')
@@ -162,6 +175,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')
         from . import load_hook
         hook, _ = load_hook.verify_build(hook)
+        if shadow_filter and load_hook.verify_build(hook)[1].get('diagnostic_abi',{}).get('shadow')!=12:
+            raise ValueError('This exact build does not declare the fixed shadow diagnostic.')
     elif observer_catalog is not None or material_capture is not None:
         raise ValueError('Observation requires the fixed source-bound native hook.')
     capture_config = None
@@ -201,7 +216,11 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         if material_config_version==2:
             _,build=load_hook.verify_build(hook)
             if build.get('abi',{}).get('effects_v2')!=6180:raise ValueError('This exact build does not declare material V2.')
-            stage=staging_v2.prepare
+            if terrain_macro:
+                from tools.material_shaders import staging_macro
+                stage=staging_macro.prepare
+            else:
+                stage=staging_v2.prepare
             extra=dict(config_version=2,available_config_versions=(2,),worker_overhead_bytes=load_hook.worker_overhead(executable,hook))
         prepared=stage(root,selected,dict(width=output_width,height=output_height,mode='windowed'),
             available_features=('supersampling',*material_keys),available_scales=(100,150,200),
@@ -261,7 +280,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         material_effects_requested=list(material_effects),
         water_program_requested=water_program,
         water_variant=water_variant if water_program else None,
-        material_config_version=material_config_version), indent=2), encoding='utf-8')
+        material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
+        shadow_filter_requested=shadow_filter), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
         targets={'options': options, 'runtime': runtime, 'config': config_file},
         shared=shared_profile_roots())
@@ -301,7 +321,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             def initialize(owned):
                 receipt = load_hook.initialize(owned, hook, render=(width, height),
                     output=(output_width, output_height), report=output / 'hook-state.private.json',
-                    observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=native_material_flags)
+                    observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=native_material_flags,
+                    shadow_filter=shadow_filter)
                 (output / 'hook-initialized.private.json').write_text(
                     json.dumps(receipt, indent=2), encoding='utf-8')
                 _, build = load_hook.verify_build(hook)
@@ -323,6 +344,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                     if effects_initially_off:struct.pack_into('<I',initial,16,0)
                     configured=load_hook.invoke(owned,hook,'water',bytes(initial))
                     (output/'water-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                if shadow_filter:
+                    configured=load_hook.invoke(owned,hook,'shadow',struct.pack('<3I',12,1,0 if effects_initially_off else 1))
+                    (output/'shadow-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -360,7 +384,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None)
+                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None,shadow_filter)
                         if request is not None:
                             sequence=request['sequence'];last_sequence=sequence
                             operation=request['operation']
@@ -379,7 +403,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                                 if operation=='effects':
                                     payload=bytearray(effects_config)
                                     struct.pack_into('<I',payload,8,request['enabled']);payload=bytes(payload)
-                                elif operation=='comparison':payload=struct.pack('<3I',12,1,request['enabled'])
+                                elif operation in('comparison','shadow'):payload=struct.pack('<3I',12,1,request['enabled'])
                                 receipt = load_hook.invoke(game, hook, operation, payload)
                             (output / f'command-{sequence}.private.json').write_text(
                                 json.dumps(receipt, indent=2), encoding='utf-8')
@@ -464,6 +488,8 @@ def main():
     parser.add_argument('--water-variant',choices=('A','B'),default='A',help='Explicit fixed water candidate: A matte, B balanced gloss')
     parser.add_argument('--material-config-version',type=int,choices=(1,2),default=1,
         help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
+    parser.add_argument('--terrain-macro',action='store_true',help='Explicit source-pinned macro terrain recipe; V2 historical recipes stay unchanged')
+    parser.add_argument('--shadow-filter',action='store_true',help='Fixed guarded 2048 far-shadow filter diagnostic; requires OBSERVE')
     parser.add_argument('--detailed-shadows',action='store_true',help='Existing guarded adapter 4096 shadow baseline; no new filter activation')
     parser.add_argument('--comparison-uv',action='store_true',help='Diagnostic-only draw-local original River PS80 isolation, never a production option')
     parser.add_argument('--crash-watch',action='store_true',help='Permit explicit post-save admission of a bounded own-child crash watcher')
@@ -476,7 +502,7 @@ def main():
         high_quality=args.high_quality,material_effects=args.material_effects,effects_initially_off=args.effects_initially_off,
         detailed_shadows=args.detailed_shadows,comparison_uv=args.comparison_uv,crash_watch=args.crash_watch,
         material_config_version=args.material_config_version,baseline_crash_watch=args.baseline_crash_watch,water_program=args.water_program,
-        water_variant=args.water_variant)
+        water_variant=args.water_variant,terrain_macro=args.terrain_macro,shadow_filter=args.shadow_filter)
 
 
 if __name__ == '__main__':
