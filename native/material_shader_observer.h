@@ -14,7 +14,7 @@
 // executable/renderer/device guards. Call only inside that hook's internal/TLS
 // scope: releasing a cached shader can release its parent D3D9 device.
 namespace MaterialShaderObserver {
-constexpr unsigned Draw=1, Indexed=2;
+constexpr unsigned Draw=1, Indexed=2,DrawUP=3,IndexedUP=4;
 constexpr size_t MaxCatalog=512, MaxUnknown=64, MaxPairs=64;
 constexpr size_t MaxCaptureTargets=8,MaxCaptureConstants=8,MaxCaptureSamplers=16,MaxCaptureSamples=64;
 

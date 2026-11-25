@@ -1,17 +1,49 @@
 # Native graphics evidence, 2026-11-25
 
-This records observed progress separately from release qualification. The local
-user gallery is `outputs/Grafikvergleich-Zwischenstand-20261124/Vergleich.html`.
-Its seven PNGs and `Vergleichsdaten.json` remain ignored local artifacts.
+This records observed progress separately from release qualification. The earlier
+local gallery is `outputs/Grafikvergleich-Zwischenstand-20261124/Vergleich.html`.
+Separate River pixel-program trials are documented in
+[WATER-MODERNIZATION.md](WATER-MODERNIZATION.md) and
+[WATER-BALANCED.md](WATER-BALANCED.md). Galleries and source images remain ignored
+local artifacts.
 
 | Area | Actual evidence | Remaining limit |
 | --- | --- | --- |
-| Water | Ubisoft History material off/on/off captures at the same measured camera, lighting and pinned River UV phase. Both states render at 3840×2160 and output at 1920×1080. | Subtle water colour/depth separation only; no new reflection algorithm or wave geometry. |
-| Terrain | Original shader bindings and scoped material changes observed. An extended near-detail-distance shader variant is prepared. | No convincing visible improvement established; the distance variant has no actual-game validation. |
-| Vegetation | Original Leaf shader binding identified. A different backlight-lobe recipe is prepared. | No convincing visible improvement established in the captured view; the new lobe variant has no actual-game validation. |
+| Water | Steam w34/w36 separately captured original/new/original with matching measured camera, light and pinned River UV phase within each case. The new pixel program visibly reduces dense silvery surface detail and clarifies shallow stones. Both states use 3840×2160 → 1920×1080. | The initial A variant appears too matte. B raises the reflection floor, but A/B use different phases and do not establish a controlled gloss gain. Natural motion, additional views and three-edition qualification remain open. |
+| Terrain | Steam t30 executed the extended near-detail-distance and normal-strength variant in separate off/on/off captures. | The normal-distance images did not establish convincing visible improvement; the technical pass is not a visual pass. |
+| Vegetation | Steam t30 executed the changed Leaf lobe in separate off/on/off captures. | The captured light/view direction is a negative control for the intended backlight. No convincing normal-distance benefit established. |
 | Shadows | Original shadow binding, map and sampling parameters were inspected. A guarded near-filter candidate is prepared. | No new controlled before/after result without ReShade, and no claim of reduced flicker. |
 
 ## Water images and controls
+
+The user visually accepted water B on2026-11-25. Keep its optical recipe fixed;
+technical compatibility, performance and package checks remain separate.
+
+The newer water-only galleries are
+`outputs/Wasservergleich-20261125/Vergleich.html` (A) and
+`outputs/Wasservergleich-B-20261125/Vergleich.html` (B). They retain unaltered
+full output images, source-resolution crops and the second OFF control. Within
+w36, all three captures match measured raw camera/light/diagnostic UV; the ON
+frame has120 water applications and120 restorations in that same frame, with
+legacy material effects disabled. These scalar checks support the comparison;
+the image itself must demonstrate the benefit.
+
+w36 saved a new free slot and exited through the original menu with code0.
+The admitted debugger recorded no access violation and no dump. Shared profiles,
+old saves and game binaries were preserved, with private options restored.
+Nevertheless its overall qualification remains false: the existing memory
+policy recorded pressure2 and minimum host commit headroom893MiB. This isolated
+exit pass does not establish a fix for the earlier exit crashes. The authoritative
+retained aggregate is `work/w36-qualification-20261125-03`.
+
+The subsequent Ubisoft w38 motion attempt was stopped normally before loading:
+Windows clipped the oversized startup client, and an engine Reset changed the
+render target before the first admitted 4K draw. The hook correctly declined the
+mismatched context. It produced no qualified water or motion evidence. Startup
+ordering is being corrected without relaxing render-context guards.
+
+The following section describes the earlier constant-only trial, not the new
+River pixel-program result.
 
 The gallery's first four PNGs are lossless copies of the retained actual25
 analysis images. Output PNG pixels were independently compared with the original

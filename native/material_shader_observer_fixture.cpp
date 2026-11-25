@@ -240,11 +240,39 @@ int wmain(int argc,wchar_t** argv) {
         const auto exhausted_queries=owner.render_state_queries;ObserveDraw(device,Draw,S_OK);EndFrame(device);ObserveDraw(device,Draw,S_OK);
         Check(owner.render_state_queries==exhausted_queries,"exhausted selected-target budget adds no hot per-draw state overhead");
         owner.blob_state=false;Reset(device);
+        Check(sizeof(CaptureSample)==984&&sizeof(Stats)==80080,"UP provenance adds no public output ABI fields");
+        Check(ConfigureCapture(&capture),"fresh UP-kind capture series");
+        const auto queries_before_up=Snapshot().shader_queries;
+        ObserveDraw(device,DrawUP,E_FAIL);Check(Snapshot().shader_queries==queries_before_up,"failed UP draw is never observed as successful binding");
+        ObserveDraw(device,DrawUP,S_OK);EndFrame(device);ObserveDraw(device,IndexedUP,S_OK);Flush();
+        const auto up_json=ReadText(report);
+        Check(up_json.find("\"draw_kind\":3")!=std::string::npos&&up_json.find("\"draw_kind\":4")!=std::string::npos,
+            "selected successful UP kinds retained as distinct JSON provenance");
+        const auto before_invalid_kind=Snapshot().shader_queries;ObserveDraw(device,99,S_OK);
+        Check(Snapshot().shader_queries==before_invalid_kind,"unknown draw kind refused before shader queries");
+        Reset(device);
+        // More than the full cache's population of SAME-SIZE wrong programs
+        // must not consume positive refs or hide a later real known pair.
+        owner.vertex=nullptr;
+        std::vector<FakeShader> negatives;negatives.reserve(257);
+        for(unsigned i=0;i<257;++i)negatives.push_back(FakeShader{shader_table.data(),1,0,false,Program(0xffff0300,i+100)});
+        for(auto& shader:negatives){owner.pixel=&shader;ObserveDraw(device,DrawUP,S_OK);}
+        Check(Snapshot().cached_refs==0,"negative same-sized programs never consume positive cache capacity");
+        for(const auto& shader:negatives)Check(shader.refs==1,"negative shader query references balanced");
+        owner.vertex=&vertex;owner.pixel=&pixel;Check(ConfigureCapture(&capture),"late known-pair capture series");
+        const auto known_before=Snapshot().records[0].draws;ObserveDraw(device,IndexedUP,S_OK);
+        Check(Snapshot().records[0].draws==known_before+1&&Snapshot().capture_sample_count==1,"known pair still counted/captured after257 wrong same-size programs");
+        Reset(device);
         owner.vertex=nullptr;
         std::vector<FakeShader> many;many.reserve(300);
         for(unsigned index=0;index<300;++index)many.push_back(FakeShader{shader_table.data(),1,0,false,Program(0xffff0300,0)});
         for(auto& item:many){owner.pixel=&item;ObserveDraw(device,Draw,S_OK);}
-        Check(Snapshot().cache_overflows>0 && Snapshot().cached_refs<=256,"cache is bounded");
+        Check(Snapshot().cache_overflows==0 && Snapshot().cached_refs==256,"positive cache bounded without refusing full-capacity classification");
+        owner.vertex=&vertex;owner.pixel=&pixel;Check(ConfigureCapture(&capture),"full positive-cache known-pair capture");
+        const auto full_before=Snapshot().records[0].draws;ObserveDraw(device,DrawUP,S_OK);
+        Check(Snapshot().records[0].draws==full_before+1&&Snapshot().capture_sample_count==1&&Snapshot().cached_refs==256,
+            "full positive cache still counts/captures fresh known VS+PS through independent temporary metadata");
+        Flush();Check(ReadText(report).find("\"cache_capacity_bypasses\":46,")!=std::string::npos,"44 full-cache known programs plus2 fresh stage identities bypass cache without query failure");
         Reset(device);for(const auto& item:many)Check(item.refs==1,"bounded cache released every shader");
         // Frame-coupled raw uniforms use authored fixture identities only. The
         // production observer's River hashes remain fixed when this macro is off.

@@ -174,6 +174,22 @@ std::string Comparison(const Result& result) {
         +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
         +",\"exceptions\":"+std::to_string(s.exceptions)+"}";
 }
+std::string Water(const Result& result) {
+    if(!result.graphics.water_protocol_received)return "null";
+    if(!result.water_state_available)return "null";
+    const auto& s=result.water;
+    const auto frame=[&](std::uint64_t value){return value?value+result.graphics.water_frame_origin:0;};
+    return "{\"frame\":"+std::to_string(frame(s.completed_frame))+",\"requested\":"+std::to_string(s.requested)
+        +",\"enabled\":"+std::to_string(s.enabled)+",\"variant\":"+std::to_string(s.variant)+",\"configured\":"+std::to_string(s.configured)
+        +",\"epoch\":"+std::to_string(s.configuration_epoch)+",\"faulted\":"+std::to_string(s.faulted)
+        +",\"unsafe\":"+std::to_string(s.unsafe_state)+",\"completed_applications\":"+std::to_string(s.completed_applications)
+        +",\"completed_restorations\":"+std::to_string(s.completed_restorations)
+        +",\"last_applied_frame\":"+std::to_string(frame(s.last_applied_frame))
+        +",\"last_restored_frame\":"+std::to_string(frame(s.last_restored_frame))
+        +",\"shader_creations\":"+std::to_string(s.shader_creations)+",\"shader_failures\":"+std::to_string(s.shader_failures)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+"}";
+}
 }
 
 bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept {
@@ -202,6 +218,8 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
             && result.scene_uniforms.frame==graphics.present_calls;
         result.comparison_state_available=MaterialComparison::ReadState(&result.comparison)
             && result.comparison.initialized && result.comparison.frames==graphics.present_calls;
+        result.water_state_available=graphics.water_protocol_received&&WaterShaderEffects::ReadStats(&result.water)
+            &&result.water.initialized;
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -255,6 +273,7 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"indexed_draws\":"+std::to_string(result.graphics.indexed_draws)
             +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
             +",\"effects_requested\":"+std::to_string(result.graphics.effects_requested)
+            +",\"water\":"+Water(result)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
             +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
             +",\"effects_active\":"+std::to_string(result.graphics.effects_active)

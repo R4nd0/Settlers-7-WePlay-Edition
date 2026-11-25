@@ -10,6 +10,31 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_water_command_is_separate_explicit_boolean_and_never_legacy_material_enable(self):
+        raw=b'{"operation":"water","sequence":3,"enabled":1}'
+        self.assertEqual(game.native_command(raw,2,0,water_allowed=True)['enabled'],1)
+        self.assertIsNone(game.native_command(raw,3,0,water_allowed=True))
+        for value in (raw,raw.replace(b':1}',b':true}'),raw.replace(b':1}',b':2}'),raw.replace(b'}',b',"path":"other"}')):
+            with self.subTest(value=value),self.assertRaises(ValueError):game.native_command(value,0,0,water_allowed=value!=raw)
+        with self.assertRaises(ValueError):game.native_command(b'{"operation":"effects","sequence":4,"enabled":1}',0,6,water_allowed=True)
+
+    def test_water_transport_requires_explicit_build_and_fixed_1076_body(self):
+        payload=struct.pack('<5I',1076,1,3840,2160,1)+bytes(1056)
+        dll=Path('fixture-native.dll')
+        with patch.object(load_hook,'verify_build',return_value=(dll,{'abi':load_hook.BUILD_ABI_V2})),\
+                patch.object(load_hook,'_invoke_pinned')as call:
+            with self.assertRaisesRegex(ValueError,'WaterProgram'):load_hook.invoke(None,dll,'water',payload)
+            call.assert_not_called()
+        with patch.object(load_hook,'verify_build',return_value=(dll,{'abi':load_hook.BUILD_ABI_WATER})),\
+                patch.object(load_hook,'file_lease',return_value=nullcontext()),\
+                patch.object(load_hook,'_invoke_pinned',return_value=True)as call:
+            self.assertTrue(load_hook.invoke(None,dll,'water',payload))
+            call.assert_called_once_with(None,dll,payload,b'WePlayNativeGraphicsConfigureWater\0')
+        with patch.object(load_hook,'verify_build')as verify:
+            for broken in(payload[:-1],payload[:16]+struct.pack('<I',2)+payload[20:],struct.pack('<2I',1076,2)+payload[8:]):
+                with self.assertRaises(ValueError):load_hook.invoke(None,dll,'water',broken)
+            verify.assert_not_called()
+
     def test_material_v2_requires_exact_header_and_explicit_build_abi(self):
         payload=struct.pack('<2I',6180,2)+bytes(6172)
         dll=Path('fixture-native.dll')

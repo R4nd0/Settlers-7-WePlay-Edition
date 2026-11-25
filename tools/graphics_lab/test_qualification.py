@@ -323,6 +323,123 @@ class QualificationTests(unittest.TestCase):
         self.change_artifact(1,'hook_build',update)
         return directory
 
+    def water_build(self):
+        directory=self.modern_build()
+        def update(data):
+            data.update(source_set='effects-v4',abi=dict(q.WATER_BUILD_ABI))
+            for name in q.WATER_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic water snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def resize_candidate(self,source_size,output_size):
+        case=self.data['cases'][1]
+        self.change_artifact(1,'checkpoint',lambda data:data.update(requested_render_size=[source_size]*2))
+        self.change_artifact(1,'hook',lambda data:data.update(source=[source_size]*2,selected_target=[source_size]*2,
+            viewport=[source_size]*2,output=[output_size]*2,client=[output_size]*2))
+        for capture in case['captures']:
+            path=Path(capture['file']['path']);side=source_size if capture['stage']=='source' else output_size
+            path.write_bytes(png(side,side));capture['file']=q._ref(path)
+        path=Path(case['observation']['path']);obs=json.loads(path.read_text())
+        obs.update(render_size=[source_size]*2,output_size=[output_size]*2)
+        for frame in obs['frames']:
+            for capture in case['captures']:frame[capture['stage']+'_image_sha256']=capture['file']['sha256']
+        path.write_text(json.dumps(obs));case['observation']=q._ref(path)
+
+    def test_water_v4_28_immutable_sources_and_water_abi(self):
+        self.water_build()
+        self.assertEqual(len(q.WATER_HOOK_SOURCES),28)
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data['abi'].update(water=1060))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    @staticmethod
+    def water_record(on=True):
+        return {'frame':80,'requested':int(on),'enabled':int(on),'configured':int(on),'epoch':2 if on else 1,
+            'faulted':0,'unsafe':0,'completed_applications':3 if on else 0,'completed_restorations':3 if on else 0,
+            'last_applied_frame':80 if on else 0,'last_restored_frame':80 if on else 0,'shader_creations':1 if on else 0,
+            'shader_failures':0,'set_failures':0,'restore_failures':0,'exceptions':0,'pending_original_refs':0}
+
+    def test_water_state_requires_normalized_same_frame_and_restored_success(self):
+        good=self.water_record();frame={'frame':80,'water':good}
+        self.assertEqual(q._water_record(frame)[1:],(True,False))
+        self.assertEqual(q._water_record({'frame':80,'water':self.water_record(False)})[1:],(False,True))
+        for key,value in [('completed_restorations',2),('last_applied_frame',79),('faulted',1),
+                          ('pending_original_refs',1),('set_failures',1),('shader_creations',0)]:
+            changed=deepcopy(good);changed[key]=value
+            self.assertFalse(q._water_record({'frame':80,'water':changed})[1])
+        changed=deepcopy(good);changed['frame']=79
+        with self.assertRaises(ValueError):q._water_record({'frame':80,'water':changed})
+        changed=deepcopy(good);changed['variant']=3
+        with self.assertRaises(ValueError):q._water_record({'frame':80,'water':changed})
+
+    def test_water_variant_mapping_is_fixed_and_never_falls_back_from_unknown_pin(self):
+        self.assertEqual(q._water_variant(q.WATER_PROGRAM_SHA256),(1,q.WATER_RECIPE))
+        self.assertEqual(q._water_variant(q.WATER_BALANCED_PROGRAM_SHA256),(2,q.WATER_BALANCED_RECIPE))
+        with self.assertRaises(ValueError):q._water_variant('f'*64)
+        self.assertTrue(q._water_stage_format({'format':'s7-recipient-water-stage-v1'},1))
+        self.assertFalse(q._water_stage_format({'format':'s7-recipient-water-stage-v1'},2))
+        self.assertTrue(q._water_stage_format({'format':'s7-recipient-water-variant-stage-v1','variant':'B','variant_id':2},2))
+        self.assertFalse(q._water_stage_format({'format':'s7-recipient-water-variant-stage-v1','variant':'A','variant_id':2},2))
+
+    def test_separate_water_end_to_end_binding_bootstrap_and_no_legacy_overlap(self):
+        from unittest.mock import patch
+        directory=self.water_build();case=self.data['cases'][1];self.resize_candidate(1024,512)
+        self.add_native_capture(source_size=1024,output_size=512)
+        self.change_artifact(1,'checkpoint',lambda data:data.update(water_program_requested=True,material_effects_requested=['improved_water']))
+        program=struct.pack('<I',0xffff0300)+bytes(3840-8)+struct.pack('<I',0xffff)  # Authored identity fixture, never submitted to a GPU.
+        pin=digest(program)
+        with patch.object(q,'WATER_PROGRAM_SHA256',pin):
+            target=directory/f'LocalData/MaterialShaders/{q.WATER_RECIPE}/{pin}.ps.bin';target.parent.mkdir(parents=True);target.write_bytes(program)
+            case['artifacts']['water_program']=q._ref(target)
+            encoded=str(target).encode('utf-16-le');raw=struct.pack('<5I',1076,1,1024,1024,1)+encoded.ljust(1024,b'\0')+bytes.fromhex(pin)
+            path=directory/'water-config.bin';path.write_bytes(raw);case['artifacts']['water_config']=q._ref(path)
+            stage={'format':'s7-recipient-water-stage-v1','edition':'history','render':[1024,1024],
+                'config_bytes':1076,'recipe':q.WATER_RECIPE,'program_path':str(target),'program_sha256':pin,
+                'program_bytes':3840,'source_resources':dict(q.WATER_SOURCES),'private_case':True,'no_legacy_river_scaling_permitted':True}
+            path=directory/'water-stage.private.json';path.write_text(json.dumps(stage));case['artifacts']['water_stage']=q._ref(path)
+            raw=struct.pack('<5I4f',4132,1,0,1024,1024,1.15,.94,1.2,1.1)+bytes(4132-36)
+            path=directory/'effects-config.bin';path.write_bytes(raw);case['artifacts']['effects_config']=q._ref(path)
+            initialized=json.loads(Path(case['artifacts']['hook_init']['path']).read_text())
+            for role,export in [('water_configured','WePlayNativeGraphicsConfigureWater'),('effects_configured','WePlayNativeGraphicsConfigureEffects')]:
+                path=directory/q.ARTIFACTS[role];path.write_text(json.dumps({'succeeded':True,'worker_code_rx':True,
+                    'original_entry_guarded':True,'dll_sha256':initialized['dll_sha256'],'export':export}));case['artifacts'][role]=q._ref(path)
+            path=Path(case['native_captures'][0]['path']);frame=json.loads(path.read_text())
+            epoch=dict.fromkeys(q.EFFECT_EPOCH_FIELDS,0);epoch.update(effects_requested=1,effects_configured=1,
+                effects_revision=1,effects_drawn_revision=1,effects_frame_has_geometry=1)
+            frame.update(epoch,effects_config_version=1,water=self.water_record());path.write_text(json.dumps(frame))
+            case['native_captures'][0]=q._ref(path);self.write_manifest()
+            result=q.aggregate(self.manifest);row=result['cases'][1]
+            self.assertTrue(row['runtime_records_consistent'],row['rejected'])
+            self.assertTrue(row['native_frame_pairs'][0]['water_shader_replacement_recorded'])
+            self.assertTrue(row['native_frame_pairs'][0]['water_only_configuration_recorded'])
+            self.assertFalse(result['visual_qualified'])
+            frame['effects_active']=1;path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+            row=q.aggregate(self.manifest)['cases'][1]
+            self.assertFalse(row['native_frame_pairs'][0]['water_shader_replacement_recorded'])
+            self.assertIn('legacy River VS mutation overlaps separate WaterProgram',row['rejected'])
+            # Same immutable transport/source schema, explicitly different pinned
+            # recipe. B must have the native measured variant2, not an A label.
+            balanced=bytearray(program);balanced[100]=1;balanced=bytes(balanced);balanced_pin=digest(balanced)
+            with patch.object(q,'WATER_BALANCED_PROGRAM_SHA256',balanced_pin):
+                target_b=directory/f'LocalData/MaterialShaders/{q.WATER_BALANCED_RECIPE}/{balanced_pin}.ps.bin'
+                target_b.parent.mkdir(parents=True);target_b.write_bytes(balanced);case['artifacts']['water_program']=q._ref(target_b)
+                encoded=str(target_b).encode('utf-16-le');raw=struct.pack('<5I',1076,1,1024,1024,1)+encoded.ljust(1024,b'\0')+bytes.fromhex(balanced_pin)
+                config_path=Path(case['artifacts']['water_config']['path']);config_path.write_bytes(raw);case['artifacts']['water_config']=q._ref(config_path)
+                stage.update(format='s7-recipient-water-variant-stage-v1',variant='B',variant_id=2,
+                    recipe=q.WATER_BALANCED_RECIPE,program_path=str(target_b),program_sha256=balanced_pin)
+                stage_path=Path(case['artifacts']['water_stage']['path']);stage_path.write_text(json.dumps(stage));case['artifacts']['water_stage']=q._ref(stage_path)
+                frame['effects_active']=0;frame['water']['variant']=2;path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+                row=q.aggregate(self.manifest)['cases'][1]
+                self.assertTrue(row['runtime_records_consistent'],row['rejected'])
+                self.assertTrue(row['native_frame_pairs'][0]['water_shader_replacement_recorded'])
+                self.assertEqual(row['water_configuration']['variant'],2)
+                frame['water']['variant']=1;path.write_text(json.dumps(frame));case['native_captures'][0]=q._ref(path);self.write_manifest()
+                row=q.aggregate(self.manifest)['cases'][1]
+                self.assertFalse(row['native_frame_pairs'][0]['water_shader_replacement_recorded'])
+                self.assertIn('native water variant/configuration mismatch',row['rejected'])
+
     def test_modern_v3_25_immutable_sources_and_effects_v2_abi(self):
         self.modern_build()
         self.assertEqual(len(q.MODERN_HOOK_SOURCES),25)
@@ -476,6 +593,14 @@ class QualificationTests(unittest.TestCase):
         self.assertIn('watchdog/forced stop', result['cases'][1]['rejected'])
         self.assertIn('original private save changed', result['cases'][1]['rejected'])
         self.assertFalse(result['cases'][1]['runtime_records_consistent'])
+
+    def test_healthy_monitor_with_recorded_warning_still_fails_pressure_free_gate(self):
+        self.change_artifact(1,'memory',lambda data:data.update(max_pressure=2))
+        self.change_artifact(1,'result',lambda data:data['memory'].update(max_pressure=2))
+        row=q.aggregate(self.manifest)['cases'][1]
+        self.assertFalse(row['runtime_records_consistent'])
+        self.assertIn('memory pressure warning/limit recorded',row['rejected'])
+        self.assertNotIn('unhealthy memory monitoring',row['rejected'])
 
     def test_image_hash_size_and_complete_data_are_checked(self):
         self.assertEqual(q._image_size(png(4, 3)), [4, 3])

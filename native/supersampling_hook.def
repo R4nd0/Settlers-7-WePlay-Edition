@@ -6,3 +6,4 @@ EXPORTS
     WePlayNativeGraphicsConfigureObservation=_WePlayNativeGraphicsConfigureObservation@4
     WePlayNativeGraphicsConfigureEffects=_WePlayNativeGraphicsConfigureEffects@4
     WePlayNativeGraphicsConfigureComparison=_WePlayNativeGraphicsConfigureComparison@4
+    WePlayNativeGraphicsConfigureWater=_WePlayNativeGraphicsConfigureWater@4

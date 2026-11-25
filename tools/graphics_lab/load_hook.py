@@ -18,13 +18,14 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
 from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,EFFECTS_V1_SOURCES,
-                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2)
+                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
     'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
     'configure': (b'WePlayNativeGraphicsConfigureObservation\0', 952),
     'effects': (b'WePlayNativeGraphicsConfigureEffects\0', 4132),
     'comparison': (b'WePlayNativeGraphicsConfigureComparison\0', 12),
+    'water': (b'WePlayNativeGraphicsConfigureWater\0',1076),
 }
 
 
@@ -45,9 +46,10 @@ def verify_build(dll):
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
     current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
-    modern=current and value.get('source_set')=='effects-v3'
-    comparison=current and value.get('source_set')in('effects-v2','effects-v3')
-    sources = (set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
+    water=current and value.get('source_set')=='effects-v4'
+    modern=current and value.get('source_set')in('effects-v3','effects-v4')
+    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4')
+    sources = (set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
     expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
     keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
     if comparison:keys.add('diagnostic_abi')
@@ -56,8 +58,8 @@ def verify_build(dll):
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
-    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3') or value['compiled_capabilities']!=15
-                    or value['abi']!=(BUILD_ABI_V2 if modern else BUILD_ABI)):
+    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4') or value['compiled_capabilities']!=15
+                    or value['abi']!=(BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
         raise ValueError('Unexpected compiled graphics ABI or capabilities.')
     if comparison and value['diagnostic_abi']!={'comparison':12}:
         raise ValueError('Unexpected diagnostic comparison ABI.')
@@ -206,9 +208,11 @@ def invoke(owned, dll, operation, payload):
         raise ValueError('Capture sequence exceeds the bounded command range.')
     if operation == 'comparison' and struct.unpack_from('<I',payload,8)[0]not in(0,1):
         raise ValueError('Comparison diagnostic accepts only an explicit Boolean.')
+    if operation=='water' and struct.unpack_from('<I',payload,16)[0]not in(0,1):raise ValueError('WaterProgram enable must be Boolean.')
     dll, build = verify_build(dll)
     if modern and build.get('abi',{}).get('effects_v2')!=6180:
         raise ValueError('This exact source-bound build does not support material V2.')
+    if operation=='water' and build.get('abi',{}).get('water')!=1076:raise ValueError('This exact build does not support WaterProgram.')
     with file_lease(dll):
         return _invoke_pinned(owned, dll, payload, export)
 

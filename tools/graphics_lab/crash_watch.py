@@ -16,10 +16,12 @@ import ctypes as C
 from ctypes import wintypes as W
 import hashlib
 import json
+import mmap
 import os
 from pathlib import Path
 import re
 import subprocess
+import struct
 import sys
 import time
 
@@ -31,6 +33,9 @@ FORMAT = 's7-owned-crash-admission-v1'
 DEFAULT_CDB = ROOT / 'work/debugger-acquisition-20261124/portable/x86/cdb.exe'
 MAX_BYTES = 64 * 1024 * 1024
 MAX_DUMPS = 4
+BASELINE_MODE = 'owned-sdk-without-native-graphics-v1'
+BASELINE_FORMAT = 's7-owned-baseline-crash-admission-v1'
+BASELINE_ADMISSION = 'baseline-crash-admission.private.json'
 STEAM_EXE = '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410'
 # Individually Microsoft-Authenticode-verified x86 payload from the official
 # WinDbg1.2611.4001.0 MSIX, not an arbitrary executable selected by the caller.
@@ -359,6 +364,273 @@ def _admitted(case, native):
         raise
 
 
+def baseline_source_paths():
+    """Fixed source set; relocating/promoting this draft needs a NEW checkpoint."""
+    common = {
+        'tools/graphics_lab/game.py', 'tools/graphics_lab/crash_watch.py',
+        'tools/installer/platform_standalone.py', 'tools/installer/isolated_process.py',
+        'tools/d3d11/memory_guard.py', 'tools/shadow_detail/profile_guard.py',
+        'tools/graphics_lab/recover.py', 'tools/graphics_lab/load_hook.py',
+        'tools/supersampling/hook_probe.py',
+    }
+    return common
+
+
+def baseline_options(*, baseline, crash_watch, hook, callback, observer, capture,
+                     materials, comparison, detailed_shadows, initially_off, config_version):
+    if (baseline is not True or crash_watch is not True or hook is not None or callback is not None
+            or observer is not None or capture is not None or not isinstance(materials,(tuple,list)) or materials or comparison is not False
+            or detailed_shadows is not False or initially_off is not False or type(config_version)is not int or config_version != 1):
+        raise ValueError('Explicit baseline requires no graphics hook/callback/observation/material/comparison mode.')
+
+
+def baseline_command(raw, previous):
+    if not isinstance(raw, bytes) or len(raw) > 4096:
+        raise ValueError('Baseline command exceeds its bound.')
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value: raise ValueError('Duplicate baseline command key.')
+            value[key] = item
+        return value
+    value = json.loads(raw, object_pairs_hook=pairs)
+    if (not isinstance(value, dict) or set(value) != {'operation', 'sequence'}
+            or value['operation'] != 'baseline-crash-watch-admit'
+            or type(value['sequence']) is not int or not 1 <= value['sequence'] <= 1000000):
+        raise ValueError('Baseline permits only the explicit owner admission command.')
+    return value if value['sequence'] > previous else None
+
+
+def _platform(root):
+    sys.path.insert(0, str(ROOT / 'tools/installer'))
+    import platform_standalone
+    return platform_standalone.load(root)  # read-only original adapter/runtime/isolation verification
+
+
+def _baseline_case(case):
+    case = recover.lab(case)
+    journal = _json(case / recover.JOURNAL)
+    if (set(journal) != {'format', 'state', 'root', 'critical', 'targets', 'shared', 'attempts'}
+            or journal['format'] != recover.FORMAT or journal['state'] != 'prepared'
+            or type(journal['attempts']) is not int or journal['attempts'] != 0
+            or (case / 'result.private.json').exists()):
+        raise ValueError('Baseline requires an active fresh prepared recovery journal.')
+    root = recover.lab(journal['root'])
+    if case.is_relative_to(root) or root.is_relative_to(case):
+        raise ValueError('Baseline case and owned game root must remain separate.')
+    parent = recover._critical(root, journal['critical'])
+    # Verify all recovery targets/backups and shared snapshots, never restore.
+    targets = journal['targets']
+    if not isinstance(targets, dict) or set(targets) != {'options', 'runtime', 'config'}:
+        raise ValueError('Baseline recovery targets changed.')
+    if any(not isinstance(item,dict) or set(item)!={'relative','original'} or not isinstance(item.get('relative'),str) for item in targets.values()):
+        raise ValueError('Baseline recovery target structure changed.')
+    recover._targets(root, {name: root / item['relative'] for name, item in targets.items()}, parent)
+    recover._shared(journal['shared'])
+    for name, item in targets.items():
+        if not isinstance(item, dict) or set(item) != {'relative', 'original'}:
+            raise ValueError('Baseline recovery target record changed.')
+        record = item['original'];backup = case / 'recovery-original' / (name + '.bin')
+        if not isinstance(record, dict) or type(record.get('exists')) is not bool:
+            raise ValueError('Baseline backup record is invalid.')
+        if record['exists']:
+            _, actual = recover._read(backup, recover.MAX_SETTING)
+            if actual != record: raise ValueError('Baseline original settings backup changed.')
+        elif record != {'exists': False} or backup.exists():
+            raise ValueError('Unexpected baseline settings backup.')
+    checkpoint = _json(case / 'checkpoint.private.json')
+    if (checkpoint.get('files') != journal['critical'] or checkpoint.get('baseline_mode') != BASELINE_MODE
+            or checkpoint.get('baseline_crash_watch_allowed') is not True
+            or checkpoint.get('crash_watch_allowed') is not False
+            or checkpoint.get('native_graphics_hook_requested') is not False
+            or checkpoint.get('comparison_uv_requested') is not False
+            or checkpoint.get('detailed_shadows_requested') is not False
+            or checkpoint.get('material_effects_requested') != []):
+        raise ValueError('Explicit baseline source/mode checkpoint is absent or contradictory.')
+    sources = checkpoint.get('sources')
+    if not isinstance(sources, dict) or set(sources) != baseline_source_paths():
+        raise ValueError('Baseline requires every exact private/controller source checkpoint.')
+    if sources.get(Path(__file__).resolve().relative_to(ROOT).as_posix())!=digest(__file__):
+        raise ValueError('Baseline did not checkpoint this exact executing watcher.')
+    for relative, pin in sources.items():
+        if not isinstance(pin, str) or not re.fullmatch('[0-9a-f]{64}', pin):
+            raise ValueError('Invalid baseline source digest.')
+        if digest(recover.plain(ROOT / relative)) != pin or digest(recover.plain(case / 'source' / relative)) != pin:
+            raise ValueError('Baseline current or retained source checkpoint changed.')
+    # A case that previously initialized graphics is not a no-graphics baseline,
+    # even if somebody unloaded its DLL before admission.
+    if any((case / name).exists() for name in ('hook-initialized.private.json', 'hook-build.private.json',
+            'effects-configured.private.json', 'comparison-configured.private.json', 'material-stage.private.json')):
+        raise ValueError('A graphics-initialized case cannot become a baseline.')
+    platform, executable, adapter = _platform(root)
+    manifest = root / 'Launcher/platform-standalone.json'
+    if (str(executable.relative_to(root)).replace('\\', '/') not in journal['critical']
+            or platform['files'].get(adapter.relative_to(root).as_posix()) != journal['critical'].get(adapter.relative_to(root).as_posix())):
+        raise ValueError('Baseline adapter/runtime manifest disagrees with critical pins.')
+    required = dict(journal['critical']);required.update(platform['files'])
+    for relative, pin in required.items():
+        if digest(recover.plain(root / relative)) != pin: raise ValueError('Baseline critical/runtime binary changed.')
+    return case, root, required, manifest
+
+
+def graphics_export_present(path):
+    """Bounded read-only PE exports; catches a graphics DLL with another name."""
+    path = recover.plain(path)
+    if not path.is_file() or not 256 <= path.stat().st_size <= 512 * 1024 * 1024:
+        raise ValueError('Cannot verify baseline module export absence.')
+    with path.open('rb') as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
+        def unpack(fmt, offset):
+            size = struct.calcsize(fmt)
+            if offset < 0 or offset + size > len(data): raise ValueError('Truncated baseline PE metadata.')
+            return struct.unpack_from(fmt, data, offset)
+        if data[:2] != b'MZ': raise ValueError('Invalid baseline module PE.')
+        pe = unpack('<I', 0x3c)[0]
+        if pe > 1024 * 1024 or data[pe:pe+4] != b'PE\0\0': raise ValueError('Invalid baseline PE header.')
+        sections = unpack('<H', pe + 6)[0];optional = pe + 24;optional_size = unpack('<H', pe + 20)[0]
+        magic = unpack('<H', optional)[0]
+        directory = optional + (96 if magic == 0x10b else 112 if magic == 0x20b else 0)
+        if not 1 <= sections <= 96 or directory == optional or optional_size < directory - optional + 8:
+            raise ValueError('Unsupported baseline PE export metadata.')
+        export_rva, export_size = unpack('<II', directory)
+        if not export_rva and not export_size:return False
+        headers = unpack('<I', optional + 60)[0];table = optional + optional_size
+        ranges = []
+        for index in range(sections):
+            virtual_size, address, raw_size, raw_offset = unpack('<4I', table + index * 40 + 8)
+            if raw_offset + raw_size > len(data):raise ValueError('Invalid baseline PE section.')
+            ranges.append((address, raw_size, raw_offset))
+        def offset(rva, size):
+            if rva < headers and rva + size <= min(headers, len(data)):return rva, min(headers, len(data)) - rva
+            for address, raw_size, raw_offset in ranges:
+                if address <= rva and rva + size <= address + raw_size:return raw_offset + rva - address, address + raw_size - rva
+            raise ValueError('Baseline export RVA is outside raw module data.')
+        at, _ = offset(export_rva, 40);count = unpack('<I', at + 24)[0];names = unpack('<I', at + 32)[0]
+        if count > 65536:raise ValueError('Baseline export name table exceeds bound.')
+        if not count:return False
+        table_at, _ = offset(names, count * 4)
+        for index in range(count):
+            name_rva = unpack('<I', table_at + index * 4)[0];name_at, available = offset(name_rva, 1)
+            raw = data[name_at:name_at + min(1024, available)];end = raw.find(b'\0')
+            if end < 0:raise ValueError('Unbounded baseline export name.')
+            name = raw[:end].lower()
+            if b'weplaysupersampling' in name or b'weplaynativegraphics' in name:return True
+    return False
+
+
+def _baseline_paths(modules,allowed_executables):
+    # Toolhelp reports two mappings of the same pinned original Steam EXE.
+    # Absence checks scan files, never select a function address from these rows.
+    # Retain both rows and allow that observed case only; all other duplicate
+    # identities, excessive counts and unknown snapshot shapes remain refused.
+    if not isinstance(modules,(list,tuple,set,frozenset)) or not modules or len(modules)>512:
+        raise RuntimeError('Ambiguous baseline module snapshot.')
+    paths=[recover.plain(path) for path in modules]
+    counts={}
+    for path in paths:counts[path]=counts.get(path,0)+1
+    if any(count>1 and (count!=2 or path not in allowed_executables or path.name.casefold()!='settlers7r.exe')
+           for path,count in counts.items()):raise RuntimeError('Ambiguous baseline module snapshot.')
+    return paths
+
+
+def _baseline_modules(native, pid, root, required):
+    allowed={recover.plain(root/name) for name,pin in required.items()
+             if Path(name).name.casefold()=='settlers7r.exe' and pin in recover.EXES}
+    paths = _baseline_paths(native.modules(pid),allowed)
+    for relative, pin in required.items():
+        path = recover.plain(root / relative)
+        if path.suffix.lower() in ('.dll', '.exe') and path not in paths:
+            # The policy executable is a separate owner-controlled service,
+            # never expected as a module inside the game.
+            if relative == 'Launcher/weplay_network_policy.exe':continue
+            raise RuntimeError('A pinned baseline executable/runtime module is absent.')
+        if digest(path) != pin:raise RuntimeError('Baseline module binary pin changed.')
+    for path in paths:
+        name = path.name.casefold()
+        if 'nativegraphics'in name or ('weplay'in name and 'lab'in name) or graphics_export_present(path):
+            raise RuntimeError('A native graphics/laboratory module is loaded in this purported baseline.')
+    return paths
+
+
+def _baseline_absence(native,pid,verified):
+    """New modules cannot introduce graphics after baseline admission.
+
+    Do not demand critical modules stay loaded during normal engine shutdown.
+    Their on-disk files remain pinned/leased; only new module exports need scans.
+    """
+    allowed={path for path in verified if path.name.casefold()=='settlers7r.exe'}
+    for path in _baseline_paths(native.modules(pid),allowed):
+        name=path.name.casefold()
+        if 'nativegraphics'in name or ('weplay'in name and 'lab'in name):raise RuntimeError('Graphics module appeared after baseline admission.')
+        if path not in verified:
+            if graphics_export_present(path):raise RuntimeError('Renamed graphics module appeared after baseline admission.')
+            verified.add(path)
+
+
+def baseline_admit(owned, case, *, load_and_new_save_confirmed=False):
+    """Only the original retaining owner can create this separate admission."""
+    if load_and_new_save_confirmed is not True:
+        raise ValueError('Baseline admission requires original-UI load and a new private save.')
+    if getattr(owned, '_weplay_owned', None) is not True:
+        raise ValueError('Baseline admission requires the original retained OwnedProcess.')
+    owned.owned()
+    if owned.poll() is not None or owned.native_initialized is not True:
+        raise ValueError('The startup-adapter initialized owned baseline must still be active.')
+    case, root, required, manifest = _baseline_case(case)
+    record = _json(case / 'owned.private.json')
+    if (record.get('pid') != owned.pid or record.get('parent') != os.getpid()
+            or record.get('path') != str(owned.executable) or record.get('sha256') != owned.expected
+            or record.get('native_initialized') is not True or not owned.executable.is_relative_to(root)):
+        raise ValueError('Baseline record is not this original retained child.')
+    native = Native();child = native.identity(owned.pid, owned._handle)
+    if any(child.get(key) != record.get(key) for key in ('pid','parent','path','sha256')):
+        raise RuntimeError('Retained baseline child identity differs from its owner record.')
+    modules = _baseline_modules(native, owned.pid, root, required)
+    handle = native.open(os.getpid())
+    try:parent = native.identity(os.getpid(), handle)
+    finally:native.close(handle)
+    if child['parent'] != parent['pid'] or child['creation_time'] < parent['creation_time']:
+        raise RuntimeError('Invalid baseline owner/child creation ordering.')
+    files = {name:digest(case/name)for name in (recover.JOURNAL,'owned.private.json','checkpoint.private.json')}
+    value = dict(format=BASELINE_FORMAT,mode=BASELINE_MODE,case=str(case),child=child,parent=parent,
+        case_files=files,watcher_sha256=digest(__file__),required_binaries=required,
+        platform_manifest_sha256=digest(manifest),modules=[str(path)for path in modules],
+        native_graphics_modules_absent=True,load_and_new_save_confirmed=True)
+    _write_new(case/BASELINE_ADMISSION,value);return value
+
+
+def _baseline_admitted(case, native):
+    case,root,required,manifest = _baseline_case(case);value=_json(case/BASELINE_ADMISSION)
+    keys={'format','mode','case','child','parent','case_files','watcher_sha256','required_binaries',
+          'platform_manifest_sha256','modules','native_graphics_modules_absent','load_and_new_save_confirmed'}
+    if (set(value)!=keys or value['format']!=BASELINE_FORMAT or value['mode']!=BASELINE_MODE
+            or value['case']!=str(case) or value['watcher_sha256']!=digest(__file__)
+            or value['required_binaries']!=required or value['platform_manifest_sha256']!=digest(manifest)
+            or value['native_graphics_modules_absent']is not True or value['load_and_new_save_confirmed']is not True
+            or set(value['case_files'])!={recover.JOURNAL,'owned.private.json','checkpoint.private.json'}):
+        raise ValueError('Missing/changed explicit baseline owner admission.')
+    for name,pin in value['case_files'].items():
+        if digest(case/name)!=pin:raise ValueError('Baseline case changed or closed after admission.')
+    record=_json(case/'owned.private.json')
+    if (any(value['child'].get(k)!=record.get(k)for k in ('pid','parent','path','sha256'))
+            or record.get('native_initialized')is not True or value['child']['parent']!=value['parent']['pid']
+            or value['child']['creation_time']<value['parent']['creation_time']):
+        raise ValueError('Baseline admission no longer names its original owner and child.')
+    executable=recover.plain(value['child']['path'])
+    if not executable.is_relative_to(root)or executable.name.casefold()!='settlers7r.exe'or value['child']['sha256']not in recover.EXES:
+        raise ValueError('Baseline admission cannot select another executable.')
+    child=parent=None
+    try:
+        child=native.open(value['child']['pid']);parent=native.open(value['parent']['pid'])
+        _match(value['child'],native.identity(value['child']['pid'],child));_match(value['parent'],native.identity(value['parent']['pid'],parent))
+        _baseline_modules(native,value['child']['pid'],root,required)
+        value['game_root']=str(root);value['baseline_required_paths']=[str(root/name)for name in required]
+        return case,value,child,parent
+    except BaseException:
+        if child:native.close(child)
+        if parent:native.close(parent)
+        raise
+
+
 def usage(output):
     files = [p for p in output.iterdir() if p.is_file()]
     return dict(dumps=sum(p.suffix.lower() == '.dmp' for p in files),
@@ -423,14 +695,16 @@ def final_target(native, handle, expected, *, debugger_exited_naturally):
     return state, race
 
 
-def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300):
+def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
     if type(seconds) is not int or not 300 <= seconds <= 600:
         raise ValueError('Crash watch is bounded to300–600 seconds.')
+    if type(baseline)is not bool:raise ValueError('Explicit boolean baseline mode required.')
     native = Native()
-    case, admission, child, parent = _admitted(case, native)
+    case, admission, child, parent = (_baseline_admitted if baseline else _admitted)(case, native)
     proc = None
     result = dict(format='s7-owned-crash-watch-v1', diagnostic_not_benchmark=True,
                   game_terminated_by_watcher=False, limit_bytes=MAX_BYTES, limit_dumps=MAX_DUMPS)
+    if baseline:result.update(baseline_mode=BASELINE_MODE,native_graphics_modules_absent=True)
     debugger_identity = None
     output_created = False
     try:
@@ -451,11 +725,17 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300):
         with ExitStack() as leases:
             for name in CDB_PINS:
                 leases.enter_context(file_lease(cdb.parent / name))
-            leases.enter_context(file_lease(Path(admission['hook'])))
+            if baseline:
+                for path in admission['baseline_required_paths']:leases.enter_context(file_lease(Path(path)))
+                for relative in baseline_source_paths():leases.enter_context(file_lease(ROOT/relative))
+            else:leases.enter_context(file_lease(Path(admission['hook'])))
             # Recheck all identities after acquiring deny-write leases.
             verify_cdb(cdb, native)
             _match(admission['child'], native.identity(admission['child']['pid'], child))
             _match(admission['parent'], native.identity(admission['parent']['pid'], parent))
+            if baseline:
+                _baseline_case(case);_baseline_modules(native,admission['child']['pid'],Path(admission['game_root']),admission['required_binaries'])
+            verified_modules={Path(path)for path in admission.get('modules',[])}
             with (output / 'cdb.private.log').open('xb') as log:
                 proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
                     cwd=output, env=environment(os.environ), shell=False, creationflags=0x08000000)
@@ -463,6 +743,7 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300):
                 if debugger_identity['path'] != str(cdb) or debugger_identity['sha256'] != CDB_PINS['cdb.exe']:
                     raise RuntimeError('The spawned CDB identity changed.')
                 deadline = time.monotonic() + seconds
+                next_modules=0
                 reason = 'debugger_exited'
                 while proc.poll() is None:
                     used = usage(output)
@@ -470,6 +751,8 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300):
                         reason = 'output_limit'; break
                     if time.monotonic() >= deadline:
                         reason = 'timeout'; break
+                    if baseline and time.monotonic()>=next_modules and native.state(child)['alive']:
+                        _baseline_absence(native,admission['child']['pid'],verified_modules);next_modules=time.monotonic()+1
                     time.sleep(.05)
                 result['stop_reason'] = reason
                 result['detach'] = stop_debugger(proc, debugger_identity, native)
@@ -513,9 +796,10 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--cdb', type=Path, default=DEFAULT_CDB)
     parser.add_argument('--seconds', type=int, default=300)
+    parser.add_argument('--baseline',action='store_true',help='Only an explicitly checkpointed no-native-graphics baseline.')
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(watch(args.case, args.output, cdb=args.cdb, seconds=args.seconds), indent=2))
+        print(json.dumps(watch(args.case, args.output, cdb=args.cdb, seconds=args.seconds,baseline=args.baseline), indent=2))
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(2, f'Crash watch refused: {error}\n')
 

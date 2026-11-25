@@ -1,6 +1,6 @@
 # Supersampling without ReShade
 
-Development experiment, 2026-11-24. This work is separate from the released
+Development experiment, 2026-11-24–25. This work is separate from the released
 launcher and its graphics profiles. No new game supersampling setting is
 qualified or enabled by these tools.
 
@@ -39,6 +39,50 @@ Neither a simple bytes-per-pixel estimate nor a successful small GPU fixture
 qualifies a large saved settlement.
 
 ## Output-cache lifetime candidate
+
+### Clipped-window startup correction, 2026-11-25
+
+The Ubi w38 4K start exposed an ordering gap. Windows presented a physical
+3840 x 1421 client for the requested 3840 x 2160 window; the original engine
+handled that initial size and reset its scene/viewport to 3840 x 1421 before
+the first high-resolution geometry draw. The old output-transition queue
+required that draw and never started. Present correctly fell back with reason
+4 (physical output-client mismatch); no supersampling was established. The
+reported source size was the earlier Attach observation because the client
+guard precedes the next backbuffer query. w38 exited normally and restoration
+verified; this was a startup failure, not a shader or initializer failure.
+
+Build n36 admits the deferred owned-window transition immediately after Attach
+verifies the original implicit backbuffer's exact configured high dimensions
+and absence of multisampling. The existing owned-window/thread guard still
+applies. Until that transition finishes, only the exact measured initial
+physical rectangle is eligible for scoped game GetClientRect/WM_SIZE logical
+dimensions. Unknown callers/windows/sizes and minimize pass through; mouse
+mapping still requires the final output client. Posting/resize failure and
+shutdown clear this temporary admission. SetWindowPos remains outside the COM
+lock/TLS scope, and original Reset parameters are never rewritten.
+
+Both n36 GPU fixtures start with an authored 1280 x 720 backbuffer and clipped
+1280 x 600 client, deliver WM_SIZE before any geometry, and verify the original
+handler still requests a 1280 x 720 scene. Version 1 and observer version 2 both
+passed: six exact original resets, four filtered presentations, two deliberate
+fallbacks, high-to-output pixel error at most 0.5, input/context guards, capture
+fallback metadata, cache reuse and clean original engine teardown. The native
+build retains the same 28-source manifest/ABIs and pinned DXVK 3.1.1. Strict
+compilation, 126 nested-draw CPU checks and 23 hook/game Python tests passed;
+the receipt gate rejects missing/malformed startup proof and old reset counts.
+
+The subsequent actual Ubi w39 start observed source, selected target and
+viewport 3840 x 2160, physical client/output 1920 x 1080, one applied resize and
+successful filtered presentations without the w38 shrink/reset. Nine same-pose
+water samples then exercised the natural-animation path. This is an observed
+Ubi startup correction, not certification of all startup/focus/DPI/device-loss
+cases or a 4K performance benchmark. See [the water record](WATER-MODERNIZATION.md)
+for sampled-motion scope; the final case result governs exit/memory claims.
+
+Private immutable build and GPU evidence: `work/n36`, `work/n36-gpu-v1` and
+`work/n36-gpu-v2`; failed/successful actual startup evidence: `work/w38` and
+`work/w39`.
 
 ### Actual three-edition checkpoint, 2026-11-24
 

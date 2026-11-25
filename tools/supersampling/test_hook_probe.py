@@ -51,6 +51,17 @@ class HookBuildIdentityTests(unittest.TestCase):
         self.manifest['abi']=hook_probe.BUILD_ABI
         self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
         with self.assertRaisesRegex(ValueError,'Stale'):hook_probe.verify_build(self.build)
+
+    def test_water_build_binds_program_module_and_explicit_water_abi(self):
+        for name in set(hook_probe.WATER_SOURCES)-set(hook_probe.SOURCES):
+            source=self.root/'native'/name;source.write_bytes(('water source: '+name).encode())
+            self.manifest['files'][name]=probe.sha256(source)
+        self.manifest.update(source_set='effects-v4',abi=hook_probe.BUILD_ABI_WATER)
+        self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
+        self.assertEqual(hook_probe.verify_build(self.build),self.manifest)
+        self.manifest['files'].pop('water_shader_effects.cpp')
+        self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'Stale'):hook_probe.verify_build(self.build)
         self.manifest['abi']=hook_probe.BUILD_ABI_V2
         self.manifest['files'].pop('native_effects_wire.h')
         self.manifest_path.write_text(json.dumps(self.manifest),encoding='utf-8')
@@ -71,6 +82,23 @@ class HookBuildIdentityTests(unittest.TestCase):
         self.manifest_path.write_text(json.dumps(self.manifest), encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'Stale'):
             hook_probe.verify_build(self.build)
+
+
+class StartupReceiptTests(unittest.TestCase):
+    def test_requires_clipped_before_geometry_and_unscaled_input_proof(self):
+        receipt = dict(reset_successes=6, startup_clipped_size_preserved_before_geometry=True,
+                       startup_input_unscaled=True)
+        self.assertTrue(hook_probe.startup_receipt_valid(receipt))
+        for key in ('startup_clipped_size_preserved_before_geometry', 'startup_input_unscaled'):
+            missing = dict(receipt)
+            missing.pop(key)
+            self.assertFalse(hook_probe.startup_receipt_valid(missing))
+            for malformed in (False, None, 1, 'true', []):
+                with self.subTest(key=key, malformed=malformed):
+                    self.assertFalse(hook_probe.startup_receipt_valid({**receipt, key: malformed}))
+        for wrong in (4, 5, 7, 6.0, '6', True, None):
+            with self.subTest(reset_successes=wrong):
+                self.assertFalse(hook_probe.startup_receipt_valid({**receipt, 'reset_successes': wrong}))
 
 
 if __name__ == '__main__':

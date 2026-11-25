@@ -22,6 +22,15 @@ EDITIONS = {
     'steam-history': '8349ae6523dfb5c54feaaa61370ec65708d2cde6d1063c1c9cfbe030b2aab410',
     'gold': '76ae5c8a9f74d997a662d347803398cf39ea034e5344725c0ccb0a1ea94bf5ab',
 }
+WATER_PROGRAM_SHA256 = '8a27791a9907f73d4f42c847bc74a0a25b57da48b81f8e9cb566eca59bfcf0d1'
+WATER_RECIPE = 'river-depth-fresnel-v1-candidate'
+WATER_BALANCED_PROGRAM_SHA256 = 'a8a591b346911622bfc9899fa28cbb022a42152df41ed822ef3cfff7c254e2f4'
+WATER_BALANCED_RECIPE = 'river-depth-fresnel-v2-balanced'
+WATER_SOURCES = {
+    'Graphics/Shaders/Water_ATI_High.ShaderLib': 'f5c575f9015fefd2f33e4a7fdce00bcadc68b54590844b3c08d1c4e48df1efe2',
+    'Graphics/Shaders/Water_ATIx_High.ShaderLib': '3a018f42a0de1a14338076beccedcb27395e345a02560610c1ed5fcf9ec6f0f0',
+    'Graphics/Shaders/Water_NV_High.ShaderLib': '2173334cdbe9223fb412cf93e96b3178176039c11421b87dec8417da08e10788',
+}
 ARTIFACTS = {
     'result': 'result.private.json', 'checkpoint': 'checkpoint.private.json',
     'owned': 'owned.private.json', 'memory': 'memory.private.json',
@@ -33,6 +42,10 @@ ARTIFACTS = {
     'comparison_configured': 'comparison-configured.private.json',
     'effects_configured': 'effects-configured.private.json',
     'effects_config': 'effects-config.bin',
+    'water_config': 'water-config.bin',
+    'water_configured': 'water-configured.private.json',
+    'water_stage': 'water-stage.private.json',
+    'water_program': f'LocalData/MaterialShaders/{WATER_RECIPE}/{WATER_PROGRAM_SHA256}.ps.bin',
 }
 MAX_JSON = 1024 * 1024
 MAX_IMAGE = 128 * 1024 * 1024
@@ -53,11 +66,13 @@ COMPARISON_HOOK_SOURCES = EFFECTS_HOOK_SOURCES | {
 MODERN_HOOK_SOURCES = COMPARISON_HOOK_SOURCES | {
     'native_effects_wire.h', 'material_shader_config_v2.h', 'material_shader_effects_contract_v2.h',
 }
+WATER_HOOK_SOURCES = MODERN_HOOK_SOURCES | {'water_shader_effects.h', 'water_shader_effects.cpp', 'native_material_draw.h'}
 HOOK_BINARIES = {'supersampling_hook_fixture.exe', 'WePlaySupersamplingLab.dll'}
 EFFECTS_HOOK_BINARIES = HOOK_BINARIES | {'supersampling_effects_gpu.exe'}
 EFFECTS_BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132,
                      'observation': 952, 'effects': 4132, 'capture': 12}
 MODERN_BUILD_ABI = {**EFFECTS_BUILD_ABI, 'effects_v2': 6180}
+WATER_BUILD_ABI = {**MODERN_BUILD_ABI, 'water': 1076}
 
 
 def _build_contract(build):
@@ -65,17 +80,18 @@ def _build_contract(build):
     if build.get('format') == 's7-supersampling-hook-build-v1':
         return HOOK_SOURCES, HOOK_BINARIES, set(build) == {'format', 'build_sha256', 'files'}
     if build.get('format') == 's7-native-graphics-build-v2':
-        modern = build.get('source_set') == 'effects-v3'
-        comparison = build.get('source_set') in ('effects-v2', 'effects-v3')
+        water = build.get('source_set') == 'effects-v4'
+        modern = build.get('source_set') in ('effects-v3', 'effects-v4')
+        comparison = build.get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4')
         keys = {'format', 'source_set', 'compiled_capabilities', 'abi', 'build_sha256', 'files'}
         if comparison:
             keys.add('diagnostic_abi')
-        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3') and set(build) == keys
+        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4') and set(build) == keys
                  and type(build.get('compiled_capabilities')) is int
                  and build['compiled_capabilities'] == 15
-                 and build.get('abi') == (MODERN_BUILD_ABI if modern else EFFECTS_BUILD_ABI)
+                 and build.get('abi') == (WATER_BUILD_ABI if water else MODERN_BUILD_ABI if modern else EFFECTS_BUILD_ABI)
                  and (not comparison or build.get('diagnostic_abi') == {'comparison': 12}))
-        sources = MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
+        sources = WATER_HOOK_SOURCES if water else MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
         return sources, EFFECTS_HOOK_BINARIES, valid
     return set(), set(), False
 
@@ -271,6 +287,76 @@ def _material_configuration(raw):
             raise ValueError('Nonzero material path tail.')
         raw[offset:offset+end*2].decode('utf-16-le')
     return {'bytes': size, 'version': version, 'flags': flags, 'render_size': [width, height]}
+
+
+def _water_configuration(raw):
+    if not isinstance(raw, bytes) or len(raw) != 1076:
+        raise ValueError('Water transport requires 1076 bytes.')
+    size, version, width, height, enabled = struct.unpack_from('<5I', raw)
+    if (size != 1076 or version != 1 or enabled not in (0, 1) or not 800 <= width <= 3840
+            or not 600 <= height <= 2160):
+        raise ValueError('Invalid fixed WaterProgram configuration.')
+    words = struct.unpack_from('<512H', raw, 20)
+    if 0 not in words or any(words[words.index(0):]):
+        raise ValueError('Invalid WaterProgram path array.')
+    path = raw[20:20+words.index(0)*2].decode('utf-16-le')
+    program_hash = raw[1044:].hex()
+    variant, recipe = _water_variant(program_hash)
+    return {'bytes': size, 'version': version, 'enabled': enabled, 'render_size': [width, height],
+            'program_path': path, 'program_sha256': program_hash, 'variant': variant, 'recipe': recipe}
+
+
+def _water_variant(program_hash):
+    if program_hash == WATER_PROGRAM_SHA256:
+        return 1, WATER_RECIPE
+    if program_hash == WATER_BALANCED_PROGRAM_SHA256:
+        return 2, WATER_BALANCED_RECIPE
+    raise ValueError('Unpinned recipient-generated water program.')
+
+
+def _water_stage_format(stage, variant):
+    if stage.get('format') == 's7-recipient-water-stage-v1':
+        return variant == 1
+    return (stage.get('format') == 's7-recipient-water-variant-stage-v1'
+            and type(stage.get('variant_id')) is int and stage['variant_id'] == variant
+            and stage.get('variant') == {1: 'A', 2: 'B'}.get(variant))
+
+
+def _water_program(raw):
+    if (len(raw) != 3840
+            or struct.unpack_from('<I', raw)[0] != 0xffff0300 or struct.unpack_from('<I', raw, len(raw)-4)[0] != 0xffff):
+        raise ValueError('Recipient water shader identity/size/envelope changed.')
+    program_hash = hashlib.sha256(raw).hexdigest()
+    variant, recipe = _water_variant(program_hash)
+    return {'bytes': len(raw), 'sha256': program_hash, 'variant': variant, 'recipe': recipe}
+
+
+def _water_record(frame):
+    value = frame.get('water')
+    if value is None:
+        return None, False, False
+    if not isinstance(value, dict):
+        raise ValueError('Water state must be a measured native object.')
+    if 'variant' in value and (type(value['variant']) is not int or value['variant'] not in (0, 1, 2)):
+        raise ValueError('Unknown measured water variant.')
+    for key in ('frame', 'epoch', 'completed_applications', 'completed_restorations', 'last_applied_frame',
+                'last_restored_frame', 'shader_creations', 'shader_failures', 'set_failures', 'restore_failures', 'exceptions'):
+        if type(value.get(key)) is not int or not 0 <= value[key] <= 0xffffffffffffffff:
+            raise ValueError('Invalid bounded water counter.')
+    for key in ('requested', 'enabled', 'configured', 'faulted', 'unsafe', 'pending_original_refs'):
+        if type(value.get(key)) is not int or value[key] not in (0, 1):
+            raise ValueError('Invalid water status flag.')
+    if value['frame'] != frame.get('frame') or not _positive(value['frame']) or not _positive(value['epoch']):
+        raise ValueError('Water local frame plus origin does not match the actual capture.')
+    healthy = not any(value[key] for key in ('faulted', 'unsafe', 'pending_original_refs', 'shader_failures',
+                                           'set_failures', 'restore_failures', 'exceptions'))
+    replacement = bool(healthy and value['requested'] == value['enabled'] == value['configured'] == 1
+        and value['shader_creations'] > 0 and value['completed_applications'] > 0
+        and value['completed_applications'] == value['completed_restorations']
+        and value['last_applied_frame'] == value['last_restored_frame'] == value['frame'])
+    control = bool(healthy and value['requested'] == value['enabled'] == 0
+        and value['completed_applications'] == value['completed_restorations'] == 0)
+    return value, replacement, control
 
 
 def _comparison_record(frame):
@@ -522,6 +608,14 @@ def record_case(directory, *, case_id, edition, role='candidate', kind='actual-g
              'artifacts': {name: _ref(directory / relative) for name, relative in ARTIFACTS.items()
                            if (directory / relative).is_file()},
              'captures': [{'stage': stage, 'file': _ref(path)} for stage, path in captures]}
+    if (directory / ARTIFACTS['water_config']).is_file():
+        try:
+            water = _water_configuration(_read(directory / ARTIFACTS['water_config'], 8192))
+            program = directory / f"LocalData/MaterialShaders/{water['recipe']}/{water['program_sha256']}.ps.bin"
+            if program.is_file():
+                value['artifacts']['water_program'] = _ref(program)
+        except (OSError, ValueError):
+            pass  # Bind malformed config itself; aggregate reports its rejection.
     if observation is not None:
         value['observation'] = _ref(observation)
     if hook_build is not None:
@@ -558,8 +652,10 @@ def _case(value, base):
         if name not in ARTIFACTS:
             raise ValueError('Unknown graphics artifact role.')
         try:
-            if name == 'effects_config':
-                data[name] = _material_configuration(_bound(reference, base, 8192)[1])
+            if name in ('effects_config', 'water_config', 'water_program'):
+                parser = {'effects_config': _material_configuration, 'water_config': _water_configuration,
+                          'water_program': _water_program}[name]
+                data[name] = parser(_bound(reference, base, 8192)[1])
                 continue
             item = _json(reference, base)
             if not isinstance(item, dict):
@@ -581,8 +677,9 @@ def _case(value, base):
         check(result.get('memory') == memory, 'memory file/result mismatch')
     if memory:
         check(memory.get('monitor_failed') is False and memory.get('recovery_required') is False
-              and type(memory.get('max_pressure')) is int and memory['max_pressure'] == 0
               and _positive(memory.get('samples')), 'unhealthy memory monitoring')
+        check(type(memory.get('max_pressure')) is int and memory['max_pressure'] == 0,
+              'memory pressure warning/limit recorded')
     exe = EDITIONS[value['edition']]
     if owned:
         check(owned.get('sha256') == exe and owned.get('native_initialized') is True
@@ -722,7 +819,7 @@ def _case(value, base):
     comparison_requested = checkpoint.get('comparison_uv_requested') is True
     if 'comparison_uv_requested' in checkpoint:
         check(type(checkpoint['comparison_uv_requested']) is bool, 'invalid comparison request in source checkpoint')
-    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3')
+    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4')
                         and _build_contract(data['hook_build'])[2])
     configured = data.get('comparison_configured', {})
     comparison_admitted = bool(comparison_requested and comparison_build and value['role'] == 'candidate'
@@ -736,10 +833,10 @@ def _case(value, base):
     material_config = data.get('effects_config')
     material_receipt = data.get('effects_configured', {})
     source_build = data.get('hook_build', {})
-    modern_build = source_build.get('source_set') == 'effects-v3' and _build_contract(source_build)[2]
+    modern_build = source_build.get('source_set') in ('effects-v3', 'effects-v4') and _build_contract(source_build)[2]
     material_admitted = bool(material_config and value['role'] == 'candidate'
         and _build_contract(source_build)[2]
-        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3')
+        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4')
         and (material_config['version'] == 1 or modern_build)
         and material_config['render_size'] == requested
         and material_receipt.get('succeeded') is True and material_receipt.get('worker_code_rx') is True
@@ -750,6 +847,41 @@ def _case(value, base):
         and source_build.get('files', {}).get('WePlaySupersamplingLab.dll') == material_receipt.get('dll_sha256'))
     if material_config is not None:
         check(material_admitted, 'material configuration/source receipt binding missing')
+    water_config, water_stage, water_receipt = (data.get(key, {}) for key in ('water_config', 'water_stage', 'water_configured'))
+    water_requested = checkpoint.get('water_program_requested') is True
+    if 'water_program_requested' in checkpoint:
+        check(type(checkpoint['water_program_requested']) is bool, 'invalid separate-water request checkpoint')
+    water_build = source_build.get('source_set') == 'effects-v4' and _build_contract(source_build)[2]
+    water_admitted = False
+    if water_requested or any(key in data for key in ('water_config', 'water_stage', 'water_configured', 'water_program')):
+        try:
+            case_path, _ = _bound(value['artifacts'].get('owned'), base, MAX_JSON)
+            expected_program = _plain(case_path.parent / f"LocalData/MaterialShaders/{water_config['recipe']}/{water_config['program_sha256']}.ps.bin")
+            program_path, _ = _bound(value['artifacts'].get('water_program'), base, 8192)
+            stage_path, _ = _bound(value['artifacts'].get('water_stage'), base, MAX_JSON)
+            water_admitted = bool(water_requested and water_build and value['role'] == 'candidate'
+                and water_config.get('render_size') == requested and water_config.get('enabled') == 1
+                and _plain(water_config.get('program_path', '')) == expected_program == program_path
+                and stage_path.parent == case_path.parent
+                and _plain(water_stage.get('program_path', '')) == expected_program
+                and _water_stage_format(water_stage, water_config.get('variant'))
+                and water_stage.get('edition') == ('gold' if value['edition'] == 'gold' else 'history')
+                and water_stage.get('config_bytes') == 1076 and water_stage.get('render') == requested
+                and water_stage.get('recipe') == water_config['recipe'] and water_stage.get('private_case') is True
+                and water_stage.get('program_bytes') == 3840 and water_stage.get('program_sha256') == water_config['program_sha256']
+                and water_stage.get('source_resources') == WATER_SOURCES
+                and data.get('water_program', {}).get('sha256') == water_config['program_sha256']
+                and data.get('water_program', {}).get('bytes') == 3840
+                and water_stage.get('no_legacy_river_scaling_permitted') is True
+                and water_receipt.get('succeeded') is True and water_receipt.get('worker_code_rx') is True
+                and water_receipt.get('original_entry_guarded') is True
+                and water_receipt.get('export') == 'WePlayNativeGraphicsConfigureWater'
+                and water_receipt.get('dll_sha256') == data.get('hook_init', {}).get('dll_sha256')
+                and re.fullmatch('[0-9a-f]{64}', str(water_receipt.get('dll_sha256')))
+                and source_build.get('files', {}).get('WePlaySupersamplingLab.dll') == water_receipt.get('dll_sha256'))
+        except (KeyError, OSError, ValueError):
+            water_admitted = False
+        check(water_admitted, 'separate water program/configuration/source receipt binding missing')
     captures = {}
     capture_hashes = {'source': set(), 'output': set()}
     for capture in value['captures']:
@@ -841,6 +973,25 @@ def _case(value, base):
                     rejected.append('comparison lacks exact-frame application/restoration proof')
             elif comparison_requested:
                 missing.append('per-frame diagnostic comparison state')
+            water, water_replacement, water_control = _water_record(frame)
+            if water is not None:
+                if not water_admitted:
+                    rejected.append('unsupported or unbound separate-water state')
+                    water_replacement = water_control = False
+                elif not (water_replacement or water_control):
+                    rejected.append('water frame lacks matching application/restoration or clean control proof')
+                if water_replacement and ((water_config.get('variant') == 2 and water.get('variant') != 2)
+                        or (water.get('variant') in (1, 2) and water.get('variant') != water_config.get('variant'))):
+                    rejected.append('native water variant/configuration mismatch')
+                    water_replacement = False
+                if epoch is not None and epoch['effects_active'] & 1:
+                    rejected.append('legacy River VS mutation overlaps separate WaterProgram')
+                    water_replacement = water_control = False
+            elif water_requested:
+                missing.append('per-frame native separate-water state')
+            water_only = bool(water_admitted and material_admitted and material_config['flags'] == 0
+                and epoch is not None and epoch['effects_requested'] == 1 and epoch['effects_active'] == 0
+                and (water_replacement or water_control))
             native_frames.append({'sequence': sequence, 'frame': number, 'gpu_buffer_pair_bound': bool(buffers),
                 'native_scene_dimensions_recorded': bool(scene),
                 'filtered_present_recorded': bool(filtered), 'original_present_recorded': bool(original),
@@ -851,6 +1002,12 @@ def _case(value, base):
                 'material_config_version': material_version,
                 'material_config_version_measured': material_version_measured,
                 'material_configuration_bound': material_admitted,
+                'water_shader_state': water,
+                'water_selected_variant': water_config.get('variant'),
+                'water_native_variant_measured': water.get('variant') if water is not None else None,
+                'water_shader_replacement_recorded': bool(water_replacement and buffers and scene),
+                'water_original_control_recorded': bool(water_control and buffers and scene),
+                'water_only_configuration_recorded': bool(water_only and buffers and scene),
                 'diagnostic_comparison': comparison,
                 'draw_local_ps80_isolation_recorded': bool(isolated and buffers and scene and comparison_admitted),
                 'same_frame_river_uniforms_recorded': bool(uniforms is not None and buffers and scene),
@@ -905,6 +1062,8 @@ def _case(value, base):
             'native_frame_pairs': native_frames,
             'material_configuration': ({**material_config, 'source_receipt_bound': material_admitted}
                                        if material_config is not None else None),
+            'water_configuration': ({**water_config, 'source_receipt_bound': water_admitted}
+                                    if water_config else None),
             'save_preservation': save_preservation,
             '_observation': observation}
 

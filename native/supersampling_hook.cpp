@@ -9,6 +9,7 @@
 #include "supersampling_hook_comparison_draw.h"
 #include "native_effects_wire.h"
 #include "material_shader_effects_contract_v2.h"
+#include "native_material_draw.h"
 #include "atmosphere_fp.h"
 #include <bcrypt.h>
 #include <array>
@@ -56,6 +57,8 @@ struct State {
     DWORD thread=0;
     bool resize_posted=false;
     bool logical_window_active=false;
+    bool startup_window_pending=false;
+    LONG startup_client_width=0,startup_client_height=0;
     bool shutdown_requested=false;
     bool terminal_cleanup=false;
 #ifdef S7_SUPERSAMPLING_FIXTURE
@@ -76,6 +79,26 @@ MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
 DWORD effects_pending_version=1,effects_loaded_version=0;
 bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
 DWORD effects_loaded_flags=0;
+WaterShaderEffects::Config water_pending_config{};
+bool water_received=false,water_waiting=false,water_initialized=false;
+DWORD water_frame_origin=0;
+WaterShaderEffects::Stats water_state{};
+std::string WaterJson() {
+    WaterShaderEffects::Stats value{};
+    if(water_initialized&&WaterShaderEffects::ReadStats(&value))water_state=value;
+    const auto& s=water_state;
+    return "{\"received\":"+std::to_string(water_received?1:0)+",\"pending\":"+std::to_string(water_waiting?1:0)
+        +",\"configured\":"+std::to_string(s.configured)+",\"requested\":"+std::to_string(s.requested)
+        +",\"enabled\":"+std::to_string(s.enabled)+",\"variant\":"+std::to_string(s.variant)+",\"faulted\":"+std::to_string(s.faulted)
+        +",\"unsafe\":"+std::to_string(s.unsafe_state)+",\"frames\":"+std::to_string(s.frames)
+        +",\"epoch\":"+std::to_string(s.configuration_epoch)+",\"shader_creations\":"+std::to_string(s.shader_creations)
+        +",\"applications\":"+std::to_string(s.applications)+",\"restorations\":"+std::to_string(s.restorations)
+        +",\"completed_frame\":"+std::to_string(s.completed_frame?s.completed_frame+water_frame_origin:0)+",\"completed_applications\":"+std::to_string(s.completed_applications)
+        +",\"completed_restorations\":"+std::to_string(s.completed_restorations)+",\"query_failures\":"+std::to_string(s.query_failures)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+",\"cached_refs\":"+std::to_string(s.cached_refs)
+        +",\"retained_programs\":"+std::to_string(s.retained_programs)+",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+"}";
+}
 MaterialComparison::Config comparison_pending_config{};
 MaterialComparison::State comparison_last_state{};
 bool comparison_initialized=false,comparison_waiting=false;
@@ -204,7 +227,7 @@ void Report() {
         "\"comparison_context_rejections\":%llu,\"comparison_input_rejections\":%llu,\"comparison_query_failures\":%llu,"
         "\"comparison_cache_overflows\":%llu,\"comparison_cached_refs\":%lu,\"comparison_applications\":%llu,"
         "\"comparison_restorations\":%llu,\"comparison_failed_draws\":%llu,\"comparison_set_failures\":%llu,"
-        "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu}\n",
+        "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu,\"water\":%s}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -231,7 +254,7 @@ void Report() {
         comparison_last_state.context_rejections,comparison_last_state.input_rejections,comparison_last_state.query_failures,
         comparison_last_state.cache_overflows,comparison_last_state.cached_refs,comparison_last_state.applications,
         comparison_last_state.restorations,comparison_last_state.failed_draws,comparison_last_state.set_failures,
-        comparison_last_state.restore_failures,comparison_last_state.exceptions);
+        comparison_last_state.restore_failures,comparison_last_state.exceptions,WaterJson().c_str());
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -322,6 +345,29 @@ void ApplyPendingEffects() {
     Report();
 }
 
+void ApplyPendingWater() {
+    if(!water_waiting||stats.render_unsafe)return;
+    DiagnosticScope diagnostic;
+    if(!water_initialized) {
+        water_initialized=WaterShaderEffects::Initialize(configuration.report_path,configuration.render_width,configuration.render_height);
+        if(water_initialized){water_frame_origin=stats.present_calls;stats.water_frame_origin=water_frame_origin;}
+    }
+    const bool valid=water_initialized&&WaterShaderEffects::Configure(&water_pending_config);
+    water_waiting=false;++stats.effects_revision;stats.effects_frame_has_geometry=0;
+    if(!valid){stats.last_failure=224;++stats.capture_failures;capture_pending=0;}
+    Report();
+}
+
+bool WaterHealthy() {
+    if(!water_initialized)return !water_received||water_waiting;
+    WaterShaderEffects::Stats value{};
+    if(!WaterShaderEffects::ReadStats(&value))return false;
+    water_state=value;
+    stats.water_active=value.enabled;stats.water_unsafe=value.unsafe_state;
+    if(value.unsafe_state){stats.render_unsafe=1;return false;}
+    return !value.faulted;
+}
+
 bool EffectsDrawAllowed() {
     return !stats.render_unsafe && (!stats.effects_requested || effects_received);
 }
@@ -361,6 +407,10 @@ void LatchEffectsDraw() {
 }
 
 bool CaptureEpochReady() {
+    if(water_received&&(water_waiting||!water_initialized||!WaterHealthy()))return false;
+    if(water_received&&water_state.enabled && (!water_state.completed_applications
+        ||water_state.completed_applications!=water_state.completed_restorations
+        ||water_state.completed_frame+water_frame_origin!=stats.present_calls))return false;
     return !stats.effects_requested || ((stats.effects_configured || effects_faulted) && !effects_waiting
         && !stats.render_unsafe && stats.effects_frame_has_geometry
         && stats.effects_drawn_revision==stats.effects_revision && stats.effects_drawn_active==stats.effects_active);
@@ -423,6 +473,18 @@ bool LogicalContext(State* current,HWND window,bool caller) {
         && actual.bottom==static_cast<LONG>(configuration.output_height);
 }
 
+bool StartupWindowContext(State* current,HWND window,bool caller) {
+    DiagnosticScope diagnostic;
+    RECT actual{};
+    // Only the initial, measured client rectangle is admitted before the
+    // deferred output transition. Input mapping still requires LogicalContext.
+    return caller && current && current->startup_window_pending && current->logical_window_active
+        && !current->shutdown_requested && !current->terminal_cleanup
+        && current->thread==GetCurrentThreadId() && current->window==window
+        && OwnedWindow(window) && !IsIconic(window) && physical_rect(window,&actual)
+        && actual.right==current->startup_client_width && actual.bottom==current->startup_client_height;
+}
+
 bool MapPoint(POINT& point,bool to_physical) {
     const auto coordinate=[](LONG value,DWORD numerator,DWORD denominator,LONG& output) {
         int64_t result=static_cast<int64_t>(value)*numerator;
@@ -444,7 +506,7 @@ BOOL LogicalRect(HWND window,RECT* rectangle,bool caller) {
     if(!result)return result;
     DiagnosticScope diagnostic;
     const auto apply=[&](State* current) {
-        if(LogicalContext(current,window,caller)) {
+        if(LogicalContext(current,window,caller) || StartupWindowContext(current,window,caller)) {
             rectangle->left=rectangle->top=0;
             rectangle->right=static_cast<LONG>(configuration.render_width);
             rectangle->bottom=static_cast<LONG>(configuration.render_height);++stats.logical_rect_calls;
@@ -491,7 +553,7 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
         const auto request=[&](State* current) {
             if(!current || current->window!=window || current->terminal_cleanup)return;
             if(!current->shutdown_requested)++stats.window_shutdowns;
-            current->shutdown_requested=true;current->logical_window_active=false;
+            current->shutdown_requested=true;current->logical_window_active=false;current->startup_window_pending=false;
         };
         if(internal)request(internal); // Finish an in-flight COM call before releasing its swapchain.
         else {
@@ -500,14 +562,17 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
     }
     if(message==WM_SIZE || ClientMouseMessage(message)) {
         const auto map=[&](State* current) {
-            if(!LogicalContext(current,window,true))return;
             if(message==WM_SIZE) {
-                if(wparam!=SIZE_MINIMIZED && LOWORD(lparam)==configuration.output_width
-                    && HIWORD(lparam)==configuration.output_height) {
+                const bool output=LogicalContext(current,window,true)
+                    && LOWORD(lparam)==configuration.output_width && HIWORD(lparam)==configuration.output_height;
+                const bool startup=StartupWindowContext(current,window,true)
+                    && LOWORD(lparam)==current->startup_client_width && HIWORD(lparam)==current->startup_client_height;
+                if(wparam!=SIZE_MINIMIZED && (output || startup)) {
                     lparam=MAKELPARAM(configuration.render_width,configuration.render_height);
                     ++stats.logical_size_messages;
                 }
             } else {
+                if(!LogicalContext(current,window,true))return;
                 POINT point{static_cast<short>(LOWORD(lparam)),static_cast<short>(HIWORD(lparam))};
                 if(MapPoint(point,false) && point.x>=-32768 && point.x<=32767 && point.y>=-32768 && point.y<=32767) {
                     lparam=MAKELPARAM(static_cast<WORD>(point.x),static_cast<WORD>(point.y));
@@ -531,16 +596,21 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
         RECT rectangle{0,0,static_cast<LONG>(configuration.output_width),static_cast<LONG>(configuration.output_height)};
         {
             Lock lock;
-            if(!state || state->window!=window || !OwnedWindow(window) || stats.resize_applied)return 0;
+            if(!state || state->window!=window || !OwnedWindow(window) || stats.resize_applied
+                || state->shutdown_requested || state->terminal_cleanup)return 0;
             current=state;
             current->logical_window_active=true;
             RECT client{};
-            if(!GetClientRect(window,&client)){stats.resize_failure=1;Report();return 0;}
+            if(!GetClientRect(window,&client)){
+                current->startup_window_pending=false;current->logical_window_active=false;
+                stats.resize_failure=1;Report();return 0;
+            }
             stats.before_client_width=static_cast<DWORD>(client.right);
             stats.before_client_height=static_cast<DWORD>(client.bottom);
             const DWORD style=static_cast<DWORD>(GetWindowLongPtrW(window,GWL_STYLE));
             const DWORD extended=static_cast<DWORD>(GetWindowLongPtrW(window,GWL_EXSTYLE));
             if(!AdjustWindowRectEx(&rectangle,style,GetMenu(window)!=nullptr,extended)) {
+                current->startup_window_pending=false;current->logical_window_active=false;
                 stats.resize_failure=2;Report();return 0;
             }
         }
@@ -561,6 +631,8 @@ LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM l
                     && client.bottom==static_cast<LONG>(configuration.output_height))stats.resize_applied=1;
                 else stats.resize_failure=4;
             }
+            current->startup_window_pending=false;
+            if(!stats.resize_applied)current->logical_window_active=false;
             Report();
         }
         return 0;
@@ -600,17 +672,29 @@ bool EnsureWindowProcedure(State& current) {
     return true;
 }
 
-void QueueWindowTransition(State& current) {
+void QueueWindowTransition(State& current,bool verified_startup=false) {
     if(configuration.render_width==configuration.output_width && configuration.render_height==configuration.output_height) {
         EnsureWindowProcedure(current);return; // Lifecycle only: no size/input virtualization at 1x.
     }
-    if(current.resize_posted || !stats.high_resolution_draws
+    if(current.resize_posted || current.shutdown_requested || current.terminal_cleanup
+        || (!verified_startup && !stats.high_resolution_draws)
         || stats.source_width!=configuration.render_width || stats.source_height!=configuration.render_height)return;
     DiagnosticScope diagnostic;
     if(!EnsureWindowProcedure(current))return;
+    if(verified_startup) {
+        RECT physical{};
+        if(!physical_rect(current.window,&physical) || IsIconic(current.window)
+            || physical.left || physical.top || physical.right<=0 || physical.bottom<=0
+            || physical.right>static_cast<LONG>(configuration.render_width)
+            || physical.bottom>static_cast<LONG>(configuration.render_height))return;
+        current.startup_client_width=physical.right;current.startup_client_height=physical.bottom;
+        current.startup_window_pending=true;current.logical_window_active=true;
+    }
     if(PostMessageW(current.window,resize_message,GetCurrentProcessId(),ResizeToken)) {
         current.resize_posted=true;++stats.resize_queued;
-    } else stats.resize_failure=7;
+    } else {
+        current.startup_window_pending=false;current.logical_window_active=false;stats.resize_failure=7;
+    }
     Report();
 }
 
@@ -647,6 +731,9 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
         if(comparison_initialized)MaterialComparison::Reset(device);
         if(effects_initialized)MaterialShaderEffects::Reset(device);
+        if(water_initialized&&!WaterShaderEffects::Reset(device)) {
+            stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return 1;
+        }
         // Keep the output chain across ordinary temporary references. Its public
         // child reference deliberately retains the parent until Reset, fallback,
         // explicit shutdown, or the owned window's verified destruction event.
@@ -672,6 +759,10 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     if(comparison_initialized){MaterialComparison::Reset(device);MaterialComparison::InvalidateFrame();}
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
     if(effects_initialized)MaterialShaderEffects::Reset(device);
+    if(water_initialized) {
+        if(!WaterShaderEffects::Reset(device)){stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return D3DERR_DEVICELOST;}
+        WaterShaderEffects::InvalidateFrame();
+    }
     DropOutput(*state);
     ++stats.reset_calls;
     if(Range(parameters,sizeof(*parameters))) {
@@ -700,6 +791,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::EndFrame(device);
     if(comparison_initialized){MaterialComparison::EndFrame(device);ReadComparisonState();}
     if(effects_initialized)MaterialShaderEffects::EndFrame(device);
+    if(water_initialized){WaterShaderEffects::EndFrame(device);WaterHealthy();}
     CheckEffectsState();
     if(current.terminal_cleanup) {
         original_state.before();
@@ -743,6 +835,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         stats.effects_frame_has_geometry=0;
         if(current.shutdown_requested)TerminalCleanup(current);
         else ApplyPendingEffects();
+        if(!current.shutdown_requested)ApplyPendingWater();
         if(!current.shutdown_requested)ApplyPendingComparison();
         if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0))Report();
         return original;
@@ -824,6 +917,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     stats.effects_frame_has_geometry=0;
     if(current.shutdown_requested)TerminalCleanup(current);
     else ApplyPendingEffects();
+    if(!current.shutdown_requested)ApplyPendingWater();
     if(!current.shutdown_requested)ApplyPendingComparison();
     if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0) || failure)Report();
     return result;
@@ -851,8 +945,9 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeComparisonDraw::Execute(device,comparison_initialized && stats.comparison_requested && count,
+    const auto transaction=NativeMaterialDraw::Execute(device,comparison_initialized && stats.comparison_requested && count,
         effects_initialized && stats.effects_active && count,
+        water_initialized && water_state.enabled && count,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -863,6 +958,7 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     if(transaction.unsafe) {
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
+        stats.water_unsafe=transaction.water_unsafe?1u:0u;
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
@@ -877,8 +973,9 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
-    const auto transaction=NativeComparisonDraw::Execute(device,comparison_initialized && stats.comparison_requested && count && vertices,
+    const auto transaction=NativeMaterialDraw::Execute(device,comparison_initialized && stats.comparison_requested && count && vertices,
         effects_initialized && stats.effects_active && count && vertices,
+        water_initialized && water_state.enabled && count && vertices,
         [&]()->HRESULT {
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
@@ -889,6 +986,7 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
     if(transaction.unsafe) {
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
+        stats.water_unsafe=transaction.water_unsafe?1u:0u;
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
@@ -917,7 +1015,15 @@ bool Exchange(void** address,void* before,void* after) {
 bool TerminalCleanup(State& current) {
     DiagnosticScope diagnostic;
     if(current.terminal_cleanup)return true;
-    current.shutdown_requested=true;current.logical_window_active=false;
+    current.shutdown_requested=true;current.logical_window_active=false;current.startup_window_pending=false;
+    current.startup_client_width=current.startup_client_height=0;
+    if(water_initialized) {
+        if(!WaterShaderEffects::Reset(current.device)||!WaterShaderEffects::Shutdown()) {
+            stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return false;
+        }
+        WaterShaderEffects::ReadStats(&water_state);water_initialized=false;stats.water_active=0;
+    }
+    water_waiting=false;
     if(native_configuration.flags&NativeGraphicsConfig::Observe) {
         MaterialShaderObserver::Reset(current.device);MaterialShaderObserver::Flush();MaterialShaderObserver::Shutdown();
     }
@@ -971,7 +1077,8 @@ bool PrepareEngineDeinit(const void* caller,DWORD thread) {
     };
     if(internal) {
         ++stats.engine_deinit_calls;++stats.engine_deinit_rejected;
-        internal->shutdown_requested=true;internal->logical_window_active=false;stats.shutdown_stage=7;Report();
+        internal->shutdown_requested=true;internal->logical_window_active=false;internal->startup_window_pending=false;
+        stats.shutdown_stage=7;Report();
         return false; // An in-flight COM call still owns its resources; finalize only after it returns.
     }
     Lock lock;
@@ -1075,12 +1182,19 @@ bool Attach(IDirect3DDevice9* device) {
         if(comparison_initialized)MaterialComparison::InvalidateFrame();
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
         IDirect3DSurface9* backbuffer=nullptr;D3DSURFACE_DESC description{};
+        bool verified_startup=false;
         if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
             if(SUCCEEDED(backbuffer->GetDesc(&description))) {
                 stats.source_width=description.Width;stats.source_height=description.Height;
+                verified_startup=description.Width==configuration.render_width
+                    && description.Height==configuration.render_height && description.MultiSampleType==D3DMULTISAMPLE_NONE;
             }
             backbuffer->Release();
         }
+        // The original device has already created the exact high backbuffer.
+        // Admit the owned-window transition now: an initial clipped WM_SIZE may
+        // otherwise reset the entire scene before its first geometry draw.
+        if(verified_startup)QueueWindowTransition(*current,true);
     }
     Report();return true;
 }
@@ -1259,6 +1373,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
     if(!initialization_ready || effects_waiting || (effects_faulted && wire.Flags()) || stats.render_unsafe
         || (state && state->terminal_cleanup))return 0;
     if(wire.version==1) {
+        if(water_received&&(wire.v1.flags&MaterialShaderEffects::River))return 0;
         if(NativeEffectsContract::Validate(wire.v1,native_configuration)!=NativeEffectsContract::Error::None)return 0;
         effects_pending_config=wire.v1;
     } else {
@@ -1269,6 +1384,21 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
         effects_pending_v2=wire.v2;
     }
     effects_pending_version=wire.version;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
+}
+
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* opaque) {
+    using namespace SupersamplingHook;
+    DiagnosticScope diagnostic;
+    WaterShaderEffects::Config config{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
+        ||config.size!=sizeof(config)||config.version!=1||config.enabled>1)return 0;
+    Lock lock;
+    const DWORD pending=effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
+    if(!initialization_ready||!(native_configuration.flags&NativeGraphicsConfig::Water)||water_waiting||stats.render_unsafe
+        ||(state&&state->terminal_cleanup)||(stats.effects_active&MaterialShaderEffects::River)
+        ||(effects_waiting&&(pending&MaterialShaderEffects::River))
+        ||config.render_width!=configuration.render_width||config.render_height!=configuration.render_height)return 0;
+    water_pending_config=config;water_received=true;water_waiting=true;stats.water_protocol_received=1;Report();return 1;
 }
 
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureComparison(void* opaque) {

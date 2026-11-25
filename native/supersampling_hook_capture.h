@@ -3,6 +3,7 @@
 #include "graphics_observation.h"
 #include "material_shader_observer.h"
 #include "material_comparison.h"
+#include "water_shader_effects.h"
 #include <array>
 #include <string>
 
@@ -19,6 +20,8 @@ struct Result {
     bool scene_uniforms_available=false;
     MaterialComparison::State comparison{};
     bool comparison_state_available=false;
+    WaterShaderEffects::Stats water{};
+    bool water_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };

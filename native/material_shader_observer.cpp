@@ -21,6 +21,8 @@ struct State {
     Stats stats{};
     std::array<CatalogEntry,MaxCatalog> catalog{};
     std::array<Cached,MaxCache> cache{};
+    std::array<Cached,2> uncached{}; // Separate metadata lifetimes for this draw's VS and PS.
+    std::uint64_t cache_capacity_bypasses=0;
     std::array<unsigned char,MaxCodeBytes> scratch{};
     BCRYPT_ALG_HANDLE algorithm=nullptr;
     HANDLE catalog_file=INVALID_HANDLE_VALUE;
@@ -30,6 +32,8 @@ struct State {
     std::wstring report_path;
     std::array<unsigned char,32> catalog_digest{};
     CaptureConfig capture{};
+    // JSON-only provenance; public CaptureSample/Stats layout stays unchanged.
+    std::array<std::uint32_t,MaxCaptureSamples> capture_kinds{};
     std::array<std::uint32_t,MaxCaptureTargets> captured{};
     std::array<std::uint64_t,MaxCaptureTargets> last_capture{};
     DWORD frame_width=0,frame_height=0;
@@ -41,6 +45,12 @@ struct State {
 SRWLOCK mutex=SRWLOCK_INIT;
 State current;
 struct Lock {Lock(){AcquireSRWLockExclusive(&mutex);}~Lock(){ReleaseSRWLockExclusive(&mutex);}};
+template<class T>struct Ref {
+    T* value=nullptr;
+    Ref()=default;Ref(const Ref&)=delete;Ref& operator=(const Ref&)=delete;
+    ~Ref(){if(value)value->Release();}
+    void reset(){auto* original=value;value=nullptr;if(original)original->Release();}
+};
 struct LastErrorState {
     DWORD value=GetLastError();
     ~LastErrorState(){SetLastError(value);}
@@ -81,6 +91,7 @@ void ClearCache() {
         if(object)object->Release();
     }
     current.cache_count=0;current.stats.cached_refs=0;
+    current.uncached.fill(Cached{});
 }
 
 bool Context(IDirect3DDevice9* device) {
@@ -116,6 +127,7 @@ void Report() {
         static_cast<unsigned long long>(s.known_pixel_draws),static_cast<unsigned long long>(s.known_pair_draws));
     if(count<=0 || static_cast<size_t>(count)>=sizeof(buffer)){++current.stats.report_failures;return;}
     std::string json(buffer,static_cast<size_t>(count));
+    json+="\"cache_capacity_bypasses\":"+std::to_string(current.cache_capacity_bypasses)+",";
     json+="\"catalog_sha256\":\""+Hex(current.catalog_digest)+"\",\"records\":[";
     bool first=true;
     for(size_t index=0;index<s.catalog_count;++index) {
@@ -143,9 +155,9 @@ void Report() {
                   static_cast<unsigned long long>(s.render_state_partial_samples));json+=buffer;
     for(size_t index=0;index<s.capture_sample_count;++index) {
         const auto& row=s.captures[index];if(index)json+=',';
-        std::snprintf(buffer,sizeof(buffer),"{\"frame\":%llu,\"successful_draw\":%llu,\"target\":%u,\"requested_vertex_id\":%u,\"requested_pixel_id\":%u,\"vertex_aliases\":%u,\"pixel_aliases\":%u,\"constants\":[",
+        std::snprintf(buffer,sizeof(buffer),"{\"frame\":%llu,\"successful_draw\":%llu,\"draw_kind\":%u,\"target\":%u,\"requested_vertex_id\":%u,\"requested_pixel_id\":%u,\"vertex_aliases\":%u,\"pixel_aliases\":%u,\"constants\":[",
                       static_cast<unsigned long long>(row.frame),static_cast<unsigned long long>(row.successful_draw),
-                      row.target,row.vertex_id,row.pixel_id,row.vertex_aliases,row.pixel_aliases);json+=buffer;
+                      current.capture_kinds[index],row.target,row.vertex_id,row.pixel_id,row.vertex_aliases,row.pixel_aliases);json+=buffer;
         for(size_t constant=0;constant<row.constant_count;++constant) {
             const auto& value=row.constants[constant];if(constant)json+=',';
             std::snprintf(buffer,sizeof(buffer),"{\"stage\":%u,\"index\":%u,\"component_mask\":%u,\"valid\":%u,\"value\":[%.9g,%.9g,%.9g,%.9g]}",
@@ -184,30 +196,28 @@ void Report() {
 }
 
 template<class Shader> Cached* Query(Shader* shader,unsigned stage) {
-    // Get*Shader returned one reference. Transfer it into a new cache entry, or
-    // release it on every existing-entry/failure path. Retained cache references
-    // prevent an old address being reused for a different object in this frame.
+    // Borrow the caller's live query ref. Cache only known positive identities;
+    // full capacity changes reuse cost, never known-program counting/capture.
     if(!shader)return nullptr;
     for(size_t index=0;index<current.cache_count;++index) {
         auto& item=current.cache[index];
         if(item.object==static_cast<IUnknown*>(shader) && item.stage==stage) {
-            ++current.stats.cache_hits;shader->Release();return &item;
+            ++current.stats.cache_hits;return &item;
         }
     }
-    if(current.cache_count>=MaxCache){++current.stats.cache_overflows;shader->Release();return nullptr;}
     UINT bytes=0;
     if(FAILED(shader->GetFunction(nullptr,&bytes)) || !bytes || bytes%4) {
-        ++current.stats.query_failures;shader->Release();return nullptr;
+        ++current.stats.query_failures;return nullptr;
     }
-    if(bytes>MaxCodeBytes){++current.stats.oversize_programs;shader->Release();return nullptr;}
+    if(bytes>MaxCodeBytes){++current.stats.oversize_programs;return nullptr;}
     const UINT expected=bytes;
     if(FAILED(shader->GetFunction(current.scratch.data(),&bytes)) || bytes!=expected) {
-        ++current.stats.query_failures;shader->Release();return nullptr;
+        ++current.stats.query_failures;return nullptr;
     }
     ++current.stats.shader_reads;
-    Cached item{};item.object=shader;item.stage=stage;item.bytes=bytes;
+    Cached item{};item.stage=stage;item.bytes=bytes;
     if(!Hash(current.scratch.data(),bytes,item.sha256)) {
-        ++current.stats.query_failures;shader->Release();return nullptr;
+        ++current.stats.query_failures;return nullptr;
     }
     for(size_t index=0;index<current.stats.catalog_count;++index) {
         const auto& row=current.catalog[index];
@@ -216,6 +226,11 @@ template<class Shader> Cached* Query(Shader* shader,unsigned stage) {
             ++item.aliases;
         }
     }
+    if(!item.aliases || current.cache_count==MaxCache){
+        if(item.aliases)++current.cache_capacity_bypasses;
+        current.uncached[stage-1]=item;return &current.uncached[stage-1];
+    }
+    shader->AddRef();item.object=shader;
     current.cache[current.cache_count]=item;
     Cached* result=&current.cache[current.cache_count++];
     current.stats.cached_refs=static_cast<std::uint32_t>(current.cache_count);
@@ -297,7 +312,7 @@ void CaptureFrame(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
     sample.available=1;current.latest=sample;
 }
 
-void Capture(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
+void Capture(IDirect3DDevice9* device,Cached* vertex,Cached* pixel,unsigned kind) {
     if(!vertex || !pixel || !current.capture.target_count || current.stats.frames<current.capture.first_frame)return;
     for(size_t index=0;index<current.capture.target_count;++index) {
         const auto& target=current.capture.targets[index];
@@ -373,6 +388,7 @@ void Capture(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
             } else ++current.stats.capture_failures;
             texture->Release();
         }
+        current.capture_kinds[current.stats.capture_sample_count]=kind;
         current.stats.captures[current.stats.capture_sample_count++]=sample;
         ++current.captured[index];current.last_capture[index]=current.stats.frames;
     }
@@ -412,6 +428,7 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected[32],con
         }
         if(!valid){CloseHandle(file);return false;}
         current.stats=Stats{};current.stats.enabled=1;current.stats.catalog_count=rows;
+        current.cache_capacity_bypasses=0;current.uncached.fill(Cached{});
         current.capture=CaptureConfig{};current.captured.fill(0);current.last_capture.fill(0);
         current.frame_width=0;current.frame_height=0;current.frame_attempt=0;current.latest=FrameSnapshot{};
         DigestLiteral("f190d66ee1ae43637341a76e5b644cc63bf3c2a5b5c94ea9286764e13f1c16c0",current.frame_vertex);
@@ -457,7 +474,7 @@ bool ConfigureCapture(const CaptureConfig* config) noexcept {
         current.capture=*config;current.captured.fill(0);current.last_capture.fill(0);
         current.stats.capture_target_count=config->target_count;current.stats.capture_sample_count=0;current.stats.capture_failures=0;
         current.stats.render_state_query_failures=0;current.stats.render_state_partial_samples=0;
-        current.stats.captures.fill(CaptureSample{});return true;
+        current.stats.captures.fill(CaptureSample{});current.capture_kinds.fill(0);return true;
     }catch(...){Exception();return false;}
 }
 bool ConfigureFrameSnapshot(DWORD width,DWORD height) noexcept {
@@ -482,14 +499,14 @@ void ObserveDraw(IDirect3DDevice9* device,unsigned kind,HRESULT result) noexcept
     FloatingState floating;
     try {
         Lock lock;if(!Context(device))return;
-        if(kind!=Draw && kind!=Indexed){++current.stats.context_rejections;return;}
+        if(kind!=Draw && kind!=Indexed && kind!=DrawUP && kind!=IndexedUP){++current.stats.context_rejections;return;}
         if(FAILED(result)){++current.stats.failed_draws;return;}
         ++current.stats.successful_draws;
-        IDirect3DVertexShader9* vertex=nullptr;IDirect3DPixelShader9* pixel=nullptr;
+        Ref<IDirect3DVertexShader9> vertex;Ref<IDirect3DPixelShader9> pixel;
         current.stats.shader_queries+=2;
-        if(FAILED(device->GetVertexShader(&vertex))){++current.stats.query_failures;if(vertex)vertex->Release();vertex=nullptr;}
-        if(FAILED(device->GetPixelShader(&pixel))){++current.stats.query_failures;if(pixel)pixel->Release();pixel=nullptr;}
-        Cached* vs=Query(vertex,1);Cached* ps=Query(pixel,2);Count(vs);Count(ps);Pair(vs,ps);Capture(device,vs,ps);CaptureFrame(device,vs,ps);
+        if(FAILED(device->GetVertexShader(&vertex.value))){++current.stats.query_failures;vertex.reset();}
+        if(FAILED(device->GetPixelShader(&pixel.value))){++current.stats.query_failures;pixel.reset();}
+        Cached* vs=Query(vertex.value,1);Cached* ps=Query(pixel.value,2);Count(vs);Count(ps);Pair(vs,ps);Capture(device,vs,ps,kind);CaptureFrame(device,vs,ps);
     } catch(...) {Exception();}
 }
 

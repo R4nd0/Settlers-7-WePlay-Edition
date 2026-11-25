@@ -202,7 +202,9 @@ int wmain(int argc,wchar_t** argv) {
         Require(!std::filesystem::exists(output) && std::filesystem::create_directory(output),"use_new_fixture_output_directory");
         SetProcessDPIAware();Runtime runtime(std::filesystem::absolute(argv[1]));
         Com<IDirect3D9> api;*api.put()=runtime.create();Require(api.get()!=nullptr,"fixture_factory_failed");
-        Window window(1280,720);window.show();
+        // Model the actual Ubi startup: Windows clips the physical client
+        // before the engine handles its first WM_SIZE or geometry draw.
+        Window window(1280,600);window.show();
         auto parameters=Parameters(window.get(),1280,720);
         Com<IDirect3DDevice9> device;
         Check(api->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,window.get(),D3DCREATE_HARDWARE_VERTEXPROCESSING,
@@ -232,7 +234,31 @@ int wmain(int argc,wchar_t** argv) {
         Require(fixture_previous!=nullptr,"fixture_original_window_procedure_failed");
         fixture_device=device.get();
         Require(WePlaySupersamplingAttach(device.get())==1,"fixture_attach_failed");
-        ExerciseDraw(device.get(),1280,720);
+        SupersamplingStats startup{};
+        Require(WePlaySupersamplingReadStats(&startup)==1 && startup.resize_queued==1
+            && startup.high_resolution_draws==0,"fixture_startup_transition_waited_for_geometry");
+        const void* startup_known=reinterpret_cast<const void*>(FixtureProcedure);
+        const void* startup_foreign=reinterpret_cast<const void*>(GetProcAddress(GetModuleHandleW(L"d3d9.dll"),"Direct3DCreate9"));
+        RECT startup_rect{};
+        Require(WePlaySupersamplingFixtureRect(window.get(),&startup_rect,startup_known)
+            && startup_rect.right==1280 && startup_rect.bottom==720,"fixture_startup_logical_rect_failed");
+        Require(WePlaySupersamplingFixtureRect(window.get(),&startup_rect,startup_foreign)
+            && startup_rect.right==1280 && startup_rect.bottom==600,"fixture_startup_foreign_caller_changed");
+        POINT startup_origin{};Check(ClientToScreen(window.get(),&startup_origin)?S_OK:E_FAIL,"fixture_startup_origin_failed");
+        POINT startup_point{startup_origin.x+80,startup_origin.y+40};
+        Require(WePlaySupersamplingFixturePoint(window.get(),&startup_point,startup_known,FALSE)
+            && startup_point.x==80 && startup_point.y==40,"fixture_startup_input_was_scaled_before_output");
+        SendMessageW(window.get(),WM_SIZE,SIZE_MINIMIZED,0);
+        Require(observed_minimize==0,"fixture_startup_minimize_changed");
+        SendMessageW(window.get(),WM_SIZE,SIZE_RESTORED,MAKELPARAM(123,456));
+        Require(observed_size.x==123 && observed_size.y==456,"fixture_startup_unknown_size_was_mapped");
+        SendMessageW(window.get(),WM_SIZE,SIZE_RESTORED,MAKELPARAM(1280,600));
+        Require(observed_size.x==1280 && observed_size.y==720,"fixture_startup_clipped_size_not_logical");
+        Check(resize_reset_result,"fixture_startup_original_reset_failed");
+        Require(WePlaySupersamplingReadStats(&startup)==1 && startup.high_resolution_draws==0
+            && startup.last_reset_requested_width==1280 && startup.last_reset_requested_height==720
+            && startup.target_width==1280 && startup.target_height==720,
+            "fixture_startup_engine_scene_shrank_before_first_draw");
         MSG transition{};
         while(PeekMessageW(&transition,nullptr,0,0,PM_REMOVE)){TranslateMessage(&transition);DispatchMessageW(&transition);}
         RECT transitioned{};
@@ -317,7 +343,7 @@ int wmain(int argc,wchar_t** argv) {
         device.reset();
         SupersamplingStats stats{};
         Require(WePlaySupersamplingReadStats(&stats)==1,"fixture_stats_failed");
-        Require(stats.output_present_calls==4 && stats.reset_successes==4 && stats.fallback_calls==2
+        Require(stats.output_present_calls==4 && stats.reset_successes==6 && stats.fallback_calls==2
             && stats.high_resolution_draws>=1 && stats.detached==1 && stats.resize_applied==1,
             "fixture_lifecycle_or_counters_failed");
         std::printf("{\"format\":\"s7-supersampling-hook-fixture-v1\",\"game_tested\":false,"
@@ -325,6 +351,7 @@ int wmain(int argc,wchar_t** argv) {
             "\"source\":[%lu,%lu],\"output\":[%lu,%lu],\"output_present_calls\":%lu,"
             "\"reset_successes\":%lu,\"fallback_calls\":%lu,\"high_resolution_draws\":%lu,"
             "\"hook_detached\":%lu,\"owned_window_resize_applied\":%lu,\"logical_resize_preserved_high_scene\":true,"
+            "\"startup_clipped_size_preserved_before_geometry\":true,\"startup_input_unscaled\":true,"
             "\"logical_context_guards_passed\":true,\"logical_point_and_mouse_roundtrip_passed\":true,"
             "\"cache_reuse_passed\":true,\"window_shutdown_cleanup_passed\":true,\"swapchain_creations\":%lu,\"cached_release_calls\":%lu,"
             "\"same_frame_surface_capture_passed\":true,"

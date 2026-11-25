@@ -89,10 +89,16 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
-def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False):
+def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False):
     if not isinstance(raw,bytes) or len(raw)>4096:
         raise ValueError('Native command exceeds its bound.')
     value=graphics_profile._json(raw)
+    if isinstance(value,dict)and value.get('operation')=='water':
+        if(set(value)!={'operation','sequence','enabled'}or water_allowed is not True
+            or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
+            or type(value['enabled'])is not int or value['enabled']not in(0,1)):
+            raise ValueError('WaterProgram requires explicit staged source-bound intent.')
+        return value if value['sequence']>previous else None
     if isinstance(value,dict) and value.get('operation')=='capture':
         return value if capture_command(raw,previous) is not None else None
     if isinstance(value,dict) and value.get('operation')=='crash-watch-admit':
@@ -123,7 +129,17 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A'):
+    if type(water_variant)is not str or water_variant not in('A','B'):raise ValueError('Select fixed WaterProgram variant A or B.')
+    if type(water_program)is not bool or(water_program and(baseline_crash_watch or hook is None or not high_quality or 'improved_water'not in material_effects)):
+        raise ValueError('WaterProgram requires explicit source-bound High-quality graphics mode.')
+    if type(baseline_crash_watch)is not bool:raise ValueError('Explicit Boolean baseline mode required.')
+    if baseline_crash_watch:
+        from . import crash_watch as baseline_watcher
+        baseline_watcher.baseline_options(baseline=True,crash_watch=crash_watch,hook=hook,
+            callback=on_initialized,observer=observer_catalog,capture=material_capture,materials=material_effects,
+            comparison=comparison_uv,detailed_shadows=detailed_shadows,initially_off=effects_initially_off,
+            config_version=material_config_version)
     if os.name != 'nt':
         raise ValueError('The portable graphics laboratory requires Windows.')
     root, output = lab_path(root), lab_path(output)
@@ -154,12 +170,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             or any(key not in material_keys for key in material_effects)
             or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool or type(comparison_uv)is not bool
             or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2)
-            or (material_config_version==2 and 'improved_water'in material_effects)
+            or (material_config_version==2 and 'improved_water'in material_effects and not water_program)
             or (material_effects and (hook is None or not high_quality))):
         raise ValueError('Native materials require an explicit exact hook and High shader quality.')
     if comparison_uv and (hook is None or observer_catalog is None):
         raise ValueError('Comparison requires an explicit source-bound OBSERVE diagnostic.')
-    if crash_watch and hook is None:raise ValueError('Crash watcher requires the exact owned native build checkpoint.')
+    if crash_watch and hook is None and not baseline_crash_watch:raise ValueError('Crash watcher requires the exact owned native build checkpoint.')
     if material_capture is not None:
         material_capture = lab_path(material_capture)
         with material_capture.open('rb') as stream:
@@ -169,16 +185,17 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 or hashlib.sha256(capture_config).hexdigest() != material_capture_sha256):
             raise ValueError('Invalid or changed targeted observation configuration.')
     output.mkdir()
-    effects_config=None
+    effects_config=water_config=None
     material_flags=0
-    if material_effects:
+    material_selection=tuple(key for key in material_effects if not(water_program and key=='improved_water'))
+    if material_selection:
         from tools.installer import native_graphics_settings
         from tools.material_shaders import staging,staging_v2
         axis=width*100//output_width
         if width*100!=axis*output_width or height*100!=axis*output_height:
             raise ValueError('Material laboratory requires a supported exact render scale.')
         selected={**native_graphics_settings.DEFAULTS,'render_scale':axis}
-        selected.update(dict.fromkeys(material_effects,True))
+        selected.update(dict.fromkeys(material_selection,True))
         extra={}
         stage=staging.prepare
         if material_config_version==2:
@@ -192,6 +209,19 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         effects_config=prepared.pop('config');material_flags=prepared['material_flags']
         (output/'effects-config.bin').write_bytes(effects_config)
         (output/'material-stage.private.json').write_text(json.dumps(prepared,indent=2),encoding='utf-8')
+    if water_program:
+        from tools.material_shaders import water_variants,staging
+        _,build=load_hook.verify_build(hook)
+        if build.get('abi',{}).get('water')!=1076:raise ValueError('This exact build does not declare WaterProgram.')
+        prepared=water_variants.prepare(root,(width,height),variant=water_variant,native_report=output/'hook-state.private.json',verified_platform=value,
+            available_features=('improved_water',),private_case=True)
+        water_config=prepared.pop('config')
+        (output/'water-config.bin').write_bytes(water_config)
+        (output/'water-stage.private.json').write_text(json.dumps(prepared,indent=2),encoding='utf-8')
+        if effects_config is None:
+            effects_config=struct.pack('<5I4f',4132,1,0,width,height,1.15,.94,1.2,1.1)+bytes(3072)+staging._wide(str(output/'material-effects.private.json'))
+            (output/'effects-config.bin').write_bytes(effects_config)
+    native_material_flags=material_flags|(1 if water_program else 0)
     shared = ProfileGuard(shared_profile_roots(), output / 'shared-before')
     shared.capture()
     private = ProfileGuard({'portable': root / 'LocalData/ProfileRoot'}, output / 'portable-before')
@@ -213,6 +243,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if crash_watch:
         watcher=ROOT/'tools/graphics_lab/crash_watch.py'
         checkpoint[watcher.relative_to(ROOT).as_posix()]=digest(watcher)
+    if baseline_crash_watch:
+        checkpoint={name:digest(ROOT/name)for name in baseline_watcher.baseline_source_paths()}
     for name, pin in checkpoint.items():
         source = ROOT / name
         target = output / 'source' / name
@@ -223,7 +255,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     (output / 'checkpoint.private.json').write_text(json.dumps(dict(
         files=immutable, sources=checkpoint, requested_render_size=[width, height],
         reshade_requested=False,detailed_shadows_requested=detailed_shadows,
-        comparison_uv_requested=comparison_uv,crash_watch_allowed=crash_watch,
+        comparison_uv_requested=comparison_uv,crash_watch_allowed=crash_watch and not baseline_crash_watch,
+        baseline_mode=baseline_watcher.BASELINE_MODE if baseline_crash_watch else None,
+        baseline_crash_watch_allowed=baseline_crash_watch,native_graphics_hook_requested=hook is not None,
+        material_effects_requested=list(material_effects),
+        water_program_requested=water_program,
+        water_variant=water_variant if water_program else None,
         material_config_version=material_config_version), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
         targets={'options': options, 'runtime': runtime, 'config': config_file},
@@ -264,7 +301,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             def initialize(owned):
                 receipt = load_hook.initialize(owned, hook, render=(width, height),
                     output=(output_width, output_height), report=output / 'hook-state.private.json',
-                    observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=material_flags)
+                    observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=native_material_flags)
                 (output / 'hook-initialized.private.json').write_text(
                     json.dumps(receipt, indent=2), encoding='utf-8')
                 _, build = load_hook.verify_build(hook)
@@ -281,6 +318,11 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if comparison_uv:
                     configured=load_hook.invoke(owned,hook,'comparison',struct.pack('<3I',12,1,1))
                     (output/'comparison-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                if water_config is not None:
+                    initial=bytearray(water_config)
+                    if effects_initially_off:struct.pack_into('<I',initial,16,0)
+                    configured=load_hook.invoke(owned,hook,'water',bytes(initial))
+                    (output/'water-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -310,7 +352,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 # alive until the original UI closes. A time limit is not a
                 # hung-client finding and does not permit losing unsaved play.
             command = output / 'native-command.json'
-            if hook is not None and command.exists():
+            if (hook is not None or baseline_crash_watch) and command.exists():
                 command = lab_path(command)
                 with command.open('rb') as stream:
                     raw = stream.read(4097)
@@ -318,11 +360,16 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        request = native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch)
+                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None)
                         if request is not None:
                             sequence=request['sequence'];last_sequence=sequence
                             operation=request['operation']
-                            if operation=='crash-watch-admit':
+                            if operation=='water':
+                                changed=bytearray(water_config);struct.pack_into('<I',changed,16,request['enabled'])
+                                receipt=load_hook.invoke(game,hook,'water',bytes(changed))
+                            elif operation=='baseline-crash-watch-admit':
+                                receipt=baseline_watcher.baseline_admit(game,output,load_and_new_save_confirmed=True)
+                            elif operation=='crash-watch-admit':
                                 from tools.graphics_lab import crash_watch as watcher
                                 # Explicit owner command is issued after the
                                 # original UI loaded and saved a new free slot.
@@ -413,11 +460,14 @@ def main():
     parser.add_argument('--high-quality', action='store_true', help='Matched high native quality with DOF off in private options only')
     parser.add_argument('--material-effects',nargs='+',choices=('improved_water','improved_terrain','improved_vegetation'),default=[])
     parser.add_argument('--effects-initially-off',action='store_true')
+    parser.add_argument('--water-program',action='store_true',help='Explicit new recipient-generated water pixel shader; legacy River factors stay disabled')
+    parser.add_argument('--water-variant',choices=('A','B'),default='A',help='Explicit fixed water candidate: A matte, B balanced gloss')
     parser.add_argument('--material-config-version',type=int,choices=(1,2),default=1,
         help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
     parser.add_argument('--detailed-shadows',action='store_true',help='Existing guarded adapter 4096 shadow baseline; no new filter activation')
     parser.add_argument('--comparison-uv',action='store_true',help='Diagnostic-only draw-local original River PS80 isolation, never a production option')
     parser.add_argument('--crash-watch',action='store_true',help='Permit explicit post-save admission of a bounded own-child crash watcher')
+    parser.add_argument('--baseline-crash-watch',action='store_true',help='Explicit separate admission with native graphics modules absent')
     args = parser.parse_args()
     run(args.bundle, args.output, width=args.width, height=args.height, seconds=args.seconds,
         hook=args.hook, output_width=args.output_width, output_height=args.output_height,
@@ -425,7 +475,8 @@ def main():
         material_capture=args.material_capture, material_capture_sha256=args.material_capture_sha256,
         high_quality=args.high_quality,material_effects=args.material_effects,effects_initially_off=args.effects_initially_off,
         detailed_shadows=args.detailed_shadows,comparison_uv=args.comparison_uv,crash_watch=args.crash_watch,
-        material_config_version=args.material_config_version)
+        material_config_version=args.material_config_version,baseline_crash_watch=args.baseline_crash_watch,water_program=args.water_program,
+        water_variant=args.water_variant)
 
 
 if __name__ == '__main__':

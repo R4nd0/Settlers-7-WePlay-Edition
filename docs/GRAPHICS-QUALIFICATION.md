@@ -74,8 +74,10 @@ DLL and fixture EXE. The effects-v1 build has nineteen source inputs; effects-v2
 adds three comparison inputs and a separate diagnostic comparison ABI of 12
 bytes. The effects-v3 build has twenty-five source inputs, adding the versioned
 wire/config/host-contract headers and an explicit effects_v2 ABI of 6180 bytes.
+The effects-v4 build has twenty-eight source inputs, adding the separate water
+module/draw contract and water ABI of 1076 bytes.
 All effects sets retain three binaries, capabilities 15, and explicit
-initialization/observation/effects/capture ABI sizes. All four source sets
+initialization/observation/effects/capture ABI sizes. All five source sets
 remain supported. Their retained build-directory
 snapshots are hashed against the exact build manifest; the report does not
 substitute current edited sources for the files actually compiled. Unknown
@@ -183,6 +185,71 @@ inferred from the bound historical transport is explicitly distinguished from
 a version measured in the capture. Unknown versions, size/version mismatches or
 a receipt from another DLL reject consistency. Neither configuration nor a
 matching drawn epoch automatically establishes a visible improvement.
+
+### Separate recipient water program
+
+The separate water path is qualified independently from the legacy material
+mask. Its immutable 1076-byte/version-1 configuration must match render size,
+enabled preparation, the exact recipient-generated PS hash/size/envelope and
+same-case recipe path. The stage record must identify all three pinned original
+Water resource aliases. A successful `WePlayNativeGraphicsConfigureWater`
+receipt must match the initialized DLL and its compiled effects-v4 source set.
+Stager `active` or `runtime_verified` flags are not runtime proof.
+The selection is an explicit fixed hash/recipe pair: A is
+`river-depth-fresnel-v1-candidate`, B is `river-depth-fresnel-v2-balanced`.
+Unknown pins or cross-labeled paths are rejected. The 1076-byte transport is
+unchanged. On-B captures must also report native variant 2; historical A captures
+without that later field retain their bound-A provenance.
+
+The capture's `water.frame` already normalizes module-local completed frames by
+the native frame origin. It must equal the actual capture frame. On frames
+require enabled/requested/configured state, a positive epoch, positive equal
+completed applications/restorations, both last-operation frames equal to that
+capture, actual shader creation and no shader/set/restore/exception/pending-ref
+faults. Initial off controls may be unconfigured; they still require a healthy
+same-frame native record with no applications/restorations. A retained global
+enable flag alone cannot establish replacement.
+
+A water-only case additionally binds the intentional empty legacy bootstrap
+4132-byte/version-1 config, legacy flags zero and native Water intent 1. Any
+active legacy River mutation rejects the separate-water proof. Reports keep
+water replacement, original-water control, water-only configuration, ordinary
+material masks and presentation evidence separate. Same-source controls,
+control/control residuals, original poses/light/UV and visual review still gate
+quality claims; failed exits remain whole-case failures.
+
+The actual w34 A triplet recorded water off/on/off, legacy masks zero throughout
+and matching raw pose/light/UV. Its on frame had 120 same-frame applications and
+restorations with no shader/state faults. The case nevertheless ended through
+the existing owned memory guardian with `0xe0537021`: `scan_timeout`, failed
+monitoring/recovery requested, max-pressure level 1 and process-private peak
+1,898 MiB. This case is **not an AV observation**. No new manual slot 72 or CDB
+admission was completed, and a clean original-UI exit was not established.
+Shared profiles, binaries and private options verified restoration with no
+cleanup errors. The owned rotating autosave retained its matching before-image;
+manual originals were unchanged and no save was restored. Per-frame water proof
+remains recorded separately while whole-case, lifecycle, visual and release
+qualification remain false. Memory cutoffs were not relaxed to obtain a pass.
+
+The subsequent w36 balanced-B run recorded a matched-pose/light/UV off/on/off
+triplet with native variant 2 and 120 same-frame applications/restorations on
+the enabled frame, while legacy material flags stayed zero. The original menu
+exit completed with process exit 0. Its owned CDB watch independently recorded
+zero first-/second-chance AV events, zero dumps and no watcher termination. A
+new free slot 72 was retained; all earlier private save hashes, shared profiles,
+game binaries and private configuration verified preservation/restoration.
+The UI route was observed by the owning operator; exit/watch/source records are
+the separate measured lifecycle evidence.
+
+This is one clean lifecycle observation, not proof that the earlier c30 AV cause
+was fixed. w36 monitoring completed without monitor failure or recovery request,
+but recorded warning level 2, minimum host commit headroom 893 MiB and a
+1,945-MiB process-private peak. The existing pressure-free qualification rule
+therefore still rejects the whole case. The reason is reported as a memory
+warning/limit rather than a failed monitor; no acceptance condition was relaxed.
+Per-frame B proof and the clean exit remain visible separately from the memory,
+visual and release gates. No new Steam role read was needed to excuse a change:
+all original private saves, including the rotating autosave, were unchanged.
 
 ### Diagnostic water-scroll isolation
 
