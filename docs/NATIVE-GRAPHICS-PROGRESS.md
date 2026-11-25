@@ -1,0 +1,89 @@
+# Native graphics evidence, 2026-11-25
+
+This records observed progress separately from release qualification. The local
+user gallery is `outputs/Grafikvergleich-Zwischenstand-20261124/Vergleich.html`.
+Its seven PNGs and `Vergleichsdaten.json` remain ignored local artifacts.
+
+| Area | Actual evidence | Remaining limit |
+| --- | --- | --- |
+| Water | Ubisoft History material off/on/off captures at the same measured camera, lighting and pinned River UV phase. Both states render at 3840×2160 and output at 1920×1080. | Subtle water colour/depth separation only; no new reflection algorithm or wave geometry. |
+| Terrain | Original shader bindings and scoped material changes observed. An extended near-detail-distance shader variant is prepared. | No convincing visible improvement established; the distance variant has no actual-game validation. |
+| Vegetation | Original Leaf shader binding identified. A different backlight-lobe recipe is prepared. | No convincing visible improvement established in the captured view; the new lobe variant has no actual-game validation. |
+| Shadows | Original shadow binding, map and sampling parameters were inspected. A guarded near-filter candidate is prepared. | No new controlled before/after result without ReShade, and no claim of reduced flicker. |
+
+## Water images and controls
+
+The gallery's first four PNGs are lossless copies of the retained actual25
+analysis images. Output PNG pixels were independently compared with the original
+GPU BMP RGB pixels. The water detail is a crop of the high-resolution source,
+without colour enhancement. A third image shows the effect switched off again.
+
+The actual case is `work/ngfx-ubi-comparison25-20261124`, capture sequences 1,
+3 and 5, frames 30878, 37652 and 37677. The comparison has 120 draw-local
+applications and 120 restorations in each captured frame. Shader UV pinning is
+diagnostic-only; reflected/refracted scene textures can still animate. The
+control repeat is required to assess that residual. Pixel differences do not
+automatically establish better appearance.
+
+Retained image assessment and receipts:
+
+- `work/material-shaders-20261124/actual25-analysis/assessment.private.json`
+- `work/material-shaders-20261124/actual25-analysis/roi-refined.private.json`
+- `work/native25-ubi-evidence-20261124-01`
+- `work/native27-steam-evidence-20261125-01`
+
+Steam27 independently provided three valid filtered captures with matching
+measured pose/light and pinned UV phase. This does not convert either case into
+a successful lifecycle or visual release qualification.
+
+## Shadow evidence boundary
+
+The earlier native distant-shadow correction is documented in
+[SHADOW-DOF-REVIEW.md](SHADOW-DOF-REVIEW.md). Its retained comparison used
+SMAA through ReShade and does not establish a new result for the current work
+without ReShade. Its reversal counts also did not establish a general flicker
+cure. Existing code and synthetic fixture success must not be presented as new
+visible shadow progress.
+
+The new near-filter candidate and the offline temporal comparator remain
+separate from an actual-game visual pass. See
+[SHADOW-DETAIL-LAB.md](SHADOW-DETAIL-LAB.md).
+
+The retained actual draw snapshot is
+`work/ngfx-ubi-comparison24-20261124/observer-pin-diagnostic-snapshot.private.json`,
+frames 69244–69246, observer target 1, vertex/pixel IDs 3/4. Each records sampler
+1 as a valid 2048×2048 D16 texture, pixel constant 57.xy as exactly 1/2048 and
+constant 33 as [2.75, 2.75, 0, 0]. The gallery's `Schatten-Messwerte.json`
+contains those selected draw records and the original snapshot SHA256. This is
+a binding observation, not a before/after result. The unintegrated new near
+candidate rejects a 2048 map and was not active in those observations.
+
+## Reported black streaks
+
+The reported paired black streaks are visible in the actual25 high source
+backbuffer before downsampling, including with material effects disabled.
+The output reproduces them. This rules out an output-only downsampling artifact
+and a cause requiring enabled material replacements. It does not identify the
+generating draw, prove a UI origin, or exclude an upstream supersampling effect.
+
+The gallery includes high-source and output crops; the output crop is explicitly
+labelled as enlarged with nearest-neighbour sampling. The independent read-only
+review is `work/ui-streak-analysis-20261125/findings.private.json`. No native
+functional change or extra game launch was made during that review.
+
+## Stability remains open
+
+Actual25 Ubisoft and actual27 Steam exited with `0xc0000005` after the original
+desktop-exit action. Steam27 now has first- and second-chance exception captures.
+Independent original-code analysis places the failing write in the original
+StormMM allocation-list cleanup during connectivity/sandbox teardown. Both
+graphics deinitialization calls had already returned. The invalid allocation
+header and its history are absent from the basic dumps; the corruption cause
+and any integration relationship remain unproven. No null-check or skipped
+free was added to hide the failure.
+
+Steam27 was not forcibly stopped. Original/shared profiles and game binaries
+were preserved; private options were restored, with no cleanup error. Its
+memory monitor stayed healthy with pressure 0 and peak private memory 1982 MiB.
+Debugger timings are diagnostic observations, not performance measurements.
+There is no production release qualification from these cases.
