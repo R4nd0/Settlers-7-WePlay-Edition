@@ -361,6 +361,36 @@ class BaselineTests(unittest.TestCase):
             proc.stdin.write.assert_called_once_with(b'qd\n');proc.terminate.assert_not_called()
             self.assertTrue((output/'watch-error.private.json').exists());native.close.assert_any_call(11)
 
+    def test_mapping_loss_during_watch_detaches_and_marks_coverage_incomplete(self):
+        from tools.graphics_lab.baseline_modules import MappingCoverageLost
+        with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
+            case,cdb,admission,native,proc=self.watch_fixture(directory);output=Path(directory)/'watch'
+            failure={'module_row':{'base':0x123000},'no_valid_mapping_for_failed_row':True}
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+                 patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules'),patch.object(b,'verify_cdb',return_value=cdb),\
+                 patch('tools.graphics_lab.load_hook.file_lease',side_effect=lambda p:nullcontext()),\
+                 patch.object(b.subprocess,'Popen',return_value=proc),patch.object(b.time,'monotonic',side_effect=[0,0,1]),\
+                 patch.object(b,'_baseline_absence',side_effect=MappingCoverageLost(failure)):
+                result=b.watch(case,output,baseline=True)
+            self.assertEqual(result['stop_reason'],'baseline_mapping_coverage_lost')
+            self.assertIsNone(result['native_graphics_modules_absent'])
+            self.assertTrue(result['baseline_absence_at_admission_verified'])
+            self.assertFalse(result['baseline_absence_continuous_coverage']);self.assertFalse(result['baseline_metric_coverage_complete'])
+            self.assertEqual(result['baseline_mapping_failure'],failure)
+            self.assertEqual(json.loads((output/'watch-result.private.json').read_text(encoding='utf8'))['baseline_mapping_failure'],failure)
+            proc.stdin.write.assert_called_once_with(b'qd\n');proc.terminate.assert_not_called()
+            self.assertFalse(result['game_terminated_by_watcher']);native.close.assert_any_call(11);native.close.assert_any_call(12)
+
+    def test_mapping_loss_before_attach_still_refuses_without_launching_debugger(self):
+        from tools.graphics_lab.baseline_modules import MappingCoverageLost
+        with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
+            case,cdb,admission,native,proc=self.watch_fixture(directory)
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+                 patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules',side_effect=MappingCoverageLost({'phase':'K32GetMappedFileNameW'})),\
+                 patch.object(b.subprocess,'Popen')as spawn:
+                with self.assertRaises(MappingCoverageLost):b.watch(case,Path(directory)/'watch',baseline=True)
+            spawn.assert_not_called();proc.terminate.assert_not_called();native.close.assert_any_call(11);native.close.assert_any_call(12)
+
     def test_public_baseline_gate_is_explicit_and_preserves_ordinary_graphics_route(self):
         from tools.graphics_lab import game
         with patch.object(game.os,'name','fixture-not-windows'),patch.object(game.platform,'load')as platform_load,\

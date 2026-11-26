@@ -80,3 +80,10 @@ images retain wind differences. Comparison files remain private under
 
 Performance, all-edition coverage, final lifecycle and package qualification
 remain separate. No visual release is established by this document.
+
+L50 subsequently ended with C0000005, without a forced stop. The operator
+exit route is unconfirmed; no clean menu/key exit is claimed. Memory pressure
+stayed0 and original files, profiles and options were preserved/restored with
+no cleanup errors. The previously verified new manual save67 was retained.
+The user's instruction to continue work is not explicit optical acceptance;
+all-edition, motion, performance and full release qualification remain open.

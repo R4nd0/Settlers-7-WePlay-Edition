@@ -97,3 +97,21 @@ an automatic cause verdict.
 
 Primary syntax references: [breakpoint listing](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/bl--breakpoint-list-)
 and [MASM operators](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/masm-numbers-and-operators).
+
+## Module coverage lost during exit
+
+An ongoing baseline poll can lose a mapped filename while a module unloads.
+The provider records the exact failed row and bound original identity privately,
+and returns no partial verified inventory. The watcher ends with
+`baseline_mapping_coverage_lost`, marks current module absence and continuous
+Metric coverage unproven, and requests detach from its verified own debugger.
+It never terminates the game. Admission and pre-attach failures still reject;
+unknown modules, NT mismatches and other query failures retain their strict checks.
+There is no retry or unresolved-row omission.
+
+In b51 the code-guard and readiness markers were accepted, but this query failed
+while the child was still alive. No Metric pairs or AV records were captured.
+The game independently completed the original menu exit with code0 and preserved
+profiles, binaries and options. Coverage ended before the game did, so the empty
+profile does not establish whether the destructor was reached. It supplies no
+corruption interval or cause-fix proof.

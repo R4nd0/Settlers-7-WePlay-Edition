@@ -36,6 +36,13 @@ def same_nt_file(mapped,final):
     return mapped.casefold()==final.casefold()
 
 
+class MappingCoverageLost(OSError):
+    """One unverified mapped-file query; never permission to skip a module."""
+    def __init__(self,record):
+        self.record=record
+        super().__init__('Baseline mapped-file coverage was lost.')
+
+
 class BaselineNative(Native):
     def __init__(self):
         super().__init__()
@@ -143,7 +150,13 @@ class BaselineNative(Native):
                     if self._kind(candidate)!='file':raise ValueError('The one permitted DriverStore counterpart is absent/not regular.')
                     self._check_original(pid,query);file=self._candidate_open(candidate)
                     try:
-                        mapped=self._mapped(query,row['base']);final=self._final(file)
+                        try:mapped=self._mapped(query,row['base'])
+                        except OSError as failure:
+                            raise MappingCoverageLost(dict(original_identity=dict(self.expected),
+                                module_row=dict(row),candidate_path=str(candidate),
+                                phase='K32GetMappedFileNameW',message=str(failure)[:512],
+                                no_valid_mapping_for_failed_row=True))from failure
+                        final=self._final(file)
                         if not same_nt_file(mapped,final):raise RuntimeError('Module mapping does not prove this DriverStore counterpart.')
                         info=self._candidate_info(file);pin=self._hash(candidate)
                         self._check_original(pid,query)

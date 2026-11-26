@@ -859,7 +859,17 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
                     if time.monotonic() >= deadline:
                         reason = 'timeout'; break
                     if baseline and time.monotonic()>=next_modules and native.state(child)['alive']:
-                        _baseline_absence(native,admission['child']['pid'],verified_modules);next_modules=time.monotonic()+1
+                        from .baseline_modules import MappingCoverageLost
+                        try:_baseline_absence(native,admission['child']['pid'],verified_modules)
+                        except MappingCoverageLost as failure:
+                            reason='baseline_mapping_coverage_lost'
+                            result.update(native_graphics_modules_absent=None,
+                                baseline_absence_at_admission_verified=True,
+                                baseline_absence_continuous_coverage=False,
+                                baseline_metric_coverage_complete=False,
+                                baseline_mapping_failure=failure.record)
+                            break
+                        next_modules=time.monotonic()+1
                     time.sleep(.05)
                 result['stop_reason'] = reason
                 result['detach'] = stop_debugger(proc, debugger_identity, native)

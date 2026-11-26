@@ -78,6 +78,21 @@ class Tests(unittest.TestCase):
             p=self.bound();setattr(p,field,OSError('denied'))
             with self.assertRaises(OSError):p.modules(123)
             self.assertEqual(p.closed,[902,901]);self.assertFalse(p.alias_proofs)
+    def test_mapping_loss_records_bound_identity_and_exact_failed_row_without_partial_inventory(self):
+        p=self.bound();exe=Path(ID['path']);p.kinds[exe]='file'
+        failed=dict(p.rows[0]);p.rows.insert(0,dict(pid=123,base=0x400000,image_bytes=8192,reported_path=str(exe)))
+        p.module_rows=['old'];p.alias_proofs=['old'];p.mapped_error=OSError('Missing/truncated original mapped module filename.')
+        with self.assertRaises(m.MappingCoverageLost)as raised:p.modules(123)
+        record=raised.exception.record
+        self.assertEqual(record['original_identity'],ID);self.assertEqual(record['module_row'],failed)
+        self.assertEqual(record['candidate_path'],str(CANDIDATE));self.assertEqual(record['phase'],'K32GetMappedFileNameW')
+        self.assertTrue(record['no_valid_mapping_for_failed_row']);self.assertIn('Missing/truncated',record['message'])
+        self.assertEqual(p.closed,[902,901]);self.assertEqual(p.module_rows,[]);self.assertEqual(p.alias_proofs,[])
+    def test_final_nt_query_failure_is_not_mapping_coverage_loss(self):
+        p=self.bound();p.final_error=OSError('final path denied')
+        with self.assertRaises(OSError)as raised:p.modules(123)
+        self.assertNotIsInstance(raised.exception,m.MappingCoverageLost)
+        self.assertEqual(p.closed,[902,901]);self.assertFalse(p.alias_proofs);self.assertFalse(p.module_rows)
     def test_original_identity_is_rechecked_after_mapping(self):
         p=self.bound();original=p._final
         def changed(handle):p.current['creation_time']+=1;return original(handle)
