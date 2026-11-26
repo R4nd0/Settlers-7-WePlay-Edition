@@ -225,3 +225,26 @@ Further game/GPU work requires a stable host memory slot with the existing
 headroom/monitor checks passing. The causing pass, original SSAO association,
 controlled scale comparison and actual correction remain open. No speculative
 shader, shadow, alpha or texture fix has been activated.
+
+The resumed 100-percent case reached the same saved Waldreich scene with the
+accepted effects requested. The prominent paired streak was not apparent in
+the observed normal-size preview, but the capture helper correctly refused
+the unhealthy memory state before any GPU readback. The existing guardian then
+stopped its owned client at pressure1, minimum host commit headroom1040MiB.
+Monitoring did not fail; shared profiles and game binaries remained unchanged,
+private options were restored and cleanup errors were empty. This is a limited
+preview observation, not a completed source-image or camera-uniform comparison.
+After repeated loading-time headroom drops, the private next-case preflight now
+requires at least8GiB of free host commit in addition to the unchanged standard
+headroom checks. The existing running-game memory policy is unchanged.
+
+The offline source join inspected179 of181 original Ubisoft graphics libraries
+and mapped all64 retained unknown program identities to source-derived SM2/3
+program hashes/sizes/stages, from4711 program records. The two remaining
+libraries contain no verified supported D3D9 envelopes. The old unknown list
+overflowed, so this covers those64 retained identities only. Source aliases are
+retained; a matching compiled program does not uniquely identify a material,
+target or causing draw. A prepared507-entry private observer catalog appends
+those64 identities while preserving the original443 entry bytes and IDs.
+It contains scalar identities only, enables no material replacements and has
+not yet been used in a qualified actual-game trace.

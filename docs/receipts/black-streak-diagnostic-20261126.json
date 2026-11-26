@@ -32,6 +32,16 @@
     "captured_effect_set_restore_failures": 0,
     "draw_trace_completed": false,
     "controlled_100_percent_comparison_completed": false,
+    "native_100_percent_scene_reached": true,
+    "native_100_preview_prominent_streak_apparent": false,
+    "native_100_preview_is_qualified_source_comparison": false,
+    "native_100_gpu_capture_refused_unhealthy_memory": true,
+    "native_100_minimum_host_commit_headroom_mib": 1040,
+    "native_100_max_memory_pressure": 1,
+    "native_100_monitor_failed": false,
+    "native_100_shared_profiles_and_binaries_unchanged": true,
+    "native_100_private_options_restored": true,
+    "native_100_cleanup_errors": [],
     "ssao_off_on_comparison_completed": false,
     "first_world_case_end": "owner stop after Windows memory-report replacement access error",
     "second_world_case_end": "existing memory guard owner stop",
@@ -60,9 +70,23 @@
     "game_tested_by_synthetic_fixture": false
   },
   "next_required_evidence": [
-    "Stable host memory slot with unchanged existing headroom and monitor guards",
+    "Stable host memory slot; private next case additionally requires8GiB free commit before launch, with existing monitor guards unchanged",
     "Same saved scene and camera at 100 and 200 percent, accepted effects fixed",
     "Actual draw-order and before/after ROI attribution",
     "Narrow demonstrated correction and real-game recheck"
-  ]
+  ],
+  "offline_source_join": {
+    "original_ubisoft_shader_libraries": 181,
+    "libraries_with_verified_supported_programs": 179,
+    "program_records": 4711,
+    "retained_unknown_identities": 64,
+    "retained_unknown_identities_joined": 64,
+    "unknown_list_was_truncated": true,
+    "complete_runtime_coverage_proven": false,
+    "unique_material_binding_proven": false,
+    "prepared_private_catalog_entries": 507,
+    "original443_catalog_entry_bytes_and_ids_preserved": true,
+    "catalog_contains_original_source_or_program_bodies": false,
+    "actual_game_use_of_extended_catalog_qualified": false
+  }
 }
