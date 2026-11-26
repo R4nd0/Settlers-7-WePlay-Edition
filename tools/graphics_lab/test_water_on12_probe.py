@@ -70,7 +70,7 @@ class Tests(unittest.TestCase):
         owned.kernel_isolation=7
         with patch.object(p.loader,'invoke_water',return_value={'succeeded':True})as invoke:
             probe.initialize(owned)
-            invoke.assert_called_once_with(owned,self.build/p.DLL,probe.config,pow_cap=False)
+            invoke.assert_called_once_with(owned,self.build/p.DLL,probe.config,pow_cap=False,benchmark=False)
         result=json.loads((self.case/'water-probe-initialized.private.json').read_text())
         self.assertTrue(result['read_only']);probe.close();self.assertFalse(probe.prepared)
 
@@ -83,6 +83,9 @@ class Tests(unittest.TestCase):
         raw=p.configuration(self.case/'water-probe.private.json',pow_cap=True)
         self.assertEqual(struct.unpack_from('<3I',raw),(1036,1,1))
         with self.assertRaises(ValueError):p.configuration(self.case/'water-probe.private.json',pow_cap=1)
+        self.assertEqual(struct.unpack_from('<3I',p.configuration(self.case/'water-probe.private.json',pow_cap=True,benchmark=True)),(1036,1,3))
+        with self.assertRaises(ValueError):p.configuration(self.case/'water-probe.private.json',benchmark=True)
+        with self.assertRaises(ValueError):game.run('never-read','never-created',water_benchmark=True)
         for kwargs in ({},{'water_probe':self.build},{'water_probe':self.build,'laboratory_renderer':'dxwrapper-d3d9'}):
             with self.subTest(kwargs=kwargs),patch.object(game.platform,'load')as load:
                 with self.assertRaises(ValueError):game.run('never-read','never-created',water_pow_cap=True,**kwargs)

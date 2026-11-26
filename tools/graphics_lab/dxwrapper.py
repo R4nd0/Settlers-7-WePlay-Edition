@@ -59,10 +59,11 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False):
         from . import game
         if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
             raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
+        if type(water_benchmark)is not bool or (water_benchmark and not water_pow_cap):raise ValueError('Water benchmark requires the explicit On12 correction.')
         self.root, self.case = recover.lab(root), recover.lab(case)
         if self.case.is_relative_to(self.root) or self.root.is_relative_to(self.case):
             raise ValueError('Renderer case and game must be separate.')
@@ -77,7 +78,7 @@ class Session:
             if mode not in MODES[1:]:
                 raise ValueError('Water observation requires an exclusive pinned dxwrapper backend.')
             from .water_on12_probe import Probe
-            self.probe=Probe(water_probe,self.root,self.case,pow_cap=water_pow_cap)
+            self.probe=Probe(water_probe,self.root,self.case,pow_cap=water_pow_cap,benchmark=water_benchmark)
         self.last_observed = 0.0
         if current(self.executable.with_name('d3d9.dll')) is None or digest(
                 current(self.executable.with_name('d3d9.dll'))) != recover.DXVK:
@@ -282,6 +283,7 @@ def main():
     launch.add_argument('--seconds', type=int, default=900)
     launch.add_argument('--water-probe', type=Path)
     launch.add_argument('--water-pow-cap',action='store_true')
+    launch.add_argument('--water-benchmark',action='store_true')
     recovery = sub.add_parser('recover')
     recovery.add_argument('--case', type=Path, required=True)
     fixture = sub.add_parser('device-fixture')
@@ -299,7 +301,7 @@ def main():
         game.run(args.bundle, args.output, width=1920, height=1080,
                  high_quality=True, seconds=args.seconds,
                  laboratory_renderer=args.mode, dxwrapper_package=args.package,
-                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap)
+                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap,water_benchmark=args.water_benchmark)
 
 
 if __name__ == '__main__':

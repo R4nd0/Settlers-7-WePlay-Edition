@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cwchar>
 #include <string>
+#include <cstdint>
 
 namespace WaterOn12Identity {
 constexpr char Game[]="4ef51632a8a193050ebe8ef3f3fe38a9b240b4aa57ff62a4f381bc0f539df64f";
@@ -13,9 +14,17 @@ constexpr char Stub[]="b8b878e29c2931d6a8d064665c4c93edb28a0105152e7247f8f543c16
 constexpr char Wrapper[]="23a2889e0785a02f17f1ee764254bf22b937fc5bdc6ed6374201a9f50cc7b43d";
 constexpr char Base[]="adaedb323c7e79abd758ac7237d9ed5eb6cdb43a95ef6329c4b88bbcfb2c7c0d";
 constexpr char Vision[]="d950f1bdb11d83a9d4c6c7e1937b7d7ef747dff884e4e6b6e70e72ce7ed330a1";
+inline thread_local std::uint64_t fp_modes_reused=0,fp_modes_changed=0;
+inline bool SafeControlState(const unsigned char* fxsave) {
+    // x86 FXSAVE FCW at byte 0; MXCSR at byte 24. Ignore precision, status,
+    // DAZ and FTZ, which the existing _MCW_EM|_MCW_RC operation also preserves.
+    std::uint16_t control=0;std::uint32_t simd=0;
+    std::memcpy(&control,fxsave,2);std::memcpy(&simd,fxsave+24,4);
+    return (control&0x0c3f)==0x003f&&(simd&0x7f80)==0x1f80;
+}
 struct Guard {
     alignas(16) unsigned char fp[512];DWORD error=GetLastError();
-    Guard(){_fxsave(fp);unsigned ignored=0;_controlfp_s(&ignored,_MCW_EM|_RC_NEAR,_MCW_EM|_MCW_RC);}
+    explicit Guard(bool force_control=false){_fxsave(fp);if(!force_control&&SafeControlState(fp))++fp_modes_reused;else {++fp_modes_changed;unsigned ignored=0;_controlfp_s(&ignored,_MCW_EM|_RC_NEAR,_MCW_EM|_MCW_RC);}}
     ~Guard(){_fxrstor(fp);SetLastError(error);}
 };
 inline bool Hash(const void* bytes,ULONG count,std::string& text) {

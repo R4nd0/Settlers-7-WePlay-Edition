@@ -28,9 +28,9 @@ def image_slots(header,image,entry_bytes,profile):
     return [image+imports[index] for index in (0,1)]
 
 
-def invoke_water(owned,dll,config,*,pow_cap=False):
-    if type(pow_cap)is not bool:raise ValueError('POW cap requires explicit intent.')
-    return _invoke_fixed(owned,dll,config,'water_pow_cap' if pow_cap else 'water_observe')
+def invoke_water(owned,dll,config,*,pow_cap=False,benchmark=False):
+    if type(pow_cap)is not bool or type(benchmark)is not bool or (benchmark and not pow_cap):raise ValueError('POW cap/benchmark require explicit intent.')
+    return _invoke_fixed(owned,dll,config,'water_benchmark' if benchmark else 'water_pow_cap' if pow_cap else 'water_observe')
 
 
 def _invoke_fixed(owned,dll,config,kind):
@@ -38,7 +38,8 @@ def _invoke_fixed(owned,dll,config,kind):
     from . import dxwrapper
     from .load_hook import worker,_payload_prefix
     protocols={'water_observe':('WePlayWaterOn12Probe.dll',1036,0,b'WePlayWaterOn12ProbeInitialize\0'),
-               'water_pow_cap':('WePlayWaterOn12Probe.dll',1036,1,b'WePlayWaterOn12ProbeInitialize\0')}
+               'water_pow_cap':('WePlayWaterOn12Probe.dll',1036,1,b'WePlayWaterOn12ProbeInitialize\0'),
+               'water_benchmark':('WePlayWaterOn12Probe.dll',1036,3,b'WePlayWaterOn12ProbeInitialize\0')}
     if kind not in protocols:raise ValueError('Unknown fixed laboratory initializer.')
     name,size,flags,export=protocols[kind]
     owned.owned()
