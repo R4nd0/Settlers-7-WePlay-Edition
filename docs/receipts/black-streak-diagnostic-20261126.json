@@ -67,6 +67,9 @@
     "each_authored_roi_pixel_checked": true,
     "authored_trace_draws": 2,
     "authored_trace_failures": 0,
+    "extended507_catalog_authored_gpu_fixture_passed": true,
+    "extended507_catalog_original_draw_rois_checked": 2,
+    "extended507_catalog_original_state_and_reset_checked": true,
     "game_tested_by_synthetic_fixture": false
   },
   "next_required_evidence": [

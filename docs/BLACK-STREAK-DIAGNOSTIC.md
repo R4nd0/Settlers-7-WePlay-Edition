@@ -248,3 +248,11 @@ target or causing draw. A prepared507-entry private observer catalog appends
 those64 identities while preserving the original443 entry bytes and IDs.
 It contains scalar identities only, enables no material replacements and has
 not yet been used in a qualified actual-game trace.
+
+The prepared507-entry catalog subsequently passed the small authored DXVK GPU
+fixture with the same exact native build. Its two in-scene ROI readbacks,
+original-state restoration and Reset checks passed. This validates catalog
+acceptance and the capture mechanism; it does not establish an actual-game
+generating pass. The next private runner can take a source/output capture and
+one draw-order trace automatically after a settled accepted-preset world frame,
+using the same existing owner/source and healthy-memory checks.
