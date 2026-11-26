@@ -157,9 +157,9 @@ class Tests(unittest.TestCase):
     def test_device_fixture_preserves_each_mode_and_marks_results_synthetic(self):
         build, _ = self.fixture_build()
         output = self.root / 'work/fixture-results'
-        completed = SimpleNamespace(returncode=0, stdout=b'{"synthetic_only":true}', stderr=b'')
+        completed = [self.completed(mode) for mode in d.MODES]
         with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'require_host_headroom'), \
-                patch.object(d.subprocess, 'run', return_value=completed) as run:
+                patch.object(d.subprocess, 'run', side_effect=completed) as run:
             results = d.device_fixture(build, output, self.package)
         self.assertEqual(len(results), 3)
         self.assertTrue(all(r['synthetic_only'] for r in results))
@@ -178,6 +178,42 @@ class Tests(unittest.TestCase):
                 d.device_fixture(build, output, self.package)
             run.assert_not_called()
         self.assertFalse(output.exists())
+
+    def completed(self, mode, **changes):
+        bridge = mode == 'dxwrapper-d3d9on12'
+        value = dict(create_device_hr=0, on12_query_hr=0 if bridge else -2147467262,
+                     d3d12_device_hr=0 if bridge else -2147467262,
+                     raytracing_tier=11 if bridge else 0,
+                     pixels_present_reset_passed=True, synthetic_only=True)
+        value.update(changes)
+        return SimpleNamespace(returncode=0, stdout=json.dumps(value).encode(), stderr=b'')
+
+    def test_device_result_rejects_silent_fallback_even_with_successful_exit(self):
+        fallback = self.completed('native')
+        self.assertFalse(d.device_result('dxwrapper-d3d9on12', fallback)['passed'])
+        for mode in d.MODES:
+            self.assertTrue(d.device_result(mode, self.completed(mode))['passed'])
+        self.assertFalse(d.device_result('native', self.completed('dxwrapper-d3d9on12'))['passed'])
+
+    def test_device_result_rejects_pixel_failure_exit_failure_and_bad_schema(self):
+        for value in (self.completed('native', pixels_present_reset_passed=False),
+                      self.completed('native', create_device_hr=True),
+                      SimpleNamespace(returncode=0, stdout=b'', stderr=b'')):
+            self.assertFalse(d.device_result('native', value)['passed'])
+        value = self.completed('native'); value.returncode = 7
+        self.assertFalse(d.device_result('native', value)['passed'])
+
+    def test_device_runner_reports_failure_after_preserving_all_mode_results(self):
+        build, _ = self.fixture_build()
+        output = self.root / 'work/failed-fixture-results'
+        with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'require_host_headroom'), \
+                patch.object(d.subprocess, 'run', return_value=self.completed('native')):
+            with self.assertRaisesRegex(RuntimeError, 'validation failed'):
+                d.device_fixture(build, output, self.package)
+        saved = json.loads((output / 'results.private.json').read_text())
+        self.assertEqual(len(saved), 3)
+        self.assertTrue(saved[0]['passed'])
+        self.assertFalse(saved[2]['passed'])
 
 
 if __name__ == '__main__': unittest.main()

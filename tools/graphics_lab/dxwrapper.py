@@ -181,6 +181,33 @@ def restore(case):
     return {'renderer_restored': True, 'saves_restored': False}
 
 
+def device_result(mode, completed):
+    """Reject a successful process exit that silently fell back from D3D9On12."""
+    record = dict(mode=mode, exit_code=completed.returncode,
+                  stdout=completed.stdout.decode(errors='replace'),
+                  stderr=completed.stderr.decode(errors='replace'), synthetic_only=True,
+                  passed=False)
+    try:
+        value = json.loads(record['stdout'])
+        integers = ('create_device_hr', 'on12_query_hr', 'd3d12_device_hr', 'raytracing_tier')
+        if (mode not in MODES or not isinstance(value, dict) or set(value) != {
+                *integers, 'pixels_present_reset_passed', 'synthetic_only'}
+                or any(type(value[key]) is not int for key in integers)
+                or value['synthetic_only'] is not True
+                or type(value['pixels_present_reset_passed']) is not bool
+                or value['raytracing_tier'] < 0):
+            raise ValueError('Unexpected device-fixture result schema.')
+        record['device'] = value
+        bridge = mode == 'dxwrapper-d3d9on12'
+        record['passed'] = (completed.returncode == 0 and value['create_device_hr'] == 0
+            and value['pixels_present_reset_passed']
+            and (value['on12_query_hr'] >= 0) == bridge
+            and (value['d3d12_device_hr'] >= 0) == bridge)
+    except (ValueError, TypeError):
+        record['result_error'] = 'Invalid or missing device-fixture JSON.'
+    return record
+
+
 def device_fixture(build, output, package):
     """Run a source-bound authored fixture; its results never qualify the game."""
     from . import game
@@ -222,13 +249,13 @@ def device_fixture(build, output, package):
                 recover._write_new(case / name, raw)
         completed = subprocess.run([str(exe)], cwd=case,
             env=game.clean_environment(os.environ), capture_output=True, timeout=30)
-        record = dict(mode=mode, exit_code=completed.returncode,
-                      stdout=completed.stdout.decode(errors='replace'),
-                      stderr=completed.stderr.decode(errors='replace'), synthetic_only=True)
+        record = device_result(mode, completed)
         recover._write_new(case / 'result.private.json', json.dumps(record, indent=2).encode())
         results.append(record)
         print(json.dumps(record), flush=True)
     recover._write_new(output / 'results.private.json', json.dumps(results, indent=2).encode())
+    if not all(record['passed'] for record in results):
+        raise RuntimeError('Device-fixture validation failed; preserve the per-mode results.')
     return results
 
 

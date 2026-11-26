@@ -1,0 +1,184 @@
+{
+  "format": "s7-dxwrapper-evaluation-v1",
+  "date": "2026-11-26",
+  "evaluation_complete": true,
+  "evaluation_outcome": "no-go-for-release",
+  "release_qualified": false,
+  "dxwrapper_version": "v1.9.8700.25",
+  "upstream_commit": "d77702d55f1725eeae15a6466091db4b998d89b4",
+  "dxwrapper_archive_sha256": "e6aa4fc685115c8f73dee4ea2d446b6a1f8b57dd04db9889d2c6d1b6d7b8c825",
+  "focused_cpu_tests_passed": 60,
+  "full_lab_suite_completed": false,
+  "synthetic_device_tests": [
+    {
+      "mode": "native",
+      "exit_code": 0,
+      "create_device_hr": 0,
+      "on12_query_hr": -2147467262,
+      "d3d12_device_hr": -2147467262,
+      "raytracing_tier": 0,
+      "pixels_present_reset_passed": true,
+      "synthetic_only": true
+    },
+    {
+      "mode": "dxwrapper-d3d9",
+      "exit_code": 0,
+      "create_device_hr": 0,
+      "on12_query_hr": -2147467262,
+      "d3d12_device_hr": -2147467262,
+      "raytracing_tier": 0,
+      "pixels_present_reset_passed": true,
+      "synthetic_only": true
+    },
+    {
+      "mode": "dxwrapper-d3d9on12",
+      "exit_code": 0,
+      "create_device_hr": 0,
+      "on12_query_hr": 0,
+      "d3d12_device_hr": 0,
+      "raytracing_tier": 11,
+      "pixels_present_reset_passed": true,
+      "synthetic_only": true
+    }
+  ],
+  "actual_game_edition": "ubisoft-history",
+  "actual_game_cases": [
+    {
+      "mode": "native",
+      "original_private_world_loaded": true,
+      "render_size": [
+        1920,
+        1080
+      ],
+      "native_graphics_hook_loaded": false,
+      "water_visually_correct": true,
+      "exit_code": 0,
+      "regular_exit_verified": true,
+      "owned_guardian_stop": false,
+      "shared_profiles_unchanged": true,
+      "private_options_restored": true,
+      "guarded_binaries_restored": true,
+      "renderer_journal_restored": true,
+      "cleanup_errors": [],
+      "peak_private_mib": 1709,
+      "max_memory_pressure": 0,
+      "min_host_commit_free_mib": 2775
+    },
+    {
+      "mode": "dxwrapper-d3d9",
+      "original_private_world_loaded": true,
+      "render_size": [
+        1920,
+        1080
+      ],
+      "native_graphics_hook_loaded": false,
+      "water_visually_correct": true,
+      "exit_code": 0,
+      "regular_exit_verified": true,
+      "owned_guardian_stop": false,
+      "shared_profiles_unchanged": true,
+      "private_options_restored": true,
+      "guarded_binaries_restored": true,
+      "renderer_journal_restored": true,
+      "cleanup_errors": [],
+      "peak_private_mib": 1717,
+      "max_memory_pressure": 0,
+      "min_host_commit_free_mib": 5484,
+      "creation_branch_counts": {
+        "Direct3DCreate9": 1,
+        "Direct3DCreate9Ex": 0,
+        "Direct3DCreate9On12": 0,
+        "Direct3DCreate9On12Ex": 0
+      },
+      "d3d9_object_created": true,
+      "d3d9_device_created": true,
+      "renderer_modules": [
+        {
+          "name": "d3d9.dll",
+          "sha256": "b8b878e29c2931d6a8d064665c4c93edb28a0105152e7247f8f543c1603985c3"
+        },
+        {
+          "name": "d3d9.dll",
+          "sha256": "da332f721a59dc73f8fdb32acd6755dd0ddae726f78342d8d73c32b14abb21e5"
+        },
+        {
+          "name": "dxwrapper.dll",
+          "sha256": "23a2889e0785a02f17f1ee764254bf22b937fc5bdc6ed6374201a9f50cc7b43d"
+        }
+      ],
+      "direct_game_com_query_performed": false
+    },
+    {
+      "mode": "dxwrapper-d3d9on12",
+      "original_private_world_loaded": true,
+      "render_size": [
+        1920,
+        1080
+      ],
+      "native_graphics_hook_loaded": false,
+      "water_visually_correct": false,
+      "exit_code": 3763564577,
+      "regular_exit_verified": false,
+      "owned_guardian_stop": true,
+      "shared_profiles_unchanged": true,
+      "private_options_restored": true,
+      "guarded_binaries_restored": true,
+      "renderer_journal_restored": true,
+      "cleanup_errors": [],
+      "peak_private_mib": 1718,
+      "max_memory_pressure": 1,
+      "min_host_commit_free_mib": 1219,
+      "creation_branch_counts": {
+        "Direct3DCreate9": 0,
+        "Direct3DCreate9Ex": 0,
+        "Direct3DCreate9On12": 1,
+        "Direct3DCreate9On12Ex": 0
+      },
+      "d3d9_object_created": true,
+      "d3d9_device_created": true,
+      "renderer_modules": [
+        {
+          "name": "d3d9.dll",
+          "sha256": "b8b878e29c2931d6a8d064665c4c93edb28a0105152e7247f8f543c1603985c3"
+        },
+        {
+          "name": "d3d9.dll",
+          "sha256": "da332f721a59dc73f8fdb32acd6755dd0ddae726f78342d8d73c32b14abb21e5"
+        },
+        {
+          "name": "dxwrapper.dll",
+          "sha256": "23a2889e0785a02f17f1ee764254bf22b937fc5bdc6ed6374201a9f50cc7b43d"
+        },
+        {
+          "name": "d3d9on12.dll",
+          "sha256": "8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a"
+        },
+        {
+          "name": "D3D12.dll",
+          "sha256": "769a028fbb8bf5206f14e8104778504a4c1037d6e14abc29fe8ab3c0d245e3b0"
+        },
+        {
+          "name": "D3D12Core.dll",
+          "sha256": "e2cbb457c9e3d05510c1c214c48bd21422befab959543c94d6d9593697ef5e9b"
+        }
+      ],
+      "direct_game_com_query_performed": false,
+      "d3d9on12_path_evidence": "Tagged source control flow, no-fallback creation log, successful wrapped device, Windows module inventory, visibly rendered original world."
+    }
+  ],
+  "existing_graphics_adapter_compatible": false,
+  "existing_graphics_adapter_reason": "Exact DXVK identity required in Python and native adapter; combination rejected before launch.",
+  "decision": "Retain existing DXVK release renderer and accepted graphics preset. Keep dxwrapper as isolated opt-in laboratory route.",
+  "rejection_reasons": [
+    "Black water surfaces under D3D9On12 with original High-quality shaders.",
+    "D3D9On12 world run stopped by unchanged host-memory guardian before regular closure could be verified.",
+    "Accepted supersampling/material adapter is currently DXVK-only."
+  ],
+  "cause_of_black_water_established": false,
+  "host_memory_drop_attributed_to_renderer": false,
+  "guards_weakened": false,
+  "performance_improvement_claimed": false,
+  "raytracing_implemented": false,
+  "accepted_release_preset_changed": false,
+  "scope": "Bounded local compatibility evaluation; no release, other-edition or multiplayer qualification."
+}

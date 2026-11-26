@@ -1,5 +1,7 @@
 {
   "format": "s7-dxwrapper-evaluation-progress-v1",
+  "historical": true,
+  "superseded_by": "dxwrapper-evaluation-20261126.json",
   "date": "2026-11-26",
   "evaluation_complete": false,
   "release_qualified": false,
