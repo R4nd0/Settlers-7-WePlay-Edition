@@ -8,6 +8,7 @@
 #include <utility>
 #include <intrin.h>
 #include <vector>
+#include <memory>
 
 namespace MaterialShaderObserver {
 namespace {
@@ -19,12 +20,27 @@ struct Cached {
     std::array<unsigned char,32> sha256{};
 };
 constexpr size_t MaxTraceDraws=32768;
+constexpr std::array<D3DSAMPLERSTATETYPE,8> UiSamplerStates{{D3DSAMP_ADDRESSU,D3DSAMP_ADDRESSV,
+    D3DSAMP_MINFILTER,D3DSAMP_MAGFILTER,D3DSAMP_MIPFILTER,D3DSAMP_MAXANISOTROPY,D3DSAMP_MIPMAPLODBIAS,D3DSAMP_SRGBTEXTURE}};
+struct UiTextureTrace {
+    DWORD available=0,bound=0,type=0,width=0,height=0,format=0,levels=0,state_available=0;
+    std::uintptr_t identity=0;
+    std::array<DWORD,8> states{};
+};
+struct UiTrace {
+    DWORD available=0,fvf=0,stride=0,offset=0,buffer_bytes=0,buffer_usage=0,buffer_pool=0;
+    RECT scissor{};
+    std::array<DWORD,16> matrix_bits{};
+    RenderStateSample render_states{};
+    std::array<UiTextureTrace,4> textures{};
+};
 struct TraceRow {
     std::uint32_t ordinal=0,kind=0,vertex=0,pixel=0,vertex_bytes=0,pixel_bytes=0;
     std::array<unsigned char,32> vertex_sha256{},pixel_sha256{},roi_sha256{};
     DWORD available=0,width=0,height=0,format=0,viewport_x=0,viewport_y=0,viewport_width=0,viewport_height=0;
     HRESULT readback=S_FALSE;
     std::uintptr_t target_identity=0;
+    std::unique_ptr<UiTrace> ui;
 };
 struct TraceState {
     DrawTraceConfig config{};
@@ -58,6 +74,8 @@ struct State {
     std::array<unsigned char,32> frame_vertex{},frame_pixel{};
     UINT frame_vertex_bytes=2592,frame_pixel_bytes=3740;
     TraceState trace{};
+    std::array<unsigned char,32> ui_vertex{},ui_pixel{};
+    UINT ui_vertex_bytes=484,ui_pixel_bytes=1108;
 };
 SRWLOCK mutex=SRWLOCK_INIT;
 State current;
@@ -114,6 +132,77 @@ bool NewFile(const std::wstring& path,const void* data,DWORD bytes) {
         &&WriteFile(file,data,bytes,&written,nullptr)&&written==bytes&&FlushFileBuffers(file);
     CloseHandle(file);return valid;
 }
+std::unique_ptr<UiTrace> ReadUiTrace(IDirect3DDevice9* device,Cached* vertex,Cached* pixel) {
+    if(!vertex||!pixel||vertex->bytes!=current.ui_vertex_bytes||pixel->bytes!=current.ui_pixel_bytes
+        ||vertex->sha256!=current.ui_vertex||pixel->sha256!=current.ui_pixel)return {};
+    auto s=std::make_unique<UiTrace>();
+    RECT scissor{};
+    if(SUCCEEDED(device->GetScissorRect(&scissor))){s->scissor=scissor;s->available|=1;}
+    std::array<float,16> matrix{};
+    if(SUCCEEDED(device->GetVertexShaderConstantF(64,matrix.data(),4))) {
+        std::memcpy(s->matrix_bits.data(),matrix.data(),sizeof(matrix));s->available|=2;
+    }
+    DWORD fvf=0;if(SUCCEEDED(device->GetFVF(&fvf))){s->fvf=fvf;s->available|=4;}
+    Ref<IDirect3DVertexBuffer9> buffer;UINT offset=0,stride=0;
+    if(SUCCEEDED(device->GetStreamSource(0,&buffer.value,&offset,&stride))) {
+        s->available|=8;s->offset=offset;s->stride=stride;
+        D3DVERTEXBUFFER_DESC desc{};
+        if(buffer.value&&SUCCEEDED(buffer.value->GetDesc(&desc))) {
+            s->available|=16;s->buffer_bytes=desc.Size;s->buffer_usage=desc.Usage;s->buffer_pool=desc.Pool;
+        }
+    }
+    for(size_t i=0;i<CapturedRenderStateCount;++i) {
+        DWORD value=0;if(SUCCEEDED(device->GetRenderState(CapturedRenderStateTypes[i],&value))) {
+            s->render_states.available|=1u<<i;s->render_states.values[i]=value;
+        }
+    }
+    for(DWORD i=0;i<4;++i) {
+        auto& t=s->textures[i];Ref<IDirect3DBaseTexture9> texture;
+        if(SUCCEEDED(device->GetTexture(i,&texture.value))) {
+            t.available|=1;
+            if(texture.value) {
+                t.bound=1;t.identity=reinterpret_cast<std::uintptr_t>(texture.value);t.type=texture.value->GetType();
+                if(t.type==D3DRTYPE_TEXTURE) {
+                    auto* image=static_cast<IDirect3DTexture9*>(texture.value);D3DSURFACE_DESC desc{};
+                    if(SUCCEEDED(image->GetLevelDesc(0,&desc))) {
+                        t.available|=2;t.width=desc.Width;t.height=desc.Height;t.format=desc.Format;t.levels=image->GetLevelCount();
+                    }
+                }
+            }
+        }
+        for(size_t k=0;k<UiSamplerStates.size();++k) {
+            DWORD value=0;if(SUCCEEDED(device->GetSamplerState(i,UiSamplerStates[k],&value))) {
+                t.state_available|=1u<<k;t.states[k]=value;
+            }
+        }
+    }
+    return s;
+}
+std::string UiJson(const UiTrace& s) {
+    std::string j="{\"schema\":1,\"available\":"+std::to_string(s.available)
+        +",\"scissor\":["+std::to_string(s.scissor.left)+","+std::to_string(s.scissor.top)+","+std::to_string(s.scissor.right)+","+std::to_string(s.scissor.bottom)
+        +"],\"gui_matrix_c64_67_bits\":[";
+    for(size_t i=0;i<s.matrix_bits.size();++i){if(i)j+=',';j+=std::to_string(s.matrix_bits[i]);}
+    j+="],\"fvf\":"+std::to_string(s.fvf)+",\"stream_offset\":"+std::to_string(s.offset)+",\"stream_stride\":"+std::to_string(s.stride)
+        +",\"buffer_bytes\":"+std::to_string(s.buffer_bytes)+",\"buffer_usage\":"+std::to_string(s.buffer_usage)+",\"buffer_pool\":"+std::to_string(s.buffer_pool)
+        +",\"render_state_available\":"+std::to_string(s.render_states.available)+",\"render_states\":{"
+        ;
+    for(size_t i=0;i<CapturedRenderStateCount;++i) {
+        if(i)j+=',';j+='\"';j+=CapturedRenderStateNames[i];j+="\":";
+        j+=(s.render_states.available&(1u<<i))?std::to_string(s.render_states.values[i]):"null";
+    }
+    j+="},\"textures\":[";
+    for(size_t i=0;i<s.textures.size();++i) {
+        const auto& t=s.textures[i];if(i)j+=',';
+        j+="{\"sampler\":"+std::to_string(i)+",\"available\":"+std::to_string(t.available)+",\"bound\":"+std::to_string(t.bound)
+            +",\"identity\":"+std::to_string(t.identity)+",\"type\":"+std::to_string(t.type)+",\"width\":"+std::to_string(t.width)
+            +",\"height\":"+std::to_string(t.height)+",\"format\":"+std::to_string(t.format)+",\"levels\":"+std::to_string(t.levels)
+            +",\"sampler_state_available\":"+std::to_string(t.state_available)+",\"sampler_states\":[";
+        for(size_t k=0;k<t.states.size();++k){if(k)j+=',';j+=(t.state_available&(1u<<k))?std::to_string(t.states[k]):"null";}
+        j+="]}";
+    }
+    return j+"]}";
+}
 // No device state changes. Read back the current target with its original
 // format, then retain only the explicitly bounded 32-bit ROI, row-major.
 HRESULT TracePixels(IDirect3DDevice9* device,IDirect3DSurface9* target,const D3DSURFACE_DESC& desc,TraceRow& row) {
@@ -157,11 +246,12 @@ void TraceDraw(IDirect3DDevice9* device,Cached* vertex,Cached* pixel,unsigned ki
         row.viewport_width=viewport.Width;row.viewport_height=viewport.Height;
     }else ++t.failures;
     if(t.config.draw_count&&row.ordinal>=t.config.first_draw&&row.ordinal-t.config.first_draw<t.config.draw_count) {
+        try {row.ui=ReadUiTrace(device,vertex,pixel);}catch(...){++t.failures;}
         try {row.readback=(row.available&4)?TracePixels(device,target.value,desc,row):E_FAIL;}
         catch(...) {row.readback=E_FAIL;}
         if(FAILED(row.readback))++t.failures;
     }
-    t.rows.push_back(row);
+    t.rows.push_back(std::move(row));
 }
 void FinishTrace(bool cancelled) {
     auto& t=current.trace;
@@ -187,7 +277,8 @@ void FinishTrace(bool cancelled) {
             +",\"target_identity\":"+std::to_string(r.target_identity)
             +",\"target\":["+std::to_string(r.width)+","+std::to_string(r.height)+","+std::to_string(r.format)+"]"
             +",\"viewport\":["+std::to_string(r.viewport_x)+","+std::to_string(r.viewport_y)+","+std::to_string(r.viewport_width)+","+std::to_string(r.viewport_height)+"]"
-            +",\"roi_hresult\":"+std::to_string(static_cast<DWORD>(r.readback))+",\"roi_sha256\":\""+Hex(r.roi_sha256)+"\"}";
+            +",\"roi_hresult\":"+std::to_string(static_cast<DWORD>(r.readback))+",\"roi_sha256\":\""+Hex(r.roi_sha256)+"\""
+            +",\"ui_state\":"+(r.ui?UiJson(*r.ui):"null")+"}";
     }
     json+="]}\n";
     if(json.size()>MAXDWORD||!NewFile(TracePath(t.config.sequence),json.data(),static_cast<DWORD>(json.size())))++current.stats.report_failures;
@@ -538,6 +629,9 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected[32],con
         }
         if(!valid){CloseHandle(file);return false;}
         current.trace=TraceState{};
+        DigestLiteral("0fafd8564b812ef5d8609329052df4be741f015c3c3b51b0946420e0fe6880f3",current.ui_vertex);
+        DigestLiteral("69b5a31786c16faf4c06b1592c6925f745230ac27d7729db78d330fdf084aae6",current.ui_pixel);
+        current.ui_vertex_bytes=484;current.ui_pixel_bytes=1108;
         current.stats=Stats{};current.stats.enabled=1;current.stats.catalog_count=rows;
         current.cache_capacity_bypasses=0;current.uncached.fill(Cached{});
         current.capture=CaptureConfig{};current.captured.fill(0);current.last_capture.fill(0);
@@ -693,6 +787,15 @@ bool FixtureFrameIdentity(const unsigned char vertex[32],UINT vertex_bytes,const
     LastErrorState last_error;try {Lock lock;if(!current.stats.enabled || !vertex || !pixel)return false;
         std::memcpy(current.frame_vertex.data(),vertex,32);std::memcpy(current.frame_pixel.data(),pixel,32);
         current.frame_vertex_bytes=vertex_bytes;current.frame_pixel_bytes=pixel_bytes;current.latest=FrameSnapshot{};current.frame_attempt=0;return true;
+    }catch(...){return false;}
+}
+#endif
+#if defined(S7_MATERIAL_OBSERVER_FIXTURE) || defined(S7_SUPERSAMPLING_FIXTURE)
+bool FixtureUiIdentity(const unsigned char vertex[32],UINT vertex_bytes,const unsigned char pixel[32],UINT pixel_bytes) noexcept {
+    LastErrorState saved;try {Lock lock;
+        if(!current.stats.enabled||!vertex||!pixel||!vertex_bytes||!pixel_bytes||vertex_bytes>MaxCodeBytes||pixel_bytes>MaxCodeBytes)return false;
+        std::memcpy(current.ui_vertex.data(),vertex,32);std::memcpy(current.ui_pixel.data(),pixel,32);
+        current.ui_vertex_bytes=vertex_bytes;current.ui_pixel_bytes=pixel_bytes;return true;
     }catch(...){return false;}
 }
 #endif

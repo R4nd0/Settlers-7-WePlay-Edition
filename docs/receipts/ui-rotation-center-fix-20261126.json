@@ -1,0 +1,157 @@
+{
+  "format": "s7-ui-rotation-center-fix-v1",
+  "date": "2026-11-26",
+  "maintainer": "WePlay Community",
+  "cause_identified": true,
+  "actual_game_correction_verified": true,
+  "publication_performed": false,
+  "cause": "signed16 tenths-of-pixel UI rotation center wraps beyond3276.7 source pixels",
+  "original_vertex_sha256": "0fafd8564b812ef5d8609329052df4be741f015c3c3b51b0946420e0fe6880f3",
+  "original_pixel_sha256": "69b5a31786c16faf4c06b1592c6925f745230ac27d7729db78d330fdf084aae6",
+  "generated_vertex_sha256": "ffa1684dd31f91e2c371f0263109d32bbaad5e05559600c6eca276a2ef1e7304",
+  "source_set": "effects-v16",
+  "final_diagnostic_dll_sha256": "195ee6a405abd1d755041dfc3aecf76f25625181393045ee1d4c055136fa277b",
+  "actual_game": {
+    "edition": "Ubisoft History",
+    "renderer": "DXVK",
+    "map": "Waldreich",
+    "scene": "saved castle and stone bridge",
+    "source": [
+      3840,
+      2160
+    ],
+    "output": [
+      1920,
+      1080
+    ],
+    "trace": {
+      "frame": 8258,
+      "draws": 8689,
+      "failures": 0,
+      "overflows": 0,
+      "streak_first_draw": 8676,
+      "kind": "DrawPrimitive",
+      "pass": "GUI/UIShader",
+      "roi": [
+        3260,
+        1000,
+        256,
+        256
+      ],
+      "before_roi_sha256": "08763b54bee9488b6f3abd54f9cdd65254ef328f4e69c44ade75afa32bc978b9",
+      "after_roi_sha256": "9c624212498261d9a704f637c3abec1f4f4f45673d18006d01a70482be1c2f90"
+    },
+    "controlled_frames": [
+      2950,
+      3008,
+      3070,
+      3130
+    ],
+    "enabled": [
+      0,
+      1,
+      0,
+      1
+    ],
+    "ui_frame_applications": [
+      0,
+      21,
+      0,
+      21
+    ],
+    "streak_present": [
+      true,
+      false,
+      true,
+      false
+    ],
+    "minimap_correct": [
+      false,
+      true,
+      false,
+      true
+    ],
+    "raw_projection_eye_and_light_identical": true,
+    "accepted_water_frame_applications_and_restorations": 120,
+    "accepted_leaf_b_frame_applications_and_restorations": 13,
+    "accepted_programs_unchanged": true,
+    "terrain_shadow_ambient_experiments_enabled": false,
+    "minimap_input_moved_measured_camera": true,
+    "minimize_restore_filtered_output_without_fallback": true,
+    "fresh_default_enabled": {
+      "frame": 3731,
+      "status": 0,
+      "ui_frame_applications": 19,
+      "ui_frame_restorations": 19,
+      "ui_faults": 0,
+      "streak_absent": true,
+      "minimap_correct": true
+    },
+    "native100_source_capture_without_streak_completed": true,
+    "native100_eye_and_light_match_200": true,
+    "resolution_dependent_projection_half_texel_terms_differ": true,
+    "user_confirmed100_working": true
+  },
+  "lifecycle": {
+    "controlled": {
+      "exit_code": 0,
+      "owned_timeout_or_stop": false,
+      "shared_profiles_unchanged": true,
+      "game_binaries_unchanged": true,
+      "private_options_restored": true,
+      "cleanup_errors": [],
+      "memory_policy": "observe_only",
+      "memory_max_pressure": 0
+    },
+    "fresh_default": {
+      "exit_code": 0,
+      "owned_timeout_or_stop": false,
+      "shared_profiles_unchanged": true,
+      "game_binaries_unchanged": true,
+      "private_options_restored": true,
+      "cleanup_errors": [],
+      "memory_policy": "observe_only",
+      "memory_max_pressure": 0
+    },
+    "cancelled_extra100": {
+      "exit_code": 0,
+      "owned_timeout_or_stop": false,
+      "shared_profiles_unchanged": true,
+      "game_binaries_unchanged": true,
+      "private_options_restored": true,
+      "cleanup_errors": [],
+      "memory_policy": "observe_only",
+      "memory_max_pressure": 0
+    }
+  },
+  "synthetic_validation": {
+    "game_started_by_fixtures": false,
+    "cpu_com_checks": 128,
+    "host_checks": 383,
+    "up_forwarding_checks": 75,
+    "sdk_protocol_checks": 20,
+    "focused_python_tests": 59,
+    "observer_cpu_com_checks": 1692,
+    "recipient_programs_with_authored_vertices_gpu": {
+      "passed": true,
+      "wrong_center": [
+        3536,
+        1114
+      ],
+      "correct_center": [
+        3600,
+        200
+      ],
+      "nonwrapped_identity_and_negative_center_pixels_bit_identical": true,
+      "failed_draw_and_exception_restore": true,
+      "actual_reset": true,
+      "applications": 7,
+      "restorations": 7
+    },
+    "final_integrated_combined_gpu_passed": true
+  },
+  "limits": [
+    "Actual corrected game verification is Ubisoft History with DXVK; no other-edition, renderer or performance claim.",
+    "Final installer qualification and publication remain in the separate release checkout."
+  ]
+}

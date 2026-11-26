@@ -17,6 +17,7 @@
 #include "material_shader_effects_contract_v5.h"
 #include "native_material_draw.h"
 #include "up_draw_observer_protocol.h"
+#include "ui_rotation_fix.h"
 #include "ambient_occlusion_effects.h"
 #include "atmosphere_fp.h"
 #include <bcrypt.h>
@@ -111,6 +112,7 @@ struct AmbientApi {
 static_assert(std::is_same<AmbientOcclusionEffects::DrawTransaction,ShadowFilterEffects::DrawTransaction>::value,
     "AO reuses the fourth transaction; no extra scope or transaction cast");
 DWORD capture_pending=0,capture_last_sequence=0;
+UiRotationFix::Config ui_pending_config{};bool ui_waiting=false;
 MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
 MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
 MaterialShaderConfigV3::Config effects_pending_v3{},effects_loaded_v3{};
@@ -423,7 +425,8 @@ void Report() {
         FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE)return;
     std::string report(text,static_cast<size_t>(count));
-    const auto extra=OverlayPresetJson();
+    const auto extra=OverlayPresetJson()+",\"ui_rotation_pending\":"+std::to_string(ui_waiting?1:0)
+        +",\"ui_rotation_fix\":"+UiRotationFix::Json();
     const auto closing=report.find_last_not_of(" \t\r\n");
     if(!extra.empty()&&closing!=std::string::npos&&report[closing]=='}')report.insert(closing,extra);
     DWORD written=0;WriteFile(file,report.data(),static_cast<DWORD>(report.size()),&written,nullptr);CloseHandle(file);
@@ -1067,7 +1070,7 @@ void EndAmbientFrame(IDirect3DDevice9* device) {
 }
 
 bool EffectsDrawAllowed() {
-    return !stats.render_unsafe && (!stats.effects_requested || effects_received);
+    return !stats.render_unsafe && UiRotationFix::Safe() && (!stats.effects_requested || effects_received);
 }
 
 void CancelEffectsCapture() {
@@ -1496,6 +1499,7 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
     ULONG count=0;
     {
         Internal inside(current);
+        if(!UiRotationFix::Reset(device)){stats.render_unsafe=1;stats.last_failure=231;Report();return 1;}
         if(!ResetOverlay(device)){Report();return 1;}
         if(ambient_initialized&&!AmbientOcclusionEffects::Reset(device)) {
             stats.render_unsafe=stats.ambient_unsafe=1;ClearAmbientFrameProof();stats.last_failure=229;Report();return 1;
@@ -1530,6 +1534,7 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     if(!state || state->device!=device)return reinterpret_cast<Reset>(saved_methods[16])(device,parameters);
     OriginalCallScope original_state;
     Internal inside(state);
+    if(!UiRotationFix::Reset(device)){stats.render_unsafe=1;stats.last_failure=231;Report();return D3DERR_DEVICELOST;}
     if(!ResetOverlay(device)){Report();return D3DERR_DEVICELOST;}
     overlay_input_safe=false;stats.overlay_visible=0;
     if(ambient_initialized) {
@@ -1579,6 +1584,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     if(!state || state->device!=device)return reinterpret_cast<Present>(saved_methods[17])(device,source,destination,override_window,dirty);
     OriginalCallScope original_state;
     Internal inside(state);auto& current=*state;
+    UiRotationFix::EndFrame(static_cast<std::uint64_t>(stats.present_calls)+1);
     EndAmbientFrame(device);
     EndShadowFrame(device);
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::EndFrame(device);
@@ -1737,6 +1743,10 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     if(!current.shutdown_requested)ApplyPendingShadow();
     if(!current.shutdown_requested)ApplyPendingAmbient();
     if(!current.shutdown_requested)ApplyPendingComparison();
+    if(!current.shutdown_requested&&ui_waiting){
+        if(!UiRotationFix::Configure(ui_pending_config))stats.last_failure=232;
+        ui_waiting=false;
+    }
     if(stats.present_calls==1 || ((native_configuration.flags&NativeGraphicsConfig::Observe) && stats.present_calls%60==0) || failure)Report();
     return result;
 }
@@ -1778,6 +1788,7 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
     Internal inside(state);
     if(!EffectsDrawAllowed()){++stats.effects_blocked_draws;stats.last_failure=221;return D3DERR_DEVICELOST;}
     if(effects_faulted)++stats.effects_fallback_draws;
+    const bool ui_context=UiRotationFix::Enabled()&&count&&GetCurrentThreadId()==state->thread&&GameCaller(_ReturnAddress())&&!state->shutdown_requested&&!state->terminal_cleanup;
     const bool ambient_path=ambient_initialized&&ambient_state.enabled;
     const auto transaction=ExecuteConfiguredDraw(device,comparison_initialized && stats.comparison_requested && count,
         effects_initialized && stats.effects_active && count,
@@ -1788,9 +1799,11 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
             if(state->fail_next_draw){state->fail_next_draw=false;return D3DERR_INVALIDCALL;}
 #endif
-            return reinterpret_cast<Draw>(state->original[81])(device,type,first,count);},
+            const auto original=[&](){return reinterpret_cast<Draw>(state->original[81])(device,type,first,count);};
+            return ui_context?UiRotationFix::Execute(device,original):original();},
         [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count)
             MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Draw,result);});
+    if(!UiRotationFix::Safe()){stats.render_unsafe=1;stats.last_failure=231;CancelEffectsCapture();Report();return D3DERR_DEVICELOST;}
     if(transaction.unsafe) {
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
@@ -1826,6 +1839,7 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
             return reinterpret_cast<DrawIndexed>(state->original[82])(device,type,base,min,vertices,first,count);},
         [&](HRESULT result){if((native_configuration.flags&NativeGraphicsConfig::Observe) && count && vertices)
             MaterialShaderObserver::ObserveDraw(device,MaterialShaderObserver::Indexed,result);});
+    if(!UiRotationFix::Safe()){stats.render_unsafe=1;stats.last_failure=231;CancelEffectsCapture();Report();return D3DERR_DEVICELOST;}
     if(transaction.unsafe) {
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
@@ -1932,6 +1946,8 @@ bool TerminalCleanup(State& current) {
     DiagnosticScope diagnostic;
     if(current.terminal_cleanup)return true;
     current.shutdown_requested=true;current.logical_window_active=false;current.startup_window_pending=false;
+    if(!UiRotationFix::Reset(current.device)){stats.render_unsafe=1;stats.last_failure=231;Report();return false;}
+    ui_waiting=false;
     current.startup_client_width=current.startup_client_height=0;
     if(ambient_initialized) {
         if(!AmbientOcclusionEffects::Reset(current.device)||!AmbientOcclusionEffects::Shutdown()) {
@@ -2313,6 +2329,9 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
 #else
     game_modules[0]=GetModuleHandleW(nullptr);
 #endif
+    UiRotationFix::Initialize(configuration.render_width,configuration.render_height);
+    UiRotationFix::Config ui_compatibility{};ui_compatibility.enabled=1;
+    UiRotationFix::Configure(ui_compatibility);
     GraphicsObservation::Initialize(); // Readiness/availability is recorded per actual capture.
     Report();InterlockedExchange(&initialization_ready,1);return 1;
 }
@@ -2355,9 +2374,14 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
     DWORD header[2]{};SIZE_T read=0;
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,header,sizeof(header),&read)||read!=sizeof(header))return 0;
     const bool trace=header[0]==sizeof(MaterialShaderObserver::DrawTraceConfig)&&header[1]==2;
+    const bool ui=header[0]==sizeof(UiRotationFix::Config)&&header[1]==3;
+    UiRotationFix::Config ui_config{};
     MaterialShaderObserver::CaptureConfig config{};
     MaterialShaderObserver::DrawTraceConfig trace_config{};
-    if(trace) {
+    if(ui) {
+        if(!ReadProcessMemory(GetCurrentProcess(),opaque,&ui_config,sizeof(ui_config),&read)||read!=sizeof(ui_config)
+            ||ui_config.size!=header[0]||ui_config.version!=header[1]||ui_config.enabled>1)return 0;
+    }else if(trace) {
         if(!ReadProcessMemory(GetCurrentProcess(),opaque,&trace_config,sizeof(trace_config),&read)||read!=sizeof(trace_config)
             ||trace_config.size!=header[0]||trace_config.version!=header[1])return 0;
     }else if(header[0]!=sizeof(config)||header[1]!=1
@@ -2366,7 +2390,8 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
     Lock lock;
     if(!initialization_ready || !(native_configuration.flags&NativeGraphicsConfig::Observe)
         ||stats.render_unsafe||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
-    const auto configure=[&](){return trace?MaterialShaderObserver::ConfigureDrawTrace(&trace_config)
+    const auto configure=[&](){if(ui){if(ui_waiting)return false;ui_pending_config=ui_config;ui_waiting=true;return true;}
+        return trace?MaterialShaderObserver::ConfigureDrawTrace(&trace_config)
                                          :MaterialShaderObserver::ConfigureCapture(&config);};
     if(state){Internal inside(state);return configure()?1u:0u;}
     return configure()?1u:0u;
@@ -2493,7 +2518,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsRequestCapture(void* opaque) {
         || request.size!=sizeof(request) || request.version!=1 || !request.sequence)return 0;
     Lock lock;
     if(!state || !stats.attached || state->shutdown_requested || state->terminal_cleanup || capture_pending
-        || effects_waiting || comparison_waiting || shadow_waiting || ambient_waiting || stats.render_unsafe
+        || effects_waiting || comparison_waiting || shadow_waiting || ambient_waiting || ui_waiting || stats.render_unsafe
         || request.sequence<=capture_last_sequence || !NativeGraphicsCapture::TargetAvailable(configuration.report_path,request.sequence))return 0;
     capture_pending=request.sequence;capture_last_sequence=request.sequence;++stats.capture_requests;Report();return 1;
 }

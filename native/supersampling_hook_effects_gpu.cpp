@@ -517,6 +517,8 @@ void CombinedTrial(const std::filesystem::path& renderer,const std::filesystem::
     MaterialShaderEffects::Stats measured{};Require(MaterialShaderEffects::ReadStats(&measured)&&!measured.enabled_flags&&!measured.faulted&&!measured.shader_failures&&!measured.set_failures&&!measured.restore_failures&&!measured.exceptions&&measured.combined_program_sha256==hashes,"combined_gpu_program_or_safety_proof");
     for(auto n:measured.combined_program_creations)Require(n>0,"combined_gpu_program_not_created");Require(measured.applied[1]>0&&measured.applied[2]>0&&measured.variant_applications[2]>0&&measured.variant_applications==measured.variant_restorations,"combined_gpu_missing_actual_roles");
     ShaderDebugOverlay::Preset selected{};Require(ShaderDebugOverlay::ReadPreset(&selected)&&selected.values[0].enabled==1&&selected.values[0].variant==0&&!selected.values[1].enabled&&!selected.values[2].enabled&&!selected.values[3].enabled&&!selected.values[4].enabled,"combined_gpu_preset_groups_not_preserved");
+    const auto ui_vertex=Digest(original_vs[2].get()),ui_pixel=Digest(original_ps[2].get());
+    Require(MaterialShaderObserver::FixtureUiIdentity(ui_vertex.data(),static_cast<UINT>(original_vs[2]->GetBufferSize()),ui_pixel.data(),static_cast<UINT>(original_ps[2]->GetBufferSize())),"combined_gpu_ui_capture_identity");
     MaterialShaderObserver::DrawTraceConfig trace{};trace.sequence=1;trace.first_draw=1;trace.draw_count=2;
     trace.target_width=1280;trace.target_height=720;trace.x=640;trace.y=360;trace.width=trace.height=4;
     Require(WePlayNativeGraphicsConfigureObservation(&trace)==1,"combined_gpu_trace_queue");present();
@@ -531,6 +533,7 @@ void CombinedTrial(const std::filesystem::path& renderer,const std::filesystem::
     const std::string traced((std::istreambuf_iterator<char>(trace_file)),std::istreambuf_iterator<char>());
     Require(traced.find("\"complete\":true")!=std::string::npos&&traced.find("\"failures\":0,")!=std::string::npos
         &&traced.find("\"successful_draws\":2,")!=std::string::npos,"combined_gpu_trace_frame_receipt");
+    Require(traced.find("\"ui_state\":{\"schema\":1")!=std::string::npos&&traced.find("\"sampler_state_available\":255")!=std::string::npos,"combined_gpu_ui_getter_capture");
     Check(device->Reset(&parameters),"combined_gpu_actual_reset");ShaderDebugOverlay::Stats renderer_stats{};Require(ShaderDebugOverlay::ReadStats(&renderer_stats)&&!renderer_stats.unsafe_state&&!renderer_stats.font_ready&&!renderer_stats.retained_original_refs,"combined_gpu_overlay_reset_refs");
     SupersamplingStats core{};Require(WePlaySupersamplingReadStats(&core)==1&&!core.render_unsafe&&!core.overlay_unsafe&&core.overlay_draws>0,"combined_gpu_core_unsafe");
     Require(DestroyWindow(window.get())!=FALSE,"combined_gpu_close");live=nullptr;Require(WePlaySupersamplingDetach(device.get())==1,"combined_gpu_detach");device->SetStreamSource(0,nullptr,0,0);for(unsigned i=0;i<3;++i)device->SetTexture(4+i,nullptr);

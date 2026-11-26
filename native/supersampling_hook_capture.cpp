@@ -1,6 +1,7 @@
 #include "supersampling_hook_capture.h"
 #include "supersampling_hook_config.h"
 #include "atmosphere_fp.h"
+#include "ui_rotation_fix.h"
 #include <bcrypt.h>
 #include <algorithm>
 #include <charconv>
@@ -322,6 +323,7 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
         std::wstring prefix;
         if(!Paths(base_report,sequence,prefix) || !TargetAvailable(base_report,sequence))throw std::runtime_error("invalid_capture_target");
         result.receipt_path=prefix+L".json";
+        result.ui_rotation_fix=UiRotationFix::Json();
         GraphicsObservation::Read(result.observation);
         result.scene_uniforms_available=MaterialShaderObserver::CopyLatestFrameSnapshot(graphics.present_calls,&result.scene_uniforms)
             && result.scene_uniforms.available && result.scene_uniforms.context_valid
@@ -396,6 +398,7 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"water_palette\":"+WaterPalette(result)
             +",\"shadow\":"+Shadow(result)
             +",\"ambient\":"+Ambient(result)
+            +",\"ui_rotation_fix\":"+(result.ui_rotation_fix.empty()?"null":result.ui_rotation_fix)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
             +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
             +",\"effects_selected_variant\":"+((result.graphics.effects_config_version==4||result.graphics.effects_config_version==5)&&result.graphics.effects_selected_variant<3?std::to_string(result.graphics.effects_selected_variant):"null")

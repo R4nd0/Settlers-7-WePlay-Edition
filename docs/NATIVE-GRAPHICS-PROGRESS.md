@@ -1,5 +1,10 @@
 # Native graphics evidence, 2026-11-25
 
+The2026-11-26 [UI rotation-center correction](UI-ROTATION-CENTER-FIX.md)
+resolves the200% black streaks and displaced minimap crosshairs. Actual
+Ubisoft History OFF/ON/OFF/ON and a fresh default-enabled start passed while
+preserving Clear Bank and Leaf B. This is separate from the older shadow trials.
+
 This records observed progress separately from release qualification. The earlier
 local gallery is `outputs/Grafikvergleich-Zwischenstand-20261124/Vergleich.html`.
 Separate River pixel-program trials are documented in

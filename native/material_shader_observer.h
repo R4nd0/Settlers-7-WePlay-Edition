@@ -164,4 +164,8 @@ void Shutdown() noexcept;
 bool FixtureFrameIdentity(const unsigned char vertex[32],UINT vertex_bytes,
                           const unsigned char pixel[32],UINT pixel_bytes) noexcept;
 #endif
+#if defined(S7_MATERIAL_OBSERVER_FIXTURE) || defined(S7_SUPERSAMPLING_FIXTURE)
+bool FixtureUiIdentity(const unsigned char vertex[32],UINT vertex_bytes,
+                       const unsigned char pixel[32],UINT pixel_bytes) noexcept;
+#endif
 }

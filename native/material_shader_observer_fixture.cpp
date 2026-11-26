@@ -60,7 +60,15 @@ ULONG STDMETHODCALLTYPE SurfaceAddRef(FakeSurface* surface){return ++surface->re
 ULONG STDMETHODCALLTYPE SurfaceRelease(FakeSurface* surface){Check(surface->refs>1,"surface reference underflow");return --surface->refs;}
 HRESULT STDMETHODCALLTYPE SurfaceDesc(FakeSurface*,D3DSURFACE_DESC* output){*output={};output->Width=1920;output->Height=1080;output->Format=D3DFMT_A8R8G8B8;return S_OK;}
 struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;FakeSurface* surface=nullptr;unsigned uniform_reads=0;bool unused_nan=false;
-    std::uint32_t fail_render_states=0;std::uint64_t render_state_queries=0;bool blob_state=false;};
+    std::uint32_t fail_render_states=0;std::uint64_t render_state_queries=0;bool blob_state=false;bool fail_ui=false;unsigned ui_queries=0;};
+HRESULT STDMETHODCALLTYPE Scissor(FakeDevice* d,RECT* out){++d->ui_queries;*out={7,13,700,400};return d->fail_ui?E_FAIL:S_OK;}
+HRESULT STDMETHODCALLTYPE Fvf(FakeDevice* d,DWORD* out){++d->ui_queries;*out=D3DFVF_XYZ;return S_OK;}
+HRESULT STDMETHODCALLTYPE Stream(FakeDevice* d,UINT,IDirect3DVertexBuffer9** out,UINT* offset,UINT* stride){
+    ++d->ui_queries;*out=nullptr;*offset=11;*stride=24;return S_OK;
+}
+HRESULT STDMETHODCALLTYPE SamplerState(FakeDevice* d,DWORD,D3DSAMPLERSTATETYPE type,DWORD* out){
+    ++d->ui_queries;*out=0;if(d->fail_ui&&type==D3DSAMP_ADDRESSU){*out=0xdeadbeefu;return E_FAIL;}return S_OK;
+}
 HRESULT STDMETHODCALLTYPE Offscreen(FakeDevice* d,UINT w,UINT h,D3DFORMAT f,D3DPOOL pool,IDirect3DSurface9** out,HANDLE*) {
     Check(w==1920&&h==1080&&f==D3DFMT_A8R8G8B8&&pool==D3DPOOL_SYSTEMMEM,"trace staging exact original dimensions/format/systemmem");
     *out=reinterpret_cast<IDirect3DSurface9*>(d->surface);SurfaceAddRef(d->surface);return S_OK;
@@ -148,6 +156,8 @@ int wmain(int argc,wchar_t** argv) {
         device_table[95]=reinterpret_cast<void*>(&Constants);device_table[110]=reinterpret_cast<void*>(&Constants);device_table[64]=reinterpret_cast<void*>(&Texture);
         device_table[38]=reinterpret_cast<void*>(&Target);device_table[48]=reinterpret_cast<void*>(&Viewport);device_table[58]=reinterpret_cast<void*>(&RenderState);
         device_table[36]=reinterpret_cast<void*>(&Offscreen);device_table[32]=reinterpret_cast<void*>(&Readback);
+        device_table[76]=reinterpret_cast<void*>(&Scissor);device_table[90]=reinterpret_cast<void*>(&Fvf);
+        device_table[101]=reinterpret_cast<void*>(&Stream);device_table[68]=reinterpret_cast<void*>(&SamplerState);
         std::array<void*,22> texture_table{};texture_table[1]=reinterpret_cast<void*>(&TextureAddRef);texture_table[2]=reinterpret_cast<void*>(&TextureRelease);
         texture_table[10]=reinterpret_cast<void*>(&TextureType);texture_table[13]=reinterpret_cast<void*>(&TextureLevels);texture_table[17]=reinterpret_cast<void*>(&TextureDesc);
         FakeTexture texture{texture_table.data(),1};
@@ -331,17 +341,23 @@ int wmain(int argc,wchar_t** argv) {
         bad_trace=trace;bad_trace.first_draw=32768;Check(!ConfigureDrawTrace(&bad_trace),"last consecutive ordinal bounded");
         trace_pixels.resize((1920*4+16)*1080);
         for(size_t i=0;i<trace_pixels.size();++i)trace_pixels[i]=static_cast<unsigned char>(i%251);
+        Check(owner.ui_queries==0,"no UI-specific queries without selected UI ROI");
+        Check(FixtureUiIdentity(vertex_hash.data(),static_cast<UINT>(vertex.code.size()),pixel_hash.data(),static_cast<UINT>(pixel.code.size())),"authored UI fixture identities");
         Check(ConfigureDrawTrace(&trace),"bounded ROI trace armed");EndFrame(device);
         ObserveDraw(device,Indexed,S_OK);Check(trace_readbacks==0,"no readback outside selected ordinal");
         SetLastError(0x37573333);const auto trace_mxcsr=_mm_getcsr();ObserveDraw(device,Indexed,S_OK);
         Check(GetLastError()==0x37573333&&_mm_getcsr()==trace_mxcsr,"readback preserves LastError and FP state");
-        trace_fail=true;ObserveDraw(device,DrawUP,S_OK);trace_fail=false;EndFrame(device);
+        trace_fail=true;owner.fail_ui=true;ObserveDraw(device,DrawUP,S_OK);trace_fail=false;owner.fail_ui=false;EndFrame(device);
         Check(trace_readbacks==2&&trace_locks==1&&trace_unlocks==1&&surface.refs==1,"success/failure readbacks balance surfaces and lock lifecycle");
         const auto raw_roi=ReadText(report+L".trace-2-draw-2.raw");
         std::string expected_roi;
         for(unsigned y=5;y<7;++y)expected_roi.append(reinterpret_cast<const char*>(trace_pixels.data())+y*(1920*4+16)+7*4,12);
         Check(raw_roi==expected_roi,"ROI copies exact source bytes with padded pitch and no recoloring");
         const auto trace2=ReadText(report+L".trace-2.json");
+        Check(owner.ui_queries==70,"UI getters only on the two selected UI ROI draws");
+        Check(trace2.find("\"ui_state\":{\"schema\":1,\"available\":15,\"scissor\":[7,13,700,400]")!=std::string::npos,"actual UI clip/matrix availability retained");
+        Check(trace2.find("\"sampler_state_available\":254")!=std::string::npos,"failed sampler getter remains explicitly unavailable, not poison/default");
+        Check(trace2.find("\"stream_stride\":24")!=std::string::npos&&texture.refs==1,"UI stream metadata only; texture references balanced");
         Check(trace2.find("\"failures\":1,")!=std::string::npos&&trace2.find("\"roi_hresult\":2147500037")!=std::string::npos,"failed readback reported explicitly");
         trace.sequence=3;trace.first_draw=300;Check(ConfigureDrawTrace(&trace),"unreached selected ordinal trace armed");
         EndFrame(device);ObserveDraw(device,Indexed,S_OK);EndFrame(device);

@@ -20,8 +20,14 @@
     "edition": "Ubisoft History",
     "map": "Waldreich",
     "scene": "castle and road beside stone bridge",
-    "render_size": [3840, 2160],
-    "output_size": [1920, 1080],
+    "render_size": [
+      3840,
+      2160
+    ],
+    "output_size": [
+      1920,
+      1080
+    ],
     "gpu_capture_status": 0,
     "streak_in_high_source_before_downsample": true,
     "captured_water_applications": 120,
@@ -63,7 +69,10 @@
     "up_sdk_protocol_checks": 20,
     "authored_dxvk_combined_gpu_fixture_passed": true,
     "authored_in_scene_roi_readbacks": 2,
-    "authored_roi_size": [4, 4],
+    "authored_roi_size": [
+      4,
+      4
+    ],
     "each_authored_roi_pixel_checked": true,
     "authored_trace_draws": 2,
     "authored_trace_failures": 0,
@@ -91,5 +100,8 @@
     "original443_catalog_entry_bytes_and_ids_preserved": true,
     "catalog_contains_original_source_or_program_bodies": false,
     "actual_game_use_of_extended_catalog_qualified": false
-  }
+  },
+  "historical_milestone": true,
+  "superseded_by": "ui-rotation-center-fix-20261126.json",
+  "next_required_evidence_status": "Completed by the linked correction receipt; historical memory gates superseded by user request."
 }

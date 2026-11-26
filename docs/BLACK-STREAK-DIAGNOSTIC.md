@@ -1,10 +1,18 @@
 # Original-pass diagnosis and visible shadow target
 
+**Resolved2026-11-26:** the paired streak and displaced minimap crosshairs are
+caused by signed16-bit UI rotation-center overflow at4K. Same-frame draw
+attribution and actual OFF/ON/OFF/ON captures verify the narrow correction.
+See [UI-ROTATION-CENTER-FIX.md](UI-ROTATION-CENTER-FIX.md) for final evidence.
+The diagnostic history below predates that result. Its memory start/stop
+requirements have been superseded by
+[the user's observation-only policy](DIAGNOSTIC-MEMORY-POLICY.md).
+
 The visible target is stable, readable ground/wall/roof shadows at ordinary
 gameplay zoom: fewer thin broken lines, less edge crawling and smoother distance
 transitions, without detached shadows, halos, light leakage or smeared foliage.
 The black ground streaks are an artifact to identify before selecting a fix.
-No new shadow improvement or streak generator has been runtime-qualified.
+No new shadow improvement was qualified by these earlier experiments.
 
 ## Scenes and control conditions
 

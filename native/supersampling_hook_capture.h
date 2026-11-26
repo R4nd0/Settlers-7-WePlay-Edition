@@ -33,6 +33,7 @@ struct Result {
     bool material_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
+    std::string ui_rotation_fix;
 };
 bool TargetAvailable(const wchar_t* base_report,DWORD sequence) noexcept;
 // Owning render thread/TLS only. Source/output are actual surfaces from the same
