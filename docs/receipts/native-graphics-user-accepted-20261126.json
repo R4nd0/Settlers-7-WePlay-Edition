@@ -1,0 +1,82 @@
+{
+  "format": "s7-native-graphics-user-accepted-v1",
+  "date": "2026-11-26",
+  "preset": "clear-bank-leaf-b-20261126",
+  "optically_accepted": true,
+  "requested_defaults": {
+    "render_scale": 200,
+    "improved_water": true,
+    "improved_terrain": false,
+    "improved_vegetation": true,
+    "stable_shadows": false
+  },
+  "programs": {
+    "water": {
+      "name": "Klareres Ufer",
+      "palette_index": 1,
+      "recipe": "river-palette-clear-bank-v3",
+      "sha256": "0bf632f2862eb635c25131e575b4c2d5c35ba9fa73cb3aa01591f9afaecd543c",
+      "bytes": 3840
+    },
+    "vegetation": {
+      "name": "Blatt B",
+      "palette_index": 1,
+      "recipe": "leaf-palette-B-v6",
+      "sha256": "284d5c84ee6700039ee818fe7f063b2b90536beac45e261a5b3e0cf8a6d1746a",
+      "bytes": 1372
+    }
+  },
+  "disabled_experiments": [
+    "terrain_macro",
+    "shadow_filter",
+    "ambient_occlusion"
+  ],
+  "selection": {
+    "water": {
+      "enabled": true,
+      "variant": 1
+    },
+    "vegetation": {
+      "enabled": true,
+      "variant": 1
+    },
+    "terrain": {
+      "enabled": false,
+      "variant": 0
+    },
+    "shadow": {
+      "enabled": false,
+      "variant": 0
+    },
+    "ambient": {
+      "enabled": false,
+      "variant": 0
+    }
+  },
+  "release_qualified": false,
+  "production_integration_owner": "RC4.00 release chat",
+  "final_user_session": {
+    "exit_code": 0,
+    "owned_timeout_or_stop": false,
+    "shared_profiles_unchanged": true,
+    "private_options_restored": true,
+    "game_binaries_unchanged": true,
+    "cleanup_errors": []
+  },
+  "memory": {
+    "format": "s7-memory-summary-v1",
+    "recovery_required": false,
+    "max_pressure": 0,
+    "samples": 224,
+    "peak_private_mib": 2097,
+    "min_free_mib": 1242,
+    "min_largest_mib": 1160,
+    "monitor_failed": false,
+    "peak_probe_ms": 322.363,
+    "min_host_physical_free_mib": 6725,
+    "min_host_commit_free_mib": 4186,
+    "scanner": "native-v1",
+    "peak_scan_ms": 27.341,
+    "peak_scan_regions": 6637
+  }
+}
