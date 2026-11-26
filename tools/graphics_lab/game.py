@@ -172,7 +172,17 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False,shader_profile=None):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False,shader_profile=None,
+        laboratory_renderer=None,dxwrapper_package=None):
+    renderer_session = None
+    if laboratory_renderer is not None:
+        from . import dxwrapper
+        if (laboratory_renderer not in dxwrapper.MODES or hook is not None or on_initialized is not None
+                or baseline_crash_watch or crash_watch or observer_catalog is not None or material_effects
+                or shader_profile is not None or detailed_shadows or comparison_uv):
+            raise ValueError('Renderer laboratory excludes native hooks and unrelated diagnostics.')
+    elif dxwrapper_package is not None:
+        raise ValueError('A dxwrapper package requires explicit renderer laboratory intent.')
     profiles={'water':1,'vegetation':2,'terrain':3,'shadow':4,'ambient':5,'all':6}
     combined=shader_profile=='all'
     if shader_profile is not None:
@@ -265,6 +275,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if digest(renderer) != graphics_profile.DXVK_SHA256:
         raise ValueError('Keep the exact pinned DXVK 3.1.1 renderer.')
     memory_guard.require_host_headroom()
+    if laboratory_renderer is not None:
+        renderer_session = dxwrapper.Session(root, output, laboratory_renderer, dxwrapper_package)
     if hook is not None:
         if on_initialized is not None:
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')
@@ -399,6 +411,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if crash_watch:
         watcher=ROOT/'tools/graphics_lab/crash_watch.py'
         checkpoint[watcher.relative_to(ROOT).as_posix()]=digest(watcher)
+    if renderer_session is not None:
+        source=ROOT/'tools/graphics_lab/dxwrapper.py'
+        checkpoint[source.relative_to(ROOT).as_posix()]=digest(source)
     if baseline_crash_watch:
         checkpoint={name:digest(ROOT/name)for name in baseline_watcher.baseline_source_paths(metric=baseline_metric_profile)}
     for name, pin in checkpoint.items():
@@ -421,6 +436,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         water_palette_requested=water_palette,
         shader_overlay_requested=shader_overlay,
         shader_profile_requested=shader_profile,
+        laboratory_renderer_requested=laboratory_renderer,
         combined_shader_scope_requested=combined,
         material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
         leaf_hemisphere_requested=leaf_hemisphere,
@@ -437,6 +453,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     timed_out = False
     budget_expired = False
     try:
+        if renderer_session is not None:
+            renderer_session.apply()
         options.parent.mkdir(parents=True, exist_ok=True)
         option_bytes = display_settings.windowed_options(previous_options or b'')
         if high_quality:
@@ -462,6 +480,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         if detailed_shadows:environment['S7_DETAILED_SHADOWS']='1'
         environment['DXVK_LOG_PATH'] = str(output)
         environment['DXVK_CONFIG_FILE'] = str(config_file)
+        if renderer_session is not None:
+            environment = {k:v for k,v in environment.items() if not k.upper().startswith(('DXVK_','VK_'))}
         arguments = ('-vSynch', '-noMapInMainMenu', '-width', str(width), '-height', str(height))
         initialize = on_initialized
         if hook is not None:
@@ -530,6 +550,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         last_sequence = 0
         while game.poll() is None:
             live_memory.publish(sentinel)
+            if renderer_session is not None:
+                try:
+                    renderer_session.observe(game)
+                except (OSError,RuntimeError,ValueError) as error:
+                    # Optional read-only evidence must not discard live gameplay.
+                    (output/'renderer-observation-error.private.json').write_text(json.dumps(
+                        dict(type=type(error).__name__,message=str(error)[:512])),encoding='utf-8')
             if preset_recorder is not None:preset_recorder.update()
             if sentinel.summary['monitor_failed'] or sentinel.summary['recovery_required']:
                 raise RuntimeError('The memory guard failed or confirmed pressure; stop this owned experiment.')
@@ -611,6 +638,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                    ('memory-close', lambda: sentinel.close() if sentinel else None),
                    ('game-close', close_game), ('service-stop', stop_service)]
         # The durable journal restores only private lab configuration, never saves.
+        if renderer_session is not None:
+            cleanup.append(('renderer-restoration', renderer_session.restore))
         cleanup.append(('recover-private-configuration', lambda: recovery.recover(output)))
         cleanup.append(('shared-profile-verification', shared.verify_unchanged))
         cleanup_errors = cleanup_steps(cleanup)
