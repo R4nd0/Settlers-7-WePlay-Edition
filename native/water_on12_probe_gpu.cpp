@@ -65,7 +65,7 @@ int wmain(int argc,wchar_t** argv) {
     // a later shadow. An interceptor attached only to new blocks is unsafe.
     Ref<IDirect3DStateBlock9> preexisting;
     if(okay)okay=SUCCEEDED(d->CreateStateBlock(D3DSBT_VERTEXSTATE,&preexisting.value));
-    for(unsigned phase=0;okay&&phase<3;++phase) {
+    for(unsigned phase=0;okay&&phase<4;++phase) {
         stage=100+phase*100;
         if(phase==1){Ref<IDirect3DDevice9On12> bridge;
             if(d->QueryInterface(__uuidof(IDirect3DDevice9On12),reinterpret_cast<void**>(&bridge.value))==S_OK)config.flags=3;
@@ -77,6 +77,15 @@ int wmain(int argc,wchar_t** argv) {
                 &&SUCCEEDED(d->SetStreamSource(0,vb,0,4*sizeof(float)))&&SUCCEEDED(d->SetIndices(ib))
                 &&SUCCEEDED(d->StretchRect(original_target.value,nullptr,target,nullptr,D3DTEXF_NONE));}
         if(phase==2&&on12_hr==S_OK)benchmark_legacy=true;
+        if(phase==3&&on12_hr==S_OK){benchmark_legacy=false;benchmark_shader_state=true;
+            Ref<IDirect3DStateBlock9> pixel_block;
+            okay=SUCCEEDED(d->SetPixelShader(ps))&&pixel_state_known&&!pixel_state_target
+                &&SUCCEEDED(preexisting.value->Apply())&&!pixel_state_known
+                &&SUCCEEDED(d->BeginStateBlock())&&SUCCEEDED(d->SetPixelShader(nullptr))&&!pixel_state_known
+                &&SUCCEEDED(d->EndStateBlock(&pixel_block.value))&&!pixel_state_known
+                &&SUCCEEDED(d->SetPixelShader(ps))&&pixel_state_known
+                &&SUCCEEDED(pixel_block.value->Apply())&&!pixel_state_known
+                &&SUCCEEDED(d->SetPixelShader(ps))&&pixel_state_known&&!pixel_state_target;}
         if(okay){stage=110+phase*100;okay=SUCCEEDED(d->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0));}
         if(okay)okay=SUCCEEDED(d->BeginScene());
         if(okay){stage=120+phase*100;alignas(16) unsigned char before[512]{},after[512]{};SetLastError(0x1357);_fxsave(before);
@@ -140,7 +149,8 @@ int wmain(int argc,wchar_t** argv) {
         if(bound)bound->Release();
         if(okay)okay=SUCCEEDED(d->Present(nullptr,nullptr,nullptr,nullptr));
     }
-    okay=okay&&draws==2&&!matches&&!snapshot&&!failure&&!failed_draws&&presents==2;
+    okay=okay&&draws==3&&!matches&&!snapshot&&!failure&&!failed_draws&&presents==3;
+    if(on12_hr==S_OK)okay=okay&&pixel_gets_avoided==1;
     if(on12_hr==S_OK)for(const auto& metric:api_stats)okay=okay&&metric.calls>0;
     bool reset_passed=false;
     if(okay)okay=SUCCEEDED(d->SetPixelShader(nullptr))&&SUCCEEDED(d->SetStreamSource(0,nullptr,0,0))&&SUCCEEDED(d->SetIndices(nullptr))
