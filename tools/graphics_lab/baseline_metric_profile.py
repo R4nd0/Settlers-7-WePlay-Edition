@@ -1,7 +1,7 @@
 """Fixed, explicit Steam SDK baseline lifetime profile; no CLI or debugger launch.
 
-Private preparation. The host must integrate a fresh owner intent/source11 route
-before using this helper. Existing graphics/generic AV command builders stay intact.
+The explicit laboratory owner route requires a fresh source11 intent/admission.
+Existing graphics/generic AV command builders stay intact.
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def validate_owner_checkpoint(case,child):
     if any(key.startswith('baseline_metric_')and key!=INTENT for key in checkpoint):
         raise ValueError('No arbitrary metric profile selector is accepted.')
     for key in ('comparison_uv_requested','detailed_shadows_requested','water_program_requested',
-                'terrain_macro_requested','leaf_hemisphere_requested','shadow_filter_requested','ambient_occlusion_requested'):
+                'terrain_macro_requested','leaf_hemisphere_requested','leaf_wrapped_requested','shadow_filter_requested','ambient_occlusion_requested'):
         if checkpoint.get(key)is not False:raise ValueError('Metric profile cannot accompany graphics experiments.')
     sources=checkpoint.get('sources')
     if not isinstance(sources,dict)or set(sources)!=(watcher.baseline_source_paths()|{SOURCE}):
@@ -114,8 +114,19 @@ def prepare_owner_profile(case,native,child):
     return {**source,**verify_runtime_sites(native,child)}
 
 
+def _query_bp(identifier,register):
+    if (identifier,register)not in ((20,17),(21,18)):
+        raise ValueError('Only the two fixed owned breakpoint queries are supported.')
+    return ('r @$t'+str(register)+' = 0; .foreach /pS 2 /ps 10000 (mbpa {bl /L '+str(identifier)
+            +'}) { r @$t'+str(register)+' = $'+'{mbpa} }; ')
+
+
 def _cleanup():
-    return '.if (@$bp20 != 0) { bc 20 }; .if (@$bp21 != 0) { bc 21 }; '
+    # Do not query an undefined $bpN: this CDB build raises Bad register.
+    # Bits are set only after bl confirmed a created breakpoint.
+    return ('.if ((@$t16 and 1) != 0) { bc 20 }; '
+            '.if ((@$t16 and 2) != 0) { bc 21 }; r @$t16 = 0; ')
+
 
 
 def _snapshot():
@@ -165,35 +176,39 @@ def _quoted(command):return command.replace('\\','\\\\').replace('"','\\"')
 
 
 def _code_condition(rva,expected):
-    return ' && '.join(f'dwo(Settlers7R+0x{rva+index:x}) == 0x{int.from_bytes(expected[index:index+4],"little"):08x}'
+    return ' and '.join(f'dwo(Settlers7R+0x{rva+index:x}) == 0x{int.from_bytes(expected[index:index+4],"little"):08x}'
                        for index in range(0,16,4))
 
 
 def commands():
     """Fixed script only. Requires source-bound owner/runtime guard before use."""
     base=watcher.commands(steam_heap=True)
-    # Preserve each original AV handler byte for byte as a tail. Only remove
-    # this profile's owned breakpoints before the original diagnostic handler.
     for marker in ('.echo S7_FIRST_CHANCE_AV;', '.echo S7_SECOND_CHANCE_AV;'):
         if base.count(marker)!=1:raise ValueError('Generic AV command layout changed.')
         base=base.replace(marker,_cleanup()+marker)
     ready='.echo S7_OWNED_CRASH_WATCH_READY\ng\n'
     if not base.endswith(ready):raise ValueError('Generic debugger readiness layout changed.')
     reject='.echo S7_METRIC_CODE_GUARD_REJECTED; qd'
-    body=('r @$t10 = 0; r @$t11 = 0; r @$t12 = 0; r @$t13 = 0; r @$t15 = 0; r @$t19 = 0; '
-          f'bp20 (Settlers7R+0xa6db80) "{_quoted(_before())}"; '
-          f'bp21 (Settlers7R+0xa6db85) "{_quoted(_after())}"; '
-          '.if (@$bp20 == (Settlers7R+0xa6db80)) { '
-          '.if (@$bp21 == (Settlers7R+0xa6db85)) { .echo S7_METRIC_CODE_GUARDS_ACCEPTED } '
-          '.else { '+_cleanup()+reject+' } } .else { '+_cleanup()+reject+' }; ')
+    preflight=('r @$t14 = 0; r @$t16 = 0; '+_query_bp(20,17)+_query_bp(21,18)
+        +'.if ((@$t17 != 0) or (@$t18 != 0)) { '+reject+' }\n')
+    guards='r @$t14 = 1; '
     for rva,expected,_ in reversed(SITES):
-        body=(f'.if ($vvalid(Settlers7R+0x{rva:x},0x10)) {{ '
-              f'.if ({_code_condition(rva,expected)}) {{ '+body+'} .else { '+reject+' } '
-              '} .else { '+reject+' }; ')
-    body='.if ((@$bp20 != 0) || (@$bp21 != 0)) { '+reject+' } .else { '+body+'}\n'
-    script='.expr /s masm\n'+base[:-len(ready)]+body+ready
+        guards=(f'.if ($vvalid(Settlers7R+0x{rva:x},0x10)) {{ '
+            f'.if ({_code_condition(rva,expected)}) {{ '+guards+'} .else { '+reject+' } '
+            '} .else { '+reject+' }; ')
+    setup=('.if (@$t14 == 1) { r @$t10 = 0; r @$t11 = 0; r @$t12 = 0; r @$t13 = 0; r @$t15 = 0; r @$t19 = 0; '
+        +f'bp20 (Settlers7R+0xa6db80) "{_quoted(_before())}"; '+_query_bp(20,17)
+        +'.if (@$t17 != 0) { r @$t16 = 1 }; '
+        +f'bp21 (Settlers7R+0xa6db85) "{_quoted(_after())}"; '+_query_bp(21,18)
+        +'.if (@$t18 != 0) { r @$t16 = @$t16 or 2 }; '
+        +'.if ((@$t17 == (Settlers7R+0xa6db80)) and (@$t18 == (Settlers7R+0xa6db85))) { r @$t14 = 2 } '
+        +'.else { '+_cleanup()+reject+' } } .else { '+reject+' }\n')
+    accepted=('.if (@$t14 == 2) { .echo S7_METRIC_CODE_GUARDS_ACCEPTED; '
+        '.echo S7_OWNED_CRASH_WATCH_READY; g } .else { '+_cleanup()+reject+' }\n')
+    script='.expr /s masm\n'+base[:-len(ready)]+preflight+guards+'\n'+setup+accepted
     if any(len(line)>4096 for line in script.splitlines()):raise ValueError('Fixed metric debugger command exceeds parser bound.')
     return script
+
 
 
 def parse_records(raw):

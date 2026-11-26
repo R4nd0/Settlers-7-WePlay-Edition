@@ -66,3 +66,34 @@ Primary command documentation:
 [gn](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/gn--gn--go-with-exception-not-handled-),
 [qd](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/qd--quit-and-detach-),
 [minidumps](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-dump--create-dump-file-).
+
+## Fixed SDK baseline pre/post profile
+
+The explicit `--baseline-metric-profile` owner flag requires baseline crash-watch
+mode and a fresh eleven-source checkpoint. It observes only the pinned original
+Steam destructor callsites at RVAs `0xa6db80` and `0xa6db85`. Code bytes, original
+owner identity and module absence are checked before admission and again under
+leases. It records at most three same-thread/user header pairs, then removes its
+two debugger breakpoints. It never skips the destructor/free or rewrites a return.
+
+The first c49 attempt produced no accepted profile: this CDB build raises an
+error when an undefined `$bp20` pseudo-register is queried. The corrected helper
+uses `bl /L` for empty/defined breakpoint queries, explicit ownership bits for
+cleanup, MASM `and`/`or`, and a final readiness gate. Generic READY alone is not
+sufficient; require the emitted `S7_METRIC_CODE_GUARDS_ACCEPTED` marker too.
+
+Actual pinned CDB tests against an independently authored CPU fixture exercised
+the nested command strings, three pairs across four fixture cycles, removal and
+repeated cleanup at an owned first-chance AV. Both fixture and debugger exited0,
+without parser/register errors. The fixture deliberately used its own exports
+and data; it did not pass or imitate S7 admission. These receipts are under
+`work/metric-cdb-syntax-20261126-01`. Actual S7 phase evidence remains separate.
+
+b46 independently reproduced the original unlink AV in the owned SDK/DXVK route
+with the NativeGraphics module absent. That is a useful boundary, not a pristine
+retail baseline or complete causal exoneration. The phase profile asks whether
+the header is bad before or after the original destructor; it does not supply
+an automatic cause verdict.
+
+Primary syntax references: [breakpoint listing](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/bl--breakpoint-list-)
+and [MASM operators](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/masm-numbers-and-operators).

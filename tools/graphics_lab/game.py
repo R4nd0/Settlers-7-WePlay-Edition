@@ -141,7 +141,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False):
+    if (type(leaf_wrapped)is not bool or (leaf_wrapped and
+            (baseline_crash_watch or hook is None or not high_quality or material_config_version!=3
+             or tuple(material_effects)!=('improved_vegetation',) or leaf_hemisphere or terrain_macro
+             or water_program or shadow_filter or ambient_occlusion or comparison_uv))
+            or (material_config_version==3 and not leaf_wrapped)):
+        raise ValueError('Leaf wrapped diffuse requires explicit isolated High-quality V3 vegetation-only intent.')
     if (type(leaf_hemisphere)is not bool or (leaf_hemisphere and
             (baseline_crash_watch or hook is None or not high_quality or material_config_version!=2
              or tuple(material_effects)!=('improved_vegetation',)))):
@@ -207,7 +213,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if (not isinstance(material_effects,(list,tuple)) or len(set(material_effects))!=len(material_effects)
             or any(key not in material_keys for key in material_effects)
             or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool or type(comparison_uv)is not bool
-            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2)
+            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2,3)
             or (material_config_version==2 and 'improved_water'in material_effects and not water_program)
             or (material_effects and (hook is None or not high_quality))):
         raise ValueError('Native materials require an explicit exact hook and High shader quality.')
@@ -236,7 +242,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         selected.update(dict.fromkeys(material_selection,True))
         extra={}
         stage=staging.prepare
-        if material_config_version==2:
+        if material_config_version==3:
+            _,build=load_hook.verify_build(hook)
+            if build.get('abi',{}).get('effects_v3')!=7204:raise ValueError('This exact build does not declare material V3.')
+            from tools.material_shaders import staging_leaf_wrapped
+            stage=staging_leaf_wrapped.prepare
+            extra=dict(config_version=3,available_config_versions=(3,),worker_overhead_bytes=load_hook.worker_overhead(executable,hook))
+        elif material_config_version==2:
             _,build=load_hook.verify_build(hook)
             if build.get('abi',{}).get('effects_v2')!=6180:raise ValueError('This exact build does not declare material V2.')
             if leaf_hemisphere:
@@ -309,6 +321,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         water_variant=water_variant if water_program else None,
         material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
         leaf_hemisphere_requested=leaf_hemisphere,
+        leaf_wrapped_requested=leaf_wrapped,
         shadow_filter_requested=shadow_filter,ambient_occlusion_requested=ambient_occlusion,
         ambient_profile=ambient_profile if ambient_occlusion else None), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
@@ -522,10 +535,11 @@ def main():
     parser.add_argument('--effects-initially-off',action='store_true')
     parser.add_argument('--water-program',action='store_true',help='Explicit new recipient-generated water pixel shader; legacy River factors stay disabled')
     parser.add_argument('--water-variant',choices=('A','B'),default='A',help='Explicit fixed water candidate: A matte, B balanced gloss')
-    parser.add_argument('--material-config-version',type=int,choices=(1,2),default=1,
+    parser.add_argument('--material-config-version',type=int,choices=(1,2,3),default=1,
         help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
     parser.add_argument('--terrain-macro',action='store_true',help='Explicit source-pinned macro terrain recipe; V2 historical recipes stay unchanged')
     parser.add_argument('--leaf-hemisphere',action='store_true',help='Explicit original-leaf ambient hemisphere recipe; vegetation-only V2 trial')
+    parser.add_argument('--leaf-wrapped',action='store_true',help='Explicit isolated leaf diffuse-lighting recipe; original vertex shader and V3 transport')
     parser.add_argument('--shadow-filter',action='store_true',help='Fixed guarded 2048 far-shadow filter diagnostic; requires OBSERVE')
     parser.add_argument('--ambient-occlusion',action='store_true',help='Fixed original S7 SSAO strength diagnostic; excludes the shadow-filter trial')
     parser.add_argument('--ambient-profile',choices=('A','B'),default='A',help='Explicit fixed SSAO profile: A caps at1; B caps at1.25')
@@ -544,7 +558,7 @@ def main():
         material_config_version=args.material_config_version,baseline_crash_watch=args.baseline_crash_watch,water_program=args.water_program,
         water_variant=args.water_variant,terrain_macro=args.terrain_macro,shadow_filter=args.shadow_filter,
         ambient_occlusion=args.ambient_occlusion,ambient_profile=args.ambient_profile,leaf_hemisphere=args.leaf_hemisphere,
-        baseline_metric_profile=args.baseline_metric_profile)
+        baseline_metric_profile=args.baseline_metric_profile,leaf_wrapped=args.leaf_wrapped)
 
 
 if __name__ == '__main__':

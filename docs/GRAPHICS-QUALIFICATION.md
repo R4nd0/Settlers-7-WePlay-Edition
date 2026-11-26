@@ -24,6 +24,21 @@ qualified launcher options. The AO and hemisphere strength variants are frozen.
 Private comparison galleries remain under `outputs/`, with complete output
 views, unchanged crops and OFF/ON/OFF controls; no game images are committed.
 
+The subsequent isolated direct-diffuse Leaf pixel-shader trial shows a visible
+change: darker leaf sides become lighter and more readable, with a possible
+flatter appearance. Its V3 transport, actual balanced substitutions and matched
+OFF/ON/OFF images are verified. Visual acceptance, performance and final package
+qualification remain open; this candidate has not entered the qualified launcher
+set. See [the direct Leaf lab](LEAF-WRAPPED-DIFFUSE-LAB.md).
+
+Original-UI Clutter and Shadows High/Off/High trials retained the black road
+streaks. The selected Grass colour/depth passes stopped under Clutter Off and
+returned under High. Selected shadow generation/mask passes likewise stopped
+under Shadows Off while world drawing continued. This weakens those observed
+passes as necessary direct generators of the streaks, but identifies no causing
+pass and excludes no unobserved path. Exact camera/light vectors matched;
+animation, seasonal colours and tooltips still differ across the longer trials.
+
 The completed Steam SDK/DXVK baseline b46 reproduced the original-menu exit
 access violation without the modern graphics DLL. Its retained owner admission
 and independent audit verified physical module identities, including the
@@ -133,8 +148,16 @@ version-2, twelve-byte AO operation, with its own fixed policy. Internal AO Stat
 are version2/320 bytes with the profile appended at offset312; shadow Stats remain
 312 bytes. Exact immutable source snapshots bind this difference. This does not
 introduce automatic visual qualification or a new evidence artifact role.
+The effects-v9 build adds the explicit Leaf pixel-shader transport, version3 and
+7204 bytes, as `effects_v3`. It retains historical V1/V2/water sizes, capabilities
+15 and the four effects-v8 diagnostic entries. Its thirty-eight inputs include
+the separate V3 configuration and host-contract headers. The new transport uses
+an appended Leaf pixel path; historical vertex/terrain paths cannot carry it.
+Only the fixed isolated Leaf recipe is admitted. A successful transport or
+authored GPU fixture does not establish a visible improvement in the game.
+
 All effects sets retain three binaries, capabilities 15, and explicit
-initialization/observation/effects/capture ABI sizes. All nine source sets
+initialization/observation/effects/capture ABI sizes. All ten source sets
 remain supported. Their retained build-directory
 snapshots are hashed against the exact build manifest; the report does not
 substitute current edited sources for the files actually compiled. Unknown

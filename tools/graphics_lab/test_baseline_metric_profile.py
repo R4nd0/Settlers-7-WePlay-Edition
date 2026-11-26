@@ -33,7 +33,7 @@ class Fixture:
         self.checkpoint=dict(sources=pins,baseline_metric_profile_requested=True,baseline_mode=m.watcher.BASELINE_MODE,
             baseline_crash_watch_allowed=True,crash_watch_allowed=False,native_graphics_hook_requested=False,material_effects_requested=[],
             comparison_uv_requested=False,detailed_shadows_requested=False,water_program_requested=False,terrain_macro_requested=False,
-            leaf_hemisphere_requested=False,shadow_filter_requested=False,ambient_occlusion_requested=False)
+            leaf_hemisphere_requested=False,leaf_wrapped_requested=False,shadow_filter_requested=False,ambient_occlusion_requested=False)
         self.save();self.owned={**{key:self.child[key]for key in ('pid','parent','path','sha256')},'native_initialized':True}
         (self.case/'owned.private.json').write_text(json.dumps(self.owned),encoding='utf8')
         self.stack.enter_context(patch.object(m,'ROOT',self.root))
@@ -88,7 +88,7 @@ class MetricTests(unittest.TestCase):
             self.assertFalse(f.native.opens)
     def test_explicit_intent_and_all_graphics_modes_refused_before_reads(self):
         for key,value in ((m.INTENT,False),(m.INTENT,1),('native_graphics_hook_requested',True),
-                          ('shadow_filter_requested',True),('ambient_occlusion_requested',True)):
+                          ('shadow_filter_requested',True),('ambient_occlusion_requested',True),('leaf_wrapped_requested',True)):
             with self.subTest(key=key,value=value),Fixture()as f:
                 f.checkpoint[key]=value;f.save()
                 with self.assertRaises(ValueError):m.prepare_owner_profile(f.case,f.native,f.child)
@@ -137,11 +137,15 @@ class MetricTests(unittest.TestCase):
         self.assertIn('r @$t11 = (@edi & 0xffffffff)',script)
         self.assertIn('L0xd',script);self.assertIn('$vvalid(@$t15,0x10)',script)
         writes=re.findall(r'\br\s+([^=;]+)=',script)
-        self.assertTrue(all(word.strip()in {'@$t0','@$t10','@$t11','@$t12','@$t13','@$t15','@$t19'}for word in writes))
+        self.assertTrue(all(word.strip()in {'@$t0','@$t10','@$t11','@$t12','@$t13','@$t14','@$t15','@$t16','@$t17','@$t18','@$t19'}for word in writes))
         for command in ('.call ','.fnret ','ew ','ed ','eb ','eq ','bc *','bp /w'):
             self.assertNotIn(command,script)
-        self.assertEqual(len(script.splitlines()),6)
+        self.assertEqual(len(script.splitlines()),7)
         self.assertLessEqual(max(map(len,script.splitlines())),4096)
+        self.assertNotIn('&&',script);self.assertNotIn('||',script);self.assertNotIn('$bp20',script);self.assertNotIn('$bp21',script)
+        self.assertIn('bl /L 20',script);self.assertIn('bl /L 21',script)
+        self.assertIn('.if (@$t14 == 2)',script)
+        self.assertIn('r @$t16 = 0',script)
     def test_bp_quoted_commands_roundtrip_without_physical_newline(self):
         for body in (m._before(),m._after()):
             self.assertNotIn('\n',body)
@@ -186,5 +190,8 @@ class MetricTests(unittest.TestCase):
         raw=(event('BEFORE',user=0x92ea3d8c)+event('AFTER',user=0x92ea3d8c)).encode()
         pair=m.parse_records(raw)['pairs'][0]
         self.assertEqual(pair['user'],'0x92ea3d8c');self.assertTrue(pair['header_before_after_available'])
+    def test_breakpoint_query_has_no_arbitrary_id_or_register_selector(self):
+        for values in ((22,17),(20,19),(1,18)):
+            with self.subTest(values=values),self.assertRaises(ValueError):m._query_bp(*values)
 
 if __name__=='__main__':unittest.main(verbosity=2)

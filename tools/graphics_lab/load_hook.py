@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPORT = b'WePlaySupersamplingInitialize\0'
 DLL_NAME = 'WePlaySupersamplingLab.dll'
 from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SOURCES,EFFECTS_V1_SOURCES,
-                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER,MACRO_SOURCES,SHADOW_SOURCES,AMBIENT_SOURCES)
+                                          BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER,MACRO_SOURCES,SHADOW_SOURCES,AMBIENT_SOURCES,LEAF_PIXEL_SOURCES,BUILD_ABI_V3)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
     'capture': (b'WePlayNativeGraphicsRequestCapture\0', 12),
@@ -49,14 +49,15 @@ def verify_build(dll):
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
     current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
-    profile_b=current and value.get('source_set')=='effects-v8'
-    ambient=current and value.get('source_set')in('effects-v7','effects-v8')
-    shadow=current and value.get('source_set')in('effects-v6','effects-v7','effects-v8')
-    macro=current and value.get('source_set')in('effects-v5','effects-v6','effects-v7','effects-v8')
-    water=current and value.get('source_set')in('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8')
-    modern=current and value.get('source_set')in('effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8')
-    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8')
-    sources = (set(AMBIENT_SOURCES) if ambient else set(SHADOW_SOURCES) if shadow else set(MACRO_SOURCES) if macro else set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
+    leaf_pixel=current and value.get('source_set')=='effects-v9'
+    profile_b=current and value.get('source_set')in('effects-v8','effects-v9')
+    ambient=current and value.get('source_set')in('effects-v7','effects-v8','effects-v9')
+    shadow=current and value.get('source_set')in('effects-v6','effects-v7','effects-v8','effects-v9')
+    macro=current and value.get('source_set')in('effects-v5','effects-v6','effects-v7','effects-v8','effects-v9')
+    water=current and value.get('source_set')in('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9')
+    modern=current and value.get('source_set')in('effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9')
+    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9')
+    sources = (set(LEAF_PIXEL_SOURCES) if leaf_pixel else set(AMBIENT_SOURCES) if ambient else set(SHADOW_SOURCES) if shadow else set(MACRO_SOURCES) if macro else set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
     expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
     keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
     if comparison:keys.add('diagnostic_abi')
@@ -65,8 +66,8 @@ def verify_build(dll):
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
-    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8') or value['compiled_capabilities']!=15
-                    or value['abi']!=(BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
+    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9') or value['compiled_capabilities']!=15
+                    or value['abi']!=(BUILD_ABI_V3 if leaf_pixel else BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
         raise ValueError('Unexpected compiled graphics ABI or capabilities.')
     if comparison and value['diagnostic_abi']!={'comparison':12,**({'shadow':12} if shadow else {}),**({'ambient':12} if ambient else {}),**({'ambient_v2':12} if profile_b else {})}:
         raise ValueError('Unexpected diagnostic comparison ABI.')
@@ -211,10 +212,12 @@ def invoke(owned, dll, operation, payload):
     if operation not in OPERATIONS:
         raise ValueError('Unsupported native graphics operation.')
     export, size = OPERATIONS[operation]
-    modern=operation=='effects' and isinstance(payload,bytes) and len(payload)==6180
-    expected_size=6180 if modern else size
+    material_version=({4132:1,6180:2,7204:3}.get(len(payload))
+                      if operation=='effects' and isinstance(payload,bytes) else None)
+    expected_size=len(payload) if material_version else size
+    expected_version=material_version or (2 if operation=='ambient_v2' else 1)
     if (not isinstance(payload, bytes) or len(payload) != expected_size
-            or struct.unpack_from('<2I', payload) != (expected_size, 2 if modern or operation=='ambient_v2' else 1)):
+            or struct.unpack_from('<2I', payload) != (expected_size, expected_version)):
         raise ValueError('Invalid fixed native graphics command ABI.')
     if operation == 'capture' and not 1 <= struct.unpack_from('<I', payload, 8)[0] <= 1000000:
         raise ValueError('Capture sequence exceeds the bounded command range.')
@@ -226,8 +229,10 @@ def invoke(owned, dll, operation, payload):
         raise ValueError('Ambient diagnostic accepts only an explicit Boolean.')
     if operation=='water' and struct.unpack_from('<I',payload,16)[0]not in(0,1):raise ValueError('WaterProgram enable must be Boolean.')
     dll, build = verify_build(dll)
-    if modern and build.get('abi',{}).get('effects_v2')!=6180:
+    if material_version==2 and build.get('abi',{}).get('effects_v2')!=6180:
         raise ValueError('This exact source-bound build does not support material V2.')
+    if material_version==3 and build.get('abi',{}).get('effects_v3')!=7204:
+        raise ValueError('This exact source-bound build does not support material V3.')
     if operation=='water' and build.get('abi',{}).get('water')!=1076:raise ValueError('This exact build does not support WaterProgram.')
     if operation=='shadow' and build.get('diagnostic_abi',{}).get('shadow')!=12:
         raise ValueError('This exact build does not support the fixed shadow diagnostic.')

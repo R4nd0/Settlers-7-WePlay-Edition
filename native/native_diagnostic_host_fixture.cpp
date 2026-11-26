@@ -6,6 +6,8 @@
 #include "supersampling_hook.cpp"
 #include <cstdio>
 #include <float.h>
+#include <filesystem>
+#include <fstream>
 static_assert(sizeof(ShadowFilterEffects::Stats)==312,"Shadow observation ABI unchanged");
 static_assert(sizeof(AmbientOcclusionEffects::Stats)==320,"AO profile Stats v2");
 static_assert(offsetof(AmbientOcclusionEffects::Stats,profile_version)==312,"Appended explicit AO profile");
@@ -41,6 +43,60 @@ void ResetHost(){
     shadow_frame_counters_valid=false;shadow_state=ShadowFilterEffects::Stats{};shadow_frame_origin=0;
     InterlockedExchange(&initialization_ready,1);
 }
+void EffectsV3Proof(const std::wstring& directory){
+    using namespace SupersamplingHook;
+    std::puts("CPU: explicit V3 transport/host dispatch");ResetHost();
+    Check(sizeof(MaterialShaderEffects::Config)==4132&&sizeof(MaterialShaderConfigV2::Config)==6180
+        &&sizeof(MaterialShaderConfigV3::Config)==7204,"old and new typed payload sizes remain exact");
+    Check(MaterialShaderConfigV3::FitsWorker(392)&&!MaterialShaderConfigV3::FitsWorker(989),"bounded worker payload cannot overrun allocation");
+    auto* memory=static_cast<unsigned char*>(VirtualAlloc(nullptr,12288,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    Check(memory!=nullptr,"allocate bounded wire boundary fixture");DWORD protection=0;
+    Check(VirtualProtect(memory+8192,4096,PAGE_NOACCESS,&protection)!=FALSE,"place inaccessible page after exact payload");
+    MaterialShaderEffects::Config old{};MaterialShaderConfigV2::Config previous{};MaterialShaderConfigV3::Config next{};
+    const void* values[]={&old,&previous,&next};const size_t lengths[]={sizeof(old),sizeof(previous),sizeof(next)};
+    for(unsigned index=0;index<3;++index){
+        auto* exact=memory+8192-lengths[index];std::memcpy(exact,values[index],lengths[index]);
+        NativeEffectsWire::Pending copied{};
+        Check(NativeEffectsWire::Decode(exact,&copied)&&copied.version==index+1,"each exact typed payload decodes at guard-page boundary without overread");
+        const auto before=copied;
+        reinterpret_cast<DWORD*>(exact)[1]=4;
+        Check(!NativeEffectsWire::Decode(exact,&copied)&&!std::memcmp(&copied,&before,sizeof(copied)),"unknown version refuses without mutating output");
+        reinterpret_cast<DWORD*>(exact)[1]=index+1;reinterpret_cast<DWORD*>(exact)[0]-=4;
+        Check(!NativeEffectsWire::Decode(exact,&copied),"truncated declared typed payload refuses");
+    }
+    NativeEffectsWire::Pending copied{};
+    const DWORD readable_header[]={7204,3};std::memcpy(memory+8192-8,readable_header,sizeof(readable_header));
+    Check(!NativeEffectsWire::Decode(memory+8192-8,&copied),"readable header with inaccessible V3 body refuses");
+    VirtualFree(memory,0,MEM_RELEASE);
+    native_configuration.base={sizeof(native_configuration),2,1280,720,640,360,{}};
+    native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Vegetation;
+    const auto root=std::filesystem::path(directory)/L"v3-dispatch";std::filesystem::create_directories(root);
+    wcscpy_s(native_configuration.base.report_path,(root/L"hook.private.json").c_str());
+    next.render_width=1280;next.render_height=720;
+    wcscpy_s(next.report_path,(root/L"material-effects.private.json").c_str());
+    const auto shader=root/L"LocalData"/L"MaterialShaders"/NativeEffectsContractV3::Recipe/(std::wstring(NativeEffectsContractV3::Digest)+L".ps.bin");
+    std::filesystem::create_directories(shader.parent_path());wcscpy_s(next.leaf_pixel_path,shader.c_str());
+    const DWORD authored_invalid[]={0xffff0300,0x0000ffff};
+    {std::ofstream file(shader,std::ios::binary);file.write(reinterpret_cast<const char*>(authored_invalid),sizeof(authored_invalid));}
+    Check(NativeEffectsContractV3::Validate(next,native_configuration,NativeEffectsContractV3::Layout::PrivateCase)==NativeEffectsContractV3::Error::None,
+        "exact Leaf-only initial-off V3 host identity validates before pinned module content check");
+    for(unsigned bad=0;bad<6;++bad){auto wrong=next;
+        if(bad==0)wrong.version=2;if(bad==1)wrong.size=6180;if(bad==2)wrong.flags=MaterialShaderEffects::Terrain;
+        if(bad==3)wrong.render_width=640;if(bad==4)wrong.leaf_vertex_path[0]=L'x';if(bad==5)wrong.river_density_scale=1;
+        Check(!WePlayNativeGraphicsConfigureEffects(&wrong)&&!effects_waiting,"malformed V3 cannot mutate queue or masquerade as V2");
+    }
+    const DWORD entry=0x7253;SetLastError(entry);
+    Check(WePlayNativeGraphicsConfigureEffects(&next)==1&&GetLastError()==entry,"valid V3 queues and preserves caller error");
+    Check(effects_pending_version==3&&effects_pending_v3.version==3&&!stats.effects_active&&!effects_initialized,"typed V3 stays pending until safe frame boundary");
+    next.leaf_pixel_path[0]=L'x';
+    Check(effects_pending_v3.leaf_pixel_path[0]!=L'x',"queue owns payload independently of caller lifetime");
+    Check(!WePlayNativeGraphicsConfigureEffects(&next),"pending command refuses replacement");
+    ApplyPendingEffects();
+    Check(!effects_waiting&&!effects_initialized&&effects_faulted&&stats.effects_config_errors==1&&!stats.effects_active,
+        "unpinned content fails actual InitializeV3 safely with truthful failure rather than activating V1");
+    effects_received=effects_waiting=effects_initialized=effects_faulted=false;effects_loaded_flags=0;effects_loaded_version=0;
+    MaterialShaderEffects::Shutdown();ResetHost();
+}
 }
 int main(){
     using namespace SupersamplingHook;
@@ -54,6 +110,7 @@ int main(){
     wchar_t directory[512]{};const DWORD directory_length=GetCurrentDirectoryW(512,directory);
     Check(directory_length&&directory_length<450&&std::wstring(directory).find(L"\\work\\")!=std::wstring::npos,
         "CPU diagnostics remain in owned work directory");
+    EffectsV3Proof(directory);
     const std::wstring prefix=std::wstring(directory)+L"\\cpu-never-";
     for(DWORD flags:{16u,32u,48u,49u,65u}) {
         ResetHost();InterlockedExchange(&initialized,0);InterlockedExchange(&initialization_ready,0);

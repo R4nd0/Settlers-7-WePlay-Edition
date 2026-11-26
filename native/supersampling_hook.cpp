@@ -9,6 +9,7 @@
 #include "supersampling_hook_comparison_draw.h"
 #include "native_effects_wire.h"
 #include "material_shader_effects_contract_v2.h"
+#include "material_shader_effects_contract_v3.h"
 #include "native_material_draw.h"
 #include "up_draw_observer_protocol.h"
 #include "ambient_occlusion_effects.h"
@@ -22,6 +23,9 @@
 #include <vector>
 #include <intrin.h>
 #include <limits>
+
+static_assert(MaterialShaderConfigV3::Bytes+392<=MaterialShaderConfigV3::WorkerBudget,
+    "V3 plus fixed worker prefix must fit its 8192-byte bound");
 
 namespace SupersamplingHook {
 constexpr char RendererHash[]="265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa";
@@ -99,6 +103,7 @@ static_assert(std::is_same<AmbientOcclusionEffects::DrawTransaction,ShadowFilter
 DWORD capture_pending=0,capture_last_sequence=0;
 MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
 MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
+MaterialShaderConfigV3::Config effects_pending_v3{},effects_loaded_v3{};
 DWORD effects_pending_version=1,effects_loaded_version=0;
 bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
 DWORD effects_loaded_flags=0;
@@ -381,6 +386,45 @@ bool SameEffectsIdentity(MaterialShaderEffects::Config first,MaterialShaderEffec
 }
 
 void ApplyPendingEffects() {
+    if(effects_pending_version==3) {
+        if(!effects_waiting || (effects_faulted && effects_pending_v3.flags) || stats.render_unsafe)return;
+        DiagnosticScope diagnostic;
+        const auto next=effects_pending_v3;
+        bool valid=false;
+        if(effects_faulted && !next.flags) {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;valid=true;
+        } else if(effects_initialized && effects_loaded_version==3
+            && NativeEffectsContractV3::SamePinnedConfig(next,effects_loaded_v3)
+            && !(next.flags&~effects_loaded_flags)) {
+            valid=MaterialShaderEffects::SetEnabled(next.flags);
+        } else {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;
+            MaterialShaderConfigV3::Config initial{};
+            auto error=NativeEffectsContractV3::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV3::Layout::PrivateCase,initial);
+            if(error!=NativeEffectsContractV3::Error::None)error=NativeEffectsContractV3::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV3::Layout::RecipientLocalData,initial);
+            valid=error==NativeEffectsContractV3::Error::None && MaterialShaderEffects::InitializeV3(&initial);
+            if(valid) {
+                effects_initialized=true;effects_loaded_v3=initial;effects_loaded_flags=initial.flags;effects_loaded_version=3;
+                MaterialShaderEffects::SetDiagnostics((native_configuration.flags&NativeGraphicsConfig::Observe)!=0);
+                valid=MaterialShaderEffects::SetEnabled(next.flags);
+            }
+        }
+        effects_waiting=false;stats.effects_pending=0;
+        if(valid) {
+            effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
+            stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=3;++stats.effects_revision;
+        } else {
+            effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
+            stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
+            if(capture_pending){capture_pending=0;++stats.capture_failures;}
+            stats.effects_frame_has_geometry=0;
+        }
+        Report();return;
+    }
     if(effects_pending_version==2) {
         if(!effects_waiting || (effects_faulted && effects_pending_v2.flags) || stats.render_unsafe)return;
         DiagnosticScope diagnostic;
@@ -1078,7 +1122,8 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         original_state.returned();return returned;
     }
     ++stats.present_calls;
-    const DWORD pending_flags=effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
+    const DWORD pending_flags=effects_pending_version==3?effects_pending_v3.flags:
+        effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
     if(effects_faulted && effects_waiting && !pending_flags && !stats.render_unsafe)ApplyPendingEffects();
     if(!EffectsDrawAllowed()) {
         stats.last_failure=221;Report();return D3DERR_DEVICELOST;
@@ -1796,13 +1841,19 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
         if(water_received&&(wire.v1.flags&MaterialShaderEffects::River))return 0;
         if(NativeEffectsContract::Validate(wire.v1,native_configuration)!=NativeEffectsContract::Error::None)return 0;
         effects_pending_config=wire.v1;
-    } else {
+    } else if(wire.version==2) {
         auto error=NativeEffectsContractV2::Validate(wire.v2,native_configuration,NativeEffectsContractV2::Layout::PrivateCase);
         if(error!=NativeEffectsContractV2::Error::None)error=NativeEffectsContractV2::Validate(wire.v2,native_configuration,
             NativeEffectsContractV2::Layout::RecipientLocalData);
         if(error!=NativeEffectsContractV2::Error::None)return 0;
         effects_pending_v2=wire.v2;
-    }
+    } else if(wire.version==3) {
+        auto error=NativeEffectsContractV3::Validate(wire.v3,native_configuration,NativeEffectsContractV3::Layout::PrivateCase);
+        if(error!=NativeEffectsContractV3::Error::None)error=NativeEffectsContractV3::Validate(wire.v3,native_configuration,
+            NativeEffectsContractV3::Layout::RecipientLocalData);
+        if(error!=NativeEffectsContractV3::Error::None)return 0;
+        effects_pending_v3=wire.v3;
+    } else return 0;
     effects_pending_version=wire.version;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
 }
 
@@ -1813,7 +1864,8 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* opaque) {
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
         ||config.size!=sizeof(config)||config.version!=1||config.enabled>1)return 0;
     Lock lock;
-    const DWORD pending=effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
+    const DWORD pending=effects_pending_version==3?effects_pending_v3.flags:
+        effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
     if(!initialization_ready||!(native_configuration.flags&NativeGraphicsConfig::Water)||water_waiting||stats.render_unsafe
         ||(state&&state->terminal_cleanup)||(stats.effects_active&MaterialShaderEffects::River)
         ||(effects_waiting&&(pending&MaterialShaderEffects::River))

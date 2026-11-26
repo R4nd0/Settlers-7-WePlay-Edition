@@ -11,6 +11,7 @@
 #include <cstdint>
 
 namespace MaterialShaderConfigV2 { struct Config; }
+namespace MaterialShaderConfigV3 { struct Config; }
 namespace MaterialShaderEffects {
 constexpr DWORD River=1,Terrain=2,Leaf=4,AllowedFlags=River|Terrain|Leaf;
 struct Config {
@@ -36,7 +37,8 @@ struct Sample {
 struct Stats {
     DWORD size=sizeof(Stats),version=1,enabled_flags=0,faulted=0,sample_count=0,cached_refs=0;
     DWORD initialized_flags=0,active_transactions=0,periodic_reporting=0;
-    // Bounded device-program cache (one leaf VS and two terrain PS), separate
+    // Bounded device-program cache (one Leaf VS/PS selected by explicit recipe,
+    // plus historical terrain stages), separate
     // from cached_refs, which counts borrowed original identities this frame.
     DWORD retained_programs=0,peak_retained_programs=0,config_version=0,active_original_refs=0;
     std::uint64_t draws=0,matched=0,context_rejections=0,input_rejections=0,query_failures=0;
@@ -44,7 +46,7 @@ struct Stats {
     std::uint64_t failed_draws=0,frames=0,resets=0,cache_overflows=0,exceptions=0,report_failures=0;
     std::uint64_t enable_changes=0,last_change_frame=0;
     std::array<std::uint64_t,4> applied{};
-    std::array<std::uint64_t,5> program_creations{};
+    std::array<std::uint64_t,5> program_creations{}; // slot0 Leaf VS or explicit V3 PS
     std::array<Sample,32> samples{};
 };
 
@@ -64,6 +66,9 @@ bool Initialize(const Config* config) noexcept;
 // intent. It never repins historical Leaf/Macro modes or changes shader inputs
 // for other original VS/PS pairs.
 bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
+// Explicit7204-byte/version3 isolated Leaf PS recipe. Original VS stays bound;
+// old VS/Terrain path fields must be empty. No Hemi/other-material stacking.
+bool InitializeV3(const MaterialShaderConfigV3::Config* config) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.
 // Zero/subset of initialized resources only; pinned CPU programs stay loaded.
 // Counters survive; bounded per-role samples start a new labeled epoch.
@@ -83,7 +88,7 @@ void EndDraw(DrawTransaction* state,HRESULT original_result) noexcept;
 bool RetryRestore(DrawTransaction* state) noexcept;
 void EndFrame(IDirect3DDevice9* device) noexcept;
 // EndFrame drops original identity refs only. Generated programs survive warm
-// frames, bounded at three for V1 and five for V2. Before EVERY external device Release/Reset/detach,
+// frames, bounded at three for V1, five for V2 and one for isolated V3. Before EVERY external device Release/Reset/detach,
 // call Reset inside hook internal/TLS: it drops BOTH reference classes before
 // the external call, preventing a generated shader -> device lifetime cycle.
 void Reset(IDirect3DDevice9* device) noexcept;

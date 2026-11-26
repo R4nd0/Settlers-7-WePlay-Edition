@@ -11,7 +11,7 @@ $lines=& $env:ComSpec /d /c "call `"$setup`" x64_x86 >nul && set"
 if ($LASTEXITCODE) {throw 'Cannot initialize x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
-$names=@('native_effects_wire.h','native_effects_wire_fixture.cpp','material_shader_config_v2.h','material_shader_effects.h')
+$names=@('native_effects_wire.h','native_effects_wire_fixture.cpp','material_shader_config_v2.h','material_shader_config_v3.h','material_shader_effects.h')
 $leases=@();$hashes=@{};$sha=[Security.Cryptography.SHA256]::Create()
 Push-Location $output
 try {

@@ -6,6 +6,7 @@
 #include "supersampling_hook_config.h"
 #include "supersampling_hook_capture.h"
 #include "material_shader_effects.h"
+#include "material_shader_effects_contract_v3.h"
 #include "material_comparison.h"
 #include <d3dcompiler.h>
 
@@ -118,14 +119,87 @@ void Near(const std::array<unsigned,3>& pixel,float red,float green,float blue) 
     const float values[]{red,green,blue};
     for(size_t i=0;i<3;++i)Require(std::abs(static_cast<float>(pixel[i])-values[i]*255)<=2,"effects_gpu_pixel_not_expected");
 }
+void V3Trial(const std::filesystem::path& renderer,const std::filesystem::path& output) {
+    Com<ID3DBlob> vertex_code,pixel_code,replacement_code;
+    Compile("float4 main(float4 p:POSITION):POSITION{return p;}","vs_3_0",vertex_code);
+    Compile("float4 main():COLOR{return float4(.2,.3,.4,1);}","ps_3_0",pixel_code);
+    Compile("float4 main():COLOR{return float4(.65,.55,.25,1);}","ps_3_0",replacement_code);
+    const auto vertex_hash=Digest(vertex_code.get()),pixel_hash=Digest(pixel_code.get()),replacement_hash=Digest(replacement_code.get());
+    Require(MaterialShaderEffects::FixtureCompatibility(3,vertex_hash.data(),pixel_hash.data(),static_cast<DWORD>(vertex_code->GetBufferSize()),
+        static_cast<DWORD>(pixel_code->GetBufferSize()),nullptr),"v3_gpu_authored_original_identity_failed");
+    Require(MaterialShaderEffects::FixtureProgramCompatibility(5,0,replacement_hash.data(),static_cast<DWORD>(replacement_code->GetBufferSize())),
+        "v3_gpu_authored_program_pin_failed");
+    const auto program=output/L"LocalData"/L"MaterialShaders"/NativeEffectsContractV3::Recipe/(std::wstring(NativeEffectsContractV3::Digest)+L".ps.bin");
+    std::filesystem::create_directories(program.parent_path());Save(program,replacement_code.get());
+    SetProcessDPIAware();Runtime runtime(renderer);Com<IDirect3D9> api;*api.put()=runtime.create();Require(api.get()!=nullptr,"v3_gpu_factory_failed");
+    Window window(1280,720);window.show();auto parameters=Params(window.get());Com<IDirect3DDevice9> device;
+    Check(api->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,window.get(),D3DCREATE_HARDWARE_VERTEXPROCESSING,&parameters,device.put()),"v3_gpu_device_failed");
+    Com<IDirect3DVertexShader9> vertex;Com<IDirect3DPixelShader9> pixel;
+    Check(device->CreateVertexShader(static_cast<const DWORD*>(vertex_code->GetBufferPointer()),vertex.put()),"v3_gpu_original_vs_failed");
+    Check(device->CreatePixelShader(static_cast<const DWORD*>(pixel_code->GetBufferPointer()),pixel.put()),"v3_gpu_original_ps_failed");
+    Geometry geometry(device.get());NativeGraphicsConfig::Version2 native{};
+    native.base={sizeof(native),2,1280,720,640,360,{}};native.flags=NativeGraphicsConfig::Vegetation;
+    wcscpy_s(native.base.report_path,(output/L"hook.private.json").c_str());
+    Require(WePlaySupersamplingInitialize(&native)==1,"v3_gpu_native_init_failed");
+    MaterialShaderConfigV3::Config effects{};effects.render_width=1280;effects.render_height=720;
+    wcscpy_s(effects.report_path,(output/L"material-effects.private.json").c_str());wcscpy_s(effects.leaf_pixel_path,program.c_str());
+    auto malformed=effects;malformed.size=6180;
+    Require(!WePlayNativeGraphicsConfigureEffects(&malformed),"v3_gpu_old_size_new_version_accepted");
+    Require(WePlayNativeGraphicsConfigureEffects(&effects)==1,"v3_gpu_initial_off_queue_failed");
+    previous=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window.get(),GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(Procedure)));live=device.get();
+    Require(WePlaySupersamplingAttach(device.get())==1,"v3_gpu_attach_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_prime_failed");Pump();
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_resized_prime_failed");
+    Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_initial_off_boundary_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_off_draw_failed");Restored(device.get(),vertex.get(),pixel.get());Near(Pixel(device.get()),.2f,.3f,.4f);
+    effects.flags=MaterialShaderEffects::Leaf;Require(WePlayNativeGraphicsConfigureEffects(&effects)==1,"v3_gpu_enable_queue_failed");
+    Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_enable_boundary_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_candidate_draw_failed");Restored(device.get(),vertex.get(),pixel.get());Near(Pixel(device.get()),.65f,.55f,.25f);
+    NativeGraphicsCapture::Request capture{sizeof(capture),1,31};Require(WePlayNativeGraphicsRequestCapture(&capture)==1,"v3_gpu_capture_queue_failed");
+    Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_candidate_present_failed");
+    SupersamplingStats captured{};Require(WePlaySupersamplingReadStats(&captured)==1&&captured.effects_config_version==3&&captured.capture_completed==1
+        &&std::filesystem::exists(output/L"capture-31.json"),"v3_gpu_explicit_epoch_capture_failed");
+    // Capture readback drops temporary public surface refs. The conservative
+    // external-Release hook may clear generated programs at that boundary;
+    // prime exactly once before measuring uncaptured steady frames.
+    MaterialShaderEffects::Stats after_readback{};Require(MaterialShaderEffects::ReadStats(&after_readback),"v3_gpu_post_readback_stats_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_uncaptured_prime_draw_failed");
+    Restored(device.get(),vertex.get(),pixel.get());Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_uncaptured_prime_present_failed");
+    MaterialShaderEffects::Stats warm_before{};Require(MaterialShaderEffects::ReadStats(&warm_before)&&warm_before.retained_programs==1
+        &&warm_before.shader_creations==after_readback.shader_creations+(after_readback.retained_programs?0u:1u),
+        "v3_gpu_uncaptured_prime_not_one_bounded_lazy_creation");
+    for(unsigned frame=0;frame<8;++frame){Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_warm_draw_failed");
+        Restored(device.get(),vertex.get(),pixel.get());Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_warm_present_failed");}
+    MaterialShaderEffects::Stats warm_after{};Require(MaterialShaderEffects::ReadStats(&warm_after)&&warm_after.shader_creations==warm_before.shader_creations
+        &&warm_after.retained_programs==1,"v3_gpu_program_cache_churn");
+    Require(WePlaySupersamplingFixtureFailDraw()==1,"v3_gpu_original_failure_setup_failed");
+    Require(DrawScene(device.get(),geometry,vertex.get(),pixel.get())==D3DERR_INVALIDCALL,"v3_gpu_failed_original_hresult_changed");Restored(device.get(),vertex.get(),pixel.get());
+    parameters=Params(window.get());Check(device->Reset(&parameters),"v3_gpu_reset_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_after_reset_draw_failed");Restored(device.get(),vertex.get(),pixel.get());Near(Pixel(device.get()),.65f,.55f,.25f);
+    effects.flags=0;Require(WePlayNativeGraphicsConfigureEffects(&effects)==1,"v3_gpu_disable_queue_failed");
+    Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_disable_boundary_failed");
+    Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v3_gpu_final_off_draw_failed");Restored(device.get(),vertex.get(),pixel.get());Near(Pixel(device.get()),.2f,.3f,.4f);
+    Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v3_gpu_final_off_present_failed");
+    MaterialShaderEffects::Stats measured{};Require(MaterialShaderEffects::ReadStats(&measured)&&measured.config_version==3&&measured.applied[3]>=10
+        &&measured.program_creations[0]>=2&&measured.restored_draws==measured.applied[3]
+        &&measured.failed_draws==1&&!measured.restore_failures&&!measured.shader_failures&&!measured.set_failures&&!measured.faulted,
+        "v3_gpu_activation_restoration_proof_failed");
+    Require(DestroyWindow(window.get())!=FALSE,"v3_gpu_window_close_failed");live=nullptr;
+    Require(WePlaySupersamplingDetach(device.get())==1,"v3_gpu_detach_failed");
+    device->SetStreamSource(0,nullptr,0,0);vertex.reset();pixel.reset();device.reset();
+    std::printf("{\"format\":\"s7-material-effects-v3-gpu-v1\",\"game_tested\":false,\"authored_programs\":true,\"wire_bytes\":7204,"
+        "\"public_off_on_off\":true,\"pixel_replacement_verified\":true,\"same_frame_capture\":true,\"failed_draw_restored\":true,"
+        "\"reset_recreated_program\":true,\"warm_program_reused\":true,\"leaf_applied\":%llu,\"restored_draws\":%llu}\n",measured.applied[3],measured.restored_draws);
+}
 }
 
 int wmain(int argc,wchar_t** argv) {
     try {
-        Require(argc==3 || argc==5,"usage_effects_gpu_dxvk_output_optional_catalog_sha256");
+        Require(argc==3 || argc==5 || (argc==4&&!std::wcscmp(argv[3],L"--v3")),"usage_effects_gpu_dxvk_output_optional_catalog_sha256_or_v3");
         const bool compare=argc==5;
         const auto output=std::filesystem::absolute(argv[2]);
         Require(!std::filesystem::exists(output) && std::filesystem::create_directory(output),"effects_gpu_use_new_output_directory");
+        if(argc==4){V3Trial(std::filesystem::absolute(argv[1]),output);return 0;}
         Com<ID3DBlob> river_code,leaf_code,replacement_code,pixel_code;
         Compile("float4 fog:register(c68);float4 reflection:register(c69);struct O{float4 p:POSITION;float4 c:COLOR0;};O main(float4 p:POSITION){O o;o.p=p;o.c=float4(fog.x,reflection.y,fog.z,1);return o;}","vs_3_0",river_code);
         Compile("struct O{float4 p:POSITION;float4 c:COLOR0;};O main(float4 p:POSITION){O o;o.p=p;o.c=float4(.1,.2,.3,1);return o;}","vs_3_0",leaf_code);
