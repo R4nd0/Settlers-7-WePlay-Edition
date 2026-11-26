@@ -1,6 +1,7 @@
 """Authored files only. Actual loader, image and WFP evidence is separate."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -259,6 +260,7 @@ class PlatformStandaloneTests(unittest.TestCase):
         session.ready = session.folder / 'wfp-peers.ready'
         session.api = Mock()
         session.api.k.GetTickCount64.return_value = 100
+        session.lease_expires = 5100
         session.created = 12
         session.value = dict(group=True, local='192.168.1.2', coordinator='192.168.1.3')
         return session
@@ -279,6 +281,64 @@ class PlatformStandaloneTests(unittest.TestCase):
         self.assertIsNone(session.error)
         self.assertIn('expires_tick_ms=5100', session.path.read_text('ascii'))
         self.assertEqual(calls, [session.path, session.path])
+
+    @unittest.skipUnless(os.name == 'nt', 'requires an exclusive Windows file handle')
+    def test_peer_policy_retries_locked_ownership_read_while_previous_lease_is_valid(self):
+        session = self.make_peer_policy()
+        session._publish()
+        ctypes = network_peer_policy.C
+        wintypes = network_peer_policy.W
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        kernel.CreateFileW.restype = wintypes.HANDLE
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        held = kernel.CreateFileW(str(session.path), 0x80000000, 0, None, 3, 0, None)
+        self.assertNotEqual(held, ctypes.c_void_p(-1).value)
+        self.assertTrue(held)
+        session.stop = Mock()
+        waits = 0
+
+        def wait(_seconds):
+            nonlocal held, waits
+            waits += 1
+            if waits == 2:
+                self.assertTrue(kernel.CloseHandle(held))
+                held = None
+                session.api.k.GetTickCount64.return_value = 1250
+            return waits > 2 or session.stop.set.called
+
+        session.stop.wait.side_effect = wait
+        try:
+            session._heartbeat()
+        finally:
+            if held:
+                kernel.CloseHandle(held)
+        self.assertIsNone(session.error)
+        self.assertIn('expires_tick_ms=6250', session.path.read_text('ascii'))
+
+    def test_peer_policy_does_not_renew_after_the_previous_lease_expired(self):
+        session = self.make_peer_policy()
+        session._publish()
+        previous = session.path.read_bytes()
+        session.stop = Mock()
+        session.stop.wait.side_effect = [False, True]
+        session.api.k.GetTickCount64.return_value = session.lease_expires
+        session._heartbeat()
+        self.assertEqual(session.path.read_bytes(), previous)
+        self.assertIsInstance(session.error, TimeoutError)
+        session.stop.set.assert_called_once()
+
+    def test_peer_policy_cancels_write_if_lease_expires_before_replace(self):
+        session = self.make_peer_policy()
+        session._publish()
+        previous = session.path.read_bytes()
+        session.api.k.GetTickCount64.side_effect = [5000, 5100]
+        with self.assertRaises(TimeoutError):
+            session._publish(renew_before=session.lease_expires)
+        self.assertEqual(session.path.read_bytes(), previous)
+        self.assertEqual(list(session.folder.glob('wfp-lease-*.tmp')), [])
 
     def test_peer_policy_recovery_checks_readiness_ownership_before_moving_lease(self):
         session = self.make_peer_policy()

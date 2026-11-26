@@ -111,7 +111,9 @@ pending, completed and consumed overlapped operations before exposing results.
 
 The Windows filtering helper also reads the launcher's time-limited grant.
 During a temporary Windows sharing violation it retries the read while the
-last validated grant is still live. The existing deadline continues to apply.
+last validated grant is still live. The launcher also retries renewal after a
+temporary file permission error while its last published grant is still live.
+The launcher checks that deadline again before replacing the grant.
 A missing, malformed, expired or foreign grant stops the helper, removing its
 dynamic rules. The native regression test holds an exclusive Windows file
 handle and checks recovery, expiry and rejection of foreign grants.

@@ -46,7 +46,7 @@ class Session:
         self.created=created.dwLowDateTime|(created.dwHighDateTime<<32)
         self.stop=threading.Event();self.thread=None;self.process=None;self.error=None
         self._recover()
-        self._publish()
+        self.lease_expires=self._publish()
         self.thread=threading.Thread(target=self._heartbeat,name='weplay-network-lease',daemon=True)
         self.thread.start()
         try:
@@ -146,13 +146,17 @@ class Session:
         backup = content.plain(self.folder / ('wfp-peers-recovered-' + uuid.uuid4().hex + '.ini'))
         self.path.rename(backup)
 
-    def _publish(self,*,expired=False):
+    def _publish(self,*,expired=False,renew_before=None):
+        now=self.api.k.GetTickCount64()
+        if renew_before is not None and now>=renew_before:
+            raise TimeoutError('Der begrenzte Windows-Netzbereich ist abgelaufen.')
         if self.path.exists():
             stored=self.path.read_bytes()
             if len(stored)>4096 or ('nonce='+self.nonce+'\n').encode('ascii') not in stored:
                 raise ValueError('Der Netzbereich wurde von einem anderen Starter verändert.')
+        expires=0 if expired else now+5000
         fields={'format':'weplay-wfp-peers-v1','nonce':self.nonce,'parent':str(os.getpid()),
-                'parent_created':str(self.created),'expires_tick_ms':str(0 if expired else self.api.k.GetTickCount64()+5000),
+                'parent_created':str(self.created),'expires_tick_ms':str(expires),
                 'local':self.value['local'],'coordinator':self.value['coordinator'],
                 'mode':'group' if self.value['group'] else 'pair'}
         if not self.value['group']:fields['peer']=self.value['peer']
@@ -163,6 +167,8 @@ class Session:
                 temporary=Path(target.name);target.write(raw);target.flush();os.fsync(target.fileno())
             deadline = time.monotonic() + .25
             while True:
+                if renew_before is not None and self.api.k.GetTickCount64()>=renew_before:
+                    raise TimeoutError('Der begrenzte Windows-Netzbereich ist abgelaufen.')
                 try:
                     os.replace(temporary, self.path)
                     break
@@ -172,14 +178,19 @@ class Session:
                     time.sleep(.02)
         finally:
             if temporary is not None and temporary.exists():temporary.unlink()
+        return expires
 
     def _heartbeat(self):
         while not self.stop.wait(1):
             try:
                 if self.process is not None and self.process.poll() is not None:
                     raise RuntimeError('Der begrenzte Windows-Netzbereich wurde vorzeitig geschlossen.')
-                self._publish()
+                self.lease_expires=self._publish(renew_before=self.lease_expires)
             except BaseException as error:
+                # Windows may report an exclusive file handle as a plain
+                # PermissionError. Retry only inside the last published lease.
+                if isinstance(error,PermissionError) and self.api.k.GetTickCount64()<self.lease_expires:
+                    continue
                 self.error=error;self.stop.set()
 
     def close(self):
