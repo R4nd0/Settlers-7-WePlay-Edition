@@ -37,6 +37,10 @@ struct SupersamplingStats {
     DWORD water_frame_origin,water_protocol_received,water_active,water_unsafe;
     DWORD shadow_frame_origin,shadow_protocol_received,shadow_active,shadow_unsafe;
     DWORD shadow_frame_good,shadow_frame_successful_draws,shadow_frame_failed_draws;
+    DWORD ambient_frame_origin,ambient_protocol_received,ambient_active,ambient_unsafe;
+    DWORD ambient_frame_good,ambient_frame_successful_draws,ambient_frame_failed_draws;
+    DWORD up_draw_calls,up_indexed_calls,up_observer_calls,up_context_rejections,up_blocked_calls;
+    DWORD up_original_exceptions,up_diagnostic_exceptions;
 };
 
 extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* config);
@@ -47,6 +51,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* config);
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureComparison(void* config);
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* config);
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureShadow(void* config);
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureAmbient(void* config);
 #ifdef S7_SUPERSAMPLING_FIXTURE
 extern "C" DWORD WINAPI WePlaySupersamplingAttach(IDirect3DDevice9* device);
 extern "C" DWORD WINAPI WePlaySupersamplingDetach(IDirect3DDevice9* device);

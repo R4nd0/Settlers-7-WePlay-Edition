@@ -102,13 +102,30 @@ int wmain(int argc,wchar_t** argv){using namespace NativeEffectsContractV2;try{
     auto terrain_native=Native(folder+L"\\macro-only",NativeGraphicsConfig::Terrain);
     auto terrain_macro=ConfigFor(terrain_native,Layout::PrivateCase,true);
     Check(Validate(terrain_macro,terrain_native,Layout::PrivateCase,false)==Error::None,"terrain-only private macro layout");
+    auto hemi_native=Native(folder+L"\\leaf-hemi-only",NativeGraphicsConfig::Vegetation);
+    auto hemi=ConfigFor(hemi_native,Layout::PrivateCase);
+    const auto hemi_base=folder+L"\\leaf-hemi-only\\LocalData\\MaterialShaders\\";
+    Assign(hemi.leaf_vertex_path,hemi_base+LeafHemisphereProgram.directory+L"\\"+LeafHemisphereProgram.digest+LeafHemisphereProgram.suffix);
+    Check(Validate(hemi,hemi_native,Layout::PrivateCase,false)==Error::None,"explicit hemisphere fixed private path accepted");File(hemi.leaf_vertex_path);
+    Check(Validate(hemi,hemi_native,Layout::PrivateCase,true)==Error::None,"hemisphere single artifact full host preflight");
+    for(DWORD flags:{0u,4u}){auto toggle=hemi;toggle.flags=flags;Config initial{};
+        Check(PrepareInitial(toggle,hemi_native,Layout::PrivateCase,initial,true)==Error::None&&initial.flags==4,"hemisphere initially off derives original Leaf intent");
+        Check(SamePinnedConfig(toggle,hemi),"hemisphere toggle changes flags only");}
+    const auto historical_leaf=ConfigFor(hemi_native,Layout::PrivateCase);Check(!SamePinnedConfig(hemi,historical_leaf),"old leaf cannot be silently repinned through toggle");
+    auto mixed_native=hemi_native;mixed_native.flags|=NativeGraphicsConfig::Terrain;auto mixed_leaf=ConfigFor(mixed_native,Layout::PrivateCase);Assign(mixed_leaf.leaf_vertex_path,hemi.leaf_vertex_path);
+    Check(Validate(mixed_leaf,mixed_native,Layout::PrivateCase,false)==Error::FixedPath,"complete terrain/hemisphere mixed set refused");
+    auto wrong_hemi=hemi;Assign(wrong_hemi.leaf_vertex_path,hemi_base+Programs[0].directory+L"\\"+LeafHemisphereProgram.digest+L".vs.bin");
+    Check(Validate(wrong_hemi,hemi_native,Layout::PrivateCase,false)==Error::FixedPath,"hemisphere hash in old folder refused");
+    auto hemi_recipient_native=Native(folder+L"\\leaf-recipient\\LocalData",NativeGraphicsConfig::Vegetation);auto hemi_recipient=ConfigFor(hemi_recipient_native,Layout::RecipientLocalData);
+    Assign(hemi_recipient.leaf_vertex_path,folder+L"\\leaf-recipient\\LocalData\\MaterialShaders\\"+LeafHemisphereProgram.directory+L"\\"+LeafHemisphereProgram.digest+L".vs.bin");File(hemi_recipient.leaf_vertex_path);
+    Check(Validate(hemi_recipient,hemi_recipient_native,Layout::RecipientLocalData,true)==Error::None,"hemisphere exact recipient LocalData preflight");
     if(argc==3){Config actual{};HANDLE input=CreateFileW(argv[2],GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
         Check(input!=INVALID_HANDLE_VALUE,"open actual recipient-generated config");LARGE_INTEGER size{};DWORD bytes=0;BY_HANDLE_FILE_INFORMATION info{};
         const bool read=GetFileInformationByHandle(input,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
             &&GetFileSizeEx(input,&size)&&size.QuadPart==sizeof(actual)&&ReadFile(input,&actual,sizeof(actual),&bytes,nullptr)&&bytes==sizeof(actual);CloseHandle(input);Check(read,"bounded actual6180 read");
         const std::wstring report=actual.report_path;const auto slash=report.find_last_of(L'\\');const auto slash2=report.find_last_of(L'/');
         const auto separator=slash==std::wstring::npos?slash2:slash2==std::wstring::npos?slash:(std::max)(slash,slash2);
-        Check(separator!=std::wstring::npos,"actual report root");auto actual_native=Native(report.substr(0,separator),NativeGraphicsConfig::Terrain|(actual.leaf_vertex_path[0]?NativeGraphicsConfig::Vegetation:0));
+        Check(separator!=std::wstring::npos,"actual report root");auto actual_native=Native(report.substr(0,separator),(actual.bump_pixel_path[0]?NativeGraphicsConfig::Terrain:0)|(actual.leaf_vertex_path[0]?NativeGraphicsConfig::Vegetation:0));
         actual_native.base.render_width=actual.render_width;actual_native.base.render_height=actual.render_height;
         Check(Validate(actual,actual_native,Layout::PrivateCase,true)==Error::None,"actual recipient-source macro config passes HOST contract preflight");}
     std::printf("NativeEffectsContractV2 CPU policy: %u checks passed; no effects linkage, GPU or game\n",checks);return 0;

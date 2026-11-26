@@ -5,6 +5,7 @@
 #include "material_comparison.h"
 #include "water_shader_effects.h"
 #include "shadow_filter_effects.h"
+#include "ambient_occlusion_effects.h"
 #include <array>
 #include <string>
 
@@ -25,6 +26,8 @@ struct Result {
     bool water_state_available=false;
     ShadowFilterEffects::Stats shadow{};
     bool shadow_state_available=false;
+    AmbientOcclusionEffects::Stats ambient{};
+    bool ambient_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };

@@ -205,5 +205,34 @@ int S7_MATERIAL_V2_ENTRY(int argc,wchar_t** argv){using namespace MaterialShader
     EndFrame(device);Verify(Snapshot().retained_programs==1&&Snapshot().program_creations[3]==0&&Snapshot().program_creations[4]==0,"V1 does not retain V2 terrain VS programs");
     Reset(device);Shutdown();SetVertex(&d,nullptr);FixtureSetPixel(&d,nullptr);
     for(const auto& shader:originals)Verify(shader.refs==1,"V2 original COM references balanced");Verify(surface.refs==1&&!live_created,"all V2 COM references balanced");
+    // Separate exact Leaf hemisphere recipe, never an implicit V2/Macro repin.
+    const auto hemi_code=Code(true,901);const auto hemi_hash=Hash(hemi_code.data(),hemi_code.size());
+    Verify(FixtureProgramCompatibility(4,0,hemi_hash.data(),20),"authored hemisphere identity only");
+    Verify(!FixtureProgramCompatibility(4,1,hemi_hash.data(),20),"hemisphere set has no terrain slots");
+    const auto hemi_folder=folder+L"/leaf-hemisphere-contrast-v3";Verify(CreateDirectoryW(hemi_folder.c_str(),nullptr)!=0,"new hemisphere recipe directory");
+    constexpr wchar_t hemi_digits[]=L"0123456789abcdef";std::wstring hemi_name;for(auto byte:hemi_hash){hemi_name+=hemi_digits[byte>>4];hemi_name+=hemi_digits[byte&15];}
+    const auto hemi_path=hemi_folder+L"/"+hemi_name+L".vs.bin";Write(hemi_path,hemi_code);
+    MaterialShaderConfigV2::Config hemi{};hemi.flags=Leaf;hemi.render_width=1920;hemi.render_height=1080;
+    wcscpy_s(hemi.leaf_vertex_path,hemi_path.c_str());const auto hemi_report=folder+L"/hemisphere.private.json";wcscpy_s(hemi.report_path,hemi_report.c_str());
+    auto mixed_hemi=config;wcscpy_s(mixed_hemi.leaf_vertex_path,hemi_path.c_str());Verify(!InitializeV2(&mixed_hemi),"complete terrain/hemisphere mixture rejected");
+    const auto wrong_folder_path=folder+L"/"+hemi_name+L".vs.bin";Write(wrong_folder_path,hemi_code);
+    auto wrong_hemi=hemi;wcscpy_s(wrong_hemi.leaf_vertex_path,wrong_folder_path.c_str());Verify(!InitializeV2(&wrong_hemi),"hemisphere hash requires explicit recipe folder");
+    Verify(InitializeV2(&hemi)&&Snapshot().config_version==2,"explicit hemisphere on unchanged wire2");
+    Verify(Read(hemi_report).find("\"leaf_recipe_variant\":3")!=std::string::npos,"leaf actual recipe metadata");
+    Verify(Read(hemi_report).find("\"terrain_recipe_variant\":0")!=std::string::npos,"hemisphere does not claim terrain recipe");
+    for(unsigned frame=0;frame<8;++frame){Bind(3);const auto before_vs=d.vs;const auto before_ps=d.ps;DrawTransaction leaf_draw{};
+        BeginDraw(device,&leaf_draw);Verify(leaf_draw.active&&leaf_draw.touched_vertex&&!leaf_draw.touched_pixel&&!leaf_draw.constant_count,"hemisphere replaces VS only");
+        Verify(d.vertex!=&originals[6]&&d.pixel==&originals[7]&&Snapshot().active_original_refs==2,"hemisphere owns original pair through temporary bind");
+        EndDraw(&leaf_draw,frame==0?E_FAIL:S_OK);
+        Verify(!leaf_draw.unsafe_state&&d.vertex==&originals[6]&&d.pixel==&originals[7],"hemisphere restores even original failed draw");
+        Verify(d.vs==before_vs&&d.ps==before_ps,"hemisphere never changes any GPU constants");EndFrame(device);}
+    Verify(Snapshot().shader_creations==1&&Snapshot().retained_programs==1&&!Snapshot().cached_refs,"hemisphere warm frames reuse one generated VS");
+    Verify(SetEnabled(0)&&!live_created,"hemisphere safe-boundary disable releases device refs");Verify(SetEnabled(Leaf),"hemisphere pinned re-enable");
+    Bind(3);d.fail_vertex=true;DrawTransaction failed_hemi{};BeginDraw(device,&failed_hemi);
+    Verify(!failed_hemi.active&&!failed_hemi.unsafe_state&&d.vertex==&originals[6]&&d.pixel==&originals[7],"hemisphere partial setter rollback");
+    Reset(device);Shutdown();Verify(!live_created,"hemisphere generated cache fully released");
+    Verify(InitializeV2(&hemi),"hemisphere fresh getter exception case");Bind(3);d.throw_pixel_get=1;DrawTransaction query_hemi{};BeginDraw(device,&query_hemi);
+    Verify(!query_hemi.active&&!query_hemi.unsafe_state&&Snapshot().faulted&&!Snapshot().active_original_refs,"hemisphere query-after-out exception fail-closed");Reset(device);Shutdown();
+    SetVertex(&d,nullptr);FixtureSetPixel(&d,nullptr);for(const auto& shader:originals)Verify(shader.refs==1,"hemisphere original refs balanced");Verify(surface.refs==1&&!live_created,"hemisphere final COM refs balanced");
     std::printf("V1 regression + V2 CPU transactions: %u V2 checks passed; no GPU/game started\n",v2_checks);return 0;
 }catch(const std::exception& error){std::fprintf(stderr,"material V2 fixture failed: %s\n",error.what());return 1;}}

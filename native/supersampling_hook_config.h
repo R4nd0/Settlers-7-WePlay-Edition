@@ -5,8 +5,8 @@
 #include <cwchar>
 
 namespace NativeGraphicsConfig {
-constexpr DWORD Observe=1,Water=2,Terrain=4,Vegetation=8,StableShadows=16;
-constexpr DWORD KnownFlags=Observe|Water|Terrain|Vegetation|StableShadows;
+constexpr DWORD Observe=1,Water=2,Terrain=4,Vegetation=8,StableShadows=16,AmbientOcclusion=32;
+constexpr DWORD KnownFlags=Observe|Water|Terrain|Vegetation|StableShadows|AmbientOcclusion;
 
 struct Version2 {
     SupersamplingConfig base;

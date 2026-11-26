@@ -60,6 +60,9 @@ bool Initialize(const Config* config) noexcept;
 // V2 terrain binds BOTH VS and PS; V1 allocation and historical V2 recipe pins
 // stay intact. An explicitly staged macro v3 recipe is accepted only as a full
 // hash/filename-bound alternative set with its runtime input guards. Wire stays2.
+// Leaf hemisphere recipe3 is a separate exact path/hash choice with Leaf-only
+// intent. It never repins historical Leaf/Macro modes or changes shader inputs
+// for other original VS/PS pairs.
 bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.
 // Zero/subset of initialized resources only; pinned CPU programs stay loaded.

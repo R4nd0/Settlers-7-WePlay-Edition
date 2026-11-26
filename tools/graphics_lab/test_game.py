@@ -10,6 +10,56 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_leaf_hemisphere_excludes_mixed_or_undeclared_material_modes(self):
+        valid=dict(hook=Path('never-loaded.dll'),high_quality=True,material_config_version=2,
+                   material_effects=('improved_vegetation',),leaf_hemisphere=True)
+        for changes in ({'leaf_hemisphere':1},{'baseline_crash_watch':True},{'hook':None},
+                        {'high_quality':False},{'material_config_version':1},{'material_effects':()},
+                        {'material_effects':('improved_vegetation','improved_terrain')},
+                        {'material_effects':('improved_vegetation','improved_water')}):
+            with self.subTest(changes=changes),patch.object(game.platform,'load') as load:
+                with self.assertRaisesRegex(ValueError,'Leaf hemisphere requires explicit'):
+                    game.run(Path('never-read'),Path('never-created'),**{**valid,**changes})
+                load.assert_not_called()
+
+    def test_profile_b_has_explicit_version_and_cannot_use_profile_a_capability(self):
+        with patch.object(load_hook,'verify_build',return_value=(Path('old.dll'),{'diagnostic_abi':{'ambient':12}})):
+            with self.assertRaisesRegex(ValueError,'does not support the fixed ambient'):
+                load_hook.invoke(None,Path('old.dll'),'ambient_v2',struct.pack('<3I',12,2,1))
+        for operation,version in (('ambient',2),('ambient_v2',1),('ambient_v2',3)):
+            with self.subTest(operation=operation,version=version),patch.object(load_hook,'verify_build') as verify:
+                with self.assertRaises(ValueError):
+                    load_hook.invoke(None,Path('never-read.dll'),operation,struct.pack('<3I',12,version,1))
+                verify.assert_not_called()
+        for options in ({'ambient_profile':'B'},{'ambient_profile':'C','ambient_occlusion':True}):
+            with self.subTest(options=options),patch.object(game.platform,'load') as load:
+                with self.assertRaisesRegex(ValueError,'Select explicit ambient profile'):
+                    game.run(Path('never-read'),Path('never-created'),**options)
+                load.assert_not_called()
+
+    def test_ambient_requires_its_own_fixed_toggle_and_explicit_build_capability(self):
+        raw=b'{"operation":"ambient","sequence":3,"enabled":1}'
+        self.assertEqual(game.native_command(raw,2,ambient_allowed=True)['enabled'],1)
+        self.assertIsNone(game.native_command(raw,3,ambient_allowed=True))
+        with self.assertRaises(ValueError):game.native_command(raw,0,shadow_allowed=True)
+        for value in (raw.replace(b':1}',b':true}'),raw.replace(b':1}',b':2}'),raw.replace(b'}',b',"strength":2}')):
+            with self.subTest(value=value),self.assertRaises(ValueError):
+                game.native_command(value,0,ambient_allowed=True)
+        with self.assertRaises(ValueError):
+            load_hook.invoke(None,Path('never-loaded.dll'),'ambient',struct.pack('<3I',12,1,2))
+        with patch.object(load_hook,'verify_build',return_value=(Path('old.dll'),{'diagnostic_abi':{'shadow':12}})):
+            with self.assertRaisesRegex(ValueError,'does not support the fixed ambient'):
+                load_hook.invoke(None,Path('old.dll'),'ambient',struct.pack('<3I',12,1,1))
+
+    def test_ambient_startup_excludes_shadow_and_unobserved_modes(self):
+        valid=dict(hook=Path('never-loaded.dll'),high_quality=True,observer_catalog=Path('catalog.bin'),ambient_occlusion=True)
+        for changes in ({'ambient_occlusion':1},{'baseline_crash_watch':True},{'hook':None},
+                        {'high_quality':False},{'observer_catalog':None},{'shadow_filter':True}):
+            with self.subTest(changes=changes),patch.object(game.platform,'load') as load:
+                with self.assertRaisesRegex(ValueError,'Ambient occlusion requires exclusive'):
+                    game.run(Path('never-read'),Path('never-created'),**{**valid,**changes})
+                load.assert_not_called()
+
     def test_shadow_toggle_has_no_arbitrary_profile_or_export_and_requires_opt_in(self):
         raw=b'{"operation":"shadow","sequence":3,"enabled":1}'
         self.assertEqual(game.native_command(raw,2,shadow_allowed=True)['enabled'],1)
@@ -163,6 +213,12 @@ class GraphicsControllerTests(unittest.TestCase):
                 combined=load_hook.configuration((1920,1080),(1280,720),report,material_flags=7,
                     observer_catalog=catalog,observer_sha256=load_hook.digest(catalog))
                 self.assertEqual(struct.unpack_from('<I',combined,1048)[0],15)
+                ambient=load_hook.configuration((1920,1080),(1280,720),report,ambient_occlusion=True,
+                    observer_catalog=catalog,observer_sha256=load_hook.digest(catalog))
+                self.assertEqual(struct.unpack_from('<I',ambient,1048)[0],33)
+                with self.assertRaises(ValueError):
+                    load_hook.configuration((1920,1080),(1280,720),report,ambient_occlusion=True,shadow_filter=True,
+                        observer_catalog=catalog,observer_sha256=load_hook.digest(catalog))
                 self.assertTrue(config[2108:].decode('utf-16le').rstrip('\0').endswith('material-observer.private.json'))
                 with self.assertRaises(ValueError):
                     load_hook.configuration((1920, 1080), (1280, 720), report,

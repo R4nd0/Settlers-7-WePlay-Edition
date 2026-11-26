@@ -364,16 +364,89 @@ def _admitted(case, native):
         raise
 
 
-def baseline_source_paths():
+def baseline_source_paths(*,metric=False):
     """Fixed source set; relocating/promoting this draft needs a NEW checkpoint."""
     common = {
         'tools/graphics_lab/game.py', 'tools/graphics_lab/crash_watch.py',
+        'tools/graphics_lab/baseline_modules.py',
         'tools/installer/platform_standalone.py', 'tools/installer/isolated_process.py',
         'tools/d3d11/memory_guard.py', 'tools/shadow_detail/profile_guard.py',
         'tools/graphics_lab/recover.py', 'tools/graphics_lab/load_hook.py',
         'tools/supersampling/hook_probe.py',
     }
-    return common
+    if type(metric)is not bool:raise ValueError('Explicit boolean Metric source mode required.')
+    return common|{'tools/graphics_lab/baseline_metric_profile.py'}if metric else common
+
+
+def _baseline_metric_requested(case):
+    value=_json(case/'checkpoint.private.json').get('baseline_metric_profile_requested',False)
+    if type(value)is not bool:raise ValueError('Explicit boolean Metric owner intent required.')
+    return value
+
+
+def _baseline_native():
+    # Lazy import: the dedicated provider inherits Native, never replaces it.
+    from .baseline_modules import BaselineNative
+    return BaselineNative()
+
+
+def _baseline_module_proof(native, child):
+    """Retain bounded source-provider evidence; never accept filename aliases."""
+    from .baseline_modules import same_nt_file, driverstore_candidate
+    rows, aliases = native.module_rows, native.alias_proofs
+    if type(rows) is not list or not rows or len(rows) > 512 or type(aliases) is not list or len(aliases) > len(rows):
+        raise ValueError('Missing bounded original baseline module proof.')
+    row_keys = {'pid','base','image_bytes','reported_path','resolved_path'}
+    for row in rows:
+        if (not isinstance(row,dict) or set(row)!=row_keys or row['pid']!=child['pid']
+                or type(row['base']) is not int or not 0 < row['base'] <= 0xffffffffffffffff
+                or type(row['image_bytes']) is not int or not 0 < row['image_bytes'] <= 0xffffffff
+                or any(not isinstance(row[key],str) or not row[key] or len(row[key])>=32768
+                       for key in ('reported_path','resolved_path'))):
+            raise ValueError('Malformed baseline module row evidence.')
+        recover.plain(row['reported_path']); recover.plain(row['resolved_path'])
+    keys = {'original_identity','module_base','image_bytes','reported_path','resolved_path','mapped_nt','final_nt',
+            'file_sha256','file_identity','method','read_only'}
+    selected = set()
+    for alias in aliases:
+        if (not isinstance(alias,dict) or set(alias)!=keys or alias['original_identity']!=child
+                or alias['method']!='original-map-equals-opened-file-VOLUME_NAME_NT' or alias['read_only'] is not True
+                or not same_nt_file(alias['mapped_nt'],alias['final_nt'])
+                or not isinstance(alias['file_sha256'],str) or not re.fullmatch('[0-9a-f]{64}',alias['file_sha256'])):
+            raise ValueError('Malformed baseline alias mapping proof.')
+        info=alias['file_identity']
+        if (not isinstance(info,dict) or set(info)!={'volume_serial','file_index','bytes'}
+                or any(type(value) is not int or not 0 <= value <= 0xffffffffffffffff for value in info.values())
+                or not info['bytes']):
+            raise ValueError('Malformed baseline alias file identity.')
+        matches=[row for row in rows if hex(row['base'])==alias['module_base']
+                 and row['image_bytes']==alias['image_bytes']
+                 and recover.plain(row['reported_path'])==recover.plain(alias['reported_path'])
+                 and recover.plain(row['resolved_path'])==recover.plain(alias['resolved_path'])]
+        key=(alias['module_base'],recover.plain(alias['reported_path']))
+        if len(matches)!=1 or key in selected:
+            raise ValueError('Alias proof does not identify one original module row.')
+        selected.add(key)
+        reported=recover.plain(alias['reported_path']);resolved=recover.plain(alias['resolved_path'])
+        # The provider proves the actual Windows directory and exact NT mapping.
+        # This retained record must also describe the same narrow path shape.
+        parts=reported.parts
+        positions=[i for i,part in enumerate(parts) if part.casefold()=='syswow64']
+        if len(positions)!=1:
+            raise ValueError('Alias record is outside its narrow Windows subtree.')
+        windows=Path(*parts[:positions[0]])
+        if driverstore_candidate(reported,windows)!=resolved or digest(resolved)!=alias['file_sha256']:
+            raise ValueError('Alias record resolved file identity changed.')
+    differing={(hex(row['base']),recover.plain(row['reported_path'])) for row in rows
+               if recover.plain(row['reported_path'])!=recover.plain(row['resolved_path'])}
+    if differing!=selected:
+        raise ValueError('Resolved module lacks an exact alias mapping proof.')
+    return {'module_rows':rows,'module_alias_proofs':aliases}
+
+
+def _baseline_repeat_aliases(admission, proof):
+    if proof['module_alias_proofs']!=admission['module_alias_proofs']:
+        raise RuntimeError('Baseline alias mapping changed after owner admission.')
 
 
 def baseline_options(*, baseline, crash_watch, hook, callback, observer, capture,
@@ -448,7 +521,7 @@ def _baseline_case(case):
             or checkpoint.get('material_effects_requested') != []):
         raise ValueError('Explicit baseline source/mode checkpoint is absent or contradictory.')
     sources = checkpoint.get('sources')
-    if not isinstance(sources, dict) or set(sources) != baseline_source_paths():
+    if not isinstance(sources, dict) or set(sources) != baseline_source_paths(metric=_baseline_metric_requested(case)):
         raise ValueError('Baseline requires every exact private/controller source checkpoint.')
     if sources.get(Path(__file__).resolve().relative_to(ROOT).as_posix())!=digest(__file__):
         raise ValueError('Baseline did not checkpoint this exact executing watcher.')
@@ -581,10 +654,12 @@ def baseline_admit(owned, case, *, load_and_new_save_confirmed=False):
             or record.get('path') != str(owned.executable) or record.get('sha256') != owned.expected
             or record.get('native_initialized') is not True or not owned.executable.is_relative_to(root)):
         raise ValueError('Baseline record is not this original retained child.')
-    native = Native();child = native.identity(owned.pid, owned._handle)
+    native = _baseline_native();child = native.identity(owned.pid, owned._handle)
     if any(child.get(key) != record.get(key) for key in ('pid','parent','path','sha256')):
         raise RuntimeError('Retained baseline child identity differs from its owner record.')
+    native.bind_original(child, owned._handle)
     modules = _baseline_modules(native, owned.pid, root, required)
+    proof = _baseline_module_proof(native, child)
     handle = native.open(os.getpid())
     try:parent = native.identity(os.getpid(), handle)
     finally:native.close(handle)
@@ -594,14 +669,20 @@ def baseline_admit(owned, case, *, load_and_new_save_confirmed=False):
     value = dict(format=BASELINE_FORMAT,mode=BASELINE_MODE,case=str(case),child=child,parent=parent,
         case_files=files,watcher_sha256=digest(__file__),required_binaries=required,
         platform_manifest_sha256=digest(manifest),modules=[str(path)for path in modules],
+        **proof,
         native_graphics_modules_absent=True,load_and_new_save_confirmed=True)
+    if _baseline_metric_requested(case):
+        from . import baseline_metric_profile
+        value['baseline_metric_profile']=baseline_metric_profile.prepare_owner_profile(case,native,child)
     _write_new(case/BASELINE_ADMISSION,value);return value
 
 
 def _baseline_admitted(case, native):
     case,root,required,manifest = _baseline_case(case);value=_json(case/BASELINE_ADMISSION)
     keys={'format','mode','case','child','parent','case_files','watcher_sha256','required_binaries',
-          'platform_manifest_sha256','modules','native_graphics_modules_absent','load_and_new_save_confirmed'}
+           'platform_manifest_sha256','modules','module_rows','module_alias_proofs',
+           'native_graphics_modules_absent','load_and_new_save_confirmed'}
+    if _baseline_metric_requested(case):keys.add('baseline_metric_profile')
     if (set(value)!=keys or value['format']!=BASELINE_FORMAT or value['mode']!=BASELINE_MODE
             or value['case']!=str(case) or value['watcher_sha256']!=digest(__file__)
             or value['required_binaries']!=required or value['platform_manifest_sha256']!=digest(manifest)
@@ -622,8 +703,17 @@ def _baseline_admitted(case, native):
     try:
         child=native.open(value['child']['pid']);parent=native.open(value['parent']['pid'])
         _match(value['child'],native.identity(value['child']['pid'],child));_match(value['parent'],native.identity(value['parent']['pid'],parent))
+        native.bind_original(value['child'], child)
         _baseline_modules(native,value['child']['pid'],root,required)
+        proof = _baseline_module_proof(native, value['child']);_baseline_repeat_aliases(value, proof)
+        if value['module_rows']!=proof['module_rows']:
+            raise RuntimeError('Baseline module rows changed before watcher admission.')
+        if _baseline_metric_requested(case):
+            from . import baseline_metric_profile
+            if value['baseline_metric_profile']!=baseline_metric_profile.prepare_owner_profile(case,native,value['child']):
+                raise ValueError('Metric owner/source/original-code admission proof changed.')
         value['game_root']=str(root);value['baseline_required_paths']=[str(root/name)for name in required]
+        value['baseline_alias_paths']=[item['resolved_path']for item in proof['module_alias_proofs']]
         return case,value,child,parent
     except BaseException:
         if child:native.close(child)
@@ -699,12 +789,16 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
     if type(seconds) is not int or not 300 <= seconds <= 600:
         raise ValueError('Crash watch is bounded to300–600 seconds.')
     if type(baseline)is not bool:raise ValueError('Explicit boolean baseline mode required.')
-    native = Native()
+    native = _baseline_native() if baseline else Native()
     case, admission, child, parent = (_baseline_admitted if baseline else _admitted)(case, native)
     proc = None
     result = dict(format='s7-owned-crash-watch-v1', diagnostic_not_benchmark=True,
                   game_terminated_by_watcher=False, limit_bytes=MAX_BYTES, limit_dumps=MAX_DUMPS)
-    if baseline:result.update(baseline_mode=BASELINE_MODE,native_graphics_modules_absent=True)
+    if baseline:result.update(baseline_mode=BASELINE_MODE,native_graphics_modules_absent=True,
+        baseline_module_rows=admission['module_rows'],baseline_module_alias_proofs=admission['module_alias_proofs'],
+        baseline_aliases_reproved_under_lease=False)
+    if baseline and admission.get('baseline_metric_profile')is not None:
+        result['baseline_metric_profile']=admission['baseline_metric_profile']
     debugger_identity = None
     output_created = False
     try:
@@ -716,7 +810,11 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
         output_created = True
         (output / 'symbols').mkdir(); (output / 'sources').mkdir()
         with (output / 'watch.cmd').open('x', encoding='ascii', newline='\n') as stream:
-            stream.write(commands(steam_heap=admission['child']['sha256']==STEAM_EXE))
+            if baseline and admission.get('baseline_metric_profile')is not None:
+                from . import baseline_metric_profile
+                stream.write(baseline_metric_profile.commands())
+            else:
+                stream.write(commands(steam_heap=admission['child']['sha256']==STEAM_EXE))
         args = arguments(cdb, admission['child']['pid'])
         result.update(case=str(case), original=admission['child'], command=args,
                       cdb_sha256=CDB_PINS['cdb.exe'], target_before=native.state(child))
@@ -727,7 +825,8 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
                 leases.enter_context(file_lease(cdb.parent / name))
             if baseline:
                 for path in admission['baseline_required_paths']:leases.enter_context(file_lease(Path(path)))
-                for relative in baseline_source_paths():leases.enter_context(file_lease(ROOT/relative))
+                for path in admission['baseline_alias_paths']:leases.enter_context(file_lease(Path(path)))
+                for relative in baseline_source_paths(metric=admission.get('baseline_metric_profile')is not None):leases.enter_context(file_lease(ROOT/relative))
             else:leases.enter_context(file_lease(Path(admission['hook'])))
             # Recheck all identities after acquiring deny-write leases.
             verify_cdb(cdb, native)
@@ -735,6 +834,14 @@ def watch(case, output, *, cdb=DEFAULT_CDB, seconds=300, baseline=False):
             _match(admission['parent'], native.identity(admission['parent']['pid'], parent))
             if baseline:
                 _baseline_case(case);_baseline_modules(native,admission['child']['pid'],Path(admission['game_root']),admission['required_binaries'])
+                proof=_baseline_module_proof(native,admission['child']);_baseline_repeat_aliases(admission,proof)
+                result.update(baseline_module_rows=proof['module_rows'],baseline_module_alias_proofs=proof['module_alias_proofs'],
+                    baseline_aliases_reproved_under_lease=True)
+                if admission.get('baseline_metric_profile')is not None:
+                    from . import baseline_metric_profile
+                    if admission['baseline_metric_profile']!=baseline_metric_profile.prepare_owner_profile(case,native,admission['child']):
+                        raise ValueError('Metric original-code proof changed under leases.')
+                    result['baseline_metric_reproved_under_lease']=True
             verified_modules={Path(path)for path in admission.get('modules',[])}
             with (output / 'cdb.private.log').open('xb') as log:
                 proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,

@@ -64,18 +64,105 @@ class Case:
         self.child={**{k:self.record[k]for k in ('pid','parent','path','sha256')},'creation_time':1000}
         self.parent=dict(pid=os.getpid(),parent=44,path=str(ROOT/'python-owner.exe'),sha256='a'*64,creation_time=900)
         self.native=Mock();self.native.modules.return_value=[self.root/n for n in names]
+        self.native.module_rows=[dict(pid=123,base=0x400000+index*0x10000,image_bytes=4096,
+            reported_path=str(self.root/name),resolved_path=str(self.root/name))for index,name in enumerate(names)]
+        self.native.alias_proofs=[]
         self.native.identity.side_effect=lambda pid,handle:dict(self.child if pid==123 else self.parent)
         self.owned=Mock(pid=123,_handle=987,executable=self.exe,expected=self.pin,native_initialized=True,_weplay_owned=True)
         self.owned.poll.return_value=None
-        self.stack.enter_context(patch.object(b,'Native',return_value=self.native))
+        self.stack.enter_context(patch.object(b,'_baseline_native',return_value=self.native))
         return self
     def __exit__(self,*args):return self.stack.__exit__(*args)
     def write(self,name,value):(self.case/name).write_text(json.dumps(value))
     def read(self,name):return json.loads((self.case/name).read_text())
     def admit(self):return b.baseline_admit(self.owned,self.case,load_and_new_save_confirmed=True)
+    def alias(self):
+        windows=self.root/'Windows';suffix=Path('DriverStore/FileRepository/vendor/driver.dll')
+        reported=windows/'SysWOW64'/suffix;resolved=windows/'System32'/suffix
+        resolved.parent.mkdir(parents=True);resolved.write_bytes(pe())
+        row=dict(pid=123,base=0x20000000,image_bytes=4096,reported_path=str(reported),resolved_path=str(resolved))
+        mapped=r'\Device\HarddiskVolume4\Windows\System32\DriverStore\FileRepository\vendor\driver.dll'
+        proof=dict(original_identity=dict(self.child),module_base='0x20000000',image_bytes=4096,
+            reported_path=str(reported),resolved_path=str(resolved),mapped_nt=mapped,final_nt=mapped,
+            file_sha256=b.digest(resolved),file_identity=dict(volume_serial=4,file_index=123,bytes=resolved.stat().st_size),
+            method='original-map-equals-opened-file-VOLUME_NAME_NT',read_only=True)
+        self.native.module_rows.append(row);self.native.alias_proofs.append(proof)
+        self.native.modules.return_value.append(resolved)
+        return row,proof,resolved
 
 
 class BaselineTests(unittest.TestCase):
+    def test_ordinary_case_only_module_path_requires_no_alias(self):
+        with Case()as c:
+            row=c.native.module_rows[0];raw=row['reported_path'].upper();row['reported_path']=raw
+            self.assertNotEqual(row['reported_path'],row['resolved_path'])
+            self.assertEqual(b.recover.plain(row['reported_path']),b.recover.plain(row['resolved_path']))
+            proof=b._baseline_module_proof(c.native,c.child)
+            self.assertEqual(proof['module_alias_proofs'],[])
+            self.assertEqual(proof['module_rows'][0]['reported_path'],raw)
+
+    def test_real_alias_raw_path_case_matches_only_existing_nt_proof(self):
+        with Case()as c:
+            row,proof,_=c.alias();row['reported_path']=row['reported_path'].upper()
+            self.assertEqual(b._baseline_module_proof(c.native,c.child)['module_alias_proofs'],[proof])
+            c.native.alias_proofs=[]
+            with self.assertRaises(ValueError):b._baseline_module_proof(c.native,c.child)
+
+    def test_distinct_drive_folder_and_file_are_not_case_aliases(self):
+        for change in ('drive','folder','file'):
+            with self.subTest(change=change),Case()as c:
+                row=c.native.module_rows[0];original=Path(row['reported_path'])
+                changed=(Path(('C'if original.drive[0].upper()!='C'else'Z')+':/distinct/Settlers7R.exe')
+                    if change=='drive'else original.parent/'distinct'/original.name if change=='folder'
+                    else original.with_name('different.dll'))
+                row['reported_path']=str(changed)
+                with self.assertRaises((ValueError,OSError)):b._baseline_module_proof(c.native,c.child)
+
+    def test_real_alias_with_case_variation_still_checks_nt_hash_creation(self):
+        for change in ('nt-volume','nt-file','hash','creation'):
+            with self.subTest(change=change),Case()as c:
+                row,proof,_=c.alias();row['reported_path']=row['reported_path'].upper()
+                if change=='nt-volume':proof['final_nt']=proof['final_nt'].replace('Volume4','Volume5')
+                elif change=='nt-file':proof['final_nt']=proof['final_nt'].replace('driver.dll','different.dll')
+                elif change=='hash':proof['file_sha256']='f'*64
+                else:proof['original_identity']['creation_time']+=1
+                with self.assertRaises(ValueError):b._baseline_module_proof(c.native,c.child)
+
+    def test_dedicated_provider_checkpoint_is_required_before_process_queries(self):
+        with Case()as c:
+            self.assertIn('tools/graphics_lab/baseline_modules.py',b.baseline_source_paths())
+            checkpoint=c.read('checkpoint.private.json');checkpoint['sources'].pop('tools/graphics_lab/baseline_modules.py')
+            c.write('checkpoint.private.json',checkpoint)
+            with self.assertRaises(ValueError):c.admit()
+            c.native.bind_original.assert_not_called();c.native.open.assert_not_called()
+
+    def test_alias_proof_retained_and_bound_to_original_owner_handle(self):
+        with Case()as c:
+            row,proof,path=c.alias();admission=c.admit()
+            self.assertEqual(admission['module_rows'][-1],row);self.assertEqual(admission['module_alias_proofs'],[proof])
+            _,value,child,parent=b._baseline_admitted(c.case,c.native)
+            self.assertEqual(value['baseline_alias_paths'],[str(path)])
+            self.assertEqual(c.native.bind_original.call_args_list[0].args,(c.child,987))
+            self.assertEqual(c.native.bind_original.call_args_list[-1].args,(c.child,child))
+
+    def test_alias_record_identity_mapping_hash_and_unproved_resolution_rejected(self):
+        for mutation in ('nt','child','hash','missing','extra-key','missing-row'):
+            with self.subTest(mutation=mutation),Case()as c:
+                _,proof,_=c.alias()
+                if mutation=='nt':proof['final_nt']=proof['final_nt'].replace('Volume4','Volume5')
+                elif mutation=='child':proof['original_identity']['creation_time']+=1
+                elif mutation=='hash':proof['file_sha256']='f'*64
+                elif mutation=='missing':c.native.alias_proofs=[]
+                elif mutation=='extra-key':proof['arbitrary_pid']=456
+                else:c.native.module_rows.pop()
+                with self.assertRaises(ValueError):c.admit()
+
+    def test_saved_alias_proof_cannot_change_before_watcher_admission(self):
+        with Case()as c:
+            _,proof,_=c.alias();c.admit()
+            proof['file_identity']['file_index']+=1
+            with self.assertRaises(RuntimeError):b._baseline_admitted(c.case,c.native)
+
     def test_native_module_shapes_and_only_pinned_main_exe_duplicate(self):
         with Case() as case:
             paths=list(case.native.modules.return_value)
@@ -95,10 +182,29 @@ class BaselineTests(unittest.TestCase):
             case.native.modules.return_value=paths[1:]+[case.adapter]
             with self.assertRaises(RuntimeError):b._baseline_modules(case.native,case.owned.pid,case.root,case.critical)
     def test_original_graphics_and_cdb_guards_remain_ast_identical(self):
-        def definitions(path):return {n.name:ast.dump(n,include_attributes=False)for n in ast.parse(path.read_text()).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}
+        def definitions(path):return {n.name:ast.dump(n,include_attributes=False)for n in ast.parse(path.read_text(encoding='utf-8')).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}
         current=definitions(ROOT/'tools/graphics_lab/crash_watch.py')
         for name,pin in GUARD_AST_PINS.items():
             with self.subTest(name=name):self.assertEqual(hashlib.sha256(current[name].encode()).hexdigest(),pin)
+    def test_nonbaseline_watch_branch_remains_ast_identical(self):
+        class Projection(ast.NodeTransformer):
+            def visit_Name(self,node):
+                return ast.Constant(False) if node.id=='baseline' and isinstance(node.ctx,ast.Load) else node
+            def visit_IfExp(self,node):
+                node=self.generic_visit(node)
+                return node.orelse if isinstance(node.test,ast.Constant) and node.test.value is False else node
+            def visit_If(self,node):
+                node=self.generic_visit(node)
+                return node.orelse if isinstance(node.test,ast.Constant) and node.test.value is False else node
+            def visit_BoolOp(self,node):
+                node=self.generic_visit(node)
+                return ast.Constant(False) if isinstance(node.op,ast.And) and any(isinstance(value,ast.Constant) and value.value is False for value in node.values) else node
+        tree=ast.parse((ROOT/'tools/graphics_lab/crash_watch.py').read_text(encoding='utf-8'))
+        function=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='watch')
+        value=ast.dump(Projection().visit(function),include_attributes=False)
+        # Recorded before provider integration, with baseline=False branches removed.
+        self.assertEqual(hashlib.sha256(value.encode()).hexdigest(),
+            'c3f7159ca5c4ac42aea7c82446417acb630af884d8329f5efb1602a31f0f5bb1')
     def test_explicit_options_reject_all_graphics_paths_before_process_work(self):
         values=dict(baseline=True,crash_watch=True,hook=None,callback=None,observer=None,capture=None,materials=(),comparison=False,detailed_shadows=False,initially_off=False,config_version=1)
         b.baseline_options(**values)
@@ -123,6 +229,7 @@ class BaselineTests(unittest.TestCase):
         with Case()as c:
             admission=c.admit();self.assertEqual(admission['mode'],b.BASELINE_MODE);self.assertTrue(admission['native_graphics_modules_absent'])
             c.native.identity.assert_any_call(123,987);self.assertFalse((c.case/b.ADMISSION).exists())
+            c.native.bind_original.assert_called_once_with(c.child,987)
             case,value,child,parent=b._baseline_admitted(c.case,c.native)
             self.assertEqual(case,c.case);self.assertEqual(value['required_binaries'],c.critical);self.assertEqual(value['game_root'],str(c.root))
             self.assertNotIn('hook',value);self.assertEqual(len(value['baseline_required_paths']),5)
@@ -188,8 +295,11 @@ class BaselineTests(unittest.TestCase):
         child=dict(pid=11,parent=12,path=str(root/'Settlers7R.exe'),sha256='b'*64,creation_time=100)
         parent=dict(pid=12,parent=13,path=str(root/'owner.exe'),sha256='c'*64,creation_time=90)
         cdb=Path(directory)/'cdb.exe';debugger=dict(pid=99,parent=os.getpid(),path=str(cdb),sha256=b.CDB_PINS['cdb.exe'],creation_time=110)
-        admission=dict(child=child,parent=parent,game_root=str(root),required_binaries={},baseline_required_paths=[],modules=[])
+        rows=[dict(pid=11,base=0x400000,image_bytes=4096,reported_path=str(root/'Settlers7R.exe'),resolved_path=str(root/'Settlers7R.exe'))]
+        admission=dict(child=child,parent=parent,game_root=str(root),required_binaries={},baseline_required_paths=[],modules=[],
+            module_rows=rows,module_alias_proofs=[],baseline_alias_paths=[])
         native=Mock();native.state.return_value=dict(alive=True,exit_code=None)
+        native.module_rows=rows;native.alias_proofs=[]
         native.identity.side_effect=lambda pid,handle:{11:child,12:parent,99:debugger}[pid]
         proc=Mock(pid=99,_handle=88,returncode=None);proc.poll.side_effect=lambda:proc.returncode
         def waited(timeout):proc.returncode=0;return 0
@@ -199,7 +309,7 @@ class BaselineTests(unittest.TestCase):
     def test_baseline_watch_timeout_detaches_only_pinned_debugger(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
             case,cdb,admission,native,proc=self.watch_fixture(directory);output=Path(directory)/'watch'
-            with patch.object(b,'Native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
                  patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules'),patch.object(b,'verify_cdb',return_value=cdb),\
                  patch('tools.graphics_lab.load_hook.file_lease',side_effect=lambda p:nullcontext()),\
                  patch.object(b.subprocess,'Popen',return_value=proc)as launch,patch.object(b.time,'monotonic',side_effect=[0,301]):
@@ -209,10 +319,40 @@ class BaselineTests(unittest.TestCase):
             args,kwargs=launch.call_args;self.assertEqual(args[0][-2:],['-p','11']);self.assertIn('-pd',args[0]);self.assertFalse(kwargs['shell'])
             native.close.assert_any_call(11);native.close.assert_any_call(12)
 
+    def test_baseline_alias_file_is_leased_and_reproved_before_debugger_spawn(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
+            case,cdb,admission,native,proc=self.watch_fixture(directory);output=Path(directory)/'watch'
+            alias=Path(directory)/'driver.dll';alias.write_bytes(pe());admission['baseline_alias_paths']=[str(alias)]
+            leases=[];proof_calls=[]
+            def proof(provider,child):
+                self.assertIn(alias,leases);proof_calls.append(True)
+                return {'module_rows':admission['module_rows'],'module_alias_proofs':[]}
+            def spawn(*args,**kwargs):self.assertTrue(proof_calls);return proc
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+                 patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules'),patch.object(b,'_baseline_module_proof',side_effect=proof),\
+                 patch.object(b,'verify_cdb',return_value=cdb),\
+                 patch('tools.graphics_lab.load_hook.file_lease',side_effect=lambda path:(leases.append(path),nullcontext())[1]),\
+                 patch.object(b.subprocess,'Popen',side_effect=spawn),patch.object(b.time,'monotonic',side_effect=[0,301]):
+                result=b.watch(case,output,baseline=True)
+            self.assertTrue(result['baseline_aliases_reproved_under_lease']);self.assertEqual(len(proof_calls),1)
+            proc.terminate.assert_not_called()
+
+    def test_changed_alias_mapping_under_lease_refuses_before_debugger_spawn(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
+            case,cdb,admission,native,proc=self.watch_fixture(directory);output=Path(directory)/'watch'
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+                 patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules'),\
+                 patch.object(b,'_baseline_module_proof',return_value={'module_rows':admission['module_rows'],'module_alias_proofs':[{'changed':True}]}),\
+                 patch.object(b,'verify_cdb',return_value=cdb),\
+                 patch('tools.graphics_lab.load_hook.file_lease',side_effect=lambda path:nullcontext()),\
+                 patch.object(b.subprocess,'Popen')as spawn:
+                with self.assertRaises(RuntimeError):b.watch(case,output,baseline=True)
+            spawn.assert_not_called();native.close.assert_any_call(11);native.close.assert_any_call(12)
+
     def test_new_graphics_module_during_watch_refuses_without_stopping_game(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'work')as directory:
             case,cdb,admission,native,proc=self.watch_fixture(directory);output=Path(directory)/'watch'
-            with patch.object(b,'Native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
+            with patch.object(b,'_baseline_native',return_value=native),patch.object(b,'_baseline_admitted',return_value=(case,admission,11,12)),\
                  patch.object(b,'_baseline_case'),patch.object(b,'_baseline_modules'),patch.object(b,'verify_cdb',return_value=cdb),\
                  patch('tools.graphics_lab.load_hook.file_lease',side_effect=lambda p:nullcontext()),\
                  patch.object(b.subprocess,'Popen',return_value=proc),patch.object(b.time,'monotonic',side_effect=[0,0,1]),\

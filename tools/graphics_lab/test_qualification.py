@@ -423,6 +423,83 @@ class QualificationTests(unittest.TestCase):
         self.change_artifact(1,'hook_build',lambda data:data.update(compiled_capabilities=31))
         self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
 
+    def ambient_build(self):
+        directory=self.shadow_build()
+        def update(data):
+            data.update(source_set='effects-v7',diagnostic_abi={'comparison':12,'shadow':12,'ambient':12})
+            for name in q.AMBIENT_HOOK_SOURCES-data['files'].keys():
+                path=directory/name;path.write_bytes(('synthetic ambient snapshot '+name).encode())
+                data['files'][name]=digest(path.read_bytes())
+        self.change_artifact(1,'hook_build',update)
+        return directory
+
+    def test_ambient_v7_requires36_sources_and_exact_separate_diagnostic_abi(self):
+        self.ambient_build()
+        self.assertEqual(len(q.AMBIENT_HOOK_SOURCES),36)
+        result=q.aggregate(self.manifest)
+        self.assertTrue(result['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(result['visual_qualified'])
+        for abi in ({'comparison':12,'shadow':12}, {'comparison':12,'shadow':12,'ambient':16},
+                    {'comparison':12,'shadow':12,'ambient':12,'arbitrary':12}):
+            self.change_artifact(1,'hook_build',lambda data:data.update(diagnostic_abi=abi))
+            self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_ambient_v7_changed_missing_or_mislabeled_sources_rejected(self):
+        directory=self.ambient_build()
+        path=directory/'ambient_occlusion_policy.h';original=path.read_bytes();path.write_bytes(original+b'changed')
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        path.write_bytes(original)
+        self.change_artifact(1,'hook_build',lambda data:data.update(source_set='effects-v6',diagnostic_abi={'comparison':12,'shadow':12}))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:(data.update(source_set='effects-v7',diagnostic_abi={'comparison':12,'shadow':12,'ambient':12}),data['files'].pop('up_draw_observer_protocol.h')))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_ambient_v7_keeps_capability_abi_and_exit_guards(self):
+        self.ambient_build()
+        self.change_artifact(1,'hook_build',lambda data:data.update(compiled_capabilities=63))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:(data.update(compiled_capabilities=15),data['abi'].update(water=1060)))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data['abi'].update(water=1076))
+        self.change_artifact(1,'result',lambda data:data.update(exit_code=0xc0000005))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def ambient_v2_build(self):
+        directory=self.ambient_build()
+        self.change_artifact(1,'hook_build',lambda data:data.update(source_set='effects-v8',
+            diagnostic_abi={'comparison':12,'shadow':12,'ambient':12,'ambient_v2':12}))
+        return directory
+
+    def test_ambient_v8_same36_sources_explicit_profile_b_abi(self):
+        self.ambient_v2_build()
+        result=q.aggregate(self.manifest)
+        self.assertTrue(result['cases'][1]['runtime_records_consistent'])
+        self.assertFalse(result['visual_qualified'])
+        for abi in ({'comparison':12,'shadow':12,'ambient':12},
+                    {'comparison':12,'shadow':12,'ambient':12,'ambient_v2':16},
+                    {'comparison':12,'shadow':12,'ambient':12,'ambient_v2':12,'arbitrary':12}):
+            self.change_artifact(1,'hook_build',lambda data:data.update(diagnostic_abi=abi))
+            self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_ambient_v7_never_infers_profile_b_from_same_source_names(self):
+        self.ambient_build()
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data['diagnostic_abi'].update(ambient_v2=12))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data.update(source_set='effects-v8'))
+        self.assertTrue(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
+    def test_ambient_v8_changed_source_capability_and_exit_still_rejected(self):
+        directory=self.ambient_v2_build()
+        path=directory/'ambient_occlusion_effects.h';original=path.read_bytes();path.write_bytes(original+b'changed')
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        path.write_bytes(original)
+        self.change_artifact(1,'hook_build',lambda data:data.update(compiled_capabilities=63))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+        self.change_artifact(1,'hook_build',lambda data:data.update(compiled_capabilities=15))
+        self.change_artifact(1,'result',lambda data:data.update(exit_code=0xc0000005))
+        self.assertFalse(q.aggregate(self.manifest)['cases'][1]['runtime_records_consistent'])
+
     @staticmethod
     def water_record(on=True):
         return {'frame':80,'requested':int(on),'enabled':int(on),'configured':int(on),'epoch':2 if on else 1,

@@ -107,9 +107,10 @@ def _existing(path,data):
 
 def _prepare(recipient_root,selection,display,*,config_version,available_config_versions,worker_overhead_bytes,
             available_features,available_scales,native_report,verified_platform=None,private_case=False,
-            programs=None,terrain_vertex_generator=None,terrain_scales=(1.20,1.10),recipe_variant=2):
+            programs=None,terrain_vertex_generator=None,terrain_scales=(1.20,1.10),recipe_variant=2,leaf_vertex_generator=None):
     catalog=PROGRAMS if programs is None else programs
     vertex_generator=terrain_distance.generate if terrain_vertex_generator is None else terrain_vertex_generator
+    leaf_generator=leaf_lobe.generate if leaf_vertex_generator is None else leaf_vertex_generator
     settings=staging._settings();selected=settings.validate(selection)
     settings.require_features(selected,available_features)
     flags=sum(bit for bit,key in ((1,"improved_water"),(2,"improved_terrain"),(4,"improved_vegetation"))if selected[key])
@@ -167,7 +168,7 @@ def _prepare(recipient_root,selection,display,*,config_version,available_config_
                     generated.append((prefix+"_pixel",_versioned(prefix+"_pixel",recipes.generate_terrain(name,data,record),programs=catalog)))
         if flags&4:
             for name in recipes.RESOURCES:
-                generated.append(("leaf",_versioned("leaf",leaf_lobe.generate(name,inventory.read_payload(archive,name)),programs=catalog)))
+                generated.append(("leaf",_versioned("leaf",leaf_generator(name,inventory.read_payload(archive,name)),programs=catalog)))
         reread=inventory.bba.Archive(raw,copy=False)
         if hashlib.sha256(reread.header+reread.directory).hexdigest()!=directory_hash:raise ValueError("V2 source directory changed during generation")
     plans=[_plan(cache_root,report.parent,role,item,programs=catalog) for role,item in generated]

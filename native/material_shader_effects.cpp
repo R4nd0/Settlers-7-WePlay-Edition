@@ -39,7 +39,7 @@ std::array<Role,4> roles{{
 }};
 struct Cached {IUnknown* object=nullptr;DWORD stage=0,mask=0;};
 struct ProgramPin {DWORD bytes=0,stage=0;const char* text=nullptr;std::array<unsigned char,32> hash{};};
-std::array<std::array<ProgramPin,5>,3> programs{{
+std::array<std::array<ProgramPin,5>,4> programs{{
     {{{3872,1,"2797260e11f28f67cecacd2e79f0df1064bb3ed07ffdc81ab129db2963a1cbbe",{}},
       {1836,2,"c2ae22a6739e071774edd071870e6dc8fd058b5bf6eec6490bc1a4603fea2fa3",{}},
       {3596,2,"d0d082bbb9b8d2de1388b790165bcebc5fda571d88895db3e8b36004bf2e52fa",{}},{},{}}},
@@ -52,7 +52,8 @@ std::array<std::array<ProgramPin,5>,3> programs{{
       {1836,2,"c2ae22a6739e071774edd071870e6dc8fd058b5bf6eec6490bc1a4603fea2fa3",{}},
       {3596,2,"d0d082bbb9b8d2de1388b790165bcebc5fda571d88895db3e8b36004bf2e52fa",{}},
       {2020,1,"da8154477a4fd3c44ace75d9c42d6d3714dc196c9c0f30fc332f06493539a21b",{}},
-      {2020,1,"b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",{}}}}
+      {2020,1,"b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",{}}}},
+    {{{3852,1,"ffb6d89661e9ae8a9d75ba3d322a318996d07d1dbb81281fefdb4b8df2f277f7",{}},{},{},{},{}}}
 }};
 struct State {
     Config config{};Stats stats{};IDirect3DDevice9* device=nullptr;DWORD thread=0,program_variant=0;
@@ -73,7 +74,7 @@ State current;SRWLOCK mutex=SRWLOCK_INIT;
 void EventReport() noexcept;
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 std::array<bool,4> fixture_override{};
-std::array<std::array<bool,5>,3> fixture_program_override{};
+std::array<std::array<bool,5>,4> fixture_program_override{};
 #endif
 bool Finite(float value){DWORD bits=0;std::memcpy(&bits,&value,4);return (bits&0x7f800000u)!=0x7f800000u;}
 bool Between(float value,float low,float high){return Finite(value)&&value>=low&&value<=high;}
@@ -131,6 +132,10 @@ bool V2Paths(const MaterialShaderConfigV2::Config& config,unsigned pin_version=2
             const wchar_t* recipe=slot==3?L"terrain-macro-relief-BumpLayerShader-v3":L"terrain-macro-relief-ParallaxLayerShader-v3";
             if(parent==std::wstring::npos||_wcsicmp(path.substr(parent+1,slash-parent-1).c_str(),recipe))return false;
         }
+        if(pin_version==4){
+            const auto parent=path.find_last_of(L'\\',slash-1);
+            if(slot!=0||parent==std::wstring::npos||_wcsicmp(path.substr(parent+1,slash-parent-1).c_str(),L"leaf-hemisphere-contrast-v3"))return false;
+        }
     }
     return true;
 }
@@ -164,7 +169,7 @@ void Clear(){
 }
 void CloseFiles(){for(auto& file:current.files)if(file!=INVALID_HANDLE_VALUE){CloseHandle(file);file=INVALID_HANDLE_VALUE;}for(auto& code:current.code)code.clear();}
 bool Load(unsigned index,const wchar_t* path,unsigned version){
-    if(version<1||version>3||index>=5)return false;const auto& pin=programs[version-1][index];if(!pin.stage)return false;
+    if(version<1||version>4||index>=5)return false;const auto& pin=programs[version-1][index];if(!pin.stage)return false;
     if(!Absolute(path))return false;
     File file{CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr)};
     if(file.value==INVALID_HANDLE_VALUE)return false;
@@ -234,7 +239,8 @@ struct PendingOriginals {
     ~PendingOriginals(){if(!committed&&!current.unrestored)ReleaseActiveOriginals();}
 };
 void Report(){
-    if(!current.config.report_path[0])return;const auto& s=current.stats;char text[2048]{};
+    if(!current.config.report_path[0])return;const auto& s=current.stats;const DWORD terrain_variant=current.program_variant==4?0u:current.program_variant;
+    const DWORD leaf_variant=(s.initialized_flags&Leaf)?(current.program_variant==4?3u:current.program_variant==1?1u:2u):0u;char text[2048]{};
     std::snprintf(text,sizeof(text),"{\"format\":\"s7-native-material-effects-v1\",\"enabled_flags\":%lu,\"faulted\":%lu,\"draws\":%llu,\"matched\":%llu,\"restored_draws\":%llu,\"restore_failures\":%llu,\"context_rejections\":%llu,\"input_rejections\":%llu,\"query_failures\":%llu,\"shader_creations\":%llu,\"shader_failures\":%llu,\"set_failures\":%llu,\"failed_draws\":%llu,\"cached_refs\":%lu,\"retained_programs\":%lu,\"peak_retained_programs\":%lu,\"frames\":%llu,\"resets\":%llu,\"cache_overflows\":%llu,\"applied\":[%llu,%llu,%llu,%llu],\"samples\":[",
         s.enabled_flags,s.faulted,s.draws,s.matched,s.restored_draws,s.restore_failures,s.context_rejections,s.input_rejections,s.query_failures,s.shader_creations,s.shader_failures,s.set_failures,s.failed_draws,s.cached_refs,s.retained_programs,s.peak_retained_programs,s.frames,s.resets,s.cache_overflows,s.applied[0],s.applied[1],s.applied[2],s.applied[3]);
     std::string json=text;
@@ -242,7 +248,7 @@ void Report(){
         for(DWORD j=0;j<sample.constant_count;++j){const auto& c=sample.constants[j];if(j)json+=',';
             std::snprintf(text,sizeof(text),"{\"stage\":%lu,\"index\":%lu,\"original\":[%.9g,%.9g,%.9g,%.9g],\"applied\":[%.9g,%.9g,%.9g,%.9g]}",c.stage,c.index,c.original[0],c.original[1],c.original[2],c.original[3],c.applied[0],c.applied[1],c.applied[2],c.applied[3]);json+=text;}
         json+="]}";}
-    std::snprintf(text,sizeof(text),"],\"initialized_flags\":%lu,\"active_transactions\":%lu,\"active_original_refs\":%lu,\"periodic_reporting\":%lu,\"enable_changes\":%llu,\"last_change_frame\":%llu,\"config_version\":%lu,\"terrain_recipe_variant\":%lu,\"program_creations\":[%llu,%llu,%llu,%llu,%llu]}\n",s.initialized_flags,s.active_transactions,s.active_original_refs,s.periodic_reporting,s.enable_changes,s.last_change_frame,s.config_version,current.program_variant,s.program_creations[0],s.program_creations[1],s.program_creations[2],s.program_creations[3],s.program_creations[4]);json+=text;
+    std::snprintf(text,sizeof(text),"],\"initialized_flags\":%lu,\"active_transactions\":%lu,\"active_original_refs\":%lu,\"periodic_reporting\":%lu,\"enable_changes\":%llu,\"last_change_frame\":%llu,\"config_version\":%lu,\"terrain_recipe_variant\":%lu,\"leaf_recipe_variant\":%lu,\"program_creations\":[%llu,%llu,%llu,%llu,%llu]}\n",s.initialized_flags,s.active_transactions,s.active_original_refs,s.periodic_reporting,s.enable_changes,s.last_change_frame,s.config_version,terrain_variant,leaf_variant,s.program_creations[0],s.program_creations[1],s.program_creations[2],s.program_creations[3],s.program_creations[4]);json+=text;
     const std::wstring temporary=std::wstring(current.config.report_path)+L".tmp";HANDLE file=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE){++current.stats.report_failures;return;}DWORD count=0;bool valid=WriteFile(file,json.data(),static_cast<DWORD>(json.size()),&count,nullptr)&&count==json.size();CloseHandle(file);
     if(valid)valid=MoveFileExW(temporary.c_str(),current.config.report_path,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;if(!valid)++current.stats.report_failures;
@@ -327,8 +333,8 @@ bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept{
         PrepareProgramPins(2);unsigned variant=2;
         if(!V2Paths(copy)){
             PrepareProgramPins(3);
-            if(!(copy.flags&Terrain)||(copy.flags&River)||copy.terrain_detail_scale!=1.0f||copy.terrain_relief_scale!=1.0f||!V2Paths(copy,3))return false;
-            variant=3;
+            if((copy.flags&Terrain)&&!(copy.flags&River)&&copy.terrain_detail_scale==1.0f&&copy.terrain_relief_scale==1.0f&&V2Paths(copy,3))variant=3;
+            else{PrepareProgramPins(4);if(copy.flags!=Leaf||!V2Paths(copy,4))return false;variant=4;}
         }
         Config common{};std::memcpy(&common,&copy,sizeof(common));common.size=sizeof(common);common.version=1;
         return InitializeCommon(common,2,copy.bump_vertex_path,copy.parallax_vertex_path,variant);
@@ -416,7 +422,7 @@ bool ReadStats(Stats* output) noexcept{Guard guard;try{Lock lock(mutex);if(!outp
 bool FixtureCompatibility(unsigned role,const unsigned char vertex[32],const unsigned char pixel[32],DWORD vertex_bytes,DWORD pixel_bytes,const unsigned char replacement[32]) noexcept{
     Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||role>=roles.size()||!vertex||!pixel)return false;std::memcpy(roles[role].vertex.hash.data(),vertex,32);std::memcpy(roles[role].pixel.hash.data(),pixel,32);roles[role].vertex.bytes=vertex_bytes;roles[role].pixel.bytes=pixel_bytes;if(replacement){std::memcpy(roles[role].replacement.data(),replacement,32);if(role){const unsigned slot=role==3?0:role;std::memcpy(programs[0][slot].hash.data(),replacement,32);programs[0][slot].bytes=0;fixture_program_override[0][slot]=true;}}fixture_override[role]=true;return true;}catch(...){return false;}}
 bool FixtureProgramCompatibility(unsigned version,unsigned slot,const unsigned char replacement[32],DWORD bytes) noexcept{
-    Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||version<1||version>3||slot>=5||!programs[version-1][slot].stage||!replacement||bytes<12||bytes>MaxCode||bytes%4)return false;
+    Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||version<1||version>4||slot>=5||!programs[version-1][slot].stage||!replacement||bytes<12||bytes>MaxCode||bytes%4)return false;
         std::memcpy(programs[version-1][slot].hash.data(),replacement,32);programs[version-1][slot].bytes=bytes;fixture_program_override[version-1][slot]=true;return true;
     }catch(...){return false;}}
 #endif

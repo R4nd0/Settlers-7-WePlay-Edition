@@ -27,6 +27,8 @@ inline constexpr auto MacroPrograms=[](){auto result=Programs;
     result[3]={L"terrain-macro-relief-BumpLayerShader-v3",L"da8154477a4fd3c44ace75d9c42d6d3714dc196c9c0f30fc332f06493539a21b",L".vs.bin",MaterialShaderEffects::Terrain};
     result[4]={L"terrain-macro-relief-ParallaxLayerShader-v3",L"b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",L".vs.bin",MaterialShaderEffects::Terrain};
     return result;}();
+inline constexpr Program LeafHemisphereProgram{L"leaf-hemisphere-contrast-v3",
+    L"ffb6d89661e9ae8a9d75ba3d322a318996d07d1dbb81281fefdb4b8df2f277f7",L".vs.bin",MaterialShaderEffects::Leaf};
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 // Authored GPU fixtures must explicitly pin their synthetic programs in BOTH
 // this policy and the effects component. This API is absent from production.
@@ -114,7 +116,7 @@ inline Error Validate(const Config& effects,const NativeGraphicsConfig::Version2
             artifacts=root+L"\\MaterialShaders\\";}
         else return Error::Path;
         const wchar_t (*paths[])[512]={&effects.leaf_vertex_path,&effects.bump_pixel_path,&effects.parallax_pixel_path,&effects.bump_vertex_path,&effects.parallax_vertex_path};
-        bool historical=true,macro=(intent&MaterialShaderEffects::Terrain)!=0;
+        bool historical=true,macro=(intent&MaterialShaderEffects::Terrain)!=0,hemisphere=intent==MaterialShaderEffects::Leaf;
         for(size_t slot=0;slot<5;++slot){const auto& spec=Programs[slot];
             const auto& value=*paths[slot];
             if(!(intent&spec.role)){if(!MaterialShaderConfigV2::Path(value,spec.suffix,false))return Error::Flags;continue;}
@@ -125,7 +127,10 @@ inline Error Validate(const Config& effects,const NativeGraphicsConfig::Version2
             const std::wstring macro_expected=artifacts+macro_spec.directory+L"\\"+Digest(slot,true)+macro_spec.suffix;
             historical=historical&&!_wcsicmp(full.c_str(),expected.c_str());
             macro=macro&&!_wcsicmp(full.c_str(),macro_expected.c_str());
-            if(!historical&&!macro)return Error::FixedPath;
+            if(slot==0){const std::wstring hemi_expected=artifacts+LeafHemisphereProgram.directory+L"\\"+LeafHemisphereProgram.digest+LeafHemisphereProgram.suffix;
+                hemisphere=hemisphere&&!_wcsicmp(full.c_str(),hemi_expected.c_str());}
+            else hemisphere=false; // No mixed terrain/leaf hemisphere profile.
+            if(!historical&&!macro&&!hemisphere)return Error::FixedPath;
             if(inspect_files){const auto check=Preflight(full,false);if(check!=Error::None)return check;}
         }
         if(!historical&&macro&&(!PositiveRange(effects.terrain_detail_scale,1,1)||!PositiveRange(effects.terrain_relief_scale,1,1)))return Error::Parameters;

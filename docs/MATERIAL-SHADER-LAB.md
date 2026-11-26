@@ -362,6 +362,20 @@ receipt sequence automatically qualifies visual quality.
 
 ## Verification
 
+The isolated Leaf hemisphere recipe is documented in
+[LEAF-HEMISPHERE-LAB.md](LEAF-HEMISPHERE-LAB.md). It uses the unchanged V2
+transport and a new exact immutable Leaf-only path/hash. Historical Leaf and
+Terrain Macro modes remain unchanged. It replaces the existing directional
+ambient response rather than stacking a uniform tree-colour multiplier;
+actual crown-normal distribution remains unmeasured; image results follow.
+
+Subsequent actual AO44 and Leaf47 captures verified the authored draw-local
+changes but established no convincing normal-view quality gain. AO contact
+darkening remained subtle; canopy differences were comparable to wind control
+noise. Neither is visually released. The AO and Leaf lab documents record
+the actual image and exit limitations; UP observation expands diagnostic
+coverage and is not itself a visual improvement.
+
 The explicit `staging_macro.prepare` candidate preserves the version2/6180-byte
 transport and historical `staging_v2.prepare` defaults. It generates new
 `terrain-macro-relief-*-v3` VS recipes from the recipient's pinned originals;

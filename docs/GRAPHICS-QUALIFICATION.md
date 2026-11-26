@@ -14,6 +14,29 @@ keeps `visual_qualified` and `release_qualified` false. Existing actual Ubisoft
 supersampling observations are described in [the supersampling lab](SUPERSAMPLING-LAB.md);
 they do not establish all-edition coverage or completion of the other phases.
 
+## Visual decisions, 2026-11-26
+
+Accepted supersampling and water B remain the comparison baseline. The terrain
+macro trial, distant-shadow footprint trial, AO profile B and leaf hemisphere
+trial have not shown a convincing benefit at normal camera distance. Their
+successful bindings are diagnostic evidence, not a reason to expose them as
+qualified launcher options. The AO and hemisphere strength variants are frozen.
+Private comparison galleries remain under `outputs/`, with complete output
+views, unchanged crops and OFF/ON/OFF controls; no game images are committed.
+
+The completed Steam SDK/DXVK baseline b46 reproduced the original-menu exit
+access violation without the modern graphics DLL. Its retained owner admission
+and independent audit verified physical module identities, including the
+mapped-file proof for driver path aliases. The failing original instruction and
+call chain match the earlier Steam graphics cases. This establishes reproduction
+in that SDK baseline; it does not establish a pristine retail baseline or rule
+out every graphics-related cause. No destructor/free bypass is justified.
+
+Leaf trial l47 also ended with an access violation after regular Alt+F4. Its
+memory monitor remained healthy, with no pressure, and shared profiles, game
+binaries and private options verified preservation/restoration. Neither that
+restoration nor balanced material substitutions waives the failed exit.
+
 ## Evidence gates
 
 | Area | Required evidence |
@@ -95,8 +118,23 @@ normal-view gain. Its original-menu access violation and unclassified changed
 private autosave keep the whole case rejected. The retained aggregate is
 `work/sh42-qualification-20261125-01`; successful native deinitialization counters
 do not waive the failed process exit.
+The effects-v7 build has thirty-six source inputs: the exact effects-v6 set plus
+the UP observation protocol and the AO policy/module header/implementation. Its
+main ABI and capabilities remain unchanged; its diagnostic ABI must contain
+exactly `comparison: 12`, `shadow: 12` and `ambient: 12`. Ambient capture state is
+independent of shadow state, including its frame proof and raw PS81 bitwords.
+This source schema establishes neither actual AO activation nor a visual pass.
+Read-only UP observation also does not identify the source of the black streaks.
+The effects-v8 build retains the same thirty-six source names and main ABI, but
+requires the additional diagnostic entry `ambient_v2: 12`. Historical effects-v7
+retains exactly its three diagnostic entries and the original profile-A contract;
+shared source names do not grant profile-B support. Profile B is an explicit
+version-2, twelve-byte AO operation, with its own fixed policy. Internal AO Stats
+are version2/320 bytes with the profile appended at offset312; shadow Stats remain
+312 bytes. Exact immutable source snapshots bind this difference. This does not
+introduce automatic visual qualification or a new evidence artifact role.
 All effects sets retain three binaries, capabilities 15, and explicit
-initialization/observation/effects/capture ABI sizes. All seven source sets
+initialization/observation/effects/capture ABI sizes. All nine source sets
 remain supported. Their retained build-directory
 snapshots are hashed against the exact build manifest; the report does not
 substitute current edited sources for the files actually compiled. Unknown
