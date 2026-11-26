@@ -161,3 +161,11 @@ No claim is made for other water programs, active atmospheric scattering,
 performance, ray tracing, general
 D3D9On12 compatibility or shipping a replacement production renderer.
 The laboratory adapter does not admit the production DXVK-only graphics hook.
+
+The separately requested one-run performance comparison is recorded in the
+[10-second benchmark receipt](receipts/d3d9-on12-short-comparison-20261126.json).
+At identical 1920x1080 High settings and camera, uncapped D3D9 averaged
+92.23 application FPS / 10.84 ms, while the current On12 route including its
+water correction averaged 75.01 FPS / 13.33 ms (18.67% fewer FPS). The On12
+correction's per-draw identification overhead is included; this comparison
+does not isolate translation overhead or measure physical displayed FPS.
