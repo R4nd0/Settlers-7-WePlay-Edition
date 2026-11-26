@@ -59,11 +59,18 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None):
         from . import game
         if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
             raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
         if type(water_benchmark)is not bool or (water_benchmark and not water_pow_cap):raise ValueError('Water benchmark requires the explicit On12 correction.')
+        if water_worker_priority is None:water_worker_priority=water_pow_cap and not water_benchmark
+        if type(water_worker_priority)is not bool or (water_worker_priority and (not water_pow_cap or water_benchmark)):
+            raise ValueError('Worker priority requires its exclusive exact On12 correction.')
+        self.worker_policy=None
+        if water_worker_priority:
+            from .on12_worker import Policy
+            self.worker_policy=Policy()
         self.root, self.case = recover.lab(root), recover.lab(case)
         if self.case.is_relative_to(self.root) or self.root.is_relative_to(self.case):
             raise ValueError('Renderer case and game must be separate.')
@@ -119,7 +126,7 @@ class Session:
             self.probe.prepare()
 
     def observe(self, owned):
-        """Inventory evidence only: loaded modules do not prove device identity."""
+        """Inventory modules; the separate native probe must prove On12 identity."""
         now = time.monotonic()
         if now - self.last_observed < 5:
             return
@@ -135,12 +142,26 @@ class Session:
         recover._atomic(self.case / 'renderer-modules.private.json', json.dumps(dict(
             pid=owned.pid, mode=self.mode, sampled_monotonic_ns=time.monotonic_ns(),
             modules=rows, device_identity_proven=False), indent=2).encode())
+        if self.worker_policy is not None and not self.worker_policy.done:
+            try:
+                raw,_=recover._read(self.case/'water-probe-live.private.json',32768)
+                report=self.worker_policy.observe(owned,json.loads(raw))
+            except (OSError,ValueError):return
+            if report is not None:
+                recover._atomic(self.case/'worker-priority.private.json',json.dumps(report,indent=2).encode())
 
     def restore(self):
-        if self.probe is not None:
-            self.probe.close()
-        if (self.case / JOURNAL).exists():
-            restore(self.case)
+        try:
+            if self.worker_policy is not None:
+                report=self.worker_policy.close()
+                if self.worker_policy.done:
+                    try:recover._atomic(self.case/'worker-priority.private.json',json.dumps(report,indent=2).encode())
+                    except OSError:pass
+        finally:
+            try:
+                if self.probe is not None:self.probe.close()
+            finally:
+                if (self.case / JOURNAL).exists():restore(self.case)
 
 
 def restore(case):
@@ -284,6 +305,9 @@ def main():
     launch.add_argument('--water-probe', type=Path)
     launch.add_argument('--water-pow-cap',action='store_true')
     launch.add_argument('--water-benchmark',action='store_true')
+    worker=launch.add_mutually_exclusive_group()
+    worker.add_argument('--water-worker-priority',dest='water_worker_priority',action='store_true',default=None)
+    worker.add_argument('--no-water-worker-priority',dest='water_worker_priority',action='store_false')
     recovery = sub.add_parser('recover')
     recovery.add_argument('--case', type=Path, required=True)
     fixture = sub.add_parser('device-fixture')
@@ -301,7 +325,7 @@ def main():
         game.run(args.bundle, args.output, width=1920, height=1080,
                  high_quality=True, seconds=args.seconds,
                  laboratory_renderer=args.mode, dxwrapper_package=args.package,
-                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap,water_benchmark=args.water_benchmark)
+                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap,water_benchmark=args.water_benchmark,water_worker_priority=args.water_worker_priority)
 
 
 if __name__ == '__main__':

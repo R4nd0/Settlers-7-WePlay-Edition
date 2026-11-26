@@ -95,7 +95,7 @@ void BenchmarkCommand() {
     benchmark_shader_state=value.legacy==4;benchmark_sequence=value.sequence;
 }
 void ObserveCamera(IDirect3DDevice9* device) {
-    if(config.flags!=3||camera_frame==world_frames)return;
+    if(!(config.flags&1)||camera_frame==world_frames)return;
     camera_frame=world_frames;std::array<float,24> value{};
     if(FAILED(device->GetVertexShaderConstantF(12,value.data(),6))){++camera_errors;return;}
     const auto* bytes=reinterpret_cast<const unsigned char*>(value.data());std::uint64_t hash=14695981039346656037ull;
@@ -222,6 +222,7 @@ void Live() {
         <<",\"draws\":"<<draws<<",\"exact_pair_matches\":"<<matches<<",\"failed_original_draws\":"<<failed_draws
         <<",\"presents\":"<<presents<<",\"snapshot_done\":"<<(snapshot?"true":"false")
         <<",\"failure\":"<<failure<<",\"on12_query_hr\":"<<static_cast<long>(on12_hr)
+        <<",\"render_thread_id\":"<<owner
         <<",\"device\":{\"creation_hr\":"<<static_cast<long>(device_info.creation_hr)<<",\"behavior_flags\":"<<device_info.creation.BehaviorFlags
         <<",\"software_vertex_processing\":"<<(device_info.software?"true":"false")<<",\"presentation_hr\":"<<static_cast<long>(device_info.presentation_hr)
         <<",\"presentation_interval\":"<<device_info.presentation.PresentationInterval<<",\"swap_effect\":"<<device_info.presentation.SwapEffect

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock,patch
 from types import SimpleNamespace
 
 from . import dxwrapper as d, game, recover
@@ -44,6 +44,23 @@ class Tests(unittest.TestCase):
                             None if mode == 'native' else self.package)
         self.case.mkdir()
         return session
+
+    def test_worker_priority_is_automatic_only_for_corrected_on12_and_can_be_disabled(self):
+        with patch('tools.graphics_lab.water_on12_probe.Probe'):
+            automatic=d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,water_probe=self.root/'build',water_pow_cap=True)
+            self.assertIsNotNone(automatic.worker_policy)
+            baseline=d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,water_probe=self.root/'build',water_pow_cap=True,water_worker_priority=False)
+            self.assertIsNone(baseline.worker_policy)
+            benchmark=d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,water_probe=self.root/'build',water_pow_cap=True,water_benchmark=True)
+            self.assertIsNone(benchmark.worker_policy)
+
+    def test_policy_cleanup_error_does_not_prevent_renderer_restoration(self):
+        session=self.session();session.apply()
+        policy=SimpleNamespace(done=True,close=Mock(side_effect=OSError('authored policy cleanup failure')))
+        session.worker_policy=policy
+        with self.assertRaises(OSError):session.restore()
+        self.assertEqual((self.bin/'d3d9.dll').read_bytes(),self.original)
+        self.assertFalse((self.bin/'dxwrapper.dll').exists())
 
     def test_both_wrappers_and_native_restore_original_and_preserve_saves(self):
         save = self.bundle / 'new-save.s7s'
