@@ -16,13 +16,19 @@ else:
 
 
 def validate_mode(manifest, material_version, catalog=None, catalog_sha256=None, water_palette=False, shader_overlay=False):
-    if type(water_palette) is not bool or type(shader_overlay) is not bool or shader_overlay and not water_palette:
-        raise ValueError('Shader overlay requires the explicit water-palette fixture.')
+    if type(water_palette) is not bool or type(shader_overlay) is not bool or shader_overlay and not water_palette and material_version not in (4,5):
+        raise ValueError('Shader overlay requires explicit WaterPalette or LeafV4.')
+    if type(material_version)is int and material_version==5:
+        if(water_palette or not shader_overlay or catalog is None or catalog_sha256 is None
+            or manifest.get('source_set')!='effects-v14' or manifest.get('abi',{}).get('initialize_v3')!=3136
+            or manifest.get('abi',{}).get('effects_v5')!=24 or manifest.get('diagnostic_abi',{}).get('overlay_v3')!=16):
+            raise ValueError('Combined fixture requires explicit source47/init3/V5/overlay3 and pinned observer.')
+        return
     if water_palette:
         if (type(material_version) is not int or material_version != 1 or catalog is not None or catalog_sha256 is not None
-                or manifest.get('source_set') not in ('effects-v11', 'effects-v12') or manifest.get('abi', {}).get('water') != 1076
+                or manifest.get('source_set') not in ('effects-v11', 'effects-v12', 'effects-v13') or manifest.get('abi', {}).get('water') != 1076
                 or manifest.get('abi', {}).get('water_palette') != 3096
-                or shader_overlay and (manifest.get('source_set') != 'effects-v12' or manifest.get('diagnostic_abi', {}).get('overlay') != 12)):
+                or shader_overlay and (manifest.get('source_set') not in ('effects-v12','effects-v13') or manifest.get('diagnostic_abi', {}).get('overlay') != 12)):
             raise ValueError('Isolated source43 water-palette3096 build required; old1076 must remain available.')
         return
     if type(material_version) is not int or material_version not in (1, 3, 4):
@@ -30,10 +36,12 @@ def validate_mode(manifest, material_version, catalog=None, catalog_sha256=None,
     if material_version in (3, 4):
         if catalog is not None or catalog_sha256 is not None:
             raise ValueError('V3 authored fixture is isolated from diagnostic comparison/catalog profiles.')
-        if material_version == 3 and (manifest.get('source_set') not in ('effects-v9', 'effects-v10', 'effects-v11', 'effects-v12') or manifest.get('abi', {}).get('effects_v3') != 7204):
+        if material_version == 3 and (manifest.get('source_set') not in ('effects-v9', 'effects-v10', 'effects-v11', 'effects-v12','effects-v13') or manifest.get('abi', {}).get('effects_v3') != 7204):
             raise ValueError('Explicit source38 effects-v9 / effects_v3:7204 build required.')
-        if material_version == 4 and (manifest.get('source_set') not in ('effects-v10', 'effects-v11', 'effects-v12') or manifest.get('abi', {}).get('effects_v4') != 4120):
+        if material_version == 4 and (manifest.get('source_set') not in ('effects-v10', 'effects-v11', 'effects-v12','effects-v13') or manifest.get('abi', {}).get('effects_v4') != 4120):
             raise ValueError('Explicit source40 effects-v10 / effects_v4:4120 build required.')
+        if shader_overlay and (manifest.get('source_set') != 'effects-v13' or manifest.get('diagnostic_abi',{}).get('overlay_v2') != 16):
+            raise ValueError('Leaf overlay requires the explicit family16 diagnostic build.')
 
 
 def validate_v3_receipt(receipt, epoch):
@@ -177,11 +185,12 @@ def validate_water_palette_receipt(receipt, captures):
         previous_epoch = value['epoch']
 
 
-def validate_overlay_receipt(receipt):
+def validate_overlay_receipt(receipt, *, profile=1):
     overlay = receipt.get('shader_overlay')
     flags = ('outside_control_unchanged', 'original_state_restored', 'safe_boundary_only',
              'physical_input_before_scaling', 'actual_selected_program_pixels', 'reset_closed_cleanly')
-    if (not isinstance(overlay, dict) or overlay.get('wire_bytes') != 12
+    if (type(profile) is not int or profile not in (1,2) or not isinstance(overlay, dict)
+            or overlay.get('wire_bytes') != (12 if profile==1 else 16) or overlay.get('profile_id',1) != profile
             or any(overlay.get(key) is not True for key in flags)
             or type(overlay.get('unsafe')) is not int or overlay['unsafe'] != 0
             or type(overlay.get('actual_wndproc_choices')) is not int or overlay['actual_wndproc_choices'] != 4):
@@ -193,6 +202,18 @@ def validate_overlay_receipt(receipt):
     if (not isinstance(epochs, list) or len(epochs) != 4 or any(type(v) is not int or v < 1 for v in epochs)
             or any(b <= a for a, b in zip(epochs, epochs[1:]))):
         raise RuntimeError('All four overlay choices must advance actual configuration epochs.')
+
+def validate_combined_receipt(receipt):
+    flags=('authored_programs','seven_programs','rapid_groups_atomic','other_groups_preserved','tab_only_ui',
+           'actual_leaf_terrain_water_pixels','original_restored','actual_reset')
+    if(receipt.get('format')!='s7-combined-shader-gpu-v1' or receipt.get('game_tested')is not False
+        or any(receipt.get(k)is not True for k in flags)
+        or any(receipt.get(k)!=v for k,v in dict(initialize_bytes=3136,scope=1,material_bytes=24,overlay_bytes=16,profile=6,
+                                                faulted=0,unsafe=0,warm_material_creations=7,peak_programs=7).items())
+        or type(receipt.get('physical_panel_pixels'))is not int or receipt['physical_panel_pixels']<=20000
+        or type(receipt.get('font_pixels'))is not int or receipt['font_pixels']<=10
+        or type(receipt.get('overlay_draws'))is not int or receipt['overlay_draws']<1):
+        raise RuntimeError('Combined scope lacks actual simultaneous preserved-family pixel/state proof.')
 
 
 def run(build, runtime, output, *, catalog=None, catalog_sha256=None, material_version=1, water_palette=False, shader_overlay=False):
@@ -226,9 +247,11 @@ def run(build, runtime, output, *, catalog=None, catalog_sha256=None, material_v
     command = [str(build / 'supersampling_effects_gpu.exe'), str(owned_runtime), str(output / 'frames')]
     if material_version in (3, 4):
         command.append(f'--v{material_version}')
+    elif material_version==5:
+        command.append('--combined')
     if water_palette:
         command.append('--water-palette')
-    if shader_overlay:
+    if shader_overlay and material_version!=5:
         command.append('--shader-overlay')
     compare = catalog is not None or catalog_sha256 is not None
     if compare:
@@ -249,6 +272,11 @@ def run(build, runtime, output, *, catalog=None, catalog_sha256=None, material_v
     if completed.returncode:
         raise RuntimeError(f'Authored GPU effects fixture failed ({completed.returncode}); see {output}.')
     receipt = json.loads(completed.stdout)
+    if material_version==5:
+        validate_combined_receipt(receipt)
+        receipt.update(renderer_sha256=probe.DXVK_SHA256,build=manifest)
+        (output/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
+        return receipt
     if water_palette:
         sequences = (70, 80, 81, 82, 100)
         captures = [json.loads((output / f'frames/capture-{seq}.json').read_text('utf-8')) for seq in sequences]
@@ -267,6 +295,8 @@ def run(build, runtime, output, *, catalog=None, catalog_sha256=None, material_v
     if material_version == 4:
         captures = [json.loads((output / f'frames/capture-{sequence}.json').read_text('utf-8')) for sequence in (50, 51, 52, 60)]
         validate_v4_receipt(receipt, captures)
+        if shader_overlay:
+            validate_overlay_receipt(receipt,profile=2)
         for sequence, epoch in zip((50, 51, 52, 60), captures):
             for kind in ('source', 'output'):
                 if probe.sha256(output / f'frames/capture-{sequence}-{kind}.bmp') != epoch.get(f'{kind}_bmp_sha256'):
@@ -319,7 +349,7 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--catalog', type=Path)
     parser.add_argument('--catalog-sha256')
-    parser.add_argument('--material-version', type=int, choices=(1, 3, 4), default=1)
+    parser.add_argument('--material-version', type=int, choices=(1, 3, 4, 5), default=1)
     parser.add_argument('--water-palette', action='store_true')
     parser.add_argument('--shader-overlay', action='store_true')
     args = parser.parse_args()

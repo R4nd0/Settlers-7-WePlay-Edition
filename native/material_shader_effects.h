@@ -14,6 +14,7 @@
 namespace MaterialShaderConfigV2 { struct Config; }
 namespace MaterialShaderConfigV3 { struct Config; }
 namespace MaterialShaderConfigV4 { struct Config; }
+namespace MaterialShaderConfigV5 { struct Config; enum class Layout; }
 namespace MaterialShaderEffects {
 constexpr DWORD River=1,Terrain=2,Leaf=4,AllowedFlags=River|Terrain|Leaf;
 struct Config {
@@ -38,7 +39,7 @@ struct Sample {
     std::array<ConstantBackup,2> constants{};
 };
 struct Stats {
-    DWORD size=sizeof(Stats),version=2,enabled_flags=0,faulted=0,sample_count=0,cached_refs=0;
+    DWORD size=sizeof(Stats),version=3,enabled_flags=0,faulted=0,sample_count=0,cached_refs=0;
     DWORD initialized_flags=0,active_transactions=0,periodic_reporting=0;
     // Bounded device-program cache (one Leaf VS/PS selected by explicit recipe,
     // plus historical terrain stages), separate
@@ -54,6 +55,8 @@ struct Stats {
     std::array<Sample,32> samples{};
     std::array<std::uint64_t,3> variant_applications{},variant_restorations{},variant_successful_draws{},variant_failed_draws{},variant_creations{};
     std::array<std::array<unsigned char,32>,3> variant_sha256{}; // Actual validated loaded code, including authored fixtures.
+    std::array<std::uint64_t,7> combined_program_creations{};
+    std::array<std::array<unsigned char,32>,7> combined_program_sha256{};
 };
 static_assert(offsetof(Stats,selected_variant)==52&&offsetof(Stats,draws)==56,"Old scalar offsets preserved; selected uses old padding");
 
@@ -77,7 +80,12 @@ bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
 // old VS/Terrain path fields must be empty. No Hemi/other-material stacking.
 bool InitializeV3(const MaterialShaderConfigV3::Config* config) noexcept;
 bool InitializeV4(const MaterialShaderConfigV4::Config* config) noexcept;
-// V4-only fixed preloaded program selection. Quiescent render-owner boundary,
+// Compact24/version5. Trusted host report/layout derive seven fixed paths;
+// no paths or coefficients enter the wire. Both families preload even OFF.
+bool InitializeV5(const MaterialShaderConfigV5::Config* config,const wchar_t* trusted_native_report) noexcept;
+bool InitializeV5(const MaterialShaderConfigV5::Config* config,const wchar_t* trusted_native_report,MaterialShaderConfigV5::Layout layout) noexcept;
+bool ConfigureV5(const MaterialShaderConfigV5::Config* config) noexcept;
+// V4/V5 fixed preloaded program selection. Quiescent render-owner boundary,
 // valid while OFF, no file/DLL replacement, no shader bind or cache destruction.
 bool SetVariant(DWORD index) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.

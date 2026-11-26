@@ -18,6 +18,8 @@ struct Version2 {
 static_assert(sizeof(SupersamplingConfig)==1048,"The version-1 launcher ABI changed.");
 static_assert(sizeof(Version2)==3132,"The version-2 launcher ABI changed.");
 static_assert(offsetof(Version2,flags)==1048,"Version-2 must retain the version-1 prefix.");
+struct Version3 {Version2 base;DWORD diagnostic_scope=1;};
+static_assert(sizeof(Version3)==3136,"Combined diagnostic initialization is additive.");
 
 enum class Error {None,Size,Version,Dimensions,Capabilities,Path,ObserverIdentity,UnusedFields};
 
@@ -73,5 +75,20 @@ inline Error Decode(const void* data,size_t bytes,DWORD compiled_capabilities,Ve
     if(header[0]!=expected || bytes!=expected)return Error::Size;
     output={};std::memcpy(&output,data,bytes);
     return Validate(output,compiled_capabilities);
+}
+// The explicit combined scope is normalized only AFTER checking its complete
+// wire identity. Existing material contracts continue receiving an actual V2.
+inline Error DecodeCombined(const void* data,size_t bytes,DWORD capabilities,Version2& output,bool& combined) {
+    combined=false;
+    if(!data||bytes<8)return Error::Size;
+    DWORD header[2]{};std::memcpy(header,data,8);
+    if(header[1]!=3)return Decode(data,bytes,capabilities,output);
+    if(bytes!=sizeof(Version3)||header[0]!=sizeof(Version3))return Error::Size;
+    Version3 candidate{};std::memcpy(&candidate,data,sizeof(candidate));
+    if(candidate.diagnostic_scope!=1||!(candidate.base.flags&Observe))return Error::Capabilities;
+    candidate.base.base.size=sizeof(Version2);candidate.base.base.version=2;
+    const auto error=Validate(candidate.base,capabilities);
+    if(error==Error::None){output=candidate.base;combined=true;}
+    return error;
 }
 }

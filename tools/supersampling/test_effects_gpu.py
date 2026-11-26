@@ -207,6 +207,37 @@ class EffectsGpuPolicyTests(unittest.TestCase):
             proof=self.overlay_proof();proof['shader_overlay'][key]=value
             with self.subTest(key=key),self.assertRaises(RuntimeError):effects_gpu.validate_overlay_receipt(proof)
 
+    def test_leaf_v4_overlay_uses_profile2_config16_without_changing_water_v1(self):
+        manifest=dict(source_set='effects-v13',abi=dict(water=1076,water_palette=3096,effects_v4=4120),diagnostic_abi=dict(overlay=12,overlay_v2=16))
+        effects_gpu.validate_mode(manifest,4,shader_overlay=True)
+        effects_gpu.validate_mode(manifest,1,water_palette=True,shader_overlay=True)
+        leaf=self.overlay_proof();leaf['shader_overlay'].update(profile_id=2,wire_bytes=16)
+        effects_gpu.validate_overlay_receipt(leaf,profile=2)
+        with self.assertRaises(RuntimeError):effects_gpu.validate_overlay_receipt(leaf)
+        water=self.overlay_proof()
+        with self.assertRaises(RuntimeError):effects_gpu.validate_overlay_receipt(water,profile=2)
+        for bad in(dict(source_set='effects-v12',abi=manifest['abi'],diagnostic_abi=manifest['diagnostic_abi']),
+                   dict(source_set='effects-v13',abi=manifest['abi'],diagnostic_abi=dict(overlay=12))):
+            with self.assertRaises(ValueError):effects_gpu.validate_mode(bad,4,shader_overlay=True)
+
+    def test_combined_scope_is_explicit_additive_and_requires_preserved_actual_groups(self):
+        manifest=dict(source_set='effects-v14',abi=dict(initialize_v3=3136,effects_v5=24),diagnostic_abi=dict(overlay_v3=16))
+        effects_gpu.validate_mode(manifest,5,'owned-catalog','a'*64,shader_overlay=True)
+        for kwargs in(dict(shader_overlay=False),dict(shader_overlay=True,water_palette=True)):
+            with self.assertRaises(ValueError):effects_gpu.validate_mode(manifest,5,'owned-catalog','a'*64,**kwargs)
+        with self.assertRaises(ValueError):effects_gpu.validate_mode(manifest,5,shader_overlay=True)
+        old=dict(manifest,source_set='effects-v13')
+        with self.assertRaises(ValueError):effects_gpu.validate_mode(old,5,'owned-catalog','a'*64,shader_overlay=True)
+        receipt=dict(format='s7-combined-shader-gpu-v1',game_tested=False,authored_programs=True,initialize_bytes=3136,scope=1,
+            material_bytes=24,overlay_bytes=16,profile=6,seven_programs=True,rapid_groups_atomic=True,other_groups_preserved=True,
+            tab_only_ui=True,actual_leaf_terrain_water_pixels=True,original_restored=True,actual_reset=True,faulted=0,unsafe=0,
+            warm_material_creations=7,peak_programs=7,physical_panel_pixels=100000,font_pixels=120,overlay_draws=12)
+        effects_gpu.validate_combined_receipt(receipt)
+        for key,value in dict(rapid_groups_atomic=False,other_groups_preserved=False,tab_only_ui=False,actual_leaf_terrain_water_pixels=False,
+                              original_restored=False,actual_reset=False,unsafe=1,warm_material_creations=8,peak_programs=8).items():
+            bad=dict(receipt,**{key:value})
+            with self.subTest(key=key),self.assertRaises(RuntimeError):effects_gpu.validate_combined_receipt(bad)
+
 
 if __name__ == '__main__':
     unittest.main()

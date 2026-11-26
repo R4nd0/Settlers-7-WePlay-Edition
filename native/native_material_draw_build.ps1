@@ -11,7 +11,7 @@ $lines=& $env:ComSpec /d /c "call `"$setup`" x64_x86 >nul && set"
 if ($LASTEXITCODE) {throw 'Cannot initialize x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
-$names=@("native_material_draw.h","supersampling_hook_comparison_draw.h","supersampling_hook_effects_draw.h","material_comparison.h","water_shader_effects.h",'native_effects_wire.h','native_material_draw_fixture.cpp','material_shader_config_v2.h','material_shader_effects.h','native_material_draw_four_fixture.cpp','shadow_filter_effects.h','shadow2048_filter_policy.h')
+$names=@("native_material_draw.h","supersampling_hook_comparison_draw.h","supersampling_hook_effects_draw.h","material_comparison.h","water_shader_effects.h",'native_effects_wire.h','material_shader_config_v3.h','material_shader_config_v4.h','material_shader_config_v5.h','native_material_draw_five_fixture.cpp','native_material_draw_fixture.cpp','material_shader_config_v2.h','material_shader_effects.h','native_material_draw_four_fixture.cpp','shadow_filter_effects.h','shadow2048_filter_policy.h')
 $leases=@();$hashes=@{};$sha=[Security.Cryptography.SHA256]::Create()
 Push-Location $output
 try {
@@ -21,6 +21,11 @@ try {
     $four=& (Join-Path $output 'native_material_draw_four_fixture.exe')
     if($LASTEXITCODE){throw 'Four-stage CPU fixture failed.'}
     $four | Write-Output
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict native_material_draw_five_fixture.cpp /Fe:native_material_draw_five_fixture.exe /link /DYNAMICBASE /NXCOMPAT /Brepro
+    if($LASTEXITCODE){throw 'Five-stage CPU fixture compile failed.'}
+    $five=& (Join-Path $output 'native_material_draw_five_fixture.exe')
+    if($LASTEXITCODE){throw 'Five-stage CPU fixture failed.'}
+    $five | Write-Output
     # /Od proves the old API introduces no dependency on shadow-module symbols.
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /Od /fp:strict native_material_draw_fixture.cpp /Fe:native_material_draw_fixture.exe /link /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Legacy three-stage CPU fixture compile/link failed.'}
@@ -29,7 +34,7 @@ try {
     $legacy | Write-Output
     foreach($name in $names){$after=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $name)))).Replace('-','').ToLowerInvariant();if($after -ne $hashes[$name]){throw 'Source changed during build; rebuild.'}}
     $binaries=@{}
-    foreach($name in @('native_material_draw_fixture.exe','native_material_draw_four_fixture.exe')){$binaries[$name]=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes((Join-Path $output $name)))).Replace('-','').ToLowerInvariant()}
-    $manifest=@{format='s7-material-draw-cpu-build-v1';sources=$hashes;binaries=$binaries;four_stage_proof=$four;legacy_proof=$legacy;gpu_started=$false;game_started=$false;cpu_checks_passed=$true}
+    foreach($name in @('native_material_draw_fixture.exe','native_material_draw_four_fixture.exe','native_material_draw_five_fixture.exe')){$binaries[$name]=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes((Join-Path $output $name)))).Replace('-','').ToLowerInvariant()}
+    $manifest=@{format='s7-material-draw-cpu-build-v1';sources=$hashes;binaries=$binaries;four_stage_proof=$four;five_stage_proof=$five;legacy_proof=$legacy;gpu_started=$false;game_started=$false;cpu_checks_passed=$true}
     [IO.File]::WriteAllText((Join-Path $output 'build.private.json'),($manifest|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 } finally {foreach($lease in $leases){$lease.Dispose()};$sha.Dispose();Pop-Location}

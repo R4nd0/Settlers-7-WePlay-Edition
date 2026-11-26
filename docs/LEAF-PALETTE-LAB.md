@@ -39,6 +39,14 @@ never be presented as production program hashes.
 CPU verification: 112 palette transaction checks, plus the retained 1492 V2
 and 107 terrain-macro checks. Python checks cover fixed curve transformation,
 all-source preflight, exact wire shape, capabilities and immutable cache reuse.
-Real-game comparison uses OFF/A/OFF/B/OFF/C/OFF in one process, with positive
-same-frame selected-program applications and matching control captures.
+The interactive overlay offers Original, Blatt A (schwach), Blatt B (mittel)
+and Blatt C (stark) in one process. Each labelled step selects a genuinely
+different pinned pixel program. Vegetation is isolated from Water, Terrain,
+Shadow and AO for this run. The existing castle tree bank at normal zoom is
+the intended scene; wind and possible loss of directional contrast also need
+visual assessment. A queued choice must remain pending until a fresh matching
+Leaf draw has applied and restored that program.
+
+OFF/A/OFF/B/OFF/C/OFF captures remain optional supporting evidence, with
+positive same-frame applications and matching control captures.
 CPU and authored GPU success do not establish a visible improvement.

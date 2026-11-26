@@ -37,7 +37,7 @@ struct DisabledShadowApi {
     static bool Retry(ShadowFilterEffects::DrawTransaction*) noexcept {return false;}
 };
 }
-struct Result:NativeEffectsDraw::Result {bool water_unsafe=false,shadow_unsafe=false;};
+struct Result:NativeEffectsDraw::Result {bool water_unsafe=false,shadow_unsafe=false,ambient_unsafe=false;};
 
 template<class ComparisonApi=NativeComparisonDraw::Api,class MaterialApi=NativeEffectsDraw::Api,
          class RiverApi=WaterApi,class FilterApi=ShadowApi,class Draw,class Observe>
@@ -101,5 +101,28 @@ template<class ComparisonApi=NativeComparisonDraw::Api,class MaterialApi=NativeE
 Result Execute(IDirect3DDevice9* device,bool comparison,bool materials,bool water,Draw&& draw,Observe&& observe) {
     return ExecuteFour<ComparisonApi,MaterialApi,RiverApi,Detail::DisabledShadowApi>
         (device,comparison,materials,water,false,std::forward<Draw>(draw),std::forward<Observe>(observe));
+}
+// Additive combined-diagnostic route. AO is the outer fifth scope; the legacy
+// four-stage route and its mutual-exclusion admission remain unchanged.
+template<class AmbientApi,class ComparisonApi=NativeComparisonDraw::Api,class MaterialApi=NativeEffectsDraw::Api,
+         class RiverApi=WaterApi,class FilterApi=ShadowApi,class Draw,class Observe>
+Result ExecuteFive(IDirect3DDevice9* device,bool comparison,bool materials,bool water,bool shadow,bool ambient,
+                   Draw&& draw,Observe&& observe) {
+    ShadowFilterEffects::DrawTransaction ambient_transaction{};
+    Result result;bool begun=false;
+    const auto safe=[&](){
+        if(ambient_transaction.unsafe_state&&(!AmbientApi::Retry(&ambient_transaction)||ambient_transaction.unsafe_state)) {
+            result.unsafe=result.ambient_unsafe=true;return false;
+        }
+        return true;
+    };
+    if(ambient){begun=true;AmbientApi::Begin(device,&ambient_transaction);
+        if(!safe()){AmbientApi::End(&ambient_transaction,result.original_result);safe();return result;}}
+    result=ExecuteFour<ComparisonApi,MaterialApi,RiverApi,FilterApi>(device,comparison,materials,water,shadow,
+        std::forward<Draw>(draw),[](HRESULT){});
+    result.observer_called=false;
+    if(begun){AmbientApi::End(&ambient_transaction,result.original_result);safe();}
+    if(result.original_called&&!result.unsafe){observe(result.original_result);result.observer_called=true;}
+    return result;
 }
 }

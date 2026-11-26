@@ -44,6 +44,8 @@ struct SupersamplingStats {
     DWORD effects_selected_variant,effects_drawn_variant,effects_drawn_frame;
     DWORD effects_variant_frame_applications,effects_variant_frame_restorations,effects_variant_frame_failed_draws;
     DWORD overlay_received,overlay_requested,overlay_visible,overlay_unsafe,overlay_input_events,overlay_draws,overlay_choices,overlay_failures;
+    DWORD overlay_profile,overlay_material_frame,overlay_material_successful_draws,overlay_material_failed_draws;
+    DWORD overlay_applied_valid,overlay_applied_enabled,overlay_applied_variant,overlay_pending,overlay_pending_enabled,overlay_pending_variant,overlay_status_frame;
 };
 
 extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* config);

@@ -138,11 +138,11 @@ std::string Hex(const std::array<unsigned char,32>& data) {
 }
 std::string LeafPalette(const Result& result) {
     const auto& g=result.graphics;const auto& s=result.material;
-    if(g.effects_config_version!=4||!result.material_state_available||s.config_version!=4||s.selected_variant>2)return "null";
+    if((g.effects_config_version!=4&&g.effects_config_version!=5)||!result.material_state_available||s.config_version!=g.effects_config_version||s.selected_variant>2)return "null";
     const auto array=[](const std::array<std::uint64_t,3>& values) {
         return "["+std::to_string(values[0])+","+std::to_string(values[1])+","+std::to_string(values[2])+"]";
     };
-    const bool drawn=g.effects_active&&g.effects_drawn_variant<3&&g.effects_drawn_frame==g.present_calls;
+    const bool drawn=(g.effects_active&MaterialShaderEffects::Leaf)&&g.effects_drawn_variant<3&&g.effects_drawn_frame==g.present_calls;
     return "{\"selected_variant\":"+std::to_string(s.selected_variant)
         +",\"drawn_variant\":"+(drawn?std::to_string(g.effects_drawn_variant):"null")
         +",\"drawn_frame\":"+std::to_string(g.effects_drawn_frame)
@@ -334,8 +334,9 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
             &&result.shadow.initialized;
         result.ambient_state_available=graphics.ambient_protocol_received&&AmbientOcclusionEffects::ReadStats(&result.ambient)
             &&result.ambient.initialized;
-        result.material_state_available=graphics.effects_config_version==4&&MaterialShaderEffects::ReadStats(&result.material)
-            &&result.material.config_version==4&&result.material.initialized_flags==MaterialShaderEffects::Leaf;
+        result.material_state_available=(graphics.effects_config_version==4||graphics.effects_config_version==5)&&MaterialShaderEffects::ReadStats(&result.material)
+            &&result.material.config_version==graphics.effects_config_version
+            &&result.material.initialized_flags==(graphics.effects_config_version==5?6u:MaterialShaderEffects::Leaf);
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -397,8 +398,8 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"ambient\":"+Ambient(result)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
             +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
-            +",\"effects_selected_variant\":"+(result.graphics.effects_config_version==4&&result.graphics.effects_selected_variant<3?std::to_string(result.graphics.effects_selected_variant):"null")
-            +",\"effects_drawn_variant\":"+(result.graphics.effects_config_version==4&&result.graphics.effects_drawn_variant<3?std::to_string(result.graphics.effects_drawn_variant):"null")
+            +",\"effects_selected_variant\":"+((result.graphics.effects_config_version==4||result.graphics.effects_config_version==5)&&result.graphics.effects_selected_variant<3?std::to_string(result.graphics.effects_selected_variant):"null")
+            +",\"effects_drawn_variant\":"+((result.graphics.effects_config_version==4||result.graphics.effects_config_version==5)&&result.graphics.effects_drawn_variant<3?std::to_string(result.graphics.effects_drawn_variant):"null")
             +",\"effects_drawn_frame\":"+std::to_string(result.graphics.effects_drawn_frame)
             +",\"effects_variant_frame_applications\":"+std::to_string(result.graphics.effects_variant_frame_applications)
             +",\"effects_variant_frame_restorations\":"+std::to_string(result.graphics.effects_variant_frame_restorations)

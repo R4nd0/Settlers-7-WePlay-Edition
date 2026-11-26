@@ -28,6 +28,7 @@ LEAF_PIXEL_SOURCES = AMBIENT_SOURCES + ('material_shader_config_v3.h','material_
 PALETTE_SOURCES = LEAF_PIXEL_SOURCES + ('material_shader_config_v4.h','material_shader_effects_contract_v4.h')
 WATER_PALETTE_SOURCES = PALETTE_SOURCES + ('water_shader_config_palette.h','water_shader_palette_contract.h','native_water_wire.h')
 OVERLAY_SOURCES = WATER_PALETTE_SOURCES + ('shader_debug_overlay.h','shader_debug_overlay.cpp')
+COMBINED_SOURCES = OVERLAY_SOURCES + ('material_shader_config_v5.h','material_shader_effects_contract_v5.h')
 NATIVE20_BINARIES = ('WePlaySupersamplingLab.dll', 'supersampling_hook_fixture.exe')
 BINARIES = NATIVE20_BINARIES + ('supersampling_effects_gpu.exe',)
 BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132, 'observation': 952, 'effects': 4132, 'capture': 12}
@@ -36,6 +37,8 @@ BUILD_ABI_WATER = {**BUILD_ABI_V2,'water':1076}
 BUILD_ABI_V3 = {**BUILD_ABI_WATER,'effects_v3':7204}
 BUILD_ABI_V4 = {**BUILD_ABI_V3,'effects_v4':4120}
 BUILD_ABI_WATER_PALETTE = {**BUILD_ABI_V4,'water_palette':3096}
+
+BUILD_ABI_COMBINED = {**BUILD_ABI_WATER_PALETTE,'initialize_v3':3136,'effects_v5':24}
 
 
 def startup_receipt_valid(receipt):
@@ -55,9 +58,9 @@ def verify_build(directory):
     if not current and manifest.get('format') != 's7-supersampling-hook-build-v1':
         raise ValueError('Unknown native build schema.')
     source_set = manifest.get('source_set')
-    if current and source_set not in ('effects-v1', 'effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12'):
+    if current and source_set not in ('effects-v1', 'effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14'):
         raise ValueError('Unknown native source set.')
-    sources = (OVERLAY_SOURCES if source_set=='effects-v12' else WATER_PALETTE_SOURCES if source_set=='effects-v11' else PALETTE_SOURCES if source_set=='effects-v10' else LEAF_PIXEL_SOURCES if source_set=='effects-v9' else AMBIENT_SOURCES if source_set in ('effects-v7','effects-v8') else SHADOW_SOURCES if source_set=='effects-v6' else MACRO_SOURCES if source_set=='effects-v5' else WATER_SOURCES if source_set=='effects-v4' else MODERN_SOURCES if source_set=='effects-v3' else SOURCES if source_set == 'effects-v2' else EFFECTS_V1_SOURCES) if current else NATIVE20_SOURCES
+    sources = (COMBINED_SOURCES if source_set=='effects-v14' else OVERLAY_SOURCES if source_set in ('effects-v12','effects-v13','effects-v14') else WATER_PALETTE_SOURCES if source_set=='effects-v11' else PALETTE_SOURCES if source_set=='effects-v10' else LEAF_PIXEL_SOURCES if source_set=='effects-v9' else AMBIENT_SOURCES if source_set in ('effects-v7','effects-v8') else SHADOW_SOURCES if source_set=='effects-v6' else MACRO_SOURCES if source_set=='effects-v5' else WATER_SOURCES if source_set=='effects-v4' else MODERN_SOURCES if source_set=='effects-v3' else SOURCES if source_set == 'effects-v2' else EFFECTS_V1_SOURCES) if current else NATIVE20_SOURCES
     binaries = BINARIES if current else NATIVE20_BINARIES
     expected = {
         'format': manifest['format'],
@@ -65,9 +68,9 @@ def verify_build(directory):
         'files': {name: probe.sha256(probe.REPOSITORY / 'native' / name) for name in sources},
     }
     if current:
-        expected.update({'source_set': source_set, 'compiled_capabilities': 15, 'abi': BUILD_ABI_WATER_PALETTE if source_set in ('effects-v11','effects-v12') else BUILD_ABI_V4 if source_set=='effects-v10' else BUILD_ABI_V3 if source_set=='effects-v9' else BUILD_ABI_WATER if source_set in ('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8') else BUILD_ABI_V2 if source_set=='effects-v3' else BUILD_ABI})
-        if source_set in ('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12'):
-            expected['diagnostic_abi'] = {**({'overlay':12} if source_set=='effects-v12' else {}),'comparison':12,**({'shadow':12} if source_set in ('effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12') else {}),**({'ambient':12} if source_set in ('effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12') else {}),**({'ambient_v2':12} if source_set in ('effects-v8','effects-v9','effects-v10','effects-v11','effects-v12') else {})}
+        expected.update({'source_set': source_set, 'compiled_capabilities': 15, 'abi': BUILD_ABI_COMBINED if source_set=='effects-v14' else BUILD_ABI_WATER_PALETTE if source_set in ('effects-v11','effects-v12','effects-v13','effects-v14') else BUILD_ABI_V4 if source_set=='effects-v10' else BUILD_ABI_V3 if source_set=='effects-v9' else BUILD_ABI_WATER if source_set in ('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8') else BUILD_ABI_V2 if source_set=='effects-v3' else BUILD_ABI})
+        if source_set in ('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14'):
+            expected['diagnostic_abi'] = {**({'overlay_v3':16} if source_set=='effects-v14' else {}),**({'overlay_v2':16} if source_set in ('effects-v13','effects-v14') else {}),**({'overlay':12} if source_set in ('effects-v12','effects-v13','effects-v14') else {}),'comparison':12,**({'shadow':12} if source_set in ('effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14') else {}),**({'ambient':12} if source_set in ('effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14') else {}),**({'ambient_v2':12} if source_set in ('effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14') else {})}
     expected['files'].update({name: probe.sha256(probe.plain(directory / name)) for name in binaries})
     if manifest != expected:
         raise ValueError('Stale or changed hook build; rebuild from current source.')

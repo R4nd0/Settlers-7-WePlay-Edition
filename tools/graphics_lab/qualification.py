@@ -77,6 +77,7 @@ LEAF_PIXEL_HOOK_SOURCES = AMBIENT_HOOK_SOURCES | {'material_shader_config_v3.h',
 PALETTE_HOOK_SOURCES = LEAF_PIXEL_HOOK_SOURCES | {'material_shader_config_v4.h', 'material_shader_effects_contract_v4.h'}
 WATER_PALETTE_HOOK_SOURCES = PALETTE_HOOK_SOURCES | {'water_shader_config_palette.h', 'water_shader_palette_contract.h', 'native_water_wire.h'}
 OVERLAY_HOOK_SOURCES = WATER_PALETTE_HOOK_SOURCES | {'shader_debug_overlay.h', 'shader_debug_overlay.cpp'}
+COMBINED_HOOK_SOURCES = OVERLAY_HOOK_SOURCES | {'material_shader_config_v5.h','material_shader_effects_contract_v5.h'}
 HOOK_BINARIES = {'supersampling_hook_fixture.exe', 'WePlaySupersamplingLab.dll'}
 EFFECTS_HOOK_BINARIES = HOOK_BINARIES | {'supersampling_effects_gpu.exe'}
 EFFECTS_BUILD_ABI = {'initialize_v1': 1048, 'initialize_v2': 3132,
@@ -87,23 +88,25 @@ LEAF_PIXEL_BUILD_ABI = {**WATER_BUILD_ABI, 'effects_v3': 7204}
 PALETTE_BUILD_ABI = {**LEAF_PIXEL_BUILD_ABI, 'effects_v4': 4120}
 WATER_PALETTE_BUILD_ABI = {**PALETTE_BUILD_ABI, 'water_palette': 3096}
 
+COMBINED_BUILD_ABI = {**WATER_PALETTE_BUILD_ABI,'initialize_v3':3136,'effects_v5':24}
+
 
 def _build_contract(build):
     """Select a frozen source schema without comparing historical files to HEAD."""
     if build.get('format') == 's7-supersampling-hook-build-v1':
         return HOOK_SOURCES, HOOK_BINARIES, set(build) == {'format', 'build_sha256', 'files'}
     if build.get('format') == 's7-native-graphics-build-v2':
-        overlay = build.get('source_set') == 'effects-v12'
-        water_palette = build.get('source_set') in ('effects-v11','effects-v12')
-        palette = build.get('source_set') in ('effects-v10', 'effects-v11','effects-v12')
-        leaf_pixel = build.get('source_set') in ('effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        ambient_v2 = build.get('source_set') in ('effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        ambient = build.get('source_set') in ('effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        shadow = build.get('source_set') in ('effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        terrain_macro = build.get('source_set') in ('effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        water = build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        modern = build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
-        comparison = build.get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
+        overlay = build.get('source_set') in ('effects-v12','effects-v13','effects-v14')
+        water_palette = build.get('source_set') in ('effects-v11','effects-v12','effects-v13','effects-v14')
+        palette = build.get('source_set') in ('effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        leaf_pixel = build.get('source_set') in ('effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        ambient_v2 = build.get('source_set') in ('effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        ambient = build.get('source_set') in ('effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        shadow = build.get('source_set') in ('effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        terrain_macro = build.get('source_set') in ('effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        water = build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        modern = build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
+        comparison = build.get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
         keys = {'format', 'source_set', 'compiled_capabilities', 'abi', 'build_sha256', 'files'}
         if comparison:
             keys.add('diagnostic_abi')
@@ -112,12 +115,16 @@ def _build_contract(build):
                           else {'comparison': 12, 'shadow': 12} if shadow else {'comparison': 12})
         if overlay:
             diagnostic_abi['overlay'] = 12
-        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12') and set(build) == keys
+        if build.get('source_set')in('effects-v13','effects-v14'):
+            diagnostic_abi['overlay_v2'] = 16
+        if build.get('source_set')=='effects-v14':
+            diagnostic_abi['overlay_v3'] = 16
+        valid = (build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14') and set(build) == keys
                  and type(build.get('compiled_capabilities')) is int
                  and build['compiled_capabilities'] == 15
-                 and build.get('abi') == (WATER_PALETTE_BUILD_ABI if water_palette else PALETTE_BUILD_ABI if palette else LEAF_PIXEL_BUILD_ABI if leaf_pixel else WATER_BUILD_ABI if water else MODERN_BUILD_ABI if modern else EFFECTS_BUILD_ABI)
+                 and build.get('abi') == (COMBINED_BUILD_ABI if build.get('source_set')=='effects-v14' else WATER_PALETTE_BUILD_ABI if water_palette else PALETTE_BUILD_ABI if palette else LEAF_PIXEL_BUILD_ABI if leaf_pixel else WATER_BUILD_ABI if water else MODERN_BUILD_ABI if modern else EFFECTS_BUILD_ABI)
                  and (not comparison or build.get('diagnostic_abi') == diagnostic_abi))
-        sources = OVERLAY_HOOK_SOURCES if overlay else WATER_PALETTE_HOOK_SOURCES if water_palette else PALETTE_HOOK_SOURCES if palette else LEAF_PIXEL_HOOK_SOURCES if leaf_pixel else AMBIENT_HOOK_SOURCES if ambient else SHADOW_HOOK_SOURCES if shadow else TERRAIN_MACRO_HOOK_SOURCES if terrain_macro else WATER_HOOK_SOURCES if water else MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
+        sources = COMBINED_HOOK_SOURCES if build.get('source_set')=='effects-v14' else OVERLAY_HOOK_SOURCES if overlay else WATER_PALETTE_HOOK_SOURCES if water_palette else PALETTE_HOOK_SOURCES if palette else LEAF_PIXEL_HOOK_SOURCES if leaf_pixel else AMBIENT_HOOK_SOURCES if ambient else SHADOW_HOOK_SOURCES if shadow else TERRAIN_MACRO_HOOK_SOURCES if terrain_macro else WATER_HOOK_SOURCES if water else MODERN_HOOK_SOURCES if modern else COMPARISON_HOOK_SOURCES if comparison else EFFECTS_HOOK_SOURCES
         return sources, EFFECTS_HOOK_BINARIES, valid
     return set(), set(), False
 
@@ -860,7 +867,7 @@ def _case(value, base):
     comparison_requested = checkpoint.get('comparison_uv_requested') is True
     if 'comparison_uv_requested' in checkpoint:
         check(type(checkpoint['comparison_uv_requested']) is bool, 'invalid comparison request in source checkpoint')
-    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
+    comparison_build = (data.get('hook_build', {}).get('source_set') in ('effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
                         and _build_contract(data['hook_build'])[2])
     configured = data.get('comparison_configured', {})
     comparison_admitted = bool(comparison_requested and comparison_build and value['role'] == 'candidate'
@@ -874,10 +881,10 @@ def _case(value, base):
     material_config = data.get('effects_config')
     material_receipt = data.get('effects_configured', {})
     source_build = data.get('hook_build', {})
-    modern_build = source_build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12') and _build_contract(source_build)[2]
+    modern_build = source_build.get('source_set') in ('effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14') and _build_contract(source_build)[2]
     material_admitted = bool(material_config and value['role'] == 'candidate'
         and _build_contract(source_build)[2]
-        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12')
+        and source_build.get('source_set') in ('effects-v1', 'effects-v2', 'effects-v3', 'effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14')
         and (material_config['version'] == 1 or material_config['version'] == 2 and modern_build
              or material_config['version'] == 3 and source_build.get('abi', {}).get('effects_v3') == 7204
              and checkpoint.get('leaf_wrapped_requested') is True
@@ -896,7 +903,7 @@ def _case(value, base):
     water_requested = checkpoint.get('water_program_requested') is True
     if 'water_program_requested' in checkpoint:
         check(type(checkpoint['water_program_requested']) is bool, 'invalid separate-water request checkpoint')
-    water_build = source_build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12') and _build_contract(source_build)[2]
+    water_build = source_build.get('source_set') in ('effects-v4', 'effects-v5', 'effects-v6', 'effects-v7', 'effects-v8', 'effects-v9', 'effects-v10', 'effects-v11','effects-v12','effects-v13','effects-v14') and _build_contract(source_build)[2]
     water_admitted = False
     if water_requested or any(key in data for key in ('water_config', 'water_stage', 'water_configured', 'water_program')):
         try:

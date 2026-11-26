@@ -89,10 +89,13 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
-def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False,shadow_allowed=False,ambient_allowed=False,palette_allowed=False,water_palette_allowed=False):
+def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False,shadow_allowed=False,ambient_allowed=False,palette_allowed=False,water_palette_allowed=False,combined_ui_only=False):
     if not isinstance(raw,bytes) or len(raw)>4096:
         raise ValueError('Native command exceeds its bound.')
     value=graphics_profile._json(raw)
+    if (type(combined_ui_only)is not bool or
+            (combined_ui_only and (not isinstance(value,dict) or value.get('operation','capture')!='capture'))):
+        raise ValueError('Combined shader choices are controlled exclusively by the in-game overlay.')
     if isinstance(value,dict)and value.get('operation')=='variant':
         if(set(value)!={'operation','sequence','variant','enabled'}or (palette_allowed is not True and water_palette_allowed is not True)
             or (palette_allowed is True and water_palette_allowed is True)
@@ -169,16 +172,39 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False):
-    if type(shader_overlay)is not bool or (shader_overlay and not water_palette):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False,shader_profile=None):
+    profiles={'water':1,'vegetation':2,'terrain':3,'shadow':4,'ambient':5,'all':6}
+    combined=shader_profile=='all'
+    if shader_profile is not None:
+        if type(shader_profile)is not str or shader_profile not in profiles or shader_overlay is not True:
+            raise ValueError('Shader profile requires an explicit fixed overlay family.')
+        if (hook is None or observer_catalog is None or not high_quality or comparison_uv or detailed_shadows
+                or crash_watch or baseline_crash_watch or baseline_metric_profile):
+            raise ValueError('Shader profile requires isolated observed High-quality rendering without other diagnostics.')
+        matches={
+            'water':water_palette,
+            'vegetation':leaf_palette,
+            'terrain':terrain_macro and tuple(material_effects)==('improved_terrain',) and not water_program and not leaf_palette and not shadow_filter and not ambient_occlusion,
+            'shadow':shadow_filter and not material_effects and not water_program and not ambient_occlusion,
+            'ambient':ambient_occlusion and not material_effects and not water_program and not shadow_filter,
+            'all':(material_config_version==5 and water_program is True and water_palette is True
+                   and terrain_macro is True and leaf_palette is True and shadow_filter is True and ambient_occlusion is True
+                   and tuple(material_effects)==('improved_water','improved_terrain','improved_vegetation')
+                   and not leaf_wrapped and not leaf_hemisphere),
+        }
+        if matches[shader_profile] is not True:
+            raise ValueError('Shader profile does not match its separately authorized material configuration.')
+    if type(shader_overlay)is not bool or (shader_overlay and not water_palette and shader_profile is None):
         raise ValueError('Shader overlay requires explicit isolated WaterPalette intent.')
-    if (type(water_palette)is not bool or (water_palette and
+    if material_config_version==5 and not combined:
+        raise ValueError('Combined material V5 requires explicit all-family diagnostic scope.')
+    if (type(water_palette)is not bool or (water_palette and not combined and
             (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or not water_program
              or material_config_version!=1 or tuple(material_effects)!=('improved_water',)
              or leaf_wrapped or leaf_hemisphere or leaf_palette or terrain_macro or shadow_filter
              or ambient_occlusion or comparison_uv or crash_watch))):
         raise ValueError('Water palette requires explicit isolated observed High-quality WaterProgram intent.')
-    if (type(leaf_palette)is not bool or (leaf_palette and
+    if (type(leaf_palette)is not bool or (leaf_palette and not combined and
             (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or material_config_version!=4
              or tuple(material_effects)!=('improved_vegetation',) or leaf_wrapped or leaf_hemisphere or terrain_macro
              or water_program or shadow_filter or ambient_occlusion or comparison_uv or crash_watch))
@@ -200,12 +226,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     ambient_operation='ambient_v2' if ambient_profile=='B' else 'ambient'
     ambient_version=2 if ambient_profile=='B' else 1
     if (type(ambient_occlusion)is not bool or (ambient_occlusion and
-            (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or shadow_filter))):
+            (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or (shadow_filter and not combined)))):
         raise ValueError('Ambient occlusion requires exclusive source-bound OBSERVE and High-quality laboratory mode.')
     if (type(shadow_filter)is not bool or (shadow_filter and
             (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality))):
         raise ValueError('Shadow filter requires explicit source-bound OBSERVE and High-quality laboratory mode.')
-    if (type(terrain_macro)is not bool or (terrain_macro and
+    if (type(terrain_macro)is not bool or (terrain_macro and not combined and
             (baseline_crash_watch or hook is None or not high_quality or material_config_version!=2
              or 'improved_terrain'not in material_effects or 'improved_water'in material_effects))):
         raise ValueError('Terrain macro requires explicit source-bound High-quality V2 terrain without legacy River.')
@@ -243,7 +269,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         if on_initialized is not None:
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')
         from . import load_hook
-        hook, _ = load_hook.verify_build(hook)
+        hook, overlay_build = load_hook.verify_build(hook)
+        if shader_profile is not None and overlay_build.get('diagnostic_abi',{}).get('overlay_v2')!=16:
+            raise ValueError('This exact build does not declare the family shader overlay diagnostic.')
+        if combined and (overlay_build.get('abi',{}).get('initialize_v3')!=3136
+                         or overlay_build.get('abi',{}).get('effects_v5')!=24
+                         or overlay_build.get('diagnostic_abi',{}).get('overlay_v3')!=16):
+            raise ValueError('This exact build does not declare the combined shader scope.')
         if shadow_filter and load_hook.verify_build(hook)[1].get('diagnostic_abi',{}).get('shadow')!=12:
             raise ValueError('This exact build does not declare the fixed shadow diagnostic.')
         if ambient_occlusion and load_hook.verify_build(hook)[1].get('diagnostic_abi',{}).get(ambient_operation)!=12:
@@ -255,7 +287,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if (not isinstance(material_effects,(list,tuple)) or len(set(material_effects))!=len(material_effects)
             or any(key not in material_keys for key in material_effects)
             or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool or type(comparison_uv)is not bool
-            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2,3,4)
+            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2,3,4,5)
             or (material_config_version==2 and 'improved_water'in material_effects and not water_program)
             or (material_effects and (hook is None or not high_quality))):
         raise ValueError('Native materials require an explicit exact hook and High shader quality.')
@@ -284,7 +316,11 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         selected.update(dict.fromkeys(material_selection,True))
         extra={}
         stage=staging.prepare
-        if material_config_version==4:
+        if material_config_version==5:
+            from tools.material_shaders import staging_combined
+            stage=staging_combined.prepare
+            extra=dict(config_version=5,available_config_versions=(5,),worker_overhead_bytes=load_hook.worker_overhead(executable,hook))
+        elif material_config_version==4:
             _,build=load_hook.verify_build(hook)
             if build.get('abi',{}).get('effects_v4')!=4120:raise ValueError('This exact build does not declare material V4.')
             from tools.material_shaders import staging_leaf_palette
@@ -354,6 +390,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         ROOT / 'tools/installer/isolated_process.py', ROOT / 'tools/d3d11/memory_guard.py',
         ROOT / 'tools/shadow_detail/profile_guard.py', ROOT / 'tools/graphics_lab/recover.py',
         ROOT / 'tools/graphics_lab/load_hook.py', ROOT / 'tools/supersampling/hook_probe.py')}
+    if shader_profile is not None:
+        profile_source=ROOT/'tools/graphics_lab/shader_profiles.py'
+        checkpoint[profile_source.relative_to(ROOT).as_posix()]=digest(profile_source)
+    if combined:
+        preset_source=ROOT/'tools/graphics_lab/shader_preset.py'
+        checkpoint[preset_source.relative_to(ROOT).as_posix()]=digest(preset_source)
     if crash_watch:
         watcher=ROOT/'tools/graphics_lab/crash_watch.py'
         checkpoint[watcher.relative_to(ROOT).as_posix()]=digest(watcher)
@@ -378,6 +420,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         water_variant=water_variant if water_program and not water_palette else None,
         water_palette_requested=water_palette,
         shader_overlay_requested=shader_overlay,
+        shader_profile_requested=shader_profile,
+        combined_shader_scope_requested=combined,
         material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
         leaf_hemisphere_requested=leaf_hemisphere,
         leaf_wrapped_requested=leaf_wrapped,
@@ -388,6 +432,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         targets={'options': options, 'runtime': runtime, 'config': config_file},
         shared=shared_profile_roots())
     game = service = sentinel = None
+    preset_recorder=None
     failure = None
     timed_out = False
     budget_expired = False
@@ -424,7 +469,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 receipt = load_hook.initialize(owned, hook, render=(width, height),
                     output=(output_width, output_height), report=output / 'hook-state.private.json',
                     observer_catalog=observer_catalog, observer_sha256=observer_sha256,material_flags=native_material_flags,
-                    shadow_filter=shadow_filter,ambient_occlusion=ambient_occlusion)
+                    shadow_filter=shadow_filter,ambient_occlusion=ambient_occlusion,**({'combined_scope':True}if combined else {}))
                 (output / 'hook-initialized.private.json').write_text(
                     json.dumps(receipt, indent=2), encoding='utf-8')
                 _, build = load_hook.verify_build(hook)
@@ -443,18 +488,20 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                     (output/'comparison-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
                 if water_config is not None:
                     initial=bytearray(water_config)
-                    if effects_initially_off:struct.pack_into('<I',initial,16,0)
+                    if effects_initially_off and not combined:struct.pack_into('<I',initial,16,0)
                     configured=load_hook.invoke(owned,hook,'water_palette' if water_palette else 'water',bytes(initial))
                     (output/('water-palette-configured.private.json' if water_palette else 'water-configured.private.json')).write_text(json.dumps(configured,indent=2),encoding='utf-8')
-                if shader_overlay:
-                    configured=load_hook.invoke(owned,hook,'overlay',struct.pack('<3I',12,1,1))
-                    (output/'overlay-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
                 if shadow_filter:
                     configured=load_hook.invoke(owned,hook,'shadow',struct.pack('<3I',12,1,0 if effects_initially_off else 1))
                     (output/'shadow-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
                 if ambient_occlusion:
                     configured=load_hook.invoke(owned,hook,ambient_operation,struct.pack('<3I',12,ambient_version,0 if effects_initially_off else 1))
                     (output/'ambient-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                if shader_overlay:
+                    operation='overlay_v3' if combined else 'overlay_v2' if shader_profile is not None else 'overlay'
+                    payload=struct.pack('<4I',16,3 if combined else 2,1,profiles[shader_profile]) if shader_profile is not None else struct.pack('<3I',12,1,1)
+                    configured=load_hook.invoke(owned,hook,operation,payload)
+                    (output/'overlay-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
         game = platform.launch(root, environment=environment, arguments=arguments,
                                on_initialized=initialize)
         (output / 'owned.private.json').write_text(json.dumps(dict(
@@ -472,10 +519,18 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                               requested_render_size=[width, height], portable=True,
                               reshade_requested=False)), flush=True)
         deadline = time.monotonic() + seconds
+        preset_recorder=None
+        if combined:
+            from .shader_preset import Recorder
+            preset_recorder=Recorder(output/'hook-state.private.json',output/'shader-selection.private.json',
+                                     mirror=ROOT/'outputs/Grafik-Debug-20261126/Letzte-Auswahl.json',
+                                     source=dict(source_set=overlay_build['source_set'],
+                                                 native_dll_sha256=overlay_build['files'][load_hook.DLL_NAME]))
         last_command = None
         last_sequence = 0
         while game.poll() is None:
             live_memory.publish(sentinel)
+            if preset_recorder is not None:preset_recorder.update()
             if sentinel.summary['monitor_failed'] or sentinel.summary['recovery_required']:
                 raise RuntimeError('The memory guard failed or confirmed pressure; stop this owned experiment.')
             if measurement_budget_expired(time.monotonic(), deadline, budget_expired):
@@ -496,7 +551,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None,shadow_filter,ambient_occlusion,leaf_palette,water_palette)
+                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None,shadow_filter,ambient_occlusion,leaf_palette,water_palette,combined)
                         if request is not None:
                             sequence=request['sequence'];last_sequence=sequence
                             operation=request['operation']
@@ -551,7 +606,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             if game:
                 exit_state['code'] = game.poll()
                 game.close()
-        cleanup = [('game-stop', stop_game),
+        cleanup = [('preset-save',lambda:preset_recorder.update()if preset_recorder is not None else None),
+                   ('game-stop', stop_game),
                    ('memory-close', lambda: sentinel.close() if sentinel else None),
                    ('game-close', close_game), ('service-stop', stop_service)]
         # The durable journal restores only private lab configuration, never saves.
@@ -606,10 +662,11 @@ def main():
     parser.add_argument('--material-effects',nargs='+',choices=('improved_water','improved_terrain','improved_vegetation'),default=[])
     parser.add_argument('--effects-initially-off',action='store_true')
     parser.add_argument('--water-program',action='store_true',help='Explicit new recipient-generated water pixel shader; legacy River factors stay disabled')
+    parser.add_argument('--shader-profile',choices=('water','vegetation','terrain','shadow','ambient','all'),help='Native live shader selection; all combines five families in one game')
     parser.add_argument('--shader-overlay',action='store_true',help='Native live shader selector in the game; requires --water-palette')
     parser.add_argument('--water-palette',action='store_true',help='Three fixed WaterProgram alternatives in one process; requires --water-program')
     parser.add_argument('--water-variant',choices=('A','B'),default='A',help='Explicit fixed water candidate: A matte, B balanced gloss')
-    parser.add_argument('--material-config-version',type=int,choices=(1,2,3,4),default=1,
+    parser.add_argument('--material-config-version',type=int,choices=(1,2,3,4,5),default=1,
         help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
     parser.add_argument('--terrain-macro',action='store_true',help='Explicit source-pinned macro terrain recipe; V2 historical recipes stay unchanged')
     parser.add_argument('--leaf-hemisphere',action='store_true',help='Explicit original-leaf ambient hemisphere recipe; vegetation-only V2 trial')
@@ -633,7 +690,7 @@ def main():
         material_config_version=args.material_config_version,baseline_crash_watch=args.baseline_crash_watch,water_program=args.water_program,
         water_variant=args.water_variant,terrain_macro=args.terrain_macro,shadow_filter=args.shadow_filter,
         ambient_occlusion=args.ambient_occlusion,ambient_profile=args.ambient_profile,leaf_hemisphere=args.leaf_hemisphere,
-        baseline_metric_profile=args.baseline_metric_profile,leaf_wrapped=args.leaf_wrapped,leaf_palette=args.leaf_palette,water_palette=args.water_palette,shader_overlay=args.shader_overlay)
+        baseline_metric_profile=args.baseline_metric_profile,leaf_wrapped=args.leaf_wrapped,leaf_palette=args.leaf_palette,water_palette=args.water_palette,shader_overlay=args.shader_overlay,shader_profile=args.shader_profile)
 
 
 if __name__ == '__main__':

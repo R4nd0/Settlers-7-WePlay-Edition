@@ -35,6 +35,7 @@ bool Eligible(const AmbientOcclusionEffects::Stats& value,bool healthy=true){
 void ResetHost(){
     using namespace SupersamplingHook;
     state=nullptr;configuration={};native_configuration={};stats={sizeof(stats),1};
+    combined_scope_authorized=false;overlay_geometry_frame=overlay_geometry_revision=overlay_geometry_active=0;
     ambient_received=ambient_waiting=ambient_initialized=ambient_state_valid=ambient_frame_good=false;
     ambient_frame_counters_valid=false;
     ambient_state=AmbientOcclusionEffects::Stats{};ambient_frame_origin=0;
@@ -53,14 +54,14 @@ void EffectsV3Proof(const std::wstring& directory){
     Check(memory!=nullptr,"allocate bounded wire boundary fixture");DWORD protection=0;
     Check(VirtualProtect(memory+8192,4096,PAGE_NOACCESS,&protection)!=FALSE,"place inaccessible page after exact payload");
     MaterialShaderEffects::Config old{};MaterialShaderConfigV2::Config previous{};MaterialShaderConfigV3::Config next{};
-    MaterialShaderConfigV4::Config palette{};
-    const void* values[]={&old,&previous,&next,&palette};const size_t lengths[]={sizeof(old),sizeof(previous),sizeof(next),sizeof(palette)};
-    for(unsigned index=0;index<4;++index){
+    MaterialShaderConfigV4::Config palette{};MaterialShaderConfigV5::Config combined{};
+    const void* values[]={&old,&previous,&next,&palette,&combined};const size_t lengths[]={sizeof(old),sizeof(previous),sizeof(next),sizeof(palette),sizeof(combined)};
+    for(unsigned index=0;index<5;++index){
         auto* exact=memory+8192-lengths[index];std::memcpy(exact,values[index],lengths[index]);
         NativeEffectsWire::Pending copied{};
         Check(NativeEffectsWire::Decode(exact,&copied)&&copied.version==index+1,"each exact typed payload decodes at guard-page boundary without overread");
         const auto before=copied;
-        reinterpret_cast<DWORD*>(exact)[1]=5;
+        reinterpret_cast<DWORD*>(exact)[1]=6;
         Check(!NativeEffectsWire::Decode(exact,&copied)&&!std::memcmp(&copied,&before,sizeof(copied)),"unknown version refuses without mutating output");
         reinterpret_cast<DWORD*>(exact)[1]=index+1;reinterpret_cast<DWORD*>(exact)[0]-=4;
         Check(!NativeEffectsWire::Decode(exact,&copied),"truncated declared typed payload refuses");
@@ -218,6 +219,119 @@ void WaterPaletteProof(const std::wstring& directory){
         "missinghost epoch cannot forward original teardown with livewater module");
     water_initialized=water_received=water_waiting=false;water_pending_version=1;capture_pending=0;ResetHost();
 }
+void OverlayProfilesProof(){
+    using namespace SupersamplingHook;using P=ShaderDebugOverlay::Profile;
+    std::puts("CPU: immutable single-family overlay profiles");
+    for(DWORD family:{2u,3u,4u,5u}){
+        ResetHost();overlay_received=overlay_requested=overlay_extended=false;overlay_profile=P::Water;comparison_waiting=false;
+        effects_received=shadow_received=ambient_received=water_received=false;
+        if(family==2){native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Vegetation;effects_received=true;effects_pending_version=4;}
+        if(family==3){native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Terrain;effects_received=true;effects_pending_version=2;
+            effects_pending_v2.terrain_detail_scale=effects_pending_v2.terrain_relief_scale=1.0f;
+            const wchar_t* unused=L"C:\\owned\\MaterialShaders\\";
+            for(unsigned index=0;index<2;++index){const auto slot=3+index;const auto& spec=NativeEffectsContractV2::MacroPrograms[slot];
+                const auto path=std::wstring(unused)+spec.directory+L"\\"+NativeEffectsContractV2::Digest(slot,true)+spec.suffix;
+                if(index==0)wcscpy_s(effects_pending_v2.bump_vertex_path,path.c_str());else wcscpy_s(effects_pending_v2.parallax_vertex_path,path.c_str());}}
+        if(family==4){native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::StableShadows;shadow_received=true;}
+        if(family==5){native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::AmbientOcclusion;ambient_received=true;}
+        DWORD request[]={16,2,1,family};Check(WePlayNativeGraphicsConfigureOverlay(request)==1&&static_cast<DWORD>(overlay_profile)==family,
+            "pending matching admitted family accepts exact V2 before device creation");
+        request[3]=family==2?3u:2u;Check(!WePlayNativeGraphicsConfigureOverlay(request),"family cannot change in a running profile");
+        request[3]=family;request[2]=0;Check(WePlayNativeGraphicsConfigureOverlay(request)==1&&!overlay_requested,"matching V2 can hide safely");
+        MaterialComparison::Config comparison{};comparison.enabled=1;
+        Check(!WePlayNativeGraphicsConfigureComparison(&comparison),"strict single-family profile rejects later UV comparison enable");
+        request[2]=2;Check(!WePlayNativeGraphicsConfigureOverlay(request),"V2 enabled remains normalized boolean");
+        request[2]=1;request[3]=6;Check(!WePlayNativeGraphicsConfigureOverlay(request),"unknown family refused");
+        overlay_received=false;stats.comparison_requested=1;request[3]=family;
+        Check(!WePlayNativeGraphicsConfigureOverlay(request),"strict profile rejects existing comparison mutation");stats.comparison_requested=0;
+        if(family==3){effects_pending_v2.terrain_detail_scale=1.2f;Check(!OverlayProfileAllowed(P::Terrain),"Macro label refuses nonunit parameter identity");effects_pending_v2.terrain_detail_scale=1.0f;
+            effects_pending_v2.bump_vertex_path[0]=0;Check(!OverlayProfileAllowed(P::Terrain),"Macro label refuses historical or missing Macro VS identity");}
+        native_configuration.flags|=NativeGraphicsConfig::Water;
+        request[3]=family;Check(!WePlayNativeGraphicsConfigureOverlay(request),"combined family intent cannot claim isolated profile");
+    }
+    ResetHost();overlay_received=true;overlay_profile=P::Terrain;effects_faulted=effects_waiting=false;
+    stats.effects_config_version=2;stats.effects_active=2;stats.effects_revision=3;stats.present_calls=4;
+    RecordPaletteDraw(0,S_OK);LatchEffectsDraw();CompletePaletteFrame();++stats.present_calls;
+    auto status=CurrentOverlayStatus();Check(!status.applied_valid&&status.pending,"generic geometry cannot claim actual Terrain application");
+    RecordPaletteDraw(2,S_OK);LatchEffectsDraw(2);CompletePaletteFrame();++stats.present_calls;
+    status=CurrentOverlayStatus();Check(status.applied_valid&&status.applied_enabled&&status.applied_variant==0,"safe successful actual Terrain role qualifies current frame");
+    RecordPaletteDraw(2,S_OK);RecordPaletteDraw(3,D3DERR_INVALIDCALL);LatchEffectsDraw(2);CompletePaletteFrame();++stats.present_calls;
+    Check(!CurrentOverlayStatus().applied_valid,"failed Terrain role disqualifies actual display despite other successful geometry");
+    stats.effects_active=0;LatchEffectsDraw();CompletePaletteFrame();++stats.present_calls;
+    Check(CurrentOverlayStatus().applied_valid&&!CurrentOverlayStatus().applied_enabled,"Terrain Original requires fresh geometry and no active replacement");
+    overlay_received=overlay_requested=overlay_extended=false;overlay_profile=P::Water;effects_received=shadow_received=ambient_received=false;
+    overlay_terrain_success=overlay_terrain_failed=0;overlay_terrain_revision=0;effects_pending_version=1;ResetHost();
+}
+void CombinedProof(const std::wstring& directory){
+    using namespace SupersamplingHook;using P=ShaderDebugOverlay::Profile;
+    std::puts("CPU: additive combined initialization, tuple and independent proof");ResetHost();
+    NativeGraphicsConfig::Version3 init{};init.base.base={sizeof(init),3,1280,720,640,360,{}};
+    init.base.flags=NativeGraphicsConfig::KnownFlags;
+    const auto root=std::filesystem::path(directory)/L"v5-dispatch";std::filesystem::create_directories(root);
+    wcscpy_s(init.base.base.report_path,(root/L"hook.private.json").c_str());
+    wcscpy_s(init.base.catalog_path,(root/L"catalog.bin").c_str());init.base.catalog_sha256[0]=1;
+    wcscpy_s(init.base.observer_report_path,(root/L"observer.private.json").c_str());
+    NativeGraphicsConfig::Version2 normalized{};bool admitted=false;
+    Check(NativeGraphicsConfig::DecodeCombined(&init,sizeof(init),63,normalized,admitted)==NativeGraphicsConfig::Error::None&&admitted
+        &&normalized.base.size==3132&&normalized.base.version==2&&normalized.flags==63,"init3 scope1 normalizes only admitted complete3136 payload");
+    for(unsigned bad=0;bad<6;++bad){auto wrong=init;
+        if(bad==0)wrong.diagnostic_scope=0;if(bad==1)wrong.diagnostic_scope=2;if(bad==2)wrong.base.flags&=~1u;
+        if(bad==3)wrong.base.base.size=3132;if(bad==4)wrong.base.flags|=64;if(bad==5)wrong.base.base.render_width=640;
+        Check(NativeGraphicsConfig::DecodeCombined(&wrong,sizeof(wrong),63,normalized,admitted)!=NativeGraphicsConfig::Error::None&&!admitted,
+            "malformed combined scope cannot grant combined authorization");}
+    Check(NativeGraphicsConfig::Decode(&init,sizeof(init),63,normalized)!=NativeGraphicsConfig::Error::None,"old decoder never admits new scope implicitly");
+    Check(NativeGraphicsConfig::DecodeCombined(&init,sizeof(init)-4,63,normalized,admitted)!=NativeGraphicsConfig::Error::None&&!admitted,"truncated scope refuses");
+    native_configuration=init.base;native_configuration.base.size=3132;native_configuration.base.version=2;configuration=native_configuration.base;
+    MaterialShaderConfigV5::Config request{};request.render_width=1280;request.render_height=720;
+    NativeEffectsContractV5::Resolved resolved{};
+    Check(NativeEffectsContractV5::Resolve(configuration.report_path,NativeEffectsContractV5::Layout::PrivateCase,resolved,false)==NativeEffectsContractV5::Error::None,
+        "V5 derives only seven closed canonical resources from native admitted report root");
+    for(const auto& path:resolved.program_paths){std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+        const DWORD invalid[]={0xffff0300,0xffff};std::ofstream file(path,std::ios::binary);file.write(reinterpret_cast<const char*>(invalid),sizeof(invalid));}
+    effects_received=effects_waiting=effects_initialized=effects_faulted=false;overlay_received=false;
+    Check(!WePlayNativeGraphicsConfigureEffects(&request)&&!effects_waiting,"V5 cannot queue without explicit combined initialization");
+    combined_scope_authorized=true;
+    Check(ShadowIntentAuthorized(63)&&AmbientIntentAuthorized(63),"explicit new scope permits both exact disjoint shader families");
+    for(unsigned bad=0;bad<5;++bad){auto wrong=request;if(bad==0)wrong.flags=1;if(bad==1)wrong.selected_variant=3;
+        if(bad==2)wrong.render_width=640;if(bad==3)wrong.size=4120;if(bad==4)wrong.version=6;
+        Check(!WePlayNativeGraphicsConfigureEffects(&wrong)&&!effects_waiting,"V5 invalid compact tuple refuses before queue mutation");}
+    Check(WePlayNativeGraphicsConfigureEffects(&request)==1&&effects_pending_version==5&&!effects_initialized,"24B initialOFF queues only at safe boundary");
+    request.selected_variant=2;Check(effects_pending_v5.selected_variant==0,"queued tuple owns copied caller data");
+    Check(!WePlayNativeGraphicsConfigureEffects(&request),"pending V5 command refuses replacement");effects_waiting=false;
+    water_received=true;water_pending_version=2;water_pending_palette={};water_pending_palette.render_width=1280;water_pending_palette.render_height=720;
+    for(unsigned i=0;i<3;++i){std::wstring hash;for(const char* at=WaterShaderPaletteContract::Digests[i];*at;++at)hash+=static_cast<wchar_t>(*at);
+        const auto path=root/L"LocalData"/L"MaterialShaders"/WaterShaderPaletteContract::Recipes[i]/(hash+L".ps.bin");wcscpy_s(water_pending_palette.program_paths[i],path.c_str());}
+    shadow_received=ambient_received=true;shadow_pending_config={};ambient_pending_config={};ambient_pending_config.version=2;
+    overlay_received=overlay_extended=false;overlay_profile=P::Water;
+    DWORD overlay[]={16,3,1,6};Check(WePlayNativeGraphicsConfigureOverlay(overlay)==1&&overlay_profile==P::All,"combined overlay accepts all pre-device admitted queues");
+    Check(!WePlayNativeGraphicsConfigureEffects(&request)&&!WePlayNativeGraphicsConfigureWater(&water_pending_palette)
+        &&!WePlayNativeGraphicsConfigureShadow(&shadow_pending_config)&&!WePlayNativeGraphicsConfigureAmbient(&ambient_pending_config),
+        "armed combined UI is the sole mutation owner so persisted choices cannot drift via external selectors");
+    Check(OverlayPresetJson().find("overlay_preset_revision")!=std::string::npos,"report carries atomic five-choice preset and monotonic revision");
+    overlay[1]=2;Check(!WePlayNativeGraphicsConfigureOverlay(overlay),"old overlay2 cannot request combined family");overlay[1]=3;
+    overlay[3]=2;Check(!WePlayNativeGraphicsConfigureOverlay(overlay),"overlay3 admits only combined family6");overlay[3]=6;
+    ShaderDebugOverlay::Preset preset{};
+    effects_loaded_v5=request;
+    for(DWORD terrain=0;terrain<2;++terrain)for(DWORD leaf=0;leaf<2;++leaf)for(DWORD variant=0;variant<3;++variant){
+        preset.values[1].enabled=leaf;preset.values[1].variant=variant;preset.values[2].enabled=terrain;
+        const auto tuple=CombinedEffectsSelection(preset);
+        Check(tuple.flags==(leaf*4+terrain*2)&&tuple.selected_variant==variant&&tuple.render_width==1280,
+            "independent Leaf/Terrain tuple preserves other group for every bounded choice");}
+    effects_waiting=effects_faulted=false;effects_initialized=true;stats.effects_configured=1;stats.effects_config_version=5;
+    stats.effects_selected_variant=1;stats.effects_active=6;stats.effects_revision=9;stats.present_calls=10;InvalidatePaletteFrame();
+    RecordPaletteDraw(2,S_OK);LatchEffectsDraw(2);CompletePaletteFrame();++stats.present_calls;
+    Check(CurrentOverlayStatusFor(P::Terrain).applied_valid&&!CurrentOverlayStatusFor(P::Leaf).applied_valid,
+        "actual Terrain proof independent of missing visible Leaf pass");
+    RecordPaletteDraw(4,S_OK);LatchEffectsDraw(4);CompletePaletteFrame();++stats.present_calls;
+    Check(CurrentOverlayStatusFor(P::Leaf).applied_valid&&!CurrentOverlayStatusFor(P::Terrain).applied_valid,
+        "actual Leaf proof does not label missing Terrain pass applied");
+    RecordPaletteDraw(2,S_OK);RecordPaletteDraw(4,S_OK);LatchEffectsDraw(4);CompletePaletteFrame();++stats.present_calls;
+    Check(CurrentOverlayStatusFor(P::Leaf).applied_valid&&CurrentOverlayStatusFor(P::Terrain).applied_valid,"both actual restored families qualify same frame");
+    InvalidatePaletteFrame();Check(!CurrentOverlayStatusFor(P::Leaf).applied_valid&&!CurrentOverlayStatusFor(P::Terrain).applied_valid,"config/reset invalidation clears both copied proofs");
+    overlay_received=overlay_requested=overlay_extended=false;overlay_profile=P::Water;effects_received=effects_waiting=effects_initialized=effects_faulted=false;
+    water_received=water_waiting=water_initialized=false;effects_pending_version=1;shadow_received=ambient_received=false;ResetHost();
+}
+
 }
 int main(){
     using namespace SupersamplingHook;
@@ -234,6 +348,8 @@ int main(){
     EffectsV3Proof(directory);
     EffectsV4Proof(directory);
     WaterPaletteProof(directory);
+    OverlayProfilesProof();
+    CombinedProof(directory);
     const std::wstring prefix=std::wstring(directory)+L"\\cpu-never-";
     for(DWORD flags:{16u,32u,48u,49u,65u}) {
         ResetHost();InterlockedExchange(&initialized,0);InterlockedExchange(&initialization_ready,0);

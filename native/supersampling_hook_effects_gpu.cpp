@@ -8,6 +8,7 @@
 #include "material_shader_effects.h"
 #include "material_shader_effects_contract_v3.h"
 #include "material_shader_effects_contract_v4.h"
+#include "material_shader_effects_contract_v5.h"
 #include "water_shader_config_palette.h"
 #include "water_shader_palette_contract.h"
 #include "shader_debug_overlay.h"
@@ -125,7 +126,7 @@ void Near(const std::array<unsigned,3>& pixel,float red,float green,float blue) 
     const float values[]{red,green,blue};
     for(size_t i=0;i<3;++i)Require(std::abs(static_cast<float>(pixel[i])-values[i]*255)<=2,"effects_gpu_pixel_not_expected");
 }
-std::array<std::uint64_t,2> OverlaySurfaceProof(IDirect3DDevice9* device,Geometry& geometry,IDirect3DVertexShader9* vertex,IDirect3DPixelShader9* pixel) {
+std::array<std::uint64_t,2> OverlaySurfaceProof(IDirect3DDevice9* device,Geometry& geometry,IDirect3DVertexShader9* vertex,IDirect3DPixelShader9* pixel,ShaderDebugOverlay::Profile profile=ShaderDebugOverlay::Profile::Water) {
     Check(DrawScene(device,geometry,vertex,pixel),"overlay_gpu_original_scene_failed");
     Com<IDirect3DSurface9> output,target;Check(device->GetRenderTarget(0,target.put()),"overlay_gpu_original_target_failed");
     D3DVIEWPORT9 viewport{};Check(device->GetViewport(&viewport),"overlay_gpu_original_viewport_failed");
@@ -134,8 +135,10 @@ std::array<std::uint64_t,2> OverlaySurfaceProof(IDirect3DDevice9* device,Geometr
     const DWORD frequency=D3DSTREAMSOURCE_INDEXEDDATA|2u;
     Check(device->SetStreamSourceFreq(0,frequency),"overlay_gpu_instanced_baseline_failed");
     Check(device->SetRenderState(D3DRS_FILLMODE,D3DFILL_WIREFRAME),"overlay_gpu_wireframe_baseline_failed");
-    ShaderDebugOverlay::Status status{};status.applied_valid=1;
-    Require(ShaderDebugOverlay::Draw(device,output.get(),640,360,status),"overlay_gpu_actual_font_panel_draw_failed");
+    ShaderDebugOverlay::Status status{};status.applied_valid=1;status.profile=profile;
+    ShaderDebugOverlay::MultiStatus multi{};multi.families[0].applied_valid=1;
+    Require(profile==ShaderDebugOverlay::Profile::All?ShaderDebugOverlay::DrawAll(device,output.get(),640,360,multi)
+        :ShaderDebugOverlay::Draw(device,output.get(),640,360,status),"overlay_gpu_actual_font_panel_draw_failed");
     Restored(device,vertex,pixel);UINT restored_frequency=0;DWORD fill=0;D3DVIEWPORT9 after{};Com<IDirect3DSurface9> restored_target;
     Check(device->GetStreamSourceFreq(0,&restored_frequency),"overlay_gpu_frequency_readback_failed");
     Check(device->GetRenderState(D3DRS_FILLMODE,&fill),"overlay_gpu_fill_readback_failed");
@@ -144,7 +147,7 @@ std::array<std::uint64_t,2> OverlaySurfaceProof(IDirect3DDevice9* device,Geometr
         &&!std::memcmp(&viewport,&after,sizeof(viewport)),"overlay_gpu_original_state_not_restored");
     const auto pixels=Readback(device,output.get(),640,360);std::uint64_t changed=0,text=0;
     for(unsigned y=0;y<360;++y)for(unsigned x=0;x<640;++x){const auto rgb=pixels[static_cast<size_t>(y)*640+x]&0xffffffu;
-        const bool panel=x>=16&&x<376&&y>=16&&y<228;
+        const bool panel=x>=16&&x<(profile==ShaderDebugOverlay::Profile::All?436u:376u)&&y>=16&&y<(profile==ShaderDebugOverlay::Profile::All?308u:228u);
         if(!panel)Require(rgb==0x204060u,"overlay_gpu_changed_outside_panel");else if(rgb!=0x204060u)++changed;
         if(x>=28&&x<200&&y>=28&&y<46&&((rgb>>16)&255)>150&&((rgb>>8)&255)>150&&(rgb&255)>150)++text;
     }
@@ -228,7 +231,7 @@ void V3Trial(const std::filesystem::path& renderer,const std::filesystem::path& 
         "\"public_off_on_off\":true,\"pixel_replacement_verified\":true,\"same_frame_capture\":true,\"failed_draw_restored\":true,"
         "\"reset_recreated_program\":true,\"warm_program_reused\":true,\"leaf_applied\":%llu,\"restored_draws\":%llu}\n",measured.applied[3],measured.restored_draws);
 }
-void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& output) {
+void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& output,bool shader_overlay=false) {
     Com<ID3DBlob> vertex_code,pixel_code;
     Compile("float4 main(float4 p:POSITION):POSITION{return p;}","vs_3_0",vertex_code);
     Compile("float4 main():COLOR{return float4(.2,.3,.4,1);}","ps_3_0",pixel_code);
@@ -253,7 +256,9 @@ void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& 
     Com<IDirect3DVertexShader9> vertex;Com<IDirect3DPixelShader9> pixel;
     Check(device->CreateVertexShader(static_cast<const DWORD*>(vertex_code->GetBufferPointer()),vertex.put()),"v4_gpu_original_vs_failed");
     Check(device->CreatePixelShader(static_cast<const DWORD*>(pixel_code->GetBufferPointer()),pixel.put()),"v4_gpu_original_ps_failed");
-    Geometry geometry(device.get());NativeGraphicsConfig::Version2 native{};
+    Geometry geometry(device.get());std::array<std::uint64_t,2> overlay_pixels{};
+    if(shader_overlay)overlay_pixels=OverlaySurfaceProof(device.get(),geometry,vertex.get(),pixel.get(),ShaderDebugOverlay::Profile::Leaf);
+    NativeGraphicsConfig::Version2 native{};
     native.base={sizeof(native),2,1280,720,640,360,{}};native.flags=NativeGraphicsConfig::Vegetation;
     wcscpy_s(native.base.report_path,(output/L"hook.private.json").c_str());
     Require(WePlaySupersamplingInitialize(&native)==1,"v4_gpu_native_init_failed");
@@ -261,10 +266,12 @@ void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& 
     previous=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window.get(),GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(Procedure)));live=device.get();
     Require(WePlaySupersamplingAttach(device.get())==1,"v4_gpu_attach_failed");
     const auto draw=[&](){Check(DrawScene(device.get(),geometry,vertex.get(),pixel.get()),"v4_gpu_draw_failed");Restored(device.get(),vertex.get(),pixel.get());};
-    const auto present=[&](){Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v4_gpu_present_failed");};
+    const auto present=[&](){Check(device->Present(nullptr,nullptr,nullptr,nullptr),"v4_gpu_present_failed");if(shader_overlay)Restored(device.get(),vertex.get(),pixel.get());};
     const auto select=[&](DWORD variant,DWORD flags){config.selected_variant=variant;config.flags=flags;
         Require(WePlayNativeGraphicsConfigureEffects(&config)==1,"v4_gpu_selection_queue_failed");draw();present();};
     draw();Pump();draw();present();draw();Near(Pixel(device.get()),.2f,.3f,.4f);present();
+    if(shader_overlay){DWORD overlay[4]={16,2,1,2};Require(WePlayNativeGraphicsConfigureOverlay(overlay)==1,"leaf_overlay_gpu_config16_failed");
+        draw();present();SupersamplingStats shown{};Require(WePlaySupersamplingReadStats(&shown)==1&&shown.overlay_visible&&shown.overlay_draws&&!shown.overlay_unsafe,"leaf_overlay_gpu_not_visible");}
     select(0,4);draw();present();MaterialShaderEffects::Stats warm{};
     Require(MaterialShaderEffects::ReadStats(&warm)&&warm.config_version==4&&warm.retained_programs==3
         &&warm.variant_creations==std::array<std::uint64_t,3>{{1,1,1}},"v4_gpu_first_match_did_not_create_all_three_once");
@@ -298,6 +305,31 @@ void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& 
     for(unsigned index=0;index<3;++index)Require(measured.variant_applications[index]>0
         &&measured.variant_applications[index]==measured.variant_restorations[index]
         &&measured.variant_successful_draws[index]>0&&measured.variant_sha256[index]==hashes[index],"v4_gpu_actual_variant_evidence_missing");
+    std::string overlay_receipt;
+    if(shader_overlay){std::array<std::uint64_t,4> epochs{};SupersamplingStats start{};Require(WePlaySupersamplingReadStats(&start)==1,"leaf_overlay_gpu_start_stats_failed");
+        for(unsigned row=0;row<4;++row){MaterialShaderEffects::Stats before{};Require(MaterialShaderEffects::ReadStats(&before),"leaf_overlay_gpu_before_input_failed");
+            const auto forwarded=forwarded_buttons;const LPARAM point=MAKELPARAM(40,60+row*32+16);
+            SendMessageW(window.get(),WM_LBUTTONDOWN,MK_LBUTTON,point);SendMessageW(window.get(),WM_LBUTTONUP,0,point);
+            MaterialShaderEffects::Stats queued{};Require(MaterialShaderEffects::ReadStats(&queued)&&queued.enable_changes==before.enable_changes&&forwarded_buttons==forwarded,"leaf_overlay_gpu_midframe_mutation_or_game_input");
+            present();MaterialShaderEffects::Stats configured{};Require(MaterialShaderEffects::ReadStats(&configured)&&configured.enable_changes>before.enable_changes
+                &&configured.config_version==4&&configured.enabled_flags==(row?4u:0u)&&configured.selected_variant==(row?row-1:0u),"leaf_overlay_gpu_fixed_choice_not_configured");
+            epochs[row]=configured.enable_changes;draw();if(row)Near(Pixel(device.get()),colors[row-1][0],colors[row-1][1],colors[row-1][2]);else Near(Pixel(device.get()),.2f,.3f,.4f);present();
+            SupersamplingStats applied{};Require(WePlaySupersamplingReadStats(&applied)==1&&applied.effects_active==(row?4u:0u)
+                &&applied.effects_selected_variant==(row?row-1:0u)&&applied.effects_drawn_variant==(row?row-1:MAXDWORD)
+                &&applied.effects_drawn_frame==applied.present_calls&&!applied.effects_variant_frame_failed_draws
+                &&(row?(applied.effects_variant_frame_applications>0&&applied.effects_variant_frame_applications==applied.effects_variant_frame_restorations):!applied.effects_variant_frame_applications),"leaf_overlay_gpu_missing_actual_draw_proof");
+        }
+        SupersamplingStats done{};Require(WePlaySupersamplingReadStats(&done)==1&&done.overlay_choices-start.overlay_choices==4&&done.overlay_input_events-start.overlay_input_events>=8
+            &&done.overlay_draws-start.overlay_draws>=8&&!done.overlay_unsafe&&!done.render_unsafe,"leaf_overlay_gpu_core_choices_or_unsafe");
+        DWORD disabled[4]={16,2,0,2};Require(WePlayNativeGraphicsConfigureOverlay(disabled)==1,"leaf_overlay_gpu_disable_failed");draw();present();
+        Check(device->Reset(&parameters),"leaf_overlay_gpu_reset_failed");ShaderDebugOverlay::Stats renderer_stats{};
+        Require(ShaderDebugOverlay::ReadStats(&renderer_stats)&&!renderer_stats.unsafe_state&&!renderer_stats.pending_restore&&!renderer_stats.retained_original_refs&&!renderer_stats.font_ready,"leaf_overlay_gpu_reset_retained_refs");
+        overlay_receipt=",\"shader_overlay\":{\"profile_id\":2,\"wire_bytes\":16,\"physical_panel_pixels\":"+std::to_string(overlay_pixels[0])
+            +",\"font_pixels\":"+std::to_string(overlay_pixels[1])+",\"outside_control_unchanged\":true,\"original_state_restored\":true,\"actual_wndproc_choices\":4,\"safe_boundary_only\":true"
+            +",\"physical_input_before_scaling\":true,\"actual_selected_program_pixels\":true,\"reset_closed_cleanly\":true,\"unsafe\":0,\"epochs\":["
+            +std::to_string(epochs[0])+","+std::to_string(epochs[1])+","+std::to_string(epochs[2])+","+std::to_string(epochs[3])+"],\"overlay_draws\":"
+            +std::to_string(done.overlay_draws-start.overlay_draws)+",\"input_events\":"+std::to_string(done.overlay_input_events-start.overlay_input_events)+"}";
+    }
     Require(DestroyWindow(window.get())!=FALSE,"v4_gpu_window_close_failed");live=nullptr;
     Require(WePlaySupersamplingDetach(device.get())==1,"v4_gpu_detach_failed");device->SetStreamSource(0,nullptr,0,0);vertex.reset();pixel.reset();device.reset();
     std::array<std::string,3> hash_text{};constexpr char digits[]="0123456789abcdef";
@@ -305,10 +337,10 @@ void V4Trial(const std::filesystem::path& renderer,const std::filesystem::path& 
     std::printf("{\"format\":\"s7-material-effects-v4-gpu-v1\",\"game_tested\":false,\"authored_programs\":true,\"wire_bytes\":4120,"
         "\"three_program_colors\":true,\"first_match_creates_three\":true,\"safe_live_selection\":true,\"off_retains_warm_palette\":true,"
         "\"same_frame_captures\":true,\"stale_epoch_deferred\":true,\"failed_original_restored\":true,\"reset_recreated_palette\":true,"
-        "\"variant_applications\":[%llu,%llu,%llu],\"variant_restorations\":[%llu,%llu,%llu],\"program_sha256\":[\"%s\",\"%s\",\"%s\"]}\n",
+        "\"variant_applications\":[%llu,%llu,%llu],\"variant_restorations\":[%llu,%llu,%llu],\"program_sha256\":[\"%s\",\"%s\",\"%s\"]%s}\n",
         measured.variant_applications[0],measured.variant_applications[1],measured.variant_applications[2],
         measured.variant_restorations[0],measured.variant_restorations[1],measured.variant_restorations[2],
-        hash_text[0].c_str(),hash_text[1].c_str(),hash_text[2].c_str());
+        hash_text[0].c_str(),hash_text[1].c_str(),hash_text[2].c_str(),overlay_receipt.c_str());
 }
 void WaterPaletteTrial(const std::filesystem::path& renderer,const std::filesystem::path& output,bool shader_overlay=false) {
     Com<ID3DBlob> base_vertex,base_pixel,vertex_code,pixel_code;
@@ -425,16 +457,85 @@ void WaterPaletteTrial(const std::filesystem::path& renderer,const std::filesyst
         "\"frame_origin\":%lu,\"program_sha256\":[\"%s\",\"%s\",\"%s\"]%s}\n",initial.water_frame_origin,
         hash_text[0].c_str(),hash_text[1].c_str(),hash_text[2].c_str(),overlay_receipt.c_str());
 }
+void CombinedTrial(const std::filesystem::path& renderer,const std::filesystem::path& output,const wchar_t* catalog_path,const wchar_t* catalog_sha) {
+    const char* original_colors[]={"float4 main():COLOR{return float4(.3,.4,.2,1);}","float4 main():COLOR{return float4(.5,.2,.1,1);}","float4 main():COLOR{return float4(.2,.3,.4,1);}"};
+    const char* replacements[]={"float4 main():COLOR{return float4(.25,.2,.15,1);}","float4 main():COLOR{return float4(.7,.2,.1,1);}",
+        "float4 main():COLOR{return float4(.6,.1,.3,1);}","float4 main(float4 p:POSITION):POSITION{return p;}","float4 main(float4 p:POSITION):POSITION{return p;}",
+        "float4 main():COLOR{return float4(.5,.3,.25,1);}","float4 main():COLOR{return float4(.75,.4,.35,1);}"};
+    std::array<Com<ID3DBlob>,3> original_vs,original_ps;std::array<Com<ID3DBlob>,7> programs;std::array<std::array<unsigned char,32>,7> hashes{};
+    Com<ID3DBlob> position;Compile("float4 main(float4 p:POSITION):POSITION{return p;}","vs_3_0",position);
+    for(unsigned i=0;i<3;++i){Com<ID3DBlob> ps;Compile(original_colors[i],"ps_3_0",ps);PadProgram(position.get(),i==2?3832:2004,0x551100+i,original_vs[i]);
+        PadProgram(ps.get(),i==0?1636:i==1?3396:1328,0x551200+i,original_ps[i]);const auto v=Digest(original_vs[i].get()),p=Digest(original_ps[i].get());
+        Require(MaterialShaderEffects::FixtureCompatibility(i+1,v.data(),p.data(),static_cast<DWORD>(original_vs[i]->GetBufferSize()),static_cast<DWORD>(original_ps[i]->GetBufferSize()),nullptr),"combined_gpu_original_pins");}
+    const auto report=(output/L"hook.private.json").wstring();NativeEffectsContractV5::Resolved paths{};
+    Require(NativeEffectsContractV5::Resolve(report.c_str(),MaterialShaderConfigV5::Layout::PrivateCase,paths,false)==NativeEffectsContractV5::Error::None,"combined_gpu_fixed_paths");
+    for(unsigned i=0;i<7;++i){Com<ID3DBlob> compiled;Compile(replacements[i],i==3||i==4?"vs_3_0":"ps_3_0",compiled);PadProgram(compiled.get(),NativeEffectsContractV5::ProgramBytes[i],0x551300+i,programs[i]);
+        hashes[i]=Digest(programs[i].get());Require(MaterialShaderEffects::FixtureProgramCompatibility(7,i,hashes[i].data(),static_cast<DWORD>(programs[i]->GetBufferSize())),"combined_gpu_program_pins");
+        std::filesystem::create_directories(std::filesystem::path(paths.program_paths[i]).parent_path());Save(paths.program_paths[i],programs[i].get());}
+    Com<ID3DBlob> water_vs,water_ps,water_plain;PadProgram(position.get(),2592,0x661100,water_vs);Compile("float4 main():COLOR{return float4(.2,.25,.3,1);}","ps_3_0",water_plain);PadProgram(water_plain.get(),3740,0x661200,water_ps);
+    const auto wv=Digest(water_vs.get()),wp=Digest(water_ps.get());WaterShaderEffects::ConfigPalette water{};water.render_width=1280;water.render_height=720;water.enabled=1;
+    std::array<Com<ID3DBlob>,3> water_programs;std::array<std::array<unsigned char,32>,3> water_hashes{};
+    const char* water_colors[]={"float4 main():COLOR{return float4(.1,.4,.7,1);}","float4 main():COLOR{return float4(.15,.5,.8,1);}","float4 main():COLOR{return float4(.2,.6,.9,1);}"};
+    for(unsigned i=0;i<3;++i){Com<ID3DBlob> compiled;Compile(water_colors[i],"ps_3_0",compiled);PadProgram(compiled.get(),3840,0x661300+i,water_programs[i]);water_hashes[i]=Digest(water_programs[i].get());
+        Require(WaterShaderEffects::FixturePaletteIdentity(i,water_hashes[i].data()),"combined_gpu_water_pins");std::wstring digest;for(const char* p=WaterShaderPaletteContract::Digests[i];*p;++p)digest+=static_cast<wchar_t>(*p);
+        const auto path=output/L"LocalData"/L"MaterialShaders"/WaterShaderPaletteContract::Recipes[i]/(digest+L".ps.bin");std::filesystem::create_directories(path.parent_path());Save(path,water_programs[i].get());wcscpy_s(water.program_paths[i],path.c_str());}
+    Require(WaterShaderEffects::FixtureIdentities(wv.data(),wp.data(),water_hashes[0].data()),"combined_gpu_water_original_pins");
+    SetProcessDPIAware();Runtime runtime(renderer);Com<IDirect3D9> api;*api.put()=runtime.create();Require(api.get()!=nullptr,"combined_gpu_factory");Window window(1280,720);window.show();auto parameters=Params(window.get());Com<IDirect3DDevice9> device;
+    Check(api->CreateDevice(0,D3DDEVTYPE_HAL,window.get(),D3DCREATE_HARDWARE_VERTEXPROCESSING,&parameters,device.put()),"combined_gpu_device");
+    std::array<Com<IDirect3DVertexShader9>,3> vs;std::array<Com<IDirect3DPixelShader9>,3> ps;
+    for(unsigned i=0;i<3;++i){Check(device->CreateVertexShader(static_cast<const DWORD*>(original_vs[i]->GetBufferPointer()),vs[i].put()),"combined_gpu_original_vs");Check(device->CreatePixelShader(static_cast<const DWORD*>(original_ps[i]->GetBufferPointer()),ps[i].put()),"combined_gpu_original_ps");}
+    Com<IDirect3DVertexShader9> river_vs;Com<IDirect3DPixelShader9> river_ps;
+    Check(device->CreateVertexShader(static_cast<const DWORD*>(water_vs->GetBufferPointer()),river_vs.put()),"combined_gpu_river_vs");Check(device->CreatePixelShader(static_cast<const DWORD*>(water_ps->GetBufferPointer()),river_ps.put()),"combined_gpu_river_ps");
+    std::array<Com<IDirect3DTexture9>,3> textures;for(unsigned i=0;i<3;++i)Check(device->CreateTexture(i==2?256:512,i==2?256:512,i==2?9:10,0,i==2?D3DFMT_L8:D3DFMT_DXT5,D3DPOOL_MANAGED,textures[i].put(),nullptr),"combined_gpu_authored_macro_texture");
+    Geometry geometry(device.get());const auto physical=OverlaySurfaceProof(device.get(),geometry,vs[2].get(),ps[2].get(),ShaderDebugOverlay::Profile::All);
+    NativeGraphicsConfig::Version3 init{};init.base.base={sizeof(init),3,1280,720,640,360,{}};init.base.flags=NativeGraphicsConfig::KnownFlags;wcscpy_s(init.base.base.report_path,report.c_str());
+    wcscpy_s(init.base.catalog_path,std::filesystem::absolute(catalog_path).c_str());wcscpy_s(init.base.observer_report_path,(output/L"observer.private.json").c_str());Require(std::wcslen(catalog_sha)==64,"combined_gpu_catalog_sha");
+    const auto digit=[](wchar_t c)->unsigned{if(c>=L'0'&&c<=L'9')return static_cast<unsigned>(c-L'0');if(c>=L'a'&&c<=L'f')return static_cast<unsigned>(c-L'a'+10);throw std::runtime_error("combined_gpu_catalog_hex");};
+    for(unsigned i=0;i<32;++i)init.base.catalog_sha256[i]=static_cast<unsigned char>(digit(catalog_sha[i*2])*16+digit(catalog_sha[i*2+1]));
+    Require(WePlaySupersamplingInitialize(&init)==1,"combined_gpu_init3");MaterialShaderConfigV5::Config config{};config.render_width=1280;config.render_height=720;
+    Require(WePlayNativeGraphicsConfigureEffects(&config)==1&&WePlayNativeGraphicsConfigureWater(&water)==1,"combined_gpu_typed_initial_queues");DWORD shadow[3]={12,1,0},ambient[3]={12,2,0};
+    Require(WePlayNativeGraphicsConfigureShadow(shadow)==1&&WePlayNativeGraphicsConfigureAmbient(ambient)==1,"combined_gpu_shadow_ambient_off");
+    previous=reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window.get(),GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(Procedure)));live=device.get();Require(WePlaySupersamplingAttach(device.get())==1,"combined_gpu_attach");
+    const auto draw=[&](unsigned role){for(unsigned i=0;i<3;++i)Check(device->SetTexture(4+i,textures[i].get()),"combined_gpu_bind_macro_texture");
+        const float region[4]={56,64,3200,3200},detail[4]={512,9,8,0},terrain[4]={15,.5f,.02f,.2f};Check(device->SetVertexShaderConstantF(66,region,1),"combined_gpu_region");Check(device->SetVertexShaderConstantF(67,detail,1),"combined_gpu_detail");Check(device->SetPixelShaderConstantF(33,terrain,1),"combined_gpu_material");
+        Check(device->SetRenderState(D3DRS_ALPHABLENDENABLE,role<2),"combined_gpu_blend");Check(device->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ONE),"combined_gpu_srcblend");Check(device->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ZERO),"combined_gpu_dstblend");
+        auto*v=role==3?river_vs.get():vs[role].get();auto*p=role==3?river_ps.get():ps[role].get();Check(DrawScene(device.get(),geometry,v,p),"combined_gpu_draw");Restored(device.get(),v,p);float actual[4]{};Check(device->GetPixelShaderConstantF(33,actual,1),"combined_gpu_material_readback");Require(!std::memcmp(actual,terrain,sizeof(actual)),"combined_gpu_material_not_restored");};
+    const auto present=[&](){Check(device->Present(nullptr,nullptr,nullptr,nullptr),"combined_gpu_present");};
+    const auto frame=[&](){for(unsigned r:{3u,2u,0u,1u})draw(r);present();};
+    frame();Pump();frame();DWORD overlay[4]={16,3,1,6};Require(WePlayNativeGraphicsConfigureOverlay(overlay)==1,"combined_gpu_overlay3");frame();
+    const auto click=[&](unsigned x,unsigned y){const auto before=forwarded_buttons;const LPARAM point=MAKELPARAM(x,y);SendMessageW(window.get(),WM_LBUTTONDOWN,MK_LBUTTON,point);SendMessageW(window.get(),WM_LBUTTONUP,0,point);Require(forwarded_buttons==before,"combined_gpu_click_reached_game");};
+    const auto choose=[&](unsigned family,unsigned row){click(20+(family-1)*80+40,64);click(40,92+row*32+16);};
+    MaterialShaderEffects::Stats off{};Require(MaterialShaderEffects::ReadStats(&off)&&off.config_version==5&&!off.enabled_flags,"combined_gpu_initial_original_materials");WaterShaderEffects::Stats water_before{};Require(WaterShaderEffects::ReadStats(&water_before)&&water_before.enabled&&water_before.selected_variant==0,"combined_gpu_initial_waterB");
+    choose(2,2);choose(3,1);MaterialShaderEffects::Stats queued{};Require(MaterialShaderEffects::ReadStats(&queued)&&queued.enable_changes==off.enable_changes,"combined_gpu_mutated_during_input");present();frame();
+    MaterialShaderEffects::Stats both{};Require(MaterialShaderEffects::ReadStats(&both)&&both.enabled_flags==6&&both.selected_variant==1&&both.retained_programs==7&&both.shader_creations==7,"combined_gpu_dual_family_not_warm_seven");
+    choose(2,0);present();frame();MaterialShaderEffects::Stats terrain_only{};Require(MaterialShaderEffects::ReadStats(&terrain_only)&&terrain_only.enabled_flags==2&&terrain_only.retained_programs==7&&terrain_only.shader_creations==7,"combined_gpu_leaf_off_dropped_terrain_cache");
+    choose(2,3);choose(3,0);present();frame();MaterialShaderEffects::Stats leaf_only{};Require(MaterialShaderEffects::ReadStats(&leaf_only)&&leaf_only.enabled_flags==4&&leaf_only.selected_variant==2&&leaf_only.retained_programs==7&&leaf_only.shader_creations==7,"combined_gpu_terrain_off_dropped_leaf_cache");
+    click(60,64);present();MaterialShaderEffects::Stats tabbed{};Require(MaterialShaderEffects::ReadStats(&tabbed)&&tabbed.enable_changes==leaf_only.enable_changes,"combined_gpu_tab_changed_shader");
+    WaterShaderEffects::Stats preserved{};Require(WaterShaderEffects::ReadStats(&preserved)&&preserved.enabled&&preserved.selected_variant==0&&preserved.configuration_epoch==water_before.configuration_epoch,"combined_gpu_other_groups_changed_water");
+    draw(2);Near(Pixel(device.get()),.75f,.4f,.35f);choose(3,1);present();draw(0);Near(Pixel(device.get()),.7f,.2f,.1f);draw(3);Near(Pixel(device.get()),.1f,.4f,.7f);frame();
+    choose(2,0);choose(3,0);present();draw(2);Near(Pixel(device.get()),.2f,.3f,.4f);draw(0);Near(Pixel(device.get()),.3f,.4f,.2f);frame();
+    MaterialShaderEffects::Stats measured{};Require(MaterialShaderEffects::ReadStats(&measured)&&!measured.enabled_flags&&!measured.faulted&&!measured.shader_failures&&!measured.set_failures&&!measured.restore_failures&&!measured.exceptions&&measured.combined_program_sha256==hashes,"combined_gpu_program_or_safety_proof");
+    for(auto n:measured.combined_program_creations)Require(n>0,"combined_gpu_program_not_created");Require(measured.applied[1]>0&&measured.applied[2]>0&&measured.variant_applications[2]>0&&measured.variant_applications==measured.variant_restorations,"combined_gpu_missing_actual_roles");
+    ShaderDebugOverlay::Preset selected{};Require(ShaderDebugOverlay::ReadPreset(&selected)&&selected.values[0].enabled==1&&selected.values[0].variant==0&&!selected.values[1].enabled&&!selected.values[2].enabled&&!selected.values[3].enabled&&!selected.values[4].enabled,"combined_gpu_preset_groups_not_preserved");
+    Check(device->Reset(&parameters),"combined_gpu_actual_reset");ShaderDebugOverlay::Stats renderer_stats{};Require(ShaderDebugOverlay::ReadStats(&renderer_stats)&&!renderer_stats.unsafe_state&&!renderer_stats.font_ready&&!renderer_stats.retained_original_refs,"combined_gpu_overlay_reset_refs");
+    SupersamplingStats core{};Require(WePlaySupersamplingReadStats(&core)==1&&!core.render_unsafe&&!core.overlay_unsafe&&core.overlay_draws>0,"combined_gpu_core_unsafe");
+    Require(DestroyWindow(window.get())!=FALSE,"combined_gpu_close");live=nullptr;Require(WePlaySupersamplingDetach(device.get())==1,"combined_gpu_detach");device->SetStreamSource(0,nullptr,0,0);for(unsigned i=0;i<3;++i)device->SetTexture(4+i,nullptr);
+    std::printf("{\"format\":\"s7-combined-shader-gpu-v1\",\"game_tested\":false,\"authored_programs\":true,\"initialize_bytes\":3136,\"scope\":1,\"material_bytes\":24,\"overlay_bytes\":16,\"profile\":6,\"seven_programs\":true,\"rapid_groups_atomic\":true,\"other_groups_preserved\":true,\"tab_only_ui\":true,\"actual_leaf_terrain_water_pixels\":true,\"original_restored\":true,\"actual_reset\":true,\"faulted\":0,\"unsafe\":0,\"warm_material_creations\":%llu,\"peak_programs\":%lu,\"physical_panel_pixels\":%llu,\"font_pixels\":%llu,\"overlay_draws\":%lu}\n",both.shader_creations,measured.peak_retained_programs,physical[0],physical[1],core.overlay_draws);
+}
 }
 
 int wmain(int argc,wchar_t** argv) {
     try {
+        const bool combined=argc==6&&!std::wcscmp(argv[3],L"--combined");
         const bool overlay=argc==5&&!std::wcscmp(argv[3],L"--water-palette")&&!std::wcscmp(argv[4],L"--shader-overlay");
-        Require(argc==3 || argc==5 || (argc==4&&(!std::wcscmp(argv[3],L"--v3")||!std::wcscmp(argv[3],L"--v4")||!std::wcscmp(argv[3],L"--water-palette"))),"usage_effects_gpu_dxvk_output_optional_catalog_sha256_or_v3_v4_water_palette");
+        const bool leaf_overlay=argc==5&&!std::wcscmp(argv[3],L"--v4")&&!std::wcscmp(argv[4],L"--shader-overlay");
+        Require(combined||argc==3 || argc==5 || (argc==4&&(!std::wcscmp(argv[3],L"--v3")||!std::wcscmp(argv[3],L"--v4")||!std::wcscmp(argv[3],L"--water-palette"))),"usage_effects_gpu_dxvk_output_optional_catalog_sha256_or_v3_v4_water_palette");
         const bool compare=argc==5;
         const auto output=std::filesystem::absolute(argv[2]);
         Require(!std::filesystem::exists(output) && std::filesystem::create_directory(output),"effects_gpu_use_new_output_directory");
+        if(combined){CombinedTrial(std::filesystem::absolute(argv[1]),output,argv[4],argv[5]);return 0;}
         if(overlay){WaterPaletteTrial(std::filesystem::absolute(argv[1]),output,true);return 0;}
+        if(leaf_overlay){V4Trial(std::filesystem::absolute(argv[1]),output,true);return 0;}
         if(argc==4){if(!std::wcscmp(argv[3],L"--water-palette"))WaterPaletteTrial(std::filesystem::absolute(argv[1]),output);
             else if(!std::wcscmp(argv[3],L"--v4"))V4Trial(std::filesystem::absolute(argv[1]),output);
             else V3Trial(std::filesystem::absolute(argv[1]),output);return 0;}

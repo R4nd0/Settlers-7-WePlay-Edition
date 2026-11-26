@@ -27,11 +27,41 @@ struct State {
     IDirect3DTexture9* font=nullptr;Saved saved{};Stats stats{};
 } current;
 Selection queued{};bool has_click=false;
+Preset chosen{};DWORD dirty_families=0;Profile selected_tab=Profile::Water;
+std::uint64_t chosen_revision=1;
 constexpr DWORD AtlasWidth=256,AtlasHeight=128;
 constexpr LONG PanelX=16,RowY=60,PanelWidth=360,RowHeight=32;
+constexpr LONG AllWidth=420,AllHeight=292,TabY=52,TabHeight=28,AllRowY=92,ApplyY=232;
 struct Vertex { float x,y,z,rhw;DWORD color;float u,v; };
 
 bool Geometry(DWORD w,DWORD h){return w>=400&&h>=280&&w<=8192&&h<=8192&&std::uint64_t(w)*h<=32u*1024u*1024u;}
+bool AllGeometry(DWORD w,DWORD h){return Geometry(w,h)&&w>=480&&h>=360;}
+bool ValidProfile(Profile profile){const auto value=static_cast<DWORD>(profile);return value>=1&&value<=5;}
+bool RowEnabled(Profile profile,DWORD row){
+    if(!ValidProfile(profile)||row>3)return false;
+    if(profile==Profile::Terrain||profile==Profile::Shadow)return row<=1;
+    return profile!=Profile::Ambient||row<=2;
+}
+bool Choice(Profile profile,DWORD enabled,DWORD variant){return enabled<=1&&variant<=2&&RowEnabled(profile,enabled?variant+1:0);}
+bool ValidPreset(const Preset& preset){
+    if(preset.size!=sizeof(Preset)||preset.version!=1)return false;
+    for(DWORD i=0;i<5;++i){const auto& v=preset.values[i];
+        if(v.profile!=static_cast<Profile>(i+1)||!Choice(v.profile,v.enabled,v.variant)||(!v.enabled&&v.variant))return false;}
+    return true;
+}
+const char* Title(Profile profile){
+    switch(profile){case Profile::Leaf:return "BLAETTER / 3 PROGRAMME";case Profile::Terrain:return "GELAENDE / 1 PROFIL";
+        case Profile::Shadow:return "SCHATTEN / FILTER";case Profile::Ambient:return "UMGEBUNGSVERDECKUNG";default:return "WASSER / 3 PROGRAMME";}
+}
+const char* Label(Profile profile,DWORD row){
+    if(!row)return "Original";
+    if(!RowEnabled(profile,row))return "Nicht verfuegbar";
+    static const char* water[]={"Wasser B","Klareres Ufer","Mehr Glanz"};
+    static const char* leaf[]={"Blatt A (schwach)","Blatt B (mittel)","Blatt C (stark)"};
+    switch(profile){case Profile::Leaf:return leaf[row-1];case Profile::Terrain:return "Makro-Relief (Profil)";
+        case Profile::Shadow:return "Schattenfilter AN";case Profile::Ambient:return row==1?"AO A (Grenze 1,00)":"AO B (Grenze 1,25)";
+        default:return water[row-1];}
+}
 template<class T>void Release(T*& value){auto* old=value;value=nullptr;if(old)old->Release();}
 template<class T>struct LocalRef { T* value=nullptr;~LocalRef(){Release(value);} };
 void DropSaved(){
@@ -163,18 +193,44 @@ bool SetUp(IDirect3DDevice9* d,IDirect3DSurface9* target,DWORD w,DWORD h){
     return true;
 }
 } // namespace
-bool QueueClick(LONG x,LONG y,DWORD w,DWORD h) noexcept{
+bool QueueClick(LONG x,LONG y,DWORD w,DWORD h,Profile profile) noexcept{
+    if(profile==Profile::All){
+        Guard guard;if(!AllGeometry(w,h)||x<20||x>=432)return false;
+        Lock held(&input_lock);
+        if(y>=TabY&&y<TabY+TabHeight&&x<420){const DWORD tab=static_cast<DWORD>((x-20)/80);
+            if(tab<5){selected_tab=static_cast<Profile>(tab+1);return true;}return false;}
+        if(y>=ApplyY&&y<ApplyY+28){dirty_families|=31;return true;}
+        if(y<AllRowY||y>=AllRowY+4*RowHeight)return false;
+        const DWORD row=static_cast<DWORD>((y-AllRowY)/RowHeight);if(!RowEnabled(selected_tab,row))return false;
+        const auto index=static_cast<DWORD>(selected_tab)-1;
+        const Selection value{row?1u:0u,row?row-1:0u,selected_tab};
+        if(chosen.values[index].enabled!=value.enabled||chosen.values[index].variant!=value.variant){chosen.values[index]=value;++chosen_revision;}
+        dirty_families|=1u<<index;return true;
+    }
     Guard guard;if(!Geometry(w,h)||x<PanelX||x>=PanelX+PanelWidth||y<RowY||y>=RowY+4*RowHeight)return false;
-    const DWORD row=static_cast<DWORD>((y-RowY)/RowHeight);Lock held(&input_lock);
-    queued={row?1u:0u,row?row-1:0u};has_click=true;return true;
+    const DWORD row=static_cast<DWORD>((y-RowY)/RowHeight);if(!RowEnabled(profile,row))return false;Lock held(&input_lock);
+    queued={row?1u:0u,row?row-1:0u,profile};has_click=true;return true;
 }
-bool HitTest(LONG x,LONG y,DWORD w,DWORD h) noexcept{Guard guard;return Geometry(w,h)&&x>=16&&x<376&&y>=16&&y<228;}
-bool ConsumeSelection(Selection* output) noexcept{Guard guard;if(!output)return false;Lock held(&input_lock);if(!has_click)return false;*output=queued;has_click=false;return true;}
-bool Draw(IDirect3DDevice9* d,IDirect3DSurface9* output,DWORD w,DWORD h,const Status& status) noexcept{
+bool HitTest(LONG x,LONG y,DWORD w,DWORD h,Profile profile) noexcept{Guard guard;
+    if(profile==Profile::All)return AllGeometry(w,h)&&x>=16&&x<16+AllWidth&&y>=16&&y<16+AllHeight;
+    return ValidProfile(profile)&&Geometry(w,h)&&x>=16&&x<376&&y>=16&&y<228;}
+bool ConsumeSelection(Selection* output) noexcept{Guard guard;if(!output)return false;Lock held(&input_lock);
+    if(has_click){*output=queued;has_click=false;return true;}
+    for(DWORD i=0;i<5;++i)if(dirty_families&(1u<<i)){*output=chosen.values[i];dirty_families&=~(1u<<i);return true;}return false;}
+bool QueueTab(Profile family) noexcept{Guard guard;if(!ValidProfile(family))return false;Lock held(&input_lock);selected_tab=family;return true;}
+Profile SelectedTab() noexcept{Guard guard;Lock held(&input_lock);return selected_tab;}
+bool ReadPreset(Preset* out,std::uint64_t* revision) noexcept{Guard guard;if(!out||out->size!=sizeof(Preset)||out->version!=1)return false;Lock held(&input_lock);*out=chosen;if(revision)*revision=chosen_revision;return true;}
+bool SetPreset(const Preset* preset,bool apply_preview) noexcept{Guard guard;if(!preset||!ValidPreset(*preset))return false;Lock held(&input_lock);
+    if(std::memcmp(&chosen,preset,sizeof(Preset))){chosen=*preset;++chosen_revision;}dirty_families=apply_preview?31u:0u;return true;}
+bool QueueApplyAll() noexcept{Guard guard;Lock held(&input_lock);dirty_families|=31;return true;}
+bool ConsumePreset(Preset* out,DWORD* changed,std::uint64_t* revision) noexcept{Guard guard;if(!out||!changed||out->size!=sizeof(Preset)||out->version!=1)return false;Lock held(&input_lock);
+    if(!dirty_families)return false;*out=chosen;*changed=dirty_families;if(revision)*revision=chosen_revision;dirty_families=0;return true;}
+bool DrawInternal(IDirect3DDevice9* d,IDirect3DSurface9* output,DWORD w,DWORD h,const Status& status,bool combined) noexcept{
     Guard guard;Lock held(&lock);bool painted=false;
-    if(!d||!output||!Geometry(w,h)||current.stats.unsafe_state||current.saved.touched
+    if(!d||!output||!(combined?AllGeometry(w,h):Geometry(w,h))||current.stats.unsafe_state||current.saved.touched
         ||(current.device&&current.device!=d)||(current.thread&&current.thread!=GetCurrentThreadId())
-        ||status.applied_valid>1||status.applied_enabled>1||status.applied_variant>2||status.pending>1||status.pending_enabled>1||status.pending_variant>2){++current.stats.skipped;return false;}
+        ||status.applied_valid>1||status.pending>1||!Choice(status.profile,status.applied_enabled,status.applied_variant)
+        ||!Choice(status.profile,status.pending_enabled,status.pending_variant)){++current.stats.skipped;return false;}
     current.device=d;current.thread=GetCurrentThreadId();
     try{
         D3DSURFACE_DESC desc{};
@@ -183,22 +239,41 @@ bool Draw(IDirect3DDevice9* d,IDirect3DSurface9* output,DWORD w,DWORD h,const St
         current.saved.touched=true;Counts();
         if(SetUp(d,output,w,h)&&SUCCEEDED(d->BeginScene())){
             current.saved.scene=true;std::vector<Vertex> vertices;vertices.reserve(2048);
-            Solid(vertices,16,16,360,212,0xe018202cu);Text(vertices,28,28,"SHADER-AUSWAHL",0xffdce8ffu);
-            const char* names[]={"Original","Wasser B","Klareres Ufer","Mehr Glanz"};
+            Solid(vertices,16,16,combined?static_cast<float>(AllWidth):360.f,combined?static_cast<float>(AllHeight):212.f,0xe018202cu);
+            Text(vertices,28,28,combined?"SHADER-AUSWAHL / ALLE GRUPPEN":Title(status.profile),0xffdce8ffu);
+            if(combined){const char* tabs[]={"Wasser","Blaetter","Boden","Schatten","AO"};
+                for(DWORD i=0;i<5;++i){const float x=20.f+static_cast<float>(i*80);
+                    Solid(vertices,x,static_cast<float>(TabY),78,28,status.profile==static_cast<Profile>(i+1)?0xff315377u:0xff26303cu);
+                    Text(vertices,x+4,static_cast<float>(TabY+5),tabs[i],0xffffffffu);}}
             for(DWORD row=0;row<4;++row){
                 const bool applied=status.applied_valid&&(row?status.applied_enabled&&status.applied_variant==row-1:!status.applied_enabled);
                 const bool pending=status.pending&&(row?status.pending_enabled&&status.pending_variant==row-1:!status.pending_enabled);
-                const float y=static_cast<float>(RowY+row*RowHeight);
-                Solid(vertices,20,y,352,30,pending?0xdd685125u:applied?0xdd245c45u:0xcc26303cu);
-                Text(vertices,28,y+6,names[row],0xffffffffu);
-                if(pending)Text(vertices,284,y+6,"WARTET",0xffffd482u);else if(applied)Text(vertices,284,y+6,"AKTIV",0xff9cf3bbu);
+                const bool available=RowEnabled(status.profile,row);
+                const float y=static_cast<float>((combined?AllRowY:RowY)+row*RowHeight);
+                Solid(vertices,20,y,combined?412.f:352.f,30,!available?0xcc202732u:pending?0xdd685125u:applied?0xdd245c45u:0xcc26303cu);
+                Text(vertices,28,y+6,Label(status.profile,row),available?0xffffffffu:0xff728092u);
+                if(pending)Text(vertices,combined?344.f:284.f,y+6,"WARTET",0xffffd482u);else if(applied)Text(vertices,combined?344.f:284.f,y+6,"AKTIV",0xff9cf3bbu);
             }
-            Text(vertices,28,198,"Strg+Umschalt+F9: anzeigen/verbergen",0xffb8c6d8u);
+            if(combined){Solid(vertices,20,static_cast<float>(ApplyY),412,28,0xff315377u);
+                Text(vertices,28,static_cast<float>(ApplyY+5),"Alle gewaehlten Werte anwenden",0xffffffffu);}
+            Text(vertices,28,combined?274.f:198.f,"Strg+Umschalt+F9: anzeigen/verbergen",0xffb8c6d8u);
             painted=SUCCEEDED(d->DrawPrimitiveUP(D3DPT_TRIANGLELIST,static_cast<UINT>(vertices.size()/3),vertices.data(),sizeof(Vertex)));
         }
         const bool restored=Restore();if(painted&&restored){++current.stats.draws;return true;}
         ++current.stats.failures;return false;
     }catch(...){++current.stats.failures;try{Restore();}catch(...){current.stats.unsafe_state=1;Counts();}return false;}
+}
+bool Draw(IDirect3DDevice9* d,IDirect3DSurface9* output,DWORD w,DWORD h,const Status& status) noexcept{return DrawInternal(d,output,w,h,status,false);}
+bool DrawAll(IDirect3DDevice9* d,IDirect3DSurface9* output,DWORD w,DWORD h,const MultiStatus& statuses) noexcept{
+    Guard guard;Profile tab{};Selection desired{};
+    {Lock held(&input_lock);tab=selected_tab;desired=chosen.values[static_cast<DWORD>(tab)-1];}
+    for(DWORD i=0;i<5;++i){const auto& status=statuses.families[i];if(status.profile!=static_cast<Profile>(i+1)
+        ||status.applied_valid>1||status.pending>1||!Choice(status.profile,status.applied_enabled,status.applied_variant)
+        ||!Choice(status.profile,status.pending_enabled,status.pending_variant))return false;}
+    Status status=statuses.families[static_cast<DWORD>(tab)-1];
+    const bool matches=status.applied_valid&&status.applied_enabled==desired.enabled&&(!desired.enabled||status.applied_variant==desired.variant);
+    if(status.pending||!matches){status.pending=1;status.pending_enabled=desired.enabled;status.pending_variant=desired.variant;}
+    return DrawInternal(d,output,w,h,status,true);
 }
 bool RetryRestore(IDirect3DDevice9* d) noexcept{
     Guard guard;Lock held(&lock);if(!current.stats.unsafe_state||current.device!=d||current.thread!=GetCurrentThreadId())return false;
@@ -210,7 +285,7 @@ bool Reset(IDirect3DDevice9* d) noexcept{
 }
 bool Shutdown() noexcept{
     Guard guard;Lock held(&lock);if(current.saved.touched||current.stats.unsafe_state)return false;
-    try{DropSaved();Release(current.font);current.device=nullptr;current.thread=0;current.stats.font_ready=0;Lock input(&input_lock);has_click=false;return true;}catch(...){current.stats.unsafe_state=1;return false;}
+    try{DropSaved();Release(current.font);current.device=nullptr;current.thread=0;current.stats.font_ready=0;Lock input(&input_lock);has_click=false;dirty_families=0;return true;}catch(...){current.stats.unsafe_state=1;return false;}
 }
 bool ReadStats(Stats* out) noexcept{Guard guard;if(!out||out->size!=sizeof(Stats)||out->version!=1)return false;Lock held(&lock);Counts();*out=current.stats;return true;}
 bool HasUnsafe() noexcept{Guard guard;Lock held(&lock);return current.stats.unsafe_state!=0;}

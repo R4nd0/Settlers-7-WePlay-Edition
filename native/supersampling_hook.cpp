@@ -14,6 +14,7 @@
 #include "material_shader_effects_contract_v2.h"
 #include "material_shader_effects_contract_v3.h"
 #include "material_shader_effects_contract_v4.h"
+#include "material_shader_effects_contract_v5.h"
 #include "native_material_draw.h"
 #include "up_draw_observer_protocol.h"
 #include "ambient_occlusion_effects.h"
@@ -87,13 +88,14 @@ SupersamplingConfig configuration{};
 NativeGraphicsConfig::Version2 native_configuration{};
 constexpr DWORD CompiledCapabilities=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Water
     |NativeGraphicsConfig::Terrain|NativeGraphicsConfig::Vegetation;
+bool combined_scope_authorized=false;
 bool ShadowIntentAuthorized(DWORD flags) {
     constexpr DWORD required=NativeGraphicsConfig::Observe|NativeGraphicsConfig::StableShadows;
-    return (flags&required)==required && !(flags&NativeGraphicsConfig::AmbientOcclusion);
+    return (flags&required)==required && (combined_scope_authorized || !(flags&NativeGraphicsConfig::AmbientOcclusion));
 }
 bool AmbientIntentAuthorized(DWORD flags) {
     constexpr DWORD required=NativeGraphicsConfig::Observe|NativeGraphicsConfig::AmbientOcclusion;
-    return (flags&required)==required && !(flags&NativeGraphicsConfig::StableShadows);
+    return (flags&required)==required && (combined_scope_authorized || !(flags&NativeGraphicsConfig::StableShadows));
 }
 struct AmbientApi {
     static void Begin(IDirect3DDevice9* device,ShadowFilterEffects::DrawTransaction* transaction) noexcept {
@@ -113,6 +115,7 @@ MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
 MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
 MaterialShaderConfigV3::Config effects_pending_v3{},effects_loaded_v3{};
 MaterialShaderConfigV4::Config effects_pending_v4{},effects_loaded_v4{};
+MaterialShaderConfigV5::Config effects_pending_v5{},effects_loaded_v5{};
 DWORD effects_pending_version=1,effects_loaded_version=0;
 std::uint64_t palette_current_applications=0,palette_current_restorations=0,palette_current_failed=0;
 bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
@@ -121,8 +124,19 @@ WaterShaderEffects::Config water_pending_config{};
 WaterShaderEffects::ConfigPalette water_pending_palette{};
 DWORD water_pending_version=1;
 bool overlay_received=false,overlay_requested=false,overlay_input_safe=false,overlay_unsafe=false;
+bool overlay_extended=false;
 bool overlay_palette_admitted=false;
 WaterShaderEffects::ConfigPalette overlay_palette{};
+ShaderDebugOverlay::Profile overlay_profile=ShaderDebugOverlay::Profile::Water;
+MaterialShaderConfigV4::Config overlay_leaf{};
+MaterialShaderConfigV2::Config overlay_terrain{};
+bool overlay_leaf_admitted=false,overlay_terrain_admitted=false;
+std::uint64_t overlay_terrain_success=0,overlay_terrain_failed=0;
+DWORD overlay_terrain_revision=0;
+DWORD overlay_geometry_frame=0,overlay_geometry_revision=0,overlay_geometry_active=0;
+ShaderDebugOverlay::MultiStatus overlay_profiles{};
+std::uint64_t overlay_reported_preset_revision=0;
+std::string OverlayPresetJson();
 bool water_received=false,water_waiting=false,water_initialized=false;
 DWORD water_frame_origin=0;
 WaterShaderEffects::Stats water_state{};
@@ -363,7 +377,10 @@ void Report() {
         "\"up_draw_calls\":%lu,\"up_indexed_calls\":%lu,\"up_observer_calls\":%lu,\"up_context_rejections\":%lu,"
         "\"up_blocked_calls\":%lu,\"up_original_exceptions\":%lu,\"up_diagnostic_exceptions\":%lu,"
         "\"overlay_received\":%lu,\"overlay_requested\":%lu,\"overlay_visible\":%lu,\"overlay_unsafe\":%lu,"
-        "\"overlay_input_events\":%lu,\"overlay_draws\":%lu,\"overlay_choices\":%lu,\"overlay_failures\":%lu}\n",
+        "\"overlay_input_events\":%lu,\"overlay_draws\":%lu,\"overlay_choices\":%lu,\"overlay_failures\":%lu,"
+        "\"overlay_profile\":%lu,\"overlay_material_frame\":%lu,\"overlay_material_successful_draws\":%lu,\"overlay_material_failed_draws\":%lu,"
+        "\"overlay_applied_valid\":%lu,\"overlay_applied_enabled\":%lu,\"overlay_applied_variant\":%lu,\"overlay_pending\":%lu,"
+        "\"overlay_pending_enabled\":%lu,\"overlay_pending_variant\":%lu,\"overlay_status_frame\":%lu}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -380,8 +397,8 @@ void Report() {
         stats.effects_requested,stats.effects_configured,stats.effects_active,stats.effects_pending,
         stats.effects_config_version,stats.effects_revision,stats.effects_config_errors,stats.effects_unsafe,stats.effects_blocked_draws,
         stats.effects_drawn_revision,stats.effects_drawn_active,stats.effects_frame_has_geometry,
-        (stats.effects_config_version==4&&stats.effects_selected_variant<3?std::to_string(stats.effects_selected_variant):"null").c_str(),
-        (stats.effects_config_version==4&&stats.effects_drawn_variant<3?std::to_string(stats.effects_drawn_variant):"null").c_str(),
+        ((stats.effects_config_version==4||stats.effects_config_version==5)&&stats.effects_selected_variant<3?std::to_string(stats.effects_selected_variant):"null").c_str(),
+        ((stats.effects_config_version==4||stats.effects_config_version==5)&&stats.effects_drawn_variant<3?std::to_string(stats.effects_drawn_variant):"null").c_str(),
         stats.effects_drawn_frame,stats.effects_variant_frame_applications,stats.effects_variant_frame_restorations,stats.effects_variant_frame_failed_draws,
         stats.effects_module_faulted,stats.effects_module_shader_failures,stats.effects_module_set_failures,
         stats.effects_module_restore_failures,stats.effects_module_exceptions,
@@ -397,12 +414,19 @@ void Report() {
         stats.up_draw_calls,stats.up_indexed_calls,stats.up_observer_calls,stats.up_context_rejections,
         stats.up_blocked_calls,stats.up_original_exceptions,stats.up_diagnostic_exceptions,
         stats.overlay_received,stats.overlay_requested,stats.overlay_visible,stats.overlay_unsafe,
-        stats.overlay_input_events,stats.overlay_draws,stats.overlay_choices,stats.overlay_failures);
+        stats.overlay_input_events,stats.overlay_draws,stats.overlay_choices,stats.overlay_failures,
+        stats.overlay_profile,stats.overlay_material_frame,stats.overlay_material_successful_draws,stats.overlay_material_failed_draws,
+        stats.overlay_applied_valid,stats.overlay_applied_enabled,stats.overlay_applied_variant,stats.overlay_pending,
+        stats.overlay_pending_enabled,stats.overlay_pending_variant,stats.overlay_status_frame);
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE)return;
-    DWORD written=0; WriteFile(file,text,static_cast<DWORD>(count),&written,nullptr); CloseHandle(file);
+    std::string report(text,static_cast<size_t>(count));
+    const auto extra=OverlayPresetJson();
+    const auto closing=report.find_last_not_of(" \t\r\n");
+    if(!extra.empty()&&closing!=std::string::npos&&report[closing]=='}')report.insert(closing,extra);
+    DWORD written=0;WriteFile(file,report.data(),static_cast<DWORD>(report.size()),&written,nullptr);CloseHandle(file);
 }
 
 void DropOutput(State& current) {
@@ -414,22 +438,49 @@ bool SameEffectsIdentity(MaterialShaderEffects::Config first,MaterialShaderEffec
     first.flags=second.flags=0;
     return !std::memcmp(&first,&second,sizeof(first));
 }
+bool OverlayMacroIdentity(const MaterialShaderConfigV2::Config& config) {
+    if(config.terrain_detail_scale!=1.0f||config.terrain_relief_scale!=1.0f)return false;
+    const wchar_t* paths[]={config.bump_vertex_path,config.parallax_vertex_path};
+    for(unsigned index=0;index<2;++index){const size_t length=wcsnlen_s(paths[index],512);if(length>=512)return false;
+        const size_t slot=3+index;const auto& spec=NativeEffectsContractV2::MacroPrograms[slot];
+        const std::wstring ending=std::wstring(L"\\")+spec.directory+L"\\"+NativeEffectsContractV2::Digest(slot,true)+spec.suffix;
+        if(length<ending.size()||_wcsicmp(paths[index]+length-ending.size(),ending.c_str()))return false;
+    }
+    return true;
+}
 
 void InvalidatePaletteFrame() {
+    overlay_terrain_success=overlay_terrain_failed=0;overlay_terrain_revision=0;
+    stats.overlay_material_frame=stats.overlay_material_successful_draws=stats.overlay_material_failed_draws=0;
+    if(overlay_profile==ShaderDebugOverlay::Profile::Terrain||overlay_profile==ShaderDebugOverlay::Profile::All)stats.effects_frame_has_geometry=0;
+    overlay_geometry_frame=0;
     palette_current_applications=palette_current_restorations=palette_current_failed=0;
     stats.effects_drawn_variant=MAXDWORD;stats.effects_drawn_frame=0;
     stats.effects_variant_frame_applications=stats.effects_variant_frame_restorations=stats.effects_variant_frame_failed_draws=0;
-    if(stats.effects_config_version==4)stats.effects_frame_has_geometry=0;
+    if(stats.effects_config_version==4||stats.effects_config_version==5)stats.effects_frame_has_geometry=0;
 }
 void RecordPaletteDraw(DWORD role,HRESULT original) {
-    if(stats.effects_config_version!=4 || !stats.effects_active || role!=4)return;
+    if(overlay_received&&(overlay_profile==ShaderDebugOverlay::Profile::Terrain||overlay_profile==ShaderDebugOverlay::Profile::All)
+        &&(stats.effects_config_version==2||stats.effects_config_version==5)
+        &&(stats.effects_active&MaterialShaderEffects::Terrain)&&(role==2||role==3)) {
+        auto& counter=SUCCEEDED(original)?overlay_terrain_success:overlay_terrain_failed;
+        if(counter<=MAXDWORD)++counter;
+    }
+    if((stats.effects_config_version!=4&&stats.effects_config_version!=5) || !(stats.effects_active&MaterialShaderEffects::Leaf) || role!=4)return;
     if(SUCCEEDED(original)) {
         if(palette_current_applications<=MAXDWORD)++palette_current_applications;
         if(palette_current_restorations<=MAXDWORD)++palette_current_restorations;
     } else if(palette_current_failed<=MAXDWORD)++palette_current_failed;
 }
 void CompletePaletteFrame() {
-    if(stats.effects_config_version!=4)return;
+    if(overlay_received&&(overlay_profile==ShaderDebugOverlay::Profile::Terrain||overlay_profile==ShaderDebugOverlay::Profile::All)) {
+        const bool bounded=overlay_terrain_success<=MAXDWORD&&overlay_terrain_failed<=MAXDWORD;
+        stats.overlay_material_frame=stats.present_calls+1;overlay_terrain_revision=stats.effects_revision;
+        stats.overlay_material_successful_draws=bounded?static_cast<DWORD>(overlay_terrain_success):0;
+        stats.overlay_material_failed_draws=bounded?static_cast<DWORD>(overlay_terrain_failed):MAXDWORD;
+        overlay_terrain_success=overlay_terrain_failed=0;
+    }
+    if(stats.effects_config_version!=4&&stats.effects_config_version!=5)return;
     const bool bounded=palette_current_applications<=MAXDWORD&&palette_current_restorations<=MAXDWORD&&palette_current_failed<=MAXDWORD;
     stats.effects_variant_frame_applications=bounded?static_cast<DWORD>(palette_current_applications):0;
     stats.effects_variant_frame_restorations=bounded?static_cast<DWORD>(palette_current_restorations):0;
@@ -439,7 +490,28 @@ void CompletePaletteFrame() {
 }
 
 void ApplyPendingEffects() {
-    if(effects_waiting&&effects_pending_version!=4){stats.effects_selected_variant=MAXDWORD;InvalidatePaletteFrame();}
+    if(effects_pending_version==5) {
+        if(!effects_waiting || (effects_faulted&&effects_pending_v5.flags) || stats.render_unsafe)return;
+        DiagnosticScope diagnostic;const auto next=effects_pending_v5;bool valid=false;
+        if(effects_initialized&&effects_loaded_version==5&&NativeEffectsContractV5::SamePinnedConfig(next,effects_loaded_v5))
+            valid=MaterialShaderEffects::ConfigureV5(&next);
+        else if(!effects_initialized) {
+            auto layout=NativeEffectsContractV5::Layout::PrivateCase;
+            auto error=NativeEffectsContractV5::Validate(next,native_configuration,layout);
+            if(error!=NativeEffectsContractV5::Error::None){layout=NativeEffectsContractV5::Layout::RecipientLocalData;
+                error=NativeEffectsContractV5::Validate(next,native_configuration,layout);}
+            valid=error==NativeEffectsContractV5::Error::None&&MaterialShaderEffects::InitializeV5(&next,configuration.report_path,layout);
+            if(valid){effects_initialized=true;effects_loaded_version=5;effects_loaded_flags=MaterialShaderConfigV5::Allowed;
+                MaterialShaderEffects::SetDiagnostics(true);}
+        }
+        effects_waiting=false;stats.effects_pending=0;++stats.effects_revision;InvalidatePaletteFrame();overlay_geometry_frame=0;
+        if(valid){effects_loaded_v5=next;effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
+            stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=5;stats.effects_selected_variant=next.selected_variant;}
+        else {effects_faulted=true;stats.effects_faulted=1;stats.effects_active=0;stats.effects_disabled_reason=220;
+            ++stats.effects_config_errors;stats.last_failure=220;if(capture_pending){capture_pending=0;++stats.capture_failures;}}
+        Report();return;
+    }
+    if(effects_waiting&&effects_pending_version!=4&&effects_pending_version!=5){stats.effects_selected_variant=MAXDWORD;InvalidatePaletteFrame();}
     if(effects_pending_version==4) {
         if(!effects_waiting || (effects_faulted && effects_pending_v4.flags) || stats.render_unsafe)return;
         DiagnosticScope diagnostic;
@@ -472,6 +544,7 @@ void ApplyPendingEffects() {
             effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
             stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=4;
             stats.effects_selected_variant=next.selected_variant;InvalidatePaletteFrame();++stats.effects_revision;
+            if(!overlay_leaf_admitted&&effects_loaded_version==4){overlay_leaf=effects_loaded_v4;overlay_leaf_admitted=true;}
         } else {
             effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
             stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
@@ -550,6 +623,7 @@ void ApplyPendingEffects() {
         if(valid) {
             effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
             stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=2;++stats.effects_revision;
+            if(!overlay_terrain_admitted&&effects_loaded_version==2&&effects_loaded_flags==MaterialShaderEffects::Terrain&&OverlayMacroIdentity(effects_loaded_v2)){overlay_terrain=effects_loaded_v2;overlay_terrain_admitted=true;}
         } else {
             effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
             stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
@@ -653,36 +727,205 @@ bool ResetOverlay(IDirect3DDevice9* device) {
     overlay_unsafe=false;stats.overlay_unsafe=0;
     return true;
 }
-void ApplyOverlaySelection() {
-    if(!overlay_received||!overlay_requested||!overlay_palette_admitted||stats.render_unsafe)return;
-    ShaderDebugOverlay::Selection choice{};if(!ShaderDebugOverlay::ConsumeSelection(&choice))return;
-    if(choice.enabled>1||choice.variant>2)return;
-    if(!water_waiting&&water_state.config_version==2&&water_state.requested==choice.enabled&&water_state.selected_variant==choice.variant)return;
-    water_pending_palette=overlay_palette;water_pending_palette.enabled=choice.enabled;water_pending_palette.selected_variant=choice.variant;
-    water_pending_version=2;water_received=water_waiting=true;stats.water_protocol_received=1;++stats.overlay_choices;
-    ApplyPendingWater();
+void ApplyPendingShadow();
+void ApplyPendingAmbient();
+bool CaptureEpochReady();
+bool OverlayProfileAllowed(ShaderDebugOverlay::Profile profile,bool strict=true) {
+    if(strict&&(stats.comparison_requested||(comparison_waiting&&comparison_pending_config.enabled)))return false;
+    const DWORD only=native_configuration.flags&~NativeGraphicsConfig::Observe;
+    switch(profile) {
+    case ShaderDebugOverlay::Profile::All:return combined_scope_authorized&&native_configuration.flags==NativeGraphicsConfig::KnownFlags
+        &&water_received&&water_pending_version==2&&effects_received&&effects_pending_version==5&&shadow_received&&ambient_received;
+    case ShaderDebugOverlay::Profile::Water:return (!strict||only==NativeGraphicsConfig::Water)&&water_received&&water_pending_version==2;
+    case ShaderDebugOverlay::Profile::Leaf:return only==NativeGraphicsConfig::Vegetation&&effects_received&&effects_pending_version==4;
+    case ShaderDebugOverlay::Profile::Terrain:return only==NativeGraphicsConfig::Terrain&&effects_received&&effects_pending_version==2&&OverlayMacroIdentity(effects_pending_v2);
+    case ShaderDebugOverlay::Profile::Shadow:return only==NativeGraphicsConfig::StableShadows&&ShadowIntentAuthorized(native_configuration.flags)&&shadow_received;
+    case ShaderDebugOverlay::Profile::Ambient:return only==NativeGraphicsConfig::AmbientOcclusion&&AmbientIntentAuthorized(native_configuration.flags)&&ambient_received;
+    default:return false;
+    }
 }
-ShaderDebugOverlay::Status CurrentOverlayStatus() {
-    ShaderDebugOverlay::Status status{};
-    status.applied_valid=WaterPaletteFrameReady(water_state,stats.present_calls,water_frame_origin,stats.effects_frame_has_geometry!=0)?1u:0u;
-    status.applied_enabled=status.applied_valid?water_state.enabled:0u;status.applied_variant=status.applied_valid&&water_state.enabled?water_state.completed_drawn_variant:0u;
-    status.pending=water_waiting||!status.applied_valid?1u:0u;
-    status.pending_enabled=water_waiting?water_pending_palette.enabled:water_state.requested;
-    status.pending_variant=water_waiting?water_pending_palette.selected_variant:water_state.selected_variant;
+bool OverlayReady() {
+    switch(overlay_profile) {
+    case ShaderDebugOverlay::Profile::All:return combined_scope_authorized&&overlay_palette_admitted&&effects_initialized&&effects_loaded_version==5
+        &&shadow_initialized&&ambient_initialized;
+    case ShaderDebugOverlay::Profile::Water:return overlay_palette_admitted;
+    case ShaderDebugOverlay::Profile::Leaf:return overlay_leaf_admitted;
+    case ShaderDebugOverlay::Profile::Terrain:return overlay_terrain_admitted;
+    case ShaderDebugOverlay::Profile::Shadow:return shadow_initialized&&shadow_state.authorized;
+    case ShaderDebugOverlay::Profile::Ambient:return ambient_initialized&&ambient_state.authorized;
+    default:return false;
+    }
+}
+MaterialShaderConfigV5::Config CombinedEffectsSelection(const ShaderDebugOverlay::Preset& preset) {
+    auto next=effects_loaded_v5;
+    next.flags=(preset.values[1].enabled?MaterialShaderEffects::Leaf:0u)|(preset.values[2].enabled?MaterialShaderEffects::Terrain:0u);
+    next.selected_variant=preset.values[1].variant;return next;
+}
+void ApplyOverlaySelection() {
+    if(!overlay_received||(!overlay_requested&&overlay_profile!=ShaderDebugOverlay::Profile::All)||!OverlayReady()||stats.render_unsafe)return;
+    if(overlay_profile==ShaderDebugOverlay::Profile::All) {
+        ShaderDebugOverlay::Preset preset{};DWORD changed=0;
+        if(!ShaderDebugOverlay::ConsumePreset(&preset,&changed))return;
+        if(changed&6u) {
+            const auto next=CombinedEffectsSelection(preset);
+            if(effects_faulted||next.flags!=stats.effects_active||next.selected_variant!=stats.effects_selected_variant) {
+                effects_pending_v5=next;effects_pending_version=5;effects_waiting=effects_received=true;stats.effects_pending=1;
+                ++stats.overlay_choices;ApplyPendingEffects();
+            }
+        }
+        if(changed&1u) {
+            const auto& choice=preset.values[0];
+            if(water_state.requested!=choice.enabled||water_state.selected_variant!=choice.variant) {
+                water_pending_palette=overlay_palette;water_pending_palette.enabled=choice.enabled;water_pending_palette.selected_variant=choice.variant;
+                water_pending_version=2;water_received=water_waiting=true;++stats.overlay_choices;ApplyPendingWater();
+            }
+        }
+        if(changed&8u) {
+            const auto& choice=preset.values[3];
+            if(shadow_state.requested!=choice.enabled||shadow_state.faulted) {
+                shadow_pending_config={};shadow_pending_config.enabled=choice.enabled;shadow_waiting=true;++stats.overlay_choices;ApplyPendingShadow();
+            }
+        }
+        if(changed&16u) {
+            const auto& choice=preset.values[4];const DWORD version=choice.enabled?choice.variant+1:2u;
+            if(ambient_state.requested!=choice.enabled||ambient_state.profile_version!=version||ambient_state.faulted) {
+                ambient_pending_config={};ambient_pending_config.enabled=choice.enabled;ambient_pending_config.version=version;
+                ambient_waiting=true;++stats.overlay_choices;ApplyPendingAmbient();
+            }
+        }
+        Report();return;
+    }
+    ShaderDebugOverlay::Selection choice{};if(!ShaderDebugOverlay::ConsumeSelection(&choice))return;
+    if(choice.profile!=overlay_profile||choice.enabled>1||choice.variant>2)return;
+    switch(overlay_profile) {
+    case ShaderDebugOverlay::Profile::Water:
+        if(!water_waiting&&water_state.requested==choice.enabled&&water_state.selected_variant==choice.variant)return;
+        water_pending_palette=overlay_palette;water_pending_palette.enabled=choice.enabled;water_pending_palette.selected_variant=choice.variant;
+        water_pending_version=2;water_received=water_waiting=true;stats.water_protocol_received=1;++stats.overlay_choices;ApplyPendingWater();return;
+    case ShaderDebugOverlay::Profile::Leaf:
+        if(!effects_waiting&&!effects_faulted&&stats.effects_active==(choice.enabled?MaterialShaderEffects::Leaf:0u)&&stats.effects_selected_variant==choice.variant)return;
+        effects_pending_v4=overlay_leaf;effects_pending_v4.flags=choice.enabled?MaterialShaderEffects::Leaf:0u;effects_pending_v4.selected_variant=choice.variant;
+        effects_pending_version=4;effects_received=effects_waiting=true;stats.effects_pending=1;++stats.overlay_choices;ApplyPendingEffects();return;
+    case ShaderDebugOverlay::Profile::Terrain:
+        if(choice.variant)return;
+        if(!effects_waiting&&!effects_faulted&&stats.effects_active==(choice.enabled?MaterialShaderEffects::Terrain:0u))return;
+        effects_pending_v2=overlay_terrain;effects_pending_v2.flags=choice.enabled?MaterialShaderEffects::Terrain:0u;
+        effects_pending_version=2;effects_received=effects_waiting=true;stats.effects_pending=1;++stats.overlay_choices;ApplyPendingEffects();return;
+    case ShaderDebugOverlay::Profile::Shadow:
+        if(choice.variant)return;
+        if(!shadow_waiting&&!shadow_state.faulted&&shadow_state.requested==choice.enabled)return;
+        shadow_pending_config={};shadow_pending_config.enabled=choice.enabled;shadow_waiting=shadow_received=true;
+        stats.shadow_protocol_received=1;++stats.overlay_choices;ApplyPendingShadow();return;
+    case ShaderDebugOverlay::Profile::Ambient:
+        if(choice.variant>1)return;
+        if(!ambient_waiting&&!ambient_state.faulted&&ambient_state.requested==choice.enabled&&ambient_state.profile_version==(choice.enabled?choice.variant+1:2u))return;
+        ambient_pending_config={};ambient_pending_config.enabled=choice.enabled;ambient_pending_config.version=choice.enabled?choice.variant+1:2u;
+        ambient_waiting=ambient_received=true;stats.ambient_protocol_received=1;++stats.overlay_choices;ApplyPendingAmbient();return;
+    }
+}
+bool OverlayFilterFrame(bool ambient) {
+    if(ambient) return !ambient_waiting&&ambient_initialized&&ambient_state_valid&&!ambient_state.faulted&&!ambient_state.unsafe_state
+        &&ambient_frame_counters_valid&&ambient_state.completed_frame+ambient_frame_origin==stats.present_calls
+        &&(!ambient_state.enabled||(ambient_frame_good&&ambient_state.completed_applications>0
+            &&ambient_state.completed_applications==ambient_state.completed_restorations
+            &&ambient_state.last_applied_frame==ambient_state.completed_frame&&ambient_state.last_restored_frame==ambient_state.completed_frame));
+    return !shadow_waiting&&shadow_initialized&&shadow_state_valid&&!shadow_state.faulted&&!shadow_state.unsafe_state
+        &&shadow_frame_counters_valid&&shadow_state.completed_frame+shadow_frame_origin==stats.present_calls
+        &&(!shadow_state.enabled||(shadow_frame_good&&shadow_state.completed_applications>0
+            &&shadow_state.completed_applications==shadow_state.completed_restorations
+            &&shadow_state.last_applied_frame==shadow_state.completed_frame&&shadow_state.last_restored_frame==shadow_state.completed_frame));
+}
+bool OverlayLeafFrame() {
+    if(effects_waiting||effects_faulted||stats.render_unsafe||!stats.effects_configured
+        ||stats.effects_drawn_revision!=stats.effects_revision||stats.effects_drawn_active!=stats.effects_active)return false;
+    if(!(stats.effects_active&MaterialShaderEffects::Leaf))return overlay_geometry_frame==stats.present_calls&&stats.present_calls>0;
+    return stats.effects_drawn_frame==stats.present_calls&&stats.effects_selected_variant<3
+        &&stats.effects_drawn_variant==stats.effects_selected_variant&&stats.effects_variant_frame_applications>0
+        &&stats.effects_variant_frame_applications==stats.effects_variant_frame_restorations&&!stats.effects_variant_frame_failed_draws;
+}
+ShaderDebugOverlay::Status CurrentOverlayStatusFor(ShaderDebugOverlay::Profile profile) {
+    ShaderDebugOverlay::Status status{};status.profile=profile;
+    const bool combined=overlay_profile==ShaderDebugOverlay::Profile::All;
+    const bool geometry=combined?(overlay_geometry_frame==stats.present_calls&&stats.present_calls>0):stats.effects_frame_has_geometry!=0;
+    switch(profile) {
+    case ShaderDebugOverlay::Profile::Water:
+        status.applied_valid=WaterPaletteFrameReady(water_state,stats.present_calls,water_frame_origin,geometry)?1u:0u;
+        status.applied_enabled=status.applied_valid?water_state.enabled:0u;
+        status.applied_variant=status.applied_valid&&water_state.enabled?water_state.completed_drawn_variant:0u;
+        status.pending=water_waiting||!status.applied_valid?1u:0u;
+        status.pending_enabled=water_waiting?water_pending_palette.enabled:water_state.requested;
+        status.pending_variant=water_waiting?water_pending_palette.selected_variant:water_state.selected_variant;break;
+    case ShaderDebugOverlay::Profile::Leaf:
+        status.applied_valid=(combined?OverlayLeafFrame():(!effects_waiting&&!effects_faulted&&CaptureEpochReady()))?1u:0u;
+        status.applied_enabled=status.applied_valid&&(stats.effects_active&MaterialShaderEffects::Leaf)?1u:0u;
+        status.applied_variant=status.applied_enabled?stats.effects_drawn_variant:0u;
+        status.pending=effects_waiting||!status.applied_valid?1u:0u;
+        status.pending_enabled=((effects_waiting?(combined?effects_pending_v5.flags:effects_pending_v4.flags):stats.effects_active)&MaterialShaderEffects::Leaf)?1u:0u;
+        status.pending_variant=effects_waiting?(combined?effects_pending_v5.selected_variant:effects_pending_v4.selected_variant):stats.effects_selected_variant;break;
+    case ShaderDebugOverlay::Profile::Terrain: {
+        const bool fresh=geometry&&(combined?(overlay_geometry_revision==stats.effects_revision&&overlay_geometry_active==stats.effects_active):
+            (stats.effects_drawn_revision==stats.effects_revision&&stats.effects_drawn_active==stats.effects_active));
+        const bool actual=!(stats.effects_active&MaterialShaderEffects::Terrain)||(stats.overlay_material_frame==stats.present_calls&&overlay_terrain_revision==stats.effects_revision
+            &&stats.overlay_material_successful_draws>0&&!stats.overlay_material_failed_draws);
+        status.applied_valid=!effects_waiting&&!effects_faulted&&fresh&&actual?1u:0u;
+        status.applied_enabled=status.applied_valid&&(stats.effects_active&MaterialShaderEffects::Terrain)?1u:0u;
+        status.pending=effects_waiting||!status.applied_valid?1u:0u;status.pending_enabled=((effects_waiting?(combined?effects_pending_v5.flags:effects_pending_v2.flags):stats.effects_active)&MaterialShaderEffects::Terrain)?1u:0u;break;}
+    case ShaderDebugOverlay::Profile::Shadow:
+        status.applied_valid=geometry&&(combined?OverlayFilterFrame(false):(!shadow_waiting&&CaptureEpochReady()))?1u:0u;
+        status.applied_enabled=status.applied_valid?shadow_state.enabled:0u;
+        status.pending=shadow_waiting||!status.applied_valid?1u:0u;status.pending_enabled=shadow_waiting?shadow_pending_config.enabled:shadow_state.requested;break;
+    case ShaderDebugOverlay::Profile::Ambient:
+        status.applied_valid=geometry&&(combined?OverlayFilterFrame(true):(!ambient_waiting&&CaptureEpochReady()))?1u:0u;
+        status.applied_enabled=status.applied_valid?ambient_state.enabled:0u;status.applied_variant=status.applied_enabled&&ambient_state.profile_version==2?1u:0u;
+        status.pending=ambient_waiting||!status.applied_valid?1u:0u;status.pending_enabled=ambient_waiting?ambient_pending_config.enabled:ambient_state.requested;
+        status.pending_variant=status.pending_enabled&&(ambient_waiting?ambient_pending_config.version:ambient_state.profile_version)==2?1u:0u;break;
+    }
     if(status.pending_variant>2)status.pending_variant=0;
     return status;
 }
+ShaderDebugOverlay::Status CurrentOverlayStatus() {
+    return CurrentOverlayStatusFor(overlay_profile==ShaderDebugOverlay::Profile::All?ShaderDebugOverlay::SelectedTab():overlay_profile);
+}
+std::string OverlayPresetJson() {
+    if(overlay_profile!=ShaderDebugOverlay::Profile::All)return "";
+    for(DWORD i=0;i<5;++i)overlay_profiles.families[i]=CurrentOverlayStatusFor(static_cast<ShaderDebugOverlay::Profile>(i+1));
+    ShaderDebugOverlay::Preset preset{};std::uint64_t revision=0;
+    if(!ShaderDebugOverlay::ReadPreset(&preset,&revision))return "";
+    std::string result=",\"combined_diagnostic_scope\":1,\"overlay_preset_revision\":"+std::to_string(revision)+",\"overlay_preset\":[";
+    for(size_t i=0;i<5;++i){if(i)result+=",";const auto& value=preset.values[i];
+        result+="{\"profile\":"+std::to_string(static_cast<DWORD>(value.profile))+",\"enabled\":"+std::to_string(value.enabled)+",\"variant\":"+std::to_string(value.variant)+"}";}
+    result+="],\"overlay_profiles\":[";
+    for(size_t i=0;i<5;++i){if(i)result+=",";const auto& value=overlay_profiles.families[i];
+        result+="{\"profile\":"+std::to_string(static_cast<DWORD>(value.profile))+",\"applied_valid\":"+std::to_string(value.applied_valid)
+            +",\"applied_enabled\":"+std::to_string(value.applied_enabled)+",\"applied_variant\":"+std::to_string(value.applied_variant)
+            +",\"pending\":"+std::to_string(value.pending)+",\"pending_enabled\":"+std::to_string(value.pending_enabled)+",\"pending_variant\":"+std::to_string(value.pending_variant)+"}";}
+    return result+"]";
+}
 bool DrawOverlay(IDirect3DDevice9* device,IDirect3DSurface9* output,bool& drawn) {
     drawn=false;overlay_input_safe=false;stats.overlay_visible=0;
-    if(!overlay_received||!overlay_requested||!overlay_palette_admitted)return true;
+    if(!overlay_received||!overlay_requested||!OverlayReady())return true;
     if(ShaderDebugOverlay::HasUnsafe()&&!ShaderDebugOverlay::RetryRestore(device)){OverlayFault();return false;}
     const auto status=CurrentOverlayStatus();
-    drawn=ShaderDebugOverlay::Draw(device,output,configuration.output_width,configuration.output_height,status);
+    const bool changed=stats.overlay_applied_valid!=status.applied_valid||stats.overlay_applied_enabled!=status.applied_enabled
+        ||stats.overlay_applied_variant!=status.applied_variant||stats.overlay_pending!=status.pending
+        ||stats.overlay_pending_enabled!=status.pending_enabled||stats.overlay_pending_variant!=status.pending_variant;
+    stats.overlay_applied_valid=status.applied_valid;stats.overlay_applied_enabled=status.applied_enabled;stats.overlay_applied_variant=status.applied_variant;
+    stats.overlay_pending=status.pending;stats.overlay_pending_enabled=status.pending_enabled;stats.overlay_pending_variant=status.pending_variant;
+    stats.overlay_status_frame=stats.present_calls;
+    bool preset_changed=false;
+    const auto previous_profiles=overlay_profiles;
+    if(overlay_profile==ShaderDebugOverlay::Profile::All) {
+        for(DWORD i=0;i<5;++i)overlay_profiles.families[i]=CurrentOverlayStatusFor(static_cast<ShaderDebugOverlay::Profile>(i+1));
+        ShaderDebugOverlay::Preset preset{};std::uint64_t revision=0;
+        if(ShaderDebugOverlay::ReadPreset(&preset,&revision)){preset_changed=revision!=overlay_reported_preset_revision;overlay_reported_preset_revision=revision;}
+        preset_changed=preset_changed||std::memcmp(&previous_profiles,&overlay_profiles,sizeof(overlay_profiles))!=0;
+        drawn=ShaderDebugOverlay::DrawAll(device,output,configuration.output_width,configuration.output_height,overlay_profiles);
+    } else drawn=ShaderDebugOverlay::Draw(device,output,configuration.output_width,configuration.output_height,status);
     if(ShaderDebugOverlay::HasUnsafe()) {
         if(!ShaderDebugOverlay::RetryRestore(device)){OverlayFault();return false;}
         drawn=false;
     }
-    if(drawn){overlay_input_safe=true;stats.overlay_visible=1;++stats.overlay_draws;}
+    if(drawn){overlay_input_safe=true;stats.overlay_visible=1;++stats.overlay_draws;if(changed||preset_changed)Report();}
     else {overlay_requested=false;stats.overlay_requested=0;++stats.overlay_failures;}
     return true;
 }
@@ -849,8 +1092,8 @@ void CheckEffectsState() {
         stats.effects_module_restore_failures=bounded(module.restore_failures);
         stats.effects_module_exceptions=bounded(module.exceptions);
     }
-    const bool wrong_palette=stats.effects_config_version==4
-        && (!read || module.config_version!=4 || module.selected_variant!=stats.effects_selected_variant || module.selected_variant>2);
+    const bool wrong_palette=(stats.effects_config_version==4||stats.effects_config_version==5)
+        && (!read || module.config_version!=stats.effects_config_version || module.selected_variant!=stats.effects_selected_variant || module.selected_variant>2);
     if(!read || module.faulted || module.shader_failures || module.set_failures || module.restore_failures || module.exceptions || wrong_palette) {
         const bool first=!effects_faulted;
         effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=223;stats.effects_active=0;
@@ -859,9 +1102,10 @@ void CheckEffectsState() {
 }
 
 void LatchEffectsDraw(DWORD role=0) {
-    if(stats.effects_config_version==4) {
-        if(stats.effects_active && role!=4)return;
-        stats.effects_drawn_variant=stats.effects_active?stats.effects_selected_variant:MAXDWORD;
+    if(stats.effects_config_version==4||stats.effects_config_version==5) {
+        overlay_geometry_frame=stats.present_calls+1;overlay_geometry_revision=stats.effects_revision;overlay_geometry_active=stats.effects_active;
+        if((stats.effects_active&MaterialShaderEffects::Leaf) && role!=4)return;
+        stats.effects_drawn_variant=(stats.effects_active&MaterialShaderEffects::Leaf)?stats.effects_selected_variant:MAXDWORD;
         stats.effects_drawn_frame=stats.present_calls+1;
     }
     stats.effects_drawn_revision=stats.effects_revision;
@@ -870,13 +1114,13 @@ void LatchEffectsDraw(DWORD role=0) {
 }
 
 bool CaptureEpochReady() {
-    if(stats.effects_config_version==4) {
+    if(stats.effects_config_version==4||stats.effects_config_version==5) {
         if(!effects_initialized || effects_faulted || !stats.present_calls || !stats.effects_drawn_frame || stats.effects_selected_variant>2
             ||stats.effects_drawn_frame!=stats.present_calls||stats.effects_variant_frame_failed_draws)return false;
-        if(stats.effects_active && (stats.effects_drawn_variant!=stats.effects_selected_variant
+        if((stats.effects_active&MaterialShaderEffects::Leaf) && (stats.effects_drawn_variant!=stats.effects_selected_variant
             ||!stats.effects_variant_frame_applications
             ||stats.effects_variant_frame_applications!=stats.effects_variant_frame_restorations))return false;
-        if(!stats.effects_active&&(stats.effects_drawn_variant!=MAXDWORD||stats.effects_variant_frame_applications
+        if(!(stats.effects_active&MaterialShaderEffects::Leaf)&&(stats.effects_drawn_variant!=MAXDWORD||stats.effects_variant_frame_applications
             ||stats.effects_variant_frame_restorations))return false;
     }
     if(ambient_received&&(ambient_waiting||!ambient_initialized||!AmbientHealthy()||!ambient_frame_counters_valid
@@ -1043,7 +1287,7 @@ bool OverlayInput(State* current,HWND window,UINT message,WPARAM wparam,LPARAM l
     if(overlay_received&&message==WM_KEYDOWN&&wparam==VK_F9&&!(lparam&(1LL<<30))
         &&(::GetKeyState(VK_CONTROL)&0x8000)&&(::GetKeyState(VK_SHIFT)&0x8000)) {
         overlay_requested=!overlay_requested;stats.overlay_requested=overlay_requested?1u:0u;current->overlay_hotkey=true;
-        if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}
+        if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;if(overlay_profile!=ShaderDebugOverlay::Profile::All){ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}}
         return true;
     }
     const DWORD down=message==WM_LBUTTONDOWN||message==WM_LBUTTONDBLCLK?1u:message==WM_RBUTTONDOWN||message==WM_RBUTTONDBLCLK?2u:message==WM_MBUTTONDOWN||message==WM_MBUTTONDBLCLK?4u:0u;
@@ -1061,8 +1305,8 @@ bool OverlayInput(State* current,HWND window,UINT message,WPARAM wparam,LPARAM l
     POINT point{static_cast<short>(LOWORD(lparam)),static_cast<short>(HIWORD(lparam))};
     if(message==WM_MOUSEWHEEL||message==WM_MOUSEHWHEEL){if(!physical_to_client(window,&point))return false;}
     if(!down&&!up&&message!=WM_MOUSEMOVE&&message!=WM_MOUSEWHEEL&&message!=WM_MOUSEHWHEEL)return false;
-    if(!ShaderDebugOverlay::HitTest(point.x,point.y,configuration.output_width,configuration.output_height))return false;
-    if(down){current->overlay_buttons|=down;if(down==1)ShaderDebugOverlay::QueueClick(point.x,point.y,configuration.output_width,configuration.output_height);}
+    if(!ShaderDebugOverlay::HitTest(point.x,point.y,configuration.output_width,configuration.output_height,overlay_profile))return false;
+    if(down){current->overlay_buttons|=down;if(down==1)ShaderDebugOverlay::QueueClick(point.x,point.y,configuration.output_width,configuration.output_height,overlay_profile);}
     ++stats.overlay_input_events;return true;
 }
 
@@ -1350,7 +1594,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     }
     CompletePaletteFrame();
     ++stats.present_calls;
-    const DWORD pending_flags=effects_pending_version==4?effects_pending_v4.flags:
+    const DWORD pending_flags=effects_pending_version==5?effects_pending_v5.flags:effects_pending_version==4?effects_pending_v4.flags:
         effects_pending_version==3?effects_pending_v3.flags:
         effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
     if(effects_faulted && effects_waiting && !pending_flags && !stats.render_unsafe)ApplyPendingEffects();
@@ -1377,7 +1621,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
             capture_pending=0;
         }
         bool overlay_drawn=false;overlay_input_safe=false;stats.overlay_visible=0;
-        if(overlay_received&&overlay_requested&&overlay_palette_admitted) {
+        if(overlay_received&&overlay_requested&&OverlayReady()) {
             IDirect3DSurface9* output=nullptr;
             const bool acquired=SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&output))&&output;
             const bool safe=!acquired||DrawOverlay(device,output,overlay_drawn);
@@ -1516,6 +1760,8 @@ HRESULT STDMETHODCALLTYPE HookViewport(IDirect3DDevice9* device,const D3DVIEWPOR
 template<class DrawCall,class ObserverCall>
 NativeMaterialDraw::Result ExecuteConfiguredDraw(IDirect3DDevice9* device,bool comparison,bool materials,bool water,
                                                 bool shadow,bool ambient,DrawCall&& draw,ObserverCall&& observe) {
+    if(combined_scope_authorized)return NativeMaterialDraw::ExecuteFive<AmbientApi>(device,comparison,materials,water,shadow,ambient,
+        std::forward<DrawCall>(draw),std::forward<ObserverCall>(observe));
     if(shadow && ambient) {
         NativeMaterialDraw::Result refused;refused.unsafe=refused.shadow_unsafe=true;return refused;
     }
@@ -1549,8 +1795,8 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
         stats.water_unsafe=transaction.water_unsafe?1u:0u;
-        stats.shadow_unsafe=!ambient_path&&transaction.shadow_unsafe?1u:0u;
-        stats.ambient_unsafe=ambient_path&&transaction.shadow_unsafe?1u:0u;
+        stats.shadow_unsafe=(combined_scope_authorized||!ambient_path)&&transaction.shadow_unsafe?1u:0u;
+        stats.ambient_unsafe=(transaction.ambient_unsafe||(!combined_scope_authorized&&ambient_path&&transaction.shadow_unsafe))?1u:0u;
         ClearShadowFrameProof();ClearAmbientFrameProof();
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
@@ -1584,8 +1830,8 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
         stats.render_unsafe=1;stats.effects_unsafe=transaction.material_unsafe?1u:0u;
         stats.comparison_unsafe=transaction.comparison_unsafe?1u:0u;
         stats.water_unsafe=transaction.water_unsafe?1u:0u;
-        stats.shadow_unsafe=!ambient_path&&transaction.shadow_unsafe?1u:0u;
-        stats.ambient_unsafe=ambient_path&&transaction.shadow_unsafe?1u:0u;
+        stats.shadow_unsafe=(combined_scope_authorized||!ambient_path)&&transaction.shadow_unsafe?1u:0u;
+        stats.ambient_unsafe=(transaction.ambient_unsafe||(!combined_scope_authorized&&ambient_path&&transaction.shadow_unsafe))?1u:0u;
         ClearShadowFrameProof();ClearAmbientFrameProof();
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
@@ -1704,7 +1950,7 @@ bool TerminalCleanup(State& current) {
     }
     shadow_waiting=false;ClearShadowFrameProof();
     if(!ResetOverlay(current.device)||!ShaderDebugOverlay::Shutdown()){OverlayFault();Report();return false;}
-    overlay_received=overlay_requested=overlay_input_safe=overlay_palette_admitted=false;
+    overlay_received=overlay_requested=overlay_input_safe=overlay_palette_admitted=overlay_leaf_admitted=overlay_terrain_admitted=false;
     stats.overlay_requested=stats.overlay_visible=0;current.overlay_buttons=0;current.overlay_hotkey=false;
     if(water_initialized) {
         if(!WaterShaderEffects::Reset(current.device)||!WaterShaderEffects::Shutdown()) {
@@ -1980,11 +2226,11 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
     if(InterlockedCompareExchange(&initialized,1,0))return 0;
     SIZE_T read=0;DWORD header[2]{};
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,header,sizeof(header),&read) || read!=sizeof(header)
-        || (header[0]!=sizeof(SupersamplingConfig) && header[0]!=sizeof(NativeGraphicsConfig::Version2)))return 0;
-    std::array<unsigned char,sizeof(NativeGraphicsConfig::Version2)> bytes{};
+        || (header[0]!=sizeof(SupersamplingConfig) && header[0]!=sizeof(NativeGraphicsConfig::Version2)&&header[0]!=sizeof(NativeGraphicsConfig::Version3)))return 0;
+    std::array<unsigned char,sizeof(NativeGraphicsConfig::Version3)> bytes{};
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,bytes.data(),header[0],&read) || read!=header[0]
-        || NativeGraphicsConfig::Decode(bytes.data(),header[0],CompiledCapabilities|NativeGraphicsConfig::StableShadows|NativeGraphicsConfig::AmbientOcclusion,
-            native_configuration)!=NativeGraphicsConfig::Error::None)return 0;
+        || NativeGraphicsConfig::DecodeCombined(bytes.data(),header[0],CompiledCapabilities|NativeGraphicsConfig::StableShadows|NativeGraphicsConfig::AmbientOcclusion,
+            native_configuration,combined_scope_authorized)!=NativeGraphicsConfig::Error::None)return 0;
     // StableShadows is a diagnostic intent, never a reported release capability.
     if((native_configuration.flags&NativeGraphicsConfig::StableShadows)
         && !ShadowIntentAuthorized(native_configuration.flags))return 0;
@@ -2073,15 +2319,32 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
 
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureOverlay(void* opaque) {
     using namespace SupersamplingHook;
-    DiagnosticScope diagnostic;DWORD config[3]{};SIZE_T read=0;
-    if(!ReadProcessMemory(GetCurrentProcess(),opaque,config,sizeof(config),&read)||read!=sizeof(config)
-        ||config[0]!=12||config[1]!=1||config[2]>1)return 0;
+    DiagnosticScope diagnostic;DWORD config[4]{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,config,8,&read)||read!=8)return 0;
+    const bool old=config[0]==12&&config[1]==1;const bool extended=config[0]==16&&config[1]==2;
+    const bool combined=config[0]==16&&config[1]==3;
+    if(!old&&!extended&&!combined)return 0;read=0;const SIZE_T bytes=old?12u:16u;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,config,bytes,&read)||read!=bytes
+        ||config[0]!=bytes||config[1]!=(old?1u:combined?3u:2u)||config[2]>1)return 0;
+    const auto profile=static_cast<ShaderDebugOverlay::Profile>(old?1u:config[3]);
     Lock lock;
-    if(!initialization_ready||!water_received||water_pending_version!=2||stats.render_unsafe
-        ||(state&&(state->terminal_cleanup||state->shutdown_requested))
-        ||!WaterShaderPaletteContract::Validate(water_pending_palette))return 0;
+    if(!initialization_ready||stats.render_unsafe||!OverlayProfileAllowed(profile,!old)
+        ||(overlay_received&&profile!=overlay_profile)||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
+    if(combined!=(profile==ShaderDebugOverlay::Profile::All))return 0;
+    if((profile==ShaderDebugOverlay::Profile::Water||combined)&&!WaterShaderPaletteContract::Validate(water_pending_palette))return 0;
+    if(combined&&!overlay_received) {
+        ShaderDebugOverlay::Preset preset{};
+        preset.values[0].enabled=water_pending_palette.enabled;preset.values[0].variant=water_pending_palette.selected_variant;
+        preset.values[1].enabled=(effects_pending_v5.flags&MaterialShaderEffects::Leaf)?1u:0u;preset.values[1].variant=effects_pending_v5.selected_variant;
+        preset.values[2].enabled=(effects_pending_v5.flags&MaterialShaderEffects::Terrain)?1u:0u;
+        preset.values[3].enabled=shadow_pending_config.enabled;preset.values[4].enabled=ambient_pending_config.enabled;
+        preset.values[4].variant=ambient_pending_config.enabled&&ambient_pending_config.version==2?1u:0u;
+        if(!ShaderDebugOverlay::SetPreset(&preset,false))return 0;
+    }
+    overlay_profile=profile;stats.overlay_profile=static_cast<DWORD>(profile);
+    overlay_extended=overlay_extended||extended||combined;
     overlay_received=true;overlay_requested=config[2]!=0;stats.overlay_received=1;stats.overlay_requested=config[2];
-    if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}
+    if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;if(overlay_profile!=ShaderDebugOverlay::Profile::All){ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}}
     Report();return 1;
 }
 
@@ -2105,6 +2368,15 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
     NativeEffectsWire::Pending wire{};
     if(!NativeEffectsWire::Decode(opaque,&wire))return 0;
     Lock lock;
+    if(overlay_received&&overlay_profile==ShaderDebugOverlay::Profile::All)return 0;
+    if(combined_scope_authorized&&wire.version!=5)return 0;
+    if(overlay_received&&overlay_extended) {
+        if(overlay_profile==ShaderDebugOverlay::Profile::All&&wire.version!=5)return 0;
+        if(overlay_profile==ShaderDebugOverlay::Profile::Leaf&&(wire.version!=4
+            ||(overlay_leaf_admitted&&!NativeEffectsContractV4::SamePinnedConfig(wire.v4,overlay_leaf))))return 0;
+        if(overlay_profile==ShaderDebugOverlay::Profile::Terrain&&(wire.version!=2||!OverlayMacroIdentity(wire.v2)
+            ||(overlay_terrain_admitted&&!NativeEffectsContractV2::SamePinnedConfig(wire.v2,overlay_terrain))))return 0;
+    }
     if(!initialization_ready || effects_waiting || (effects_faulted && wire.Flags()) || stats.render_unsafe
         || (state && state->terminal_cleanup))return 0;
     if(wire.version==1) {
@@ -2129,6 +2401,13 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
             NativeEffectsContractV4::Layout::RecipientLocalData);
         if(error!=NativeEffectsContractV4::Error::None)return 0;
         effects_pending_v4=wire.v4;
+    } else if(wire.version==5) {
+        if(!combined_scope_authorized)return 0;
+        auto error=NativeEffectsContractV5::Validate(wire.v5,native_configuration,NativeEffectsContractV5::Layout::PrivateCase);
+        if(error!=NativeEffectsContractV5::Error::None)error=NativeEffectsContractV5::Validate(wire.v5,native_configuration,NativeEffectsContractV5::Layout::RecipientLocalData);
+        if(error!=NativeEffectsContractV5::Error::None)return 0;
+        if(effects_initialized&&(effects_loaded_version!=5||!NativeEffectsContractV5::SamePinnedConfig(wire.v5,effects_loaded_v5)))return 0;
+        effects_pending_v5=wire.v5;
     } else return 0;
     effects_pending_version=wire.version;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
 }
@@ -2140,10 +2419,11 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* opaque) {
     if(!NativeWaterWire::Decode(opaque,&wire)
         ||(wire.version==2&&!WaterShaderPaletteContract::Validate(wire.v2)))return 0;
     Lock lock;
-    const DWORD pending=effects_pending_version==4?effects_pending_v4.flags:
+    const DWORD pending=effects_pending_version==5?effects_pending_v5.flags:effects_pending_version==4?effects_pending_v4.flags:
         effects_pending_version==3?effects_pending_v3.flags:
         effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
-    if(!initialization_ready||!(native_configuration.flags&NativeGraphicsConfig::Water)||water_waiting||stats.render_unsafe
+    if((overlay_received&&overlay_profile==ShaderDebugOverlay::Profile::All)
+        ||!initialization_ready||!(native_configuration.flags&NativeGraphicsConfig::Water)||water_waiting||stats.render_unsafe
         ||(state&&state->terminal_cleanup)||(stats.effects_active&MaterialShaderEffects::River)
         ||(wire.version==2&&state&&state->shutdown_requested)
         ||(water_received&&water_pending_version!=wire.version)
@@ -2160,8 +2440,9 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureShadow(void* opaque) {
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
         ||config.size!=sizeof(config)||config.version!=1||config.enabled>1)return 0;
     Lock lock;
-    if(!initialization_ready||!ShadowIntentAuthorized(native_configuration.flags)||shadow_waiting||stats.render_unsafe
-        ||ambient_received||ambient_initialized
+    if((overlay_received&&overlay_profile==ShaderDebugOverlay::Profile::All)
+        ||!initialization_ready||!ShadowIntentAuthorized(native_configuration.flags)||shadow_waiting||stats.render_unsafe
+        ||(!combined_scope_authorized&&(ambient_received||ambient_initialized))
         ||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
     shadow_pending_config=config;shadow_received=true;shadow_waiting=true;stats.shadow_protocol_received=1;
     shadow_frame_good=false;stats.shadow_frame_good=0;Report();return 1;
@@ -2174,8 +2455,9 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureAmbient(void* opaque) {
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
         ||config.size!=sizeof(config)||(config.version!=1&&config.version!=2)||config.enabled>1)return 0;
     Lock lock;
-    if(!initialization_ready||!AmbientIntentAuthorized(native_configuration.flags)||ambient_waiting||stats.render_unsafe
-        ||shadow_received||shadow_initialized||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
+    if((overlay_received&&overlay_profile==ShaderDebugOverlay::Profile::All)
+        ||!initialization_ready||!AmbientIntentAuthorized(native_configuration.flags)||ambient_waiting||stats.render_unsafe
+        ||(!combined_scope_authorized&&(shadow_received||shadow_initialized))||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
     ambient_pending_config=config;ambient_received=true;ambient_waiting=true;stats.ambient_protocol_received=1;
     ambient_frame_good=false;stats.ambient_frame_good=0;Report();return 1;
 }
@@ -2187,6 +2469,7 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureComparison(void* opaque) {
     if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read) || read!=sizeof(config)
         || config.size!=sizeof(config) || config.version!=1 || config.enabled>1)return 0;
     Lock lock;
+    if(config.enabled&&overlay_received&&overlay_extended)return 0;
     if(!initialization_ready || !(native_configuration.flags&NativeGraphicsConfig::Observe)
         || !comparison_initialized || comparison_waiting || stats.render_unsafe
         || (state && state->terminal_cleanup))return 0;

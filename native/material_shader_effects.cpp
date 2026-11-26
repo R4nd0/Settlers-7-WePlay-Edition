@@ -2,6 +2,7 @@
 #include "material_shader_config_v2.h"
 #include "material_shader_config_v3.h"
 #include "material_shader_config_v4.h"
+#include "material_shader_effects_contract_v5.h"
 #include "terrain_macro_guard.h"
 #include <bcrypt.h>
 #include <algorithm>
@@ -41,7 +42,7 @@ std::array<Role,4> roles{{
 }};
 struct Cached {IUnknown* object=nullptr;DWORD stage=0,mask=0;};
 struct ProgramPin {DWORD bytes=0,stage=0;const char* text=nullptr;std::array<unsigned char,32> hash{};};
-std::array<std::array<ProgramPin,5>,6> programs{{
+std::array<std::array<ProgramPin,7>,7> programs{{
     {{{3872,1,"2797260e11f28f67cecacd2e79f0df1064bb3ed07ffdc81ab129db2963a1cbbe",{}},
       {1836,2,"c2ae22a6739e071774edd071870e6dc8fd058b5bf6eec6490bc1a4603fea2fa3",{}},
       {3596,2,"d0d082bbb9b8d2de1388b790165bcebc5fda571d88895db3e8b36004bf2e52fa",{}},{},{}}},
@@ -59,16 +60,23 @@ std::array<std::array<ProgramPin,5>,6> programs{{
     {{{1372,2,"284d5c84ee6700039ee818fe7f063b2b90536beac45e261a5b3e0cf8a6d1746a",{}},{},{},{},{}}},
     {{{1372,2,"1b825358f46c39b04b1d540738f4be5e862bfe6627b8545ab092c471d259477c",{}},
       {1372,2,"284d5c84ee6700039ee818fe7f063b2b90536beac45e261a5b3e0cf8a6d1746a",{}},
-      {1372,2,"b869fe375b76509f60a48d34bde83565d28c0416aca85f27c8a445045cb6a51f",{}},{},{}}}
+      {1372,2,"b869fe375b76509f60a48d34bde83565d28c0416aca85f27c8a445045cb6a51f",{}},{},{}}},
+    {{{1372,2,"1b825358f46c39b04b1d540738f4be5e862bfe6627b8545ab092c471d259477c",{}},
+      {1836,2,"c2ae22a6739e071774edd071870e6dc8fd058b5bf6eec6490bc1a4603fea2fa3",{}},
+      {3596,2,"d0d082bbb9b8d2de1388b790165bcebc5fda571d88895db3e8b36004bf2e52fa",{}},
+      {2020,1,"da8154477a4fd3c44ace75d9c42d6d3714dc196c9c0f30fc332f06493539a21b",{}},
+      {2020,1,"b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",{}},
+      {1372,2,"284d5c84ee6700039ee818fe7f063b2b90536beac45e261a5b3e0cf8a6d1746a",{}},
+      {1372,2,"b869fe375b76509f60a48d34bde83565d28c0416aca85f27c8a445045cb6a51f",{}}}}
 }};
 struct State {
     Config config{};Stats stats{};IDirect3DDevice9* device=nullptr;DWORD thread=0,program_variant=0;
     BCRYPT_ALG_HANDLE algorithm=nullptr;
     std::array<Cached,MaxCache> cache{};size_t count=0;
     std::array<unsigned char,MaxCode> scratch{};
-    std::array<std::vector<unsigned char>,5> code{};
-    std::array<std::array<unsigned char,32>,5> loaded_hashes{};
-    std::array<HANDLE,5> files{INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE};
+    std::array<std::vector<unsigned char>,7> code{};
+    std::array<std::array<unsigned char,32>,7> loaded_hashes{};
+    std::array<HANDLE,7> files{INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE};
     IDirect3DVertexShader9* leaf=nullptr;
     IDirect3DPixelShader9* leaf_pixel=nullptr;
     std::array<IDirect3DPixelShader9*,3> leaf_palette{};
@@ -83,7 +91,7 @@ State current;SRWLOCK mutex=SRWLOCK_INIT;
 void EventReport() noexcept;
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 std::array<bool,4> fixture_override{};
-std::array<std::array<bool,5>,6> fixture_program_override{};
+std::array<std::array<bool,7>,7> fixture_program_override{};
 #endif
 bool Finite(float value){DWORD bits=0;std::memcpy(&bits,&value,4);return (bits&0x7f800000u)!=0x7f800000u;}
 bool Between(float value,float low,float high){return Finite(value)&&value>=low&&value<=high;}
@@ -204,7 +212,7 @@ void Clear(){
 }
 void CloseFiles(){for(auto& file:current.files)if(file!=INVALID_HANDLE_VALUE){CloseHandle(file);file=INVALID_HANDLE_VALUE;}for(auto& code:current.code)code.clear();current.loaded_hashes={};}
 bool Load(unsigned index,const wchar_t* path,unsigned version){
-    if(version<1||version>6||index>=5)return false;const auto& pin=programs[version-1][index];if(!pin.stage)return false;
+    if(version<1||version>7||index>=7)return false;const auto& pin=programs[version-1][index];if(!pin.stage)return false;
     if(!Absolute(path))return false;
     File file{CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr)};
     if(file.value==INVALID_HANDLE_VALUE)return false;
@@ -274,8 +282,8 @@ struct PendingOriginals {
     ~PendingOriginals(){if(!committed&&!current.unrestored)ReleaseActiveOriginals();}
 };
 void Report(){
-    if(!current.config.report_path[0])return;const auto& s=current.stats;const DWORD terrain_variant=current.program_variant>=4?0u:current.program_variant;
-    const DWORD leaf_variant=(s.initialized_flags&Leaf)?(current.program_variant==6?5u+s.selected_variant:current.program_variant==5?4u:current.program_variant==4?3u:current.program_variant==1?1u:2u):0u;char text[2048]{};
+    if(!current.config.report_path[0])return;const auto& s=current.stats;const DWORD terrain_variant=current.program_variant==7?3u:current.program_variant>=4?0u:current.program_variant;
+    const DWORD leaf_variant=(s.initialized_flags&Leaf)?(current.program_variant>=6?5u+s.selected_variant:current.program_variant==5?4u:current.program_variant==4?3u:current.program_variant==1?1u:2u):0u;char text[2048]{};
     std::snprintf(text,sizeof(text),"{\"format\":\"s7-native-material-effects-v1\",\"enabled_flags\":%lu,\"faulted\":%lu,\"draws\":%llu,\"matched\":%llu,\"restored_draws\":%llu,\"restore_failures\":%llu,\"context_rejections\":%llu,\"input_rejections\":%llu,\"query_failures\":%llu,\"shader_creations\":%llu,\"shader_failures\":%llu,\"set_failures\":%llu,\"failed_draws\":%llu,\"cached_refs\":%lu,\"retained_programs\":%lu,\"peak_retained_programs\":%lu,\"frames\":%llu,\"resets\":%llu,\"cache_overflows\":%llu,\"applied\":[%llu,%llu,%llu,%llu],\"samples\":[",
         s.enabled_flags,s.faulted,s.draws,s.matched,s.restored_draws,s.restore_failures,s.context_rejections,s.input_rejections,s.query_failures,s.shader_creations,s.shader_failures,s.set_failures,s.failed_draws,s.cached_refs,s.retained_programs,s.peak_retained_programs,s.frames,s.resets,s.cache_overflows,s.applied[0],s.applied[1],s.applied[2],s.applied[3]);
     std::string json=text;
@@ -287,7 +295,10 @@ void Report(){
     if(!json.empty()&&json.back()=='\n')json.pop_back();if(!json.empty()&&json.back()=='}')json.pop_back();
     const auto triple=[&](const char* name,const std::array<std::uint64_t,3>& v){std::snprintf(text,sizeof(text),",\"%s\":[%llu,%llu,%llu]",name,v[0],v[1],v[2]);json+=text;};
     triple("variant_applications",s.variant_applications);triple("variant_restorations",s.variant_restorations);
-    triple("variant_successful_draws",s.variant_successful_draws);triple("variant_failed_draws",s.variant_failed_draws);triple("variant_creations",s.variant_creations);json+="}\n";
+    triple("variant_successful_draws",s.variant_successful_draws);triple("variant_failed_draws",s.variant_failed_draws);triple("variant_creations",s.variant_creations);
+    json+=",\"combined_program_creations\":[";for(unsigned i=0;i<7;++i){if(i)json+=',';json+=std::to_string(s.combined_program_creations[i]);}
+    json+="],\"combined_program_sha256\":[";constexpr char digits[]="0123456789abcdef";
+    for(unsigned i=0;i<7;++i){if(i)json+=',';json+='\"';for(auto value:s.combined_program_sha256[i]){json+=digits[value>>4];json+=digits[value&15];}json+='\"';}json+="]}\n";
     const std::wstring temporary=std::wstring(current.config.report_path)+L".tmp";HANDLE file=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE){++current.stats.report_failures;return;}DWORD count=0;bool valid=WriteFile(file,json.data(),static_cast<DWORD>(json.size()),&count,nullptr)&&count==json.size();CloseHandle(file);
     if(valid)valid=MoveFileExW(temporary.c_str(),current.config.report_path,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;if(!valid)++current.stats.report_failures;
@@ -310,7 +321,7 @@ struct InitFiles {
     bool committed=false;
     ~InitFiles(){if(!committed){CloseFiles();if(current.algorithm){BCryptCloseAlgorithmProvider(current.algorithm,0);current.algorithm=nullptr;}}}
 };
-bool InitializeCommon(const Config& config,unsigned version,const wchar_t* bump_vertex=nullptr,const wchar_t* parallax_vertex=nullptr,unsigned pin_version=0,const wchar_t* leaf_pixel=nullptr,const wchar_t (*palette)[512]=nullptr,DWORD selected=MAXDWORD){
+bool InitializeCommon(const Config& config,unsigned version,const wchar_t* bump_vertex=nullptr,const wchar_t* parallax_vertex=nullptr,unsigned pin_version=0,const wchar_t* leaf_pixel=nullptr,const wchar_t (*palette)[512]=nullptr,DWORD selected=MAXDWORD,const wchar_t (*combined)[512]=nullptr,DWORD initial_flags=MAXDWORD){
     if(!pin_version)pin_version=version;
     if(current.stats.initialized_flags||current.stats.active_transactions||current.unrestored||current.transaction||config.size!=sizeof(Config)||config.version!=1
         ||!config.flags||(config.flags&~AllowedFlags)||config.render_width<320||config.render_height<200
@@ -326,13 +337,16 @@ bool InitializeCommon(const Config& config,unsigned version,const wchar_t* bump_
     InitFiles pending;
     if(!current.algorithm&&BCryptOpenAlgorithmProvider(&current.algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)return false;
     bool valid=true;
-    if(config.flags&Leaf){if(version==4){valid=palette&&selected<3;for(unsigned i=0;valid&&i<3;++i)valid=Load(i,palette[i],pin_version);}
+    if(version==5){valid=combined&&selected<3&&initial_flags<=6&&!(initial_flags&~6u);for(unsigned i=0;valid&&i<7;++i)valid=Load(i,combined[i],pin_version);}
+    else if(config.flags&Leaf){if(version==4){valid=palette&&selected<3;for(unsigned i=0;valid&&i<3;++i)valid=Load(i,palette[i],pin_version);}
         else valid=Load(0,leaf_pixel?leaf_pixel:config.leaf_vertex_path,pin_version);}
-    if(valid&&(config.flags&Terrain))valid=Load(1,config.bump_pixel_path,pin_version)&&Load(2,config.parallax_pixel_path,pin_version);
+    if(valid&&version!=5&&(config.flags&Terrain))valid=Load(1,config.bump_pixel_path,pin_version)&&Load(2,config.parallax_pixel_path,pin_version);
     if(valid&&version==2&&(config.flags&Terrain))valid=bump_vertex&&parallax_vertex&&Load(3,bump_vertex,pin_version)&&Load(4,parallax_vertex,pin_version);
     if(!valid)return false;
-    current.config=config;current.stats=Stats{};current.stats.config_version=version;current.stats.enabled_flags=config.flags;current.stats.initialized_flags=config.flags;
+    current.config=config;current.stats=Stats{};current.stats.config_version=version;current.stats.enabled_flags=version==5?initial_flags:config.flags;current.stats.initialized_flags=config.flags;
     if(version==4){current.stats.selected_variant=selected;for(unsigned i=0;i<3;++i)current.stats.variant_sha256[i]=current.loaded_hashes[i];}
+    if(version==5){current.stats.selected_variant=selected;current.stats.combined_program_sha256=current.loaded_hashes;
+        constexpr unsigned slots[3]={0,5,6};for(unsigned i=0;i<3;++i)current.stats.variant_sha256[i]=current.loaded_hashes[slots[i]];}
     current.device=nullptr;current.thread=0;current.program_variant=pin_version;current.unrestored=false;current.transaction=nullptr;current.sample_counts.fill(0);pending.committed=true;
     EventReport();return true;
 }
@@ -343,12 +357,14 @@ bool LifecycleReady(){
 bool VertexProgram(IDirect3DDevice9* device,unsigned slot,IDirect3DVertexShader9*& shader){
     if(shader)return true;const HRESULT hr=device->CreateVertexShader(reinterpret_cast<const DWORD*>(current.code[slot].data()),&shader);
     if(FAILED(hr)||!shader){if(shader){auto* failed=shader;shader=nullptr;failed->Release();}CountPrograms();++current.stats.shader_failures;current.stats.faulted=1;EventReport();return false;}
-    ++current.stats.shader_creations;++current.stats.program_creations[slot];CountPrograms();return true;
+    ++current.stats.shader_creations;if(slot<5)++current.stats.program_creations[slot];if(current.stats.config_version==5)++current.stats.combined_program_creations[slot];CountPrograms();return true;
 }
 bool PixelProgram(IDirect3DDevice9* device,unsigned slot,IDirect3DPixelShader9*& shader){
     if(shader)return true;const HRESULT hr=device->CreatePixelShader(reinterpret_cast<const DWORD*>(current.code[slot].data()),&shader);
     if(FAILED(hr)||!shader){if(shader){auto* failed=shader;shader=nullptr;failed->Release();}CountPrograms();++current.stats.shader_failures;current.stats.faulted=1;EventReport();return false;}
-    ++current.stats.shader_creations;++current.stats.program_creations[slot];if(current.stats.config_version==4&&slot<3)++current.stats.variant_creations[slot];CountPrograms();return true;
+    ++current.stats.shader_creations;if(slot<5)++current.stats.program_creations[slot];if(current.stats.config_version==5)++current.stats.combined_program_creations[slot];
+    if(current.stats.config_version==4&&slot<3)++current.stats.variant_creations[slot];
+    if(current.stats.config_version==5&&(slot==0||slot>=5))++current.stats.variant_creations[slot?slot-4:0];CountPrograms();return true;
 }
 }
 
@@ -401,9 +417,36 @@ bool InitializeV4(const MaterialShaderConfigV4::Config* config) noexcept{
         return InitializeCommon(common,4,nullptr,nullptr,6,nullptr,copy.program_paths,copy.selected_variant);
     }catch(...){Exception();return false;}
 }
+bool InitializeV5(const MaterialShaderConfigV5::Config* config,const wchar_t* trusted_native_report,MaterialShaderConfigV5::Layout layout) noexcept{
+    Guard guard;try{Lock lock(mutex);
+        if(current.stats.initialized_flags||current.stats.active_transactions||current.unrestored||current.transaction
+            ||!config||config->size!=24||config->version!=5)return false;
+        const auto copy=*config;if(!MaterialShaderConfigV5::Validate(copy))return false;
+        NativeEffectsContractV5::Resolved paths{};
+        if(NativeEffectsContractV5::Resolve(trusted_native_report,layout,paths,true)!=NativeEffectsContractV5::Error::None)return false;
+        Config common{};common.flags=Terrain|Leaf;common.render_width=copy.render_width;common.render_height=copy.render_height;
+        common.terrain_detail_scale=common.terrain_relief_scale=1.0f;wcscpy_s(common.report_path,paths.report_path);
+        return InitializeCommon(common,5,nullptr,nullptr,7,nullptr,nullptr,copy.selected_variant,paths.program_paths,copy.flags);
+    }catch(...){Exception();return false;}
+}
+bool InitializeV5(const MaterialShaderConfigV5::Config* config,const wchar_t* trusted_native_report) noexcept{
+    return InitializeV5(config,trusted_native_report,MaterialShaderConfigV5::Layout::PrivateCase);
+}
+bool ConfigureV5(const MaterialShaderConfigV5::Config* config) noexcept{
+    Guard guard;try{Lock lock(mutex);
+        if(!config||!MaterialShaderConfigV5::Validate(*config)||current.stats.config_version!=5||current.stats.initialized_flags!=(Terrain|Leaf)
+            ||config->render_width!=current.config.render_width||config->render_height!=current.config.render_height
+            ||current.stats.faulted||current.stats.active_transactions||current.unrestored||current.transaction
+            ||(current.thread&&current.thread!=GetCurrentThreadId()))return false;
+        if(config->flags==current.stats.enabled_flags&&config->selected_variant==current.stats.selected_variant)return true;
+        ClearFrame();current.stats.enabled_flags=config->flags;current.stats.selected_variant=config->selected_variant;
+        ++current.stats.enable_changes;current.stats.last_change_frame=current.stats.frames;
+        current.stats.sample_count=0;current.stats.samples.fill(Sample{});current.sample_counts.fill(0);EventReport();return true;
+    }catch(...){Exception();return false;}
+}
 bool SetVariant(DWORD index) noexcept{
     Guard guard;try{Lock lock(mutex);
-        if(current.stats.config_version!=4||!current.stats.initialized_flags||index>2||current.stats.faulted||current.stats.active_transactions||current.unrestored||current.transaction
+        if((current.stats.config_version!=4&&current.stats.config_version!=5)||!current.stats.initialized_flags||index>2||current.stats.faulted||current.stats.active_transactions||current.unrestored||current.transaction
             ||(current.thread&&current.thread!=GetCurrentThreadId()))return false;
         if(index==current.stats.selected_variant)return true;
         ClearFrame();current.stats.selected_variant=index;++current.stats.enable_changes;current.stats.last_change_frame=current.stats.frames;
@@ -417,7 +460,7 @@ bool SetEnabled(DWORD flags) noexcept{
             || (flags&&current.stats.faulted)
             || (current.thread&&current.thread!=GetCurrentThreadId()))return false;
         if(flags==current.stats.enabled_flags)return true;
-        if(current.stats.config_version==4)ClearFrame();else Clear();current.stats.enabled_flags=flags;++current.stats.enable_changes;current.stats.last_change_frame=current.stats.frames;
+        if(current.stats.config_version==4||current.stats.config_version==5)ClearFrame();else Clear();current.stats.enabled_flags=flags;++current.stats.enable_changes;current.stats.last_change_frame=current.stats.frames;
         current.stats.sample_count=0;current.stats.samples.fill(Sample{});current.sample_counts.fill(0);
         try{Report();}catch(...){++current.stats.report_failures;}return true;
     }catch(...){Exception();return false;}
@@ -445,20 +488,22 @@ void BeginDraw(IDirect3DDevice9* device,DrawTransaction* output) noexcept{
         ++current.stats.matched;if(!Context(device)){++current.stats.context_rejections;return;}
         DWORD blend=0;if(FAILED(device->GetRenderState(D3DRS_ALPHABLENDENABLE,&blend))||blend!=(role==1||role==2?1u:0u)){++current.stats.context_rejections;return;}
         DrawTransaction draw{};draw.device=device;draw.original_vertex=original_vertex;draw.original_pixel=original_pixel;draw.role=role+1;
-        if(role==3&&current.stats.config_version==4){if(current.stats.selected_variant>2){++current.stats.input_rejections;return;}draw.selected_variant=current.stats.selected_variant;}
+        if(role==3&&(current.stats.config_version==4||current.stats.config_version==5)){if(current.stats.selected_variant>2){++current.stats.input_rejections;return;}draw.selected_variant=current.stats.selected_variant;}
         if(role==0){draw.constant_count=2;draw.constants[0].stage=1;draw.constants[0].index=68;draw.constants[1].stage=1;draw.constants[1].index=69;
             if(!ReadConstant(device,draw.constants[0])||!ReadConstant(device,draw.constants[1])
                 ||!RiverPolicy(draw.constants[0].original.data(),draw.constants[1].original.data(),draw.constants[0].applied.data(),draw.constants[1].applied.data(),current.config.river_density_scale,current.config.river_reflection_scale)){++current.stats.input_rejections;return;}}
         if(role==1||role==2){draw.constant_count=1;draw.constants[0].stage=2;draw.constants[0].index=33;
             if(!ReadConstant(device,draw.constants[0])||!TerrainPolicy(draw.constants[0].original.data(),draw.constants[0].applied.data(),role==2,current.config.terrain_detail_scale,current.config.terrain_relief_scale)){++current.stats.input_rejections;return;}}
-        if(current.program_variant==3&&(role==1||role==2)&&!MacroInputs(device,role==2)){++current.stats.input_rejections;return;}
+        if((current.program_variant==3||current.program_variant==7)&&(role==1||role==2)&&!MacroInputs(device,role==2)){++current.stats.input_rejections;return;}
         // No unrelated/invalid draw can claim the device or render thread.
         current.device=device;current.thread=GetCurrentThreadId();
         Remember(vertex.value,1,vertex_mask);Remember(pixel.value,2,pixel_mask);
         current.active_vertex=vertex.release();current.active_pixel=pixel.release();current.stats.active_original_refs=2;
         PendingOriginals originals;Mutation mutation{draw,output};bool valid=true;
         if(role==3){
-            if(current.stats.config_version==4){for(unsigned i=0;i<3;++i)if(!PixelProgram(device,i,current.leaf_palette[i]))return;
+            if(current.stats.config_version==5){constexpr unsigned slots[3]={0,5,6};for(unsigned i=0;i<3;++i)if(!PixelProgram(device,slots[i],current.leaf_palette[i]))return;
+                draw.touched_pixel=1;valid=SUCCEEDED(device->SetPixelShader(current.leaf_palette[draw.selected_variant]));}
+            else if(current.stats.config_version==4){for(unsigned i=0;i<3;++i)if(!PixelProgram(device,i,current.leaf_palette[i]))return;
                 draw.touched_pixel=1;valid=SUCCEEDED(device->SetPixelShader(current.leaf_palette[draw.selected_variant]));}
             else if(current.stats.config_version==3){if(!PixelProgram(device,0,current.leaf_pixel))return;
                 draw.touched_pixel=1;valid=SUCCEEDED(device->SetPixelShader(current.leaf_pixel));}
@@ -466,7 +511,9 @@ void BeginDraw(IDirect3DDevice9* device,DrawTransaction* output) noexcept{
                 draw.touched_vertex=1;valid=SUCCEEDED(device->SetVertexShader(current.leaf));}}
         if(role==1||role==2){auto& pixel_shader=role==1?current.bump:current.parallax;const unsigned pixel_slot=role==1?1:2;
             auto& vertex_shader=role==1?current.bump_vertex:current.parallax_vertex;const unsigned vertex_slot=role==1?3:4;
-            const bool paired=current.stats.config_version==2;
+            const bool paired=current.stats.config_version==2||current.stats.config_version==5;
+            if(current.stats.config_version==5&&(!PixelProgram(device,1,current.bump)||!PixelProgram(device,2,current.parallax)
+                ||!VertexProgram(device,3,current.bump_vertex)||!VertexProgram(device,4,current.parallax_vertex)))return;
             // Prepare both objects before mutating either shader stage.
             if(paired&&!VertexProgram(device,vertex_slot,vertex_shader))return;
             if(!PixelProgram(device,pixel_slot,pixel_shader))return;
@@ -495,12 +542,12 @@ void EndFrame(IDirect3DDevice9* device) noexcept{Guard guard;try{Lock lock(mutex
 void Reset(IDirect3DDevice9* device) noexcept{Guard guard;try{Lock lock(mutex);if(current.device&&current.device!=device)return;if(!LifecycleReady())return;Clear();current.device=nullptr;++current.stats.resets;}catch(...){Exception();}}
 void Flush() noexcept{Guard guard;try{Lock lock(mutex);Report();}catch(...){Exception();}}
 void Shutdown() noexcept{Guard guard;try{Lock lock(mutex);if(!LifecycleReady())return;Clear();CloseFiles();if(current.algorithm){BCryptCloseAlgorithmProvider(current.algorithm,0);current.algorithm=nullptr;}current.stats.enabled_flags=0;current.stats.initialized_flags=0;current.stats.faulted=0;current.config.flags=0;current.device=nullptr;current.thread=0;Report();}catch(...){Exception();}}
-bool ReadStats(Stats* output) noexcept{Guard guard;try{Lock lock(mutex);if(!output||output->size!=sizeof(Stats)||output->version!=2)return false;*output=current.stats;return true;}catch(...){return false;}}
+bool ReadStats(Stats* output) noexcept{Guard guard;try{Lock lock(mutex);if(!output||output->size!=sizeof(Stats)||output->version!=3)return false;*output=current.stats;return true;}catch(...){return false;}}
 #ifdef S7_MATERIAL_EFFECTS_FIXTURE
 bool FixtureCompatibility(unsigned role,const unsigned char vertex[32],const unsigned char pixel[32],DWORD vertex_bytes,DWORD pixel_bytes,const unsigned char replacement[32]) noexcept{
     Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||role>=roles.size()||!vertex||!pixel)return false;std::memcpy(roles[role].vertex.hash.data(),vertex,32);std::memcpy(roles[role].pixel.hash.data(),pixel,32);roles[role].vertex.bytes=vertex_bytes;roles[role].pixel.bytes=pixel_bytes;if(replacement){std::memcpy(roles[role].replacement.data(),replacement,32);if(role){const unsigned slot=role==3?0:role;std::memcpy(programs[0][slot].hash.data(),replacement,32);programs[0][slot].bytes=0;fixture_program_override[0][slot]=true;}}fixture_override[role]=true;return true;}catch(...){return false;}}
 bool FixtureProgramCompatibility(unsigned version,unsigned slot,const unsigned char replacement[32],DWORD bytes) noexcept{
-    Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||version<1||version>6||slot>=5||!programs[version-1][slot].stage||!replacement||bytes<12||bytes>MaxCode||bytes%4)return false;
+    Guard guard;try{Lock lock(mutex);if(current.stats.initialized_flags||version<1||version>7||slot>=7||!programs[version-1][slot].stage||!replacement||bytes<12||bytes>MaxCode||bytes%4)return false;
         std::memcpy(programs[version-1][slot].hash.data(),replacement,32);programs[version-1][slot].bytes=bytes;fixture_program_override[version-1][slot]=true;return true;
     }catch(...){return false;}}
 #endif

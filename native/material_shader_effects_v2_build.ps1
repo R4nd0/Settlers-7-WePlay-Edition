@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$SourceDirectory='',[string]$ConfigPath='',[string]$ConfigV1Path='',[string]$ConfigV3Path='',[string]$ConfigV4Path='')
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$SourceDirectory='',[string]$ConfigPath='',[string]$ConfigV1Path='',[string]$ConfigV3Path='',[string]$ConfigV4Path='',[string]$ConfigV5Path='')
 $ErrorActionPreference='Stop'
 if (!$SourceDirectory) {$SourceDirectory=$PSScriptRoot}
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -11,6 +11,7 @@ if ($ConfigPath) {$ConfigPath=[IO.Path]::GetFullPath($ConfigPath);if(!$ConfigPat
 if ($ConfigV1Path) {$ConfigV1Path=[IO.Path]::GetFullPath($ConfigV1Path);if(!$ConfigV1Path.StartsWith($work,[StringComparison]::OrdinalIgnoreCase) -or !(Test-Path -LiteralPath $ConfigV1Path -PathType Leaf)){throw 'Use an owned private work ConfigV1 file.'}}
 if ($ConfigV3Path) {$ConfigV3Path=[IO.Path]::GetFullPath($ConfigV3Path);if(!$ConfigV3Path.StartsWith($work,[StringComparison]::OrdinalIgnoreCase) -or !(Test-Path -LiteralPath $ConfigV3Path -PathType Leaf)){throw 'Use an owned private work ConfigV3 file.'}}
 if ($ConfigV4Path) {$ConfigV4Path=[IO.Path]::GetFullPath($ConfigV4Path);if(!$ConfigV4Path.StartsWith($work,[StringComparison]::OrdinalIgnoreCase) -or !(Test-Path -LiteralPath $ConfigV4Path -PathType Leaf)){throw 'Use an owned private work ConfigV4 file.'}}
+if ($ConfigV5Path) {$ConfigV5Path=[IO.Path]::GetFullPath($ConfigV5Path);if(!$ConfigV5Path.StartsWith($work,[StringComparison]::OrdinalIgnoreCase) -or !(Test-Path -LiteralPath $ConfigV5Path -PathType Leaf)){throw 'Use an owned private work ConfigV5 file.'}}
 $finder=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 $installation=& $finder -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (!$installation) {throw 'Visual Studio C++ Build Tools are required.'}
@@ -21,8 +22,11 @@ foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::S
 New-Item -ItemType Directory -Path $output | Out-Null
 $paths=@{}
 foreach($name in @('material_shader_effects.cpp','material_shader_effects.h','material_shader_effects_fixture.cpp','material_shader_config_v2.h','material_shader_config_v3.h','material_shader_config_v4.h','terrain_macro_guard.h')) {$paths[$name]=Join-Path $source $name}
+foreach($name in @('material_shader_config_v5.h','material_shader_effects_contract_v5.h')){$paths[$name]=Join-Path $source $name}
 $paths['material_shader_effects_contract_v4.h']=Join-Path $source 'material_shader_effects_contract_v4.h'
 $paths['material_shader_effects_v4_fixture.cpp']=Join-Path $PSScriptRoot 'material_shader_effects_v4_fixture.cpp'
+$paths['material_shader_effects_v5_fixture.cpp']=Join-Path $PSScriptRoot 'material_shader_effects_v5_fixture.cpp'
+$paths['material_shader_effects_v5_load_fixture.cpp']=Join-Path $PSScriptRoot 'material_shader_effects_v5_load_fixture.cpp'
 $paths['material_shader_effects_v4_load_fixture.cpp']=Join-Path $PSScriptRoot 'material_shader_effects_v4_load_fixture.cpp'
 $fixture=Join-Path $PSScriptRoot 'material_shader_effects_v2_fixture.cpp'
 if(Test-Path -LiteralPath $fixture){$paths['material_shader_effects_v2_fixture.cpp']=$fixture}
@@ -54,6 +58,13 @@ try {
     if($LASTEXITCODE){throw 'Palette CPU fixture compile failed.'}
     & (Join-Path $output 'material_shader_effects_v4_fixture.exe') (Join-Path $output 'palette-fixture')
     if($LASTEXITCODE){throw 'Palette CPU fixture failed.'}
+    & cl.exe @flags /DS7_MATERIAL_EFFECTS_FIXTURE material_shader_effects.cpp material_shader_effects_v5_fixture.cpp /Fe:material_shader_effects_v5_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    if($LASTEXITCODE){throw 'CombinedV5 CPU fixture compile failed.'}
+    & (Join-Path $output 'material_shader_effects_v5_fixture.exe') (Join-Path $output 'combined-fixture')
+    if($LASTEXITCODE){throw 'CombinedV5 CPU fixture failed.'}
+    & cl.exe @flags material_shader_effects.cpp material_shader_effects_v5_load_fixture.cpp /Fe:material_shader_effects_v5_load_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    if($LASTEXITCODE){throw 'CombinedV5 production-load compile failed.'}
+    if($ConfigV5Path){& (Join-Path $output 'material_shader_effects_v5_load_fixture.exe') $ConfigV5Path;if($LASTEXITCODE){throw 'CombinedV5 production-load failed.'}}
     & cl.exe @flags material_shader_effects.cpp material_shader_effects_v4_load_fixture.cpp /Fe:material_shader_effects_v4_load_fixture.exe /link bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Production V4 Host+module load compile failed.'}
     if($ConfigV4Path){& (Join-Path $output 'material_shader_effects_v4_load_fixture.exe') $ConfigV4Path;if($LASTEXITCODE){throw 'Production V4 Host+module load failed.'}}

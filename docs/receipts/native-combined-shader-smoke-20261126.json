@@ -1,0 +1,152 @@
+{
+  "format": "s7-native-combined-shader-smoke-v1",
+  "date": "2026-11-26",
+  "platform": "Ubisoft History",
+  "source_set": "effects-v14",
+  "runtime_source_count": 47,
+  "dll_sha256": "0f65dcf1298aab425942979cfbf9c9b969ee6140510dc1f79ced8a488460a672",
+  "initialize_wire_bytes": 3136,
+  "material_wire_bytes": 24,
+  "overlay_wire_bytes": 16,
+  "diagnostic_scope": 1,
+  "render_size": [
+    3840,
+    2160
+  ],
+  "output_size": [
+    1920,
+    1080
+  ],
+  "normal_clock_ms_observed": 100,
+  "one_owned_game_process": true,
+  "actual_user_tab_choices": true,
+  "frame": 10200,
+  "simultaneous_family_proofs": [
+    {
+      "profile": 1,
+      "applied_valid": 1,
+      "applied_enabled": 1,
+      "applied_variant": 2,
+      "pending": 0,
+      "pending_enabled": 1,
+      "pending_variant": 2
+    },
+    {
+      "profile": 2,
+      "applied_valid": 1,
+      "applied_enabled": 1,
+      "applied_variant": 1,
+      "pending": 0,
+      "pending_enabled": 1,
+      "pending_variant": 1
+    },
+    {
+      "profile": 3,
+      "applied_valid": 1,
+      "applied_enabled": 1,
+      "applied_variant": 0,
+      "pending": 0,
+      "pending_enabled": 1,
+      "pending_variant": 0
+    },
+    {
+      "profile": 4,
+      "applied_valid": 1,
+      "applied_enabled": 1,
+      "applied_variant": 0,
+      "pending": 0,
+      "pending_enabled": 1,
+      "pending_variant": 0
+    },
+    {
+      "profile": 5,
+      "applied_valid": 1,
+      "applied_enabled": 1,
+      "applied_variant": 1,
+      "pending": 0,
+      "pending_enabled": 1,
+      "pending_variant": 1
+    }
+  ],
+  "requested_preset": [
+    {
+      "profile": 1,
+      "enabled": 1,
+      "variant": 2
+    },
+    {
+      "profile": 2,
+      "enabled": 1,
+      "variant": 1
+    },
+    {
+      "profile": 3,
+      "enabled": 1,
+      "variant": 0
+    },
+    {
+      "profile": 4,
+      "enabled": 1,
+      "variant": 0
+    },
+    {
+      "profile": 5,
+      "enabled": 1,
+      "variant": 1
+    }
+  ],
+  "preset_revision": 31,
+  "automatic_candidate_file_observed": true,
+  "material": {
+    "config_version": 5,
+    "enabled_flags": 6,
+    "faulted": 0,
+    "shader_creations": 70,
+    "retained_programs": 7,
+    "shader_failures": 0,
+    "set_failures": 0,
+    "restore_failures": 0,
+    "failed_draws": 0,
+    "active_transactions": 0,
+    "active_original_refs": 0,
+    "combined_program_creations": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+    ],
+    "combined_program_sha256": [
+      "1b825358f46c39b04b1d540738f4be5e862bfe6627b8545ab092c471d259477c",
+      "c2ae22a6739e071774edd071870e6dc8fd058b5bf6eec6490bc1a4603fea2fa3",
+      "d0d082bbb9b8d2de1388b790165bcebc5fda571d88895db3e8b36004bf2e52fa",
+      "da8154477a4fd3c44ace75d9c42d6d3714dc196c9c0f30fc332f06493539a21b",
+      "b421d294516b89d0e0de90af56982b76ad8d196808c2d548ed251a3312313c7d",
+      "284d5c84ee6700039ee818fe7f063b2b90536beac45e261a5b3e0cf8a6d1746a",
+      "b869fe375b76509f60a48d34bde83565d28c0416aca85f27c8a445045cb6a51f"
+    ]
+  },
+  "overlay_failures": 0,
+  "render_unsafe": 0,
+  "gpu": {
+    "authored_only": true,
+    "wall_seconds": 8.9242497,
+    "all_seven_programs": true,
+    "actual_leaf_terrain_water_pixels": true,
+    "other_groups_preserved": true,
+    "actual_reset": true,
+    "native_report_to_candidate_file_roundtrip": true
+  },
+  "limitations": [
+    "Live user session still open at capture; final save/exit/preservation checks pending.",
+    "Current choices are a candidate, not the user final optical acceptance.",
+    "Gold and Steam combined gameplay qualification remains open.",
+    "Performance, known exit crash, black streak cause and final release package remain open."
+  ],
+  "performance_measured": false,
+  "matched_image_comparison": false,
+  "user_final_approval": false,
+  "release_qualified": false
+}

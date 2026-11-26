@@ -85,6 +85,19 @@ int main(){using namespace ShaderDebugOverlay;try{
     Check(!QueueClick(1,1,1920,1080)&&!HitTest(1,1,1920,1080)&&HitTest(20,200,1920,1080),"panel bounds");
     for(DWORD row=0;row<4;++row){Check(QueueClick(40,static_cast<LONG>(60+row*32+1),1920,1080),"row input");Selection selection{};
         Check(ConsumeSelection(&selection)&&selection.enabled==(row?1u:0u)&&selection.variant==(row?row-1:0u),"four exact choices");Check(!ConsumeSelection(&selection),"consume once");}
+    Check(Status{}.profile==Profile::Water&&Selection{}.profile==Profile::Water,"legacy defaults remain Water");
+    for(DWORD family=1;family<=5;++family){const auto profile=static_cast<Profile>(family);
+        for(DWORD row=0;row<4;++row){
+            const bool available=(profile==Profile::Terrain||profile==Profile::Shadow)?row<=1:profile==Profile::Ambient?row<=2:true;
+            Check(HitTest(40,static_cast<LONG>(60+row*32+1),1920,1080,profile),"disabled rows remain inside panel hitbox");
+            Check(QueueClick(40,static_cast<LONG>(60+row*32+1),1920,1080,profile)==available,"only supported family choices queue");
+            Selection selection{};
+            if(available)Check(ConsumeSelection(&selection)&&selection.profile==profile&&selection.enabled==(row?1u:0u)
+                &&selection.variant==(row?row-1:0u),"exact family tag and normalized choice");
+            else Check(!ConsumeSelection(&selection),"disabled row cannot enqueue fallback choice");
+        }
+    }
+    Check(!QueueClick(40,70,1920,1080,static_cast<Profile>(99))&&!HitTest(40,70,1920,1080,static_cast<Profile>(99)),"unknown family refuses input");
     SetLastError(0x7357);Check(ShaderDebugOverlay::Draw(device,output,1920,1080,status),"actual renderer through authored COM");Check(GetLastError()==0x7357,"LastError preserved");Restored();Check(texture.refs==1,"font cached");
     // Every partial setter failure and post-mutation C++ exception must restore.
     const int setup_sets=d.setup_sets;
@@ -97,6 +110,49 @@ int main(){using namespace ShaderDebugOverlay;try{
     d.fail_apply=false;Check(RetryRestore(device)&&!HasUnsafe(),"explicit owner retry");Restored();
     d.query_fail=1;Check(!ShaderDebugOverlay::Draw(device,output,1920,1080,status),"failed getter after outref");Restored();
     d.throw_query=true;Check(!ShaderDebugOverlay::Draw(device,output,1920,1080,status),"throw getter after outref");Restored();d.query_fail=-1;d.throw_query=false;
+    for(DWORD family=2;family<=5;++family){status.profile=static_cast<Profile>(family);status.applied_enabled=1;
+        status.applied_variant=family==5?1u:0u;status.pending=1;status.pending_enabled=1;status.pending_variant=status.applied_variant;
+        Check(ShaderDebugOverlay::Draw(device,output,1920,1080,status),"all supported profile labels render through same safe pipeline");Restored();}
+    status.profile=Profile::Shadow;status.applied_variant=1;status.pending_variant=0;
+    Check(!ShaderDebugOverlay::Draw(device,output,1920,1080,status),"unavailable shadow variant cannot claim applied");Restored();
+    Selection discard{};for(unsigned i=0;i<6&&ConsumeSelection(&discard);++i){}
+    Preset preset{};std::uint64_t revision=0;Check(ReadPreset(&preset,&revision)&&revision>0,"read default combined preset");
+    Check(preset.values[0].enabled==1&&!preset.values[0].variant,"combined defaults accepted Water B");
+    for(unsigned i=1;i<5;++i)Check(!preset.values[i].enabled&&!preset.values[i].variant,"other families default Original");
+    const DWORD rows[]={3,2,1,1,2};
+    for(DWORD i=0;i<5;++i){const auto profile=static_cast<Profile>(i+1);Preset before{};std::uint64_t before_revision=0;
+        Check(ReadPreset(&before,&before_revision)&&QueueTab(profile)&&SelectedTab()==profile,"tab selected UI only");
+        Preset after{};std::uint64_t after_revision=0;Check(ReadPreset(&after,&after_revision)&&before_revision==after_revision
+            &&!std::memcmp(&before,&after,sizeof(Preset)),"tab does not mutate feature preset or revision");
+        Check(QueueClick(40,static_cast<LONG>(92+rows[i]*32+1),1920,1080,Profile::All),"combined row click queues family");
+    }
+    DWORD changed=0;Check(ConsumePreset(&preset,&changed,&revision)&&changed==31,"atomic snapshot retains all five rapid choices");
+    for(DWORD i=0;i<5;++i)Check(preset.values[i].profile==static_cast<Profile>(i+1)&&preset.values[i].enabled==1
+        &&preset.values[i].variant==rows[i]-1,"chosen family values survive tab changes");
+    Check(!ConsumePreset(&preset,&changed),"combined dirty mask consumed once");
+    const auto retained=preset;const auto retained_revision=revision;
+    for(unsigned invalid=0;invalid<4;++invalid){auto bad=retained;
+        if(invalid==0)bad.values[3].variant=1;if(invalid==1)bad.values[4].variant=2;
+        if(invalid==2)bad.values[2].profile=Profile::Leaf;if(invalid==3){bad.values[0].enabled=0;bad.values[0].variant=2;}
+        Check(!SetPreset(&bad,true),"entire invalid preset rejected before any mutation");
+        Preset observed{};std::uint64_t observed_revision=0;Check(ReadPreset(&observed,&observed_revision)&&observed_revision==retained_revision
+            &&!std::memcmp(&observed,&retained,sizeof(Preset)),"invalid persistence input retains complete prior state");
+    }
+    Check(!QueueTab(Profile::All)&&!QueueTab(static_cast<Profile>(99)),"tabs accept only real families");
+    Check(QueueTab(Profile::Shadow)&&!QueueClick(40,92+2*32+1,1920,1080,Profile::All),"combined disabled shadow row cannot queue");
+    Check(!ConsumePreset(&preset,&changed),"disabled row and tab alone create no feature event");
+    Preset defaults{};Check(SetPreset(&defaults,false)&&!ConsumePreset(&preset,&changed),"restore model without applying shaders");
+    Check(QueueApplyAll(),"apply all preview event");
+    for(DWORD i=0;i<5;++i){Selection event{};Check(ConsumeSelection(&event)&&event.profile==static_cast<Profile>(i+1)
+        &&event.enabled==(i?0u:1u)&&!event.variant,"per-family queues retain independent selected values");}
+    Check(!ConsumeSelection(&discard),"all five apply events consumed");
+    MultiStatus multi{};for(auto& item:multi.families)item.applied_valid=1;multi.families[0].applied_enabled=1;
+    for(DWORD i=1;i<=5;++i){Check(QueueTab(static_cast<Profile>(i))&&DrawAll(device,output,1920,1080,multi),"all tabs render with independent Core status");Restored();}
+    Check(HitTest(430,300,1920,1080,Profile::All)&&!HitTest(430,300,1920,1080,Profile::Water),"combined compact panel bounds");
+    Check(QueueClick(25+3*80,53,1920,1080,Profile::All)&&SelectedTab()==Profile::Shadow,"physical tab click changes only selected tab");
+    Check(!ConsumePreset(&preset,&changed),"physical tab click creates no shader event");
+    Check(QueueClick(40,240,1920,1080,Profile::All)&&ConsumePreset(&preset,&changed)&&changed==31,"physical ApplyAll button snapshots current preset");
     Check(Reset(device)&&texture.refs==0,"external Release/Reset clears parent-retaining font");Check(Shutdown(),"quiescent shutdown");
+    Check(ReadPreset(&preset)&&!std::memcmp(&preset,&defaults,sizeof(Preset)),"shutdown retains final choice model for last report");
     std::printf("{\"authored_cpu_checks\":%u,\"passed\":true,\"gpu_or_game\":false}\n",checks);return 0;
 }catch(const std::exception& error){std::fprintf(stderr,"overlay fixture: %s\n",error.what());return 1;}catch(...){std::fprintf(stderr,"overlay fixture: exception\n");return 1;}}
