@@ -163,7 +163,9 @@ class RoomBinding:
             raise ValueError('crossplay_configuration_invalid')
 
     def environment(self, root, executable, inherited):
+        # The room adapter compares this handoff with the original map path verbatim.
+        map_path = self.map_path.replace('/', '\\')
         return _environment(self, root, executable, inherited, 'WEPLAY_CROSSPLAY_ROOM_V2',
                             {'SLOT': str(self.slot), 'HOST_SLOT': str(self.host_slot),
-                             'GENERATION': str(self.generation), 'MAP': self.map_path, 'CAPACITY': str(self.capacity),
+                             'GENERATION': str(self.generation), 'MAP': map_path, 'CAPACITY': str(self.capacity),
                              'MAP_SLOTS': ''.join(str(slot) for slot in self.map_slots)})

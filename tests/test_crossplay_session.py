@@ -67,6 +67,7 @@ class CrossplaySessionTests(unittest.TestCase):
             self.assertEqual(result[prefix], '1')
             self.assertEqual(result[prefix + '_HOST_SLOT'], str(host))
             self.assertEqual(result[prefix + '_MAP_SLOTS'], ''.join(map(str, seats)))
+            self.assertEqual(result[prefix + '_MAP'], r'Maps\Skirmish\Monhaim')
             self.assertEqual(result[prefix + '_PROFILE'], str(self.profile))
             self.assertEqual(result[prefix + '_KEY'], supplied.key.hex())
             self.assertNotIn('WEPLAY_CROSSPLAY_V1_KEY', result)
