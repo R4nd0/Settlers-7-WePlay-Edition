@@ -31,18 +31,31 @@ class GraphicsControllerTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())['guardian'],guardian)
             self.assertEqual(report.last,(1,0,False,False))
 
-    def test_live_memory_report_keeps_persistent_publication_failure_fatal(self):
+    def test_live_memory_report_records_persistent_publication_failure_without_stopping_diagnostics(self):
         from types import SimpleNamespace
         guardian=dict(samples=1,max_pressure=0,monitor_failed=False,recovery_required=False)
         collision=PermissionError('persistent denial');collision.winerror=5
         with tempfile.TemporaryDirectory() as root:
             report=game.LiveMemoryReport(Path(root)/'memory-live.private.json',123,'a'*64)
             with patch.object(game.os,'replace',side_effect=collision) as replace,patch.object(game.time,'sleep') as sleep:
-                with self.assertRaises(PermissionError):
-                    report.publish(SimpleNamespace(snapshot=lambda:guardian.copy()))
+                self.assertFalse(report.publish(SimpleNamespace(snapshot=lambda:guardian.copy())))
                 self.assertEqual(replace.call_count,10)
                 self.assertEqual(sleep.call_count,9)
             self.assertIsNone(report.last)
+            self.assertEqual(report.publication_failures,1)
+
+    def test_failed_monitor_still_publishes_fresh_owner_heartbeat_and_truthful_failure(self):
+        from types import SimpleNamespace
+        guardian=dict(samples=0,max_pressure=2,monitor_failed=True,recovery_required=True)
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'memory-live.private.json';report=game.LiveMemoryReport(path,123,'a'*64)
+            with patch.object(game.time,'monotonic_ns',side_effect=(10_000_000_000,12_000_000_000)):
+                self.assertTrue(report.publish(SimpleNamespace(snapshot=lambda:guardian.copy())))
+                self.assertTrue(report.publish(SimpleNamespace(snapshot=lambda:guardian.copy())))
+            record=json.loads(path.read_text())
+            self.assertEqual(record['sampled_monotonic_ns'],12_000_000_000)
+            self.assertEqual(record['guardian'],guardian)
+            self.assertEqual(record['memory_policy'],'observe_only')
 
     def test_leaf_hemisphere_excludes_mixed_or_undeclared_material_modes(self):
         valid=dict(hook=Path('never-loaded.dll'),high_quality=True,material_config_version=2,

@@ -61,7 +61,7 @@ def run(build,renderer,program,output):
     import isolated_process,memory_guard
     if any(p.exe.casefold()=='settlers7r.exe' for p in isolated_process.Windows().processes()):
         raise RuntimeError('No concurrent game is permitted for this GPU fixture')
-    memory_guard.require_host_headroom()
+    memory_guard.observe_host_memory()
     from tools.graphics_lab.crash_watch import Native
     from tools.graphics_lab.load_hook import file_lease
     native=Native();output.mkdir()

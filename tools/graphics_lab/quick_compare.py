@@ -61,10 +61,10 @@ def memory_healthy(value, files, now_ns):
             or type(stamp) is not int or not 0 <= now_ns - stamp <= 5_000_000_000):
         raise ValueError('Missing, stale or foreign owner memory heartbeat.')
     state = value.get('guardian')
-    if (not isinstance(state, dict) or state.get('monitor_failed') is not False
-            or state.get('recovery_required') is not False or type(state.get('max_pressure')) is not int
-            or state['max_pressure'] != 0 or type(state.get('samples')) is not int or state['samples'] <= 0):
-        raise ValueError('The unchanged memory guardian is not healthy and pressure-free.')
+    if (not isinstance(state, dict) or type(state.get('monitor_failed')) is not bool
+            or type(state.get('recovery_required')) is not bool or type(state.get('max_pressure')) is not int
+            or not 0<=state['max_pressure']<=3 or type(state.get('samples')) is not int or state['samples']<0):
+        raise ValueError('Malformed memory observation; pressure itself does not block diagnostics.')
     return value
 
 

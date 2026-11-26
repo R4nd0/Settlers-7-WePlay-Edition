@@ -129,7 +129,7 @@ class Tests(unittest.TestCase):
         self.session.capture_cost=20;result=self.run_case()
         self.assertFalse(result['comparison_complete']);self.assertEqual(result['error']['type'],'TimeoutError')
         self.assertTrue(result['final_off_acknowledged']);self.assertLessEqual(result['batch_seconds'],35)
-    def test_stale_foreign_pressure_or_fault_heartbeat_rejected(self):
+    def test_pressure_and_failed_monitor_are_observations_while_foreign_or_stale_owner_is_rejected(self):
         files={'owned':{'pid':123},'record_sha256':'a'*64}
         value={'format':'s7-memory-live-v1','pid':123,'owned_record_sha256':'a'*64,'sampled_monotonic_ns':10_000_000_000,
                'guardian':{'monitor_failed':False,'recovery_required':False,'max_pressure':0,'samples':1}}
@@ -138,7 +138,7 @@ class Tests(unittest.TestCase):
             with self.subTest(change=change),self.assertRaises(ValueError):q.memory_healthy({**value,**change},files,11_000_000_000)
         for key,new in (('monitor_failed',True),('recovery_required',True),('max_pressure',1),('samples',0)):
             changed=deepcopy(value);changed['guardian'][key]=new
-            with self.subTest(key=key),self.assertRaises(ValueError):q.memory_healthy(changed,files,11_000_000_000)
+            with self.subTest(key=key):q.memory_healthy(changed,files,11_000_000_000)
     def test_frame_proof_rejects_fault_stale_frame_wrong_sha_and_unbalanced_draws(self):
         q.capture_proof(metadata(),0,4,q.PROGRAMS[0],'c'*64)
         for key,value in (('effects_drawn_frame',9),('effects_variant_frame_restorations',1),('effects_unsafe',1)):

@@ -9,7 +9,7 @@ class LaunchTests(unittest.TestCase):
         allowed = patch.object(launch,'GAMEPLAY_QUALIFIED',True)
         allowed.start()
         self.addCleanup(allowed.stop)
-        headroom=patch.object(launch.memory_guard,'require_host_headroom')
+        headroom=patch.object(launch.memory_guard,'observe_host_memory')
         headroom.start()
         self.addCleanup(headroom.stop)
 
@@ -23,14 +23,14 @@ class LaunchTests(unittest.TestCase):
             package.assert_not_called()
             spawn.assert_not_called()
 
-    def test_low_host_memory_is_rejected_before_spawning_any_game(self):
+    def test_low_host_memory_does_not_refuse_diagnostic_spawn(self):
         root=Path('work/fixture').resolve()
         proxy=launch.GuardedSubprocess(root,root/'memory.json',False)
-        with patch.object(launch.memory_guard,'require_host_headroom',side_effect=RuntimeError('low headroom')), \
+        with patch.object(launch.memory_guard,'observe_host_memory',return_value={'host_commit_free':0}), \
+             patch.object(launch.memory_guard,'DiagnosticSentinel'), \
              patch.object(launch.subprocess,'Popen') as spawn:
-            with self.assertRaises(RuntimeError):
-                proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin')
-            spawn.assert_not_called()
+            self.assertIs(proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin'),spawn.return_value)
+            spawn.return_value.terminate.assert_not_called()
 
     def test_service_is_not_instrumented_and_only_exact_game_child_gets_probe(self):
         root = Path('work/fixture').resolve()
@@ -38,26 +38,27 @@ class LaunchTests(unittest.TestCase):
         child, sentinel = Mock(), Mock()
         with patch.object(launch.subprocess,'Popen',return_value=child) as spawn, \
              patch.object(launch.memory_guard,'Probe') as probe, \
-             patch.object(launch.memory_guard,'Sentinel',return_value=sentinel) as watch:
+             patch.object(launch.memory_guard,'DiagnosticSentinel',return_value=sentinel) as watch:
             proxy.Popen(['service.exe'])
             probe.assert_not_called()
             proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin')
-            probe.assert_called_once_with(child,root/'Base/Bin/Settlers7R.exe')
+            probe.assert_not_called()
+            self.assertEqual(watch.call_args.args[2],root/'Base/Bin/Settlers7R.exe')
             self.assertTrue(watch.call_args.kwargs['sticky'])
             sentinel.start.assert_called_once()
             proxy.close()
             sentinel.close.assert_called_once()
 
-    def test_monitor_initialization_failure_stops_only_the_new_owned_child(self):
+    def test_monitor_initialization_failure_does_not_stop_the_owned_child(self):
         root = Path('work/fixture').resolve()
         proxy = launch.GuardedSubprocess(root,root/'memory.json',False)
         child = Mock(); child.poll.return_value = None
         with patch.object(launch.subprocess,'Popen',return_value=child), \
              patch.object(launch.memory_guard,'Probe',side_effect=OSError('unavailable')):
-            with self.assertRaises(RuntimeError):
-                proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin')
-        child.terminate.assert_called_once()
-        child.wait.assert_called_once_with(timeout=10)
+            self.assertIs(proxy.Popen([str(root/'Base/Bin/Settlers7R.exe')],cwd=root/'Base/Bin'),child)
+            self.assertTrue(proxy.sentinel.snapshot()['monitor_failed'])
+        child.terminate.assert_not_called()
+        child.wait.assert_not_called()
 
     def test_wrong_game_working_directory_is_rejected_before_spawn(self):
         root = Path('work/fixture').resolve()

@@ -62,14 +62,8 @@ def main():
     (args.output/'guards.private.json').write_text(json.dumps(result, indent=2))
     sources = {p.name: sha(p) for p in Path(__file__).parent.iterdir() if p.is_file()}
     (args.output/'source-checkpoint.private.json').write_text(json.dumps(sources, indent=2))
-    memory = memory_guard.host_memory()
+    memory = memory_guard.observe_host_memory()
     (args.output/'preflight-memory.private.json').write_text(json.dumps(memory, indent=2))
-    try:
-        memory_guard.require_host_headroom(memory)
-    except memory_guard.HostMemoryError:
-        (args.output/'blocked.private.json').write_text(json.dumps(dict(reason='host-memory',
-            required_free_ram_and_commit=4096*1024*1024, deployment_started=False, game_started=False)))
-        raise
     names = ('uplay_r1_loader.dll', 'steam_api.dll')
     pins = {}
     for name in names:

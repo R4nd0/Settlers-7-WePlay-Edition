@@ -101,20 +101,14 @@ class GuardedSubprocess:
         is_game = isinstance(command, list) and command == [str(executable)]
         if is_game:
             require_qualified(False)
-            memory_guard.require_host_headroom()
+            memory_guard.observe_host_memory()
         if is_game and (args or Path(kwargs.get('cwd', '')).resolve() != executable.parent):
             raise ValueError('Unerwarteter Spielstart fuer die Speicherpruefung.')
         child = subprocess.Popen(command, *args, **kwargs)
         if is_game:
-            try:
-                self.sentinel = memory_guard.Sentinel(child,self.report,
-                    memory_guard.Probe(child,executable),sticky=self.sticky)
-                self.sentinel.start()
-            except BaseException:
-                # This is the newly created, owned Popen HANDLE, never a PID search.
-                if child.poll() is None:
-                    child.terminate(); child.wait(timeout=10)
-                raise RuntimeError('Spielstart ohne funktionierende Speicherpruefung abgebrochen.') from None
+            self.sentinel = memory_guard.DiagnosticSentinel(child,self.report,
+                executable,sticky=self.sticky)
+            self.sentinel.start()
         return child
 
     def close(self):
@@ -142,7 +136,7 @@ def run(args,root):
     if Path(sys.executable).resolve() != content.plain(root / 'Runtime/python/python.exe'):
         raise ValueError('Bitte den Python-Starthelfer dieser Testkopie verwenden.')
     if not args.preflight:
-        memory_guard.require_host_headroom()
+        memory_guard.observe_host_memory()
     prepare.package(args.archive)
     receipt_path = content.plain(root / 'd3d11-experiment.json')
     if receipt_path.stat().st_size > 4096:
@@ -158,7 +152,7 @@ def run(args,root):
     else:
         preferences = settings.read_defaults(original_options)
     report = content.plain(root / 'LocalData/memory-summary.json')
-    recovery = memory_guard.recovery_required(report)
+    recovery = False  # Diagnostic memory observations do not change the tested graphics recipe.
     preferences = settings.conservative(preferences,recovery)
     cards = enumerate_adapters()
     ordinal = args.adapter

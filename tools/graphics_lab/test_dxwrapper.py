@@ -158,7 +158,7 @@ class Tests(unittest.TestCase):
         build, _ = self.fixture_build()
         output = self.root / 'work/fixture-results'
         completed = [self.completed(mode) for mode in d.MODES]
-        with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'require_host_headroom'), \
+        with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'observe_host_memory'), \
                 patch.object(d.subprocess, 'run', side_effect=completed) as run:
             results = d.device_fixture(build, output, self.package)
         self.assertEqual(len(results), 3)
@@ -206,7 +206,7 @@ class Tests(unittest.TestCase):
     def test_device_runner_reports_failure_after_preserving_all_mode_results(self):
         build, _ = self.fixture_build()
         output = self.root / 'work/failed-fixture-results'
-        with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'require_host_headroom'), \
+        with patch.object(game, 'ROOT', self.root), patch.object(game.memory_guard, 'observe_host_memory'), \
                 patch.object(d.subprocess, 'run', return_value=self.completed('native')):
             with self.assertRaisesRegex(RuntimeError, 'validation failed'):
                 d.device_fixture(build, output, self.package)

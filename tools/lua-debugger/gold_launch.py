@@ -152,7 +152,7 @@ def run(args, helpers):
                 raise RuntimeError('Gold diagnostic copy already running')
         finally:
             observer.k.CloseHandle(handle)
-    memory_guard.require_host_headroom()
+    memory_guard.observe_host_memory()
     output.mkdir()
     before = snapshot(profile)
     backup(profile, output/'before/Profile', before)
@@ -185,7 +185,7 @@ def run(args, helpers):
         (output/'owned.private.json').write_text(json.dumps(dict(pid=game.pid, parent=os.getpid(), path=str(exe), sha256=pin,
             native_adapter_sha256=digest(dll), profile=str(profile)), indent=2))
         entry.confirm(game); initialized = True
-        sentinel = memory_guard.Sentinel(game, output/'memory.private.json', memory_guard.Probe(game, exe)); sentinel.start()
+        sentinel = memory_guard.DiagnosticSentinel(game, output/'memory.private.json', exe); sentinel.start()
         print(json.dumps(dict(event='debugger-launched', version='gold', pid=game.pid, native_entry_restored=True)), flush=True)
         if args.self_test:
             result = adapter.selftest()

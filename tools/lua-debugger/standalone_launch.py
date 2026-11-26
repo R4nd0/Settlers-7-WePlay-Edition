@@ -31,7 +31,7 @@ def run(args, helpers):
     # spending that wait on controller setup inside the attachment callback.
     import frida
     frida.get_local_device()
-    memory_guard.require_host_headroom()
+    memory_guard.observe_host_memory()
     documents = C.create_unicode_buffer(32768)
     if C.windll.shell32.SHGetFolderPathW(None,5,None,0,documents) != 0:
         raise RuntimeError('Cannot resolve Windows Documents')
@@ -81,7 +81,7 @@ def run(args, helpers):
         game = platform.launch(root,environment=env,arguments=arguments,on_initialized=attach)
         (output/'owned.private.json').write_text(json.dumps(dict(pid=game.pid,parent=os.getpid(),path=str(exe),
             sha256=digest(exe),kernel_isolation=game.kernel_isolation),indent=2))
-        sentinel = memory_guard.Sentinel(game,output/'memory.private.json',memory_guard.Probe(game,exe));sentinel.start()
+        sentinel = memory_guard.DiagnosticSentinel(game,output/'memory.private.json',exe);sentinel.start()
         print(json.dumps(dict(event='debugger-launched',pid=game.pid,portable=True)),flush=True)
         if args.self_test or marker_test:
             result = adapter.selftest()

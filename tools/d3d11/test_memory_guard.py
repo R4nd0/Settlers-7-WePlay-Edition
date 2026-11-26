@@ -318,5 +318,39 @@ class MemoryTests(unittest.TestCase):
         self.assertEqual(sentinel.summary['min_host_commit_free_mib'],900)
 
 
+class DiagnosticMemoryTests(unittest.TestCase):
+    def test_low_memory_is_recorded_without_preflight_refusal(self):
+        sample={'host_physical_free':0,'host_commit_free':0}
+        self.assertEqual(guard.observe_host_memory(sample),sample)
+        with patch.object(guard,'host_memory',side_effect=OSError('missing counter')):
+            self.assertIsNone(guard.observe_host_memory())
+
+    def test_probe_failure_is_truthful_and_never_discards_the_owned_child(self):
+        child=Mock();child.poll.return_value=None
+        with tempfile.TemporaryDirectory() as root,patch.object(guard,'Probe',side_effect=OSError('unavailable')):
+            observer=guard.DiagnosticSentinel(child,Path(root)/'memory.json',Path('owned.exe'),warn=Mock())
+            self.assertFalse(observer.start())
+            self.assertTrue(observer.snapshot()['monitor_failed'])
+            self.assertEqual(observer.snapshot()['samples'],0)
+            observer.close()
+            report=json.loads((Path(root)/'memory.json').read_text())
+            self.assertTrue(report['monitor_failed'])
+        child.terminate.assert_not_called();child.kill.assert_not_called();child.wait.assert_not_called()
+
+    def test_pressure_is_retained_while_diagnostic_lifecycle_completes(self):
+        child=Mock();child.poll.return_value=None
+        sample={k:v*guard.MIB for k,v in dict(private=1000,free=2000,largest=500,
+            host_physical_free=200,host_commit_free=64).items()}
+        probe=Mock();probe.sample.return_value=sample
+        with tempfile.TemporaryDirectory() as root,patch.object(guard,'Probe',return_value=probe):
+            observer=guard.DiagnosticSentinel(child,Path(root)/'memory.json',Path('owned.exe'),warn=Mock())
+            self.assertTrue(observer.start())
+            for _ in range(3):observer.observe(sample)
+            observer.close()
+            self.assertEqual(observer.snapshot()['max_pressure'],2)
+            self.assertTrue(observer.snapshot()['recovery_required'])
+        child.terminate.assert_not_called();child.kill.assert_not_called();child.wait.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -110,6 +110,16 @@ class HostMemoryError(RuntimeError):
         self.code = code
 
 
+def observe_host_memory(sample=None):
+    """Diagnostic preflight is telemetry only; never a start permission check."""
+    try:
+        return host_memory() if sample is None else sample
+    except Exception as error:
+        print(json.dumps(dict(event='diagnostic-memory-observation-unavailable',
+                              type=type(error).__name__)),flush=True)
+        return None
+
+
 class AddressScanTimeout(OSError):
     """An incomplete scan is discarded, never published as a measurement."""
 
@@ -409,3 +419,36 @@ class Sentinel:
             if self.child.poll() is None:
                 raise
             print('memory_summary_write_failed', flush=True)
+
+
+class DiagnosticSentinel(Sentinel):
+    """Observe owned diagnostic children without blocking or terminating them.
+
+    Retain actual pressure/failure measurements. Production Sentinel behavior
+    and production startup policy remain independent.
+    """
+    def __init__(self,child,path,executable,**kwargs):
+        class UnavailableProbe:
+            def __init__(self,error):self.error=error
+            def sample(self):raise self.error
+        try:probe=Probe(child,executable)
+        except Exception as error:probe=UnavailableProbe(error)
+        kwargs.setdefault('warn',lambda level: print(json.dumps(dict(
+            event='diagnostic-memory-observation',level=level,game_terminated=False)),flush=True))
+        super().__init__(child,path,probe,**kwargs)
+
+    def start(self):
+        try:
+            super().start()
+            return True
+        except Exception as error:
+            print(json.dumps(dict(event='diagnostic-memory-observation-unavailable',
+                                  type=type(error).__name__,game_terminated=False)),flush=True)
+            return False
+
+    def close(self):
+        try:super().close()
+        except Exception as error:
+            self.mark_failure('close',error)
+            print(json.dumps(dict(event='diagnostic-memory-observation-unavailable',
+                                  type=type(error).__name__,game_terminated=False)),flush=True)

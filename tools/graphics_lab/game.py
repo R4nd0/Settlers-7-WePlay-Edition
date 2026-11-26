@@ -155,13 +155,25 @@ class LiveMemoryReport:
     """Publish completed existing checks, without changing scanning or policy."""
     def __init__(self,path,pid,record_sha256):
         self.path=Path(path);self.pid=pid;self.record_sha256=record_sha256;self.last=None
+        self.last_published_ns=0;self.publication_failures=0
 
     def publish(self,sentinel):
+        try:return self._publish(sentinel)
+        except (OSError,MemoryError) as error:
+            self.publication_failures+=1
+            if self.publication_failures==1:
+                print(json.dumps(dict(event='diagnostic-memory-report-unavailable',
+                    type=type(error).__name__,game_terminated=False)),flush=True)
+            return False
+
+    def _publish(self,sentinel):
         guardian=sentinel.snapshot()
         stamp=tuple(guardian[key]for key in ('samples','max_pressure','monitor_failed','recovery_required'))
-        if stamp==self.last:return False
+        now=time.monotonic_ns()
+        if stamp==self.last and now-self.last_published_ns<1_000_000_000:return False
         value=dict(format='s7-memory-live-v1',pid=self.pid,owned_record_sha256=self.record_sha256,
-                   sampled_monotonic_ns=time.monotonic_ns(),guardian=guardian)
+                   sampled_monotonic_ns=now,guardian=guardian,memory_policy='observe_only',
+                   publication_failures=self.publication_failures)
         temporary=self.path.with_suffix('.tmp')
         temporary.write_text(json.dumps(value),encoding='utf-8')
         for attempt in range(10):
@@ -170,12 +182,11 @@ class LiveMemoryReport:
                 break
             except PermissionError as error:
                 # A Windows reader can briefly deny replacement of this report.
-                # Keep the old complete report; persistent publication failure
-                # still raises into the owner's existing stop/recovery path.
+                # Keep the old complete report; telemetry errors are nonfatal.
                 if getattr(error,'winerror',None) not in (5,32,33) or attempt==9:
                     raise
                 time.sleep(.02)
-        self.last=stamp
+        self.last=stamp;self.last_published_ns=now
         return True
 
 
@@ -289,7 +300,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     renderer = executable.with_name('d3d9.dll')
     if digest(renderer) != graphics_profile.DXVK_SHA256:
         raise ValueError('Keep the exact pinned DXVK 3.1.1 renderer.')
-    memory_guard.require_host_headroom()
+    memory_guard.observe_host_memory()
     if laboratory_renderer is not None:
         renderer_session = dxwrapper.Session(root, output, laboratory_renderer, dxwrapper_package,
                                              water_probe=water_probe,water_pow_cap=water_pow_cap)
@@ -552,9 +563,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             pid=game.pid, parent=os.getpid(), path=str(executable), sha256=digest(executable),
             native_initialized=game.native_initialized, kernel_isolation=game.kernel_isolation,
             cpu_affinity_mask=game.cpu_affinity_mask), indent=2), encoding='utf-8')
-        sentinel = memory_guard.Sentinel(game, output / 'memory.private.json',
-            memory_guard.Probe(game, executable), warn=lambda level: print(
-                json.dumps(dict(event='graphics-lab-memory-stop', level=level)), flush=True))
+        sentinel = memory_guard.DiagnosticSentinel(game, output / 'memory.private.json',executable)
         sentinel.start()
         live_memory=LiveMemoryReport(output/'memory-live.private.json',game.pid,
             hashlib.sha256((output/'owned.private.json').read_bytes()).hexdigest())
@@ -582,8 +591,6 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                     (output/'renderer-observation-error.private.json').write_text(json.dumps(
                         dict(type=type(error).__name__,message=str(error)[:512])),encoding='utf-8')
             if preset_recorder is not None:preset_recorder.update()
-            if sentinel.summary['monitor_failed'] or sentinel.summary['recovery_required']:
-                raise RuntimeError('The memory guard failed or confirmed pressure; stop this owned experiment.')
             if measurement_budget_expired(time.monotonic(), deadline, budget_expired):
                 budget_expired = True
                 notification = dict(event='graphics-measurement-budget-ended',
@@ -682,6 +689,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                       private_options_restored=verify('options-verification', lambda: (
                           options.read_bytes() if options.exists() else None) == previous_options),
                       memory=dict(sentinel.summary) if sentinel else None,
+                      memory_policy='observe_only',
                       cleanup_errors=cleanup_errors,
                       error_type=type(failure).__name__ if failure else None,
                       supersampling_game_qualified=False)

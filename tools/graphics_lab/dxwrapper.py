@@ -239,14 +239,14 @@ def device_fixture(build, output, package):
             raise ValueError('Device-fixture source or binary changed; rebuild.')
     payloads = {mode: artifacts(None if mode == 'native' else package, mode) for mode in MODES}
     recover._no_games()
-    game.memory_guard.require_host_headroom()
+    game.memory_guard.observe_host_memory()
     output.mkdir()
     for source in sources.values():
         shutil.copyfile(source, output / source.name)
     results = []
     for mode in MODES:
         recover._no_games()
-        game.memory_guard.require_host_headroom()
+        game.memory_guard.observe_host_memory()
         case = output / mode
         case.mkdir()
         exe = case / 'dxwrapper_device_fixture.exe'

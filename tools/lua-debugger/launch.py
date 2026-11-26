@@ -169,7 +169,7 @@ def main():
                 raise RuntimeError('Another game already uses this diagnostic profile')
         finally:
             observer.k.CloseHandle(handle)
-    memory_guard.require_host_headroom()
+    memory_guard.observe_host_memory()
     output.mkdir()
     shared = [documents/name for name in ('Settlers7', 'THE SETTLERS 7 - History Edition')
               if (documents/name).is_dir()]
@@ -204,7 +204,7 @@ def main():
                    DXVK_STATE_CACHE_PATH=str(root/'LocalData'))
         if selected['version'] == 'history-steam':
             env.update(SteamAppId='965320', SteamGameId='965320')
-        memory_guard.require_host_headroom()
+        memory_guard.observe_host_memory()
         game = subprocess.Popen([str(exe), '-vSynch', '-noMapInMainMenu'], cwd=exe.parent,
                                 env=env, creationflags=0x4|0x20)
         primary = OwnedThread(game)
@@ -231,7 +231,7 @@ def main():
                                        selftest=args.self_test, pause_ms=args.pause_ms, breakpoints=points)
         (output/'owned.private.json').write_text(json.dumps(dict(pid=game.pid, parent=os.getpid(),
             path=str(exe), sha256=pin, profile_slot=slot), indent=2))
-        sentinel = memory_guard.Sentinel(game, output/'memory.private.json', memory_guard.Probe(game, exe))
+        sentinel = memory_guard.DiagnosticSentinel(game, output/'memory.private.json', exe)
         sentinel.start()
         print(json.dumps(dict(event='debugger-launched', pid=game.pid, profile_slot=slot, version=selected['version'])), flush=True)
         if args.self_test:

@@ -43,10 +43,10 @@ def run(build,output,package):
         if game.digest(path)!=manifest[key]:raise ValueError('Water math source or executable changed; rebuild.')
     program,_=recover._read(paths['binary_sha256'],16*1024*1024)
     payloads={mode:dxwrapper.artifacts(package,mode) for mode in dxwrapper.MODES[1:]}
-    recover._no_games();game.memory_guard.require_host_headroom();output.mkdir()
+    recover._no_games();game.memory_guard.observe_host_memory();output.mkdir()
     results=[]
     for mode,payload in payloads.items():
-        recover._no_games();game.memory_guard.require_host_headroom()
+        recover._no_games();game.memory_guard.observe_host_memory()
         case=output/mode;case.mkdir();exe=case/'water_on12_math_gpu.exe'
         recover._write_new(exe,program)
         for name,data in payload.items():
