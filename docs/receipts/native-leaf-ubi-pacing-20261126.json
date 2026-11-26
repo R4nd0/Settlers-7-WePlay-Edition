@@ -1,0 +1,91 @@
+{
+  "format": "s7-native-leaf-provisional-pacing-v1",
+  "date": "2026-11-26",
+  "edition": "ubisoft-history",
+  "evidence_kind": "actual-game",
+  "recipe": "leaf-wrapped-diffuse-v4",
+  "material_config_version": 3,
+  "native_dll_sha256": "2d241006b2edf6335e98cb85633b57293197d300bb9b5deedeecb4fa7022c89e",
+  "source_size": [
+    3840,
+    2160
+  ],
+  "output_size": [
+    1920,
+    1080
+  ],
+  "collector": "PresentMon 2.6.0",
+  "metric": "CPU frame interval, not displayed FPS or isolated GPU duration",
+  "phases": [
+    {
+      "phase": "off1",
+      "requested_seconds": 30,
+      "frames": 923,
+      "mean_cpu_frame_interval_ms": 32.411,
+      "median_cpu_frame_interval_ms": 32.317,
+      "p95_cpu_frame_interval_ms": 35.893,
+      "max_cpu_frame_interval_ms": 40.987,
+      "sampled_peak_private_mib": 1810.05,
+      "raw_csv_sha256": "2f6f0176e7977d8edf4671fc7b8760b84f785c5a5dd5be717212118a5575063a",
+      "collector_log_sha256": "4b0d26f9781d364e56df7b45b2155cd18f66392b00f77ffbc1c9c3d00d6d272f",
+      "collector_privilege_warning": true,
+      "technical_interval_checks_passed": true
+    },
+    {
+      "phase": "on",
+      "requested_seconds": 30,
+      "frames": 844,
+      "mean_cpu_frame_interval_ms": 35.425,
+      "median_cpu_frame_interval_ms": 34.877,
+      "p95_cpu_frame_interval_ms": 38.86,
+      "max_cpu_frame_interval_ms": 46.846,
+      "sampled_peak_private_mib": 1812.2,
+      "raw_csv_sha256": "d5b4d711c45ed14805e8b2e34d9a9e65d0c1be0c970cda3fcc1233512227870b",
+      "collector_log_sha256": "4b0d26f9781d364e56df7b45b2155cd18f66392b00f77ffbc1c9c3d00d6d272f",
+      "collector_privilege_warning": true,
+      "technical_interval_checks_passed": true
+    },
+    {
+      "phase": "off2",
+      "requested_seconds": 30,
+      "frames": 935,
+      "mean_cpu_frame_interval_ms": 32.012,
+      "median_cpu_frame_interval_ms": 31.771,
+      "p95_cpu_frame_interval_ms": 35.239,
+      "max_cpu_frame_interval_ms": 47.546,
+      "sampled_peak_private_mib": 1812.2,
+      "raw_csv_sha256": "5c3d618a5dd56a470d2a7c478cf57c6c4b35bad5b2ad3b0aafe4abac3be7e37a",
+      "collector_log_sha256": "4b0d26f9781d364e56df7b45b2155cd18f66392b00f77ffbc1c9c3d00d6d272f",
+      "collector_privilege_warning": true,
+      "technical_interval_checks_passed": true
+    }
+  ],
+  "on_minus_mean_off_ms": 3.2135,
+  "off_repeat_drift_ms": -0.399,
+  "selected_raw_pose_light_equal": true,
+  "guarded_pace_before_ms": null,
+  "guarded_current_pending_pace_after_ms": [
+    100,
+    100
+  ],
+  "user_quiet_confirmation_for_this_series": false,
+  "clean_scheduling_protocol_qualified": false,
+  "actual_exit_code": 0,
+  "forced_stop": false,
+  "guardian_pressure": 0,
+  "restoration_verified": true,
+  "game_run_measurement_budget_expired": true,
+  "visual_accepted": false,
+  "causal_effect_cost_proven": false,
+  "performance_qualified": false,
+  "release_qualified": false,
+  "limitations": [
+    "No guarded simulation-pace receipt before acquisition; current/pending 100 ms observed only afterwards.",
+    "User quiet-time confirmation arrived after this series, not before it.",
+    "The coordinator stop request did not prevent the already-running sequence from completing.",
+    "CPU frame intervals include diagnostic observer and normal SDK overhead; isolated GPU shader time and displayed FPS are not measured.",
+    "Only selected camera/sun uniforms matched before/after; animation and seasonal/exposure changes are not completely measured.",
+    "One Ubisoft History scene on this machine; no all-edition or final-package performance qualification.",
+    "The game-run measurement budget ended during later save/cleanup; no whole-case qualification is granted."
+  ]
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "material_shader_config_v2.h"
 #include "material_shader_config_v3.h"
+#include "material_shader_config_v4.h"
 
 // Transport decoding only. The integrating host still validates feature intent,
 // dimensions, paths and pinned resources before queueing a render-thread change.
@@ -10,7 +11,8 @@ struct Pending {
     MaterialShaderEffects::Config v1{};
     MaterialShaderConfigV2::Config v2{};
     MaterialShaderConfigV3::Config v3{};
-    DWORD Flags() const noexcept {return version==1?v1.flags:version==2?v2.flags:version==3?v3.flags:0;}
+    MaterialShaderConfigV4::Config v4{};
+    DWORD Flags() const noexcept {return version==1?v1.flags:version==2?v2.flags:version==3?v3.flags:version==4?v4.flags:0;}
 };
 
 inline bool Decode(const void* opaque,Pending* output) noexcept {
@@ -33,6 +35,11 @@ inline bool Decode(const void* opaque,Pending* output) noexcept {
         if(!ReadProcessMemory(GetCurrentProcess(),opaque,&candidate.v3,sizeof(candidate.v3),&read)
             ||read!=sizeof(candidate.v3)||candidate.v3.size!=header[0]||candidate.v3.version!=header[1])return false;
         candidate.version=3;
+    } else if(header[0]==sizeof(candidate.v4)&&header[1]==4) {
+        read=0;
+        if(!ReadProcessMemory(GetCurrentProcess(),opaque,&candidate.v4,sizeof(candidate.v4),&read)
+            ||read!=sizeof(candidate.v4)||candidate.v4.size!=header[0]||candidate.v4.version!=header[1])return false;
+        candidate.version=4;
     } else return false;
     *output=candidate;return true;
 }

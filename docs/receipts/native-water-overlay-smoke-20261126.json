@@ -1,0 +1,177 @@
+{
+  "format": "s7-native-water-overlay-smoke-v1",
+  "date": "2026-11-26",
+  "platform": "Ubisoft History",
+  "source_set": "effects-v12",
+  "runtime_source_count": 45,
+  "diagnostic_wire_bytes": 12,
+  "water_wire_bytes": 3096,
+  "dll_sha256": "54c6780011cd5bc36aa5a9ccff3f715cb9c0cf19dac3f37e06d1790aaf1a0be5",
+  "render_size": [
+    3840,
+    2160
+  ],
+  "output_size": [
+    1920,
+    1080
+  ],
+  "normal_clock_ms": 100,
+  "same_owned_process": true,
+  "actual_in_game_mouse_choices": true,
+  "phases": [
+    {
+      "name": "original",
+      "frame": 7200,
+      "configuration_epoch": 2,
+      "enabled": 0,
+      "selected_variant": 0,
+      "drawn_variant": null,
+      "successful_river_draws": 0,
+      "applications": 0,
+      "restorations": 0,
+      "shader_creations": 12,
+      "retained_programs": 3,
+      "overlay_choices": 1,
+      "overlay_visible": 1,
+      "unsafe": 0,
+      "overlay_failures": 0
+    },
+    {
+      "name": "accepted-B",
+      "frame": 7680,
+      "configuration_epoch": 3,
+      "enabled": 1,
+      "selected_variant": 0,
+      "drawn_variant": 0,
+      "successful_river_draws": 120,
+      "applications": 120,
+      "restorations": 120,
+      "shader_creations": 12,
+      "retained_programs": 3,
+      "overlay_choices": 2,
+      "overlay_visible": 1,
+      "unsafe": 0,
+      "overlay_failures": 0
+    },
+    {
+      "name": "clear-bank",
+      "frame": 8220,
+      "configuration_epoch": 4,
+      "enabled": 1,
+      "selected_variant": 1,
+      "drawn_variant": 1,
+      "successful_river_draws": 120,
+      "applications": 120,
+      "restorations": 120,
+      "shader_creations": 12,
+      "retained_programs": 3,
+      "overlay_choices": 3,
+      "overlay_visible": 1,
+      "unsafe": 0,
+      "overlay_failures": 0
+    },
+    {
+      "name": "calm-gloss",
+      "frame": 8880,
+      "configuration_epoch": 5,
+      "enabled": 1,
+      "selected_variant": 2,
+      "drawn_variant": 2,
+      "successful_river_draws": 120,
+      "applications": 120,
+      "restorations": 120,
+      "shader_creations": 12,
+      "retained_programs": 3,
+      "overlay_choices": 4,
+      "overlay_visible": 1,
+      "unsafe": 0,
+      "overlay_failures": 0
+    }
+  ],
+  "programs_sha256": [
+    "a8a591b346911622bfc9899fa28cbb022a42152df41ed822ef3cfff7c254e2f4",
+    "0bf632f2862eb635c25131e575b4c2d5c35ba9fa73cb3aa01591f9afaecd543c",
+    "5d027025eb77c23d902c8ccdbc4cddde70064f387e0c34bd4039ee1cf52c6c70"
+  ],
+  "native_gpu": {
+    "passed": true,
+    "wall_seconds": 4.5036878,
+    "four_window_choices": true,
+    "physical_panel_pixels": 76320,
+    "font_pixels": 426,
+    "outside_control_unchanged": true,
+    "state_restoration": true,
+    "reset_closed_cleanly": true
+  },
+  "ui": {
+    "hide_hotkey_verified": true,
+    "selection_retained_while_hidden": true,
+    "original_menu_under_hidden_panel_verified": true,
+    "show_again_verified": true,
+    "show_again_context": "Fresh Ubisoft History main menu; no world loaded."
+  },
+  "end": {
+    "reason": "existing-memory-guard-stop",
+    "normal_exit_verified": false,
+    "new_save_verified": false,
+    "exit_code": 3763564577,
+    "forced_owned_stop": true
+  },
+  "memory": {
+    "format": "s7-memory-summary-v1",
+    "recovery_required": true,
+    "max_pressure": 1,
+    "samples": 154,
+    "peak_private_mib": 1914,
+    "min_free_mib": 1417,
+    "min_largest_mib": 1376,
+    "monitor_failed": false,
+    "peak_probe_ms": 46.733,
+    "min_host_physical_free_mib": 4393,
+    "min_host_commit_free_mib": 1926,
+    "scanner": "native-v1",
+    "peak_scan_ms": 46.293,
+    "peak_scan_regions": 6325
+  },
+  "preservation": {
+    "shared_profiles_unchanged": true,
+    "game_binaries_unchanged": true,
+    "private_options_restored": true,
+    "cleanup_errors": []
+  },
+  "limitations": [
+    "World save/normal-exit checks interrupted by host commit pressure; fresh main-menu hide/show and normal exit passed.",
+    "Only Ubisoft History tested in a real game; Gold and Steam remain unqualified.",
+    "Alternative water optics remain visually unaccepted.",
+    "No performance or final-package qualification."
+  ],
+  "release_qualified": false,
+  "menu_followup": {
+    "hide_frame": 2760,
+    "show_frame": 4080,
+    "exit_code": 0,
+    "forced_owned_stop": false,
+    "memory": {
+      "format": "s7-memory-summary-v1",
+      "recovery_required": false,
+      "max_pressure": 0,
+      "samples": 58,
+      "peak_private_mib": 505,
+      "min_free_mib": 2848,
+      "min_largest_mib": 2045,
+      "monitor_failed": false,
+      "peak_probe_ms": 9.248,
+      "min_host_physical_free_mib": 9792,
+      "min_host_commit_free_mib": 8778,
+      "scanner": "native-v1",
+      "peak_scan_ms": 8.992,
+      "peak_scan_regions": 3572
+    },
+    "preservation": {
+      "shared_profiles_unchanged": true,
+      "game_binaries_unchanged": true,
+      "private_options_restored": true,
+      "cleanup_errors": []
+    }
+  }
+}

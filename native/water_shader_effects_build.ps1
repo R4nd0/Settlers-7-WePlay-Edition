@@ -1,12 +1,14 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$PaletteConfigPath='')
 $ErrorActionPreference='Stop'
+function FileSha([string]$Path){$sha=[Security.Cryptography.SHA256]::Create();try{return [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}}
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 $work=[IO.Path]::GetFullPath((Join-Path $repository 'work'))+[IO.Path]::DirectorySeparatorChar
 if(!$output.StartsWith($work,[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $output)){throw 'Use a fresh directory below work/.'}
-$names=@('water_shader_effects.h','water_shader_effects.cpp','water_shader_effects_fixture.cpp','water_shader_effects_load_fixture.cpp','water_shader_effects_build.ps1')
+$names=@('water_shader_effects.h','water_shader_effects.cpp','water_shader_config_palette.h','water_shader_palette_contract.h','water_shader_effects_fixture.cpp','water_shader_palette_fixture.cpp','water_shader_effects_load_fixture.cpp','water_shader_palette_load_fixture.cpp','water_shader_effects_build.ps1')
+if($PaletteConfigPath){$PaletteConfigPath=[IO.Path]::GetFullPath($PaletteConfigPath);if(!$PaletteConfigPath.StartsWith($work,[StringComparison]::OrdinalIgnoreCase)-or!(Test-Path -LiteralPath $PaletteConfigPath -PathType Leaf)){throw 'Owned work WaterPalette config required'}}
 $hashes=@{}
-foreach($name in $names){$hashes[$name]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
+foreach($name in $names){$hashes[$name]=FileSha (Join-Path $PSScriptRoot $name)}
 New-Item -ItemType Directory -Path $output | Out-Null
 foreach($name in $names){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $output $name)}
 $finder=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -25,11 +27,18 @@ try {
  if($LASTEXITCODE){throw 'Production water config load fixture compile failed.'}
  & .\WaterShaderEffectsFixture.exe (Join-Path $output 'fixture-case') | Tee-Object -FilePath 'fixture.private.json'
  if($LASTEXITCODE){throw 'Authored water COM fixture failed.'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict /DS7_WATER_SHADER_FIXTURE water_shader_effects.cpp water_shader_palette_fixture.cpp /Fe:WaterPaletteFixture.exe /link bcrypt.lib
+ if($LASTEXITCODE){throw 'WaterPalette COM fixture compile failed.'}
+ & .\WaterPaletteFixture.exe (Join-Path $output 'palette-case')
+ if($LASTEXITCODE){throw 'WaterPalette COM fixture failed.'}
+ & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict water_shader_effects.cpp water_shader_palette_load_fixture.cpp /Fe:WaterPaletteProductionLoad.exe /link bcrypt.lib
+ if($LASTEXITCODE){throw 'WaterPalette production load compile failed.'}
+ if($PaletteConfigPath){& .\WaterPaletteProductionLoad.exe $PaletteConfigPath;if($LASTEXITCODE){throw 'WaterPalette production all3load failed.'}}
  foreach($name in $names){
-  if((Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hashes[$name] -or
-     (Get-FileHash -LiteralPath (Join-Path $output $name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hashes[$name]){throw 'Water fixture source changed during build.'}
+  if((FileSha (Join-Path $PSScriptRoot $name)) -ne $hashes[$name] -or
+     (FileSha (Join-Path $output $name)) -ne $hashes[$name]){throw 'Water fixture source changed during build.'}
  }
  $binaries=@{}
- foreach($name in @('WaterShaderEffectsFixture.exe','WaterShaderProductionLoadFixture.exe','water_shader_effects.production.obj')){$binaries[$name]=(Get-FileHash -LiteralPath (Join-Path $output $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
+ foreach($name in @('WaterShaderEffectsFixture.exe','WaterShaderProductionLoadFixture.exe','WaterPaletteFixture.exe','WaterPaletteProductionLoad.exe','water_shader_effects.production.obj')){$binaries[$name]=FileSha (Join-Path $output $name)}
  @{format='s7-water-shader-cpu-build-v1';sources=$hashes;binaries=$binaries;gpu=$false;game=$false} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath 'build.private.json' -Encoding utf8
 } finally {Pop-Location}

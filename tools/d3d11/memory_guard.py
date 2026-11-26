@@ -296,10 +296,17 @@ class Sentinel:
         self.warned = False
         self.thread = None
         self.last_save = float('-inf')
+        self._summary_lock = threading.RLock()
+
+    def snapshot(self):
+        """Copy the last complete check; never start an additional scan."""
+        with self._summary_lock:
+            return dict(self.summary)
 
     def persist(self):
-        save(self.path,self.summary)
-        self.last_save = time.monotonic()
+        with self._summary_lock:
+            save(self.path,self.summary)
+            self.last_save = time.monotonic()
 
     def measure(self):
         started = time.perf_counter()
@@ -314,6 +321,10 @@ class Sentinel:
         self.observe(sample)
 
     def observe(self, sample):
+        with self._summary_lock:
+            self._observe(sample)
+
+    def _observe(self, sample):
         level = pressure(sample) if self.pressure_policy is None else self.pressure_policy(sample)
         self.summary['samples'] += 1
         self.summary['peak_private_mib'] = max(self.summary['peak_private_mib'],sample['private']//MIB)
@@ -355,6 +366,10 @@ class Sentinel:
                     threading.Thread(target=self.warn,args=(3,),daemon=True).start()
 
     def mark_failure(self, stage, error):
+        with self._summary_lock:
+            self._mark_failure(stage,error)
+
+    def _mark_failure(self, stage, error):
         self.summary['monitor_failed'] = self.summary['recovery_required'] = True
         # Keep diagnostics to fixed stages, categories and numeric codes.
         self.summary['failure_stage'] = stage

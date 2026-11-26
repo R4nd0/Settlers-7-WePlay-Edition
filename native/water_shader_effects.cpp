@@ -1,4 +1,5 @@
 #include "water_shader_effects.h"
+#include "water_shader_palette_contract.h"
 #include <bcrypt.h>
 #include <algorithm>
 #include <cstring>
@@ -44,6 +45,12 @@ struct State {
     Stats stats{};Config config{};
     IDirect3DDevice9* device=nullptr;DWORD thread=0;
     IDirect3DPixelShader9* program=nullptr;
+    ConfigPalette palette_config{};
+    std::array<IDirect3DPixelShader9*,3> palette_programs{};
+    std::array<HANDLE,3> palette_files{INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE};
+    alignas(4) std::array<std::array<unsigned char,ProgramBytes>,3> palette_code{};
+    DWORD current_drawn_variant=MAXDWORD;
+    std::uint64_t current_successful=0,current_failed=0;
     IDirect3DPixelShader9* original_pixel=nullptr; // owns the pending reference independently of caller scope
     DrawTransaction* transaction=nullptr; // opaque identity token, never asynchronously dereferenced
     BCRYPT_ALG_HANDLE algorithm=nullptr;
@@ -57,6 +64,8 @@ struct State {
 State current;
 #ifdef S7_WATER_SHADER_FIXTURE
 bool fixture_identities=false;
+std::array<std::array<unsigned char,32>,3> fixture_palette{};
+std::array<bool,3> fixture_palette_set{};
 std::array<unsigned char,32> fixture_vertex{},fixture_pixel{},fixture_program{};
 #endif
 void Hex(const char* text,std::array<unsigned char,32>& result){
@@ -78,11 +87,15 @@ void ClearFrame(){
 void ClearPrograms(){
     ClearFrame();auto* program=current.program;current.program=nullptr;current.stats.retained_programs=0;
     if(program)program->Release();
+    for(auto*& value:current.palette_programs){auto* held=value;value=nullptr;if(held)held->Release();}
 }
 void ClearProof(){
     current.stats.current_applications=current.stats.current_restorations=0;
     current.stats.completed_frame=current.stats.completed_applications=current.stats.completed_restorations=0;
     current.stats.last_applied_frame=current.stats.last_restored_frame=0;
+    current.current_drawn_variant=current.stats.completed_drawn_variant=MAXDWORD;
+    current.current_successful=current.current_failed=0;
+    current.stats.completed_successful_draws=current.stats.completed_failed_draws=0;
 }
 bool Quiescent(){return !current.transaction&&!current.original_pixel&&!current.stats.unsafe_state&&!current.stats.active_transactions;}
 bool Dimensions(DWORD width,DWORD height){return width>=800&&height>=600&&width<=3840&&height<=2160;}
@@ -121,11 +134,10 @@ bool SelectProgram(const Config& config,std::array<unsigned char,32>& selected,c
     if(!std::memcmp(config.pixel_sha256,b.data(),32)){selected=b;recipe=BalancedRecipe;variant=2;return true;}
     return false;
 }
-bool LoadProgram(const Config& config,std::array<unsigned char,ProgramBytes>& code,HANDLE& retained,DWORD& variant){
-    std::array<unsigned char,32> selected{};const wchar_t* recipe=nullptr;
-    if(!SelectProgram(config,selected,recipe,variant))return false;
-    std::wstring path;if(!Canonical(config.pixel_path,path)||!NoReparse(path))return false;
-    const auto ending=std::wstring(L"\\MaterialShaders\\")+recipe+L"\\"+ProgramName(selected);
+bool LoadPinned(const wchar_t* input_path,const std::array<unsigned char,32>& selected,const wchar_t* recipe,
+                std::array<unsigned char,ProgramBytes>& code,HANDLE& retained,const std::array<unsigned char,32>* path_hash=nullptr){
+    std::wstring path;if(!Canonical(input_path,path)||!NoReparse(path))return false;
+    const auto ending=std::wstring(L"\\MaterialShaders\\")+recipe+L"\\"+ProgramName(path_hash?*path_hash:selected);
     if(_wcsicmp(path.c_str(),(current.root+ending).c_str())
         &&_wcsicmp(path.c_str(),(current.root+L"\\LocalData"+ending).c_str()))return false;
     File file{CreateFileW(Extended(path).c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,
@@ -138,11 +150,16 @@ bool LoadProgram(const Config& config,std::array<unsigned char,ProgramBytes>& co
     if(final.size()<=prefix.size()||_wcsnicmp(final.c_str(),prefix.c_str(),prefix.size()))return false;
     DWORD got=0;if(!ReadFile(file.value,code.data(),static_cast<DWORD>(code.size()),&got,nullptr)||got!=code.size())return false;
     std::array<unsigned char,32> hash{};
-    if(!Hash(code.data(),code.size(),hash)||hash!=selected||std::memcmp(config.pixel_sha256,hash.data(),32))return false;
+    if(!Hash(code.data(),code.size(),hash)||hash!=selected)return false;
     DWORD version=0,last=0;std::memcpy(&version,code.data(),4);std::memcpy(&last,code.data()+code.size()-4,4);
     if(version!=0xffff0300||last!=0xffff)return false;
     retained=file.take();return true;
 }
+bool LoadProgram(const Config& config,std::array<unsigned char,ProgramBytes>& code,HANDLE& retained,DWORD& variant){
+    std::array<unsigned char,32> selected{};const wchar_t* recipe=nullptr;
+    return SelectProgram(config,selected,recipe,variant)&&LoadPinned(config.pixel_path,selected,recipe,code,retained);
+}
+
 bool Context(IDirect3DDevice9* device){
     Ref<IDirect3DSurface9> target;D3DSURFACE_DESC desc{};D3DVIEWPORT9 viewport{};DWORD blend=0,alpha=0,srgb=0;
     return SUCCEEDED(device->GetRenderTarget(0,&target.value))&&target.value&&SUCCEEDED(target.value->GetDesc(&desc))
@@ -223,7 +240,7 @@ bool Initialize(const wchar_t* trusted_report,DWORD width,DWORD height) noexcept
 
 bool Configure(const Config* config) noexcept{
     Guard guard;try{Lock lock;
-        if(!current.stats.initialized||!config||config->size!=sizeof(Config)||config->version!=1||config->enabled>1
+        if(!current.stats.initialized||!config||config->size!=sizeof(Config)||config->version!=1||config->enabled>1||current.stats.config_version==2
             ||config->render_width!=current.config.render_width||config->render_height!=current.config.render_height
             ||!Quiescent()||(current.thread&&current.thread!=GetCurrentThreadId())){++current.stats.config_rejections;return false;}
         if(!config->enabled){
@@ -247,6 +264,35 @@ bool Configure(const Config* config) noexcept{
     }catch(...){RecoverException(nullptr);return false;}
 }
 
+bool ConfigurePalette(const ConfigPalette* config) noexcept{
+    Guard guard;try{Lock lock;
+        if(!current.stats.initialized||!config||!WaterShaderPaletteContract::Validate(*config)
+            ||config->render_width!=current.config.render_width||config->render_height!=current.config.render_height
+            ||!Quiescent()||(current.thread&&current.thread!=GetCurrentThreadId())
+            ||(current.stats.configured&&current.stats.config_version!=2)){
+            ++current.stats.config_rejections;return false;}
+        if(current.stats.configured){
+            if(!WaterShaderPaletteContract::SamePinnedConfig(*config,current.palette_config)){++current.stats.config_rejections;return false;}
+        }else{
+            std::array<std::array<unsigned char,ProgramBytes>,3> code{};std::array<File,3> leases{};
+            std::array<std::array<unsigned char,32>,3> hashes{};
+            for(unsigned i=0;i<3;++i){Hex(WaterShaderPaletteContract::Digests[i],hashes[i]);const auto canonical_hash=hashes[i];
+#ifdef S7_WATER_SHADER_FIXTURE
+                if(fixture_palette_set[i])hashes[i]=fixture_palette[i];
+#endif
+                if(!LoadPinned(config->program_paths[i],hashes[i],WaterShaderPaletteContract::Recipes[i],code[i],leases[i].value,&canonical_hash)){
+                    ++current.stats.config_rejections;return false;}}
+            current.palette_code=code;for(unsigned i=0;i<3;++i)current.palette_files[i]=leases[i].take();
+            current.stats.variant_sha256=hashes;current.stats.config_version=2;current.stats.configured=1;
+        }
+        // No shader/file replacement for subsequent selection/OFF requests.
+        ClearFrame();current.palette_config=*config;current.thread=GetCurrentThreadId();
+        current.stats.selected_variant=config->selected_variant;current.stats.variant=2+config->selected_variant;
+        current.stats.requested=current.stats.enabled=config->enabled;current.stats.faulted=0;current.stats.last_failure=0;
+        ++current.stats.configuration_epoch;ClearProof();return true;
+    }catch(...){RecoverException(nullptr);return false;}
+}
+
 void BeginDraw(IDirect3DDevice9* device,DrawTransaction* output) noexcept{
     Guard guard;try{Lock lock;if(!output)return;
         if(current.transaction==output){output->unsafe_state=true;current.stats.unsafe_state=1;Fault(9);return;}*output={};
@@ -259,27 +305,41 @@ void BeginDraw(IDirect3DDevice9* device,DrawTransaction* output) noexcept{
         if(!Classify(vertex.value,1)||!Classify(pixel.value,2))return;
         ++current.stats.matched;if(!Context(device)){++current.stats.context_rejections;return;}
         current.device=device;current.thread=GetCurrentThreadId();
-        if(!current.program){
-            HRESULT result=device->CreatePixelShader(reinterpret_cast<const DWORD*>(current.code.data()),&current.program);
-            if(FAILED(result)||!current.program){auto* failed=current.program;current.program=nullptr;if(failed)failed->Release();++current.stats.shader_failures;Fault(4);return;}
-            ++current.stats.shader_creations;current.stats.retained_programs=1;
+        IDirect3DPixelShader9* selected_program=nullptr;
+        if(current.stats.config_version==2){
+            for(unsigned i=0;i<3;++i){if(current.palette_programs[i])continue;
+                Ref<IDirect3DPixelShader9> created;const HRESULT result=device->CreatePixelShader(reinterpret_cast<const DWORD*>(current.palette_code[i].data()),&created.value);
+                if(FAILED(result)||!created.value){++current.stats.shader_failures;Fault(4);return;}
+                current.palette_programs[i]=created.take();++current.stats.shader_creations;++current.stats.variant_creations[i];++current.stats.retained_programs;}
+            output->selected_variant=current.stats.selected_variant;
+            selected_program=current.palette_programs[output->selected_variant];
+        }else{
+            if(!current.program){
+                Ref<IDirect3DPixelShader9> created;const HRESULT result=device->CreatePixelShader(reinterpret_cast<const DWORD*>(current.code.data()),&created.value);
+                if(FAILED(result)||!created.value){++current.stats.shader_failures;Fault(4);return;}
+                current.program=created.take();++current.stats.shader_creations;current.stats.retained_programs=1;
+            }selected_program=current.program;
         }
         current.original_pixel=pixel.take();current.stats.pending_original_refs=1;
         output->device=device;output->original_pixel=current.original_pixel;output->owner_thread=GetCurrentThreadId();output->touched=true;
         current.transaction=output;current.stats.active_transactions=1;
-        HRESULT result=device->SetPixelShader(current.program);
+        HRESULT result=device->SetPixelShader(selected_program);
         Ref<IDirect3DPixelShader9> got;HRESULT read=device->GetPixelShader(&got.value);
-        if(FAILED(result)||FAILED(read)||got.value!=current.program){++current.stats.set_failures;Fault(5);Restore(*output);return;}
+        if(FAILED(result)||FAILED(read)||got.value!=selected_program){++current.stats.set_failures;Fault(5);Restore(*output);return;}
         output->active=true;++current.stats.applications;
+        if(output->selected_variant<3)++current.stats.variant_applications[output->selected_variant];
     }catch(...){RecoverException(output);}
 }
 
 void EndDraw(DrawTransaction* draw,HRESULT result) noexcept{
     Guard guard;try{Lock lock;if(!draw||!draw->touched)return;
         if(current.transaction!=draw||draw->owner_thread!=GetCurrentThreadId()){++current.stats.context_rejections;return;}
-        const bool applied=draw->active;const bool restored=Restore(*draw);
+        const bool applied=draw->active;const auto selected=draw->selected_variant;const bool restored=Restore(*draw);
         if(applied){if(SUCCEEDED(result)){++current.stats.successful_draws;++current.stats.current_applications;current.stats.last_applied_frame=current.stats.frames+1;}
             else ++current.stats.failed_draws;}
+        if(applied){if(SUCCEEDED(result))++current.current_successful;else ++current.current_failed;
+            if(selected<3){if(SUCCEEDED(result))++current.stats.variant_successful_draws[selected];else ++current.stats.variant_failed_draws[selected];}}
+        if(applied&&restored&&selected<3){++current.stats.variant_restorations[selected];if(SUCCEEDED(result))current.current_drawn_variant=selected;}
         if(applied&&restored){++current.stats.restorations;if(SUCCEEDED(result)){++current.stats.current_restorations;current.stats.last_restored_frame=current.stats.frames+1;}}
     }catch(...){RecoverException(draw);}
 }
@@ -304,6 +364,9 @@ void EndFrame(IDirect3DDevice9* device) noexcept{
         ClearFrame();++current.stats.frames;current.stats.completed_frame=current.stats.frames;
         current.stats.completed_applications=current.stats.current_applications;current.stats.completed_restorations=current.stats.current_restorations;
         current.stats.current_applications=current.stats.current_restorations=0;
+        current.stats.completed_drawn_variant=current.current_drawn_variant;
+        current.stats.completed_successful_draws=current.current_successful;current.stats.completed_failed_draws=current.current_failed;
+        current.current_drawn_variant=MAXDWORD;current.current_successful=current.current_failed=0;
     }catch(...){RecoverException(nullptr);}
 }
 
@@ -319,6 +382,7 @@ void InvalidateFrame() noexcept{Guard guard;try{Lock lock;if(!current.stats.init
 bool Shutdown() noexcept{
     Guard guard;try{Lock lock;if(!Quiescent())return false;ClearPrograms();
         if(current.file!=INVALID_HANDLE_VALUE)CloseHandle(current.file);
+        for(auto& file:current.palette_files){if(file!=INVALID_HANDLE_VALUE)CloseHandle(file);file=INVALID_HANDLE_VALUE;}
         if(current.directory!=INVALID_HANDLE_VALUE)CloseHandle(current.directory);
         if(current.algorithm)BCryptCloseAlgorithmProvider(current.algorithm,0);
         auto history=current.stats;history.initialized=history.configured=history.requested=history.enabled=0;
@@ -327,7 +391,7 @@ bool Shutdown() noexcept{
     }catch(...){RecoverException(nullptr);return false;}
 }
 bool ReadStats(Stats* output) noexcept{
-    Guard guard;try{Lock lock;if(!output||output->size!=sizeof(Stats)||output->version!=1)return false;*output=current.stats;return true;}
+    Guard guard;try{Lock lock;if(!output||output->size!=sizeof(Stats)||output->version!=2)return false;*output=current.stats;return true;}
     catch(...){return false;}
 }
 #ifdef S7_WATER_SHADER_FIXTURE
@@ -336,5 +400,10 @@ bool FixtureIdentities(const unsigned char vertex[32],const unsigned char pixel[
     std::memcpy(fixture_vertex.data(),vertex,32);std::memcpy(fixture_pixel.data(),pixel,32);std::memcpy(fixture_program.data(),replacement,32);
     fixture_identities=true;return true;
 }
+bool FixturePaletteIdentity(DWORD index,const unsigned char replacement[32]) noexcept{
+    Guard guard;Lock lock;if(current.stats.initialized||index>2||!replacement)return false;
+    std::memcpy(fixture_palette[index].data(),replacement,32);fixture_palette_set[index]=true;return true;
+}
+
 #endif
 }

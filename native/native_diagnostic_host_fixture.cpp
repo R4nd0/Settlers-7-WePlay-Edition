@@ -53,13 +53,14 @@ void EffectsV3Proof(const std::wstring& directory){
     Check(memory!=nullptr,"allocate bounded wire boundary fixture");DWORD protection=0;
     Check(VirtualProtect(memory+8192,4096,PAGE_NOACCESS,&protection)!=FALSE,"place inaccessible page after exact payload");
     MaterialShaderEffects::Config old{};MaterialShaderConfigV2::Config previous{};MaterialShaderConfigV3::Config next{};
-    const void* values[]={&old,&previous,&next};const size_t lengths[]={sizeof(old),sizeof(previous),sizeof(next)};
-    for(unsigned index=0;index<3;++index){
+    MaterialShaderConfigV4::Config palette{};
+    const void* values[]={&old,&previous,&next,&palette};const size_t lengths[]={sizeof(old),sizeof(previous),sizeof(next),sizeof(palette)};
+    for(unsigned index=0;index<4;++index){
         auto* exact=memory+8192-lengths[index];std::memcpy(exact,values[index],lengths[index]);
         NativeEffectsWire::Pending copied{};
         Check(NativeEffectsWire::Decode(exact,&copied)&&copied.version==index+1,"each exact typed payload decodes at guard-page boundary without overread");
         const auto before=copied;
-        reinterpret_cast<DWORD*>(exact)[1]=4;
+        reinterpret_cast<DWORD*>(exact)[1]=5;
         Check(!NativeEffectsWire::Decode(exact,&copied)&&!std::memcmp(&copied,&before,sizeof(copied)),"unknown version refuses without mutating output");
         reinterpret_cast<DWORD*>(exact)[1]=index+1;reinterpret_cast<DWORD*>(exact)[0]-=4;
         Check(!NativeEffectsWire::Decode(exact,&copied),"truncated declared typed payload refuses");
@@ -97,6 +98,126 @@ void EffectsV3Proof(const std::wstring& directory){
     effects_received=effects_waiting=effects_initialized=effects_faulted=false;effects_loaded_flags=0;effects_loaded_version=0;
     MaterialShaderEffects::Shutdown();ResetHost();
 }
+void EffectsV4Proof(const std::wstring& directory){
+    using namespace SupersamplingHook;
+    std::puts("CPU: explicit palette V4 dispatch and actual drawn frame");ResetHost();
+    Check(sizeof(MaterialShaderConfigV4::Config)==4120&&MaterialShaderConfigV4::FitsWorker(440),"independent V4 fits actual worker overhead");
+    MaterialShaderConfigV4::Config request{};request.render_width=1280;request.render_height=720;
+    native_configuration.base={sizeof(native_configuration),2,1280,720,640,360,{}};
+    native_configuration.flags=NativeGraphicsConfig::Observe|NativeGraphicsConfig::Vegetation;
+    const auto root=std::filesystem::path(directory)/L"v4-dispatch";std::filesystem::create_directories(root);
+    wcscpy_s(native_configuration.base.report_path,(root/L"hook.private.json").c_str());
+    wcscpy_s(request.report_path,(root/L"material-effects.private.json").c_str());
+    for(unsigned index=0;index<3;++index){
+        const auto program=root/L"LocalData"/L"MaterialShaders"/NativeEffectsContractV4::Recipes[index]/(std::wstring(NativeEffectsContractV4::Digests[index])+L".ps.bin");
+        std::filesystem::create_directories(program.parent_path());wcscpy_s(request.program_paths[index],program.c_str());
+        const DWORD authored_invalid[]={0xffff0300,0xffff};std::ofstream file(program,std::ios::binary);
+        file.write(reinterpret_cast<const char*>(authored_invalid),sizeof(authored_invalid));
+    }
+    for(unsigned bad=0;bad<6;++bad){auto wrong=request;
+        if(bad==0)wrong.version=3;if(bad==1)wrong.size=4132;if(bad==2)wrong.flags=1;
+        if(bad==3)wrong.selected_variant=3;if(bad==4)wrong.render_width=640;if(bad==5)wrong.program_paths[1][0]=L'x';
+        Check(!WePlayNativeGraphicsConfigureEffects(&wrong)&&!effects_waiting,"invalid V4 cannot change queue");
+    }
+    Check(WePlayNativeGraphicsConfigureEffects(&request)==1&&effects_pending_version==4,"typed initialOFF palette queues");
+    request.selected_variant=2;request.program_paths[0][0]=L'x';
+    Check(effects_pending_v4.selected_variant==0&&effects_pending_v4.program_paths[0][0]!=L'x',"queued palette owns complete caller-independent paths/selection");
+    ApplyPendingEffects();Check(effects_faulted&&!effects_initialized&&!stats.effects_active,"all three files must be hash-validated before palette activation");
+    effects_received=effects_waiting=effects_initialized=effects_faulted=false;MaterialShaderEffects::Shutdown();ResetHost();
+    stats.effects_config_version=4;stats.effects_selected_variant=1;stats.effects_active=4;stats.effects_revision=7;
+    InvalidatePaletteFrame();LatchEffectsDraw(0);
+    Check(!stats.effects_frame_has_geometry&&stats.effects_drawn_variant==MAXDWORD,"generic original/UI geometry cannot label chosen palette PS as drawn");
+    RecordPaletteDraw(4,S_OK);LatchEffectsDraw(4);CompletePaletteFrame();++stats.present_calls;
+    Check(stats.effects_drawn_variant==1&&stats.effects_drawn_frame==stats.present_calls&&stats.effects_variant_frame_applications==1
+        &&stats.effects_variant_frame_restorations==1&&!stats.effects_variant_frame_failed_draws,"successful safe actual Leaf transaction latches exact variant/frame");
+    effects_initialized=true;stats.effects_configured=1;stats.effects_requested=4;
+    Check(CaptureEpochReady(),"fresh matched selected palette frame qualifies");
+    ++stats.present_calls;Check(!CaptureEpochReady(),"second Present cannot relabel old palette backbuffer");
+    InvalidatePaletteFrame();RecordPaletteDraw(4,D3DERR_INVALIDCALL);RecordPaletteDraw(4,S_OK);LatchEffectsDraw(4);
+    CompletePaletteFrame();++stats.present_calls;
+    Check(!CaptureEpochReady()&&stats.effects_variant_frame_failed_draws==1,"failed original Leaf draw disqualifies entire frame despite later success");
+    InvalidatePaletteFrame();palette_current_applications=static_cast<std::uint64_t>(MAXDWORD)+1;palette_current_restorations=palette_current_applications;
+    LatchEffectsDraw(4);CompletePaletteFrame();++stats.present_calls;
+    Check(!CaptureEpochReady()&&!stats.effects_frame_has_geometry,"per-frame count overflow refuses capture");
+    InvalidatePaletteFrame();stats.effects_active=0;LatchEffectsDraw(0);CompletePaletteFrame();++stats.present_calls;
+    Check(CaptureEpochReady()&&stats.effects_drawn_variant==MAXDWORD&&stats.effects_drawn_frame==stats.present_calls,
+        "OFF uses fresh original geometry with no drawn replacement variant claim");
+    InvalidatePaletteFrame();Check(!CaptureEpochReady(),"reset/attach/selection invalidation cannot reuse prior frame proof");
+    effects_initialized=false;ResetHost();
+}
+void WaterPaletteProof(const std::wstring& directory){
+    using namespace SupersamplingHook;
+    std::puts("CPU: water palette3096 independent queue and same-frame proof");ResetHost();
+    water_received=water_waiting=water_initialized=false;water_pending_version=1;capture_pending=capture_last_sequence=0;
+    effects_waiting=false;
+    WaterShaderEffects::Config one{};WaterShaderEffects::ConfigPalette palette{};
+    auto* memory=static_cast<unsigned char*>(VirtualAlloc(nullptr,8192,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    Check(memory!=nullptr,"water wire allocation");DWORD protection=0;
+    Check(VirtualProtect(memory+4096,4096,PAGE_NOACCESS,&protection)!=FALSE,"water wire guard page");
+    const void* values[]={&one,&palette};const size_t lengths[]={sizeof(one),sizeof(palette)};
+    for(unsigned index=0;index<2;++index){
+        auto* exact=memory+4096-lengths[index];std::memcpy(exact,values[index],lengths[index]);NativeWaterWire::Pending decoded{};
+        Check(NativeWaterWire::Decode(exact,&decoded)&&decoded.version==index+1,"old1076/new3096 exact guard-page payload");
+        const auto before=decoded;reinterpret_cast<DWORD*>(exact)[1]=3;
+        Check(!NativeWaterWire::Decode(exact,&decoded)&&!std::memcmp(&decoded,&before,sizeof(decoded)),"unknown water version preserves output");
+        std::memcpy(exact,values[index],lengths[index]);reinterpret_cast<DWORD*>(exact)[0]-=4;
+        Check(!NativeWaterWire::Decode(exact,&decoded),"water shortened declared payload refused");
+    }
+    const DWORD header[]={3096,2};std::memcpy(memory+4096-8,header,sizeof(header));NativeWaterWire::Pending decoded{};
+    Check(!NativeWaterWire::Decode(memory+4096-8,&decoded),"water readable header inaccessible body refused");VirtualFree(memory,0,MEM_RELEASE);
+    palette.render_width=configuration.render_width=1280;palette.render_height=configuration.render_height=720;
+    native_configuration.flags=NativeGraphicsConfig::Water;
+    const auto root=std::filesystem::path(directory)/L"water-palette-dispatch";std::filesystem::create_directories(root);
+    wcscpy_s(configuration.report_path,(root/L"hook.private.json").c_str());
+    for(unsigned index=0;index<3;++index){std::wstring digest;for(const char* at=WaterShaderPaletteContract::Digests[index];*at;++at)digest+=static_cast<wchar_t>(*at);
+        const auto program=root/L"LocalData"/L"MaterialShaders"/WaterShaderPaletteContract::Recipes[index]/(digest+L".ps.bin");
+        std::filesystem::create_directories(program.parent_path());wcscpy_s(palette.program_paths[index],program.c_str());
+        const DWORD invalid[]={0xffff0300,0xffff};std::ofstream file(program,std::ios::binary);file.write(reinterpret_cast<const char*>(invalid),sizeof(invalid));}
+    auto bad=palette;bad.selected_variant=3;Check(!WePlayNativeGraphicsConfigureWater(&bad)&&!water_waiting,"water unknown selector cannot queue");
+    Check(WePlayNativeGraphicsConfigureWater(&palette)==1&&water_pending_version==2&&water_waiting,"explicit palette initialOFF queued");
+    DWORD overlay_config[]={12,1,1};
+    Check(WePlayNativeGraphicsConfigureOverlay(overlay_config)==1&&overlay_received&&overlay_requested&&!state&&!overlay_palette_admitted,
+        "overlay admits validated pending startup palette before any device or GPU resource");
+    for(unsigned invalid=0;invalid<3;++invalid){DWORD wrong[]={12,1,1};wrong[invalid]=invalid==0?11:2;
+        Check(!WePlayNativeGraphicsConfigureOverlay(wrong),"overlay Config12 header/version/bool exact");}
+    water_received=false;Check(!WePlayNativeGraphicsConfigureOverlay(overlay_config),"overlay rejects absent admitted palette");water_received=true;
+    overlay_config[2]=0;Check(WePlayNativeGraphicsConfigureOverlay(overlay_config)==1&&!overlay_requested,"overlay explicitdisable queues no renderer work");
+    overlay_received=overlay_requested=overlay_input_safe=overlay_palette_admitted=false;
+    palette.selected_variant=2;palette.program_paths[0][0]=L'x';
+    Check(water_pending_palette.selected_variant==0&&water_pending_palette.program_paths[0][0]!=L'x',"water queue owns all path/selector bytes");
+    State current{};state=&current;stats.attached=1;NativeGraphicsCapture::Request request{sizeof(request),1,901};
+    Check(WePlayNativeGraphicsRequestCapture(&request)==1&&capture_pending==901,"capture can queue immediately after waterACK while pending");
+    Check(!CaptureEpochReady(),"pendingwater cannot capture previous shader/frame");
+    water_waiting=false;one.render_width=1280;one.render_height=720;
+    Check(!WePlayNativeGraphicsConfigureWater(&one),"configured protocol cannot cross frompalette2 tolegacy1");water_waiting=true;
+    ApplyPendingWater();Check(!water_waiting&&!capture_pending&&stats.capture_failures==1,"unpinned palette files fail atomically and cancel capture");
+    Check(WaterShaderEffects::Shutdown(),"water failed-preload CPU cleanup");water_initialized=water_received=false;
+    WaterShaderEffects::Stats frame{};frame.initialized=frame.configured=1;frame.config_version=2;frame.selected_variant=1;
+    frame.configuration_epoch=2;frame.requested=frame.enabled=1;frame.completed_frame=frame.last_applied_frame=frame.last_restored_frame=9;
+    frame.completed_drawn_variant=1;frame.completed_applications=frame.completed_restorations=frame.completed_successful_draws=2;
+    Check(WaterPaletteFrameReady(frame,109,100,true),"actualwater selected/successful/restored frame maps nonzero origin");
+    water_state=frame;water_frame_origin=100;stats.present_calls=109;stats.effects_frame_has_geometry=1;
+    auto overlay_status=CurrentOverlayStatus();Check(overlay_status.applied_valid&&overlay_status.applied_enabled&&overlay_status.applied_variant==1,
+        "overlay actual label requires successful current River proof");
+    water_state.completed_drawn_variant=MAXDWORD;water_state.completed_frame=0;
+    overlay_status=CurrentOverlayStatus();Check(!overlay_status.applied_valid&&!overlay_status.applied_enabled&&overlay_status.applied_variant==0&&overlay_status.pending,
+        "unproved/menu overlay status never passes MAXDWORD variant to renderer");
+    for(unsigned bad_field=0;bad_field<12;++bad_field){auto wrong=frame;
+        switch(bad_field){case 0:wrong.completed_drawn_variant=0;break;case 1:wrong.completed_frame=8;break;
+        case 2:wrong.configuration_epoch=0;break;case 3:wrong.completed_successful_draws=0;break;
+        case 4:wrong.completed_failed_draws=1;break;case 5:wrong.completed_restorations=1;break;
+        case 6:wrong.pending_original_refs=1;break;case 7:wrong.unsafe_state=1;break;case 8:wrong.shader_failures=1;break;
+        case 9:wrong.cached_refs=1;break;case 10:wrong.last_restored_frame=8;break;case 11:wrong.selected_variant=3;break;}
+        Check(!WaterPaletteFrameReady(wrong,109,100,true),"stale/mismatched/unsafe/failed water frame refuses");}
+    frame.enabled=frame.requested=0;frame.completed_drawn_variant=MAXDWORD;frame.completed_applications=frame.completed_restorations=frame.completed_successful_draws=0;
+    Check(WaterPaletteFrameReady(frame,109,100,true)&&!WaterPaletteFrameReady(frame,109,100,false),"OFF is fresh original geometry with no drawn program");
+    Check(!WaterPaletteFrameReady(frame,MAXDWORD,MAXDWORD-2,true),"normalized water frame overflow refuses");
+    state=nullptr;water_initialized=true;original_deinit_d3d=OriginalD3D;original_deinit_screen=OriginalScreen;
+    const auto previous_d3d=original_d3d_calls,previous_screen=original_screen_calls;
+    HookDeinitD3D();Check(!HookDeinitScreen(nullptr)&&original_d3d_calls==previous_d3d&&original_screen_calls==previous_screen,
+        "missinghost epoch cannot forward original teardown with livewater module");
+    water_initialized=water_received=water_waiting=false;water_pending_version=1;capture_pending=0;ResetHost();
+}
 }
 int main(){
     using namespace SupersamplingHook;
@@ -111,6 +232,8 @@ int main(){
     Check(directory_length&&directory_length<450&&std::wstring(directory).find(L"\\work\\")!=std::wstring::npos,
         "CPU diagnostics remain in owned work directory");
     EffectsV3Proof(directory);
+    EffectsV4Proof(directory);
+    WaterPaletteProof(directory);
     const std::wstring prefix=std::wstring(directory)+L"\\cpu-never-";
     for(DWORD flags:{16u,32u,48u,49u,65u}) {
         ResetHost();InterlockedExchange(&initialized,0);InterlockedExchange(&initialization_ready,0);

@@ -89,10 +89,18 @@ def capture_command(raw, previous):
     return value['sequence'] if value['sequence'] > previous else None
 
 
-def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False,shadow_allowed=False,ambient_allowed=False):
+def native_command(raw, previous, material_flags=0,comparison_allowed=False,crash_watch_allowed=False,water_allowed=False,shadow_allowed=False,ambient_allowed=False,palette_allowed=False,water_palette_allowed=False):
     if not isinstance(raw,bytes) or len(raw)>4096:
         raise ValueError('Native command exceeds its bound.')
     value=graphics_profile._json(raw)
+    if isinstance(value,dict)and value.get('operation')=='variant':
+        if(set(value)!={'operation','sequence','variant','enabled'}or (palette_allowed is not True and water_palette_allowed is not True)
+            or (palette_allowed is True and water_palette_allowed is True)
+            or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
+            or type(value['variant'])is not int or value['variant']not in(0,1,2)
+            or type(value['enabled'])is not int or value['enabled']not in(0,1 if water_palette_allowed else 4)):
+            raise ValueError('Only the three admitted palette programs may be selected.')
+        return value if value['sequence']>previous else None
     if isinstance(value,dict)and value.get('operation')=='ambient':
         if(set(value)!={'operation','sequence','enabled'}or ambient_allowed is not True
             or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
@@ -106,6 +114,7 @@ def native_command(raw, previous, material_flags=0,comparison_allowed=False,cras
             raise ValueError('Shadow filter requires explicit fixed-profile laboratory intent.')
         return value if value['sequence']>previous else None
     if isinstance(value,dict)and value.get('operation')=='water':
+        if water_palette_allowed:raise ValueError('Water palette cases require the explicit variant command.')
         if(set(value)!={'operation','sequence','enabled'}or water_allowed is not True
             or type(value['sequence'])is not int or not 1<=value['sequence']<=1000000
             or type(value['enabled'])is not int or value['enabled']not in(0,1)):
@@ -129,6 +138,8 @@ def native_command(raw, previous, material_flags=0,comparison_allowed=False,cras
             or not 1<=value['sequence']<=1000000 or type(value['enabled'])is not int
             or value['enabled']<0 or value['enabled']&~material_flags or not material_flags):
         raise ValueError('Only prepared material subsets and bounded capture are supported.')
+    if palette_allowed:
+        raise ValueError('Palette cases require the explicit variant command.')
     return value if value['sequence']>previous else None
 
 
@@ -137,11 +148,42 @@ def measurement_budget_expired(now, deadline, already_reported):
     return now >= deadline and not already_reported
 
 
+class LiveMemoryReport:
+    """Publish completed existing checks, without changing scanning or policy."""
+    def __init__(self,path,pid,record_sha256):
+        self.path=Path(path);self.pid=pid;self.record_sha256=record_sha256;self.last=None
+
+    def publish(self,sentinel):
+        guardian=sentinel.snapshot()
+        stamp=tuple(guardian[key]for key in ('samples','max_pressure','monitor_failed','recovery_required'))
+        if stamp==self.last:return False
+        value=dict(format='s7-memory-live-v1',pid=self.pid,owned_record_sha256=self.record_sha256,
+                   sampled_monotonic_ns=time.monotonic_ns(),guardian=guardian)
+        temporary=self.path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(value),encoding='utf-8')
+        os.replace(temporary,self.path);self.last=stamp
+        return True
+
+
 def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=None,
         hook=None, output_width=1280, output_height=720, observer_catalog=None,
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
-        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False):
+        crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False):
+    if type(shader_overlay)is not bool or (shader_overlay and not water_palette):
+        raise ValueError('Shader overlay requires explicit isolated WaterPalette intent.')
+    if (type(water_palette)is not bool or (water_palette and
+            (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or not water_program
+             or material_config_version!=1 or tuple(material_effects)!=('improved_water',)
+             or leaf_wrapped or leaf_hemisphere or leaf_palette or terrain_macro or shadow_filter
+             or ambient_occlusion or comparison_uv or crash_watch))):
+        raise ValueError('Water palette requires explicit isolated observed High-quality WaterProgram intent.')
+    if (type(leaf_palette)is not bool or (leaf_palette and
+            (baseline_crash_watch or hook is None or observer_catalog is None or not high_quality or material_config_version!=4
+             or tuple(material_effects)!=('improved_vegetation',) or leaf_wrapped or leaf_hemisphere or terrain_macro
+             or water_program or shadow_filter or ambient_occlusion or comparison_uv or crash_watch))
+            or (material_config_version==4 and not leaf_palette)):
+        raise ValueError('Leaf palette requires explicit isolated observed High-quality V4 intent.')
     if (type(leaf_wrapped)is not bool or (leaf_wrapped and
             (baseline_crash_watch or hook is None or not high_quality or material_config_version!=3
              or tuple(material_effects)!=('improved_vegetation',) or leaf_hemisphere or terrain_macro
@@ -213,7 +255,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if (not isinstance(material_effects,(list,tuple)) or len(set(material_effects))!=len(material_effects)
             or any(key not in material_keys for key in material_effects)
             or type(effects_initially_off)is not bool or type(detailed_shadows)is not bool or type(comparison_uv)is not bool
-            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2,3)
+            or type(crash_watch)is not bool or type(material_config_version)is not int or material_config_version not in(1,2,3,4)
             or (material_config_version==2 and 'improved_water'in material_effects and not water_program)
             or (material_effects and (hook is None or not high_quality))):
         raise ValueError('Native materials require an explicit exact hook and High shader quality.')
@@ -242,7 +284,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         selected.update(dict.fromkeys(material_selection,True))
         extra={}
         stage=staging.prepare
-        if material_config_version==3:
+        if material_config_version==4:
+            _,build=load_hook.verify_build(hook)
+            if build.get('abi',{}).get('effects_v4')!=4120:raise ValueError('This exact build does not declare material V4.')
+            from tools.material_shaders import staging_leaf_palette
+            stage=staging_leaf_palette.prepare
+            extra=dict(config_version=4,available_config_versions=(4,),worker_overhead_bytes=load_hook.worker_overhead(executable,hook))
+        elif material_config_version==3:
             _,build=load_hook.verify_build(hook)
             if build.get('abi',{}).get('effects_v3')!=7204:raise ValueError('This exact build does not declare material V3.')
             from tools.material_shaders import staging_leaf_wrapped
@@ -270,11 +318,20 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         from tools.material_shaders import water_variants,staging
         _,build=load_hook.verify_build(hook)
         if build.get('abi',{}).get('water')!=1076:raise ValueError('This exact build does not declare WaterProgram.')
-        prepared=water_variants.prepare(root,(width,height),variant=water_variant,native_report=output/'hook-state.private.json',verified_platform=value,
-            available_features=('improved_water',),private_case=True)
+        if water_palette:
+            if build.get('abi',{}).get('water_palette')!=3096:raise ValueError('This exact build does not declare WaterPalette.')
+            if shader_overlay and build.get('diagnostic_abi',{}).get('overlay')!=12:
+                raise ValueError('This exact build does not declare the shader overlay diagnostic.')
+            from tools.material_shaders import water_palette_staging
+            prepared=water_palette_staging.prepare(root,(width,height),native_report=output/'hook-state.private.json',
+                verified_platform=value,available_features=('improved_water',),available_config_versions=(2,),
+                worker_overhead_bytes=load_hook.worker_overhead(executable,hook),private_case=True)
+        else:
+            prepared=water_variants.prepare(root,(width,height),variant=water_variant,native_report=output/'hook-state.private.json',verified_platform=value,
+                available_features=('improved_water',),private_case=True)
         water_config=prepared.pop('config')
-        (output/'water-config.bin').write_bytes(water_config)
-        (output/'water-stage.private.json').write_text(json.dumps(prepared,indent=2),encoding='utf-8')
+        (output/('water-palette-config.bin' if water_palette else 'water-config.bin')).write_bytes(water_config)
+        (output/('water-palette-stage.private.json' if water_palette else 'water-stage.private.json')).write_text(json.dumps(prepared,indent=2),encoding='utf-8')
         if effects_config is None:
             effects_config=struct.pack('<5I4f',4132,1,0,width,height,1.15,.94,1.2,1.1)+bytes(3072)+staging._wide(str(output/'material-effects.private.json'))
             (output/'effects-config.bin').write_bytes(effects_config)
@@ -318,10 +375,13 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         baseline_metric_profile_requested=baseline_metric_profile,
         material_effects_requested=list(material_effects),
         water_program_requested=water_program,
-        water_variant=water_variant if water_program else None,
+        water_variant=water_variant if water_program and not water_palette else None,
+        water_palette_requested=water_palette,
+        shader_overlay_requested=shader_overlay,
         material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
         leaf_hemisphere_requested=leaf_hemisphere,
         leaf_wrapped_requested=leaf_wrapped,
+        leaf_palette_requested=leaf_palette,
         shadow_filter_requested=shadow_filter,ambient_occlusion_requested=ambient_occlusion,
         ambient_profile=ambient_profile if ambient_occlusion else None), indent=2), encoding='utf-8')
     recovery.prepare(root, output, critical=immutable,
@@ -384,8 +444,11 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if water_config is not None:
                     initial=bytearray(water_config)
                     if effects_initially_off:struct.pack_into('<I',initial,16,0)
-                    configured=load_hook.invoke(owned,hook,'water',bytes(initial))
-                    (output/'water-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                    configured=load_hook.invoke(owned,hook,'water_palette' if water_palette else 'water',bytes(initial))
+                    (output/('water-palette-configured.private.json' if water_palette else 'water-configured.private.json')).write_text(json.dumps(configured,indent=2),encoding='utf-8')
+                if shader_overlay:
+                    configured=load_hook.invoke(owned,hook,'overlay',struct.pack('<3I',12,1,1))
+                    (output/'overlay-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
                 if shadow_filter:
                     configured=load_hook.invoke(owned,hook,'shadow',struct.pack('<3I',12,1,0 if effects_initially_off else 1))
                     (output/'shadow-configured.private.json').write_text(json.dumps(configured,indent=2),encoding='utf-8')
@@ -402,6 +465,9 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             memory_guard.Probe(game, executable), warn=lambda level: print(
                 json.dumps(dict(event='graphics-lab-memory-stop', level=level)), flush=True))
         sentinel.start()
+        live_memory=LiveMemoryReport(output/'memory-live.private.json',game.pid,
+            hashlib.sha256((output/'owned.private.json').read_bytes()).hexdigest())
+        live_memory.publish(sentinel)
         print(json.dumps(dict(event='graphics-game-launched', pid=game.pid,
                               requested_render_size=[width, height], portable=True,
                               reshade_requested=False)), flush=True)
@@ -409,6 +475,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         last_command = None
         last_sequence = 0
         while game.poll() is None:
+            live_memory.publish(sentinel)
             if sentinel.summary['monitor_failed'] or sentinel.summary['recovery_required']:
                 raise RuntimeError('The memory guard failed or confirmed pressure; stop this owned experiment.')
             if measurement_budget_expired(time.monotonic(), deadline, budget_expired):
@@ -429,7 +496,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                 if identity != last_command:
                     last_command = identity
                     try:
-                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None,shadow_filter,ambient_occlusion)
+                        request = baseline_watcher.baseline_command(raw,last_sequence) if baseline_crash_watch else native_command(raw, last_sequence, material_flags,comparison_uv,crash_watch,water_config is not None,shadow_filter,ambient_occlusion,leaf_palette,water_palette)
                         if request is not None:
                             sequence=request['sequence'];last_sequence=sequence
                             operation=request['operation']
@@ -445,7 +512,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
                                 receipt=watcher.admit(game,output,load_and_new_save_confirmed=True)
                             else:
                                 payload=struct.pack('<3I',12,1,sequence)
-                                if operation=='effects':
+                                if operation=='variant':
+                                    payload=bytearray(water_config if water_palette else effects_config)
+                                    struct.pack_into('<I',payload,16 if water_palette else 8,request['enabled'])
+                                    struct.pack_into('<I',payload,20,request['variant'])
+                                    payload=bytes(payload);operation='water_palette' if water_palette else 'effects'
+                                elif operation=='effects':
                                     payload=bytearray(effects_config)
                                     struct.pack_into('<I',payload,8,request['enabled']);payload=bytes(payload)
                                 elif operation=='ambient':
@@ -534,12 +606,15 @@ def main():
     parser.add_argument('--material-effects',nargs='+',choices=('improved_water','improved_terrain','improved_vegetation'),default=[])
     parser.add_argument('--effects-initially-off',action='store_true')
     parser.add_argument('--water-program',action='store_true',help='Explicit new recipient-generated water pixel shader; legacy River factors stay disabled')
+    parser.add_argument('--shader-overlay',action='store_true',help='Native live shader selector in the game; requires --water-palette')
+    parser.add_argument('--water-palette',action='store_true',help='Three fixed WaterProgram alternatives in one process; requires --water-program')
     parser.add_argument('--water-variant',choices=('A','B'),default='A',help='Explicit fixed water candidate: A matte, B balanced gloss')
-    parser.add_argument('--material-config-version',type=int,choices=(1,2,3),default=1,
+    parser.add_argument('--material-config-version',type=int,choices=(1,2,3,4),default=1,
         help='Explicit versioned terrain/leaf transport; V2 does not include the separate new water shader')
     parser.add_argument('--terrain-macro',action='store_true',help='Explicit source-pinned macro terrain recipe; V2 historical recipes stay unchanged')
     parser.add_argument('--leaf-hemisphere',action='store_true',help='Explicit original-leaf ambient hemisphere recipe; vegetation-only V2 trial')
     parser.add_argument('--leaf-wrapped',action='store_true',help='Explicit isolated leaf diffuse-lighting recipe; original vertex shader and V3 transport')
+    parser.add_argument('--leaf-palette',action='store_true',help='Three admitted alternative Leaf PS programs in one process; explicit V4 transport')
     parser.add_argument('--shadow-filter',action='store_true',help='Fixed guarded 2048 far-shadow filter diagnostic; requires OBSERVE')
     parser.add_argument('--ambient-occlusion',action='store_true',help='Fixed original S7 SSAO strength diagnostic; excludes the shadow-filter trial')
     parser.add_argument('--ambient-profile',choices=('A','B'),default='A',help='Explicit fixed SSAO profile: A caps at1; B caps at1.25')
@@ -558,7 +633,7 @@ def main():
         material_config_version=args.material_config_version,baseline_crash_watch=args.baseline_crash_watch,water_program=args.water_program,
         water_variant=args.water_variant,terrain_macro=args.terrain_macro,shadow_filter=args.shadow_filter,
         ambient_occlusion=args.ambient_occlusion,ambient_profile=args.ambient_profile,leaf_hemisphere=args.leaf_hemisphere,
-        baseline_metric_profile=args.baseline_metric_profile,leaf_wrapped=args.leaf_wrapped)
+        baseline_metric_profile=args.baseline_metric_profile,leaf_wrapped=args.leaf_wrapped,leaf_palette=args.leaf_palette,water_palette=args.water_palette,shader_overlay=args.shader_overlay)
 
 
 if __name__ == '__main__':

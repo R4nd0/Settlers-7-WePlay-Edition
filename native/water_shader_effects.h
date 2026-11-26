@@ -11,6 +11,7 @@
 #include <cstdint>
 
 namespace WaterShaderEffects {
+struct ConfigPalette;
 struct Config {
     DWORD size=sizeof(Config),version=1,render_width=0,render_height=0,enabled=0;
     wchar_t pixel_path[512]{};
@@ -21,10 +22,10 @@ struct DrawTransaction {
     IDirect3DDevice9* device=nullptr;
     IDirect3DPixelShader9* original_pixel=nullptr; // borrowed; pending ownership lives in module State
     bool touched=false,active=false,unsafe_state=false;
-    DWORD owner_thread=0;
+    DWORD owner_thread=0,selected_variant=MAXDWORD;
 };
 struct Stats {
-    DWORD size=sizeof(Stats),version=1,initialized=0,configured=0,requested=0,enabled=0;
+    DWORD size=sizeof(Stats),version=2,initialized=0,configured=0,requested=0,enabled=0;
     DWORD faulted=0,unsafe_state=0,active_transactions=0,cached_refs=0,retained_programs=0;
     DWORD last_failure=0,pending_original_refs=0,variant=0;
     std::uint64_t draws=0,matched=0,context_rejections=0,query_failures=0,cache_overflows=0;
@@ -35,6 +36,10 @@ struct Stats {
     std::uint64_t completed_frame=0,completed_applications=0,completed_restorations=0;
     std::uint64_t last_applied_frame=0,last_restored_frame=0;
     std::uint64_t recovery_attempts=0,recoveries=0;
+    DWORD config_version=1,selected_variant=MAXDWORD,completed_drawn_variant=MAXDWORD;
+    std::uint64_t completed_successful_draws=0,completed_failed_draws=0;
+    std::array<std::uint64_t,3> variant_applications{},variant_restorations{},variant_successful_draws{},variant_failed_draws{},variant_creations{};
+    std::array<std::array<unsigned char,32>,3> variant_sha256{};
 };
 
 // The host retains its exact EXE/DXVK/build guards and serial/TLS scope. trusted
@@ -48,6 +53,9 @@ bool Initialize(const wchar_t* trusted_report,DWORD render_width,DWORD render_he
 // Do not overlap legacy River VS68/69
 // mutation; terrain/leaf V2 flags6 are independent.
 bool Configure(const Config* config) noexcept;
+// Separate3096/version2. First request (including OFF) preloads all3 immutable
+// CPU buffers/leases. Later requests change only enabled/index at safe boundary.
+bool ConfigurePalette(const ConfigPalette* config) noexcept;
 // Call only for nonzero geometry. EndDraw's successful-frame counters assume
 // the host retains its original successful/nonzero draw contract.
 void BeginDraw(IDirect3DDevice9* device,DrawTransaction* transaction) noexcept;
@@ -78,5 +86,6 @@ bool ReadStats(Stats* output) noexcept;
 // Authored CPU fake-COM fixture only. Not declared/compiled in production.
 bool FixtureIdentities(const unsigned char vertex[32],const unsigned char pixel[32],
                        const unsigned char replacement[32]) noexcept;
+bool FixturePaletteIdentity(DWORD index,const unsigned char replacement[32]) noexcept;
 #endif
 }

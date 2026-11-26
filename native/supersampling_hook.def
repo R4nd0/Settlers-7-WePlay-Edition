@@ -9,3 +9,4 @@ EXPORTS
     WePlayNativeGraphicsConfigureWater=_WePlayNativeGraphicsConfigureWater@4
     WePlayNativeGraphicsConfigureShadow=_WePlayNativeGraphicsConfigureShadow@4
     WePlayNativeGraphicsConfigureAmbient=_WePlayNativeGraphicsConfigureAmbient@4
+    WePlayNativeGraphicsConfigureOverlay=_WePlayNativeGraphicsConfigureOverlay@4

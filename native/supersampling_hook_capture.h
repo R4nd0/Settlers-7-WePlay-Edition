@@ -6,6 +6,7 @@
 #include "water_shader_effects.h"
 #include "shadow_filter_effects.h"
 #include "ambient_occlusion_effects.h"
+#include "material_shader_effects.h"
 #include <array>
 #include <string>
 
@@ -28,6 +29,8 @@ struct Result {
     bool shadow_state_available=false;
     AmbientOcclusionEffects::Stats ambient{};
     bool ambient_state_available=false;
+    MaterialShaderEffects::Stats material{};
+    bool material_state_available=false;
     std::array<char,65> source_sha256{},output_sha256{},state_sha256{};
     std::wstring receipt_path;
 };
@@ -38,5 +41,5 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
           const wchar_t* base_report,DWORD sequence,const SupersamplingStats& graphics,Result& result) noexcept;
 // Writes the final scalar receipt after the corresponding real Present result.
 void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_result,
-            bool fallback_used,bool filtered_path) noexcept;
+            bool fallback_used,bool filtered_path,bool diagnostic_overlay_drawn=false) noexcept;
 }

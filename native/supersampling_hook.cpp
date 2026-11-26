@@ -8,8 +8,12 @@
 #include "supersampling_hook_effects_draw.h"
 #include "supersampling_hook_comparison_draw.h"
 #include "native_effects_wire.h"
+#include "native_water_wire.h"
+#include "water_shader_palette_contract.h"
+#include "shader_debug_overlay.h"
 #include "material_shader_effects_contract_v2.h"
 #include "material_shader_effects_contract_v3.h"
+#include "material_shader_effects_contract_v4.h"
 #include "native_material_draw.h"
 #include "up_draw_observer_protocol.h"
 #include "ambient_occlusion_effects.h"
@@ -26,6 +30,8 @@
 
 static_assert(MaterialShaderConfigV3::Bytes+392<=MaterialShaderConfigV3::WorkerBudget,
     "V3 plus fixed worker prefix must fit its 8192-byte bound");
+static_assert(MaterialShaderConfigV4::Bytes+392<=MaterialShaderConfigV4::WorkerBudget,
+    "V4 plus fixed worker prefix must fit its 8192-byte bound");
 
 namespace SupersamplingHook {
 constexpr char RendererHash[]="265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa";
@@ -67,6 +73,8 @@ struct State {
     LONG startup_client_width=0,startup_client_height=0;
     bool shutdown_requested=false;
     bool terminal_cleanup=false;
+    DWORD overlay_buttons=0;
+    bool overlay_hotkey=false;
 #ifdef S7_SUPERSAMPLING_FIXTURE
     bool fail_next_present=false;
 #endif
@@ -104,10 +112,17 @@ DWORD capture_pending=0,capture_last_sequence=0;
 MaterialShaderEffects::Config effects_pending_config{},effects_loaded_config{};
 MaterialShaderConfigV2::Config effects_pending_v2{},effects_loaded_v2{};
 MaterialShaderConfigV3::Config effects_pending_v3{},effects_loaded_v3{};
+MaterialShaderConfigV4::Config effects_pending_v4{},effects_loaded_v4{};
 DWORD effects_pending_version=1,effects_loaded_version=0;
+std::uint64_t palette_current_applications=0,palette_current_restorations=0,palette_current_failed=0;
 bool effects_received=false,effects_waiting=false,effects_initialized=false,effects_faulted=false;
 DWORD effects_loaded_flags=0;
 WaterShaderEffects::Config water_pending_config{};
+WaterShaderEffects::ConfigPalette water_pending_palette{};
+DWORD water_pending_version=1;
+bool overlay_received=false,overlay_requested=false,overlay_input_safe=false,overlay_unsafe=false;
+bool overlay_palette_admitted=false;
+WaterShaderEffects::ConfigPalette overlay_palette{};
 bool water_received=false,water_waiting=false,water_initialized=false;
 DWORD water_frame_origin=0;
 WaterShaderEffects::Stats water_state{};
@@ -199,11 +214,17 @@ std::string WaterJson() {
     return "{\"received\":"+std::to_string(water_received?1:0)+",\"pending\":"+std::to_string(water_waiting?1:0)
         +",\"configured\":"+std::to_string(s.configured)+",\"requested\":"+std::to_string(s.requested)
         +",\"enabled\":"+std::to_string(s.enabled)+",\"variant\":"+std::to_string(s.variant)+",\"faulted\":"+std::to_string(s.faulted)
+        +",\"config_version\":"+std::to_string(s.config_version)
+        +",\"selected_variant\":"+(s.config_version==2&&s.selected_variant<3?std::to_string(s.selected_variant):"null")
+        +",\"drawn_variant\":"+(s.config_version==2&&s.enabled&&s.completed_drawn_variant<3?std::to_string(s.completed_drawn_variant):"null")
+        +",\"frame\":"+std::to_string(s.completed_frame?s.completed_frame+water_frame_origin:0)
         +",\"unsafe\":"+std::to_string(s.unsafe_state)+",\"frames\":"+std::to_string(s.frames)
         +",\"epoch\":"+std::to_string(s.configuration_epoch)+",\"shader_creations\":"+std::to_string(s.shader_creations)
         +",\"applications\":"+std::to_string(s.applications)+",\"restorations\":"+std::to_string(s.restorations)
         +",\"completed_frame\":"+std::to_string(s.completed_frame?s.completed_frame+water_frame_origin:0)+",\"completed_applications\":"+std::to_string(s.completed_applications)
         +",\"completed_restorations\":"+std::to_string(s.completed_restorations)+",\"query_failures\":"+std::to_string(s.query_failures)
+        +",\"completed_successful_draws\":"+std::to_string(s.completed_successful_draws)
+        +",\"completed_failed_draws\":"+std::to_string(s.completed_failed_draws)
         +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
         +",\"exceptions\":"+std::to_string(s.exceptions)+",\"cached_refs\":"+std::to_string(s.cached_refs)
         +",\"retained_programs\":"+std::to_string(s.retained_programs)+",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+"}";
@@ -325,6 +346,8 @@ void Report() {
         "\"effects_requested\":%lu,\"effects_configured\":%lu,\"effects_active\":%lu,\"effects_pending\":%lu,"
         "\"effects_config_version\":%lu,\"effects_revision\":%lu,\"effects_config_errors\":%lu,\"effects_unsafe\":%lu,\"effects_blocked_draws\":%lu,"
         "\"effects_drawn_revision\":%lu,\"effects_drawn_active\":%lu,\"effects_frame_has_geometry\":%lu,"
+        "\"effects_selected_variant\":%s,\"effects_drawn_variant\":%s,\"effects_drawn_frame\":%lu,"
+        "\"effects_variant_frame_applications\":%lu,\"effects_variant_frame_restorations\":%lu,\"effects_variant_frame_failed_draws\":%lu,"
         "\"effects_module_faulted\":%lu,\"effects_module_shader_failures\":%lu,\"effects_module_set_failures\":%lu,"
         "\"effects_module_restore_failures\":%lu,\"effects_module_exceptions\":%lu,"
         "\"effects_faulted\":%lu,\"effects_disabled_reason\":%lu,\"effects_fallback_draws\":%lu,"
@@ -338,7 +361,9 @@ void Report() {
         "\"comparison_restorations\":%llu,\"comparison_failed_draws\":%llu,\"comparison_set_failures\":%llu,"
         "\"comparison_restore_failures\":%llu,\"comparison_exceptions\":%llu,\"water\":%s,\"shadow\":%s,\"ambient\":%s,"
         "\"up_draw_calls\":%lu,\"up_indexed_calls\":%lu,\"up_observer_calls\":%lu,\"up_context_rejections\":%lu,"
-        "\"up_blocked_calls\":%lu,\"up_original_exceptions\":%lu,\"up_diagnostic_exceptions\":%lu}\n",
+        "\"up_blocked_calls\":%lu,\"up_original_exceptions\":%lu,\"up_diagnostic_exceptions\":%lu,"
+        "\"overlay_received\":%lu,\"overlay_requested\":%lu,\"overlay_visible\":%lu,\"overlay_unsafe\":%lu,"
+        "\"overlay_input_events\":%lu,\"overlay_draws\":%lu,\"overlay_choices\":%lu,\"overlay_failures\":%lu}\n",
         stats.attached,stats.present_calls,stats.output_present_calls,stats.fallback_calls,
         stats.reset_calls,stats.reset_successes,stats.release_calls,stats.swapchain_creations,
         stats.source_width,stats.source_height,stats.output_width,stats.output_height,
@@ -355,6 +380,9 @@ void Report() {
         stats.effects_requested,stats.effects_configured,stats.effects_active,stats.effects_pending,
         stats.effects_config_version,stats.effects_revision,stats.effects_config_errors,stats.effects_unsafe,stats.effects_blocked_draws,
         stats.effects_drawn_revision,stats.effects_drawn_active,stats.effects_frame_has_geometry,
+        (stats.effects_config_version==4&&stats.effects_selected_variant<3?std::to_string(stats.effects_selected_variant):"null").c_str(),
+        (stats.effects_config_version==4&&stats.effects_drawn_variant<3?std::to_string(stats.effects_drawn_variant):"null").c_str(),
+        stats.effects_drawn_frame,stats.effects_variant_frame_applications,stats.effects_variant_frame_restorations,stats.effects_variant_frame_failed_draws,
         stats.effects_module_faulted,stats.effects_module_shader_failures,stats.effects_module_set_failures,
         stats.effects_module_restore_failures,stats.effects_module_exceptions,
         stats.effects_faulted,stats.effects_disabled_reason,stats.effects_fallback_draws,
@@ -367,7 +395,9 @@ void Report() {
         comparison_last_state.restorations,comparison_last_state.failed_draws,comparison_last_state.set_failures,
         comparison_last_state.restore_failures,comparison_last_state.exceptions,WaterJson().c_str(),ShadowJson().c_str(),AmbientJson().c_str(),
         stats.up_draw_calls,stats.up_indexed_calls,stats.up_observer_calls,stats.up_context_rejections,
-        stats.up_blocked_calls,stats.up_original_exceptions,stats.up_diagnostic_exceptions);
+        stats.up_blocked_calls,stats.up_original_exceptions,stats.up_diagnostic_exceptions,
+        stats.overlay_received,stats.overlay_requested,stats.overlay_visible,stats.overlay_unsafe,
+        stats.overlay_input_events,stats.overlay_draws,stats.overlay_choices,stats.overlay_failures);
     if(count<=0 || count>=static_cast<int>(sizeof(text)))return;
     HANDLE file=CreateFileW(configuration.report_path,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -385,7 +415,71 @@ bool SameEffectsIdentity(MaterialShaderEffects::Config first,MaterialShaderEffec
     return !std::memcmp(&first,&second,sizeof(first));
 }
 
+void InvalidatePaletteFrame() {
+    palette_current_applications=palette_current_restorations=palette_current_failed=0;
+    stats.effects_drawn_variant=MAXDWORD;stats.effects_drawn_frame=0;
+    stats.effects_variant_frame_applications=stats.effects_variant_frame_restorations=stats.effects_variant_frame_failed_draws=0;
+    if(stats.effects_config_version==4)stats.effects_frame_has_geometry=0;
+}
+void RecordPaletteDraw(DWORD role,HRESULT original) {
+    if(stats.effects_config_version!=4 || !stats.effects_active || role!=4)return;
+    if(SUCCEEDED(original)) {
+        if(palette_current_applications<=MAXDWORD)++palette_current_applications;
+        if(palette_current_restorations<=MAXDWORD)++palette_current_restorations;
+    } else if(palette_current_failed<=MAXDWORD)++palette_current_failed;
+}
+void CompletePaletteFrame() {
+    if(stats.effects_config_version!=4)return;
+    const bool bounded=palette_current_applications<=MAXDWORD&&palette_current_restorations<=MAXDWORD&&palette_current_failed<=MAXDWORD;
+    stats.effects_variant_frame_applications=bounded?static_cast<DWORD>(palette_current_applications):0;
+    stats.effects_variant_frame_restorations=bounded?static_cast<DWORD>(palette_current_restorations):0;
+    stats.effects_variant_frame_failed_draws=bounded?static_cast<DWORD>(palette_current_failed):MAXDWORD;
+    if(!bounded)stats.effects_frame_has_geometry=0;
+    palette_current_applications=palette_current_restorations=palette_current_failed=0;
+}
+
 void ApplyPendingEffects() {
+    if(effects_waiting&&effects_pending_version!=4){stats.effects_selected_variant=MAXDWORD;InvalidatePaletteFrame();}
+    if(effects_pending_version==4) {
+        if(!effects_waiting || (effects_faulted && effects_pending_v4.flags) || stats.render_unsafe)return;
+        DiagnosticScope diagnostic;
+        const auto next=effects_pending_v4;
+        bool valid=false;
+        if(effects_faulted && !next.flags) {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;valid=true;
+        } else if(effects_initialized && effects_loaded_version==4
+            && NativeEffectsContractV4::SamePinnedConfig(next,effects_loaded_v4)
+            && !(next.flags&~effects_loaded_flags)) {
+            valid=MaterialShaderEffects::SetVariant(next.selected_variant) && MaterialShaderEffects::SetEnabled(next.flags);
+        } else {
+            if(effects_initialized)MaterialShaderEffects::Shutdown();
+            effects_initialized=false;effects_loaded_flags=0;effects_loaded_version=0;
+            MaterialShaderConfigV4::Config initial{};
+            auto error=NativeEffectsContractV4::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV4::Layout::PrivateCase,initial);
+            if(error!=NativeEffectsContractV4::Error::None)error=NativeEffectsContractV4::PrepareInitial(next,native_configuration,
+                NativeEffectsContractV4::Layout::RecipientLocalData,initial);
+            valid=error==NativeEffectsContractV4::Error::None && MaterialShaderEffects::InitializeV4(&initial);
+            if(valid) {
+                effects_initialized=true;effects_loaded_v4=initial;effects_loaded_flags=initial.flags;effects_loaded_version=4;
+                MaterialShaderEffects::SetDiagnostics((native_configuration.flags&NativeGraphicsConfig::Observe)!=0);
+                valid=MaterialShaderEffects::SetVariant(next.selected_variant) && MaterialShaderEffects::SetEnabled(next.flags);
+            }
+        }
+        effects_waiting=false;stats.effects_pending=0;
+        if(valid) {
+            effects_faulted=false;stats.effects_faulted=0;stats.effects_disabled_reason=0;
+            stats.effects_configured=1;stats.effects_active=next.flags;stats.effects_config_version=4;
+            stats.effects_selected_variant=next.selected_variant;InvalidatePaletteFrame();++stats.effects_revision;
+        } else {
+            effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=220;
+            stats.effects_active=0;++stats.effects_config_errors;++stats.effects_revision;stats.last_failure=220;
+            if(capture_pending){capture_pending=0;++stats.capture_failures;}
+            stats.effects_frame_has_geometry=0;
+        }
+        Report();return;
+    }
     if(effects_pending_version==3) {
         if(!effects_waiting || (effects_faulted && effects_pending_v3.flags) || stats.render_unsafe)return;
         DiagnosticScope diagnostic;
@@ -497,6 +591,7 @@ void ApplyPendingEffects() {
     Report();
 }
 
+bool WaterHealthy();
 void ApplyPendingWater() {
     if(!water_waiting||stats.render_unsafe)return;
     DiagnosticScope diagnostic;
@@ -504,8 +599,15 @@ void ApplyPendingWater() {
         water_initialized=WaterShaderEffects::Initialize(configuration.report_path,configuration.render_width,configuration.render_height);
         if(water_initialized){water_frame_origin=stats.present_calls;stats.water_frame_origin=water_frame_origin;}
     }
-    const bool valid=water_initialized&&WaterShaderEffects::Configure(&water_pending_config);
+    const bool valid=water_initialized&&(water_pending_version==2?WaterShaderEffects::ConfigurePalette(&water_pending_palette)
+        :WaterShaderEffects::Configure(&water_pending_config));
     water_waiting=false;++stats.effects_revision;stats.effects_frame_has_geometry=0;
+    if(valid) {
+        WaterHealthy();
+        if(water_pending_version==2&&!overlay_palette_admitted) {
+            overlay_palette=water_pending_palette;overlay_palette_admitted=true;
+        }
+    }
     if(!valid){stats.last_failure=224;++stats.capture_failures;capture_pending=0;}
     Report();
 }
@@ -517,7 +619,72 @@ bool WaterHealthy() {
     water_state=value;
     stats.water_active=value.enabled;stats.water_unsafe=value.unsafe_state;
     if(value.unsafe_state){stats.render_unsafe=1;return false;}
+    if(water_pending_version==2 && (value.config_version!=2||value.selected_variant!=water_pending_palette.selected_variant
+        ||value.shader_failures||value.set_failures||value.restore_failures||value.exceptions))return false;
     return !value.faulted;
+}
+
+bool WaterPaletteFrameReady(const WaterShaderEffects::Stats& value,DWORD present,DWORD origin,bool fresh_geometry) {
+    if(!value.initialized||!value.configured||value.config_version!=2||value.selected_variant>2
+        ||!value.configuration_epoch||value.enabled>1||value.requested!=value.enabled||value.faulted||value.unsafe_state
+        ||value.shader_failures||value.set_failures||value.restore_failures||value.exceptions
+        ||value.active_transactions||value.pending_original_refs||value.cached_refs
+        ||!present||!value.completed_frame||value.completed_frame>MAXDWORD-origin||value.completed_frame+origin!=present
+        ||value.completed_failed_draws)return false;
+    if(value.enabled)return value.completed_drawn_variant==value.selected_variant&&value.completed_applications>0
+        &&value.completed_applications==value.completed_restorations
+        &&value.completed_successful_draws==value.completed_applications
+        &&value.last_applied_frame==value.completed_frame&&value.last_restored_frame==value.completed_frame;
+    return fresh_geometry&&value.completed_drawn_variant==MAXDWORD&&!value.completed_applications
+        &&!value.completed_restorations&&!value.completed_successful_draws;
+}
+
+void CancelEffectsCapture();
+void OverlayFault() {
+    overlay_unsafe=true;overlay_input_safe=false;stats.overlay_unsafe=1;stats.render_unsafe=1;
+    stats.overlay_visible=0;stats.last_failure=231;++stats.overlay_failures;CancelEffectsCapture();
+}
+bool ResetOverlay(IDirect3DDevice9* device) {
+    if(!overlay_received&&!overlay_unsafe)return true;
+    if(ShaderDebugOverlay::HasUnsafe()&&!ShaderDebugOverlay::RetryRestore(device)){OverlayFault();return false;}
+    if(!ShaderDebugOverlay::Reset(device)){OverlayFault();return false;}
+    if(overlay_unsafe&&!stats.effects_unsafe&&!stats.water_unsafe&&!stats.comparison_unsafe&&!stats.shadow_unsafe&&!stats.ambient_unsafe)
+        stats.render_unsafe=0;
+    overlay_unsafe=false;stats.overlay_unsafe=0;
+    return true;
+}
+void ApplyOverlaySelection() {
+    if(!overlay_received||!overlay_requested||!overlay_palette_admitted||stats.render_unsafe)return;
+    ShaderDebugOverlay::Selection choice{};if(!ShaderDebugOverlay::ConsumeSelection(&choice))return;
+    if(choice.enabled>1||choice.variant>2)return;
+    if(!water_waiting&&water_state.config_version==2&&water_state.requested==choice.enabled&&water_state.selected_variant==choice.variant)return;
+    water_pending_palette=overlay_palette;water_pending_palette.enabled=choice.enabled;water_pending_palette.selected_variant=choice.variant;
+    water_pending_version=2;water_received=water_waiting=true;stats.water_protocol_received=1;++stats.overlay_choices;
+    ApplyPendingWater();
+}
+ShaderDebugOverlay::Status CurrentOverlayStatus() {
+    ShaderDebugOverlay::Status status{};
+    status.applied_valid=WaterPaletteFrameReady(water_state,stats.present_calls,water_frame_origin,stats.effects_frame_has_geometry!=0)?1u:0u;
+    status.applied_enabled=status.applied_valid?water_state.enabled:0u;status.applied_variant=status.applied_valid&&water_state.enabled?water_state.completed_drawn_variant:0u;
+    status.pending=water_waiting||!status.applied_valid?1u:0u;
+    status.pending_enabled=water_waiting?water_pending_palette.enabled:water_state.requested;
+    status.pending_variant=water_waiting?water_pending_palette.selected_variant:water_state.selected_variant;
+    if(status.pending_variant>2)status.pending_variant=0;
+    return status;
+}
+bool DrawOverlay(IDirect3DDevice9* device,IDirect3DSurface9* output,bool& drawn) {
+    drawn=false;overlay_input_safe=false;stats.overlay_visible=0;
+    if(!overlay_received||!overlay_requested||!overlay_palette_admitted)return true;
+    if(ShaderDebugOverlay::HasUnsafe()&&!ShaderDebugOverlay::RetryRestore(device)){OverlayFault();return false;}
+    const auto status=CurrentOverlayStatus();
+    drawn=ShaderDebugOverlay::Draw(device,output,configuration.output_width,configuration.output_height,status);
+    if(ShaderDebugOverlay::HasUnsafe()) {
+        if(!ShaderDebugOverlay::RetryRestore(device)){OverlayFault();return false;}
+        drawn=false;
+    }
+    if(drawn){overlay_input_safe=true;stats.overlay_visible=1;++stats.overlay_draws;}
+    else {overlay_requested=false;stats.overlay_requested=0;++stats.overlay_failures;}
+    return true;
 }
 
 bool ShadowHealthy() {
@@ -663,6 +830,7 @@ bool EffectsDrawAllowed() {
 void CancelEffectsCapture() {
     if(capture_pending){capture_pending=0;++stats.capture_failures;}
     stats.effects_frame_has_geometry=0;
+    InvalidatePaletteFrame();
 }
 
 void CheckEffectsState() {
@@ -681,20 +849,36 @@ void CheckEffectsState() {
         stats.effects_module_restore_failures=bounded(module.restore_failures);
         stats.effects_module_exceptions=bounded(module.exceptions);
     }
-    if(!read || module.faulted || module.shader_failures || module.set_failures || module.restore_failures || module.exceptions) {
+    const bool wrong_palette=stats.effects_config_version==4
+        && (!read || module.config_version!=4 || module.selected_variant!=stats.effects_selected_variant || module.selected_variant>2);
+    if(!read || module.faulted || module.shader_failures || module.set_failures || module.restore_failures || module.exceptions || wrong_palette) {
         const bool first=!effects_faulted;
         effects_faulted=true;stats.effects_faulted=1;stats.effects_disabled_reason=223;stats.effects_active=0;
         if(first){++stats.effects_revision;stats.last_failure=223;CancelEffectsCapture();Report();}
     }
 }
 
-void LatchEffectsDraw() {
+void LatchEffectsDraw(DWORD role=0) {
+    if(stats.effects_config_version==4) {
+        if(stats.effects_active && role!=4)return;
+        stats.effects_drawn_variant=stats.effects_active?stats.effects_selected_variant:MAXDWORD;
+        stats.effects_drawn_frame=stats.present_calls+1;
+    }
     stats.effects_drawn_revision=stats.effects_revision;
     stats.effects_drawn_active=stats.effects_active;
     stats.effects_frame_has_geometry=1;
 }
 
 bool CaptureEpochReady() {
+    if(stats.effects_config_version==4) {
+        if(!effects_initialized || effects_faulted || !stats.present_calls || !stats.effects_drawn_frame || stats.effects_selected_variant>2
+            ||stats.effects_drawn_frame!=stats.present_calls||stats.effects_variant_frame_failed_draws)return false;
+        if(stats.effects_active && (stats.effects_drawn_variant!=stats.effects_selected_variant
+            ||!stats.effects_variant_frame_applications
+            ||stats.effects_variant_frame_applications!=stats.effects_variant_frame_restorations))return false;
+        if(!stats.effects_active&&(stats.effects_drawn_variant!=MAXDWORD||stats.effects_variant_frame_applications
+            ||stats.effects_variant_frame_restorations))return false;
+    }
     if(ambient_received&&(ambient_waiting||!ambient_initialized||!AmbientHealthy()||!ambient_frame_counters_valid
         ||ambient_state.completed_frame+ambient_frame_origin!=stats.present_calls))return false;
     if(ambient_received&&ambient_state.enabled && (!ambient_frame_good || !ambient_state.completed_applications
@@ -710,6 +894,8 @@ bool CaptureEpochReady() {
         ||shadow_state.last_applied_frame!=shadow_state.completed_frame
         ||shadow_state.last_restored_frame!=shadow_state.completed_frame))return false;
     if(water_received&&(water_waiting||!water_initialized||!WaterHealthy()))return false;
+    if(water_received&&water_pending_version==2&&!WaterPaletteFrameReady(water_state,stats.present_calls,water_frame_origin,
+        stats.effects_frame_has_geometry!=0))return false;
     if(water_received&&water_state.enabled && (!water_state.completed_applications
         ||water_state.completed_applications!=water_state.completed_restorations
         ||water_state.completed_frame+water_frame_origin!=stats.present_calls))return false;
@@ -848,9 +1034,45 @@ bool ClientMouseMessage(UINT message) {
         || message==WM_XBUTTONDOWN || message==WM_XBUTTONUP || message==WM_XBUTTONDBLCLK;
 }
 
+bool OverlayInput(State* current,HWND window,UINT message,WPARAM wparam,LPARAM lparam) {
+    if(!current||current->window!=window||current->thread!=GetCurrentThreadId()||!OwnedWindow(window)
+        ||current->shutdown_requested||current->terminal_cleanup)return false;
+    if(message==WM_KILLFOCUS||message==WM_CANCELMODE||message==WM_CAPTURECHANGED){current->overlay_buttons=0;current->overlay_hotkey=false;return false;}
+    if(overlay_received&&message==WM_KEYDOWN&&wparam==VK_F9&&current->overlay_hotkey)return true;
+    if(overlay_received&&message==WM_KEYUP&&wparam==VK_F9&&current->overlay_hotkey){current->overlay_hotkey=false;return true;}
+    if(overlay_received&&message==WM_KEYDOWN&&wparam==VK_F9&&!(lparam&(1LL<<30))
+        &&(::GetKeyState(VK_CONTROL)&0x8000)&&(::GetKeyState(VK_SHIFT)&0x8000)) {
+        overlay_requested=!overlay_requested;stats.overlay_requested=overlay_requested?1u:0u;current->overlay_hotkey=true;
+        if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}
+        return true;
+    }
+    const DWORD down=message==WM_LBUTTONDOWN||message==WM_LBUTTONDBLCLK?1u:message==WM_RBUTTONDOWN||message==WM_RBUTTONDBLCLK?2u:message==WM_MBUTTONDOWN||message==WM_MBUTTONDBLCLK?4u:0u;
+    const DWORD up=message==WM_LBUTTONUP?1u:message==WM_RBUTTONUP?2u:message==WM_MBUTTONUP?4u:0u;
+    if(up&&(current->overlay_buttons&up)){current->overlay_buttons&=~up;++stats.overlay_input_events;return true;}
+    if(up)return false; // The matching DOWN belonged to the original game.
+    if(message==WM_MOUSEMOVE&&current->overlay_buttons){
+        const DWORD held=((wparam&MK_LBUTTON)?1u:0u)|((wparam&MK_RBUTTON)?2u:0u)|((wparam&MK_MBUTTON)?4u:0u);
+        current->overlay_buttons&=held;
+        if(current->overlay_buttons){++stats.overlay_input_events;return true;}
+    }
+    if(!overlay_received||!overlay_requested||!overlay_input_safe)return false;
+    RECT rectangle{};if(!physical_rect(window,&rectangle)||rectangle.right!=static_cast<LONG>(configuration.output_width)
+        ||rectangle.bottom!=static_cast<LONG>(configuration.output_height))return false;
+    POINT point{static_cast<short>(LOWORD(lparam)),static_cast<short>(HIWORD(lparam))};
+    if(message==WM_MOUSEWHEEL||message==WM_MOUSEHWHEEL){if(!physical_to_client(window,&point))return false;}
+    if(!down&&!up&&message!=WM_MOUSEMOVE&&message!=WM_MOUSEWHEEL&&message!=WM_MOUSEHWHEEL)return false;
+    if(!ShaderDebugOverlay::HitTest(point.x,point.y,configuration.output_width,configuration.output_height))return false;
+    if(down){current->overlay_buttons|=down;if(down==1)ShaderDebugOverlay::QueueClick(point.x,point.y,configuration.output_width,configuration.output_height);}
+    ++stats.overlay_input_events;return true;
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window,UINT message,WPARAM wparam,LPARAM lparam) {
     struct Depth {Depth(){++window_callback_depth;}~Depth(){--window_callback_depth;}} depth;
     OriginalCallScope original_state;
+    bool overlay_handled=false;
+    if(internal)overlay_handled=OverlayInput(internal,window,message,wparam,lparam);
+    else {Lock lock;overlay_handled=OverlayInput(state,window,message,wparam,lparam);}
+    if(overlay_handled)return 0;
     if(message==WM_DESTROY || message==WM_NCDESTROY) {
         const auto request=[&](State* current) {
             if(!current || current->window!=window || current->terminal_cleanup)return;
@@ -1030,6 +1252,7 @@ ULONG STDMETHODCALLTYPE HookRelease(IDirect3DDevice9* device) {
     ULONG count=0;
     {
         Internal inside(current);
+        if(!ResetOverlay(device)){Report();return 1;}
         if(ambient_initialized&&!AmbientOcclusionEffects::Reset(device)) {
             stats.render_unsafe=stats.ambient_unsafe=1;ClearAmbientFrameProof();stats.last_failure=229;Report();return 1;
         }
@@ -1063,6 +1286,8 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     if(!state || state->device!=device)return reinterpret_cast<Reset>(saved_methods[16])(device,parameters);
     OriginalCallScope original_state;
     Internal inside(state);
+    if(!ResetOverlay(device)){Report();return D3DERR_DEVICELOST;}
+    overlay_input_safe=false;stats.overlay_visible=0;
     if(ambient_initialized) {
         if(!AmbientOcclusionEffects::Reset(device)||!AmbientOcclusionEffects::InvalidateFrame()) {
             stats.render_unsafe=stats.ambient_unsafe=1;ClearAmbientFrameProof();stats.last_failure=229;Report();return D3DERR_DEVICELOST;
@@ -1078,10 +1303,12 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* device,D3DPRESENT_PARAMETE
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::Reset(device);
     if(comparison_initialized){MaterialComparison::Reset(device);MaterialComparison::InvalidateFrame();}
     if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
+    InvalidatePaletteFrame();
     if(effects_initialized)MaterialShaderEffects::Reset(device);
     if(water_initialized) {
         if(!WaterShaderEffects::Reset(device)){stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return D3DERR_DEVICELOST;}
         WaterShaderEffects::InvalidateFrame();
+        if(water_pending_version==2)stats.effects_frame_has_geometry=0;
     }
     DropOutput(*state);
     ++stats.reset_calls;
@@ -1121,8 +1348,10 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
             (device,source,destination,override_window,dirty);
         original_state.returned();return returned;
     }
+    CompletePaletteFrame();
     ++stats.present_calls;
-    const DWORD pending_flags=effects_pending_version==3?effects_pending_v3.flags:
+    const DWORD pending_flags=effects_pending_version==4?effects_pending_v4.flags:
+        effects_pending_version==3?effects_pending_v3.flags:
         effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
     if(effects_faulted && effects_waiting && !pending_flags && !stats.render_unsafe)ApplyPendingEffects();
     if(!EffectsDrawAllowed()) {
@@ -1147,18 +1376,28 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
             } else ++stats.capture_failures;
             capture_pending=0;
         }
+        bool overlay_drawn=false;overlay_input_safe=false;stats.overlay_visible=0;
+        if(overlay_received&&overlay_requested&&overlay_palette_admitted) {
+            IDirect3DSurface9* output=nullptr;
+            const bool acquired=SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&output))&&output;
+            const bool safe=!acquired||DrawOverlay(device,output,overlay_drawn);
+            if(output)output->Release();
+            if(!safe){if(capture_attempted){captured.status=4;NativeGraphicsCapture::Finish(captured,D3DERR_DEVICELOST,D3DERR_DEVICELOST,false,false,false);++stats.capture_failures;}
+                Report();return D3DERR_DEVICELOST;}
+        }
         original_state.before();
         const HRESULT original=reinterpret_cast<Present>(current.original[17])(device,source,destination,override_window,dirty);
         original_state.returned();
+        if(FAILED(original)){overlay_input_safe=false;stats.overlay_visible=0;}
         if(capture_attempted) {
-            NativeGraphicsCapture::Finish(captured,original,original,false,false);stats.capture_frame=stats.present_calls;
+            NativeGraphicsCapture::Finish(captured,original,original,false,false,overlay_drawn);stats.capture_frame=stats.present_calls;
             if(captured.status)++stats.capture_failures;else ++stats.capture_completed;
         }
         stats.last_hresult=static_cast<DWORD>(original);stats.last_failure=0;
         stats.effects_frame_has_geometry=0;
         if(current.shutdown_requested)TerminalCleanup(current);
         else ApplyPendingEffects();
-        if(!current.shutdown_requested)ApplyPendingWater();
+        if(!current.shutdown_requested){ApplyPendingWater();ApplyOverlaySelection();}
         if(!current.shutdown_requested)ApplyPendingShadow();
         if(!current.shutdown_requested)ApplyPendingAmbient();
         if(!current.shutdown_requested)ApplyPendingComparison();
@@ -1215,6 +1454,13 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
             }
         }
     }
+    bool overlay_drawn=false;
+    if(!failure&&low&&!DrawOverlay(device,low,overlay_drawn)) {
+        if(low)low->Release();if(high)high->Release();
+        if(capture_attempted){captured.status=4;NativeGraphicsCapture::Finish(captured,D3DERR_DEVICELOST,D3DERR_DEVICELOST,false,true,false);++stats.capture_failures;}
+        Report();return D3DERR_DEVICELOST;
+    }
+    if(failure){overlay_input_safe=false;stats.overlay_visible=0;}
     if(low)low->Release();if(high)high->Release();
     HRESULT filtered_result=D3DERR_INVALIDCALL;bool fallback_used=false;
     if(!failure) {
@@ -1229,6 +1475,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
         else failure=12;
     }
     if(failure && !current.shutdown_requested) {
+        overlay_input_safe=false;stats.overlay_visible=0;
         ++stats.fallback_calls;DropOutput(current);
         original_state.before();fallback_used=true;
         result=reinterpret_cast<Present>(current.original[17])(device,source,destination,override_window,dirty);
@@ -1236,13 +1483,13 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* device,const RECT* sourc
     }
     stats.last_hresult=static_cast<DWORD>(result);stats.last_failure=failure;
     if(capture_attempted) {
-        NativeGraphicsCapture::Finish(captured,filtered_result,result,fallback_used,true);stats.capture_frame=stats.present_calls;
+        NativeGraphicsCapture::Finish(captured,filtered_result,result,fallback_used,true,overlay_drawn);stats.capture_frame=stats.present_calls;
         if(captured.status)++stats.capture_failures;else ++stats.capture_completed;
     }
     stats.effects_frame_has_geometry=0;
     if(current.shutdown_requested)TerminalCleanup(current);
     else ApplyPendingEffects();
-    if(!current.shutdown_requested)ApplyPendingWater();
+    if(!current.shutdown_requested){ApplyPendingWater();ApplyOverlaySelection();}
     if(!current.shutdown_requested)ApplyPendingShadow();
     if(!current.shutdown_requested)ApplyPendingAmbient();
     if(!current.shutdown_requested)ApplyPendingComparison();
@@ -1308,7 +1555,8 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* device,D3DPRIMITIVETYPE typ
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
-    if(SUCCEEDED(transaction.original_result) && count){CountDraw(false);LatchEffectsDraw();QueueWindowTransition(*state);}
+    RecordPaletteDraw(transaction.role,transaction.original_result);
+    if(SUCCEEDED(transaction.original_result) && count){CountDraw(false);LatchEffectsDraw(transaction.role);QueueWindowTransition(*state);}
     return transaction.CallerResult();
 }
 HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVETYPE type,INT base,
@@ -1342,7 +1590,8 @@ HRESULT STDMETHODCALLTYPE HookDrawIndexed(IDirect3DDevice9* device,D3DPRIMITIVET
         stats.effects_faulted=1;stats.effects_disabled_reason=222;stats.effects_active=0;
         CancelEffectsCapture();++stats.effects_blocked_draws;stats.last_failure=222;Report();return transaction.CallerResult();
     }
-    if(SUCCEEDED(transaction.original_result) && count && vertices){CountDraw(true);LatchEffectsDraw();QueueWindowTransition(*state);}
+    RecordPaletteDraw(transaction.role,transaction.original_result);
+    if(SUCCEEDED(transaction.original_result) && count && vertices){CountDraw(true);LatchEffectsDraw(transaction.role);QueueWindowTransition(*state);}
     return transaction.CallerResult();
 }
 
@@ -1454,6 +1703,9 @@ bool TerminalCleanup(State& current) {
         shadow_initialized=false;stats.shadow_active=0;
     }
     shadow_waiting=false;ClearShadowFrameProof();
+    if(!ResetOverlay(current.device)||!ShaderDebugOverlay::Shutdown()){OverlayFault();Report();return false;}
+    overlay_received=overlay_requested=overlay_input_safe=overlay_palette_admitted=false;
+    stats.overlay_requested=stats.overlay_visible=0;current.overlay_buttons=0;current.overlay_hotkey=false;
     if(water_initialized) {
         if(!WaterShaderEffects::Reset(current.device)||!WaterShaderEffects::Shutdown()) {
             stats.render_unsafe=stats.water_unsafe=1;stats.last_failure=225;Report();return false;
@@ -1470,6 +1722,7 @@ bool TerminalCleanup(State& current) {
         MaterialShaderEffects::Reset(current.device);MaterialShaderEffects::Flush();MaterialShaderEffects::Shutdown();effects_initialized=false;
     }
     effects_waiting=false;stats.effects_pending=0;stats.effects_active=0;
+    InvalidatePaletteFrame();
     bool restored=true;
     for(size_t i=Intercepts.size();i;i--) {
         const auto& intercept=Intercepts[i-1];
@@ -1499,11 +1752,13 @@ bool PrepareEngineDeinit(const void* caller,DWORD thread) {
         if(!current || current->terminal_cleanup) {
             // A missing/retired host epoch does not establish that a live
             // module's durable GPU backup is safe. Never force stale recovery.
-            if(shadow_initialized || ambient_initialized) {
+            if(shadow_initialized || ambient_initialized || water_initialized || overlay_received) {
                 ++stats.engine_deinit_rejected;stats.render_unsafe=1;
                 if(shadow_initialized)stats.shadow_unsafe=1;
                 if(ambient_initialized)stats.ambient_unsafe=1;
-                ClearShadowFrameProof();ClearAmbientFrameProof();stats.last_failure=ambient_initialized?229u:227u;Report();return false;
+                if(water_initialized)stats.water_unsafe=1;
+                if(overlay_received)stats.overlay_unsafe=1;
+                ClearShadowFrameProof();ClearAmbientFrameProof();stats.last_failure=ambient_initialized?229u:shadow_initialized?227u:225u;Report();return false;
             }
             return true;
         }
@@ -1640,6 +1895,7 @@ bool Attach(IDirect3DDevice9* device) {
         }
         if(comparison_initialized)MaterialComparison::InvalidateFrame();
         if(native_configuration.flags&NativeGraphicsConfig::Observe)MaterialShaderObserver::InvalidateFrameSnapshot();
+    InvalidatePaletteFrame();
         IDirect3DSurface9* backbuffer=nullptr;D3DSURFACE_DESC description{};
         bool verified_startup=false;
         if(SUCCEEDED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&backbuffer)) && backbuffer) {
@@ -1815,6 +2071,20 @@ extern "C" DWORD WINAPI WePlaySupersamplingInitialize(void* opaque) {
     Report();InterlockedExchange(&initialization_ready,1);return 1;
 }
 
+extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureOverlay(void* opaque) {
+    using namespace SupersamplingHook;
+    DiagnosticScope diagnostic;DWORD config[3]{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,config,sizeof(config),&read)||read!=sizeof(config)
+        ||config[0]!=12||config[1]!=1||config[2]>1)return 0;
+    Lock lock;
+    if(!initialization_ready||!water_received||water_pending_version!=2||stats.render_unsafe
+        ||(state&&(state->terminal_cleanup||state->shutdown_requested))
+        ||!WaterShaderPaletteContract::Validate(water_pending_palette))return 0;
+    overlay_received=true;overlay_requested=config[2]!=0;stats.overlay_received=1;stats.overlay_requested=config[2];
+    if(!overlay_requested){overlay_input_safe=false;stats.overlay_visible=0;ShaderDebugOverlay::Selection discard{};ShaderDebugOverlay::ConsumeSelection(&discard);}
+    Report();return 1;
+}
+
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
     using namespace SupersamplingHook;
     static_assert(sizeof(MaterialShaderObserver::CaptureConfig)==952,"Observer configuration ABI changed.");
@@ -1853,6 +2123,12 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
             NativeEffectsContractV3::Layout::RecipientLocalData);
         if(error!=NativeEffectsContractV3::Error::None)return 0;
         effects_pending_v3=wire.v3;
+    } else if(wire.version==4) {
+        auto error=NativeEffectsContractV4::Validate(wire.v4,native_configuration,NativeEffectsContractV4::Layout::PrivateCase);
+        if(error!=NativeEffectsContractV4::Error::None)error=NativeEffectsContractV4::Validate(wire.v4,native_configuration,
+            NativeEffectsContractV4::Layout::RecipientLocalData);
+        if(error!=NativeEffectsContractV4::Error::None)return 0;
+        effects_pending_v4=wire.v4;
     } else return 0;
     effects_pending_version=wire.version;effects_received=true;effects_waiting=true;stats.effects_pending=1;Report();return 1;
 }
@@ -1860,17 +2136,21 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureWater(void* opaque) {
     using namespace SupersamplingHook;
     DiagnosticScope diagnostic;
-    WaterShaderEffects::Config config{};SIZE_T read=0;
-    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
-        ||config.size!=sizeof(config)||config.version!=1||config.enabled>1)return 0;
+    NativeWaterWire::Pending wire{};
+    if(!NativeWaterWire::Decode(opaque,&wire)
+        ||(wire.version==2&&!WaterShaderPaletteContract::Validate(wire.v2)))return 0;
     Lock lock;
-    const DWORD pending=effects_pending_version==3?effects_pending_v3.flags:
+    const DWORD pending=effects_pending_version==4?effects_pending_v4.flags:
+        effects_pending_version==3?effects_pending_v3.flags:
         effects_pending_version==2?effects_pending_v2.flags:effects_pending_config.flags;
     if(!initialization_ready||!(native_configuration.flags&NativeGraphicsConfig::Water)||water_waiting||stats.render_unsafe
         ||(state&&state->terminal_cleanup)||(stats.effects_active&MaterialShaderEffects::River)
+        ||(wire.version==2&&state&&state->shutdown_requested)
+        ||(water_received&&water_pending_version!=wire.version)
         ||(effects_waiting&&(pending&MaterialShaderEffects::River))
-        ||config.render_width!=configuration.render_width||config.render_height!=configuration.render_height)return 0;
-    water_pending_config=config;water_received=true;water_waiting=true;stats.water_protocol_received=1;Report();return 1;
+        ||wire.Width()!=configuration.render_width||wire.Height()!=configuration.render_height)return 0;
+    if(wire.version==2)water_pending_palette=wire.v2;else water_pending_config=wire.v1;
+    water_pending_version=wire.version;water_received=true;water_waiting=true;stats.water_protocol_received=1;Report();return 1;
 }
 
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureShadow(void* opaque) {

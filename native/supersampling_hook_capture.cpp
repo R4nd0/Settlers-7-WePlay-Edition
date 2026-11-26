@@ -136,6 +136,33 @@ std::string Hex(const std::array<unsigned char,32>& data) {
     constexpr char hex[]="0123456789abcdef";std::string text;
     for(auto value:data){text+=hex[value>>4];text+=hex[value&15];}return text;
 }
+std::string LeafPalette(const Result& result) {
+    const auto& g=result.graphics;const auto& s=result.material;
+    if(g.effects_config_version!=4||!result.material_state_available||s.config_version!=4||s.selected_variant>2)return "null";
+    const auto array=[](const std::array<std::uint64_t,3>& values) {
+        return "["+std::to_string(values[0])+","+std::to_string(values[1])+","+std::to_string(values[2])+"]";
+    };
+    const bool drawn=g.effects_active&&g.effects_drawn_variant<3&&g.effects_drawn_frame==g.present_calls;
+    return "{\"selected_variant\":"+std::to_string(s.selected_variant)
+        +",\"drawn_variant\":"+(drawn?std::to_string(g.effects_drawn_variant):"null")
+        +",\"drawn_frame\":"+std::to_string(g.effects_drawn_frame)
+        +",\"frame_applications\":"+std::to_string(g.effects_variant_frame_applications)
+        +",\"frame_restorations\":"+std::to_string(g.effects_variant_frame_restorations)
+        +",\"frame_failed_draws\":"+std::to_string(g.effects_variant_frame_failed_draws)
+        +",\"configured_program_sha256\":\""+Hex(s.variant_sha256[s.selected_variant])+"\""
+        +",\"drawn_program_sha256\":"+(drawn?"\""+Hex(s.variant_sha256[g.effects_drawn_variant])+"\"":"null")
+        +",\"module_epoch\":"+std::to_string(s.enable_changes)
+        +",\"leaf_recipe_variant\":"+std::to_string(5+s.selected_variant)
+        +",\"variant_applications\":"+array(s.variant_applications)
+        +",\"variant_restorations\":"+array(s.variant_restorations)
+        +",\"variant_successful_draws\":"+array(s.variant_successful_draws)
+        +",\"variant_failed_draws\":"+array(s.variant_failed_draws)
+        +",\"program_creations\":"+array(s.variant_creations)
+        +",\"faulted\":"+std::to_string(s.faulted)+",\"shader_failures\":"+std::to_string(s.shader_failures)
+        +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
+        +",\"exceptions\":"+std::to_string(s.exceptions)+",\"active_transactions\":"+std::to_string(s.active_transactions)
+        +",\"active_original_refs\":"+std::to_string(s.active_original_refs)+"}";
+}
 std::string SceneUniforms(const Result& result) {
     if(!result.scene_uniforms_available)return "null";
     const auto& s=result.scene_uniforms;
@@ -189,6 +216,32 @@ std::string Water(const Result& result) {
         +",\"shader_creations\":"+std::to_string(s.shader_creations)+",\"shader_failures\":"+std::to_string(s.shader_failures)
         +",\"set_failures\":"+std::to_string(s.set_failures)+",\"restore_failures\":"+std::to_string(s.restore_failures)
         +",\"exceptions\":"+std::to_string(s.exceptions)+",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+"}";
+}
+std::string WaterPalette(const Result& result) {
+    if(!result.water_state_available||result.water.config_version!=2||result.water.selected_variant>2)return "null";
+    const auto& s=result.water;const auto frame=s.completed_frame?s.completed_frame+result.graphics.water_frame_origin:0;
+    const bool drawn=s.enabled&&s.completed_drawn_variant<3&&frame==result.graphics.present_calls;
+    const auto array=[](const std::array<std::uint64_t,3>& values){
+        return "["+std::to_string(values[0])+","+std::to_string(values[1])+","+std::to_string(values[2])+"]";};
+    return "{\"config_version\":2,\"selected_variant\":"+std::to_string(s.selected_variant)
+        +",\"drawn_variant\":"+(drawn?std::to_string(s.completed_drawn_variant):"null")
+        +",\"configured_program_sha256\":\""+Hex(s.variant_sha256[s.selected_variant])+"\""
+        +",\"drawn_program_sha256\":"+(drawn?"\""+Hex(s.variant_sha256[s.completed_drawn_variant])+"\"":"null")
+        +",\"frame\":"+std::to_string(frame)+",\"epoch\":"+std::to_string(s.configuration_epoch)
+        +",\"completed_applications\":"+std::to_string(s.completed_applications)
+        +",\"completed_restorations\":"+std::to_string(s.completed_restorations)
+        +",\"completed_successful_draws\":"+std::to_string(s.completed_successful_draws)
+        +",\"completed_failed_draws\":"+std::to_string(s.completed_failed_draws)
+        +",\"variant_applications\":"+array(s.variant_applications)
+        +",\"variant_restorations\":"+array(s.variant_restorations)
+        +",\"variant_successful_draws\":"+array(s.variant_successful_draws)
+        +",\"variant_failed_draws\":"+array(s.variant_failed_draws)
+        +",\"program_creations\":"+array(s.variant_creations)
+        +",\"faulted\":"+std::to_string(s.faulted)+",\"unsafe\":"+std::to_string(s.unsafe_state)
+        +",\"shader_failures\":"+std::to_string(s.shader_failures)+",\"set_failures\":"+std::to_string(s.set_failures)
+        +",\"restore_failures\":"+std::to_string(s.restore_failures)+",\"exceptions\":"+std::to_string(s.exceptions)
+        +",\"active_transactions\":"+std::to_string(s.active_transactions)
+        +",\"pending_original_refs\":"+std::to_string(s.pending_original_refs)+",\"cached_refs\":"+std::to_string(s.cached_refs)+"}";
 }
 std::string Shadow(const Result& result) {
     if(!result.graphics.shadow_protocol_received||!result.shadow_state_available)return "null";
@@ -281,6 +334,8 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
             &&result.shadow.initialized;
         result.ambient_state_available=graphics.ambient_protocol_received&&AmbientOcclusionEffects::ReadStats(&result.ambient)
             &&result.ambient.initialized;
+        result.material_state_available=graphics.effects_config_version==4&&MaterialShaderEffects::ReadStats(&result.material)
+            &&result.material.config_version==4&&result.material.initialized_flags==MaterialShaderEffects::Leaf;
         Hash state;state.add(&graphics,sizeof(graphics));state.finish(result.state_sha256);
         D3DSURFACE_DESC high{},low{};
         auto source_pixels=Pixels(device,source,high,result);
@@ -300,7 +355,7 @@ bool Read(IDirect3DDevice9* device,IDirect3DSurface9* source,IDirect3DSurface9* 
 }
 
 void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_result,
-            bool fallback_used,bool filtered_path) noexcept {
+            bool fallback_used,bool filtered_path,bool diagnostic_overlay_drawn) noexcept {
     LastErrorScope error;
     atmosphere::FpScope fp;
     if(!fp.valid){result.status=3;return;}
@@ -327,6 +382,8 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"filtered_api_succeeded\":"+((filtered_path && !fallback_used && SUCCEEDED(attempted_path_result))?"true":"false")
             +",\"readback_hresult\":"+std::to_string(static_cast<DWORD>(result.readback_hresult))
             +",\"capture_stall_ms\":"+Number(milliseconds)+",\"exclude_from_pacing\":true,\"desktop_capture\":false"
+            +",\"diagnostic_overlay_drawn_after_capture\":"+(diagnostic_overlay_drawn?"true":"false")
+            +",\"diagnostic_overlay_excluded_from_capture\":"+(diagnostic_overlay_drawn?"true":"false")
             +",\"client\":["+std::to_string(result.graphics.client_width)+","+std::to_string(result.graphics.client_height)
             +"],\"viewport\":["+std::to_string(result.graphics.viewport_width)+","+std::to_string(result.graphics.viewport_height)
             +"],\"selected_target\":["+std::to_string(result.graphics.target_width)+","+std::to_string(result.graphics.target_height)
@@ -335,10 +392,18 @@ void Finish(Result& result,HRESULT attempted_path_result,HRESULT final_caller_re
             +",\"prior_output_present_calls\":"+std::to_string(result.graphics.output_present_calls)
             +",\"effects_requested\":"+std::to_string(result.graphics.effects_requested)
             +",\"water\":"+Water(result)
+            +",\"water_palette\":"+WaterPalette(result)
             +",\"shadow\":"+Shadow(result)
             +",\"ambient\":"+Ambient(result)
             +",\"effects_configured\":"+std::to_string(result.graphics.effects_configured)
             +",\"effects_config_version\":"+std::to_string(result.graphics.effects_config_version)
+            +",\"effects_selected_variant\":"+(result.graphics.effects_config_version==4&&result.graphics.effects_selected_variant<3?std::to_string(result.graphics.effects_selected_variant):"null")
+            +",\"effects_drawn_variant\":"+(result.graphics.effects_config_version==4&&result.graphics.effects_drawn_variant<3?std::to_string(result.graphics.effects_drawn_variant):"null")
+            +",\"effects_drawn_frame\":"+std::to_string(result.graphics.effects_drawn_frame)
+            +",\"effects_variant_frame_applications\":"+std::to_string(result.graphics.effects_variant_frame_applications)
+            +",\"effects_variant_frame_restorations\":"+std::to_string(result.graphics.effects_variant_frame_restorations)
+            +",\"effects_variant_frame_failed_draws\":"+std::to_string(result.graphics.effects_variant_frame_failed_draws)
+            +",\"leaf_palette\":"+LeafPalette(result)
             +",\"effects_active\":"+std::to_string(result.graphics.effects_active)
             +",\"effects_revision\":"+std::to_string(result.graphics.effects_revision)
             +",\"effects_unsafe\":"+std::to_string(result.graphics.effects_unsafe)

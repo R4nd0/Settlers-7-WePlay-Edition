@@ -9,9 +9,11 @@
 #include <d3d9.h>
 #include <array>
 #include <cstdint>
+#include <cstddef>
 
 namespace MaterialShaderConfigV2 { struct Config; }
 namespace MaterialShaderConfigV3 { struct Config; }
+namespace MaterialShaderConfigV4 { struct Config; }
 namespace MaterialShaderEffects {
 constexpr DWORD River=1,Terrain=2,Leaf=4,AllowedFlags=River|Terrain|Leaf;
 struct Config {
@@ -25,6 +27,7 @@ struct DrawTransaction {
     IDirect3DVertexShader9* original_vertex=nullptr;
     IDirect3DPixelShader9* original_pixel=nullptr;
     DWORD role=0,constant_count=0,touched_constants=0,touched_vertex=0,touched_pixel=0;
+    DWORD selected_variant=MAXDWORD;
     bool active=false,unsafe_state=false;
     std::array<ConstantBackup,2> constants{};
 };
@@ -35,12 +38,13 @@ struct Sample {
     std::array<ConstantBackup,2> constants{};
 };
 struct Stats {
-    DWORD size=sizeof(Stats),version=1,enabled_flags=0,faulted=0,sample_count=0,cached_refs=0;
+    DWORD size=sizeof(Stats),version=2,enabled_flags=0,faulted=0,sample_count=0,cached_refs=0;
     DWORD initialized_flags=0,active_transactions=0,periodic_reporting=0;
     // Bounded device-program cache (one Leaf VS/PS selected by explicit recipe,
     // plus historical terrain stages), separate
     // from cached_refs, which counts borrowed original identities this frame.
     DWORD retained_programs=0,peak_retained_programs=0,config_version=0,active_original_refs=0;
+    DWORD selected_variant=MAXDWORD; // V4 configured selection, including OFF; old modes MAXDWORD.
     std::uint64_t draws=0,matched=0,context_rejections=0,input_rejections=0,query_failures=0;
     std::uint64_t shader_creations=0,shader_failures=0,set_failures=0,restored_draws=0,restore_failures=0;
     std::uint64_t failed_draws=0,frames=0,resets=0,cache_overflows=0,exceptions=0,report_failures=0;
@@ -48,7 +52,10 @@ struct Stats {
     std::array<std::uint64_t,4> applied{};
     std::array<std::uint64_t,5> program_creations{}; // slot0 Leaf VS or explicit V3 PS
     std::array<Sample,32> samples{};
+    std::array<std::uint64_t,3> variant_applications{},variant_restorations{},variant_successful_draws{},variant_failed_draws{},variant_creations{};
+    std::array<std::array<unsigned char,32>,3> variant_sha256{}; // Actual validated loaded code, including authored fixtures.
 };
+static_assert(offsetof(Stats,selected_variant)==52&&offsetof(Stats,draws)==56,"Old scalar offsets preserved; selected uses old padding");
 
 // Caller must retain the integrating hook's exact executable/renderer/content
 // guards, serial device lock and internal/TLS scope across Begin/Draw/End.
@@ -69,6 +76,10 @@ bool InitializeV2(const MaterialShaderConfigV2::Config* config) noexcept;
 // Explicit7204-byte/version3 isolated Leaf PS recipe. Original VS stays bound;
 // old VS/Terrain path fields must be empty. No Hemi/other-material stacking.
 bool InitializeV3(const MaterialShaderConfigV3::Config* config) noexcept;
+bool InitializeV4(const MaterialShaderConfigV4::Config* config) noexcept;
+// V4-only fixed preloaded program selection. Quiescent render-owner boundary,
+// valid while OFF, no file/DLL replacement, no shader bind or cache destruction.
+bool SetVariant(DWORD index) noexcept;
 // Diagnostic A/B switch at the host's queued render-thread safe boundary.
 // Zero/subset of initialized resources only; pinned CPU programs stay loaded.
 // Counters survive; bounded per-role samples start a new labeled epoch.
