@@ -100,3 +100,9 @@ The session was left under user control. Final save/normal-exit checks and
 optical approval are pending, as are the remaining editions, performance,
 known exit-crash investigation and final package qualification. Runtime
 application evidence does not establish a visible benefit for every variant.
+
+The live session subsequently ended through the existing host-commit memory guard
+(minimum127MiB free commit, private game peak1888MiB). Profiles, private options
+and binaries were restored with no cleanup errors. The final unapproved choice
+was preserved at revision51. This is a guarded-stop/preservation result, not a
+normal-world-exit qualification.

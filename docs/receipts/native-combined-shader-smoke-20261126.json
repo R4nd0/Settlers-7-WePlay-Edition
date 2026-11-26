@@ -140,7 +140,7 @@
     "native_report_to_candidate_file_roundtrip": true
   },
   "limitations": [
-    "Live user session still open at capture; final save/exit/preservation checks pending.",
+    "The user session subsequently ended through the existing host-commit memory guard; original profiles/options/binaries restored, no cleanup errors; no normal world-exit qualification.",
     "Current choices are a candidate, not the user final optical acceptance.",
     "Gold and Steam combined gameplay qualification remains open.",
     "Performance, known exit crash, black streak cause and final release package remain open."
@@ -148,5 +148,31 @@
   "performance_measured": false,
   "matched_image_comparison": false,
   "user_final_approval": false,
-  "release_qualified": false
+  "release_qualified": false,
+  "closure_followup": {
+    "exit_code": 3763564577,
+    "owned_timeout_or_stop": true,
+    "shared_profiles_unchanged": true,
+    "game_binaries_unchanged": true,
+    "private_options_restored": true,
+    "cleanup_errors": [],
+    "memory": {
+      "format": "s7-memory-summary-v1",
+      "recovery_required": true,
+      "max_pressure": 2,
+      "samples": 164,
+      "peak_private_mib": 1888,
+      "min_free_mib": 1456,
+      "min_largest_mib": 1379,
+      "monitor_failed": false,
+      "peak_probe_ms": 25.018,
+      "min_host_physical_free_mib": 6751,
+      "min_host_commit_free_mib": 127,
+      "scanner": "native-v1",
+      "peak_scan_ms": 24.698,
+      "peak_scan_regions": 6157
+    },
+    "reason": "existing-host-commit-memory-guard",
+    "normal_world_exit_verified": false
+  }
 }
