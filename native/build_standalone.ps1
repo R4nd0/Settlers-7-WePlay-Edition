@@ -42,6 +42,12 @@ try {
     }
     Compile-Standalone @((Join-Path $source 'standalone_network_policy.cpp'),(Join-Path $source 'standalone_peer_policy.cpp'),(Join-Path $source 'standalone_image.cpp'),
         '/Fe:weplay_network_policy.exe','/link','fwpuclnt.lib','bcrypt.lib','advapi32.lib','rpcrt4.lib')
+    Compile-Standalone @('/DS7_NETWORK_POLICY_LIBRARY',(Join-Path $source 'standalone_peer_policy_tests.cpp'),
+        (Join-Path $source 'standalone_network_policy.cpp'),(Join-Path $source 'standalone_image.cpp'),
+        '/Fe:standalone_peer_policy_tests.exe','/link','fwpuclnt.lib','bcrypt.lib','advapi32.lib','rpcrt4.lib',
+        '/MANIFEST:EMBED',"/MANIFESTUAC:level='asInvoker' uiAccess='false'")
+    & .\standalone_peer_policy_tests.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Standalone peer lease tests failed.' }
     Compile-Standalone @('/DS7_NETWORK_POLICY_LIBRARY',(Join-Path $source 'standalone_network_fixture.cpp'),
         (Join-Path $source 'standalone_network_policy.cpp'),(Join-Path $source 'standalone_image.cpp'),
         '/Fe:standalone_network_fixture.exe','/link','fwpuclnt.lib','bcrypt.lib','advapi32.lib','rpcrt4.lib','ws2_32.lib','iphlpapi.lib')

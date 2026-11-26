@@ -20,13 +20,16 @@ struct Scope {
     uint32_t local=0,coordinator=0,peer=0;
     bool group=false;
 };
-bool Read(const std::wstring& path,std::string& output) {
+enum class ReadResult { Valid, Busy, Invalid };
+ReadResult Read(const std::wstring& path,std::string& output) {
     Handle file; file.value=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
         nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+    if (file.value==INVALID_HANDLE_VALUE)
+        return GetLastError()==ERROR_SHARING_VIOLATION ? ReadResult::Busy : ReadResult::Invalid;
     std::vector<unsigned char> bytes;
-    if (!StandaloneImage::ReadLockedFile(file.value,4096,bytes)) return false;
+    if (!StandaloneImage::ReadLockedFile(file.value,4096,bytes)) return ReadResult::Invalid;
     output.assign(bytes.begin(),bytes.end());
-    return true;
+    return ReadResult::Valid;
 }
 bool Parse(const std::string& text,Scope& scope) {
     std::map<std::string,std::string> fields;
@@ -54,6 +57,19 @@ bool Parse(const std::string& text,Scope& scope) {
     const uint64_t now=GetTickCount64();
     return scope.parent!=GetCurrentProcessId() && scope.expires>now && scope.expires-now<=30000;
 }
+bool Renew(const std::wstring& path,Scope& active) {
+    std::string text;
+    const auto result=Read(path,text);
+    // A short-lived sharing failure may not end a live game. It cannot
+    // extend the last validated lease or replace any part of its identity.
+    if (result==ReadResult::Busy) return active.expires>GetTickCount64();
+    Scope next;
+    if (result!=ReadResult::Valid || !Parse(text,next) || next.nonce!=active.nonce || next.parent!=active.parent
+        || next.created!=active.created || next.local!=active.local || next.coordinator!=active.coordinator
+        || next.group!=active.group || next.peer!=active.peer) return false;
+    active.expires=next.expires;
+    return true;
+}
 bool SameOwner(HANDLE parent,uint64_t expected_created) {
     FILETIME created{},ended{},kernel{},user{};
     if (!GetProcessTimes(parent,&created,&ended,&kernel,&user)
@@ -72,7 +88,7 @@ bool Addresses(const Scope& scope,const std::wstring& folder,std::vector<uint32_
     if (scope.group) {
         std::string peers;
         lan_membership::Snapshot snapshot{};
-        if (Read(folder+L"\\lan-peers.ini",peers)
+        if (Read(folder+L"\\lan-peers.ini",peers)==ReadResult::Valid
             && lan_membership::Parse(peers.data(),peers.size(),scope.local,scope.coordinator,GetTickCount64(),snapshot)) {
             for (size_t i=0;i<snapshot.count;++i) addresses.push_back(snapshot.peers[i]);
         }
@@ -131,7 +147,7 @@ DWORD ServeStandalonePeerPolicy(const wchar_t* executable) {
     if (attributes==INVALID_FILE_ATTRIBUTES || !(attributes&FILE_ATTRIBUTE_DIRECTORY) || (attributes&FILE_ATTRIBUTE_REPARSE_POINT)) return ERROR_INVALID_DATA;
     std::string text; Scope initial;
     const std::wstring scope_path=folder+L"\\wfp-peers.ini",ready_path=folder+L"\\wfp-peers.ready";
-    if (!Read(scope_path,text) || !Parse(text,initial)) return ERROR_INVALID_DATA;
+    if (Read(scope_path,text)!=ReadResult::Valid || !Parse(text,initial)) return ERROR_INVALID_DATA;
     Handle parent;
     parent.value=OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,initial.parent);
     if (!parent.value || !SameOwner(parent.value,initial.created)) return ERROR_ACCESS_DENIED;
@@ -155,12 +171,10 @@ DWORD ServeStandalonePeerPolicy(const wchar_t* executable) {
         if (!WriteFile(ready.value,value.data(),static_cast<DWORD>(value.size()),&done,nullptr) || done!=value.size()
             || !FlushFileBuffers(ready.value)) return ERROR_WRITE_FAULT;
     }
+    Scope scope=initial;
     for (;;) {
         if (WaitForSingleObject(parent.value,100)!=WAIT_TIMEOUT) return ERROR_SUCCESS;
-        Scope scope;
-        if (!Read(scope_path,text) || !Parse(text,scope) || scope.nonce!=initial.nonce || scope.parent!=initial.parent
-            || scope.created!=initial.created || scope.local!=initial.local || scope.coordinator!=initial.coordinator
-            || scope.group!=initial.group || scope.peer!=initial.peer) return ERROR_SUCCESS;
+        if (!Renew(scope_path,scope)) return ERROR_SUCCESS;
         if (!Addresses(scope,folder,next)) return ERROR_SUCCESS;
         if (next!=active) {
             result=Replace(engine.value,app.value,next,ids);

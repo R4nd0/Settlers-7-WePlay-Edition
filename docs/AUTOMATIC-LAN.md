@@ -109,6 +109,13 @@ a second worker until it has been joined. Kernel receive/send buffers and
 events retain their original game ownership. Bounded metadata distinguishes
 pending, completed and consumed overlapped operations before exposing results.
 
+The Windows filtering helper also reads the launcher's time-limited grant.
+During a temporary Windows sharing violation it retries the read while the
+last validated grant is still live. The existing deadline continues to apply.
+A missing, malformed, expired or foreign grant stops the helper, removing its
+dynamic rules. The native regression test holds an exclusive Windows file
+handle and checks recovery, expiry and rejection of foreign grants.
+
 The coordinator is independent of the player who hosts a particular match.
 Leaving its game preserves other participants' sessions. With no active game
 leases, its service ends after a minute; maximum lifetime is24hours. Its own
