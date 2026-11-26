@@ -58,6 +58,15 @@ internal static partial class Tests
                 Check(entry.GetProperty("fault").GetProperty("system_code").ValueKind==JsonValueKind.Number,"reports system startup error number");
                 Check(!report.GetRawText().Contains("private-path"),"export drops exception messages");
             }
+            using(var backend=JsonDocument.Parse("""{"last_game_load":{"phase":"loading_counter","tail_truncated":false,"counter":335,"total":300,"map":"private-path"}}"""))
+            {
+                var load=LauncherDiagnostics.Export(root,"fixture",backend.RootElement,null)["last_game_load"]!;
+                Check(load["counter"]!.GetValue<int>()==335,"export retains the observed match loading counter");
+                Check(!load.ToJsonString().Contains("private-path"),"export drops arbitrary match log data");
+            }
+            using(var backend=JsonDocument.Parse("""{"last_game_load":{"phase":"loading_counter","tail_truncated":false,"counter":-1,"total":300}}"""))
+                Check(LauncherDiagnostics.Export(root,"fixture",backend.RootElement,null)["last_game_load"]==null,
+                    "export rejects invalid loading counters");
             using(var reader=new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes(new string('x',4097)))))
                 await Expect("backend_protocol_invalid",()=>Backend.ReadLineBounded(reader,4096,default));
             Console.WriteLine($"PASS: {checks} backend lifecycle checks; actual own child processes, bounded hangs/frames, protected commit/game phases.");return 0;

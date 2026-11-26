@@ -93,6 +93,23 @@ internal static class LauncherDiagnostics
         return new JsonObject{["mode"]=mode,["width"]=width.Value,["height"]=height.Value};
     }
 
+    private static JsonObject? ReadGameLoad(JsonElement value)
+    {
+        string? phase=String(value,"phase");
+        if(phase is not ("unknown" or "no_match_load" or "map_loading" or "first_frame" or "loading_counter"))return null;
+        if(!value.TryGetProperty("tail_truncated",out var truncated)
+            ||truncated.ValueKind is not (JsonValueKind.True or JsonValueKind.False))return null;
+        var result=new JsonObject{["phase"]=phase,["tail_truncated"]=truncated.GetBoolean()};
+        if(phase=="loading_counter")
+        {
+            int? counter=Number(value,"counter"),total=Number(value,"total");
+            if(counter is not (>=0 and <=999999)||total is not (>=0 and <=999999))return null;
+            result["counter"]=counter.Value;
+            result["total"]=total.Value;
+        }
+        return result;
+    }
+
     internal sealed record Fault(string? Kind,string? Component,int? Line,int? SystemCode,
         int? NativeStartStage=null,uint? NativeExitCode=null,int? WinsockCode=null,
         string? NetworkProbe=null,string? NetworkProbeStep=null,InventoryStatus? Inventory=null)
@@ -254,6 +271,7 @@ internal static class LauncherDiagnostics
             if(backend.TryGetProperty("display_preferences",out var displays)&&displays.ValueKind==JsonValueKind.Object)
                 result["display_preferences"]=new JsonObject{
                     ["selected"]=ReadDisplay(displays,"selected"),["last_confirmed"]=ReadDisplay(displays,"last_confirmed")};
+            if(backend.TryGetProperty("last_game_load",out var gameLoad))result["last_game_load"]=ReadGameLoad(gameLoad);
             if(backend.TryGetProperty("recovery",out var recovery)&&recovery.ValueKind==JsonValueKind.Object) {
                 var safeRecovery=new JsonObject();
                 foreach(string name in new[]{"pending","recoverable","can_detach","conflicts"})

@@ -61,6 +61,34 @@ class DesktopResilienceTests(unittest.TestCase):
         self.assertEqual(report['collection_status']['memory'],'unreadable')
         self.assertEqual(report['memory_summary'],{})
 
+    def test_diagnostics_separates_match_loading_from_menu_loading(self):
+        folder=self.root/'LocalData/ProfileRoot/THE SETTLERS 7 - History Edition/Logfiles'
+        folder.mkdir(parents=True,exist_ok=True)
+        log=folder/'THE SETTLERS 7 - History Edition_AGame_2026-11-26_21-00-00.log'
+        menu=(b'Loading map: Maps\\Menu\\Castle_Forge_Map using template (none)\n'
+              b'OnFirstFrame\nLoading screen counter: 299 of total 300\n')
+        log.write_bytes(menu)
+        self.assertEqual(self.desktop.diagnostics()['last_game_load'],
+                         {'phase':'no_match_load','tail_truncated':False})
+        match=b'Loading map: Maps\\Skirmish\\private fixture map using template (none)\n'
+        log.write_bytes(menu+match)
+        self.assertEqual(self.desktop.diagnostics()['last_game_load'],
+                         {'phase':'map_loading','tail_truncated':False})
+        log.write_bytes(menu+match+b'OnFirstFrame\nLoading screen counter: 335 of total 300\n'+menu)
+        report=self.desktop.diagnostics()
+        self.assertNotIn('private fixture map',json.dumps(report))
+        self.assertEqual(report['last_game_load'],
+                         {'phase':'loading_counter','tail_truncated':False,'counter':335,'total':300})
+
+    def test_diagnostics_retains_uncertainty_when_the_game_log_is_truncated(self):
+        folder=self.root/'LocalData/ProfileRoot/THE SETTLERS 7 - History Edition/Logfiles'
+        folder.mkdir(parents=True,exist_ok=True)
+        log=folder/'THE SETTLERS 7 - History Edition_AGame_2026-11-26_21-00-00.log'
+        log.write_bytes(b'Loading map: Maps\\Skirmish\\Test using template (none)\n'+b'x'*262144
+                        +b'\nOnFirstFrame\n')
+        self.assertEqual(self.desktop.diagnostics()['last_game_load'],
+                         {'phase':'unknown','tail_truncated':True})
+
     def test_graphics_startup_restores_confirmed_settings_after_an_early_exit(self):
         import window_mode
         good=self.request();good['quality']['WaterQuality']=1

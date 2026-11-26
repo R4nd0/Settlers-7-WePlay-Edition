@@ -48,6 +48,39 @@ FORMAT='s7-desktop-install-v1'
 INSTALL_FORMAT='s7-desktop-install-v2'
 REQUEST='s7-desktop-request-v1'
 HEX=re.compile('[0-9a-f]{32}')
+GAME_LOG_NAME=re.compile(r'(?:THE SETTLERS 7 - History Edition|Profiles)_AGame_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log',re.ASCII)
+LOAD_COUNTER=re.compile(rb'Loading screen counter: ([0-9]{1,6}) of total ([0-9]{1,6})')
+
+
+def last_game_load(root, *, gold):
+    profile='Profiles' if gold else 'THE SETTLERS 7 - History Edition'
+    folder=graphics._plain(root/'LocalData/ProfileRoot'/profile/'Logfiles')
+    if not folder.is_dir():
+        return None
+    names=(item.name for item in folder.iterdir()
+           if item.name.startswith(profile+'_') and GAME_LOG_NAME.fullmatch(item.name))
+    latest=max(names,default=None)
+    if latest is None:
+        return None
+    limit=256*1024
+    with graphics._plain(folder/latest).open('rb') as stream:
+        truncated=stream.seek(0,os.SEEK_END)>limit
+        stream.seek(-limit if truncated else 0,os.SEEK_END if truncated else os.SEEK_SET)
+        lines=stream.read(limit).split(b'\n')
+    result={'phase':'unknown' if truncated else 'no_match_load','tail_truncated':truncated}
+    in_match=False
+    for line in lines[int(truncated):-1]:
+        line=line.rstrip(b'\r')
+        if line.startswith(b'Loading map: '):
+            path=line[len(b'Loading map: '):].lower().replace(b'\\',b'/')
+            in_match=path.startswith(b'maps/') and not path.startswith(b'maps/menu/')
+            if in_match:
+                result={'phase':'map_loading','tail_truncated':truncated}
+        elif in_match and line==b'OnFirstFrame' and result['phase']=='map_loading':
+            result['phase']='first_frame'
+        elif in_match and (counter:=LOAD_COUNTER.fullmatch(line)):
+            result.update(phase='loading_counter',counter=int(counter[1]),total=int(counter[2]))
+    return result
 
 
 class Cancelled(RuntimeError): pass
@@ -1579,6 +1612,7 @@ class Desktop:
                 'last_confirmed': size(backup[1]['choice']) if backup and backup[0] else None,
             }
         display_summary=section('display_preferences',diagnostic_display)
+        game_load=section('game_load',lambda:last_game_load(root,gold=self.is_gold()) if root else None)
         raw=section('memory',lambda:self.read(root/'LocalData/desktop-memory-summary.json',limit=4096)
                     if root else None,{})
         if not isinstance(raw,dict) or raw.get('format','s7-memory-summary-v1')!='s7-memory-summary-v1':
@@ -1623,6 +1657,7 @@ class Desktop:
                 'display_preferences':display_summary,
                 'last_lan_start':last_lan,'lan_discovery_port':self.lan_discovery_port(),
                 'memory_summary':summary,
+                'last_game_load':game_load,
                 'collection_status':collection,
                 'known_lan_desync_resolved':False}
         if (self.state/desktop_settings.NAME).exists() or (self.state/desktop_settings.DETACH).exists():
