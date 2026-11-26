@@ -1,0 +1,448 @@
+{
+  "format": "s7-water-d3d9on12-debug-v1",
+  "date": "2026-11-26",
+  "maintainer": "WePlay Community",
+  "scope": "isolated History High River program in Waldreich",
+  "cause": "zero scattering: negative POW products overflow; later zero multiplication produces NaN on D3D9On12",
+  "production_renderer_qualified": false,
+  "accepted_dxvk_preset_unchanged": true,
+  "build": {
+    "format": "s7-water-on12-probe-build-v2",
+    "files": {
+      "water_on12_probe.def": "1369ca50ed4e83a18c658d070220aa9ab9e999a71afbfad6881aaca1ccc7d9e2",
+      "water_on12_identity.h": "590cf86dcb32e5c12f2b64138996220cc95c87959d454f800a0c433c3580cf63",
+      "water_on12_pow_cap.h": "c246ee43baeeabc91f0de2842a60953bccf81678449cf21c04ff2b82a84d9006",
+      "water_on12_probe.cpp": "dc07eeb6cd8c3d7a8d6394b4878131b9f91f0fecea9b767c19100a85822c2288",
+      "WePlayWaterOn12Probe.dll": "7947fda7bbe9be3c4429e19c1adeabd5ddd43374038b7e3fa594f6b35851208d",
+      "water_on12_probe_gpu.cpp": "b801bd19c1d206b78051524e3a1fe7c87700b9b9ddd0ee1d743b750abae1bdc7",
+      "water_on12_probe_gpu.exe": "1a105e034216e58faca03ea1bef20a4b16abf970001a94374811525f749d58f7",
+      "water_on12_probe_fixture.exe": "40f260a4ff5db60b899e8e11be5a685baebc4bc6a3785bb118c7dcf6bb493c9b"
+    },
+    "config_bytes": 1036,
+    "supports_pow_cap": true,
+    "build_sha256": "b26460a13a1cf4fc6c19b3a44ab00b9bcc3332e6f91f7193f6e8017202ba6ed6"
+  },
+  "programs": {
+    "original_vertex_sha256": "f190d66ee1ae43637341a76e5b644cc63bf3c2a5b5c94ea9286764e13f1c16c0",
+    "original_pixel_sha256": "dd65ba0b9d79c7c4d9ad9904404388230556b194eedb8cbdfbd4fa99f44eee5b",
+    "generated_vertex_sha256": "73b69274865f33023aef23132694d73544994153d348acd3e51d7de01e800814",
+    "generated_bytes": 2648,
+    "added_local_def": 1,
+    "added_min": 2,
+    "all_original_tokens_preserved": true,
+    "original_programs_in_public_receipt": false
+  },
+  "game_cases": [
+    {
+      "case": "water-on12-observe-20261126-02",
+      "visual_observation": "black water",
+      "result": {
+        "game_started": true,
+        "exit_code": 0,
+        "owned_timeout_or_stop": false,
+        "shared_profiles_unchanged": true,
+        "game_binaries_unchanged": true,
+        "private_options_restored": true,
+        "cleanup_errors": [],
+        "memory": {
+          "format": "s7-memory-summary-v1",
+          "recovery_required": false,
+          "max_pressure": 0,
+          "samples": 142,
+          "peak_private_mib": 1699,
+          "min_free_mib": 1809,
+          "min_largest_mib": 1767,
+          "monitor_failed": false,
+          "peak_probe_ms": 30.187,
+          "min_host_physical_free_mib": 7655,
+          "min_host_commit_free_mib": 5431,
+          "scanner": "native-v1",
+          "peak_scan_ms": 29.882,
+          "peak_scan_regions": 12350
+        }
+      },
+      "observer": {
+        "attached": true,
+        "draws": 14131628,
+        "exact_pair_matches": 1,
+        "failed_original_draws": 0,
+        "presents": 5160,
+        "snapshot_done": true,
+        "failure": 0,
+        "on12_query_hr": 0
+      },
+      "scattering_all_zero": true
+    },
+    {
+      "case": "water-d3d9-observe-20261126-01",
+      "visual_observation": "normal water",
+      "result": {
+        "game_started": true,
+        "exit_code": 0,
+        "owned_timeout_or_stop": false,
+        "shared_profiles_unchanged": true,
+        "game_binaries_unchanged": true,
+        "private_options_restored": true,
+        "cleanup_errors": [],
+        "memory": {
+          "format": "s7-memory-summary-v1",
+          "recovery_required": false,
+          "max_pressure": 0,
+          "samples": 179,
+          "peak_private_mib": 1701,
+          "min_free_mib": 2059,
+          "min_largest_mib": 2014,
+          "monitor_failed": false,
+          "peak_probe_ms": 20.971,
+          "min_host_physical_free_mib": 6607,
+          "min_host_commit_free_mib": 4654,
+          "scanner": "native-v1",
+          "peak_scan_ms": 20.699,
+          "peak_scan_regions": 4224
+        }
+      },
+      "observer": {
+        "attached": true,
+        "draws": 7788544,
+        "exact_pair_matches": 1,
+        "failed_original_draws": 0,
+        "presents": 20640,
+        "snapshot_done": true,
+        "failure": 0,
+        "on12_query_hr": -2147467262
+      },
+      "scattering_all_zero": true
+    },
+    {
+      "case": "water-on12-pow-cap-20261126-04",
+      "visual_observation": "visible water; first correction build, nonzero close exit",
+      "result": {
+        "game_started": true,
+        "exit_code": 3221226505,
+        "owned_timeout_or_stop": false,
+        "shared_profiles_unchanged": true,
+        "game_binaries_unchanged": true,
+        "private_options_restored": true,
+        "cleanup_errors": [],
+        "memory": {
+          "format": "s7-memory-summary-v1",
+          "recovery_required": false,
+          "max_pressure": 0,
+          "samples": 45,
+          "peak_private_mib": 1698,
+          "min_free_mib": 1846,
+          "min_largest_mib": 1773,
+          "monitor_failed": false,
+          "peak_probe_ms": 27.721,
+          "min_host_physical_free_mib": 5041,
+          "min_host_commit_free_mib": 2171,
+          "scanner": "native-v1",
+          "peak_scan_ms": 27.41,
+          "peak_scan_regions": 12256
+        }
+      },
+      "observer": {
+        "attached": true,
+        "draws": 9949267,
+        "exact_pair_matches": 1,
+        "failed_original_draws": 0,
+        "presents": 3600,
+        "snapshot_done": true,
+        "failure": 0,
+        "on12_query_hr": 0,
+        "pow_cap_requested": true,
+        "caps_applied": 137998,
+        "caps_restored": 137998
+      },
+      "scattering_all_zero": true
+    },
+    {
+      "case": "water-on12-pow-cap-20261126-06",
+      "visual_observation": "visible water, waves and bank detail; regular original-menu exit",
+      "result": {
+        "game_started": true,
+        "exit_code": 0,
+        "owned_timeout_or_stop": false,
+        "shared_profiles_unchanged": true,
+        "game_binaries_unchanged": true,
+        "private_options_restored": true,
+        "cleanup_errors": [],
+        "memory": {
+          "format": "s7-memory-summary-v1",
+          "recovery_required": false,
+          "max_pressure": 0,
+          "samples": 40,
+          "peak_private_mib": 1738,
+          "min_free_mib": 1784,
+          "min_largest_mib": 1738,
+          "monitor_failed": false,
+          "peak_probe_ms": 27.24,
+          "min_host_physical_free_mib": 6953,
+          "min_host_commit_free_mib": 4093,
+          "scanner": "native-v1",
+          "peak_scan_ms": 26.963,
+          "peak_scan_regions": 12324
+        }
+      },
+      "observer": {
+        "attached": true,
+        "draws": 10614751,
+        "exact_pair_matches": 1,
+        "failed_original_draws": 0,
+        "presents": 3480,
+        "snapshot_done": true,
+        "failure": 0,
+        "on12_query_hr": 0,
+        "pow_cap_requested": true,
+        "caps_applied": 147238,
+        "caps_restored": 147238
+      },
+      "scattering_all_zero": true
+    },
+    {
+      "case": "water-on12-reversal-20261126-01",
+      "visual_observation": "memory stop before world; no visual result",
+      "result": {
+        "game_started": true,
+        "exit_code": 3763564577,
+        "owned_timeout_or_stop": true,
+        "shared_profiles_unchanged": true,
+        "game_binaries_unchanged": true,
+        "private_options_restored": true,
+        "cleanup_errors": [],
+        "memory": {
+          "format": "s7-memory-summary-v1",
+          "recovery_required": true,
+          "max_pressure": 1,
+          "samples": 6,
+          "peak_private_mib": 373,
+          "min_free_mib": 3307,
+          "min_largest_mib": 2046,
+          "monitor_failed": false,
+          "peak_probe_ms": 5.788,
+          "min_host_physical_free_mib": 4666,
+          "min_host_commit_free_mib": 1372,
+          "scanner": "native-v1",
+          "peak_scan_ms": 5.432,
+          "peak_scan_regions": 3085
+        }
+      },
+      "observer": {
+        "attached": true,
+        "draws": 0,
+        "exact_pair_matches": 0,
+        "failed_original_draws": 0,
+        "presents": 420,
+        "snapshot_done": false,
+        "failure": 0,
+        "on12_query_hr": 0,
+        "pow_cap_requested": false,
+        "caps_applied": 0,
+        "caps_restored": 0
+      }
+    }
+  ],
+  "math_gpu": [
+    {
+      "mode": "dxwrapper-d3d9",
+      "exit_code": 0,
+      "synthetic_only": true,
+      "passed": true,
+      "device": {
+        "synthetic_only": true,
+        "on12_query_hr": -2147467262,
+        "cases": [
+          {
+            "guarded": false,
+            "base": 0,
+            "rgba": [
+              0.25,
+              0.25,
+              0.25,
+              1
+            ],
+            "bits": [
+              1048576000,
+              1048576000,
+              1048576000,
+              1065353216
+            ]
+          },
+          {
+            "guarded": false,
+            "base": 1,
+            "rgba": [
+              2.25,
+              2.25,
+              2.25,
+              1
+            ],
+            "bits": [
+              1074790400,
+              1074790400,
+              1074790400,
+              1065353216
+            ]
+          },
+          {
+            "guarded": true,
+            "base": 0,
+            "rgba": [
+              0.25,
+              0.25,
+              0.25,
+              1
+            ],
+            "bits": [
+              1048576000,
+              1048576000,
+              1048576000,
+              1065353216
+            ]
+          },
+          {
+            "guarded": true,
+            "base": 1,
+            "rgba": [
+              2.25,
+              2.25,
+              2.25,
+              1
+            ],
+            "bits": [
+              1074790400,
+              1074790400,
+              1074790400,
+              1065353216
+            ]
+          }
+        ],
+        "draws_and_readbacks_passed": true
+      }
+    },
+    {
+      "mode": "dxwrapper-d3d9on12",
+      "exit_code": 0,
+      "synthetic_only": true,
+      "passed": true,
+      "device": {
+        "synthetic_only": true,
+        "on12_query_hr": 0,
+        "cases": [
+          {
+            "guarded": false,
+            "base": 0,
+            "rgba": [
+              null,
+              null,
+              null,
+              1
+            ],
+            "bits": [
+              4290772992,
+              4290772992,
+              4290772992,
+              1065353216
+            ]
+          },
+          {
+            "guarded": false,
+            "base": 1,
+            "rgba": [
+              2.25,
+              2.25,
+              2.25,
+              1
+            ],
+            "bits": [
+              1074790400,
+              1074790400,
+              1074790400,
+              1065353216
+            ]
+          },
+          {
+            "guarded": true,
+            "base": 0,
+            "rgba": [
+              0.25,
+              0.25,
+              0.25,
+              1
+            ],
+            "bits": [
+              1048576000,
+              1048576000,
+              1048576000,
+              1065353216
+            ]
+          },
+          {
+            "guarded": true,
+            "base": 1,
+            "rgba": [
+              2.25,
+              2.25,
+              2.25,
+              1
+            ],
+            "bits": [
+              1074790400,
+              1074790400,
+              1074790400,
+              1065353216
+            ]
+          }
+        ],
+        "draws_and_readbacks_passed": true
+      }
+    }
+  ],
+  "non_target_gpu": [
+    {
+      "mode": "dxwrapper-d3d9",
+      "exit_code": 0,
+      "device": {
+        "non_target_pixels_and_state_passed": true,
+        "hooked_draws": 1,
+        "snapshot_done": false,
+        "on12_query_hr": -2147467262,
+        "stage": 240,
+        "pixel": 4294902015,
+        "sample_hr": 0,
+        "failure": 0,
+        "synthetic_only": true
+      },
+      "synthetic_only": true
+    },
+    {
+      "mode": "dxwrapper-d3d9on12",
+      "exit_code": 0,
+      "device": {
+        "non_target_pixels_and_state_passed": true,
+        "hooked_draws": 1,
+        "snapshot_done": false,
+        "on12_query_hr": 0,
+        "stage": 240,
+        "pixel": 4294902015,
+        "sample_hr": 0,
+        "failure": 0,
+        "synthetic_only": true
+      },
+      "synthetic_only": true
+    }
+  ],
+  "cpu_validation": {
+    "python_focused_tests": 57,
+    "python_passed": true,
+    "native_cpu_checks": 17,
+    "native_passed": true
+  },
+  "limitations": [
+    "Only this High River shader and disabled scattering are corrected.",
+    "No other map, edition, GPU, driver, performance or production renderer qualification.",
+    "First corrected close failed C0000409; late global COM release removed as a possible cause, without causal crash-stack proof.",
+    "Final correction build exited zero through the original game menu.",
+    "Extra reversal attempt stopped for host memory before world; earlier unchanged On12 and D3D9 game controls completed."
+  ]
+}

@@ -1,0 +1,3 @@
+LIBRARY WePlayWaterOn12Probe
+EXPORTS
+    WePlayWaterOn12ProbeInitialize=_WePlayWaterOn12ProbeInitialize@4

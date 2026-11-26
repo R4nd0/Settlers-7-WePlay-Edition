@@ -184,8 +184,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
         crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False,shader_profile=None,
-        laboratory_renderer=None,dxwrapper_package=None):
+        laboratory_renderer=None,dxwrapper_package=None,water_probe=None,water_pow_cap=False):
     renderer_session = None
+    if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or laboratory_renderer!='dxwrapper-d3d9on12')):
+        raise ValueError('Water POW cap requires the explicit exact-water probe on D3D9On12.')
+    if water_probe is not None and laboratory_renderer not in ('dxwrapper-d3d9','dxwrapper-d3d9on12'):
+        raise ValueError('Water observation requires an exclusive pinned dxwrapper laboratory case.')
     if laboratory_renderer is not None:
         from . import dxwrapper
         if (laboratory_renderer not in dxwrapper.MODES or hook is not None or on_initialized is not None
@@ -287,7 +291,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         raise ValueError('Keep the exact pinned DXVK 3.1.1 renderer.')
     memory_guard.require_host_headroom()
     if laboratory_renderer is not None:
-        renderer_session = dxwrapper.Session(root, output, laboratory_renderer, dxwrapper_package)
+        renderer_session = dxwrapper.Session(root, output, laboratory_renderer, dxwrapper_package,
+                                             water_probe=water_probe,water_pow_cap=water_pow_cap)
     if hook is not None:
         if on_initialized is not None:
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')
@@ -425,6 +430,10 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     if renderer_session is not None:
         source=ROOT/'tools/graphics_lab/dxwrapper.py'
         checkpoint[source.relative_to(ROOT).as_posix()]=digest(source)
+        if water_probe is not None:
+            for name in ('water_on12_probe.py','capture_bootstrap.py'):
+                source=ROOT/'tools/graphics_lab'/name
+                checkpoint[source.relative_to(ROOT).as_posix()]=digest(source)
     if baseline_crash_watch:
         checkpoint={name:digest(ROOT/name)for name in baseline_watcher.baseline_source_paths(metric=baseline_metric_profile)}
     for name, pin in checkpoint.items():
@@ -448,6 +457,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         shader_overlay_requested=shader_overlay,
         shader_profile_requested=shader_profile,
         laboratory_renderer_requested=laboratory_renderer,
+        read_only_water_probe_requested=water_probe is not None and not water_pow_cap,
+        water_pow_cap_requested=water_pow_cap,
         combined_shader_scope_requested=combined,
         material_config_version=material_config_version,terrain_macro_requested=terrain_macro,
         leaf_hemisphere_requested=leaf_hemisphere,
@@ -495,6 +506,8 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
             environment = {k:v for k,v in environment.items() if not k.upper().startswith(('DXVK_','VK_'))}
         arguments = ('-vSynch', '-noMapInMainMenu', '-width', str(width), '-height', str(height))
         initialize = on_initialized
+        if renderer_session is not None and renderer_session.probe is not None:
+            initialize = renderer_session.probe.initialize
         if hook is not None:
             def initialize(owned):
                 receipt = load_hook.initialize(owned, hook, render=(width, height),

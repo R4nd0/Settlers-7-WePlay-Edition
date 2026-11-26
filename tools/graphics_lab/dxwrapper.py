@@ -59,8 +59,10 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False):
         from . import game
+        if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
+            raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
         self.root, self.case = recover.lab(root), recover.lab(case)
         if self.case.is_relative_to(self.root) or self.root.is_relative_to(self.case):
             raise ValueError('Renderer case and game must be separate.')
@@ -70,6 +72,12 @@ class Session:
         if (self.root / 'LocalData/graphics-choice.json').exists():
             raise ValueError('Use a laboratory copy without production graphics auto-loading.')
         self.mode, self.payload = mode, artifacts(package, mode)
+        self.probe = None
+        if water_probe is not None:
+            if mode not in MODES[1:]:
+                raise ValueError('Water observation requires an exclusive pinned dxwrapper backend.')
+            from .water_on12_probe import Probe
+            self.probe=Probe(water_probe,self.root,self.case,pow_cap=water_pow_cap)
         self.last_observed = 0.0
         if current(self.executable.with_name('d3d9.dll')) is None or digest(
                 current(self.executable.with_name('d3d9.dll'))) != recover.DXVK:
@@ -106,6 +114,8 @@ class Session:
                 recover._atomic(path, raw)
         value['state'] = 'applied'
         recover._atomic(self.case / JOURNAL, json.dumps(value, indent=2).encode())
+        if self.probe is not None:
+            self.probe.prepare()
 
     def observe(self, owned):
         """Inventory evidence only: loaded modules do not prove device identity."""
@@ -126,6 +136,8 @@ class Session:
             modules=rows, device_identity_proven=False), indent=2).encode())
 
     def restore(self):
+        if self.probe is not None:
+            self.probe.close()
         if (self.case / JOURNAL).exists():
             restore(self.case)
 
@@ -268,6 +280,8 @@ def main():
     launch.add_argument('--mode', choices=MODES, required=True)
     launch.add_argument('--package', type=Path)
     launch.add_argument('--seconds', type=int, default=900)
+    launch.add_argument('--water-probe', type=Path)
+    launch.add_argument('--water-pow-cap',action='store_true')
     recovery = sub.add_parser('recover')
     recovery.add_argument('--case', type=Path, required=True)
     fixture = sub.add_parser('device-fixture')
@@ -284,7 +298,8 @@ def main():
         from . import game
         game.run(args.bundle, args.output, width=1920, height=1080,
                  high_quality=True, seconds=args.seconds,
-                 laboratory_renderer=args.mode, dxwrapper_package=args.package)
+                 laboratory_renderer=args.mode, dxwrapper_package=args.package,
+                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap)
 
 
 if __name__ == '__main__':
