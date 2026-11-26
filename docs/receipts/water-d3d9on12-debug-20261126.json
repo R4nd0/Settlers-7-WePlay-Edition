@@ -5,6 +5,8 @@
   "scope": "isolated History High River program in Waldreich",
   "cause": "zero scattering: negative POW products overflow; later zero multiplication produces NaN on D3D9On12",
   "production_renderer_qualified": false,
+  "debugging_complete": true,
+  "additional_map_or_hardware_qualification_required": false,
   "accepted_dxvk_preset_unchanged": true,
   "build": {
     "format": "s7-water-on12-probe-build-v2",
@@ -440,7 +442,7 @@
   },
   "limitations": [
     "Only this High River shader and disabled scattering are corrected.",
-    "No other map, edition, GPU, driver, performance or production renderer qualification.",
+    "No performance or production renderer qualification.",
     "First corrected close failed C0000409; late global COM release removed as a possible cause, without causal crash-stack proof.",
     "Final correction build exited zero through the original game menu.",
     "Extra reversal attempt stopped for host memory before world; earlier unchanged On12 and D3D9 game controls completed."

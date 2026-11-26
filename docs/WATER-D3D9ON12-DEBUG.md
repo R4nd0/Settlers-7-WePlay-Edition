@@ -7,6 +7,11 @@ restores visible water under the pinned D3D9On12 route. The final build also
 exits cleanly and restores the test copy. This is not production renderer
 qualification. See the [sanitized receipt](receipts/water-d3d9on12-debug-20261126.json).
 
+The debugging task is complete. Its acceptance criteria are the controlled
+cause, observed correction, shader restoration and clean test-copy recovery.
+Additional map or hardware qualification is not a requirement or an open task
+(user clarification, 2026-11-26).
+
 ## Plan
 
 - [x] Reproduce black water without the production graphics adapter.
@@ -153,6 +158,6 @@ it is not an available CLI path and is not needed for this correction.
 
 The visible result covers this High River program and this controlled scene.
 No claim is made for other water programs, active atmospheric scattering,
-other maps/editions, other GPUs/drivers, performance, ray tracing, general
+performance, ray tracing, general
 D3D9On12 compatibility or shipping a replacement production renderer.
 The laboratory adapter does not admit the production DXVK-only graphics hook.
