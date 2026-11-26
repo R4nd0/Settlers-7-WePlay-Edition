@@ -2352,14 +2352,24 @@ extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureObservation(void* opaque) {
     using namespace SupersamplingHook;
     static_assert(sizeof(MaterialShaderObserver::CaptureConfig)==952,"Observer configuration ABI changed.");
     DiagnosticScope diagnostic;
-    MaterialShaderObserver::CaptureConfig config{};SIZE_T read=0;
-    if(!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read) || read!=sizeof(config)
-        || config.size!=sizeof(config) || config.version!=1)return 0;
+    DWORD header[2]{};SIZE_T read=0;
+    if(!ReadProcessMemory(GetCurrentProcess(),opaque,header,sizeof(header),&read)||read!=sizeof(header))return 0;
+    const bool trace=header[0]==sizeof(MaterialShaderObserver::DrawTraceConfig)&&header[1]==2;
+    MaterialShaderObserver::CaptureConfig config{};
+    MaterialShaderObserver::DrawTraceConfig trace_config{};
+    if(trace) {
+        if(!ReadProcessMemory(GetCurrentProcess(),opaque,&trace_config,sizeof(trace_config),&read)||read!=sizeof(trace_config)
+            ||trace_config.size!=header[0]||trace_config.version!=header[1])return 0;
+    }else if(header[0]!=sizeof(config)||header[1]!=1
+        ||!ReadProcessMemory(GetCurrentProcess(),opaque,&config,sizeof(config),&read)||read!=sizeof(config)
+        ||config.size!=header[0]||config.version!=header[1])return 0;
     Lock lock;
     if(!initialization_ready || !(native_configuration.flags&NativeGraphicsConfig::Observe)
-        || (state && state->terminal_cleanup))return 0;
-    if(state){Internal inside(state);return MaterialShaderObserver::ConfigureCapture(&config)?1u:0u;}
-    return MaterialShaderObserver::ConfigureCapture(&config)?1u:0u;
+        ||stats.render_unsafe||(state&&(state->terminal_cleanup||state->shutdown_requested)))return 0;
+    const auto configure=[&](){return trace?MaterialShaderObserver::ConfigureDrawTrace(&trace_config)
+                                         :MaterialShaderObserver::ConfigureCapture(&config);};
+    if(state){Internal inside(state);return configure()?1u:0u;}
+    return configure()?1u:0u;
 }
 
 extern "C" DWORD WINAPI WePlayNativeGraphicsConfigureEffects(void* opaque) {

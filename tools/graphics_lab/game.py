@@ -164,7 +164,18 @@ class LiveMemoryReport:
                    sampled_monotonic_ns=time.monotonic_ns(),guardian=guardian)
         temporary=self.path.with_suffix('.tmp')
         temporary.write_text(json.dumps(value),encoding='utf-8')
-        os.replace(temporary,self.path);self.last=stamp
+        for attempt in range(10):
+            try:
+                os.replace(temporary,self.path)
+                break
+            except PermissionError as error:
+                # A Windows reader can briefly deny replacement of this report.
+                # Keep the old complete report; persistent publication failure
+                # still raises into the owner's existing stop/recovery path.
+                if getattr(error,'winerror',None) not in (5,32,33) or attempt==9:
+                    raise
+                time.sleep(.02)
+        self.last=stamp
         return True
 
 

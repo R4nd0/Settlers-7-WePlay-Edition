@@ -194,3 +194,34 @@ still needs separate evidence and visual review.
    4096/8192 safeguards, then compare normal camera scenes and measured cost in
    all three original editions. No 2048 or visible-improvement label precedes
    actual evidence.
+
+## Accepted-preset follow-up, 2026-11-26
+
+An isolated Ubisoft History world reproduced the paired road streak beside the
+stone bridge in Waldreich, with only the accepted Clear Bank/index1 and
+Leaf B/index1 enabled. A successful actual GPU capture retained both the
+3840×2160 source and 1920×1080 output. The rectangular paired streak is visible
+in the high source. The captured frame records 120 water applications/restorations
+and 13 Leaf B applications/restorations, without shader/set/restore failures.
+This corroborates the upstream-of-downsample finding with the current accepted
+preset; it still does not identify the generating draw.
+
+The new [bounded draw-order/ROI diagnostic](DRAW-TRACE-DIAGNOSTIC.md) passed
+strict CPU/COM tests and an authored DXVK GPU test, including two distinct
+in-scene draw results read back before Present. It retains the exact original
+binding hashes after each observed successful draw; it does not suppress draws
+or change the accepted effects. The old v1 observer ABI remains unchanged.
+
+No actual-game draw trace or controlled 100/200-percent pair completed. The
+first world case was stopped by the controller after a Windows report-replacement
+access error; bounded retry now handles transient publication denial while
+persistent errors remain fatal. The next case was stopped by the existing memory
+guard after host commit headroom fell to 103 MiB and the scanner timed out.
+Both cases verified shared profiles/game binaries unchanged, private options
+restored and empty cleanup errors. Their forced owner stops are not clean exits
+or release qualifications. No other game process was closed.
+
+Further game/GPU work requires a stable host memory slot with the existing
+headroom/monitor checks passing. The causing pass, original SSAO association,
+controlled scale comparison and actual correction remain open. No speculative
+shader, shadow, alpha or texture fix has been activated.

@@ -20,7 +20,7 @@ def validate_mode(manifest, material_version, catalog=None, catalog_sha256=None,
         raise ValueError('Shader overlay requires explicit WaterPalette or LeafV4.')
     if type(material_version)is int and material_version==5:
         if(water_palette or not shader_overlay or catalog is None or catalog_sha256 is None
-            or manifest.get('source_set')!='effects-v14' or manifest.get('abi',{}).get('initialize_v3')!=3136
+            or manifest.get('source_set') not in ('effects-v14','effects-v15') or manifest.get('abi',{}).get('initialize_v3')!=3136
             or manifest.get('abi',{}).get('effects_v5')!=24 or manifest.get('diagnostic_abi',{}).get('overlay_v3')!=16):
             raise ValueError('Combined fixture requires explicit source47/init3/V5/overlay3 and pinned observer.')
         return

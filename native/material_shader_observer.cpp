@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <intrin.h>
+#include <vector>
 
 namespace MaterialShaderObserver {
 namespace {
@@ -16,6 +17,21 @@ struct Cached {
     IUnknown* object=nullptr;
     std::uint32_t stage=0,bytes=0,representative=0,aliases=0;
     std::array<unsigned char,32> sha256{};
+};
+constexpr size_t MaxTraceDraws=32768;
+struct TraceRow {
+    std::uint32_t ordinal=0,kind=0,vertex=0,pixel=0,vertex_bytes=0,pixel_bytes=0;
+    std::array<unsigned char,32> vertex_sha256{},pixel_sha256{},roi_sha256{};
+    DWORD available=0,width=0,height=0,format=0,viewport_x=0,viewport_y=0,viewport_width=0,viewport_height=0;
+    HRESULT readback=S_FALSE;
+    std::uintptr_t target_identity=0;
+};
+struct TraceState {
+    DrawTraceConfig config{};
+    bool armed=false,active=false;
+    DWORD last_sequence=0,draws=0,overflows=0,failures=0;
+    std::uint64_t frame=0;
+    std::vector<TraceRow> rows;
 };
 struct State {
     Stats stats{};
@@ -41,6 +57,7 @@ struct State {
     FrameSnapshot latest{};
     std::array<unsigned char,32> frame_vertex{},frame_pixel{};
     UINT frame_vertex_bytes=2592,frame_pixel_bytes=3740;
+    TraceState trace{};
 };
 SRWLOCK mutex=SRWLOCK_INIT;
 State current;
@@ -82,6 +99,99 @@ std::string Hex(const std::array<unsigned char,32>& digest) {
     std::string value(64,'0');
     for(size_t index=0;index<digest.size();++index){value[index*2]=digits[digest[index]>>4];value[index*2+1]=digits[digest[index]&15];}
     return value;
+}
+
+std::wstring TracePath(DWORD sequence,DWORD draw=0) {
+    return current.report_path+L".trace-"+std::to_wstring(sequence)
+        +(draw?L"-draw-"+std::to_wstring(draw)+L".raw":L".json");
+}
+bool NewFile(const std::wstring& path,const void* data,DWORD bytes) {
+    HANDLE file=CreateFileW(path.c_str(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+    if(file==INVALID_HANDLE_VALUE)return false;
+    DWORD written=0;BY_HANDLE_FILE_INFORMATION info{};
+    const bool valid=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
+        &&WriteFile(file,data,bytes,&written,nullptr)&&written==bytes&&FlushFileBuffers(file);
+    CloseHandle(file);return valid;
+}
+// No device state changes. Read back the current target with its original
+// format, then retain only the explicitly bounded 32-bit ROI, row-major.
+HRESULT TracePixels(IDirect3DDevice9* device,IDirect3DSurface9* target,const D3DSURFACE_DESC& desc,TraceRow& row) {
+    const auto& c=current.trace.config;
+    if(desc.Width!=c.target_width||desc.Height!=c.target_height
+        ||(desc.Format!=D3DFMT_A8R8G8B8&&desc.Format!=D3DFMT_X8R8G8B8&&desc.Format!=D3DFMT_R32F
+           &&desc.Format!=D3DFMT_A2R10G10B10)||desc.MultiSampleType!=D3DMULTISAMPLE_NONE)return D3DERR_INVALIDCALL;
+    Ref<IDirect3DSurface9> staging;
+    HRESULT result=device->CreateOffscreenPlainSurface(desc.Width,desc.Height,desc.Format,D3DPOOL_SYSTEMMEM,&staging.value,nullptr);
+    if(FAILED(result)||!staging.value)return FAILED(result)?result:E_FAIL;
+    result=device->GetRenderTargetData(target,staging.value);if(FAILED(result))return result;
+    D3DLOCKED_RECT locked{};
+    result=staging.value->LockRect(&locked,nullptr,D3DLOCK_READONLY);if(FAILED(result))return result;
+    std::vector<unsigned char> pixels;
+    bool copied=false;
+    try {
+        if(locked.pBits&&locked.Pitch>0&&static_cast<UINT>(locked.Pitch)>=desc.Width*4) {
+            pixels.resize(static_cast<size_t>(c.width)*c.height*4);
+            for(DWORD y=0;y<c.height;++y)std::memcpy(pixels.data()+static_cast<size_t>(y)*c.width*4,
+                static_cast<const unsigned char*>(locked.pBits)+static_cast<size_t>(c.y+y)*locked.Pitch+c.x*4,c.width*4);
+            copied=true;
+        }
+    }catch(...) {staging.value->UnlockRect();throw;}
+    result=staging.value->UnlockRect();if(FAILED(result))return result;
+    if(!copied||!Hash(pixels.data(),pixels.size(),row.roi_sha256))return E_FAIL;
+    return NewFile(TracePath(c.sequence,row.ordinal),pixels.data(),static_cast<DWORD>(pixels.size()))?S_OK:E_FAIL;
+}
+void TraceDraw(IDirect3DDevice9* device,Cached* vertex,Cached* pixel,unsigned kind) {
+    auto& t=current.trace;if(!t.active)return;
+    ++t.draws;if(t.rows.size()>=MaxTraceDraws){++t.overflows;return;}
+    TraceRow row{};row.ordinal=t.draws;row.kind=kind;
+    if(vertex){row.vertex=vertex->representative;row.vertex_bytes=vertex->bytes;row.vertex_sha256=vertex->sha256;row.available|=1;}
+    if(pixel){row.pixel=pixel->representative;row.pixel_bytes=pixel->bytes;row.pixel_sha256=pixel->sha256;row.available|=2;}
+    Ref<IDirect3DSurface9> target;D3DSURFACE_DESC desc{};D3DVIEWPORT9 viewport{};
+    if(SUCCEEDED(device->GetRenderTarget(0,&target.value))&&target.value&&SUCCEEDED(target.value->GetDesc(&desc))) {
+        row.available|=4;row.width=desc.Width;row.height=desc.Height;row.format=static_cast<DWORD>(desc.Format);
+        row.target_identity=reinterpret_cast<std::uintptr_t>(target.value);
+    }else ++t.failures;
+    if(SUCCEEDED(device->GetViewport(&viewport))) {
+        row.available|=8;row.viewport_x=viewport.X;row.viewport_y=viewport.Y;
+        row.viewport_width=viewport.Width;row.viewport_height=viewport.Height;
+    }else ++t.failures;
+    if(t.config.draw_count&&row.ordinal>=t.config.first_draw&&row.ordinal-t.config.first_draw<t.config.draw_count) {
+        try {row.readback=(row.available&4)?TracePixels(device,target.value,desc,row):E_FAIL;}
+        catch(...) {row.readback=E_FAIL;}
+        if(FAILED(row.readback))++t.failures;
+    }
+    t.rows.push_back(row);
+}
+void FinishTrace(bool cancelled) {
+    auto& t=current.trace;
+    if(!t.active&&!t.armed)return;
+    t.active=t.armed=false;
+    DWORD readbacks=0;for(const auto& row:t.rows)if(row.readback==S_OK)++readbacks;
+    std::string json="{\"format\":\"s7-original-draw-trace-v2\",\"read_only\":true,\"complete\":";
+    json+=cancelled?"false":"true";
+    json+=",\"cancelled\":"+std::string(cancelled?"true":"false")+",\"sequence\":"+std::to_string(t.config.sequence)
+        +",\"frame_basis\":\"completed_presents_before_draw\",\"frame\":"+std::to_string(t.frame)
+        +",\"successful_draws\":"+std::to_string(t.draws)+",\"overflows\":"+std::to_string(t.overflows)
+        +",\"failures\":"+std::to_string(t.failures)+",\"catalog_sha256\":\""+Hex(current.catalog_digest)+"\""
+        +",\"bound_programs_observed_after_draw\":true,\"requested_first_draw\":"+std::to_string(t.config.first_draw)
+        +",\"requested_readbacks\":"+std::to_string(t.config.draw_count)+",\"successful_readbacks\":"+std::to_string(readbacks)
+        +",\"missing_readbacks\":"+std::to_string(t.config.draw_count-readbacks)
+        +",\"roi\":["+std::to_string(t.config.x)+","+std::to_string(t.config.y)+","+std::to_string(t.config.width)+","+std::to_string(t.config.height)+"],\"draws\":[";
+    for(size_t i=0;i<t.rows.size();++i) {
+        const auto& r=t.rows[i];if(i)json+=',';
+        json+="{\"ordinal\":"+std::to_string(r.ordinal)+",\"kind\":"+std::to_string(r.kind)
+            +",\"available\":"+std::to_string(r.available)+",\"vertex_id\":"+std::to_string(r.vertex)+",\"pixel_id\":"+std::to_string(r.pixel)
+            +",\"vertex_bytes\":"+std::to_string(r.vertex_bytes)+",\"pixel_bytes\":"+std::to_string(r.pixel_bytes)
+            +",\"vertex_sha256\":\""+Hex(r.vertex_sha256)+"\",\"pixel_sha256\":\""+Hex(r.pixel_sha256)+"\""
+            +",\"target_identity\":"+std::to_string(r.target_identity)
+            +",\"target\":["+std::to_string(r.width)+","+std::to_string(r.height)+","+std::to_string(r.format)+"]"
+            +",\"viewport\":["+std::to_string(r.viewport_x)+","+std::to_string(r.viewport_y)+","+std::to_string(r.viewport_width)+","+std::to_string(r.viewport_height)+"]"
+            +",\"roi_hresult\":"+std::to_string(static_cast<DWORD>(r.readback))+",\"roi_sha256\":\""+Hex(r.roi_sha256)+"\"}";
+    }
+    json+="]}\n";
+    if(json.size()>MAXDWORD||!NewFile(TracePath(t.config.sequence),json.data(),static_cast<DWORD>(json.size())))++current.stats.report_failures;
+    t.rows.clear();
 }
 
 void ClearCache() {
@@ -427,6 +537,7 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected[32],con
                 && row.bytes>=8 && row.bytes<=MaxCodeBytes && !(row.bytes%4);
         }
         if(!valid){CloseHandle(file);return false;}
+        current.trace=TraceState{};
         current.stats=Stats{};current.stats.enabled=1;current.stats.catalog_count=rows;
         current.cache_capacity_bypasses=0;current.uncached.fill(Cached{});
         current.capture=CaptureConfig{};current.captured.fill(0);current.last_capture.fill(0);
@@ -477,6 +588,32 @@ bool ConfigureCapture(const CaptureConfig* config) noexcept {
         current.stats.captures.fill(CaptureSample{});current.capture_kinds.fill(0);return true;
     }catch(...){Exception();return false;}
 }
+bool ConfigureDrawTrace(const DrawTraceConfig* config) noexcept {
+    LastErrorState last_error;FloatingState floating;
+    try {
+        Lock lock;
+        if(!current.stats.enabled||!config||config->size!=sizeof(DrawTraceConfig)||config->version!=2
+            ||!config->sequence||config->sequence<=current.trace.last_sequence||current.trace.active||current.trace.armed
+            ||current.report_path.empty()||current.report_path.size()+64>=512)return false;
+        const auto& c=*config;
+        if(c.draw_count) {
+            if(!c.first_draw||c.draw_count>8||c.first_draw>MaxTraceDraws-c.draw_count+1
+                ||!c.target_width||c.target_width>3840||!c.target_height||c.target_height>2160
+                ||!c.width||c.width>256||!c.height||c.height>256||c.width>c.target_width||c.height>c.target_height
+                ||c.x>c.target_width-c.width||c.y>c.target_height-c.height)return false;
+        }else if(c.first_draw||c.target_width||c.target_height||c.x||c.y||c.width||c.height)return false;
+        const auto absent=[](const std::wstring& path) {
+            SetLastError(ERROR_SUCCESS);
+            return GetFileAttributesW(path.c_str())==INVALID_FILE_ATTRIBUTES&&GetLastError()==ERROR_FILE_NOT_FOUND;
+        };
+        if(!absent(TracePath(c.sequence)))return false;
+        for(DWORD i=0;i<c.draw_count;++i)if(!absent(TracePath(c.sequence,c.first_draw+i)))return false;
+        current.trace.rows.reserve(MaxTraceDraws);
+        current.trace.config=c;current.trace.last_sequence=c.sequence;
+        current.trace.draws=current.trace.overflows=current.trace.failures=0;
+        current.trace.rows.clear();current.trace.armed=true;return true;
+    }catch(...){Exception();return false;}
+}
 bool ConfigureFrameSnapshot(DWORD width,DWORD height) noexcept {
     LastErrorState last_error;
     try {Lock lock;if(!current.stats.enabled || width<320 || height<200 || width>8192 || height>8192
@@ -507,13 +644,19 @@ void ObserveDraw(IDirect3DDevice9* device,unsigned kind,HRESULT result) noexcept
         if(FAILED(device->GetVertexShader(&vertex.value))){++current.stats.query_failures;vertex.reset();}
         if(FAILED(device->GetPixelShader(&pixel.value))){++current.stats.query_failures;pixel.reset();}
         Cached* vs=Query(vertex.value,1);Cached* ps=Query(pixel.value,2);Count(vs);Count(ps);Pair(vs,ps);Capture(device,vs,ps,kind);CaptureFrame(device,vs,ps);
+        TraceDraw(device,vs,ps,kind);
     } catch(...) {Exception();}
 }
 
 void EndFrame(IDirect3DDevice9* device) noexcept {
     LastErrorState last_error;
     FloatingState floating;
-    try {Lock lock;if(!Context(device))return;ClearCache();++current.stats.frames;if(current.stats.frames%120==0)Report();}
+    try {Lock lock;if(!Context(device))return;
+        const bool start=current.trace.armed;
+        if(current.trace.active)FinishTrace(false);
+        ClearCache();++current.stats.frames;
+        if(start){current.trace.armed=false;current.trace.active=true;current.trace.frame=current.stats.frames;}
+        if(current.stats.frames%120==0)Report();}
     catch(...) {Exception();}
 }
 void Reset(IDirect3DDevice9* device) noexcept {
@@ -538,7 +681,7 @@ void Shutdown() noexcept {
     LastErrorState last_error;
     FloatingState floating;
     try {
-        Lock lock;ClearCache();Report();current.stats.enabled=0;
+        Lock lock;FinishTrace(true);ClearCache();Report();current.stats.enabled=0;
         if(current.catalog_file!=INVALID_HANDLE_VALUE){CloseHandle(current.catalog_file);current.catalog_file=INVALID_HANDLE_VALUE;}
         if(current.algorithm){BCryptCloseAlgorithmProvider(current.algorithm,0);current.algorithm=nullptr;}
         current.device=nullptr;current.thread=0;current.report_path.clear();

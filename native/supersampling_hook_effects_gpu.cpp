@@ -517,6 +517,20 @@ void CombinedTrial(const std::filesystem::path& renderer,const std::filesystem::
     MaterialShaderEffects::Stats measured{};Require(MaterialShaderEffects::ReadStats(&measured)&&!measured.enabled_flags&&!measured.faulted&&!measured.shader_failures&&!measured.set_failures&&!measured.restore_failures&&!measured.exceptions&&measured.combined_program_sha256==hashes,"combined_gpu_program_or_safety_proof");
     for(auto n:measured.combined_program_creations)Require(n>0,"combined_gpu_program_not_created");Require(measured.applied[1]>0&&measured.applied[2]>0&&measured.variant_applications[2]>0&&measured.variant_applications==measured.variant_restorations,"combined_gpu_missing_actual_roles");
     ShaderDebugOverlay::Preset selected{};Require(ShaderDebugOverlay::ReadPreset(&selected)&&selected.values[0].enabled==1&&selected.values[0].variant==0&&!selected.values[1].enabled&&!selected.values[2].enabled&&!selected.values[3].enabled&&!selected.values[4].enabled,"combined_gpu_preset_groups_not_preserved");
+    MaterialShaderObserver::DrawTraceConfig trace{};trace.sequence=1;trace.first_draw=1;trace.draw_count=2;
+    trace.target_width=1280;trace.target_height=720;trace.x=640;trace.y=360;trace.width=trace.height=4;
+    Require(WePlayNativeGraphicsConfigureObservation(&trace)==1,"combined_gpu_trace_queue");present();
+    draw(2);draw(0);present();
+    for(unsigned i=1;i<=2;++i) {
+        std::ifstream image(output/(L"observer.private.json.trace-1-draw-"+std::to_wstring(i)+L".raw"),std::ios::binary);
+        std::array<DWORD,16> pixels{};image.read(reinterpret_cast<char*>(pixels.data()),sizeof(pixels));
+        Require(image.gcount()==sizeof(pixels),"combined_gpu_trace_readback_in_scene_failed");
+        for(auto color:pixels)Near({{(color>>16)&255,(color>>8)&255,color&255}},i==1?.2f:.3f,i==1?.3f:.4f,i==1?.4f:.2f);
+    }
+    std::ifstream trace_file(output/L"observer.private.json.trace-1.json",std::ios::binary);
+    const std::string traced((std::istreambuf_iterator<char>(trace_file)),std::istreambuf_iterator<char>());
+    Require(traced.find("\"complete\":true")!=std::string::npos&&traced.find("\"failures\":0,")!=std::string::npos
+        &&traced.find("\"successful_draws\":2,")!=std::string::npos,"combined_gpu_trace_frame_receipt");
     Check(device->Reset(&parameters),"combined_gpu_actual_reset");ShaderDebugOverlay::Stats renderer_stats{};Require(ShaderDebugOverlay::ReadStats(&renderer_stats)&&!renderer_stats.unsafe_state&&!renderer_stats.font_ready&&!renderer_stats.retained_original_refs,"combined_gpu_overlay_reset_refs");
     SupersamplingStats core{};Require(WePlaySupersamplingReadStats(&core)==1&&!core.render_unsafe&&!core.overlay_unsafe&&core.overlay_draws>0,"combined_gpu_core_unsafe");
     Require(DestroyWindow(window.get())!=FALSE,"combined_gpu_close");live=nullptr;Require(WePlaySupersamplingDetach(device.get())==1,"combined_gpu_detach");device->SetStreamSource(0,nullptr,0,0);for(unsigned i=0;i<3;++i)device->SetTexture(4+i,nullptr);

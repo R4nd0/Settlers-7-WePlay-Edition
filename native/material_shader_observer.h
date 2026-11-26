@@ -44,6 +44,15 @@ struct CaptureConfig {
     std::array<CaptureTarget,MaxCaptureTargets> targets{};
 };
 static_assert(sizeof(CaptureConfig)==952,"unchanged observation request ABI");
+// Explicit v2 diagnostic request, independent of the unchanged v1 capture ABI.
+// One complete next frame of scalar draw order; optionally at most eight ROI
+// readbacks after consecutive successful original draws. No suppression/state set.
+struct DrawTraceConfig {
+    std::uint32_t size=sizeof(DrawTraceConfig),version=2,sequence=0;
+    std::uint32_t first_draw=0,draw_count=0,target_width=0,target_height=0;
+    std::uint32_t x=0,y=0,width=0,height=0;
+};
+static_assert(sizeof(DrawTraceConfig)==44,"bounded draw trace request ABI");
 struct ConstantSample {
     std::uint32_t stage,index,component_mask,valid;
     std::array<float,4> value{};
@@ -136,6 +145,7 @@ bool Initialize(const wchar_t* catalog_path,const unsigned char expected_sha256[
 // Requests are bounded single float4 registers; only selected finite components
 // are retained. Sampler capture contains dimensions/formats only, never pixels.
 bool ConfigureCapture(const CaptureConfig* config) noexcept;
+bool ConfigureDrawTrace(const DrawTraceConfig* config) noexcept;
 bool ConfigureFrameSnapshot(DWORD render_width,DWORD render_height) noexcept;
 bool CopyLatestFrameSnapshot(std::uint64_t expected_present_frame,FrameSnapshot* output) noexcept;
 void InvalidateFrameSnapshot() noexcept;

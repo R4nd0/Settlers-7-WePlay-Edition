@@ -43,7 +43,7 @@ try {
         $hash=[BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes((Join-Path $output $name)))).Replace('-','').ToLowerInvariant()
         $entries+='"'+$name+'":"'+$hash+'"'
     }
-    $manifest='{"format":"s7-native-graphics-build-v2","source_set":"effects-v14","compiled_capabilities":15,"abi":{"initialize_v1":1048,"initialize_v2":3132,"initialize_v3":3136,"observation":952,"effects":4132,"effects_v2":6180,"effects_v3":7204,"effects_v4":4120,"effects_v5":24,"water":1076,"water_palette":3096,"capture":12},"diagnostic_abi":{"comparison":12,"shadow":12,"ambient":12,"ambient_v2":12,"overlay":12,"overlay_v2":16,"overlay_v3":16},"build_sha256":"'+$buildHash+'","files":{'+($entries -join ',')+'}}'
+    $manifest='{"format":"s7-native-graphics-build-v2","source_set":"effects-v15","compiled_capabilities":15,"abi":{"initialize_v1":1048,"initialize_v2":3132,"initialize_v3":3136,"observation":952,"effects":4132,"effects_v2":6180,"effects_v3":7204,"effects_v4":4120,"effects_v5":24,"water":1076,"water_palette":3096,"capture":12},"diagnostic_abi":{"draw_trace":44,"comparison":12,"shadow":12,"ambient":12,"ambient_v2":12,"overlay":12,"overlay_v2":16,"overlay_v3":16},"build_sha256":"'+$buildHash+'","files":{'+($entries -join ',')+'}}'
     [IO.File]::WriteAllText((Join-Path $output 'supersampling-hook-build.json'),$manifest,[Text.UTF8Encoding]::new($false))
     $manifest
 } finally {foreach($lease in $leases){$lease.Dispose()};$sha.Dispose();Pop-Location}

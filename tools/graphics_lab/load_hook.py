@@ -21,6 +21,7 @@ from tools.supersampling.hook_probe import (SOURCES as HOOK_SOURCES, NATIVE20_SO
                                           BINARIES, NATIVE20_BINARIES, BUILD_ABI,MODERN_SOURCES,BUILD_ABI_V2,WATER_SOURCES,BUILD_ABI_WATER,MACRO_SOURCES,SHADOW_SOURCES,AMBIENT_SOURCES,LEAF_PIXEL_SOURCES,BUILD_ABI_V3,PALETTE_SOURCES,BUILD_ABI_V4,WATER_PALETTE_SOURCES,BUILD_ABI_WATER_PALETTE,OVERLAY_SOURCES,COMBINED_SOURCES,BUILD_ABI_COMBINED)
 SOURCES = set(HOOK_SOURCES)
 OPERATIONS = {
+    'draw_trace': (b'WePlayNativeGraphicsConfigureObservation\0',44),
     'overlay_v3': (b'WePlayNativeGraphicsConfigureOverlay\0',16),
     'overlay_v2': (b'WePlayNativeGraphicsConfigureOverlay\0',16),
     'overlay': (b'WePlayNativeGraphicsConfigureOverlay\0',12),
@@ -53,18 +54,18 @@ def verify_build(dll):
         raise ValueError('Hook build manifest exceeds its bound.')
     value = json.loads(raw)
     current = isinstance(value,dict) and value.get('format') == 's7-native-graphics-build-v2'
-    overlay=current and value.get('source_set')in('effects-v12','effects-v13','effects-v14')
-    water_palette=current and value.get('source_set')in('effects-v11','effects-v12','effects-v13','effects-v14')
-    palette=current and value.get('source_set')in('effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    leaf_pixel=current and value.get('source_set')in('effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    profile_b=current and value.get('source_set')in('effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    ambient=current and value.get('source_set')in('effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    shadow=current and value.get('source_set')in('effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    macro=current and value.get('source_set')in('effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    water=current and value.get('source_set')in('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    modern=current and value.get('source_set')in('effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14')
-    sources = (set(COMBINED_SOURCES) if value.get('source_set')=='effects-v14' else set(OVERLAY_SOURCES) if overlay else set(WATER_PALETTE_SOURCES) if water_palette else set(PALETTE_SOURCES) if palette else set(LEAF_PIXEL_SOURCES) if leaf_pixel else set(AMBIENT_SOURCES) if ambient else set(SHADOW_SOURCES) if shadow else set(MACRO_SOURCES) if macro else set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
+    overlay=current and value.get('source_set')in('effects-v12','effects-v13','effects-v14','effects-v15')
+    water_palette=current and value.get('source_set')in('effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    palette=current and value.get('source_set')in('effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    leaf_pixel=current and value.get('source_set')in('effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    profile_b=current and value.get('source_set')in('effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    ambient=current and value.get('source_set')in('effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    shadow=current and value.get('source_set')in('effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    macro=current and value.get('source_set')in('effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    water=current and value.get('source_set')in('effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    modern=current and value.get('source_set')in('effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    comparison=current and value.get('source_set')in('effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15')
+    sources = (set(COMBINED_SOURCES) if value.get('source_set') in ('effects-v14','effects-v15') else set(OVERLAY_SOURCES) if overlay else set(WATER_PALETTE_SOURCES) if water_palette else set(PALETTE_SOURCES) if palette else set(LEAF_PIXEL_SOURCES) if leaf_pixel else set(AMBIENT_SOURCES) if ambient else set(SHADOW_SOURCES) if shadow else set(MACRO_SOURCES) if macro else set(WATER_SOURCES) if water else set(MODERN_SOURCES) if modern else SOURCES if comparison else set(EFFECTS_V1_SOURCES)) if current else set(NATIVE20_SOURCES)
     expected = sources | set(BINARIES if current else NATIVE20_BINARIES)
     keys = {'format','build_sha256','files'} | ({'source_set','compiled_capabilities','abi'} if current else set())
     if comparison:keys.add('diagnostic_abi')
@@ -73,10 +74,10 @@ def verify_build(dll):
             or not isinstance(value['files'], dict) or set(value['files']) != expected
             or value['build_sha256'] != digest(ROOT / 'native/supersampling_hook_build.ps1')):
         raise ValueError('Stale or unexpected hook build manifest.')
-    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14') or value['compiled_capabilities']!=15
-                    or value['abi']!=(BUILD_ABI_COMBINED if value.get('source_set')=='effects-v14' else BUILD_ABI_WATER_PALETTE if water_palette else BUILD_ABI_V4 if palette else BUILD_ABI_V3 if leaf_pixel else BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
+    if current and (value['source_set']not in ('effects-v1','effects-v2','effects-v3','effects-v4','effects-v5','effects-v6','effects-v7','effects-v8','effects-v9','effects-v10','effects-v11','effects-v12','effects-v13','effects-v14','effects-v15') or value['compiled_capabilities']!=15
+                    or value['abi']!=(BUILD_ABI_COMBINED if value.get('source_set') in ('effects-v14','effects-v15') else BUILD_ABI_WATER_PALETTE if water_palette else BUILD_ABI_V4 if palette else BUILD_ABI_V3 if leaf_pixel else BUILD_ABI_WATER if water else BUILD_ABI_V2 if modern else BUILD_ABI)):
         raise ValueError('Unexpected compiled graphics ABI or capabilities.')
-    if comparison and value['diagnostic_abi']!={**({'overlay_v3':16} if value.get('source_set')=='effects-v14' else {}),**({'overlay_v2':16} if value.get('source_set')in('effects-v13','effects-v14') else {}),**({'overlay':12} if overlay else {}),'comparison':12,**({'shadow':12} if shadow else {}),**({'ambient':12} if ambient else {}),**({'ambient_v2':12} if profile_b else {})}:
+    if comparison and value['diagnostic_abi']!={**({'draw_trace':44} if value.get('source_set')=='effects-v15' else {}),**({'overlay_v3':16} if value.get('source_set') in ('effects-v14','effects-v15') else {}),**({'overlay_v2':16} if value.get('source_set')in('effects-v13','effects-v14','effects-v15') else {}),**({'overlay':12} if overlay else {}),'comparison':12,**({'shadow':12} if shadow else {}),**({'ambient':12} if ambient else {}),**({'ambient_v2':12} if profile_b else {})}:
         raise ValueError('Unexpected diagnostic comparison ABI.')
     for name, pin in value['files'].items():
         path = ROOT / 'native' / name if name in sources else dll.parent / name
@@ -226,7 +227,7 @@ def invoke(owned, dll, operation, payload):
     material_version=({4132:1,6180:2,7204:3,4120:4,24:5}.get(len(payload))
                       if operation=='effects' and isinstance(payload,bytes) else None)
     expected_size=len(payload) if material_version else size
-    expected_version=material_version or (3 if operation=='overlay_v3' else 2 if operation in('ambient_v2','water_palette','overlay_v2') else 1)
+    expected_version=material_version or (3 if operation=='overlay_v3' else 2 if operation in('ambient_v2','water_palette','overlay_v2','draw_trace') else 1)
     if (not isinstance(payload, bytes) or len(payload) != expected_size
             or struct.unpack_from('<2I', payload) != (expected_size, expected_version)):
         raise ValueError('Invalid fixed native graphics command ABI.')
@@ -250,6 +251,8 @@ def invoke(owned, dll, operation, payload):
         raise ValueError('Water palette accepts only three admitted selections and Boolean enable.')
     if operation=='water' and struct.unpack_from('<I',payload,16)[0]not in(0,1):raise ValueError('WaterProgram enable must be Boolean.')
     dll, build = verify_build(dll)
+    if operation=='draw_trace' and build.get('diagnostic_abi',{}).get('draw_trace')!=44:
+        raise ValueError('This exact source-bound build does not support original draw tracing.')
     if material_version==2 and build.get('abi',{}).get('effects_v2')!=6180:
         raise ValueError('This exact source-bound build does not support material V2.')
     if material_version==3 and build.get('abi',{}).get('effects_v3')!=7204:

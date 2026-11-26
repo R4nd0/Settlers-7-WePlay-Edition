@@ -10,6 +10,40 @@ from tools.graphics_lab import game, load_hook
 
 
 class GraphicsControllerTests(unittest.TestCase):
+    def test_live_memory_report_retries_a_reader_collision_without_marking_stale_data_current(self):
+        from types import SimpleNamespace
+        guardian=dict(samples=1,max_pressure=0,monitor_failed=False,recovery_required=False)
+        collision=PermissionError('reader denied replacement');collision.winerror=5
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'memory-live.private.json'
+            report=game.LiveMemoryReport(path,123,'a'*64)
+            original_replace=game.os.replace
+            calls=[]
+            def replace(a,b):
+                calls.append(1)
+                if len(calls)==1:
+                    self.assertIsNone(report.last)
+                    raise collision
+                return original_replace(a,b)
+            with patch.object(game.os,'replace',side_effect=replace),patch.object(game.time,'sleep') as sleep:
+                self.assertTrue(report.publish(SimpleNamespace(snapshot=lambda:guardian.copy())))
+                sleep.assert_called_once_with(.02)
+            self.assertEqual(json.loads(path.read_text())['guardian'],guardian)
+            self.assertEqual(report.last,(1,0,False,False))
+
+    def test_live_memory_report_keeps_persistent_publication_failure_fatal(self):
+        from types import SimpleNamespace
+        guardian=dict(samples=1,max_pressure=0,monitor_failed=False,recovery_required=False)
+        collision=PermissionError('persistent denial');collision.winerror=5
+        with tempfile.TemporaryDirectory() as root:
+            report=game.LiveMemoryReport(Path(root)/'memory-live.private.json',123,'a'*64)
+            with patch.object(game.os,'replace',side_effect=collision) as replace,patch.object(game.time,'sleep') as sleep:
+                with self.assertRaises(PermissionError):
+                    report.publish(SimpleNamespace(snapshot=lambda:guardian.copy()))
+                self.assertEqual(replace.call_count,10)
+                self.assertEqual(sleep.call_count,9)
+            self.assertIsNone(report.last)
+
     def test_leaf_hemisphere_excludes_mixed_or_undeclared_material_modes(self):
         valid=dict(hook=Path('never-loaded.dll'),high_quality=True,material_config_version=2,
                    material_effects=('improved_vegetation',),leaf_hemisphere=True)

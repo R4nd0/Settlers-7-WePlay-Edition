@@ -49,11 +49,23 @@ HRESULT STDMETHODCALLTYPE TextureDesc(FakeTexture*,UINT level,D3DSURFACE_DESC* o
     *output=D3DSURFACE_DESC{};output->Width=512;output->Height=256;output->Format=D3DFMT_A8R8G8B8;return S_OK;
 }
 struct FakeSurface {void** table=nullptr;ULONG refs=1;};
+std::vector<unsigned char> trace_pixels;
+unsigned trace_readbacks=0,trace_locks=0,trace_unlocks=0;
+bool trace_fail=false;
+HRESULT STDMETHODCALLTYPE SurfaceLock(FakeSurface*,D3DLOCKED_RECT* output,const RECT*,DWORD) {
+    ++trace_locks;output->Pitch=1920*4+16;output->pBits=trace_pixels.data();return S_OK;
+}
+HRESULT STDMETHODCALLTYPE SurfaceUnlock(FakeSurface*){++trace_unlocks;return S_OK;}
 ULONG STDMETHODCALLTYPE SurfaceAddRef(FakeSurface* surface){return ++surface->refs;}
 ULONG STDMETHODCALLTYPE SurfaceRelease(FakeSurface* surface){Check(surface->refs>1,"surface reference underflow");return --surface->refs;}
 HRESULT STDMETHODCALLTYPE SurfaceDesc(FakeSurface*,D3DSURFACE_DESC* output){*output={};output->Width=1920;output->Height=1080;output->Format=D3DFMT_A8R8G8B8;return S_OK;}
 struct FakeDevice {void** table=nullptr;FakeShader* vertex=nullptr;FakeShader* pixel=nullptr;FakeTexture* texture=nullptr;bool nonfinite=false;FakeSurface* surface=nullptr;unsigned uniform_reads=0;bool unused_nan=false;
     std::uint32_t fail_render_states=0;std::uint64_t render_state_queries=0;bool blob_state=false;};
+HRESULT STDMETHODCALLTYPE Offscreen(FakeDevice* d,UINT w,UINT h,D3DFORMAT f,D3DPOOL pool,IDirect3DSurface9** out,HANDLE*) {
+    Check(w==1920&&h==1080&&f==D3DFMT_A8R8G8B8&&pool==D3DPOOL_SYSTEMMEM,"trace staging exact original dimensions/format/systemmem");
+    *out=reinterpret_cast<IDirect3DSurface9*>(d->surface);SurfaceAddRef(d->surface);return S_OK;
+}
+HRESULT STDMETHODCALLTYPE Readback(FakeDevice*,IDirect3DSurface9*,IDirect3DSurface9*){++trace_readbacks;return trace_fail?E_FAIL:S_OK;}
 HRESULT STDMETHODCALLTYPE Vertex(FakeDevice* device,IDirect3DVertexShader9** output) {
     if(!output)return D3DERR_INVALIDCALL;
     *output=reinterpret_cast<IDirect3DVertexShader9*>(device->vertex);
@@ -135,10 +147,12 @@ int wmain(int argc,wchar_t** argv) {
         std::array<void*,134> device_table{};device_table[93]=reinterpret_cast<void*>(&Vertex);device_table[108]=reinterpret_cast<void*>(&Pixel);
         device_table[95]=reinterpret_cast<void*>(&Constants);device_table[110]=reinterpret_cast<void*>(&Constants);device_table[64]=reinterpret_cast<void*>(&Texture);
         device_table[38]=reinterpret_cast<void*>(&Target);device_table[48]=reinterpret_cast<void*>(&Viewport);device_table[58]=reinterpret_cast<void*>(&RenderState);
+        device_table[36]=reinterpret_cast<void*>(&Offscreen);device_table[32]=reinterpret_cast<void*>(&Readback);
         std::array<void*,22> texture_table{};texture_table[1]=reinterpret_cast<void*>(&TextureAddRef);texture_table[2]=reinterpret_cast<void*>(&TextureRelease);
         texture_table[10]=reinterpret_cast<void*>(&TextureType);texture_table[13]=reinterpret_cast<void*>(&TextureLevels);texture_table[17]=reinterpret_cast<void*>(&TextureDesc);
         FakeTexture texture{texture_table.data(),1};
         std::array<void*,17> surface_table{};surface_table[1]=reinterpret_cast<void*>(&SurfaceAddRef);surface_table[2]=reinterpret_cast<void*>(&SurfaceRelease);surface_table[12]=reinterpret_cast<void*>(&SurfaceDesc);
+        surface_table[13]=reinterpret_cast<void*>(&SurfaceLock);surface_table[14]=reinterpret_cast<void*>(&SurfaceUnlock);
         FakeSurface surface{surface_table.data(),1};
         FakeDevice owner{device_table.data(),&vertex,&pixel,&texture,false};
         auto* device=reinterpret_cast<IDirect3DDevice9*>(&owner);
@@ -295,8 +309,47 @@ int wmain(int argc,wchar_t** argv) {
         ObserveDraw(device,Draw,S_OK);const auto valid_frame=Snapshot().frames+1;EndFrame(device);Check(CopyLatestFrameSnapshot(valid_frame,&frame),"later valid frame recovers");
         InvalidateFrameSnapshot();Check(!CopyLatestFrameSnapshot(valid_frame,&frame),"actual Reset invalidates prior frame data");
         owner.unused_nan=false;
+        CaptureConfig no_capture{};Check(ConfigureCapture(&no_capture),"disable fixed register capture for trace tests");
+        DrawTraceConfig trace{};trace.sequence=1;
+        auto bad_trace=trace;bad_trace.version=1;Check(!ConfigureDrawTrace(&bad_trace),"trace never reinterprets legacy version");
+        bad_trace=trace;bad_trace.sequence=0;Check(!ConfigureDrawTrace(&bad_trace),"trace nonzero sequence");
+        bad_trace=trace;bad_trace.width=1;Check(!ConfigureDrawTrace(&bad_trace),"inventory rejects dormant ROI fields");
+        Check(ConfigureDrawTrace(&trace),"one frame trace armed");
+        Check(!ConfigureDrawTrace(&trace),"pending trace cannot be replaced");
+        ObserveDraw(device,Indexed,S_OK);Check(trace_readbacks==0,"no readback while armed");
+        EndFrame(device);ObserveDraw(device,Draw,E_FAIL);ObserveDraw(device,IndexedUP,S_OK);ObserveDraw(device,DrawUP,S_OK);EndFrame(device);
+        const auto trace1=ReadText(report+L".trace-1.json");
+        Check(trace1.find("\"successful_draws\":2,")!=std::string::npos&&trace1.find("\"overflows\":0,")!=std::string::npos,"exact complete next-frame successful draw count");
+        Check(trace1.find("\"kind\":4,")!=std::string::npos&&trace1.find("\"kind\":3,")!=std::string::npos,"trace covers both UP paths without buffer access");
+        Check(trace1.find("\"target\":[1920,1080,21]")!=std::string::npos&&trace1.find("\"available\":15,")!=std::string::npos,"actual trace target and explicit availability");
+        Check(trace_readbacks==0&&!ConfigureDrawTrace(&trace),"inventory never reads pixels and sequence never replays");
+        trace.sequence=2;trace.first_draw=2;trace.draw_count=2;trace.target_width=1920;trace.target_height=1080;
+        trace.x=7;trace.y=5;trace.width=3;trace.height=2;
+        bad_trace=trace;bad_trace.draw_count=9;Check(!ConfigureDrawTrace(&bad_trace),"readback budget at most eight");
+        bad_trace=trace;bad_trace.width=257;Check(!ConfigureDrawTrace(&bad_trace),"ROI width bounded");
+        bad_trace=trace;bad_trace.x=1919;Check(!ConfigureDrawTrace(&bad_trace),"ROI bounds avoid overflow");
+        bad_trace=trace;bad_trace.first_draw=32768;Check(!ConfigureDrawTrace(&bad_trace),"last consecutive ordinal bounded");
+        trace_pixels.resize((1920*4+16)*1080);
+        for(size_t i=0;i<trace_pixels.size();++i)trace_pixels[i]=static_cast<unsigned char>(i%251);
+        Check(ConfigureDrawTrace(&trace),"bounded ROI trace armed");EndFrame(device);
+        ObserveDraw(device,Indexed,S_OK);Check(trace_readbacks==0,"no readback outside selected ordinal");
+        SetLastError(0x37573333);const auto trace_mxcsr=_mm_getcsr();ObserveDraw(device,Indexed,S_OK);
+        Check(GetLastError()==0x37573333&&_mm_getcsr()==trace_mxcsr,"readback preserves LastError and FP state");
+        trace_fail=true;ObserveDraw(device,DrawUP,S_OK);trace_fail=false;EndFrame(device);
+        Check(trace_readbacks==2&&trace_locks==1&&trace_unlocks==1&&surface.refs==1,"success/failure readbacks balance surfaces and lock lifecycle");
+        const auto raw_roi=ReadText(report+L".trace-2-draw-2.raw");
+        std::string expected_roi;
+        for(unsigned y=5;y<7;++y)expected_roi.append(reinterpret_cast<const char*>(trace_pixels.data())+y*(1920*4+16)+7*4,12);
+        Check(raw_roi==expected_roi,"ROI copies exact source bytes with padded pitch and no recoloring");
+        const auto trace2=ReadText(report+L".trace-2.json");
+        Check(trace2.find("\"failures\":1,")!=std::string::npos&&trace2.find("\"roi_hresult\":2147500037")!=std::string::npos,"failed readback reported explicitly");
+        trace.sequence=3;trace.first_draw=300;Check(ConfigureDrawTrace(&trace),"unreached selected ordinal trace armed");
+        EndFrame(device);ObserveDraw(device,Indexed,S_OK);EndFrame(device);
+        Check(ReadText(report+L".trace-3.json").find("\"missing_readbacks\":2")!=std::string::npos,"an unreached requested draw is never an implicit readback success");
+        trace=DrawTraceConfig{};trace.sequence=4;Check(ConfigureDrawTrace(&trace),"cancellation trace armed");
         SetLastError(0x37570004);Flush();Check(GetLastError()==0x37570004,"report flush preserves LastError");
         Shutdown();Check(!Snapshot().enabled,"shutdown disables observer");
+        Check(ReadText(report+L".trace-4.json").find("\"cancelled\":true")!=std::string::npos,"shutdown cancels pending trace with explicit incomplete receipt");
         Check(vertex.refs==1 && pixel.refs==1,"all original references balanced");
         std::printf("{\"format\":\"s7-observer-render-state-cpu-v1\",\"checks\":%u,\"passed\":true,\"capture_config_bytes\":%u,\"capture_sample_bytes\":%u,\"stats_bytes\":%u,\"render_state_fields\":%u,\"game_started\":false,\"gpu_started\":false}\n",
             checks.load(),static_cast<unsigned>(sizeof(CaptureConfig)),static_cast<unsigned>(sizeof(CaptureSample)),
