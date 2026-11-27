@@ -1,0 +1,162 @@
+{
+  "upgrade": {
+    "preserved_fixture_files": 3,
+    "old": "rc4.13",
+    "package_id": "6f8d02c89f2da0a71fa4366185374378905d9ac75e8b74f2052b56e998988e2b",
+    "setup_sha256": "fad0644fff02acb656686ea0746895480d9cfd7ba96fc72ed09e8c54b7c8509a",
+    "new": "rc4.14"
+  },
+  "date": "2026-11-27",
+  "candidate": "rc4.14",
+  "source_commit": "406186af1c84c831759924e84975be4ca1fc4e46",
+  "clean_checkout": true,
+  "package_id": "6f8d02c89f2da0a71fa4366185374378905d9ac75e8b74f2052b56e998988e2b",
+  "setup_sha256": "fad0644fff02acb656686ea0746895480d9cfd7ba96fc72ed09e8c54b7c8509a",
+  "scope": "Three installed edition copies on one Windows PC, local mixed-room broker",
+  "windowed_resolution": [
+    1024,
+    768
+  ],
+  "map": "Monhaim Valley",
+  "human_players": 3,
+  "ai": {
+    "name": "Maid Marielle",
+    "difficulty": "Normal"
+  },
+  "cross_machine_or_internet_verified": false,
+  "temporary_network_rules_removed": true,
+  "host_roles": [
+    {
+      "host": "Gold",
+      "guests": [
+        "Ubisoft History",
+        "Steam History"
+      ],
+      "save_sha256": "8600890bc210156ee9ef7226457ba31243dc0f43fe01a18e638e5c5eff3c1caf",
+      "save_bytes": 4475256,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 299,
+        "crc_mismatches": 0,
+        "measurement_seconds": 47.6,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 478,
+        "crc_mismatches": 0,
+        "measurement_seconds": 85.7,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Ubisoft History": {
+            "packets": 2975,
+            "payload_bytes": 24365991
+          },
+          "Steam History": {
+            "packets": 2975,
+            "payload_bytes": 24365991
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 56.0,
+        "ai_observed_in_world": true
+      }
+    },
+    {
+      "host": "Ubisoft History",
+      "guests": [
+        "Gold",
+        "Steam History"
+      ],
+      "save_sha256": "14fbad2077ab49e237d60cff9d4ddc3196aa82e036fab7bc8ff08c2d8b7edf2a",
+      "save_bytes": 4453496,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 211,
+        "crc_mismatches": 0,
+        "measurement_seconds": 47.2,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 426,
+        "crc_mismatches": 0,
+        "measurement_seconds": 93.0,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Gold": {
+            "packets": 23684,
+            "payload_bytes": 24251667
+          },
+          "Steam History": {
+            "packets": 23684,
+            "payload_bytes": 24251667
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 332.2,
+        "ai_observed_in_world": true
+      }
+    },
+    {
+      "host": "Steam History",
+      "guests": [
+        "Gold",
+        "Ubisoft History"
+      ],
+      "save_sha256": "59be3df215c95290c33f23cc11957a8d5844ccb1ee70a9385cd30b602965d104",
+      "save_bytes": 4472560,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 307,
+        "crc_mismatches": 0,
+        "measurement_seconds": 67.4,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 428,
+        "crc_mismatches": 0,
+        "measurement_seconds": 95.8,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Gold": {
+            "packets": 23787,
+            "payload_bytes": 24357776
+          },
+          "Ubisoft History": {
+            "packets": 23787,
+            "payload_bytes": 24357776
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 335.1,
+        "ai_observed_in_world": true
+      }
+    }
+  ]
+}
