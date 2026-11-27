@@ -25,7 +25,7 @@ inline bool Inspect(const CrossplayResumeTransfer::Checkpoint& cp,const std::str
     try{
         auto text=neo_save::Pickle{serialized}.Payload();neo_logistics::SavedState saved;
         if(!neo_logistics::Decode(text,saved) || saved.enabled!=cp.enabled
-            || (saved.enabled && (saved.logic_turn!=cp.logic_turn || saved.turn!=cp.replay_turn)))return false;
+            || !neo_logistics::MatchesReplay(saved,cp.logic_turn,cp.replay_turn))return false;
         payload=std::move(text);return true;
     }catch(const std::exception&){return false;}
 }

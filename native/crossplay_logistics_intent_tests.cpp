@@ -4,10 +4,10 @@
 #include <cstdio>
 namespace {
 uint32_t logic[0x200/4]{},main_object[8]{},priority[0x1660/4]{},transfers[0x1b0/4]{},tasks[2][0x100/4]{},registry[4]{},head[3]{},nodes[2][3]{};
-uintptr_t global=0;unsigned checks=0;bool authenticated=true;
+uintptr_t global=0;unsigned checks=0;bool authenticated=true;uint32_t replay_clock=400;
 void Set(uint32_t* object,unsigned offset,uintptr_t value){object[offset/4]=static_cast<uint32_t>(value);}
 bool Ready(){return authenticated;}
-bool Clock(CrossplayNativeClock::Snapshot& value){SetLastError(0xdeadbeef);value.turn=400;return true;}
+bool Clock(CrossplayNativeClock::Snapshot& value){SetLastError(0xdeadbeef);value.turn=replay_clock;return true;}
 #define REQUIRE(x) do{++checks;if(!(x)){printf("FAIL line %u case %u\n",__LINE__,checks);return 1;}}while(0)
 }
 extern "C" __declspec(dllexport) uint32_t __cdecl SharedNeoIntentGuardOracle(uint32_t value){return CrossplayLogisticsIntent::OriginalGuards(static_cast<Crossplay::Edition>(value))?1u:0u;}
@@ -53,14 +53,27 @@ int main(){
  // owned replay turn. Pending/wrong-owner clocks must not activate it.
  CrossplayLogisticsActive::ledger.Clear();CrossplayLogisticsActive::begun=false;
  CrossplayLogisticsActive::installed=true;CrossplayLogisticsActive::resume_armed=false;
- REQUIRE(!CrossplayLogisticsActive::ArmResume("NEO0\n"));
- REQUIRE(CrossplayLogisticsActive::ArmResume(identical));
- REQUIRE(!CrossplayLogisticsActive::ArmResume(identical));
+ REQUIRE(!CrossplayLogisticsActive::ArmResume("NEO0\n",399,400,true));
+ REQUIRE(!CrossplayLogisticsActive::ArmResume(identical,398,399,true));
+ REQUIRE(CrossplayLogisticsActive::ArmResume(identical,399,400,true));
+ REQUIRE(!CrossplayLogisticsActive::ArmResume(identical,399,400,true));
  authenticated=false;REQUIRE(!CrossplayLogisticsActive::Advance());
  REQUIRE(!CrossplayLogisticsActive::begun && !CrossplayLogisticsActive::resume_restored);
  authenticated=true;++CrossplayLogisticsActive::owner;REQUIRE(!CrossplayLogisticsActive::Advance());--CrossplayLogisticsActive::owner;
  REQUIRE(CrossplayLogisticsActive::Advance());REQUIRE(CrossplayLogisticsActive::begun && CrossplayLogisticsActive::resume_restored);
  REQUIRE(CrossplayLogisticsActive::ledger.marks[1].intent==neo_fifo::Intent::Prefer);
  REQUIRE(CrossplayLogisticsActive::resume_unrestored_comparisons==0);
- printf("PASS %u native-layout individual-priority cases across Gold and both History profiles, including identical nonempty NEO2 snapshot/rebinding. Synthetic only.\n",checks);return 0;
+ CrossplayLogisticsActive::ledger.Clear();CrossplayLogisticsActive::begun=false;
+ CrossplayLogisticsActive::resume_armed=false;CrossplayLogisticsActive::resume_restored=false;
+ REQUIRE(!CrossplayLogisticsActive::ArmResume(identical,399,400,false));
+ REQUIRE(!CrossplayLogisticsActive::ArmResume("NEO0\n",399,401,false));
+ REQUIRE(CrossplayLogisticsActive::ArmResume("NEO0\n",399,400,false));
+ replay_clock=399;REQUIRE(!CrossplayLogisticsActive::Advance());
+ REQUIRE(!CrossplayLogisticsActive::begun && !CrossplayLogisticsActive::resume_restored);
+ replay_clock=400;REQUIRE(CrossplayLogisticsActive::Advance());
+ REQUIRE(CrossplayLogisticsActive::begun && CrossplayLogisticsActive::resume_restored);
+ neo_logistics::SavedState disabled{};
+ REQUIRE(CrossplayLogisticsActive::ledger.Snapshot(CrossplayLogisticsActive::ledger.world,400,disabled));
+ REQUIRE(!disabled.enabled && disabled.marks.empty());
+ printf("PASS %u native-layout priority and saved replay cases, including enabled NEO2 and disabled NEO0. Synthetic only.\n",checks);return 0;
 }

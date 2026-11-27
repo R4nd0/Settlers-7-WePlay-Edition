@@ -59,8 +59,8 @@ inline bool SelectFile(const CrossplayProduction::Launch& launch,const std::stri
         bool found=false;const auto serialized=neo_save::Cache{members[0]}.Neo(found);
         if(!found || logic==UINT32_MAX)return false;
         neo_logistics::SavedState state;
-        if(!neo_logistics::Decode(neo_save::Pickle{serialized}.Payload(),state) || !state.enabled
-            || state.logic_turn!=logic || state.turn!=logic+1)return false;
+        if(!neo_logistics::Decode(neo_save::Pickle{serialized}.Payload(),state)
+            || !neo_logistics::MatchesReplay(state,logic,logic+1))return false;
         identity.bytes=bytes.size();token=std::move(source_token);return true;
     }catch(const std::exception&){identity={};return false;}
 }

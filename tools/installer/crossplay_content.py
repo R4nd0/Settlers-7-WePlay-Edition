@@ -167,14 +167,14 @@ class Catalog:
 
     @staticmethod
     def renderer_adapter(edition,name,expected,actual):
-        # Exact, render-only rebuilds retain the original room catalog ID.
+        # Exact supported adapter rebuilds retain the original room catalog ID.
         if edition not in REQUIRED or name!=REQUIRED[edition][1]:return False
-        from platform_standalone import (GOLD,GOLD_LOD400,GOLD_MIXED_START,GOLD_RC403,GOLD_RC405,GOLD_RC409,
+        from platform_standalone import (GOLD,GOLD_LOBBY_WAIT,GOLD_LOD400,GOLD_MIXED_START,GOLD_RC403,GOLD_RC405,GOLD_RC409,
                                          HISTORY_LOBBY_WAIT,HISTORY_LOD400,HISTORY_MIXED_START,HISTORY_RC405,HISTORY_RC409,
-                                         LOD_GOLD,LOD_HISTORY)
+                                         HISTORY_SAVED_REPLAY,LOD_GOLD,LOD_HISTORY)
         if edition==1:
-            return expected==GOLD_RC403 and actual in (GOLD_RC405,LOD_GOLD,GOLD_RC409,GOLD_LOD400,GOLD_MIXED_START,GOLD)
-        return expected==HISTORY_RC405 and actual in (LOD_HISTORY,HISTORY_RC409,HISTORY_LOD400,HISTORY_MIXED_START,HISTORY_LOBBY_WAIT)
+            return expected==GOLD_RC403 and actual in (GOLD_RC405,LOD_GOLD,GOLD_RC409,GOLD_LOD400,GOLD_MIXED_START,GOLD_LOBBY_WAIT,GOLD)
+        return expected==HISTORY_RC405 and actual in (LOD_HISTORY,HISTORY_RC409,HISTORY_LOD400,HISTORY_MIXED_START,HISTORY_LOBBY_WAIT,HISTORY_SAVED_REPLAY)
 
 
 def read(path):

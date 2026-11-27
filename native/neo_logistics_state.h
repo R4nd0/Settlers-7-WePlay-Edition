@@ -13,6 +13,10 @@ struct SavedState {
     std::vector<SavedMark> marks;
     int64_t logic_turn = -1; // NEO2: persisted world turn, separate from the next replay turn
 };
+inline bool MatchesReplay(const SavedState& state, uint32_t logic_turn, uint32_t replay_turn) {
+    return logic_turn < UINT32_MAX && replay_turn == logic_turn + 1
+        && (!state.enabled || (state.logic_turn == logic_turn && state.turn == replay_turn));
+}
 inline std::string Encode(const SavedState& state) {
     if (!state.enabled) return "NEO0\n";
     if (state.marks.size() > 65536) return {};

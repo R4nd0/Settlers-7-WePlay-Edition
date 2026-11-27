@@ -18,10 +18,13 @@ inline bool selected=false;
 inline bool resume_armed=false,resume_restored=false;
 inline uint64_t resume_unrestored_comparisons=0;
 inline std::string resume_payload;
-inline bool ArmResume(const std::string& payload){
+inline uint32_t resume_replay_turn=0;
+inline bool ArmResume(const std::string& payload,uint32_t logic_turn,uint32_t replay_turn,bool enabled){
  if(!installed || begun || resume_armed || owner!=GetCurrentThreadId())return false;
- neo_logistics::SavedState saved;if(!neo_logistics::Decode(payload,saved) || saved.logic_turn<0 || !saved.enabled)return false;
- resume_payload=payload;resume_armed=true;selected=saved.enabled;return true;
+ neo_logistics::SavedState saved;
+ if(!neo_logistics::Decode(payload,saved) || saved.enabled!=enabled
+  || !neo_logistics::MatchesReplay(saved,logic_turn,replay_turn))return false;
+ resume_payload=payload;resume_replay_turn=replay_turn;resume_armed=true;selected=enabled;return true;
 }
 
 inline uint64_t comparisons=0,changes=0,excluded=0;
@@ -48,8 +51,7 @@ inline bool Advance(){
  pending_turn=clock.turn;
  if(!begun){
   if(resume_armed){
-   neo_logistics::SavedState saved;
-   if(!neo_logistics::Decode(resume_payload,saved) || saved.turn!=clock.turn){pending_reason=7;return false;}
+   if(resume_replay_turn!=clock.turn){pending_reason=7;return false;}
    if(!ledger.Restore(world,clock.turn,resume_payload)){pending_reason=8;return false;}
    resume_restored=true;
   }else if(!ledger.Begin(world,clock.turn,selected)){pending_reason=5;return false;}

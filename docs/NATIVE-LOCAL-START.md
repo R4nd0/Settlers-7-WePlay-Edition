@@ -810,3 +810,40 @@ provisional offer. All three clients displayed the same Monhaim Valley roster
 and the host received both guests' Ready state. All three processes exited
 with code 0 and the temporary network rules were removed. This run covered
 lobby setup and readiness through the host's Start button becoming enabled.
+
+### Crossplay reload with standard logistics
+
+The private Windows candidate `rc4.13-test.8` started and saved a native
+three-player game with one AI and standard logistics. A fresh room still had
+all three members when the History host selected the save, but the UI rejected
+it before a saved configuration offer could be sent. The archive contained
+the canonical `NEO0` marker. The selected-file guard only allowed enabled
+NEO2 metadata, and the saved-world start imposed the same restriction.
+
+The selected archive and authenticated checkpoint now carry either logistics
+mode through the same native file and Start sequence. Both modes require the
+original world replay turn to match the checkpoint before restoring the
+ledger. Enabled NEO still requires the corresponding persisted logic turn
+in its state. Standard logistics runs with the original comparator.
+
+Private Windows candidate `rc4.13-test.9` used the same installed package
+on three isolated copies on one PC. All clients ran windowed at 1024 × 768
+on Monhaim Valley with Maid Marielle (Normal) and standard logistics.
+
+| Host | Matching turns before reload | Matching turns after reload | Time after reload |
+| --- | ---: | ---: | ---: |
+| Gold | 283 | 294 | 76.2 s |
+| Ubisoft History | 119 | 294 | 80.0 s |
+| Steam History | 175 | 325 | 82.3 s |
+
+Both guests in every reload confirmed the resident file digest and the native
+saved start. From the saved offer until both file receipts, Gold took 57 s,
+Ubisoft took 349.1 s and Steam took 333.1 s. All three screens in each reload
+showed the restored world and its AI. The comparison found zero mismatches
+in all six sessions. All 18 processes exited with code zero and the temporary
+network rules were removed.
+
+Some clients sharing the local desktop briefly displayed the waiting dialog
+at 100% during world entry. Bringing the waiting client's window forward
+allowed the session to continue. The test scope was one Windows PC using the
+local room broker. [Measured all-host receipt](receipts/windows-crossplay-all-hosts-20261127.json)

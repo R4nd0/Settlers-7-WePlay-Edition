@@ -1,0 +1,153 @@
+{
+  "date": "2026-11-27",
+  "candidate": "rc4.13-test.9",
+  "package_id": "f1e887e82c1686757d3c47e5ea7e3c3f6488ea6a2b9d85248b3576c1219a5651",
+  "setup_sha256": "ddf67791762410d10983da14a51128880015075ad6b8b7790518eeda0276c8d3",
+  "scope": "Three installed edition copies on one Windows PC, local mixed-room broker",
+  "windowed_resolution": [
+    1024,
+    768
+  ],
+  "map": "Monhaim Valley",
+  "human_players": 3,
+  "ai": {
+    "name": "Maid Marielle",
+    "difficulty": "Normal"
+  },
+  "cross_machine_or_internet_verified": false,
+  "temporary_network_rules_removed": true,
+  "host_roles": [
+    {
+      "host": "Gold",
+      "guests": [
+        "Ubisoft History",
+        "Steam History"
+      ],
+      "save_sha256": "0874ef6be67b96d97238ef93687562104586940938b079f721a7b3a8f9c7f886",
+      "save_bytes": 4471392,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 283,
+        "crc_mismatches": 0,
+        "measurement_seconds": 54.2,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 294,
+        "crc_mismatches": 0,
+        "measurement_seconds": 76.2,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Ubisoft History": {
+            "packets": 2972,
+            "payload_bytes": 24343506
+          },
+          "Steam History": {
+            "packets": 2972,
+            "payload_bytes": 24343506
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 57.0,
+        "ai_observed_in_world": true
+      }
+    },
+    {
+      "host": "Ubisoft History",
+      "guests": [
+        "Gold",
+        "Steam History"
+      ],
+      "save_sha256": "81ae4062225120227cdd56c127363fec32f4fb4510ffdcbf6073f441d48be73f",
+      "save_bytes": 4452472,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 119,
+        "crc_mismatches": 0,
+        "measurement_seconds": 34.6,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 294,
+        "crc_mismatches": 0,
+        "measurement_seconds": 80.0,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Gold": {
+            "packets": 23685,
+            "payload_bytes": 24252931
+          },
+          "Steam History": {
+            "packets": 23685,
+            "payload_bytes": 24252931
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 349.1,
+        "ai_observed_in_world": true
+      }
+    },
+    {
+      "host": "Steam History",
+      "guests": [
+        "Gold",
+        "Ubisoft History"
+      ],
+      "save_sha256": "bab5770d90eba32f35cb09f063e9af9475d40c07adb98c334618c4a3fa464bdf",
+      "save_bytes": 4456736,
+      "logistics": "standard",
+      "fresh": {
+        "common_finished_turns": 175,
+        "crc_mismatches": 0,
+        "measurement_seconds": 37.4,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "reload": {
+        "common_finished_turns": 325,
+        "crc_mismatches": 0,
+        "measurement_seconds": 82.3,
+        "exit_codes": [
+          0,
+          0,
+          0
+        ],
+        "new_processes": true,
+        "native_receipts_from_both_guests": true,
+        "transfers": {
+          "Gold": {
+            "packets": 23696,
+            "payload_bytes": 24264185
+          },
+          "Ubisoft History": {
+            "packets": 23696,
+            "payload_bytes": 24264185
+          }
+        },
+        "offer_to_both_file_receipts_seconds": 333.1,
+        "ai_observed_in_world": true
+      }
+    }
+  ]
+}

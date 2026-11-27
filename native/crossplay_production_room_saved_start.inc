@@ -13,7 +13,7 @@
 
     bool RoomSavedStartReady(const Crossplay::RoomSnapshot& room){
         if(!room_saved_started || room_world_queued || !NeoModules()
-            || !CrossplayResumeTransfer::Valid(room_saved_checkpoint) || !room_saved_checkpoint.enabled)return false;
+            || !CrossplayResumeTransfer::Valid(room_saved_checkpoint))return false;
         if(!launch.host)return room_saved_ready_acked && resume_stream_observed && resume_neo_admitted;
         std::vector<unsigned char> actual;
         return room_saved_ready_applied==((1u<<room.member_count)-1) && ReadRoomSavedHostReady(actual);
@@ -43,7 +43,8 @@
         const auto edition=launch.channel.edition;
         bool changed=false;
         if(!SharedEngineMode::Prepare(edition,owner,changed) || !SharedEngineMode::Verify(edition,owner)
-            || !InstallWorldMath() || !CrossplayLogisticsActive::ArmResume(launch.host?room_saved_source.payload:resume_payload))return false;
+            || !InstallWorldMath() || !CrossplayLogisticsActive::ArmResume(launch.host?room_saved_source.payload:resume_payload,
+                room_saved_checkpoint.logic_turn,room_saved_checkpoint.replay_turn,room_saved_checkpoint.enabled))return false;
         const bool history_guest=!launch.host && room.members[room.host_slot-1].edition!=Crossplay::Edition::Gold;
         if(edition==Crossplay::Edition::Gold
             && !CrossplayGoldResume::Install(edition,owner,room_saved_checkpoint.logic_turn,
@@ -64,7 +65,7 @@
             const unsigned guests=((1u<<room->member_count)-1)&~(1u<<(room->local_slot-1));
             std::vector<unsigned char> actual;
             if(launch.channel.edition==Crossplay::Edition::Gold || !room_saved_started || room_world_queued
-                || !NeoModules() || !CrossplayResumeTransfer::Valid(room_saved_checkpoint) || !room_saved_checkpoint.enabled
+                || !NeoModules() || !CrossplayResumeTransfer::Valid(room_saved_checkpoint)
                 || room_saved_resident!=guests || room_saved_ready_requested!=guests || room_saved_ready_after.empty()
                 || !ReadRoomSavedHostReady(actual) || actual!=room_saved_ready_after)return false;
         }

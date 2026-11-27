@@ -30,7 +30,7 @@ try{
     if($LASTEXITCODE){throw 'Selected native source fixture did not compile'}
     & (Join-Path $out 'crossplay_selected_saved_source_tests.exe')
     if($LASTEXITCODE){throw 'Selected native source boundary fixture failed'}
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_resume_file_guard_tests.cpp') /Fe:crossplay_resume_file_guard_tests.exe /link /BASE:0x24000000 /FIXED
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 ('/I'+$PSScriptRoot) (Join-Path $PSScriptRoot 'crossplay_resume_file_guard_tests.cpp') (Join-Path $PSScriptRoot 'crossplay_production_context.cpp') (Join-Path $PSScriptRoot 'crossplay_production_launch.cpp') /Fe:crossplay_resume_file_guard_tests.exe /link bcrypt.lib /BASE:0x24000000 /FIXED
     if($LASTEXITCODE){throw 'Ownership guard fixture did not compile'}
 }finally{Pop-Location}
 Write-Output 'Experimental resume protocol fixtures passed. No adapter was installed or game launched.'

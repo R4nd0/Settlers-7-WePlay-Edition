@@ -255,8 +255,9 @@
         }
         if(!SharedEngineMode::Verify(launch.channel.edition,owner) || !InstallWorldMath())return false;
         if(!resume_neo_armed){
-            if(!resume_checkpoint.enabled || !CrossplayLogisticsActive::ArmResume(resume_payload))return false;
-            CrossplayLogisticsActive::selected=resume_checkpoint.enabled;resume_neo_armed=true;
+            if(!CrossplayLogisticsActive::ArmResume(resume_payload,resume_checkpoint.logic_turn,
+                resume_checkpoint.replay_turn,resume_checkpoint.enabled))return false;
+            resume_neo_armed=true;
         }
         neo_world_session=session;world_bound=true;resume_world_prepared=true;
         if(launch.channel.edition==Crossplay::Edition::Gold && !CrossplayGoldResume::installed
