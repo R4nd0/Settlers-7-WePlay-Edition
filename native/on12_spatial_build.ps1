@@ -11,7 +11,7 @@ $lines=& $env:ComSpec /d /c "call `"$setup`" x64_x86 >nul && set"
 if ($LASTEXITCODE) {throw 'Cannot initialize the x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
-$names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','on12_spatial_pass.cpp','on12_spatial_pass.hlsl','on12_spatial_gpu.cpp','on12_spatial_hook.cpp','on12_spatial_hook.def','water_on12_identity.h','on12_output_window.h','on12_output_window.cpp','on12_output_window_fixture.cpp','on12_scene_targets.h','on12_scene_targets.cpp','on12_scene_boundary.h','on12_scene_abi_fixture.cpp')
+$names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','on12_spatial_pass.cpp','on12_spatial_pass.hlsl','on12_spatial_gpu.cpp','on12_spatial_hook.cpp','on12_spatial_hook.def','water_on12_identity.h','on12_output_window.h','on12_output_window.cpp','on12_output_window_fixture.cpp','on12_scene_targets.h','on12_scene_targets.cpp','on12_scene_boundary.h','on12_scene_abi_fixture.cpp','on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp')
 $files=@{}
 foreach($name in $names){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $output;$files[$name]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
 Push-Location $output
@@ -23,6 +23,10 @@ try {
     if($LASTEXITCODE){throw 'On12 scene SDK ABI fixture compile failed.'}
     & .\on12_scene_abi_fixture.exe
     if($LASTEXITCODE){throw 'On12 scene SDK ABI fixture failed.'}
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 on12_temporal_inputs_fixture.cpp /Fe:on12_temporal_inputs_fixture.exe /link /DYNAMICBASE /NXCOMPAT /Brepro
+    if($LASTEXITCODE){throw 'On12 temporal input fixture compile failed.'}
+    & .\on12_temporal_inputs_fixture.exe
+    if($LASTEXITCODE){throw 'On12 temporal input fixture failed.'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 on12_output_window.cpp on12_output_window_fixture.cpp /Fe:on12_output_window_fixture.exe /link user32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'On12 output window fixture compile failed.'}
     & .\on12_output_window_fixture.exe
@@ -36,6 +40,7 @@ try {
     $files['WePlayOn12SpatialLab.dll']=(Get-FileHash -LiteralPath 'WePlayOn12SpatialLab.dll' -Algorithm SHA256).Hash.ToLowerInvariant()
     $files['on12_output_window_fixture.exe']=(Get-FileHash -LiteralPath 'on12_output_window_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
     $files['on12_scene_abi_fixture.exe']=(Get-FileHash -LiteralPath 'on12_scene_abi_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+    $files['on12_temporal_inputs_fixture.exe']=(Get-FileHash -LiteralPath 'on12_temporal_inputs_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest=@{format='s7-on12-spatial-build-v1';settings_bytes=16;build_sha256=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant();files=$files}
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath 'on12-spatial-build.json' -Encoding utf8
     $manifest | ConvertTo-Json -Depth 4 -Compress

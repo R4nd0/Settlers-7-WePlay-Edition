@@ -2,6 +2,7 @@
 from contextlib import redirect_stdout
 import io
 import json
+import struct
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -88,6 +89,35 @@ class Tests(unittest.TestCase):
             with self.subTest(output=output), patch.object(temporal.subprocess,'run') as run:
                 with self.assertRaises(ValueError):temporal.gpu(self.build,output)
                 run.assert_not_called()
+
+    def input_host(self,**changes):
+        value=dict(format='s7-on12-spatial-live-v1',initialized=True,scene_only=True,stopped=False,failure=0)
+        value.update(changes)
+        (self.case/'on12-spatial-live.private.json').write_text(json.dumps(value))
+
+    def test_input_request_has_no_gpu_launch_or_taa_enable(self):
+        self.input_host()
+        with patch.object(temporal.subprocess,'run') as run:
+            temporal.request_inputs(self.case,1,2)
+            self.assertEqual((self.case/'on12-temporal-inputs.private.command').read_bytes(),struct.pack('<4I',16,1,1,2))
+            with self.assertRaises(ValueError):temporal.request_inputs(self.case,1,4)
+            temporal.request_inputs(self.case,2,4)
+            run.assert_not_called()
+
+    def test_input_request_requires_scene_host_and_unfinished_case(self):
+        for change in ({'initialized':False},{'scene_only':False},{'stopped':True},{'failure':1},{'format':'unknown'}):
+            with self.subTest(change=change):
+                self.input_host(**change)
+                with self.assertRaises(ValueError):temporal.request_inputs(self.case,1)
+                self.assertFalse((self.case/'on12-temporal-inputs.private.command').exists())
+        self.input_host()
+        (self.case/'result.private.json').write_text('{}')
+        with self.assertRaises(ValueError):temporal.request_inputs(self.case,1)
+
+    def test_input_request_limits_and_explicit_integer_fields(self):
+        for sequence,frames in ((True,2),(0,2),(0x100000000,2),(1,True),(1,0),(1,5)):
+            with self.subTest(sequence=sequence,frames=frames), self.assertRaises(ValueError):
+                temporal.request_inputs(self.case,sequence,frames)
 
 
 if __name__=='__main__':unittest.main()

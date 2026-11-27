@@ -1,8 +1,9 @@
-// Opt-in laboratory host for native D3D12 spatial AA. No per-draw hooks.
+// Opt-in laboratory host for native D3D12 AA and scene/UI separation.
 #include "on12_frame_context.h"
 #include "on12_output_window.h"
 #include "on12_scene_targets.h"
 #include "on12_scene_boundary.h"
+#include "on12_temporal_inputs.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
@@ -54,6 +55,7 @@ struct RenderCall { RenderCall() { ++render_calls; } ~RenderCall(); };
 On12Graphics::FrameStats Stats() { return retired_valid ? retired_stats : context ? context->Stats() : On12Graphics::FrameStats{}; }
 std::vector<Slot> getter_slots, device_slots;
 std::wstring report_path, directory;
+On12Graphics::TemporalInputProbe temporal_inputs;
 DWORD failure = 0, sequence = 0; HRESULT last_result = S_OK;
 UINT width = 0, height = 0;
 DWORD render_stage = 0, source_present_flags = 0; BOOL source_auto_depth = FALSE;
@@ -113,6 +115,41 @@ void Command() {
     if (!okay || value.size != sizeof(value) || value.version != 1 || !value.sequence || value.enabled > 1) { ++errors; return; }
     if (value.sequence > sequence) { sequence = value.sequence; settings.enabled = value.enabled; }
 }
+
+// Explicit, bounded, read-only observation. No texture readback, shader change,
+// extra draw or queue submission. Failure cannot change the original draw.
+void TemporalInputCommand() noexcept {
+    if(!scene_mode)return;
+    try {
+    Guard guard;
+    HANDLE file=CreateFileW((directory+L"\\on12-temporal-inputs.private.command").c_str(),GENERIC_READ,
+        FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+    if(file==INVALID_HANDLE_VALUE)return;
+    On12Graphics::TemporalInputCommand value{};LARGE_INTEGER size{};BY_HANDLE_FILE_INFORMATION info{};DWORD count=0;
+    const bool valid=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
+        &&GetFileSizeEx(file,&size)&&size.QuadPart==sizeof(value)&&ReadFile(file,&value,sizeof(value),&count,nullptr)&&count==sizeof(value);
+    CloseHandle(file);if(valid&&value.sequence!=temporal_inputs.Sequence())temporal_inputs.Arm(value);
+    }catch(...){temporal_inputs.Invalidate();}
+}
+void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
+    if(!temporal_inputs.Active())return;
+    Guard guard;
+    try {
+        auto read=[&]{On12Graphics::TemporalBoundaryInputs value;value.logical=On12Graphics::ReadTemporalDeviceInputs(d);
+            value.physical=On12Graphics::ReadTemporalDeviceInputs(context->NativeDevice());return value;};
+        if(!ui){temporal_inputs.Composite(presents+1,read);return;}
+        if(!temporal_inputs.Ui(presents+1,read))return;
+        std::ostringstream out;temporal_inputs.Json(out);const auto bytes=out.str();
+        const auto path=directory+L"\\on12-temporal-inputs.private.json",temporary=path+L".tmp";
+        if(!Parents(temporary.c_str()))return;
+        HANDLE file=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+        if(file==INVALID_HANDLE_VALUE)return;
+        BY_HANDLE_FILE_INFORMATION info{};DWORD count=0;
+        const bool written=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
+            &&bytes.size()<128*1024&&WriteFile(file,bytes.data(),static_cast<DWORD>(bytes.size()),&count,nullptr)&&count==bytes.size();CloseHandle(file);
+        if(written)MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING);
+    }catch(...){temporal_inputs.Invalidate();}
+}
 template<class T> T SceneOriginal(UINT slot){return reinterpret_cast<T>(scene_original[slot]);}
 bool SceneOwn(IDirect3DDevice9* d){return scene&&d==admitted&&!internal&&!stopped&&GetCurrentThreadId()==owner;}
 template<class Call> HRESULT SceneAccess(Call call){Guard guard;Scope scope;try{return call();}catch(...){failure=403;return E_OUTOFMEMORY;}}
@@ -134,11 +171,16 @@ HRESULT STDMETHODCALLTYPE ScenePixel(IDirect3DDevice9* d,IDirect3DPixelShader9* 
 HRESULT SceneBeforeDraw(IDirect3DDevice9* d){
     if(!SceneOwn(d)||!scene->Active()||scene->Suspended())return S_OK;
     if(!scene->Safe()||!context->SafeForD3D9())return D3DERR_DEVICELOST;
-    if(boundary->Current()!=On12Graphics::SceneBoundary::Role::Ui)return S_OK;
+    const auto role=boundary->Current();
+    if(role==On12Graphics::SceneBoundary::Role::Composite){TemporalInputCapture(d,false);return S_OK;}
+    if(role!=On12Graphics::SceneBoundary::Role::Ui)return S_OK;
     if(scene->Ui()){++ui_draw_calls;return S_OK;}
-    return SceneAccess([&]{if(!boundary->NativeUi(d,output_width,output_height)){failure=404;return D3DERR_INVALIDCALL;}
+    const HRESULT result=SceneAccess([&]{if(!boundary->NativeUi(d,output_width,output_height)){failure=404;return D3DERR_INVALIDCALL;}
         ++ui_draw_calls;auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;
         HRESULT hr=scene->BeginUi(quality);if(FAILED(hr)){last_result=hr;failure=405;}return hr;});
+    // Outside SceneAccess's internal scope so wrapped getters retain the
+    // engine's virtual native view. Physical getters use the raw On12 device.
+    if(SUCCEEDED(result))TemporalInputCapture(d,true);return result;
 }
 HRESULT STDMETHODCALLTYPE SceneDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT)>(81)(d,t,first,count);}
 HRESULT STDMETHODCALLTYPE SceneDrawIndexed(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,INT base,UINT minimum,UINT vertices,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;
@@ -172,7 +214,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
         {
             Guard guard; Scope scope; ++presents;
             try {
-                if (presents == 1 || presents % 60 == 0) Command();
+                if (presents == 1 || presents % 60 == 0) {Command();TemporalInputCommand();}
                 if(scene_mode&&scene&&!stopped&&!failure){
                     if(scene->Active()&&!scene->Ui()){auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;last_result=scene->BeginUi(quality);if(FAILED(last_result))failure=406;}
                     width=output_width;height=output_height;
@@ -246,6 +288,7 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* 
         Guard guard; Scope scope;
         if (GetCurrentThreadId() != owner) return D3DERR_INVALIDCALL;
         if (context) { const HRESULT drained = context->Drain(5000); if (FAILED(drained)) { ++errors; last_result = drained; Live(); return D3DERR_DEVICELOST; } }
+        temporal_inputs.Invalidate();
         if(scene){HRESULT released=scene->ReleaseForReset();if(FAILED(released))return D3DERR_DEVICELOST;boundary->Reset();}
         DropOutput();
         ++resets;
@@ -261,7 +304,7 @@ bool Stop() {
     if (FAILED(context->Drain(5000))) { failure = 501; Live(); return false; }
     retired_stats = context->Stats(); retired_valid = true;
     if(scene&&FAILED(scene->Shutdown())){failure=504;Live();return false;}
-    if(boundary)boundary->Reset();
+    temporal_inputs.Invalidate();if(boundary)boundary->Reset();
     DropOutput();
     if (context && FAILED(context->Shutdown(5000))) { failure = 502; Live(); return false; }
     if (output_width&&!scene_mode && FAILED(output_window.Shutdown())) { failure = 503; Live(); return false; }
@@ -480,5 +523,16 @@ extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9* device, boo
 extern "C" HRESULT On12SpatialFixtureSceneAttach(IDirect3DDevice9* device,IDirect3DVertexShader9* v,IDirect3DPixelShader9* p){
     Guard guard;scene_mode=true;render_width=render_height=16;output_width=output_height=32;
     const HRESULT hr=Attach(device);if(SUCCEEDED(hr))boundary->FixtureUi(v,p);return hr;
+}
+extern "C" bool On12SpatialFixtureTemporalRead(bool ui){
+    if(!scene||!context||!SceneOwn(admitted)||scene->Ui()!=ui)return false;
+    Guard guard;
+    const auto logical=On12Graphics::ReadTemporalDeviceInputs(admitted);
+    const auto physical=On12Graphics::ReadTemporalDeviceInputs(context->NativeDevice());
+    const UINT expected=ui?32u:16u;
+    return SUCCEEDED(logical.viewport_result)&&SUCCEEDED(physical.viewport_result)
+        &&logical.viewport.Width==32&&physical.viewport.Width==expected
+        &&SUCCEEDED(logical.targets[0].result)&&SUCCEEDED(physical.targets[0].result)
+        &&logical.targets[0].width==32&&physical.targets[0].width==expected;
 }
 #endif

@@ -19,6 +19,7 @@ extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9*);
 extern "C" bool On12SpatialFixtureClose();
 extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9*, bool (*)(IDirect3DDevice9*, IDirect3DSurface9*));
 extern "C" HRESULT On12SpatialFixtureSceneAttach(IDirect3DDevice9*,IDirect3DVertexShader9*,IDirect3DPixelShader9*);
+extern "C" bool On12SpatialFixtureTemporalRead(bool);
 namespace {
 LRESULT CALLBACK FixtureWindow(HWND window, UINT message, WPARAM w, LPARAM l) { return DefWindowProcW(window, message, w, l); }
 unsigned checks = 0;
@@ -278,12 +279,14 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(wrapped_device->CreatePixelShader(static_cast<const DWORD*>(ui_ps->GetBufferPointer()),&ui_pixel)));
     REQUIRE(SUCCEEDED(On12SpatialFixtureSceneAttach(wrapped_device.Get(),ui_vertex.Get(),ui_pixel.Get())));
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr,nullptr,nullptr,nullptr))); // Begin the first complete scaled world frame.
+    REQUIRE(On12SpatialFixtureTemporalRead(false));
     REQUIRE(SUCCEEDED(wrapped_device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff206080,1,0)));
     REQUIRE(SUCCEEDED(wrapped_device->BeginScene()));
     const float projection[]{2.0f/32,0,0,0,0,-2.0f/32,0,0,0,0,1,0,0,0,0,1};
     REQUIRE(SUCCEEDED(wrapped_device->SetFVF(D3DFVF_XYZ))&&SUCCEEDED(wrapped_device->SetVertexShader(ui_vertex.Get()))&&SUCCEEDED(wrapped_device->SetPixelShader(ui_pixel.Get())));
     REQUIRE(SUCCEEDED(wrapped_device->SetVertexShaderConstantF(64,projection,4)));
     const float clipped_ui[]{100,100,0};REQUIRE(SUCCEEDED(wrapped_device->DrawPrimitiveUP(D3DPT_POINTLIST,1,clipped_ui,sizeof(clipped_ui))));
+    REQUIRE(On12SpatialFixtureTemporalRead(true));
     const D3DRECT native_stroke{21,3,22,28};REQUIRE(SUCCEEDED(wrapped_device->Clear(1,&native_stroke,D3DCLEAR_TARGET,0xffffffff,1,0)));
     REQUIRE(SUCCEEDED(wrapped_device->EndScene()));
     ComPtr<IDirect3DSurface9> full_ui;REQUIRE(SUCCEEDED(wrapped_device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&full_ui)));

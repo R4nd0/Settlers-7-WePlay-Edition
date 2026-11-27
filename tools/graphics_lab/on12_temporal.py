@@ -3,16 +3,39 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 
 from . import capture_bootstrap as loader, recover
 
 ROOT=Path(__file__).resolve().parents[2]
 SOURCES=('on12_temporal.h','on12_temporal.cpp','on12_temporal.hlsl','on12_temporal_pass.h',
-         'on12_temporal_pass.cpp','on12_temporal_fixture.cpp','on12_temporal_gpu.cpp')
+         'on12_temporal_pass.cpp','on12_temporal_fixture.cpp','on12_temporal_gpu.cpp',
+         'on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp')
 ARTIFACTS=('on12_temporal_fixture.exe','on12_temporal_gpu.exe','on12_temporal_vs.bin',
-           'on12_temporal_ps.bin','cpu-result.private.json')
+           'on12_temporal_ps.bin','cpu-result.private.json','on12_temporal_inputs_fixture.exe')
 MANIFEST='on12-temporal-build.json'
+
+
+def request_inputs(case,sequence,frames=2):
+    """Request bounded metadata on an initialized scene-only host, never enable TAA."""
+    if type(sequence)is not int or not 1<=sequence<=0xffffffff or type(frames)is not int or not 1<=frames<=4:
+        raise ValueError('Use a positive sequence and one to four scene input pairs.')
+    case=recover.lab(case)
+    if (case/'result.private.json').exists():
+        raise ValueError('The diagnostic case is already finished.')
+    value=json.loads(recover._read(case/'on12-spatial-live.private.json',32768)[0])
+    if (not isinstance(value,dict) or value.get('format')!='s7-on12-spatial-live-v1'
+            or value.get('initialized')is not True or value.get('scene_only')is not True
+            or value.get('stopped')is not False or value.get('failure')!=0):
+        raise ValueError('Temporal input observation requires the initialized scene-only host.')
+    command=case/'on12-temporal-inputs.private.command'
+    if command.exists():
+        raw,_=recover._read(command,16)
+        fields=struct.unpack('<4I',raw) if len(raw)==16 else ()
+        if not fields or fields[:2]!=(16,1) or not 1<=fields[3]<=4 or fields[2]>=sequence:
+            raise ValueError('Use a fresh temporal input sequence.')
+    recover._atomic(command,struct.pack('<4I',16,1,sequence,frames))
 
 
 def verify_build(directory):
@@ -66,11 +89,19 @@ def gpu(build,output):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--build',type=Path,required=True)
+    parser.add_argument('--build',type=Path)
     parser.add_argument('--gpu',action='store_true',help='Explicit GPU validation; coordinate its slot after the KI test first.')
     parser.add_argument('--output',type=Path)
+    parser.add_argument('--inputs-case',type=Path,help='Only request metadata from an already initialized scene host.')
+    parser.add_argument('--sequence',type=int,default=1)
+    parser.add_argument('--frames',type=int,default=2)
     args=parser.parse_args()
-    if args.gpu:
+    if args.inputs_case is not None:
+        if args.build is not None or args.gpu or args.output is not None:parser.error('--inputs-case cannot build or run GPU fixtures')
+        request_inputs(args.inputs_case,args.sequence,args.frames)
+        print(json.dumps(dict(requested_input_pairs=args.frames,game_taa_enabled=False)))
+    elif args.build is None:parser.error('--build or --inputs-case is required')
+    elif args.gpu:
         if args.output is None:parser.error('--gpu requires a fresh --output')
         gpu(args.build,args.output)
     else:
