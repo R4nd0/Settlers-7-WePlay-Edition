@@ -65,7 +65,7 @@ int wmain(int argc,wchar_t** argv) {
     // a later shadow. An interceptor attached only to new blocks is unsafe.
     Ref<IDirect3DStateBlock9> preexisting;
     if(okay)okay=SUCCEEDED(d->CreateStateBlock(D3DSBT_VERTEXSTATE,&preexisting.value));
-    for(unsigned phase=0;okay&&phase<4;++phase) {
+    for(unsigned phase=0;okay&&phase<5;++phase) {
         stage=100+phase*100;
         if(phase==1){Ref<IDirect3DDevice9On12> bridge;
             if(d->QueryInterface(__uuidof(IDirect3DDevice9On12),reinterpret_cast<void**>(&bridge.value))==S_OK)config.flags=3;
@@ -86,18 +86,27 @@ int wmain(int argc,wchar_t** argv) {
                 &&SUCCEEDED(d->SetPixelShader(ps))&&pixel_state_known
                 &&SUCCEEDED(pixel_block.value->Apply())&&!pixel_state_known
                 &&SUCCEEDED(d->SetPixelShader(ps))&&pixel_state_known&&!pixel_state_target;}
+        if(phase==4&&on12_hr==S_OK){benchmark_passthrough=true;
+            okay=SUCCEEDED(d->SetPixelShader(ps))&&verified_non_target;}
         if(okay){stage=110+phase*100;okay=SUCCEEDED(d->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0));}
         if(okay)okay=SUCCEEDED(d->BeginScene());
-        if(okay){stage=120+phase*100;alignas(16) unsigned char before[512]{},after[512]{};SetLastError(0x1357);_fxsave(before);
+        if(okay){stage=120+phase*100;alignas(16) unsigned char before[512]{},after[512]{},caller[512]{},expected[512]{};
+            const bool direct_check=phase==4&&on12_hr==S_OK;DWORD expected_error=0x1357;HRESULT expected_result=D3D_OK;
+            _fxsave(caller);
+            if(direct_check){unsigned ignored=0;_controlfp_s(&ignored,_RC_DOWN,_MCW_RC);_mm_setcsr((_mm_getcsr()&~0x6000u)|0x4001u);}
+            _fxsave(before);
+            if(direct_check){SetLastError(0x1357);expected_result=original_draw(d,D3DPT_TRIANGLELIST,0,0,3,0,1);_fxsave(expected);expected_error=GetLastError();_fxrstor(before);}
+            else std::memcpy(expected,before,sizeof(expected));
+            SetLastError(0x1357);
             const HRESULT drawn=d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,3,0,1);_fxsave(after);
             const DWORD error=GetLastError();
             // XMM registers are caller-saved in this ABI; the fixture compiler
             // may use them to initialize the capture buffers. Compare the
             // architectural control/status fields rather than caller registers.
-            const bool fp_equal=!std::memcmp(before,after,4)&&!std::memcmp(before+24,after+24,4);
+            const bool fp_equal=!std::memcmp(expected,after,4)&&!std::memcmp(expected+24,after+24,4);_fxrstor(caller);
             if(phase>0&&!fp_equal){DWORD csr_before=0,csr_after=0;std::memcpy(&csr_before,before+24,4);std::memcpy(&csr_after,after+24,4);
                 std::fprintf(stderr,"FP control/status mismatch: x87 %02x%02x/%02x%02x status %02x%02x/%02x%02x MXCSR %08lx/%08lx\n",before[1],before[0],after[1],after[0],before[3],before[2],after[3],after[2],csr_before,csr_after);}
-            okay=SUCCEEDED(drawn)&&(phase==0||(error==0x1357&&fp_equal));}
+            okay=SUCCEEDED(drawn)&&(phase==0||(error==expected_error&&fp_equal))&&(!direct_check||drawn==expected_result);}
         const HRESULT ended=d->EndScene();if(okay)stage=130+phase*100;okay=okay&&SUCCEEDED(ended)&&sample();
         if(okay&&phase==1&&on12_hr==S_OK) {
             benchmark_constants=true;Ref<IDirect3DStateBlock9> block;
@@ -138,6 +147,25 @@ int wmain(int argc,wchar_t** argv) {
                     &&SUCCEEDED(d->SetVertexShaderConstantF(0,a,1))&&SUCCEEDED(d->GetVertexShaderConstantF(0,observed,1))
                     &&!std::memcmp(a,observed,16)&&SUCCEEDED(d->SetVertexShaderConstantF(0,saved,2));
                 benchmark_shadow=false;}
+            if(okay){benchmark_palette=true;benchmark_shadow=true;ClearConstants();
+                std::array<float,128> previous{},large{},actual{};
+                for(UINT n=0;n<large.size();++n)large[n]=static_cast<float>(n+1);
+                const auto duplicates=constants_skipped,queries=constants_queries;
+                okay=SUCCEEDED(d->GetVertexShaderConstantF(32,previous.data(),32))
+                    &&SUCCEEDED(d->SetVertexShaderConstantF(32,large.data(),32))
+                    &&SUCCEEDED(d->SetVertexShaderConstantF(32,large.data(),32))
+                    &&constants_skipped==duplicates+1&&constants_queries==queries
+                    &&SUCCEEDED(d->GetVertexShaderConstantF(32,actual.data(),32))&&!std::memcmp(large.data(),actual.data(),sizeof(large))
+                    &&SUCCEEDED(preexisting.value->Apply())
+                    &&SUCCEEDED(d->SetVertexShaderConstantF(32,large.data(),32))&&constants_skipped==duplicates+1
+                    &&SUCCEEDED(d->GetVertexShaderConstantF(32,actual.data(),32))&&!std::memcmp(large.data(),actual.data(),sizeof(large));
+                Ref<IDirect3DStateBlock9> recorded;
+                const auto captured_large=constants_recorded;
+                if(okay)okay=SUCCEEDED(d->BeginStateBlock())&&SUCCEEDED(d->SetVertexShaderConstantF(32,large.data(),32))
+                    &&SUCCEEDED(d->SetVertexShaderConstantF(32,large.data(),32))&&SUCCEEDED(d->EndStateBlock(&recorded.value))
+                    &&constants_recorded==captured_large+2&&SUCCEEDED(recorded.value->Apply())
+                    &&SUCCEEDED(d->SetVertexShaderConstantF(32,previous.data(),32));
+                benchmark_palette=false;benchmark_shadow=false;ClearConstants();}
             benchmark_constants=false;
         }
         D3DVIEWPORT9 after{};IDirect3DPixelShader9* bound=nullptr;DWORD z=1,cull=0,blend=1;
@@ -149,8 +177,8 @@ int wmain(int argc,wchar_t** argv) {
         if(bound)bound->Release();
         if(okay)okay=SUCCEEDED(d->Present(nullptr,nullptr,nullptr,nullptr));
     }
-    okay=okay&&draws==3&&!matches&&!snapshot&&!failure&&!failed_draws&&presents==3;
-    if(on12_hr==S_OK)okay=okay&&pixel_gets_avoided==1;
+    okay=okay&&draws==4&&!matches&&!snapshot&&!failure&&!failed_draws&&presents==4;
+    if(on12_hr==S_OK)okay=okay&&pixel_gets_avoided==2&&passthrough_draws==1;
     if(on12_hr==S_OK)for(const auto& metric:api_stats)okay=okay&&metric.calls>0;
     bool reset_passed=false;
     if(okay)okay=SUCCEEDED(d->SetPixelShader(nullptr))&&SUCCEEDED(d->SetStreamSource(0,nullptr,0,0))&&SUCCEEDED(d->SetIndices(nullptr))

@@ -62,5 +62,17 @@ int main() {
     hint.Clear();check(!hint.Candidate(5,other,1));hint.Remember(256,pair,1);check(!hint.Candidate(256,pair,1));
     hint.Remember(4,pair,1);hint.Remember(0,data,17);check(!hint.Candidate(4,pair,1));
     hint.Remember(4,pair,1);hint.Remember(0,data,256);check(!hint.Candidate(4,pair,1));
+    WaterOn12Constants::Palette palette;std::array<float,1024> full{};
+    for(UINT n=0;n<1024;++n)full[n]=static_cast<float>(n);
+    palette.Remember(0,full.data(),256);check(palette.Candidate(0,full.data(),256));
+    for(UINT start=0;start<256;++start)for(UINT count=1;count<=256-start;++count)
+        check(palette.Candidate(start,full.data()+start*4,count));
+    palette.Remember(31,other,1);check(!palette.Candidate(0,full.data(),32));
+    check(palette.Candidate(32,full.data()+128,224));check(palette.Candidate(31,other,1));
+    palette.Remember(32,reinterpret_cast<const float*>(1),1);
+    check(!palette.Candidate(32,full.data()+128,1));check(palette.Candidate(33,full.data()+132,223));
+    palette.Remember(256,other,1);check(!palette.Candidate(31,other,1));
+    palette.Remember(0,full.data(),256);palette.Clear();check(!palette.Candidate(255,full.data()+1020,1));
+    check(!palette.Candidate(0,full.data(),0)&&!palette.Candidate(0xffffffffu,other,2));
     std::printf("{\"cache_cpu_checks\":%u,\"gpu_accessed\":false}\n",checks);return 0;
 }

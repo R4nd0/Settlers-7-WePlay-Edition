@@ -33,6 +33,30 @@ struct Hint {
     }
     void Clear(){known.fill(0);}
 };
+// Full VS palette: large uploads preserve knowledge of disjoint registers.
+// Eight integer masks avoid scanning one validity byte per register.
+struct Palette {
+    std::array<float,1024> values{};
+    std::array<DWORD,8> known{};
+    static bool ValidRange(UINT start,const float* data,UINT count){return data&&count&&start<256&&count<=256-start;}
+    static DWORD Mask(UINT first,UINT count){return (0xffffffffu>>(32-count))<<first;}
+    bool Candidate(UINT start,const float* data,UINT count)const {
+        if(!ValidRange(start,data,count))return false;
+        for(UINT at=start,left=count;left;){const UINT n=(left<32-at%32)?left:32-at%32;
+            const DWORD mask=Mask(at%32,n);if((known[at/32]&mask)!=mask)return false;at+=n;left-=n;}
+        return Equal(values.data()+start*4,data,static_cast<size_t>(count)*16);
+    }
+    void Mark(UINT start,UINT count,bool value){
+        for(UINT at=start,left=count;left;){const UINT n=(left<32-at%32)?left:32-at%32;
+            const DWORD mask=Mask(at%32,n);if(value)known[at/32]|=mask;else known[at/32]&=~mask;at+=n;left-=n;}
+    }
+    void Remember(UINT start,const float* data,UINT count){
+        if(!ValidRange(start,data,count)){Clear();return;}
+        Mark(start,count,false);
+        if(Copy(values.data()+start*4,data,static_cast<size_t>(count)*16))Mark(start,count,true);
+    }
+    void Clear(){known.fill(0);}
+};
 template<class Device> bool Same(Device* device,UINT start,const float* data,UINT count) {
     if(!Valid(start,data,count))return false;
     std::array<float,64> current; // Get fills exactly the compared bytes.

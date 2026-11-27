@@ -61,14 +61,22 @@ WaterOn12ShaderCache::Cache<IDirect3DVertexShader9,32> vertex_cache;
 std::uint64_t cache_resets=0;
 std::uint64_t world_frames=0,last_present_draws=0;
 std::atomic_bool benchmark_legacy{false},benchmark_constants{false},benchmark_shadow{false},benchmark_shader_state{false};DWORD benchmark_sequence=0,benchmark_errors=0;
+std::atomic_bool benchmark_passthrough{false},verified_non_target{false};
 CRITICAL_SECTION constants_lock{};bool constants_lock_ready=false,constants_recording=false,constants_armed=false,constants_foreign=false;
 std::uint64_t constants_checked=0,constants_queries=0,constants_skipped=0,constants_forwarded=0,constants_recorded=0;
 WaterOn12Constants::Hint constants_hint;
+WaterOn12Constants::Palette constants_palette;
+std::atomic_bool benchmark_palette{false};
+void ClearConstants(){constants_hint.Clear();constants_palette.Clear();}
 using BlockApplyFn=HRESULT (STDMETHODCALLTYPE*)(IDirect3DStateBlock9*);
 BlockApplyFn original_block_apply=nullptr;
 std::uint64_t constants_invalidations=0;
 bool pixel_state_known=false,pixel_state_target=false;
 std::uint64_t pixel_gets_avoided=0;
+std::uint64_t passthrough_draws=0;
+void InvalidatePixel(){verified_non_target.store(false,std::memory_order_release);pixel_state_known=false;}
+void RememberPixel(bool target,bool verified){pixel_state_target=target;pixel_state_known=verified;
+    verified_non_target.store(verified&&!target,std::memory_order_release);}
 bool PixelTarget(IDirect3DPixelShader9* shader,bool* verified=nullptr);
 struct ConstantsLock {
     ConstantsLock(){const DWORD error=GetLastError();EnterCriticalSection(&constants_lock);SetLastError(error);}
@@ -76,7 +84,7 @@ struct ConstantsLock {
 };
 std::uint64_t camera_hash=0,camera_changes=0,camera_errors=0,camera_frame=~std::uint64_t(0);
 struct BenchmarkControl {DWORD size,version,sequence,legacy;};
-bool BenchmarkShape(const BenchmarkControl& value){return value.size==16&&value.version==1&&value.sequence>benchmark_sequence&&value.legacy<=4;}
+bool BenchmarkShape(const BenchmarkControl& value){return value.size==16&&value.version==1&&value.sequence>benchmark_sequence&&value.legacy<=6;}
 void BenchmarkCommand() {
     if(config.flags!=3)return;
     HANDLE file=CreateFileW((directory+L"\\water-benchmark.private.command").c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
@@ -90,9 +98,9 @@ void BenchmarkCommand() {
     // The original IDirect3DDevice9 path uses Reset (slot 16). A 9Ex client
     // could use ResetEx instead, so do not admit a shadow on that interface.
     if(value.legacy>=3&&device_info.ex_hr!=E_NOINTERFACE){++benchmark_errors;return;}
-    ConstantsLock lock;constants_hint.Clear();pixel_state_known=false;
-    benchmark_legacy=value.legacy==1;benchmark_constants=value.legacy==2||value.legacy==3;benchmark_shadow=value.legacy==3;
-    benchmark_shader_state=value.legacy==4;benchmark_sequence=value.sequence;
+    ConstantsLock lock;ClearConstants();InvalidatePixel();
+    benchmark_legacy=value.legacy==1;benchmark_constants=value.legacy==2||value.legacy==3||value.legacy==6;benchmark_shadow=value.legacy==3||value.legacy==6;benchmark_palette=value.legacy==6;
+    benchmark_shader_state=value.legacy==4||value.legacy==5;benchmark_passthrough=value.legacy==5;benchmark_sequence=value.sequence;
 }
 void ObserveCamera(IDirect3DDevice9* device) {
     if(!(config.flags&1)||camera_frame==world_frames)return;
@@ -147,7 +155,7 @@ HRESULT STDMETHODCALLTYPE ApiVSConst(IDirect3DDevice9* d,UINT a,const float* b,U
     ConstantsLock lock;const DWORD error=GetLastError();
     if(GetCurrentThreadId()!=owner)constants_foreign=true;
     if(constants_armed&&!constants_foreign&&!constants_recording){++constants_checked;
-        if(constants_hint.Candidate(a,b,c)){
+        if(benchmark_palette?constants_palette.Candidate(a,b,c):constants_hint.Candidate(a,b,c)){
             // A hint may be stale after state-block Apply or another writer.
             // Shadow mode is admitted only with the pinned wrapper's shared
             // StateBlock::Apply vtable intercepted, including preexisting blocks.
@@ -155,20 +163,20 @@ HRESULT STDMETHODCALLTYPE ApiVSConst(IDirect3DDevice9* d,UINT a,const float* b,U
             if(benchmark_shadow||WaterOn12Constants::Same(d,a,b,c)){++constants_skipped;SetLastError(error);return static_cast<HRESULT>(D3D_OK);}}}
     if(constants_recording)++constants_recorded;++constants_forwarded;SetLastError(error);
     const HRESULT result=api_vsconst(d,a,b,c);const DWORD returned=GetLastError();
-    if(SUCCEEDED(result)&&!constants_recording&&!constants_foreign)constants_hint.Remember(a,b,c);
-    if(FAILED(result))constants_hint.Clear();
+    if(SUCCEEDED(result)&&!constants_recording&&!constants_foreign){if(benchmark_palette)constants_palette.Remember(a,b,c);else constants_hint.Remember(a,b,c);}
+    if(FAILED(result))ClearConstants();
     SetLastError(returned);return result;
 });}
 HRESULT STDMETHODCALLTYPE ApiPSConst(IDirect3DDevice9* d,UINT a,const float* b,UINT c){return MeasureApi(d,4,[&]{return api_psconst(d,a,b,c);});}
 HRESULT STDMETHODCALLTYPE ApiVS(IDirect3DDevice9* d,IDirect3DVertexShader9* a){return MeasureApi(d,5,[&]{return api_vs(d,a);});}
 HRESULT STDMETHODCALLTYPE ApiPS(IDirect3DDevice9* d,IDirect3DPixelShader9* a){return MeasureApi(d,6,[&]{
     if(internal||d!=admitted||!benchmark_shader_state)return api_ps(d,a);
-    ConstantsLock lock;pixel_state_known=false;
+    ConstantsLock lock;InvalidatePixel();
     if(GetCurrentThreadId()!=owner)constants_foreign=true;
     const HRESULT result=api_ps(d,a);
     if(SUCCEEDED(result)&&!constants_recording&&!constants_foreign){
         Guard guard;Scope scope;
-        try{bool verified=!a;pixel_state_target=a&&PixelTarget(a,&verified);pixel_state_known=verified;}catch(...){pixel_state_known=false;}}
+        try{bool verified=!a;const bool target=a&&PixelTarget(a,&verified);RememberPixel(target,verified);}catch(...){InvalidatePixel();}}
     return result;
 });}
 HRESULT STDMETHODCALLTYPE ApiStream(IDirect3DDevice9* d,UINT a,IDirect3DVertexBuffer9* b,UINT c,UINT e){return MeasureApi(d,7,[&]{return api_stream(d,a,b,c,e);});}
@@ -180,20 +188,20 @@ HRESULT STDMETHODCALLTYPE ApiStretch(IDirect3DDevice9* d,IDirect3DSurface9* a,co
 HRESULT STDMETHODCALLTYPE ApiClear(IDirect3DDevice9* d,DWORD a,const D3DRECT* b,DWORD c,D3DCOLOR e,float f,DWORD g){return MeasureApi(d,12,[&]{return api_clear(d,a,b,c,e,f,g);});}
 HRESULT STDMETHODCALLTYPE ApiBegin(IDirect3DDevice9* d){return MeasureApi(d,13,[&]{return api_begin(d);});}
 HRESULT STDMETHODCALLTYPE ApiBeginBlock(IDirect3DDevice9* d){if(d!=admitted)return api_begin_block(d);ConstantsLock lock;
-    if(GetCurrentThreadId()!=owner)constants_foreign=true;const HRESULT result=api_begin_block(d);if(SUCCEEDED(result)){constants_recording=true;constants_hint.Clear();pixel_state_known=false;}return result;}
+    InvalidatePixel();if(GetCurrentThreadId()!=owner)constants_foreign=true;const HRESULT result=api_begin_block(d);if(SUCCEEDED(result)){constants_recording=true;ClearConstants();}return result;}
 HRESULT STDMETHODCALLTYPE ApiEndBlock(IDirect3DDevice9* d,IDirect3DStateBlock9** block){if(d!=admitted)return api_end_block(d,block);ConstantsLock lock;
-    if(GetCurrentThreadId()!=owner)constants_foreign=true;const HRESULT result=api_end_block(d,block);if(SUCCEEDED(result)){constants_recording=false;constants_hint.Clear();pixel_state_known=false;}return result;}
+    InvalidatePixel();if(GetCurrentThreadId()!=owner)constants_foreign=true;const HRESULT result=api_end_block(d,block);if(SUCCEEDED(result)){constants_recording=false;ClearConstants();}return result;}
 HRESULT STDMETHODCALLTYPE ApiBlockApply(IDirect3DStateBlock9* block){
     ConstantsLock lock;const DWORD error=GetLastError();
     // Conservatively invalidate for every block of this pinned wrapper class,
     // even one belonging to another device. Never inspect private object fields.
-    constants_hint.Clear();pixel_state_known=false;++constants_invalidations;
+    ClearConstants();InvalidatePixel();++constants_invalidations;
     if(GetCurrentThreadId()!=owner)constants_foreign=true;
     SetLastError(error);return original_block_apply(block);
 }
 HRESULT STDMETHODCALLTYPE ApiSoftware(IDirect3DDevice9* d,BOOL enabled){
     if(d!=admitted)return api_software(d,enabled);ConstantsLock lock;
-    const DWORD error=GetLastError();constants_hint.Clear();pixel_state_known=false;++constants_invalidations;
+    const DWORD error=GetLastError();ClearConstants();InvalidatePixel();++constants_invalidations;
     if(GetCurrentThreadId()!=owner)constants_foreign=true;
     SetLastError(error);return api_software(d,enabled);
 }
@@ -229,7 +237,7 @@ void Live() {
         <<",\"backbuffer_count\":"<<device_info.presentation.BackBufferCount<<",\"windowed\":"<<(device_info.presentation.Windowed?"true":"false")
         <<",\"ex_query_hr\":"<<static_cast<long>(device_info.ex_hr)<<",\"latency_hr\":"<<static_cast<long>(device_info.latency_hr)<<",\"maximum_frame_latency\":"<<device_info.latency<<"}"
         <<",\"pow_cap_requested\":"<<(config.flags?"true":"false")<<",\"caps_applied\":"<<caps_applied<<",\"caps_restored\":"<<caps_restored
-        <<",\"world_frames\":"<<world_frames<<",\"pixel_gets\":"<<pixel_gets<<",\"pixel_gets_avoided\":"<<pixel_gets_avoided<<",\"pixel_program_reads\":"<<pixel_reads
+        <<",\"world_frames\":"<<world_frames<<",\"pixel_gets\":"<<pixel_gets<<",\"pixel_gets_avoided\":"<<pixel_gets_avoided<<",\"passthrough_draws\":"<<passthrough_draws<<",\"pixel_program_reads\":"<<pixel_reads
         <<",\"pixel_hashes\":"<<pixel_hashes<<",\"vertex_program_reads\":"<<vertex_reads<<",\"vertex_hashes\":"<<vertex_hashes
         <<",\"vertex_staging_allocations\":"<<vertex_allocations<<",\"getter_calls\":"<<getter_calls<<",\"getter_guard_calls\":"<<getter_guard_calls
         <<",\"getter_profile_samples\":"<<getter_samples<<",\"getter_profile_ticks\":"<<getter_ticks
@@ -242,7 +250,9 @@ void Live() {
         <<",\"benchmark\":{\"enabled\":"<<(config.flags==3?"true":"false")<<",\"legacy\":"<<(benchmark_legacy?"true":"false")
         <<",\"constant_dedupe\":"<<(benchmark_constants?"true":"false")<<",\"sequence\":"<<benchmark_sequence<<",\"command_errors\":"<<benchmark_errors<<",\"camera_hash\":"<<camera_hash
         <<",\"constant_shadow\":"<<(benchmark_shadow?"true":"false")
+        <<",\"palette\":"<<(benchmark_palette?"true":"false")
         <<",\"shader_state\":"<<(benchmark_shader_state?"true":"false")
+        <<",\"passthrough\":"<<(benchmark_passthrough?"true":"false")
         <<",\"camera_changes\":"<<camera_changes<<",\"camera_errors\":"<<camera_errors<<"},\"api\":[";
     for(size_t i=0;i<api_stats.size();++i){if(i)text<<",";const auto& value=api_stats[i];text<<"{\"name\":\""<<ApiNames[i]<<"\",\"calls\":"<<value.calls<<",\"samples\":"<<value.samples<<",\"ticks\":"<<value.ticks<<"}";}
     text<<"],\"constants\":{\"checked\":"<<checked<<",\"device_queries\":"<<queries<<",\"skipped\":"<<skipped<<",\"forwarded\":"<<forwarded<<",\"recorded\":"<<recorded
@@ -385,15 +395,18 @@ bool VertexTarget(IDirect3DDevice9* device,IDirect3DVertexShader9* shader) {
     vertex_cache.Store(shader,target);return target;
 }
 void ClearPrograms() {
-    if(constants_lock_ready){ConstantsLock lock;pixel_state_known=false;}
+    verified_non_target.store(false,std::memory_order_release);
+    if(constants_lock_ready){ConstantsLock lock;InvalidatePixel();}
     pixel_cache.Clear();vertex_cache.Clear();
     if(corrected){corrected->Release();corrected=nullptr;}
     ++cache_resets;
     camera_frame=~std::uint64_t(0);
 }
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* p) {
+    if(d==admitted){verified_non_target.store(false,std::memory_order_release);
+        if(constants_lock_ready&&GetCurrentThreadId()!=owner){ConstantsLock lock;constants_foreign=true;ClearConstants();InvalidatePixel();}}
     if(!internal&&d==admitted&&GetCurrentThreadId()==owner){Guard guard;Scope scope;ClearPrograms();
-        if(constants_lock_ready){ConstantsLock lock;constants_hint.Clear();const HRESULT result=original_reset(d,p);if(SUCCEEDED(result)){constants_armed=false;constants_recording=false;ObserveDevice(d);}return result;}
+        if(constants_lock_ready){ConstantsLock lock;ClearConstants();const HRESULT result=original_reset(d,p);if(SUCCEEDED(result)){constants_armed=false;constants_recording=false;ObserveDevice(d);}return result;}
         const HRESULT result=original_reset(d,p);if(SUCCEEDED(result))ObserveDevice(d);return result;}
     return original_reset(d,p);
 }
@@ -428,7 +441,7 @@ HRESULT DrawWithCap(IDirect3DDevice9* d,D3DPRIMITIVETYPE p,INT b,UINT m,UINT v,U
         const HRESULT got=d->GetPixelShader(&ps.value);
         bool verified=!ps.value;target=SUCCEEDED(got)&&ps.value&&PixelTarget(ps.value,&verified);
         if(benchmark_shader_state&&SUCCEEDED(got)&&verified){ConstantsLock lock;
-            if(!constants_foreign&&!constants_recording){pixel_state_target=target;pixel_state_known=true;}}
+            if(!constants_foreign&&!constants_recording)RememberPixel(target,true);}
         }
         if(target) {
             target=SUCCEEDED(d->GetVertexShader(&vs.value))&&vs.value;
@@ -454,7 +467,14 @@ HRESULT DrawWithCap(IDirect3DDevice9* d,D3DPRIMITIVETYPE p,INT b,UINT m,UINT v,U
 }
 HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE p,INT b,UINT m,UINT v,UINT s,UINT c) {
     if(!internal&&d==admitted&&GetCurrentThreadId()==owner) {
-        ++draws;const bool sample=snapshot&&(draws%128==0);const auto begin=sample?Clock():0;HRESULT hr=E_FAIL;
+        ++draws;
+        if(benchmark_passthrough&&on12_hr==S_OK&&!failure&&verified_non_target.load(std::memory_order_acquire)){
+            // Only integer bookkeeping precedes the untouched original API.
+            // No shader query, hashing, FP comparison or temporary binding.
+            ++passthrough_draws;++pixel_gets_avoided;
+            const HRESULT result=original_draw(d,p,b,m,v,s,c);if(FAILED(result))++failed_draws;return result;
+        }
+        const bool sample=snapshot&&(draws%128==0);const auto begin=sample?Clock():0;HRESULT hr=E_FAIL;
         {Guard guard(benchmark_legacy);Scope scope;
         try{Snapshot(d,p,b,m,v,s,c);}catch(...){failure=304;}
         // Allocation/hash exceptions are handled before any temporary binding.
@@ -555,9 +575,10 @@ extern "C" DWORD WINAPI WePlayWaterOn12ProbeInitialize(void* opaque) {
 #ifdef S7_WATER_ON12_PROBE_FIXTURE
 IDirect3DDevice9* __cdecl FixtureGetter(){return admitted;}
 HRESULT STDMETHODCALLTYPE FixtureBlockApply(IDirect3DStateBlock9*){SetLastError(0x9876);return D3DERR_INVALIDCALL;}
-HRESULT fixture_pixel_result=D3D_OK;unsigned fixture_draws=0;
+HRESULT fixture_pixel_result=D3D_OK,fixture_draw_result=D3D_OK;unsigned fixture_draws=0;
 HRESULT STDMETHODCALLTYPE FixturePixel(IDirect3DDevice9*,IDirect3DPixelShader9*){SetLastError(0x4321);return fixture_pixel_result;}
-HRESULT STDMETHODCALLTYPE FixtureDraw(IDirect3DDevice9*,D3DPRIMITIVETYPE,INT,UINT,UINT,UINT,UINT){++fixture_draws;return D3D_OK;}
+HRESULT STDMETHODCALLTYPE FixtureDraw(IDirect3DDevice9*,D3DPRIMITIVETYPE,INT,UINT,UINT,UINT,UINT){++fixture_draws;SetLastError(0x1492);return fixture_draw_result;}
+HRESULT STDMETHODCALLTYPE FixtureReset(IDirect3DDevice9*,D3DPRESENT_PARAMETERS*){return D3DERR_DEVICELOST;}
 float fixture_constants[1024]{};unsigned fixture_uploads=0;
 HRESULT STDMETHODCALLTYPE FixtureUpload(IDirect3DDevice9*,UINT start,const float* data,UINT count){
     ++fixture_uploads;if(!WaterOn12Constants::Valid(start,data,count))return D3DERR_INVALIDCALL;
@@ -599,7 +620,7 @@ int main(){Config c{};c.size=sizeof(c);c.version=1;wcscpy_s(c.report,L"C:\\work\
     unsigned char synthetic[512]{};const std::uint16_t control=0x3f;const std::uint32_t simd=0x1f80;
     std::memcpy(synthetic,&control,2);std::memcpy(synthetic+24,&simd,4);check(SafeControlState(synthetic));synthetic[0]=0;check(!SafeControlState(synthetic));
     _fxrstor(original_fp);
-    BenchmarkControl control_case{16,1,1,0};check(BenchmarkShape(control_case));control_case.legacy=2;check(BenchmarkShape(control_case));control_case.legacy=3;check(BenchmarkShape(control_case));control_case.legacy=4;check(BenchmarkShape(control_case));control_case.legacy=5;check(!BenchmarkShape(control_case));control_case.legacy=1;control_case.sequence=0;check(!BenchmarkShape(control_case));
+    BenchmarkControl control_case{16,1,1,0};check(BenchmarkShape(control_case));control_case.legacy=2;check(BenchmarkShape(control_case));control_case.legacy=3;check(BenchmarkShape(control_case));control_case.legacy=4;check(BenchmarkShape(control_case));control_case.legacy=5;check(BenchmarkShape(control_case));control_case.legacy=6;check(BenchmarkShape(control_case));control_case.legacy=7;check(!BenchmarkShape(control_case));control_case.legacy=1;control_case.sequence=0;check(!BenchmarkShape(control_case));
     check(InitializeCriticalSectionAndSpinCount(&constants_lock,0)!=FALSE);constants_lock_ready=true;owner=GetCurrentThreadId();
     const float uploaded[]={1,2,3,4};constants_hint.Remember(0,uploaded,1);check(constants_hint.Candidate(0,uploaded,1));
     original_block_apply=FixtureBlockApply;SetLastError(0x2468);
@@ -614,11 +635,20 @@ int main(){Config c{};c.size=sizeof(c);c.version=1;wcscpy_s(c.report,L"C:\\work\
     api_ps=FixturePixel;original_draw=FixtureDraw;benchmark_shader_state=true;
     check(ApiPS(admitted,nullptr)==D3D_OK&&pixel_state_known&&!pixel_state_target&&GetLastError()==0x4321);
     check(DrawWithCap(admitted,D3DPT_TRIANGLELIST,0,0,3,0,1)==D3D_OK&&fixture_draws==1&&pixel_gets_avoided==1);
-    fixture_pixel_result=E_FAIL;check(ApiPS(admitted,nullptr)==E_FAIL&&!pixel_state_known);fixture_pixel_result=D3D_OK;
-    constants_recording=true;check(ApiPS(admitted,nullptr)==D3D_OK&&!pixel_state_known);constants_recording=false;
-    pixel_state_known=true;
+    benchmark_passthrough=true;fixture_draw_result=D3DERR_INVALIDCALL;
+    const auto prior_draws=fixture_draws;alignas(16) unsigned char direct_fp[512]{};
+    _fxsave(before);SetLastError(0x1357);const HRESULT direct=FixtureDraw(admitted,D3DPT_TRIANGLELIST,0,0,3,0,1);_fxsave(direct_fp);
+    const DWORD direct_error=GetLastError();_fxrstor(before);SetLastError(0x1357);
+    const HRESULT forwarded=HookDraw(admitted,D3DPT_TRIANGLELIST,0,0,3,0,1);_fxsave(after);
+    const DWORD forwarded_error=GetLastError();
+    check(forwarded==direct&&forwarded_error==direct_error&&fixture_draws==prior_draws+2);
+    check(!std::memcmp(direct_fp,after,4)&&!std::memcmp(direct_fp+24,after+24,4));
+    check(passthrough_draws==1&&failed_draws==1);benchmark_passthrough=false;fixture_draw_result=D3D_OK;
+    fixture_pixel_result=E_FAIL;check(ApiPS(admitted,nullptr)==E_FAIL&&!pixel_state_known&&!verified_non_target);fixture_pixel_result=D3D_OK;
+    constants_recording=true;check(ApiPS(admitted,nullptr)==D3D_OK&&!pixel_state_known&&!verified_non_target);constants_recording=false;
+    RememberPixel(false,true);
     check(ApiBlockApply(nullptr)==D3DERR_INVALIDCALL&&!constants_hint.Candidate(0,uploaded,1));
-    check(!pixel_state_known);benchmark_shader_state=false;
+    check(!pixel_state_known&&!verified_non_target);benchmark_shader_state=false;
     check(ApiVSConst(admitted,0,uploaded,1)==D3D_OK&&fixture_uploads==2);
     constants_recording=true;
     check(ApiVSConst(admitted,0,uploaded,1)==D3D_OK&&ApiVSConst(admitted,0,uploaded,1)==D3D_OK&&fixture_uploads==4);
@@ -629,6 +659,13 @@ int main(){Config c{};c.size=sizeof(c);c.version=1;wcscpy_s(c.report,L"C:\\work\
     check(WaitForSingleObject(foreign,5000)==WAIT_OBJECT_0);CloseHandle(foreign);
     check(constants_foreign&&fixture_uploads==7);
     check(ApiVSConst(admitted,0,uploaded,1)==D3D_OK&&ApiVSConst(admitted,0,uploaded,1)==D3D_OK&&fixture_uploads==9);
+    original_reset=FixtureReset;RememberPixel(false,true);
+    constants_palette.Remember(0,uploaded,1);
+    check(HookReset(admitted,nullptr)==D3DERR_DEVICELOST&&!verified_non_target);
+    check(!constants_palette.Candidate(0,uploaded,1));
+    const DWORD render_owner=owner;owner=render_owner+1;RememberPixel(false,true);
+    constants_palette.Remember(0,uploaded,1);constants_foreign=false;
+    check(HookReset(admitted,nullptr)==D3DERR_DEVICELOST&&!verified_non_target&&constants_foreign&&!constants_palette.Candidate(0,uploaded,1));owner=render_owner;
     DeleteCriticalSection(&constants_lock);constants_lock_ready=false;
     std::printf("{\"cpu_checks\":%u,\"gpu_accessed\":false}\n",checks);return 0;}
 #endif
