@@ -1,8 +1,8 @@
 # Automatisierte Crossplay-Abnahme unter Windows
 
 `tests/crossplay_acceptance.py` steuert die drei echten Spielclients der
-vorbereiteten Testkopien. Es spielt je Hostrolle eine neue Partie mit Magd
-Marielle auf Tal von Monhaim an, speichert über das Spielmenü, schließt die
+vorbereiteten Testkopien. Es spielt je Hostrolle eine neue Partie mit einem
+KI-Gegner auf Tal von Monhaim an, speichert über das Spielmenü, schließt die
 Clients regulär und lädt den neu geschriebenen Spielstand in einem frischen
 Raum. Beide Gäste müssen Datei und Spielstart bestätigen. Anschließend
 vergleicht das Skript den Fortschritt der drei Clients anhand ihrer nativen

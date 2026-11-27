@@ -1,6 +1,7 @@
 """Drive the real Windows three-edition room runner through fresh games and cold loads."""
 
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -18,6 +19,7 @@ HOSTS = {1: 'Gold', 2: 'Ubisoft History', 3: 'Steam History'}
 GAME_PATHS = {1: 'Data/Base/_Dbg/Bin/Release/Settlers7R.exe',
               2: 'Base/Bin/Settlers7R.exe', 3: 'Base/Bin/Settlers7R.exe'}
 SLOTS = {1: (1, 2, 3), 2: (2, 1, 3), 3: (2, 3, 1)}
+AI_NAMES = ('maid', 'magd', 'konradin', 'raspun', 'emilia', 'ludowig')
 
 
 def digest(path):
@@ -27,6 +29,21 @@ def digest(path):
 
 def read_json(path):
     return json.loads(path.read_bytes())
+
+
+def seen_label(text, label):
+    label = label.casefold()
+    if label in text:
+        return True
+    if len(label) < 5:
+        return False
+    words = text.split()
+    length = len(label.split())
+    for i in range(len(words) - length + 1):
+        guess = ' '.join(words[i:i + length])
+        if abs(len(guess) - len(label)) <= 1 and difflib.SequenceMatcher(None, guess, label).ratio() >= 1 - 1 / len(label):
+            return True
+    return False
 
 
 def wait_for(label, predicate, seconds):
@@ -71,16 +88,34 @@ class Desktop:
         except RuntimeError as error:
             if str(error) not in ('The game window is not ready.', 'The test copy does not have foreground focus.'):
                 raise
+            self.last_window_error = str(error)
             return ''
 
     def expect(self, game, *labels, box=FULL, timeout=45):
+        self.last_window_error = None
         def visible():
-            text = self.screen(game, box)
-            return any(label.casefold() in text for label in labels)
-        wait_for(' / '.join(labels), visible, timeout)
+            self.last_label_text = self.screen(game, box)
+            return any(seen_label(self.last_label_text, label) for label in labels)
+        try:
+            wait_for(' / '.join(labels), visible, timeout)
+        except RuntimeError as error:
+            if self.last_window_error is not None:
+                raise RuntimeError(f'{error} {self.last_window_error}') from error
+            raise RuntimeError(f'{error} Last game text: {self.last_label_text[:120]!r}.') from error
 
     def click(self, game, x, y):
         self.send(game, 'click', x=x, y=y)
+
+    def ready(self, game, y):
+        return self.send(game, 'ready', box=(865, y - 11, 106, 24))['ready']
+
+    def opponent(self, game):
+        def available():
+            for y in (410, 480, 550, 620):
+                text = self.screen(game, (405, y - 12, 180, 30))
+                if any(seen_label(text, name) for name in AI_NAMES):
+                    return y
+        return wait_for('an available AI opponent', available, 15)
 
 
 class Run:
@@ -168,6 +203,28 @@ class Run:
         return wait_for(stage, lambda: len([row for row in self.sample().get('deliveries', ()) if row[0] == stage]) >= count,
                         timeout)
 
+    def ready_guest(self, edition, y, saved):
+        game = self.games[edition]
+        stage = 'saved-ready-request' if saved else 'native-ready-intent'
+
+        def acknowledged():
+            return [stage, edition, self.host] in self.sample().get('deliveries', ())
+
+        for _ in range(3):
+            if acknowledged():
+                return
+            wait_for('the green guest Ready button or native confirmation',
+                     lambda: acknowledged() or self.desktop.ready(game, y), 15)
+            if acknowledged():
+                return
+            self.desktop.click(game, 919, y)
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                if acknowledged():
+                    return
+                time.sleep(0.25)
+        raise RuntimeError(f'{HOSTS[edition]} did not confirm Ready after three guarded attempts.')
+
     def world(self, seconds):
         last_turns, stalled, focus = 0, time.monotonic(), 0
 
@@ -218,8 +275,7 @@ class Run:
             self.desktop.click(host, 310 if self.host == 1 else 224, 398)
             self.desktop.expect(host, 'ai opponent', 'ki-gegner', 'ki gegner', box=(388, 260, 243, 55))
             self.desktop.click(host, 610, 338)
-            self.desktop.expect(host, 'maid marielle', 'magd marielle', box=(402, 460, 216, 44))
-            self.desktop.click(host, 480, 478)
+            self.desktop.click(host, 480, self.desktop.opponent(host))
             self.desktop.expect(host, 'normal', box=(400, 395, 225, 36))
             self.desktop.click(host, 491, 477)
             wait_for('the original AI slot', lambda: (self.sample().get('configuration') or {}).get('computer_slots') == [4], 45)
@@ -228,10 +284,7 @@ class Run:
             if edition == self.host:
                 continue
             y = {2: 250, 3: 322}[slot]
-            game = self.games[edition]
-            # Exact button text keeps an already-ready client from being toggled back.
-            wait_for('the guest Ready button', lambda: self.desktop.screen(game, (866, y - 13, 103, 28)) in ('ready', 'bereit'), 45)
-            self.desktop.click(game, 919, y)
+            self.ready_guest(edition, y, bool(save_name))
         if save_name:
             self.wait_event('saved-ready-applied', 2)
         else:
