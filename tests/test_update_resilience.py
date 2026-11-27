@@ -82,7 +82,7 @@ class UpdateResilienceTests(unittest.TestCase):
             client.check(self.app,fetch=lambda url,limit,**kw:self.listing(self.value['tag'],old['tag'],changed['tag']) if url==client.RELEASES else b'algorithm fixture')
 
     def prepare_fault(self,*,unknown=False):
-        raw=b'owned installer fixture';value=dict(sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
+        raw=b'owned installer fixture';value=dict(channel='preview',sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
         (self.updates/'verified-envelope.json').write_bytes(b'{}')
         client.atomic(self.updates/'highest.json',dict(sequence=23,payload_sha256=hashlib.sha256(client.canonical(value)).hexdigest()))
         def process(pid):return dict(pid=pid,path=str(self.app/('S7Launcher.exe' if pid==os.getppid() else 'Package/Runtime/python/python.exe')),started_ticks=1)
@@ -194,7 +194,7 @@ sys.path.insert(0,sys.argv[2])
 import update_client as c
 app=Path(sys.argv[1]);mode=sys.argv[3];_,updates=c.paths(app)
 raw=b'A'*8192+b'B'*4096
-value=dict(sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
+value=dict(channel='preview',sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
 (updates/'verified-envelope.json').write_bytes(b'{}')
 c.atomic(updates/'highest.json',dict(sequence=23,payload_sha256=hashlib.sha256(c.canonical(value)).hexdigest()))
 def process(pid):return dict(pid=pid,path=str(app/('S7Launcher.exe' if pid==os.getppid() else 'Package/Runtime/python/python.exe')),started_ticks=1)
@@ -237,7 +237,7 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
         self.assertFalse(job.exists())
 
     def test_cancelled_preparation_cleans_verified_partial_but_preserves_foreign_edit(self):
-        raw=b'owned partial fixture';value=dict(sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
+        raw=b'owned partial fixture';value=dict(channel='preview',sequence=23,version='2.0.0-rc3.23',setup=dict(size=len(raw),sha256=hashlib.sha256(raw).hexdigest(),url='fixture'))
         (self.updates/'verified-envelope.json').write_bytes(b'{}')
         client.atomic(self.updates/'highest.json',dict(sequence=23,payload_sha256=hashlib.sha256(client.canonical(value)).hexdigest()))
         def process(pid):return dict(pid=pid,path=str(self.app/('S7Launcher.exe' if pid==os.getppid() else 'Package/Runtime/python/python.exe')),started_ticks=1)
@@ -400,7 +400,7 @@ with patch.object(c,'verify',return_value=value),patch.object(c,'handoff_source'
     def test_failed_helper_copy_does_not_leave_authored_partial_update_job(self):
         binary=b'fixture downloaded installer'
         binary_hash=hashlib.sha256(binary).hexdigest()
-        value=dict(sequence=23,version='2.0.0-rc3.23',
+        value=dict(channel='preview',sequence=23,version='2.0.0-rc3.23',
                    setup=dict(size=len(binary),sha256=binary_hash,url='fixture'))
         (self.updates/'verified-envelope.json').write_bytes(b'{}')
         client.atomic(self.updates/'highest.json',dict(sequence=23,

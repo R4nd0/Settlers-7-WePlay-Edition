@@ -58,8 +58,8 @@ internal static class Program
             if(m.TryGetProperty("platform_isolation",out var isolation))
                 Keys(m,"format","repository","channel","sequence","version","tag","notes","setup","platform_isolation");
             else Keys(m,"format","repository","channel","sequence","version","tag","notes","setup");
-            string tag=Text(m,"tag"),notes=Text(m,"notes");
-            if(Text(m,"format")!="weplay-update-v1"||Text(m,"repository")!=Repository||Text(m,"channel")!="preview"||
+            string tag=Text(m,"tag"),notes=Text(m,"notes"),channel=Text(m,"channel");
+            if(Text(m,"format")!="weplay-update-v1"||Text(m,"repository")!=Repository||channel is not ("stable" or "preview")||
                m.GetProperty("sequence").GetInt32()!=sequence||sequence<1||Text(m,"version")!=version||
                !Match(version!,"[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}(?:-[A-Za-z0-9][A-Za-z0-9.-]{0,47})?")||
                !Match(tag,"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")||notes.Length>4000||notes.Any(c=>c<32&&c is not ('\n' or '\r' or '\t')))Fail("update_invalid");
@@ -68,7 +68,7 @@ internal static class Program
             if(Text(setup,"name")!="Setup.exe"||Text(setup,"url")!=$"https://github.com/{Repository}/releases/download/{tag}/Setup.exe"||
                size<1||size>805306368||!Match(digest,"[0-9a-f]{64}"))Fail("update_invalid");
             string fingerprint=Convert.ToHexStringLower(SHA256.HashData(payload));
-            VerifyOffer(isolation,fingerprint);
+            VerifyOffer(isolation,fingerprint,channel);
             string installer=SafePaths.FileAt(job,"Setup.exe");VerifySetup(installer,size,digest);
             if(validate){Console.WriteLine("PASS: compiled helper verified signed update and installer; no installation performed.");return 0;}
 
@@ -82,7 +82,7 @@ internal static class Program
             },overwrite:false);
             if(!parent.WaitForExit(180000)||!backend.WaitForExit(180000))Fail("update_busy");
             EnsureClosed();
-            VerifyOffer(isolation,fingerprint);
+            VerifyOffer(isolation,fingerprint,channel);
             Status("installing","");
             // Keep the verified file non-writable/non-replaceable through the final execution boundary.
             using(var locked=new FileStream(SafePaths.Plain(installer),FileMode.Open,FileAccess.Read,FileShare.Read))
@@ -107,7 +107,7 @@ internal static class Program
         }
         finally{if(mutex!=null){if(owned)mutex.ReleaseMutex();mutex.Dispose();}}
     }
-    private static void VerifyOffer(JsonElement isolation,string fingerprint)
+    private static void VerifyOffer(JsonElement isolation,string fingerprint,string channel)
     {
         using var local=Read(SafePaths.FileAt(app!,"desktop-release.json"),65536);
         string packagePath=SafePaths.Plain(Path.Combine(app!,"Package/package.json"));
@@ -122,9 +122,18 @@ internal static class Program
                !isolation.GetProperty("editions").EnumerateArray().Select(x=>x.GetString()).SequenceEqual(new[]{"gold","history-steam","history-ubisoft"}))
                 Fail("update_isolation_required");
         }
-        using var highest=Read(SafePaths.FileAt(updates!,"highest.json"),4096);
+        string selected=Text(local.RootElement,"update_channel");
+        if(selected is not ("stable" or "preview"))Fail("update_invalid");
+        string preference=SafePaths.Plain(Path.Combine(updates!,"channel.json"));
+        if(File.Exists(preference))
+        {
+            using var state=Read(preference,4096);
+            Keys(state.RootElement,"channel");selected=Text(state.RootElement,"channel");
+        }
+        if(selected!=channel)Fail("update_changed");
+        using var highest=Read(SafePaths.FileAt(updates!,channel=="stable"?"highest-stable.json":"highest.json"),4096);
         Keys(highest.RootElement,"sequence","payload_sha256");
-        if(sequence<=local.RootElement.GetProperty("update_sequence").GetInt32()||Text(local.RootElement,"update_channel")!="preview"||
+        if(sequence<=local.RootElement.GetProperty("update_sequence").GetInt32()||
            sequence!=highest.RootElement.GetProperty("sequence").GetInt32()||
            Text(highest.RootElement,"payload_sha256")!=fingerprint)Fail("update_downgrade");
     }

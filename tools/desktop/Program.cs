@@ -182,6 +182,9 @@ internal sealed partial class MainForm : Form
     private readonly Label homeUpdateNotice=new() { AutoSize=true,MaximumSize=new Size(880,0) };
     private readonly TextBox updateNotes=new() { Multiline=true,ReadOnly=true,Dock=DockStyle.Top,Height=150,ScrollBars=ScrollBars.Vertical };
     private Button updateCheck=null!,updateInstall=null!,homeUpdateInstall=null!;
+    private readonly ComboBox updateChannelChoice=Combo();
+    private string updateChannel="stable";
+    private bool updateChannelLoaded;
     private LinkLabel globalUpdateLink=null!;
     private LinkLabel startupDiagnosticsLink=null!;
     private JsonElement snapshot;
@@ -577,7 +580,11 @@ internal sealed partial class MainForm : Form
                 catch(System.Runtime.InteropServices.ExternalException){throw new BackendError("internetClipboardFailed","");}return Task.CompletedTask;})));
         var updateScroll=new Panel { Dock=DockStyle.Fill,AutoScroll=true };updatesPage.Controls.Add(updateScroll);var u=Stack(updateScroll);
         var updateTitle=Label("updatesTitle");updateTitle.Font=new Font(Font.FontFamily,20,FontStyle.Bold);Add(u,updateTitle);
-        Add(u,Label("updatesIntro"));Add(u,updateNotice);
+        Add(u,Label("updatesIntro"));
+        Add(u,Field("updateChannel",updateChannelChoice));
+        Add(u,Label("updateChannelHelp"));
+        updateChannelChoice.SelectionChangeCommitted+=async (_,_)=>await ChangeUpdateChannel();
+        Add(u,updateNotice);
         Add(u,updateLastOutcome);
         updateCheck=Button("updateCheck",()=>CheckUpdates(false));updateInstall=Button("updateInstall",InstallUpdate,true);
         Add(u,Buttons(updateCheck,updateInstall));Add(u,Label("updateNotes"));Add(u,updateNotes);
@@ -600,6 +607,9 @@ internal sealed partial class MainForm : Form
         int oldInternet=internetMode.SelectedIndex;internetMode.Items.Clear();internetMode.Items.AddRange([Lang.T("internetAssisted"),Lang.T("internetDirect")]);internetMode.SelectedIndex=Math.Max(0,oldInternet);
         ApplyCrossplayLanguage();
         ApplyNativeGraphicsLanguage();
+        updateChannelChoice.Items.Clear();
+        updateChannelChoice.Items.AddRange([new Item("stable",Lang.T("updateStable")),new Item("preview",Lang.T("updateDevelopment"))]);
+        SelectUpdateChannel();
         SetAntialiasingMode(AntialiasingMode);
         foreach(var combo in qualities.Values) { int old=combo.SelectedIndex;combo.Items.Clear();combo.Items.AddRange([Lang.T("low"),Lang.T("medium"),Lang.T("high")]);combo.SelectedIndex=old<0?1:old; }
         loading=false;
@@ -653,6 +663,11 @@ internal sealed partial class MainForm : Form
             ?Math.Clamp(limit,1,detailPercentages.Length-1):legacyLodMaximum;
         midsummerToneAvailable=value.TryGetProperty("midsummer_tone_supported",out var toneAvailable)&&toneAvailable.GetBoolean();
         updatesSupported=value.TryGetProperty("updates_supported",out var updatesAvailable)&&updatesAvailable.GetBoolean();
+        if(!updateChannelLoaded&&value.TryGetProperty("update_channel",out var selectedChannel)&&
+            selectedChannel.ValueKind==JsonValueKind.String&&selectedChannel.GetString() is "stable" or "preview")
+        {
+            updateChannel=selectedChannel.GetString()!;updateChannelLoaded=true;SelectUpdateChannel();
+        }
         lastUpdateFailure=value.TryGetProperty("update_last_error",out var updateFailure)&&updateFailure.ValueKind==JsonValueKind.String?updateFailure.GetString():null;
         screens.Clear();screens.AddRange(value.GetProperty("displays").EnumerateArray().Select(x=>x.Clone()));
         string savedRenderer=replaceFields&&value.TryGetProperty("renderer_policy",out var policy)
@@ -844,6 +859,7 @@ internal sealed partial class MainForm : Form
     {
         if(updateCheck==null)return;
         updateCheck.Enabled=updatesSupported&&!busy&&!updateChecking;
+        updateChannelChoice.Enabled=updateCheck.Enabled;
         updateInstall.Enabled=homeUpdateInstall.Enabled=updatesSupported&&remoteUpdateAvailable&&!busy&&!gameRunning&&!updateChecking;
         updateInstall.Visible=homeUpdateInstall.Visible=remoteUpdateAvailable;
         globalUpdateLink.Visible=remoteUpdateAvailable;
@@ -857,12 +873,29 @@ internal sealed partial class MainForm : Form
         FontStyle style=remoteUpdateAvailable?FontStyle.Bold:FontStyle.Regular;
         if(homeUpdateNotice.Font.Style!=style)homeUpdateNotice.Font=remoteUpdateAvailable?new Font(Font,style):Font;
     }
+    private void SelectUpdateChannel() => updateChannelChoice.SelectedIndex=updateChannel=="preview"?1:0;
+    private async Task ChangeUpdateChannel()
+    {
+        if(updateChannelChoice.SelectedItem is not Item selected||selected.Key==updateChannel)return;
+        SetBusy(true);
+        try
+        {
+            await Backend.Run("update-channel",new {channel=selected.Key},Receive);
+            updateChannel=selected.Key;updateChannelLoaded=true;
+            remoteUpdateAvailable=false;remoteUpdateSequence=0;remoteUpdateVersion="";
+            updateNotes.Clear();updateCheckIncomplete=false;updateMessageKey="updateAutomatic";
+        }
+        catch(Exception error){SelectUpdateChannel();ShowError(error);return;}
+        finally{SetBusy(false);RefreshUpdateControls();}
+        await CheckUpdates(true);
+    }
     private void ShowUpdateResult(JsonElement value)
     {
         remoteUpdateAvailable=value.GetProperty("available").GetBoolean();
         remoteUpdateSequence=remoteUpdateAvailable?value.GetProperty("sequence").GetInt64():0;
         remoteUpdateVersion=remoteUpdateAvailable?Program.DisplayVersion(value.GetProperty("version").GetString()??""):"";
-        updateMessageKey=remoteUpdateAvailable?"updateFound":value.GetProperty("reason").GetString()=="no_signed_release"?"updateNoRelease":"updateCurrent";
+        updateMessageKey=remoteUpdateAvailable?"updateFound":value.GetProperty("reason").GetString() switch {
+            "no_signed_release"=>"updateNoRelease","installed_newer"=>"updateInstalledNewer",_=>"updateCurrent"};
         updateNotes.Text=value.GetProperty("notes").GetString()??"";
         updateCheckIncomplete=value.TryGetProperty("incomplete",out var incomplete)&&incomplete.GetBoolean();RefreshUpdateControls();
     }
@@ -1423,7 +1456,7 @@ internal sealed partial class MainForm : Form
                     consentImage.Save(Path.Combine(folder,language+(publicLobby?"-public-consent.png":"-private-consent.png")));dialog.Close();
                 }
                 Lang.Set(language,false);using var form=new MainForm(false,true);form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-30000,-30000);form.ShowInTaskbar=false;
-                if(form.releaseVersion.Text!="rc4.13"||Program.ReleaseVersion!="rc4.13")throw new Exception("Release version label must be exactly rc4.13");
+                if(form.releaseVersion.Text!="rc4.14"||Program.ReleaseVersion!="rc4.14")throw new Exception("Release version label must be exactly rc4.14");
                 if(Program.DisplayVersion("2.0.0-rc4.0+fixture")!="rc4.00")throw new Exception("Technical update version leaked into display");
                 form.LoadSnapshot(json.RootElement,acceptGraphics:true);form.ShowMain();form.Show();Application.DoEvents();
                 form.tabs.SelectedTab=form.lanPage;

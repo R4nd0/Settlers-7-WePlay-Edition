@@ -464,6 +464,9 @@ class Desktop:
             result['native_graphics_scales']=native['scales']
         result['update_last_error']=None
         if result['updates_supported']:
+            from update_client import channel_selection,current
+            try:result['update_channel']=channel_selection(self.state/'Updates',current(self.app))
+            except (OSError,ValueError):pass
             try:
                 update_status=self.read(self.state/'Updates/status.json',{},limit=8192)
                 if isinstance(update_status,dict) and update_status.get('format')=='weplay-update-status-v1' and update_status.get('phase')=='failed':
@@ -1090,6 +1093,12 @@ class Desktop:
         from update_client import check
         return check(self.app,progress=self.progress,cancelled=lambda:self.cancel.exists())
 
+    def change_update_channel(self,data):
+        if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
+        if not isinstance(data,dict) or set(data)!={'channel'}:raise ValueError('request_invalid')
+        from update_client import set_channel
+        return set_channel(self.app,data['channel'])
+
     def install_update(self,data):
         if not self.read(self.package/'package.json',{}).get('update_patcher',False):raise ValueError('update_unavailable')
         if not isinstance(data,dict) or set(data)!={'sequence'} or type(data['sequence']) is not int or data['sequence']<1:
@@ -1694,12 +1703,13 @@ class Desktop:
 def dispatch(desktop,request):
     # These read-only/UI requests must not create a game verification scope or
     # enter publication/settings recovery. Their callers need no game object.
-    if (isinstance(request,dict) and set(request)=={'format','action','data'}
-            and request['format']==REQUEST and request['data']=={}):
-        if request['action']=='update-check':return desktop.check_updates()
-        if request['action']=='directory-list':return desktop.directory_list()
-        if request['action']=='recovery-status':return desktop.recovery_status()
-        if request['action']=='diagnostics':return desktop.diagnostics()
+    if isinstance(request,dict) and set(request)=={'format','action','data'} and request['format']==REQUEST:
+        if request['action']=='update-channel':return desktop.change_update_channel(request['data'])
+        if request['data']=={}:
+            if request['action']=='update-check':return desktop.check_updates()
+            if request['action']=='directory-list':return desktop.directory_list()
+            if request['action']=='recovery-status':return desktop.recovery_status()
+            if request['action']=='diagnostics':return desktop.diagnostics()
     with desktop.verification():
         desktop.operation_state('cancellable')
         try:return _dispatch(desktop,request)

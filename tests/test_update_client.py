@@ -139,7 +139,7 @@ class UpdateTests(unittest.TestCase):
             client.verify(self.signed(payload=b'{"format":"weplay-update-v1","format":"duplicate"}'))
 
     def test_wrong_repository_external_setup_and_path_traversal_are_refused(self):
-        for change in ({'repository':'attacker/other'},{'tag':'../escape'}, {'channel':'stable'},{'sequence':True}):
+        for change in ({'repository':'attacker/other'},{'tag':'../escape'}, {'channel':'nightly'},{'sequence':True}):
             with self.subTest(change=change),self.assertRaises(client.UpdateError):client.validate(dict(self.value(),**change))
         value=self.value();value['setup']['url']='https://attacker.invalid/Setup.exe'
         with self.assertRaises(client.UpdateError):client.validate(value)
@@ -153,6 +153,39 @@ class UpdateTests(unittest.TestCase):
         result=client.check(self.app,fetch=self.fetcher(self.signed()))
         self.assertTrue(result['available']);self.assertEqual(result['sequence'],2)
         self.assertEqual(result['current_version'],'2.0.0-rc3.4');self.assertEqual(result['reason'],'available')
+
+    def test_switching_channels_keeps_separate_signed_update_cache(self):
+        preview=self.signed(self.value(9))
+        self.assertEqual(client.check(self.app,fetch=self.fetcher(preview))['sequence'],9)
+        self.assertEqual(client.set_channel(self.app,'stable'),{'channel':'stable'})
+        stable={**self.value(3),'channel':'stable'}
+        raw=self.signed(stable)
+        url=f"https://github.com/{client.REPOSITORY}/releases/download/{stable['tag']}/{client.STABLE_ISOLATED_MANIFEST}"
+        latest={'draft':False,'prerelease':False,'tag_name':stable['tag'],'assets':[
+            {'name':client.STABLE_ISOLATED_MANIFEST,'browser_download_url':url}]}
+
+        def fetch(target,limit,**kwargs):
+            if target==client.STABLE_RELEASE:return json.dumps(latest).encode()
+            self.assertEqual(target,url)
+            return raw
+
+        self.assertEqual(client.check(self.app,fetch=fetch)['sequence'],3)
+        _,updates=client.paths(self.app)
+        self.assertEqual(client.highwater(updates,'stable')['sequence'],3)
+        self.assertEqual(client.highwater(updates,'preview')['sequence'],9)
+        client.set_channel(self.app,'preview')
+        self.assertEqual(client.check(self.app,fetch=self.fetcher(preview))['sequence'],9)
+        client.set_channel(self.app,'stable')
+        latest['prerelease']=True
+        self.assertEqual(client.check(self.app,fetch=fetch)['reason'],'no_signed_release')
+        latest['prerelease']=False
+        raw=self.signed({**stable,'channel':'preview'})
+        with self.assertRaisesRegex(client.UpdateError,'update_invalid'):
+            client.check(self.app,fetch=fetch)
+        raw=self.signed(stable)
+        installed={**client.current(self.app),'update_sequence':4}
+        (self.app/'desktop-release.json').write_bytes(client.canonical(installed))
+        self.assertEqual(client.check(self.app,fetch=fetch)['reason'],'installed_newer')
         self.assertTrue((self.app/'State/Updates/verified-envelope.json').is_file())
 
     def test_replay_cannot_lower_highest_seen_sequence_or_replace_cached_offer(self):

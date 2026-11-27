@@ -62,8 +62,18 @@ function VerifyOffer($Manifest,[string]$PayloadHash) {
             ($isolation.editions -join ',') -cne 'gold,history-steam,history-ubisoft' -or
             @($isolation.PSObject.Properties).Count -ne 2) { throw 'update_isolation_required' }
     }
-    $highest=ReadJson (Join-Path $updates 'highest.json') 4096
-    if($local.update_channel -cne 'preview' -or $Manifest.sequence -le $local.update_sequence -or
+    $selected=$local.update_channel
+    if($selected -cnotin @('stable','preview')) { throw 'update_invalid' }
+    $preference=Join-Path $updates 'channel.json'
+    if(Test-Path -LiteralPath $preference) {
+        $value=ReadJson $preference 4096
+        if(@($value.PSObject.Properties).Count -ne 1) { throw 'update_invalid' }
+        $selected=$value.channel
+    }
+    if($selected -cne $Manifest.channel) { throw 'update_changed' }
+    $highestName=if($Manifest.channel -ceq 'stable'){'highest-stable.json'}else{'highest.json'}
+    $highest=ReadJson (Join-Path $updates $highestName) 4096
+    if($Manifest.sequence -le $local.update_sequence -or
         $Manifest.sequence -ne $highest.sequence -or $highest.payload_sha256 -cne $PayloadHash) { throw 'update_downgrade' }
 }
 try {
@@ -102,7 +112,7 @@ try {
     $manifest=[Text.Encoding]::UTF8.GetString($payload)|ConvertFrom-Json
     $expectedUrl='https://github.com/R4nd0/Settlers-7-WePlay-Edition/releases/download/'+$manifest.tag+'/Setup.exe'
     if($manifest.format -cne 'weplay-update-v1' -or $manifest.repository -cne 'R4nd0/Settlers-7-WePlay-Edition' -or
-        $manifest.channel -cne 'preview' -or $manifest.setup.name -cne 'Setup.exe' -or $manifest.setup.url -cne $expectedUrl -or
+        $manifest.channel -cnotin @('stable','preview') -or $manifest.setup.name -cne 'Setup.exe' -or $manifest.setup.url -cne $expectedUrl -or
         $manifest.setup.sha256 -cnotmatch '^[0-9a-f]{64}$' -or $manifest.setup.size -lt 1 -or $manifest.setup.size -gt 805306368 -or
         $manifest.sequence -ne $record.sequence -or $manifest.version -cne $record.version) { throw 'update_invalid' }
     $sha=[Security.Cryptography.SHA256]::Create()

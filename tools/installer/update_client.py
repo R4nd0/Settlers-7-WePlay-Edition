@@ -22,8 +22,12 @@ import compatibility
 
 REPOSITORY='R4nd0/Settlers-7-WePlay-Edition'
 RELEASES='https://api.github.com/repos/'+REPOSITORY+'/releases?per_page=20'
+STABLE_RELEASE='https://api.github.com/repos/'+REPOSITORY+'/releases/latest'
 MANIFEST='weplay-update.json'
 ISOLATED_MANIFEST='weplay-update-isolated.json'
+STABLE_MANIFEST='weplay-update-stable.json'
+STABLE_ISOLATED_MANIFEST='weplay-update-stable-isolated.json'
+CHANNELS=('stable','preview')
 MAX_SETUP=768*1024*1024
 MAX_MANIFEST=49152
 JOB_FORMAT='weplay-update-job-v1'
@@ -99,7 +103,7 @@ def verify(raw,*,key=None):
 def validate(value):
     keys={'format','repository','channel','sequence','version','tag','notes','setup'}
     if (not isinstance(value,dict) or set(value) not in (keys,keys|{'platform_isolation'})
-            or value['format']!='weplay-update-v1' or value['repository']!=REPOSITORY or value['channel']!='preview'
+            or value['format']!='weplay-update-v1' or value['repository']!=REPOSITORY or value['channel'] not in CHANNELS
             or type(value['sequence']) is not int or not 1<=value['sequence']<=2147483647
             or not isinstance(value['version'],str) or not VERSION.fullmatch(value['version'])
             or not isinstance(value['tag'],str) or not TAG.fullmatch(value['tag'])
@@ -250,12 +254,30 @@ def current(app):
     try:value=decode(read_bounded(app/'desktop-release.json',65536),65536)
     except (OSError,ValueError):raise UpdateError('update_unavailable') from None
     if (not isinstance(value,dict) or not isinstance(value.get('version'),str) or not VERSION.fullmatch(value['version'])
-            or type(value.get('update_sequence')) is not int or value['update_sequence']<1 or value.get('update_channel')!='preview'):
+            or type(value.get('update_sequence')) is not int or value['update_sequence']<1 or value.get('update_channel') not in CHANNELS):
         raise UpdateError('update_unavailable')
     return value
 
-def highwater(updates):
-    path=compatibility.plain(updates/'highest.json')
+def channel_selection(updates,local):
+    try: value=decode(read_bounded(updates/'channel.json',4096),4096)
+    except FileNotFoundError:return local['update_channel']
+    if not isinstance(value,dict) or set(value)!={'channel'} or value['channel'] not in CHANNELS:
+        raise UpdateError('update_invalid')
+    return value['channel']
+
+def set_channel(app,channel):
+    if channel not in CHANNELS:raise UpdateError('update_invalid')
+    app,updates=paths(app)
+    current(app)
+    with cache_lock(updates):atomic(updates/'channel.json',{'channel':channel})
+    return {'channel':channel}
+
+def channel_files(channel):
+    if channel=='stable':return 'highest-stable.json','verified-stable-envelope.json'
+    return 'highest.json','verified-envelope.json'
+
+def highwater(updates,channel='preview'):
+    path=compatibility.plain(updates/channel_files(channel)[0])
     if not path.exists():return {'sequence':0,'payload_sha256':None}
     value=decode(read_bounded(path,4096),4096)
     if (not isinstance(value,dict) or set(value)!={'sequence','payload_sha256'} or type(value['sequence']) is not int
@@ -448,19 +470,24 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
         if clock()>=deadline:raise UpdateError('update_download_failed')
         return fetch(url,limit,deadline=deadline,cancelled=cancelled,clock=clock,
                      progress=(lambda *_:progress('update_check',0,0)) if progress else None)
-    app,updates=paths(app);local=current(app)
+    app,updates=paths(app);local=current(app);channel=channel_selection(updates,local)
     # This request may be hard-stopped by the desktop. Destructive cache
     # maintenance belongs to prepare(), never this UI/network read path.
-    base={'available':False,'current_version':local['version'],'version':None,'sequence':None,'release_url':None,'notes':'','reason':'no_signed_release'}
+    base={'available':False,'current_version':local['version'],'channel':channel,'version':None,'sequence':None,'release_url':None,'notes':'','reason':'no_signed_release'}
     if progress:progress('update_check',0,0)
-    releases=decode(fetch_checked(RELEASES,1024*1024),1024*1024)
+    stable=channel=='stable'
+    releases=decode(fetch_checked(STABLE_RELEASE if stable else RELEASES,1024*1024),1024*1024)
+    if stable:
+        if not isinstance(releases,dict):raise UpdateError('update_invalid')
+        releases=[releases]
     if not isinstance(releases,list) or len(releases)>20:raise UpdateError('update_invalid')
     candidates=[]
     for release in releases:
-        if not isinstance(release,dict) or release.get('draft') is not False:continue
+        if not isinstance(release,dict) or release.get('draft') is not False or (stable and release.get('prerelease') is not False):continue
         tag=release.get('tag_name');assets=release.get('assets')
         if not isinstance(tag,str) or not TAG.fullmatch(tag) or not isinstance(assets,list) or len(assets)>50:continue
-        name=ISOLATED_MANIFEST if any(isinstance(a,dict) and a.get('name')==ISOLATED_MANIFEST for a in assets) else MANIFEST
+        standard,isolated=(STABLE_MANIFEST,STABLE_ISOLATED_MANIFEST) if stable else (MANIFEST,ISOLATED_MANIFEST)
+        name=isolated if any(isinstance(a,dict) and a.get('name')==isolated for a in assets) else standard
         selected=[a for a in assets if isinstance(a,dict) and a.get('name')==name]
         if len(selected)!=1:continue
         expected='https://github.com/'+REPOSITORY+'/releases/download/'+tag+'/'+name
@@ -480,7 +507,7 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
             if error.code!='update_download_failed':raise
             transport_failures+=1;continue
         value=verify(raw)
-        if value['tag']!=tag:raise UpdateError('update_invalid')
+        if value['tag']!=tag or value['channel']!=channel:raise UpdateError('update_invalid')
         encoded=canonical(value)
         if sequences.setdefault(value['sequence'],encoded)!=encoded:raise UpdateError('update_invalid')
         if newest is None or value['sequence']>newest['sequence']:newest,raw_newest=value,raw
@@ -493,14 +520,18 @@ def check(app,progress=None,*,fetch=transfer,cancelled=None,budget_seconds=CHECK
         cancellation()
         # A manual Setup run can finish while the release feed is loading.
         local=current(app);base['current_version']=local['version']
+        if channel_selection(updates,local)!=channel:raise UpdateError('update_changed')
         if newest['sequence']>local['update_sequence']:preserve_isolation(app,newest)
-        seen=highwater(updates);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
+        highest_file,envelope_file=channel_files(channel)
+        seen=highwater(updates,channel);fingerprint=hashlib.sha256(canonical(newest)).hexdigest()
         if newest['sequence']<seen['sequence'] or (newest['sequence']==seen['sequence'] and fingerprint!=seen['payload_sha256']):raise UpdateError('update_downgrade')
         if newest['sequence']!=seen['sequence']:
-            atomic(updates/'highest.json',{'sequence':newest['sequence'],'payload_sha256':fingerprint})
-        if newest['sequence']<=local['update_sequence']:return {**base,'reason':'current',**({'incomplete':True} if transport_failures else {})}
+            atomic(updates/highest_file,{'sequence':newest['sequence'],'payload_sha256':fingerprint})
+        if newest['sequence']<=local['update_sequence']:
+            reason='installed_newer' if newest['sequence']<local['update_sequence'] else 'current'
+            return {**base,'reason':reason,**({'incomplete':True} if transport_failures else {})}
         # Commit a signed envelope only after signature, scope and replay checks.
-        envelope_path=updates/'verified-envelope.json'
+        envelope_path=updates/envelope_file
         envelope=decode(raw_newest)
         try:cached=decode(read_bounded(envelope_path))
         except (FileNotFoundError,UpdateError):cached=None
@@ -568,10 +599,14 @@ def prepare(app,parent_pid,parent_started_ticks,progress=None,*,expected_sequenc
     checkpoint()
     reclaim_jobs(app)
     with cache_lock(updates):
-        envelope=read_bounded(updates/'verified-envelope.json');value=verify(envelope)
+        local=current(app);channel=channel_selection(updates,local)
+        try:envelope=read_bounded(updates/channel_files(channel)[1])
+        except FileNotFoundError:raise UpdateError('update_changed') from None
+        value=verify(envelope)
+        if value['channel']!=channel:raise UpdateError('update_changed')
         preserve_isolation(app,value)
         if expected_sequence is not None and value['sequence']!=expected_sequence:raise UpdateError('update_changed')
-        seen=highwater(updates)
+        seen=highwater(updates,channel)
         if value['sequence']<=local['update_sequence'] or value['sequence']!=seen['sequence'] or hashlib.sha256(canonical(value)).hexdigest()!=seen['payload_sha256']:raise UpdateError('update_downgrade')
     if shutil.disk_usage(updates).free<value['setup']['size']+256*1024*1024:raise UpdateError('update_disk_full')
     checkpoint()
