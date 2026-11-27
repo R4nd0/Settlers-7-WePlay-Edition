@@ -1,6 +1,8 @@
 // Opt-in laboratory host for native D3D12 spatial AA. No per-draw hooks.
 #include "on12_frame_context.h"
 #include "on12_output_window.h"
+#include "on12_scene_targets.h"
+#include "on12_scene_boundary.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
@@ -30,6 +32,11 @@ HMODULE wrapper = nullptr, apphelp = nullptr;
 IDirect3DDevice9* admitted = nullptr; DWORD owner = 0;
 // Process-lifetime host: never run a COM destructor after renderer DLL teardown.
 On12Graphics::FrameContext* context = nullptr;
+On12Graphics::SceneTargets* scene = nullptr;
+On12Graphics::SceneBoundary* boundary = nullptr;
+std::array<void*,119> scene_original{};
+bool scene_mode = false;
+std::uint64_t ui_draw_calls = 0, composite_draw_calls = 0;
 On12Graphics::SpatialSettings settings;
 On12Graphics::OutputWindow output_window;
 // Explicit owner-thread release; no COM destructor during DLL teardown.
@@ -80,6 +87,10 @@ void Live() noexcept {
         << ",\"output_present_calls\":" << output_calls << ",\"output_width\":" << output_width << ",\"output_height\":" << output_height
         << ",\"resets\":" << resets << ",\"errors\":" << errors << ",\"last_hr\":" << static_cast<long>(last_result)
         << ",\"render_stage\":" << render_stage << ",\"source_present_flags\":" << source_present_flags << ",\"source_auto_depth\":" << (source_auto_depth ? "true" : "false")
+        << ",\"scene_only\":" << (scene_mode ? "true" : "false") << ",\"scene_width\":" << render_width << ",\"scene_height\":" << render_height
+        << ",\"ui_draw_calls\":" << ui_draw_calls << ",\"composite_draw_calls\":" << composite_draw_calls
+        << ",\"native_ui_width\":" << (scene?scene->Stats().ui_width:0) << ",\"native_ui_height\":" << (scene?scene->Stats().ui_height:0)
+        << ",\"scene_resources\":" << (scene?scene->Stats().resources:0) << ",\"scene_failure\":" << static_cast<long>(scene?scene->Stats().failure:S_OK)
         << ",\"applied\":" << stats.applied << ",\"busy\":" << stats.busy
         << ",\"checkouts\":" << stats.checkouts << ",\"returns\":" << stats.returns
         << ",\"failed_returns\":" << stats.failed_returns << ",\"safe_for_d3d9\":" << (!context || context->SafeForD3D9() ? "true" : "false") << "}";
@@ -102,6 +113,59 @@ void Command() {
     if (!okay || value.size != sizeof(value) || value.version != 1 || !value.sequence || value.enabled > 1) { ++errors; return; }
     if (value.sequence > sequence) { sequence = value.sequence; settings.enabled = value.enabled; }
 }
+template<class T> T SceneOriginal(UINT slot){return reinterpret_cast<T>(scene_original[slot]);}
+bool SceneOwn(IDirect3DDevice9* d){return scene&&d==admitted&&!internal&&!stopped&&GetCurrentThreadId()==owner;}
+template<class Call> HRESULT SceneAccess(Call call){Guard guard;Scope scope;try{return call();}catch(...){failure=403;return E_OUTOFMEMORY;}}
+HRESULT STDMETHODCALLTYPE SceneSetTarget(IDirect3DDevice9* d,DWORD i,IDirect3DSurface9* s){return SceneOwn(d)?SceneAccess([&]{return scene->SetTarget(i,s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9*)>(37)(d,i,s);}
+HRESULT STDMETHODCALLTYPE SceneGetTarget(IDirect3DDevice9* d,DWORD i,IDirect3DSurface9** s){return SceneOwn(d)?SceneAccess([&]{return scene->GetTarget(i,s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9**)>(38)(d,i,s);}
+HRESULT STDMETHODCALLTYPE SceneSetDepth(IDirect3DDevice9* d,IDirect3DSurface9* s){return SceneOwn(d)?SceneAccess([&]{return scene->SetDepth(s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9*)>(39)(d,s);}
+HRESULT STDMETHODCALLTYPE SceneGetDepth(IDirect3DDevice9* d,IDirect3DSurface9** s){return SceneOwn(d)?SceneAccess([&]{return scene->GetDepth(s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9**)>(40)(d,s);}
+HRESULT STDMETHODCALLTYPE SceneSetViewport(IDirect3DDevice9* d,const D3DVIEWPORT9* v){return SceneOwn(d)?SceneAccess([&]{return scene->SetViewport(v);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,const D3DVIEWPORT9*)>(47)(d,v);}
+HRESULT STDMETHODCALLTYPE SceneGetViewport(IDirect3DDevice9* d,D3DVIEWPORT9* v){return SceneOwn(d)?SceneAccess([&]{return scene->GetViewport(v);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DVIEWPORT9*)>(48)(d,v);}
+HRESULT STDMETHODCALLTYPE SceneSetTexture(IDirect3DDevice9* d,DWORD i,IDirect3DBaseTexture9* t){return SceneOwn(d)&&scene->MapsTexture(t)?SceneAccess([&]{return scene->SetTexture(i,t);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DBaseTexture9*)>(65)(d,i,t);}
+HRESULT STDMETHODCALLTYPE SceneGetTexture(IDirect3DDevice9* d,DWORD i,IDirect3DBaseTexture9** t){return SceneOwn(d)?SceneAccess([&]{return scene->GetTexture(i,t);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DBaseTexture9**)>(64)(d,i,t);}
+HRESULT STDMETHODCALLTYPE SceneSetScissor(IDirect3DDevice9* d,const RECT* r){return SceneOwn(d)?SceneAccess([&]{return scene->SetScissor(r);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,const RECT*)>(75)(d,r);}
+HRESULT STDMETHODCALLTYPE SceneGetScissor(IDirect3DDevice9* d,RECT* r){return SceneOwn(d)?SceneAccess([&]{return scene->GetScissor(r);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,RECT*)>(76)(d,r);}
+HRESULT STDMETHODCALLTYPE SceneStretch(IDirect3DDevice9* d,IDirect3DSurface9* s,const RECT* sr,IDirect3DSurface9* t,const RECT* tr,D3DTEXTUREFILTERTYPE f){return SceneOwn(d)?SceneAccess([&]{return scene->Stretch(s,sr,t,tr,f);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9*,const RECT*,IDirect3DSurface9*,const RECT*,D3DTEXTUREFILTERTYPE)>(34)(d,s,sr,t,tr,f);}
+HRESULT STDMETHODCALLTYPE SceneFill(IDirect3DDevice9* d,IDirect3DSurface9* s,const RECT* r,D3DCOLOR c){return SceneOwn(d)?SceneAccess([&]{return scene->Fill(s,r,c);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9*,const RECT*,D3DCOLOR)>(35)(d,s,r,c);}
+HRESULT STDMETHODCALLTYPE SceneClear(IDirect3DDevice9* d,DWORD n,const D3DRECT* r,DWORD flags,D3DCOLOR c,float z,DWORD stencil){return SceneOwn(d)?SceneAccess([&]{return scene->Clear(n,r,flags,c,z,stencil);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,const D3DRECT*,DWORD,D3DCOLOR,float,DWORD)>(43)(d,n,r,flags,c,z,stencil);}
+HRESULT STDMETHODCALLTYPE SceneVertex(IDirect3DDevice9* d,IDirect3DVertexShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DVertexShader9*)>(92)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedVertex(shader))SceneAccess([&]{boundary->Vertex(shader);return S_OK;});return hr;}
+HRESULT STDMETHODCALLTYPE ScenePixel(IDirect3DDevice9* d,IDirect3DPixelShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DPixelShader9*)>(107)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedPixel(shader))SceneAccess([&]{boundary->Pixel(shader);return S_OK;});return hr;}
+HRESULT SceneBeforeDraw(IDirect3DDevice9* d){
+    if(!SceneOwn(d)||!scene->Active()||scene->Suspended())return S_OK;
+    if(!scene->Safe()||!context->SafeForD3D9())return D3DERR_DEVICELOST;
+    if(boundary->Current()!=On12Graphics::SceneBoundary::Role::Ui)return S_OK;
+    if(scene->Ui()){++ui_draw_calls;return S_OK;}
+    return SceneAccess([&]{if(!boundary->NativeUi(d,output_width,output_height)){failure=404;return D3DERR_INVALIDCALL;}
+        ++ui_draw_calls;auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;
+        HRESULT hr=scene->BeginUi(quality);if(FAILED(hr)){last_result=hr;failure=405;}return hr;});
+}
+HRESULT STDMETHODCALLTYPE SceneDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT)>(81)(d,t,first,count);}
+HRESULT STDMETHODCALLTYPE SceneDrawIndexed(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,INT base,UINT minimum,UINT vertices,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;
+    const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,INT,UINT,UINT,UINT,UINT)>(82)(d,t,base,minimum,vertices,first,count);
+    if(SUCCEEDED(hr)&&SceneOwn(d)&&boundary->Current()==On12Graphics::SceneBoundary::Role::Composite)++composite_draw_calls;return hr;}
+HRESULT STDMETHODCALLTYPE SceneDrawUp(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT n,const void* data,UINT stride){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,const void*,UINT)>(83)(d,t,n,data,stride);}
+HRESULT STDMETHODCALLTYPE SceneDrawIndexedUp(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT minimum,UINT vertices,UINT n,const void* indices,D3DFORMAT format,const void* data,UINT stride){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT,UINT,const void*,D3DFORMAT,const void*,UINT)>(84)(d,t,minimum,vertices,n,indices,format,data,stride);}
+using BlockCall=HRESULT(STDMETHODCALLTYPE*)(IDirect3DStateBlock9*);
+BlockCall block_capture=nullptr,block_apply=nullptr;
+bool SceneBlockOwn(IDirect3DStateBlock9* block){if(!scene||internal||stopped||GetCurrentThreadId()!=owner)return false;
+    Guard guard;ComPtr<IDirect3DDevice9> device;return SUCCEEDED(block->GetDevice(&device))&&device.Get()==admitted;}
+HRESULT STDMETHODCALLTYPE SceneCapture(IDirect3DStateBlock9* block){
+    if(!SceneBlockOwn(block))return block_capture(block);
+    HRESULT before=SceneAccess([&]{return scene->BeforeCapture();});if(FAILED(before))return before;
+    const HRESULT hr=block_capture(block);HRESULT after=SceneAccess([&]{return scene->AfterCapture();});return FAILED(after)?after:hr;
+}
+HRESULT STDMETHODCALLTYPE SceneApply(IDirect3DStateBlock9* block){const HRESULT hr=block_apply(block);
+    if(SUCCEEDED(hr)&&SceneBlockOwn(block)){HRESULT after=SceneAccess([&]{boundary->Refresh(admitted);return scene->AfterApply();});if(FAILED(after))return after;}return hr;}
+HRESULT STDMETHODCALLTYPE SceneBeginBlock(IDirect3DDevice9* d){
+    using Call=HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*);if(!SceneOwn(d)||!scene->Active())return SceneOriginal<Call>(60)(d);
+    HRESULT hr=SceneAccess([&]{return scene->BeforeCapture();});if(FAILED(hr))return hr;const HRESULT original=SceneOriginal<Call>(60)(d);
+    if(FAILED(original))SceneAccess([&]{return scene->AfterCapture();});return original;
+}
+HRESULT STDMETHODCALLTYPE SceneEndBlock(IDirect3DDevice9* d,IDirect3DStateBlock9** block){
+    const HRESULT original=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DStateBlock9**)>(61)(d,block);
+    if(SceneOwn(d)&&scene->Suspended()){HRESULT after=SceneAccess([&]{boundary->Refresh(d);return scene->AfterCapture();});if(FAILED(after))return after;}return original;
+}
 HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const RECT* b, HWND window, const RGNDATA* region) {
     RenderCall render_call; bool use_output = false;
     if (!internal && d == admitted && GetCurrentThreadId() == owner) {
@@ -109,7 +173,10 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
             Guard guard; Scope scope; ++presents;
             try {
                 if (presents == 1 || presents % 60 == 0) Command();
-                if (context && !stopped && !failure && (settings.enabled || output_width)) {
+                if(scene_mode&&scene&&!stopped&&!failure){
+                    if(scene->Active()&&!scene->Ui()){auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;last_result=scene->BeginUi(quality);if(FAILED(last_result))failure=406;}
+                    width=output_width;height=output_height;
+                } else if (!scene_mode && context && !stopped && !failure && (settings.enabled || output_width)) {
                     ComPtr<IDirect3DSurface9> backbuffer;
                     render_stage = 1;
                     last_result = context->NativeDevice()->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
@@ -169,7 +236,9 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
     }
     // Exactly one presentation per frame, including fallback when the native
     // queue's optional slot is busy. Never present a stale output texture.
-    return use_output ? output_chain->Present(nullptr, nullptr, nullptr, nullptr, 0) : original_present(d, a, b, window, region);
+    const HRESULT presented=use_output?output_chain->Present(nullptr,nullptr,nullptr,nullptr,0):original_present(d,a,b,window,region);
+    if(SUCCEEDED(presented)&&SceneOwn(d)&&!failure)SceneAccess([&]{last_result=scene->BeginFrame();if(FAILED(last_result))failure=407;return last_result;});
+    return presented;
 }
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* parameters) {
     RenderCall render_call;
@@ -177,10 +246,13 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* 
         Guard guard; Scope scope;
         if (GetCurrentThreadId() != owner) return D3DERR_INVALIDCALL;
         if (context) { const HRESULT drained = context->Drain(5000); if (FAILED(drained)) { ++errors; last_result = drained; Live(); return D3DERR_DEVICELOST; } }
+        if(scene){HRESULT released=scene->ReleaseForReset();if(FAILED(released))return D3DERR_DEVICELOST;boundary->Reset();}
         DropOutput();
         ++resets;
     }
-    return original_reset(d, parameters);
+    const HRESULT result=original_reset(d,parameters);
+    if(SUCCEEDED(result)&&SceneOwn(d))SceneAccess([&]{scene->ResetSucceeded();boundary->Refresh(d);failure=0;last_result=S_OK;return S_OK;});
+    return result;
 }
 bool Stop() {
     if (stopped || !context) return true;
@@ -188,9 +260,11 @@ bool Stop() {
     struct Stopping { Stopping() { stopping = true; } ~Stopping() { stopping = false; } } stopping_scope;
     if (FAILED(context->Drain(5000))) { failure = 501; Live(); return false; }
     retired_stats = context->Stats(); retired_valid = true;
+    if(scene&&FAILED(scene->Shutdown())){failure=504;Live();return false;}
+    if(boundary)boundary->Reset();
     DropOutput();
     if (context && FAILED(context->Shutdown(5000))) { failure = 502; Live(); return false; }
-    if (output_width && FAILED(output_window.Shutdown())) { failure = 503; Live(); return false; }
+    if (output_width&&!scene_mode && FAILED(output_window.Shutdown())) { failure = 503; Live(); return false; }
     stopped = true; stop_pending.store(false, std::memory_order_release); Live(); return true;
 }
 RenderCall::~RenderCall() {
@@ -222,8 +296,16 @@ HRESULT Attach(IDirect3DDevice9* device) {
     if (FAILED(hr)) return hr;
     auto candidate = std::unique_ptr<On12Graphics::FrameContext>(new (std::nothrow) On12Graphics::FrameContext); if (!candidate) return E_OUTOFMEMORY;
     hr = candidate->Initialize(device, vs->GetBufferPointer(), vs->GetBufferSize(), ps->GetBufferPointer(), ps->GetBufferSize()); if (FAILED(hr)) return hr;
-    device_slots.reserve(2);
-    if (output_width) {
+    device_slots.reserve(24);
+    std::unique_ptr<On12Graphics::SceneTargets> next_scene;
+    std::unique_ptr<On12Graphics::SceneBoundary> next_boundary;
+    if(scene_mode){
+        std::memcpy(scene_original.data(),table,sizeof(scene_original));
+        next_scene=std::make_unique<On12Graphics::SceneTargets>();next_boundary=std::make_unique<On12Graphics::SceneBoundary>();
+        hr=next_scene->Initialize(device,candidate.get(),scene_original,render_width,render_height,output_width,output_height);if(FAILED(hr))return hr;
+        next_boundary->Refresh(device);
+    }
+    if (output_width&&!scene_mode) {
         ComPtr<IDirect3DSwapChain9> chain; D3DPRESENT_PARAMETERS pp{};
         hr = candidate->NativeDevice()->GetSwapChain(0, &chain); if (FAILED(hr)) return hr;
         hr = chain->GetPresentParameters(&pp); if (FAILED(hr)) return hr;
@@ -242,10 +324,32 @@ HRESULT Attach(IDirect3DDevice9* device) {
         if (FAILED(hr)) return hr;
     }
     device_slots = {{&table[17], table[17], reinterpret_cast<void*>(HookPresent)}, {&table[16], table[16], reinterpret_cast<void*>(HookReset)}};
+    if(scene_mode){
+        const std::pair<UINT,void*> hooks[]{
+            {34,reinterpret_cast<void*>(SceneStretch)},{35,reinterpret_cast<void*>(SceneFill)},
+            {37,reinterpret_cast<void*>(SceneSetTarget)},{38,reinterpret_cast<void*>(SceneGetTarget)},
+            {39,reinterpret_cast<void*>(SceneSetDepth)},{40,reinterpret_cast<void*>(SceneGetDepth)},
+            {43,reinterpret_cast<void*>(SceneClear)},{47,reinterpret_cast<void*>(SceneSetViewport)},{48,reinterpret_cast<void*>(SceneGetViewport)},
+            {60,reinterpret_cast<void*>(SceneBeginBlock)},{61,reinterpret_cast<void*>(SceneEndBlock)},
+            {65,reinterpret_cast<void*>(SceneSetTexture)},{64,reinterpret_cast<void*>(SceneGetTexture)},
+            {75,reinterpret_cast<void*>(SceneSetScissor)},{76,reinterpret_cast<void*>(SceneGetScissor)},
+            {81,reinterpret_cast<void*>(SceneDraw)},{82,reinterpret_cast<void*>(SceneDrawIndexed)},
+            {83,reinterpret_cast<void*>(SceneDrawUp)},{84,reinterpret_cast<void*>(SceneDrawIndexedUp)},
+            {92,reinterpret_cast<void*>(SceneVertex)},{107,reinterpret_cast<void*>(ScenePixel)}};
+        for(const auto& hook:hooks)device_slots.push_back({&table[hook.first],table[hook.first],hook.second});
+        ComPtr<IDirect3DStateBlock9> block;hr=device->CreateStateBlock(D3DSBT_ALL,&block);if(FAILED(hr))return hr;
+        auto** block_table=*reinterpret_cast<void***>(block.Get());
+        if(!Range(block_table,6*sizeof(void*))||!Belongs(block_table,wrapper))return E_NOINTERFACE;
+        for(UINT i=0;i<6;++i)if(!Belongs(block_table[i],wrapper))return E_NOINTERFACE;
+        block_capture=reinterpret_cast<BlockCall>(block_table[4]);block_apply=reinterpret_cast<BlockCall>(block_table[5]);
+        device_slots.push_back({&block_table[4],block_table[4],reinterpret_cast<void*>(SceneCapture)});
+        device_slots.push_back({&block_table[5],block_table[5],reinterpret_cast<void*>(SceneApply)});
+    }
     original_present = reinterpret_cast<Present>(table[17]); original_reset = reinterpret_cast<Reset>(table[16]);
     size_t patched = 0;
-    for (const auto& slot : device_slots) { if (!Patch(slot, true)) { while (patched) Patch(device_slots[--patched], false); device_slots.clear(); if (output_width) output_window.Shutdown(); return E_FAIL; } ++patched; }
+    for (const auto& slot : device_slots) { if (!Patch(slot, true)) { while (patched) Patch(device_slots[--patched], false); device_slots.clear(); if (output_width&&!scene_mode) output_window.Shutdown(); return E_FAIL; } ++patched; }
     admitted = device; owner = GetCurrentThreadId(); context = candidate.release(); settings.enabled = 1;
+    scene=next_scene.release();boundary=next_boundary.release();
     for (auto it = getter_slots.rbegin(); it != getter_slots.rend(); ++it) if (!Patch(*it, false)) { failure = 203; return E_FAIL; }
     Live(); return S_OK;
 }
@@ -340,6 +444,15 @@ extern "C" DWORD WINAPI WePlayOn12UpscaleInitialize(void* opaque) {
     return WePlayOn12SpatialInitialize(&legacy);
 }
 
+extern "C" DWORD WINAPI WePlayOn12SceneInitialize(void* opaque) {
+    Guard guard; UpscaleConfig c{}; SIZE_T read=0;
+    if(original_getter||!opaque||!ReadProcessMemory(GetCurrentProcess(),opaque,&c,sizeof(c),&read)||read!=sizeof(c)
+        ||c.size!=sizeof(c)||c.version!=3||c.flags!=3||c.sw<640||c.sh<360||c.ow<=c.sw||c.oh<=c.sh
+        ||c.ow>4096||c.oh>4096||c.ow>c.sw*2||c.oh>c.sh*2||static_cast<UINT64>(c.sw)*c.oh!=static_cast<UINT64>(c.sh)*c.ow)return 0;
+    scene_mode=true;render_width=c.sw;render_height=c.sh;output_width=c.ow;output_height=c.oh;
+    Config legacy{sizeof(Config),1,1,{}};memcpy(legacy.report,c.report,sizeof(c.report));return WePlayOn12SpatialInitialize(&legacy);
+}
+
 #ifdef S7_ON12_SPATIAL_GPU_FIXTURE
 extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9* device) {
     Guard guard; wrapper = GetModuleHandleW(L"dxwrapper.dll");
@@ -347,16 +460,25 @@ extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9* device) {
     apphelp = GetModuleHandleW(L"apphelp.dll"); return Attach(device);
 }
 extern "C" bool On12SpatialFixtureClose() {
-    Guard guard; if (!context || presents != 1 || original_calls + output_calls != 1 || resets != 1 || failure || errors || Stats().applied != 1
-        || (output_width && (output_calls != 1 || !output_validated))) return false;
+    Guard guard; const UINT64 expected_presents=scene_mode?2u:1u;
+    if(scene_mode)std::fprintf(stderr,"scene close: presents=%llu original=%llu output=%llu resets=%llu failure=%lu errors=%llu applied=%llu ui_calls=%llu upscaled=%llu ui_width=%u scene_hr=%08lx\n",
+        presents,original_calls,output_calls,resets,failure,errors,Stats().applied,ui_draw_calls,scene?scene->Stats().upscaled:0,scene?scene->Stats().ui_width:0,scene?scene->Stats().failure:E_FAIL);
+    if (!context || presents != expected_presents || original_calls + output_calls != expected_presents || resets != 1 || failure || errors || Stats().applied != 1
+        || (output_width&&!scene_mode && (output_calls != 1 || !output_validated))
+        || (scene_mode&&(!scene||scene->Stats().upscaled!=1||scene->Stats().ui_width!=32||!ui_draw_calls))) return false;
     if (!Stop()) return false;
     for (auto it = device_slots.rbegin(); it != device_slots.rend(); ++it) if (!Patch(*it, false)) return false;
     delete context; context = nullptr; admitted = nullptr; owner = 0; presents = original_calls = output_calls = resets = 0; stopped = false;
+    delete scene;scene=nullptr;delete boundary;boundary=nullptr;scene_mode=false;ui_draw_calls=composite_draw_calls=0;
     retired_valid = false; retired_stats = {}; stop_pending = false;
     render_width = render_height = output_width = output_height = 0; return true;
 }
 extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9* device, bool (*validate)(IDirect3DDevice9*, IDirect3DSurface9*)) {
     Guard guard; render_width = render_height = 32; output_width = output_height = 64; validate_output = validate;
     return Attach(device);
+}
+extern "C" HRESULT On12SpatialFixtureSceneAttach(IDirect3DDevice9* device,IDirect3DVertexShader9* v,IDirect3DPixelShader9* p){
+    Guard guard;scene_mode=true;render_width=render_height=16;output_width=output_height=32;
+    const HRESULT hr=Attach(device);if(SUCCEEDED(hr))boundary->FixtureUi(v,p);return hr;
 }
 #endif

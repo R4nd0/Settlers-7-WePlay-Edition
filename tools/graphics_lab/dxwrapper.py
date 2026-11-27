@@ -59,7 +59,7 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False,on12_spatial_build=None,on12_spatial_output=None,spatial_render_size=None):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False,on12_spatial_build=None,on12_spatial_output=None,spatial_render_size=None,on12_scene_size=None):
         from . import game
         if type(water_backend)is not bool or (water_backend and (on12_runtime_build is None or water_probe is None
                 or mode!='dxwrapper-d3d9on12' or water_pow_cap or water_benchmark)):
@@ -68,6 +68,8 @@ class Session:
             raise ValueError('Native spatial AA requires the source-built On12 path and detached water capture.')
         if on12_spatial_output is not None and on12_spatial_build is None:
             raise ValueError('Native upscaling requires its explicit spatial build.')
+        if on12_scene_size is not None and (on12_spatial_build is None or on12_spatial_output is not None):
+            raise ValueError('Scene separation requires its own spatial build and native output window.')
         if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
             raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
         if type(water_benchmark)is not bool or (water_benchmark and not water_pow_cap):raise ValueError('Water benchmark requires the explicit On12 correction.')
@@ -106,7 +108,8 @@ class Session:
         if on12_spatial_build is not None:
             from .on12_spatial import Session as SpatialSession
             self.spatial = SpatialSession(on12_spatial_build, self.executable, self.case,
-                render_size=spatial_render_size if on12_spatial_output is not None else None, output_size=on12_spatial_output)
+                render_size=on12_scene_size if on12_scene_size is not None else spatial_render_size if on12_spatial_output is not None else None,
+                output_size=spatial_render_size if on12_scene_size is not None else on12_spatial_output,scene_only=on12_scene_size is not None)
         if current(self.executable.with_name('d3d9.dll')) is None or digest(
                 current(self.executable.with_name('d3d9.dll'))) != recover.DXVK:
             raise ValueError('The laboratory must begin with the original pinned DXVK renderer.')

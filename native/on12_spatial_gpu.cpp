@@ -1,5 +1,6 @@
 // Authored GPU scenes only. Exercises the real D3D9On12 resource handoff.
 #include "on12_frame_context.h"
+#include "on12_scene_targets.h"
 #include "water_on12_identity.h"
 #include <d3dcompiler.h>
 #include <d3d9on12.h>
@@ -17,6 +18,7 @@ using On12Graphics::SpatialSettings;
 extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9*);
 extern "C" bool On12SpatialFixtureClose();
 extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9*, bool (*)(IDirect3DDevice9*, IDirect3DSurface9*));
+extern "C" HRESULT On12SpatialFixtureSceneAttach(IDirect3DDevice9*,IDirect3DVertexShader9*,IDirect3DPixelShader9*);
 namespace {
 LRESULT CALLBACK FixtureWindow(HWND window, UINT message, WPARAM w, LPARAM l) { return DefWindowProcW(window, message, w, l); }
 unsigned checks = 0;
@@ -117,7 +119,10 @@ int wmain(int argc, wchar_t** argv) {
     for (LONG y = 0; y < 8; ++y) for (LONG x = 0; x < 8; ++x) { RECT r{x, y, x + 1, y + 1}; REQUIRE(SUCCEEDED(device->ColorFill(input.Get(), &r, x > y ? 0xffffffff : 0xff000000))); }
     REQUIRE(Read(device.Get(), input.Get(), 8, 8, original));
     config.antialiasing = 0;
-    REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK && context.SafeForD3D9());
+    REQUIRE(SUCCEEDED(device->BeginScene()));
+    const HRESULT in_scene = context.Render(input.Get(), output.Get(), config);
+    REQUIRE(SUCCEEDED(device->EndScene()));
+    REQUIRE(in_scene == S_OK && context.SafeForD3D9());
     // Read immediately through D3D9: this depends on the returned native fence.
     REQUIRE(Read(device.Get(), output.Get(), 8, 8, identity)); REQUIRE(identity == original);
     config.antialiasing = 1;
@@ -197,6 +202,58 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr, nullptr, nullptr, nullptr)));
     REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
     REQUIRE(On12SpatialFixtureClose());
+    // The engine keeps a native 32x32 window/layout. Only its world targets
+    // become 16x16. A one-pixel UI stroke must remain one native pixel wide.
+    REQUIRE(SUCCEEDED(context.Initialize(wrapped_device.Get(),vs->GetBufferPointer(),vs->GetBufferSize(),ps->GetBufferPointer(),ps->GetBufferSize())));
+    {
+        On12Graphics::SceneTargets scene;
+        std::array<void*,119> functions{}; std::memcpy(functions.data(),*reinterpret_cast<void***>(wrapped_device.Get()),sizeof(functions));
+        REQUIRE(SUCCEEDED(scene.Initialize(wrapped_device.Get(),&context,functions,16,16,32,32)));
+        ComPtr<IDirect3DSurface9> main,logical,physical;
+        ComPtr<IDirect3DTexture9> world;
+        REQUIRE(SUCCEEDED(wrapped_device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&main)));
+        REQUIRE(SUCCEEDED(wrapped_device->CreateTexture(32,32,1,D3DUSAGE_RENDERTARGET,D3DFMT_A8R8G8B8,D3DPOOL_DEFAULT,&world,nullptr)));
+        ComPtr<IDirect3DSurface9> world_target;REQUIRE(SUCCEEDED(world->GetSurfaceLevel(0,&world_target)));
+        REQUIRE(SUCCEEDED(scene.BeginFrame()));
+        REQUIRE(SUCCEEDED(scene.SetTarget(0,world_target.Get())));
+        REQUIRE(SUCCEEDED(scene.GetTarget(0,&logical))&&logical.Get()==world_target.Get());logical.Reset();
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetRenderTarget(0,&physical)));
+        D3DSURFACE_DESC physical_desc{};REQUIRE(SUCCEEDED(physical->GetDesc(&physical_desc))&&physical_desc.Width==16&&physical_desc.Height==16);physical.Reset();
+        D3DVIEWPORT9 world_view{0,0,32,32,0,1},physical_view{},logical_view{};
+        REQUIRE(SUCCEEDED(scene.SetViewport(&world_view))&&SUCCEEDED(scene.GetViewport(&logical_view))&&logical_view.Width==32);
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetViewport(&physical_view))&&physical_view.Width==16);
+        REQUIRE(SUCCEEDED(scene.Clear(0,nullptr,D3DCLEAR_TARGET,0xff7030c0,1,0)));
+        REQUIRE(SUCCEEDED(scene.SetTarget(0,main.Get())));
+        REQUIRE(SUCCEEDED(scene.SetTexture(0,world.Get())));
+        ComPtr<IDirect3DBaseTexture9> logical_texture;REQUIRE(SUCCEEDED(scene.GetTexture(0,&logical_texture))&&logical_texture.Get()==world.Get());logical_texture.Reset();
+        REQUIRE(SUCCEEDED(scene.SetTexture(0,nullptr)));
+        REQUIRE(SUCCEEDED(scene.Stretch(world_target.Get(),nullptr,main.Get(),nullptr,D3DTEXF_POINT)));
+        REQUIRE(SUCCEEDED(wrapped_device->BeginScene()));
+        SpatialSettings quality;quality.enabled=1;
+        REQUIRE(scene.BeginUi(quality)==S_OK&&scene.Ui()&&scene.Safe());
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetViewport(&physical_view))&&physical_view.Width==32);
+        D3DRECT stroke{21,3,22,28};REQUIRE(SUCCEEDED(scene.Clear(1,&stroke,D3DCLEAR_TARGET,0xffffffff,1,0)));
+        REQUIRE(SUCCEEDED(wrapped_device->EndScene()));
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&physical)));
+        std::vector<DWORD> native_ui;REQUIRE(Read(context.NativeDevice(),physical.Get(),32,32,native_ui));physical.Reset();
+        for(UINT y=0;y<32;++y)for(UINT x=0;x<32;++x)REQUIRE(Color(native_ui[y*32+x],x==21&&y>=3&&y<28?0xffffffff:0xff7030c0));
+        REQUIRE(scene.Stats().upscaled==1&&scene.Stats().ui_width==32&&scene.Stats().resources>=3);
+        ComPtr<IDirect3DStateBlock9> saved;
+        REQUIRE(SUCCEEDED(scene.BeforeCapture())&&SUCCEEDED(wrapped_device->CreateStateBlock(D3DSBT_ALL,&saved))&&SUCCEEDED(scene.AfterCapture()));
+        REQUIRE(SUCCEEDED(scene.BeginFrame()));
+        REQUIRE(SUCCEEDED(saved->Apply())&&SUCCEEDED(scene.AfterApply()));
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetViewport(&physical_view))&&physical_view.Width==16);
+        REQUIRE(SUCCEEDED(scene.GetViewport(&logical_view))&&logical_view.Width==32);
+        saved.Reset();
+        REQUIRE(SUCCEEDED(scene.BeforeCapture())&&SUCCEEDED(wrapped_device->BeginStateBlock()));
+        REQUIRE(SUCCEEDED(scene.SetViewport(&world_view)));
+        REQUIRE(SUCCEEDED(wrapped_device->EndStateBlock(&saved))&&SUCCEEDED(scene.AfterCapture()));
+        REQUIRE(SUCCEEDED(saved->Apply())&&SUCCEEDED(scene.AfterApply()));
+        REQUIRE(SUCCEEDED(context.NativeDevice()->GetViewport(&physical_view))&&physical_view.Width==16);saved.Reset();
+        REQUIRE(SUCCEEDED(context.Drain(5000))&&SUCCEEDED(scene.Shutdown()));
+        main.Reset();world_target.Reset();world.Reset();
+    }
+    REQUIRE(SUCCEEDED(context.Shutdown(5000)));
     SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP);
     const HRESULT upscale_attached = On12SpatialFixtureUpscaleAttach(wrapped_device.Get(), ValidateOutput);
     if (FAILED(upscale_attached)) std::fprintf(stderr, "upscale attach=%08lx\n", upscale_attached);
@@ -212,7 +269,30 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr, nullptr, nullptr, nullptr)));
     REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
     REQUIRE(On12SpatialFixtureClose());
-    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"synthetic_only\":true}\n",
+    constexpr char ui_shader[]="float4 S:register(c64);float4 T:register(c65);float4 VS(float3 p:POSITION):POSITION{return float4(p.x*S.x-1,p.y*T.y+1,0,1);}float4 PS():COLOR{return 1;}";
+    ComPtr<ID3DBlob> ui_vs,ui_ps;errors.Reset();
+    REQUIRE(SUCCEEDED(D3DCompile(ui_shader,sizeof(ui_shader)-1,nullptr,nullptr,nullptr,"VS","vs_3_0",flags,0,&ui_vs,&errors)));
+    errors.Reset();REQUIRE(SUCCEEDED(D3DCompile(ui_shader,sizeof(ui_shader)-1,nullptr,nullptr,nullptr,"PS","ps_3_0",flags,0,&ui_ps,&errors)));
+    ComPtr<IDirect3DVertexShader9> ui_vertex;ComPtr<IDirect3DPixelShader9> ui_pixel;
+    REQUIRE(SUCCEEDED(wrapped_device->CreateVertexShader(static_cast<const DWORD*>(ui_vs->GetBufferPointer()),&ui_vertex)));
+    REQUIRE(SUCCEEDED(wrapped_device->CreatePixelShader(static_cast<const DWORD*>(ui_ps->GetBufferPointer()),&ui_pixel)));
+    REQUIRE(SUCCEEDED(On12SpatialFixtureSceneAttach(wrapped_device.Get(),ui_vertex.Get(),ui_pixel.Get())));
+    REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr,nullptr,nullptr,nullptr))); // Begin the first complete scaled world frame.
+    REQUIRE(SUCCEEDED(wrapped_device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff206080,1,0)));
+    REQUIRE(SUCCEEDED(wrapped_device->BeginScene()));
+    const float projection[]{2.0f/32,0,0,0,0,-2.0f/32,0,0,0,0,1,0,0,0,0,1};
+    REQUIRE(SUCCEEDED(wrapped_device->SetFVF(D3DFVF_XYZ))&&SUCCEEDED(wrapped_device->SetVertexShader(ui_vertex.Get()))&&SUCCEEDED(wrapped_device->SetPixelShader(ui_pixel.Get())));
+    REQUIRE(SUCCEEDED(wrapped_device->SetVertexShaderConstantF(64,projection,4)));
+    const float clipped_ui[]{100,100,0};REQUIRE(SUCCEEDED(wrapped_device->DrawPrimitiveUP(D3DPT_POINTLIST,1,clipped_ui,sizeof(clipped_ui))));
+    const D3DRECT native_stroke{21,3,22,28};REQUIRE(SUCCEEDED(wrapped_device->Clear(1,&native_stroke,D3DCLEAR_TARGET,0xffffffff,1,0)));
+    REQUIRE(SUCCEEDED(wrapped_device->EndScene()));
+    ComPtr<IDirect3DSurface9> full_ui;REQUIRE(SUCCEEDED(wrapped_device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&full_ui)));
+    std::vector<DWORD> hooked_pixels;REQUIRE(Read(wrapped_device.Get(),full_ui.Get(),32,32,hooked_pixels));full_ui.Reset();
+    for(UINT y=3;y<28;++y)REQUIRE(Color(hooked_pixels[y*32+21],0xffffffff)&&Color(hooked_pixels[y*32+20],0xff206080)&&Color(hooked_pixels[y*32+22],0xff206080));
+    REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr,nullptr,nullptr,nullptr)));
+    REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
+    REQUIRE(On12SpatialFixtureClose());ui_vertex.Reset();ui_pixel.Reset();
+    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"native_ui_one_pixel\":true,\"scene_targets_smaller\":true,\"state_block_mapping\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"synthetic_only\":true}\n",
         checks, static_cast<unsigned long long>(stats.applied), static_cast<unsigned long long>(stats.checkouts), static_cast<unsigned long long>(stats.returns), softened);
     wrapped_device.Reset(); api.Reset(); DestroyWindow(window); return 0;
 }

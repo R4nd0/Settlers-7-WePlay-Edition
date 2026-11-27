@@ -45,6 +45,10 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(value), 1052)
             self.assertEqual(struct.unpack_from('<7I', value), (1052, 2, 2, 1280, 720, 1920, 1080))
             self.assertEqual(value[28:].decode('utf-16le').rstrip('\0'), str(report))
+            separated=spatial.configuration(report,render_size=(1280,720),output_size=(1920,1080),scene_only=True)
+            self.assertEqual(struct.unpack_from('<7I',separated),(1052,3,3,1280,720,1920,1080))
+            with self.assertRaises(ValueError):spatial.configuration(report,scene_only=1)
+            with self.assertRaises(ValueError):spatial.configuration(report,scene_only=True)
             for render, output in ((None, (1920, 1080)), ((1280, 720), None), ((1280, 720), (1920, 1200)),
                                    ((1280, 720), (1280, 720)), ((640, 360), (3840, 2160)), ((True, 720), (1920, 1080))):
                 with self.subTest(render=render, output=output), self.assertRaises(ValueError):

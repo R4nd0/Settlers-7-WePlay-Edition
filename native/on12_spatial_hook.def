@@ -2,3 +2,4 @@ LIBRARY WePlayOn12SpatialLab
 EXPORTS
     WePlayOn12SpatialInitialize=_WePlayOn12SpatialInitialize@4
     WePlayOn12UpscaleInitialize=_WePlayOn12UpscaleInitialize@4
+    WePlayOn12SceneInitialize=_WePlayOn12SceneInitialize@4
