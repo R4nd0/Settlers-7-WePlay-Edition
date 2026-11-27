@@ -68,6 +68,7 @@ HRESULT SpatialPass::Record(ID3D12GraphicsCommandList* list, ID3D12DescriptorHea
                             UINT sw, UINT sh, UINT ow, UINT oh, float aa) {
     if (!device_ || !list || !heap || !input.ptr || !output.ptr || !sw || !sh || !ow || !oh
         || sw > 16384 || sh > 16384 || ow > 16384 || oh > 16384 || !std::isfinite(aa) || aa < 0 || aa > 1) return E_INVALIDARG;
+    if ((sw != ow || sh != oh) && aa > 0) return E_INVALIDARG;
     if (GetCurrentThreadId() != owner_) return RPC_E_WRONG_THREAD;
     const auto desc = heap->GetDesc();
     if (desc.Type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || !(desc.Flags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE)

@@ -43,12 +43,13 @@ def _invoke_fixed(owned,dll,config,kind):
                'water_once':('WePlayWaterOn12Probe.dll',1036,4,b'WePlayWaterOn12ProbeInitialize\0'),
                'water_pow_cap':('WePlayWaterOn12Probe.dll',1036,1,b'WePlayWaterOn12ProbeInitialize\0'),
                'water_benchmark':('WePlayWaterOn12Probe.dll',1036,3,b'WePlayWaterOn12ProbeInitialize\0'),
-               'on12_spatial':('WePlayOn12SpatialLab.dll',1036,1,b'WePlayOn12SpatialInitialize\0')}
+               'on12_spatial':('WePlayOn12SpatialLab.dll',1036,1,b'WePlayOn12SpatialInitialize\0'),
+               'on12_upscale':('WePlayOn12SpatialLab.dll',1052,2,b'WePlayOn12UpscaleInitialize\0')}
     if kind not in protocols:raise ValueError('Unknown fixed laboratory initializer.')
     name,size,flags,export=protocols[kind]
     owned.owned()
     if (owned.expected!=UBI or not owned.native_initialized or owned.kernel_isolation!=7
-            or Path(dll).name!=name or len(config)!=size or struct.unpack_from('<3I',config)!=(size,1,flags)):
+            or Path(dll).name!=name or len(config)!=size or struct.unpack_from('<3I',config)!=(size,2 if kind=='on12_upscale' else 1,flags)):
         raise ValueError('Capture bootstrap requires its exact isolated original Ubisoft child and ABI.')
     api,k=owned.api,owned.api.k
     k.CreateRemoteThread.argtypes=[W.HANDLE,C.c_void_p,C.c_size_t,C.c_void_p,C.c_void_p,W.DWORD,C.POINTER(W.DWORD)]

@@ -44,9 +44,9 @@ struct FrameContext::Impl {
     struct Frame {
         ComPtr<ID3D12CommandAllocator> allocator;
         ComPtr<ID3D12GraphicsCommandList> list;
-        ComPtr<ID3D12Resource> input, source12, target12;
+        ComPtr<ID3D12Resource> input, antialiased, source12, target12;
         ComPtr<IDirect3DSurface9> source9, target9;
-        ComPtr<ID3D12DescriptorHeap> srv, rtv;
+        ComPtr<ID3D12DescriptorHeap> srv, rtv, aa_srv, aa_rtv;
         UINT64 done = 0; bool source_out = false, target_out = false, submitted = false, signaled = false;
     };
     DWORD owner = 0; UINT next = 0; UINT64 serial = 0; bool poisoned = false;
@@ -115,6 +115,9 @@ HRESULT FrameContext::Initialize(IDirect3DDevice9* original, const void* vs, siz
         hr = prepared->device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&f.srv)); if (FAILED(hr)) return hr;
         heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         hr = prepared->device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&f.rtv)); if (FAILED(hr)) return hr;
+        hr = prepared->device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&f.aa_rtv)); if (FAILED(hr)) return hr;
+        heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV; heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        hr = prepared->device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&f.aa_srv)); if (FAILED(hr)) return hr;
     }
     try {
         prepared->vertex.assign(static_cast<const unsigned char*>(vs), static_cast<const unsigned char*>(vs) + vb);
@@ -127,9 +130,9 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     ControlState control; auto& p = *impl_;
     if (config.size != sizeof(config) || config.version != 1 || config.enabled > 1 || !std::isfinite(config.antialiasing)
         || config.antialiasing < 0 || config.antialiasing > 1) return E_INVALIDARG;
+    if (p.owner && GetCurrentThreadId() != p.owner) return RPC_E_WRONG_THREAD;
     if (!config.enabled) { ++p.stats.disabled; return S_FALSE; }
     if (!p.original || !source || !target || p.poisoned || !p.Safe()) return E_UNEXPECTED;
-    if (GetCurrentThreadId() != p.owner) return RPC_E_WRONG_THREAD;
     if (InterfaceModule(source, 3) != p.native_module || InterfaceModule(target, 3) != p.native_module) return E_INVALIDARG;
     ComPtr<IDirect3DDevice9> sd, td; HRESULT hr = source->GetDevice(&sd); if (FAILED(hr)) return hr;
     hr = target->GetDevice(&td); if (FAILED(hr)) return hr;
@@ -176,11 +179,16 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     hr = f.source12->GetDevice(IID_PPV_ARGS(&source_device)); if (FAILED(hr)) return finish_error(hr);
     hr = f.target12->GetDevice(IID_PPV_ARGS(&target_device)); if (FAILED(hr)) return finish_error(hr);
     if (source_device.Get() != p.device.Get() || target_device.Get() != p.device.Get()) return finish_error(E_INVALIDARG);
-    const unsigned format_index = output_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0 : output_desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ? 1 : 2;
-    if (!p.pass_ready[format_index]) {
-        hr = p.passes[format_index].Initialize(p.device.Get(), output_desc.Format, p.vertex.data(), p.vertex.size(), p.pixel.data(), p.pixel.size());
-        if (FAILED(hr)) return finish_error(hr); p.pass_ready[format_index] = true;
-    }
+    const auto index = [](DXGI_FORMAT format) { return format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0u : format == DXGI_FORMAT_B8G8R8A8_UNORM ? 1u : 2u; };
+    const unsigned format_index = index(output_desc.Format), source_index = index(input_desc.Format);
+    const bool separate_aa = config.antialiasing > 0 && (input_desc.Width != output_desc.Width || input_desc.Height != output_desc.Height);
+    auto prepare_pass = [&](DXGI_FORMAT format) {
+        const auto i = index(format); if (p.pass_ready[i]) return S_OK;
+        const HRESULT result = p.passes[i].Initialize(p.device.Get(), format, p.vertex.data(), p.vertex.size(), p.pixel.data(), p.pixel.size());
+        if (SUCCEEDED(result)) p.pass_ready[i] = true; return result;
+    };
+    hr = prepare_pass(output_desc.Format); if (FAILED(hr)) return finish_error(hr);
+    if (separate_aa) { hr = prepare_pass(input_desc.Format); if (FAILED(hr)) return finish_error(hr); }
     auto scratch = input_desc; scratch.Alignment = 0; scratch.Flags = D3D12_RESOURCE_FLAG_NONE; scratch.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     bool create = !f.input;
     if (f.input) { auto old = f.input->GetDesc(); create = old.Width != scratch.Width || old.Height != scratch.Height || old.Format != scratch.Format; }
@@ -189,21 +197,46 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
         hr = p.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &scratch, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&f.input));
         if (FAILED(hr)) return finish_error(hr);
     }
+    if (separate_aa) {
+        auto aa_desc = scratch; aa_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        bool create_aa = !f.antialiased;
+        if (f.antialiased) { auto old = f.antialiased->GetDesc(); create_aa = old.Width != aa_desc.Width || old.Height != aa_desc.Height || old.Format != aa_desc.Format; }
+        if (create_aa) {
+            f.antialiased.Reset(); D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_DEFAULT; heap.CreationNodeMask = heap.VisibleNodeMask = 1;
+            hr = p.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &aa_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&f.antialiased));
+            if (FAILED(hr)) return finish_error(hr);
+        }
+    }
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{}; srv.Format = input_desc.Format; srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; srv.Texture2D.MipLevels = 1;
     p.device->CreateShaderResourceView(f.input.Get(), &srv, f.srv->GetCPUDescriptorHandleForHeapStart());
     p.device->CreateRenderTargetView(f.target12.Get(), nullptr, f.rtv->GetCPUDescriptorHandleForHeapStart());
+    if (separate_aa) {
+        p.device->CreateShaderResourceView(f.antialiased.Get(), &srv, f.aa_srv->GetCPUDescriptorHandleForHeapStart());
+        p.device->CreateRenderTargetView(f.antialiased.Get(), nullptr, f.aa_rtv->GetCPUDescriptorHandleForHeapStart());
+    }
     Transition(f.list.Get(), f.source12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE);
     Transition(f.list.Get(), f.input.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
     f.list->CopyResource(f.input.Get(), f.source12.Get());
     Transition(f.list.Get(), f.input.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    if (separate_aa) {
+        // AA directions and contrast tests must use source texels. Mixing a
+        // cubic center with bilinear AA taps at output resolution damages text.
+        Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        hr = p.passes[source_index].Record(f.list.Get(), f.srv.Get(), f.srv->GetGPUDescriptorHandleForHeapStart(), f.aa_rtv->GetCPUDescriptorHandleForHeapStart(),
+            static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(input_desc.Width), input_desc.Height, config.antialiasing);
+        if (FAILED(hr)) return finish_error(hr);
+        Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
     Transition(f.list.Get(), f.source12.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, same ? D3D12_RESOURCE_STATE_RENDER_TARGET : D3D12_RESOURCE_STATE_COMMON);
     if (!same) Transition(f.list.Get(), f.target12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    hr = p.passes[format_index].Record(f.list.Get(), f.srv.Get(), f.srv->GetGPUDescriptorHandleForHeapStart(), f.rtv->GetCPUDescriptorHandleForHeapStart(),
-        static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(output_desc.Width), output_desc.Height, config.antialiasing);
+    auto* sample_heap = separate_aa ? f.aa_srv.Get() : f.srv.Get();
+    hr = p.passes[format_index].Record(f.list.Get(), sample_heap, sample_heap->GetGPUDescriptorHandleForHeapStart(), f.rtv->GetCPUDescriptorHandleForHeapStart(),
+        static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(output_desc.Width), output_desc.Height, separate_aa ? 0.0f : config.antialiasing);
     if (FAILED(hr)) return finish_error(hr);
     Transition(f.list.Get(), f.target12.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
     Transition(f.list.Get(), f.input.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
+    if (separate_aa) Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
     hr = f.list->Close(); if (FAILED(hr)) return finish_error(hr);
     ID3D12CommandList* lists[]{f.list.Get()}; p.queue->ExecuteCommandLists(1, lists); f.submitted = true; f.done = ++p.serial;
     hr = p.queue->Signal(p.fence.Get(), f.done);
@@ -224,7 +257,7 @@ HRESULT FrameContext::Drain(DWORD timeout_ms) {
         if (FAILED(hr)) return hr;
         if (waited != WAIT_OBJECT_0) return waited == WAIT_TIMEOUT ? DXGI_ERROR_WAS_STILL_DRAWING : E_FAIL;
     }
-    for (auto& f : p.frames) { f.source12.Reset(); f.target12.Reset(); f.source9.Reset(); f.target9.Reset(); f.input.Reset(); f.done = 0; }
+    for (auto& f : p.frames) { f.source12.Reset(); f.target12.Reset(); f.source9.Reset(); f.target9.Reset(); f.input.Reset(); f.antialiased.Reset(); f.done = 0; }
     return S_OK;
 }
 HRESULT FrameContext::Shutdown(DWORD timeout_ms) {

@@ -7,6 +7,7 @@
 namespace On12Graphics {
 // The host owns this command list. Input must be PIXEL_SHADER_RESOURCE and
 // output RENDER_TARGET. Recording never touches a game's D3D9 pipeline state.
+// AA uses equal extents; resampling uses aa=0. FrameContext composes both.
 class SpatialPass {
 public:
     HRESULT Initialize(ID3D12Device* device, DXGI_FORMAT format,

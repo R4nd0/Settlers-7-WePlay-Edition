@@ -1,35 +1,62 @@
 // Opt-in laboratory host for native D3D12 spatial AA. No per-draw hooks.
 #include "on12_frame_context.h"
+#include "on12_output_window.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <vector>
 #include <sstream>
+#include <atomic>
 
 namespace {
 using namespace WaterOn12Identity;
 using Microsoft::WRL::ComPtr;
 constexpr char GetterName[] = "?GetD3DDevice@VVideo@@SAPAUIDirect3DDevice9@@XZ";
 struct Config { DWORD size, version, flags; wchar_t report[512]; };
+struct UpscaleConfig { DWORD size, version, flags, sw, sh, ow, oh; wchar_t report[512]; };
 static_assert(sizeof(Config) == 1036, "Spatial host ABI");
+static_assert(sizeof(UpscaleConfig) == 1052, "Upscale host ABI");
 using Getter = IDirect3DDevice9* (__cdecl*)();
 using Present = HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*, const RECT*, const RECT*, HWND, const RGNDATA*);
 using Reset = HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
+using DeinitD3D = void (__cdecl*)();
+using DeinitScreen = bool (__cdecl*)(void*);
 struct Slot { void** address; void* original; void* replacement; };
 Getter original_getter = nullptr;
 Present original_present = nullptr; Reset original_reset = nullptr;
+DeinitD3D original_deinit_d3d = nullptr; DeinitScreen original_deinit_screen = nullptr;
 HMODULE wrapper = nullptr, apphelp = nullptr;
 IDirect3DDevice9* admitted = nullptr; DWORD owner = 0;
 // Process-lifetime host: never run a COM destructor after renderer DLL teardown.
 On12Graphics::FrameContext* context = nullptr;
 On12Graphics::SpatialSettings settings;
+On12Graphics::OutputWindow output_window;
+// Explicit owner-thread release; no COM destructor during DLL teardown.
+IDirect3DSwapChain9* output_chain = nullptr;
+void DropOutput() { auto* previous = output_chain; output_chain = nullptr; if (previous) previous->Release(); }
+UINT render_width = 0, render_height = 0, output_width = 0, output_height = 0;
+bool stopped = false;
+bool stopping = false, retired_valid = false;
+On12Graphics::FrameStats retired_stats;
+std::atomic_bool stop_pending{false};
+std::atomic_uint render_calls{0};
+bool InsideRender() { return render_calls.load(std::memory_order_acquire) != 0; }
+bool Stop();
+struct RenderCall { RenderCall() { ++render_calls; } ~RenderCall(); };
+On12Graphics::FrameStats Stats() { return retired_valid ? retired_stats : context ? context->Stats() : On12Graphics::FrameStats{}; }
 std::vector<Slot> getter_slots, device_slots;
 std::wstring report_path, directory;
 DWORD failure = 0, sequence = 0; HRESULT last_result = S_OK;
 UINT width = 0, height = 0;
+DWORD render_stage = 0, source_present_flags = 0; BOOL source_auto_depth = FALSE;
 std::uint64_t presents = 0, resets = 0, errors = 0, original_calls = 0;
+std::uint64_t output_calls = 0;
 thread_local bool internal = false;
+#ifdef S7_ON12_SPATIAL_GPU_FIXTURE
+bool (*validate_output)(IDirect3DDevice9*, IDirect3DSurface9*) = nullptr;
+bool output_validated = false;
+#endif
 struct Scope { Scope() { internal = true; } ~Scope() { internal = false; } };
 
 bool Patch(const Slot& s, bool forward) {
@@ -44,13 +71,15 @@ bool Patch(const Slot& s, bool forward) {
 void Live() noexcept {
     try {
     if (report_path.empty()) return;
-    const auto stats = context ? context->Stats() : On12Graphics::FrameStats{};
+    const auto stats = Stats();
     std::ostringstream text;
     text << "{\"format\":\"s7-on12-spatial-live-v1\",\"failure\":" << failure
-        << ",\"initialized\":" << (context ? "true" : "false") << ",\"enabled\":" << settings.enabled
+        << ",\"initialized\":" << (context ? "true" : "false") << ",\"stopped\":" << (stopped ? "true" : "false") << ",\"enabled\":" << settings.enabled
         << ",\"sequence\":" << sequence << ",\"width\":" << width << ",\"height\":" << height
         << ",\"presents\":" << presents << ",\"original_present_calls\":" << original_calls
+        << ",\"output_present_calls\":" << output_calls << ",\"output_width\":" << output_width << ",\"output_height\":" << output_height
         << ",\"resets\":" << resets << ",\"errors\":" << errors << ",\"last_hr\":" << static_cast<long>(last_result)
+        << ",\"render_stage\":" << render_stage << ",\"source_present_flags\":" << source_present_flags << ",\"source_auto_depth\":" << (source_auto_depth ? "true" : "false")
         << ",\"applied\":" << stats.applied << ",\"busy\":" << stats.busy
         << ",\"checkouts\":" << stats.checkouts << ",\"returns\":" << stats.returns
         << ",\"failed_returns\":" << stats.failed_returns << ",\"safe_for_d3d9\":" << (!context || context->SafeForD3D9() ? "true" : "false") << "}";
@@ -74,17 +103,59 @@ void Command() {
     if (value.sequence > sequence) { sequence = value.sequence; settings.enabled = value.enabled; }
 }
 HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const RECT* b, HWND window, const RGNDATA* region) {
+    RenderCall render_call; bool use_output = false;
     if (!internal && d == admitted && GetCurrentThreadId() == owner) {
         {
             Guard guard; Scope scope; ++presents;
             try {
                 if (presents == 1 || presents % 60 == 0) Command();
-                if (context && settings.enabled && !failure) {
+                if (context && !stopped && !failure && (settings.enabled || output_width)) {
                     ComPtr<IDirect3DSurface9> backbuffer;
+                    render_stage = 1;
                     last_result = context->NativeDevice()->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
                     if (SUCCEEDED(last_result)) {
+                        render_stage = 2;
                         D3DSURFACE_DESC desc{}; last_result = backbuffer->GetDesc(&desc);
-                        if (SUCCEEDED(last_result)) { width = desc.Width; height = desc.Height; last_result = context->Render(backbuffer.Get(), backbuffer.Get(), settings); }
+                        if (SUCCEEDED(last_result)) {
+                            width = desc.Width; height = desc.Height;
+                            if (output_width) {
+                                if (a || b || window || region || width != render_width || height != render_height) last_result = E_INVALIDARG;
+                                else if (output_window.Ready()) {
+                                    if (!output_chain) {
+                                        ComPtr<IDirect3DSwapChain9> original; D3DPRESENT_PARAMETERS source_pp{}, pp{};
+                                        render_stage = 3;
+                                        last_result = context->NativeDevice()->GetSwapChain(0, &original);
+                                        if (SUCCEEDED(last_result)) { render_stage = 4; last_result = original->GetPresentParameters(&source_pp); }
+                                        if (SUCCEEDED(last_result)) {
+                                            source_present_flags = source_pp.Flags; source_auto_depth = source_pp.EnableAutoDepthStencil;
+                                            // The additional color-only chain must not inherit primary
+                                            // depth-stencil/discard/fullscreen flags from the game.
+                                            pp.Windowed = TRUE; pp.hDeviceWindow = source_pp.hDeviceWindow; pp.BackBufferFormat = desc.Format;
+                                            pp.BackBufferWidth = output_width; pp.BackBufferHeight = output_height; pp.BackBufferCount = 1;
+                                            pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+                                            render_stage = 5;
+                                            last_result = context->NativeDevice()->CreateAdditionalSwapChain(&pp, &output_chain);
+                                        }
+                                    }
+                                    if (SUCCEEDED(last_result) && output_chain) {
+                                        render_stage = 6;
+                                        ComPtr<IDirect3DSurface9> target; last_result = output_chain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &target);
+                                        auto pass_settings = settings; pass_settings.enabled = 1; pass_settings.antialiasing = settings.enabled ? 1.0f : 0.0f;
+                                        if (SUCCEEDED(last_result)) { render_stage = 7; last_result = context->Render(backbuffer.Get(), target.Get(), pass_settings); }
+                                        use_output = last_result == S_OK;
+#ifdef S7_ON12_SPATIAL_GPU_FIXTURE
+                                        if (use_output && validate_output) {
+                                            output_validated = validate_output(context->NativeDevice(), target.Get());
+                                            if (!output_validated) { last_result = E_FAIL; use_output = false; }
+                                            // Reproduce engine teardown requested while Present is
+                                            // still active. Release must happen after that call.
+                                            else Stop();
+                                        }
+#endif
+                                    }
+                                }
+                            } else last_result = context->Render(backbuffer.Get(), backbuffer.Get(), settings);
+                        }
                     }
                     if (FAILED(last_result)) { ++errors; failure = 301; }
                 }
@@ -92,21 +163,43 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
             // Never let D3D9 touch a resource still checked out after a device
             // or fence failure. A safe optional-pass failure retains Present.
             if (context && !context->SafeForD3D9()) { Live(); return D3DERR_DEVICELOST; }
-            ++original_calls;
+            if (use_output) ++output_calls; else ++original_calls;
             if (presents == 1 || presents % 60 == 0 || failure) Live();
         }
     }
-    return original_present(d, a, b, window, region);
+    // Exactly one presentation per frame, including fallback when the native
+    // queue's optional slot is busy. Never present a stale output texture.
+    return use_output ? output_chain->Present(nullptr, nullptr, nullptr, nullptr, 0) : original_present(d, a, b, window, region);
 }
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* parameters) {
+    RenderCall render_call;
     if (!internal && d == admitted) {
         Guard guard; Scope scope;
         if (GetCurrentThreadId() != owner) return D3DERR_INVALIDCALL;
         if (context) { const HRESULT drained = context->Drain(5000); if (FAILED(drained)) { ++errors; last_result = drained; Live(); return D3DERR_DEVICELOST; } }
+        DropOutput();
         ++resets;
     }
     return original_reset(d, parameters);
 }
+bool Stop() {
+    if (stopped || !context) return true;
+    if (InsideRender() || GetCurrentThreadId() != owner || stopping) { stop_pending.store(true, std::memory_order_release); return true; }
+    struct Stopping { Stopping() { stopping = true; } ~Stopping() { stopping = false; } } stopping_scope;
+    if (FAILED(context->Drain(5000))) { failure = 501; Live(); return false; }
+    retired_stats = context->Stats(); retired_valid = true;
+    DropOutput();
+    if (context && FAILED(context->Shutdown(5000))) { failure = 502; Live(); return false; }
+    if (output_width && FAILED(output_window.Shutdown())) { failure = 503; Live(); return false; }
+    stopped = true; stop_pending.store(false, std::memory_order_release); Live(); return true;
+}
+RenderCall::~RenderCall() {
+    if (--render_calls == 0 && stop_pending.load(std::memory_order_acquire) && GetCurrentThreadId() == owner) {
+        Guard guard; Stop(); // Preserve the just-returned original API's state.
+    }
+}
+void __cdecl HookDeinitD3D() { { Guard guard; if (!Stop()) return; } original_deinit_d3d(); }
+bool __cdecl HookDeinitScreen(void* config) { { Guard guard; if (!Stop()) return false; } return original_deinit_screen(config); }
 HRESULT Attach(IDirect3DDevice9* device) {
     if (!device || admitted || failure || !Range(device, sizeof(void*))) return E_UNEXPECTED;
     auto** table = *reinterpret_cast<void***>(device);
@@ -129,10 +222,29 @@ HRESULT Attach(IDirect3DDevice9* device) {
     if (FAILED(hr)) return hr;
     auto candidate = std::unique_ptr<On12Graphics::FrameContext>(new (std::nothrow) On12Graphics::FrameContext); if (!candidate) return E_OUTOFMEMORY;
     hr = candidate->Initialize(device, vs->GetBufferPointer(), vs->GetBufferSize(), ps->GetBufferPointer(), ps->GetBufferSize()); if (FAILED(hr)) return hr;
+    device_slots.reserve(2);
+    if (output_width) {
+        ComPtr<IDirect3DSwapChain9> chain; D3DPRESENT_PARAMETERS pp{};
+        hr = candidate->NativeDevice()->GetSwapChain(0, &chain); if (FAILED(hr)) return hr;
+        hr = chain->GetPresentParameters(&pp); if (FAILED(hr)) return hr;
+        if (!pp.Windowed || pp.BackBufferWidth != render_width || pp.BackBufferHeight != render_height) return E_INVALIDARG;
+        HMODULE modules[]{GetModuleHandleW(nullptr), GetModuleHandleW(L"vbase90.dll"), GetModuleHandleW(L"vision90.dll")};
+        hr = output_window.Initialize(pp.hDeviceWindow, render_width, render_height, output_width, output_height, modules,
+#ifdef S7_ON12_SPATIAL_GPU_FIXTURE
+            1,
+#else
+            3,
+#endif
+            InsideRender);
+#ifdef S7_ON12_SPATIAL_GPU_FIXTURE
+        if (FAILED(hr)) std::fprintf(stderr, "output window initialize=%08lx\n", hr);
+#endif
+        if (FAILED(hr)) return hr;
+    }
     device_slots = {{&table[17], table[17], reinterpret_cast<void*>(HookPresent)}, {&table[16], table[16], reinterpret_cast<void*>(HookReset)}};
     original_present = reinterpret_cast<Present>(table[17]); original_reset = reinterpret_cast<Reset>(table[16]);
     size_t patched = 0;
-    for (const auto& slot : device_slots) { if (!Patch(slot, true)) { while (patched) Patch(device_slots[--patched], false); device_slots.clear(); return E_FAIL; } ++patched; }
+    for (const auto& slot : device_slots) { if (!Patch(slot, true)) { while (patched) Patch(device_slots[--patched], false); device_slots.clear(); if (output_width) output_window.Shutdown(); return E_FAIL; } ++patched; }
     admitted = device; owner = GetCurrentThreadId(); context = candidate.release(); settings.enabled = 1;
     for (auto it = getter_slots.rbegin(); it != getter_slots.rend(); ++it) if (!Patch(*it, false)) { failure = 203; return E_FAIL; }
     Live(); return S_OK;
@@ -146,7 +258,7 @@ IDirect3DDevice9* __cdecl HookGetter() {
     }
     return device;
 }
-bool Import(HMODULE module, std::vector<Slot>& slots) {
+bool Import(HMODULE module, std::vector<Slot>& slots, const char* requested, void* original, void* replacement) {
     auto* image = reinterpret_cast<unsigned char*>(module); const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image);
     if (!Range(dos, sizeof(*dos)) || dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < 64 || dos->e_lfanew > 4096) return false;
     const auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image + dos->e_lfanew);
@@ -164,12 +276,12 @@ bool Import(HMODULE module, std::vector<Slot>& slots) {
             if (!valid(e.OriginalFirstThunk + offset, 4) || !valid(e.FirstThunk + offset, 4)) return false;
             const DWORD thunk = reinterpret_cast<IMAGE_THUNK_DATA32*>(image + e.OriginalFirstThunk + offset)->u1.AddressOfData;
             if (!thunk) break; if (IMAGE_SNAP_BY_ORDINAL32(thunk)) continue;
-            if (!valid(thunk, sizeof(WORD) + sizeof(GetterName))) return false;
+            if (!valid(thunk, sizeof(WORD) + strlen(requested) + 1)) return false;
             const auto* name = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(image + thunk);
-            if (std::memcmp(name->Name, GetterName, sizeof(GetterName))) continue;
+            if (std::memcmp(name->Name, requested, strlen(requested) + 1)) continue;
             auto** slot = reinterpret_cast<void**>(image + e.FirstThunk + offset);
-            if (*slot != reinterpret_cast<void*>(original_getter)) return false;
-            slots.push_back({slot, *slot, reinterpret_cast<void*>(HookGetter)});
+            if (*slot != original) return false;
+            slots.push_back({slot, *slot, replacement});
         }
     }
     return true;
@@ -197,15 +309,35 @@ extern "C" DWORD WINAPI WePlayOn12SpatialInitialize(void* opaque) {
         apphelp = GetModuleHandleW(L"apphelp.dll");
         if (apphelp && !Module(apphelp, "34655b97cbcaa5b93733da1d9118e0663735c442eb0016671a98389f3cde863e")) return 105;
         original_getter = reinterpret_cast<Getter>(GetProcAddress(GetModuleHandleW(L"vbase90.dll"), GetterName)); if (!original_getter) return 106;
-        std::vector<Slot> slots; if (!Import(GetModuleHandleW(nullptr), slots) || !Import(GetModuleHandleW(L"vision90.dll"), slots) || slots.empty()) return 107;
+        std::vector<Slot> slots;
+        if (!Import(GetModuleHandleW(nullptr), slots, GetterName, reinterpret_cast<void*>(original_getter), reinterpret_cast<void*>(HookGetter))
+            || !Import(GetModuleHandleW(L"vision90.dll"), slots, GetterName, reinterpret_cast<void*>(original_getter), reinterpret_cast<void*>(HookGetter)) || slots.empty()) return 107;
+        getter_slots = slots;
+        constexpr char deinit_d3d[] = "?DeInitializeD3D@VVideo@@SAXXZ";
+        constexpr char deinit_screen[] = "?DeInitializeScreen@VVideo@@SA_NAAVVVideoConfig@@@Z";
+        original_deinit_d3d = reinterpret_cast<DeinitD3D>(GetProcAddress(GetModuleHandleW(L"vbase90.dll"), deinit_d3d));
+        original_deinit_screen = reinterpret_cast<DeinitScreen>(GetProcAddress(GetModuleHandleW(L"vbase90.dll"), deinit_screen));
+        if (!original_deinit_d3d || !original_deinit_screen
+            || !Import(GetModuleHandleW(L"vision90.dll"), slots, deinit_d3d, reinterpret_cast<void*>(original_deinit_d3d), reinterpret_cast<void*>(HookDeinitD3D))
+            || !Import(GetModuleHandleW(L"vision90.dll"), slots, deinit_screen, reinterpret_cast<void*>(original_deinit_screen), reinterpret_cast<void*>(HookDeinitScreen))) return 111;
         HMODULE self = nullptr;
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN, reinterpret_cast<const wchar_t*>(WePlayOn12SpatialInitialize), &self)) return 108;
         report_path = c.report; directory = report_path.substr(0, report_path.find_last_of(L'\\'));
-        getter_slots = slots;
         size_t patched = 0;
         for (const auto& slot : slots) { if (!Patch(slot, true)) { while (patched) Patch(slots[--patched], false); return 109; } ++patched; }
-        Live(); return 1;
+        return 1; // Only the owner thread publishes live renderer state.
     } catch (...) { return 110; }
+}
+
+extern "C" DWORD WINAPI WePlayOn12UpscaleInitialize(void* opaque) {
+    Guard guard; UpscaleConfig c{}; SIZE_T read = 0;
+    if (original_getter || !opaque || !ReadProcessMemory(GetCurrentProcess(), opaque, &c, sizeof(c), &read) || read != sizeof(c)
+        || c.size != sizeof(c) || c.version != 2 || c.flags != 2 || c.sw < 640 || c.sh < 360 || c.ow <= c.sw || c.oh <= c.sh
+        || c.ow > 4096 || c.oh > 4096 || c.ow > c.sw * 2 || c.oh > c.sh * 2
+        || static_cast<UINT64>(c.sw) * c.oh != static_cast<UINT64>(c.sh) * c.ow) return 0;
+    render_width = c.sw; render_height = c.sh; output_width = c.ow; output_height = c.oh;
+    Config legacy{sizeof(Config), 1, 1, {}}; memcpy(legacy.report, c.report, sizeof(c.report));
+    return WePlayOn12SpatialInitialize(&legacy);
 }
 
 #ifdef S7_ON12_SPATIAL_GPU_FIXTURE
@@ -215,9 +347,16 @@ extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9* device) {
     apphelp = GetModuleHandleW(L"apphelp.dll"); return Attach(device);
 }
 extern "C" bool On12SpatialFixtureClose() {
-    Guard guard; if (!context || presents != 1 || original_calls != 1 || resets != 1 || failure || errors || context->Stats().applied != 1) return false;
-    if (FAILED(context->Shutdown(5000))) return false;
+    Guard guard; if (!context || presents != 1 || original_calls + output_calls != 1 || resets != 1 || failure || errors || Stats().applied != 1
+        || (output_width && (output_calls != 1 || !output_validated))) return false;
+    if (!Stop()) return false;
     for (auto it = device_slots.rbegin(); it != device_slots.rend(); ++it) if (!Patch(*it, false)) return false;
-    delete context; context = nullptr; return true;
+    delete context; context = nullptr; admitted = nullptr; owner = 0; presents = original_calls = output_calls = resets = 0; stopped = false;
+    retired_valid = false; retired_stats = {}; stop_pending = false;
+    render_width = render_height = output_width = output_height = 0; return true;
+}
+extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9* device, bool (*validate)(IDirect3DDevice9*, IDirect3DSurface9*)) {
+    Guard guard; render_width = render_height = 32; output_width = output_height = 64; validate_output = validate;
+    return Attach(device);
 }
 #endif

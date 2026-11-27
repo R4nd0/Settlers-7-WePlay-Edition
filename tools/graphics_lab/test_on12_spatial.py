@@ -38,6 +38,18 @@ class Tests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 spatial.configuration(report)
 
+    def test_upscale_abi_and_aspect_admission(self):
+        with TemporaryDirectory(dir=spatial.ROOT / 'work') as temporary:
+            report = Path(temporary) / 'on12-spatial-live.private.json'
+            value = spatial.configuration(report, render_size=(1280, 720), output_size=(1920, 1080))
+            self.assertEqual(len(value), 1052)
+            self.assertEqual(struct.unpack_from('<7I', value), (1052, 2, 2, 1280, 720, 1920, 1080))
+            self.assertEqual(value[28:].decode('utf-16le').rstrip('\0'), str(report))
+            for render, output in ((None, (1920, 1080)), ((1280, 720), None), ((1280, 720), (1920, 1200)),
+                                   ((1280, 720), (1280, 720)), ((640, 360), (3840, 2160)), ((True, 720), (1920, 1080))):
+                with self.subTest(render=render, output=output), self.assertRaises(ValueError):
+                    spatial.configuration(report, render_size=render, output_size=output)
+
     def test_wait_for_detach_and_initialize_exactly_once(self):
         with TemporaryDirectory(dir=spatial.ROOT / 'work') as temporary:
             case = Path(temporary)
@@ -48,6 +60,7 @@ class Tests(unittest.TestCase):
             session.executable = case / 'Settlers7R.exe'
             session.directory = case / 'build'
             session.config = b'fixed'
+            session.protocol = 'on12_spatial'
             session.build = {'files': {spatial.DLL: 'source-bound'}}
             owned = SimpleNamespace(executable=session.executable)
             report = dict(snapshot_done=False)

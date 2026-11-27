@@ -31,6 +31,8 @@ class Tests(unittest.TestCase):
         for kind,flag in (('water_observe',1),('water_pow_cap',0),('unknown',0)):
             with self.subTest(kind=kind),self.assertRaises(ValueError):
                 b._invoke_fixed(owned,Path('WePlayWaterOn12Probe.dll'),struct.pack('<3I',1036,1,flag)+b'\0'*1024,kind)
+        with self.assertRaises(ValueError):
+            b._invoke_fixed(owned,Path('WePlayOn12SpatialLab.dll'),struct.pack('<3I',1052,1,2)+b'\0'*1040,'on12_upscale')
 
 
 if __name__=='__main__':unittest.main()

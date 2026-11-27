@@ -16,7 +16,9 @@ using On12Graphics::FrameContext;
 using On12Graphics::SpatialSettings;
 extern "C" HRESULT On12SpatialFixtureAttach(IDirect3DDevice9*);
 extern "C" bool On12SpatialFixtureClose();
+extern "C" HRESULT On12SpatialFixtureUpscaleAttach(IDirect3DDevice9*, bool (*)(IDirect3DDevice9*, IDirect3DSurface9*));
 namespace {
+LRESULT CALLBACK FixtureWindow(HWND window, UINT message, WPARAM w, LPARAM l) { return DefWindowProcW(window, message, w, l); }
 unsigned checks = 0;
 bool Check(bool okay, unsigned line) { ++checks; if (!okay) std::fprintf(stderr, "check failed at %u\n", line); return okay; }
 #define REQUIRE(x) do { if (!Check(!!(x), __LINE__)) return 20; } while (false)
@@ -33,13 +35,19 @@ bool Color(DWORD value, DWORD expected, int tolerance = 0) {
     for (unsigned shift : {0u, 8u, 16u}) if (std::abs(int((value >> shift) & 255) - int((expected >> shift) & 255)) > tolerance) return false;
     return true;
 }
+bool ValidateOutput(IDirect3DDevice9* device, IDirect3DSurface9* target) {
+    D3DSURFACE_DESC desc{}; std::vector<DWORD> pixels;
+    if (FAILED(target->GetDesc(&desc)) || desc.Width != 64 || desc.Height != 64 || !Read(device, target, 64, 64, pixels)) return false;
+    for (DWORD pixel : pixels) if (!Color(pixel, 0xff2050b0)) return false;
+    return true;
+}
 }
 int wmain(int argc, wchar_t** argv) {
     if (argc != 3 || (wcscmp(argv[2], L"on12") && wcscmp(argv[2], L"native"))) return 1;
     const bool on12 = !wcscmp(argv[2], L"on12"); std::string expected;
     for (size_t i = 0; i < wcslen(argv[1]); ++i) { const auto c = argv[1][i]; if (!((c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f'))) return 1; expected += static_cast<char>(c); }
     if (expected.size() != 64) return 1;
-    WNDCLASSW wc{}; wc.lpfnWndProc = DefWindowProcW; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"WePlayOn12SpatialFixture";
+    WNDCLASSW wc{}; wc.lpfnWndProc = FixtureWindow; wc.hInstance = GetModuleHandleW(nullptr); wc.lpszClassName = L"WePlayOn12SpatialFixture";
     REQUIRE(RegisterClassW(&wc)); HWND window = CreateWindowW(wc.lpszClassName, L"On12 spatial GPU fixture", WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, nullptr, nullptr, wc.hInstance, nullptr); REQUIRE(window);
     HMODULE module = LoadLibraryW(L"d3d9.dll"); REQUIRE(module);
     using Create = IDirect3D9* (WINAPI*)(UINT); auto create = reinterpret_cast<Create>(GetProcAddress(module, "Direct3DCreate9")); REQUIRE(create);
@@ -47,6 +55,7 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(WaterOn12Identity::Module(GetModuleHandleW(L"dxwrapper.dll"), WaterOn12Identity::Wrapper));
     D3DPRESENT_PARAMETERS pp{}; pp.Windowed = TRUE; pp.BackBufferWidth = pp.BackBufferHeight = 32;
     pp.BackBufferFormat = D3DFMT_A8R8G8B8; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.hDeviceWindow = window; pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    pp.EnableAutoDepthStencil = TRUE; pp.AutoDepthStencilFormat = D3DFMT_D24S8; pp.Flags = D3DPRESENTFLAG_DISCARD_DEPTHSTENCIL;
     ComPtr<IDirect3DDevice9> wrapped_device, device; REQUIRE(SUCCEEDED(api->CreateDevice(0, D3DDEVTYPE_HAL, window, D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE, &pp, &device)));
     if (on12) REQUIRE(WaterOn12Identity::Module(GetModuleHandleW(L"d3d9on12.dll"), expected.c_str()));
     ComPtr<ID3DBlob> vs, ps, errors;
@@ -104,7 +113,7 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(device->SetRenderTarget(0, output.Get())));
     D3DVIEWPORT9 draw_viewport{0, 0, 8, 8, 0, 1}; REQUIRE(SUCCEEDED(device->SetViewport(&draw_viewport)));
     viewport = draw_viewport;
-    std::vector<DWORD> original, identity, filtered;
+    std::vector<DWORD> original, identity, filtered, source_aa;
     for (LONG y = 0; y < 8; ++y) for (LONG x = 0; x < 8; ++x) { RECT r{x, y, x + 1, y + 1}; REQUIRE(SUCCEEDED(device->ColorFill(input.Get(), &r, x > y ? 0xffffffff : 0xff000000))); }
     REQUIRE(Read(device.Get(), input.Get(), 8, 8, original));
     config.antialiasing = 0;
@@ -114,6 +123,7 @@ int wmain(int argc, wchar_t** argv) {
     config.antialiasing = 1;
     REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK && context.SafeForD3D9());
     REQUIRE(Read(device.Get(), output.Get(), 8, 8, filtered));
+    source_aa = filtered;
     unsigned softened = 0; for (DWORD p : filtered) if ((p & 255) > 0 && (p & 255) < 255) ++softened;
     REQUIRE(softened >= 4 && softened < 48); REQUIRE(Color(filtered[7], 0xffffffff) && Color(filtered[56], 0xff000000));
     D3DVIEWPORT9 after{}; DWORD cull = 0; REQUIRE(SUCCEEDED(device->GetViewport(&after)) && !std::memcmp(&after, &viewport, sizeof(after)));
@@ -126,12 +136,37 @@ int wmain(int argc, wchar_t** argv) {
     const HRESULT drawn = device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 1, triangle, sizeof(Vertex));
     REQUIRE(SUCCEEDED(device->EndScene()) && SUCCEEDED(drawn));
     REQUIRE(Read(device.Get(), output.Get(), 8, 8, filtered) && Color(filtered[3 * 8 + 3], 0xffa020d0));
+    {
+        ComPtr<IDirect3DSurface9> glyph, glyph_output;
+        REQUIRE(SUCCEEDED(device->CreateRenderTarget(8, 8, D3DFMT_A8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &glyph, nullptr))
+            && SUCCEEDED(device->CreateRenderTarget(8, 8, D3DFMT_A8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &glyph_output, nullptr)));
+        for (bool dark : {false, true}) {
+            for (LONG y = 0; y < 8; ++y) for (LONG x = 0; x < 8; ++x) {
+                const bool stroke = (x == 2 && y >= 2 && y <= 6) || ((y == 2 || y == 4 || y == 6) && x >= 2 && x <= 5);
+                RECT r{x, y, x + 1, y + 1}; REQUIRE(SUCCEEDED(device->ColorFill(glyph.Get(), &r, stroke != dark ? 0xffffffff : 0xff000000)));
+            }
+            REQUIRE(context.Render(glyph.Get(), glyph_output.Get(), config) == S_OK);
+            REQUIRE(Read(device.Get(), glyph_output.Get(), 8, 8, filtered));
+            const DWORD ink = dark ? 0xff000000 : 0xffffffff;
+            // The middle crossbar used to disappear under directional AA.
+            REQUIRE(filtered[4 * 8 + 3] == ink && filtered[2 * 8 + 4] == ink && filtered[6 * 8 + 4] == ink && filtered[3 * 8 + 2] == ink);
+        }
+    }
     const auto before_invalid = context.Stats().checkouts; auto invalid = config; invalid.enabled = 2;
     REQUIRE(context.Render(input.Get(), output.Get(), invalid) == E_INVALIDARG && context.Stats().checkouts == before_invalid);
     invalid = config; invalid.antialiasing = NAN; REQUIRE(context.Render(input.Get(), output.Get(), invalid) == E_INVALIDARG && context.SafeForD3D9());
     ComPtr<IDirect3DSurface9> default_target;
     REQUIRE(SUCCEEDED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &default_target)) && SUCCEEDED(device->SetRenderTarget(0, default_target.Get())));
     default_target.Reset();
+    REQUIRE(SUCCEEDED(context.Drain(5000))); input.Reset(); output.Reset(); REQUIRE(make(8, 16));
+    for (LONG y = 0; y < 8; ++y) for (LONG x = 0; x < 8; ++x) { RECT r{x, y, x + 1, y + 1}; REQUIRE(SUCCEEDED(device->ColorFill(input.Get(), &r, x > y ? 0xffffffff : 0xff000000))); }
+    config.antialiasing = 1; REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK);
+    std::vector<DWORD> composed; REQUIRE(Read(device.Get(), output.Get(), 16, 16, composed));
+    // Independent reference: upload the previously read 8x8 AA result, then
+    // request scale-only. Combined rendering must have the same stage order.
+    for (LONG y = 0; y < 8; ++y) for (LONG x = 0; x < 8; ++x) { RECT r{x, y, x + 1, y + 1}; REQUIRE(SUCCEEDED(device->ColorFill(input.Get(), &r, source_aa[y * 8 + x]))); }
+    config.antialiasing = 0; REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK);
+    REQUIRE(Read(device.Get(), output.Get(), 16, 16, filtered) && filtered == composed);
     REQUIRE(SUCCEEDED(context.Drain(5000))); input.Reset(); output.Reset(); REQUIRE(make(4, 8));
     const std::array<RECT, 4> rectangles{{{0, 0, 2, 2}, {2, 0, 4, 2}, {0, 2, 2, 4}, {2, 2, 4, 4}}};
     const DWORD colors[]{0xffff0000, 0xff00ff00, 0xff0000ff, 0xffffff00};
@@ -155,14 +190,29 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK && Read(device.Get(), output.Get(), 8, 8, filtered));
     for (DWORD p : filtered) REQUIRE(Color(p, 0xffa04020));
     REQUIRE(SUCCEEDED(context.Drain(5000))); input.Reset(); output.Reset(); const auto stats = context.Stats();
-    REQUIRE(stats.applied == 5 && stats.checkouts == stats.returns && !stats.failed_returns && context.SafeForD3D9());
+    REQUIRE(stats.applied == 9 && stats.checkouts == stats.returns && !stats.failed_returns && context.SafeForD3D9());
     device.Reset(); REQUIRE(SUCCEEDED(context.Shutdown(5000)));
     // Exercise the actual host hooks on the same wrapper used by the game.
     REQUIRE(SUCCEEDED(On12SpatialFixtureAttach(wrapped_device.Get())));
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr, nullptr, nullptr, nullptr)));
     REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
     REQUIRE(On12SpatialFixtureClose());
-    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_passes\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"synthetic_only\":true}\n",
+    SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP);
+    const HRESULT upscale_attached = On12SpatialFixtureUpscaleAttach(wrapped_device.Get(), ValidateOutput);
+    if (FAILED(upscale_attached)) std::fprintf(stderr, "upscale attach=%08lx\n", upscale_attached);
+    REQUIRE(SUCCEEDED(upscale_attached));
+    MSG message{}; while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); }
+    RECT logical_rect{}; REQUIRE(GetClientRect(window, &logical_rect) && logical_rect.right == 32 && logical_rect.bottom == 32);
+    POINT cursor{16, 16}; REQUIRE(ClientToScreen(window, &cursor) && ScreenToClient(window, &cursor) && cursor.x == 16 && cursor.y == 16);
+    ComPtr<IDirect3DDevice9On12> bridge; ComPtr<IDirect3DDevice9> raw;
+    REQUIRE(SUCCEEDED(wrapped_device.As(&bridge)) && SUCCEEDED(bridge.As(&raw)));
+    REQUIRE(SUCCEEDED(raw->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer)));
+    REQUIRE(SUCCEEDED(raw->ColorFill(backbuffer.Get(), nullptr, 0xff2050b0)));
+    backbuffer.Reset(); raw.Reset(); bridge.Reset();
+    REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr, nullptr, nullptr, nullptr)));
+    REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
+    REQUIRE(On12SpatialFixtureClose());
+    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"synthetic_only\":true}\n",
         checks, static_cast<unsigned long long>(stats.applied), static_cast<unsigned long long>(stats.checkouts), static_cast<unsigned long long>(stats.returns), softened);
     wrapped_device.Reset(); api.Reset(); DestroyWindow(window); return 0;
 }

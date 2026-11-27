@@ -195,10 +195,12 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
         observer_sha256=None, material_capture=None, material_capture_sha256=None,
         high_quality=False, material_effects=(), effects_initially_off=False,detailed_shadows=False,comparison_uv=False,
         crash_watch=False,material_config_version=1,baseline_crash_watch=False,water_program=False,water_variant='A',terrain_macro=False,shadow_filter=False,ambient_occlusion=False,ambient_profile='A',leaf_hemisphere=False,baseline_metric_profile=False,leaf_wrapped=False,leaf_palette=False,water_palette=False,shader_overlay=False,shader_profile=None,
-        laboratory_renderer=None,dxwrapper_package=None,water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False,on12_spatial_build=None):
+        laboratory_renderer=None,dxwrapper_package=None,water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False,on12_spatial_build=None,on12_spatial_output=None):
     renderer_session = None
     if on12_spatial_build is not None and not water_backend:
         raise ValueError('Native spatial AA requires the source-built On12 path and detached water capture.')
+    if on12_spatial_output is not None and on12_spatial_build is None:
+        raise ValueError('Native upscaling requires its explicit spatial build.')
     if type(water_backend)is not bool or (water_backend and (on12_runtime_build is None or water_probe is None
             or laboratory_renderer!='dxwrapper-d3d9on12' or water_pow_cap or water_benchmark)):
         raise ValueError('Backend water correction requires its explicit source build and exclusive read-only capture.')
@@ -314,7 +316,7 @@ def run(root, output, *, width=1920, height=1080, seconds=900, on_initialized=No
     memory_guard.observe_host_memory()
     if laboratory_renderer is not None:
         renderer_session = dxwrapper.Session(root, output, laboratory_renderer, dxwrapper_package,
-                                             water_probe=water_probe,water_pow_cap=water_pow_cap,water_benchmark=water_benchmark,water_worker_priority=water_worker_priority,on12_runtime_build=on12_runtime_build,water_backend=water_backend,on12_spatial_build=on12_spatial_build)
+                                             water_probe=water_probe,water_pow_cap=water_pow_cap,water_benchmark=water_benchmark,water_worker_priority=water_worker_priority,on12_runtime_build=on12_runtime_build,water_backend=water_backend,on12_spatial_build=on12_spatial_build,on12_spatial_output=on12_spatial_output,spatial_render_size=(width,height))
     if hook is not None:
         if on_initialized is not None:
             raise ValueError('Choose the fixed hook initializer or an explicit callback, not both.')

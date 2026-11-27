@@ -13,8 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 DLL = 'WePlayOn12SpatialLab.dll'
 SOURCES = ('on12_frame_context.h', 'on12_frame_context.cpp', 'on12_spatial_pass.h',
            'on12_spatial_pass.cpp', 'on12_spatial_pass.hlsl', 'on12_spatial_hook.cpp',
-           'on12_spatial_hook.def', 'on12_spatial_gpu.cpp', 'water_on12_identity.h')
-BINARIES = (DLL, 'on12_spatial_gpu.exe')
+           'on12_spatial_hook.def', 'on12_spatial_gpu.cpp', 'water_on12_identity.h',
+           'on12_output_window.h', 'on12_output_window.cpp', 'on12_output_window_fixture.cpp')
+BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe')
 MANIFEST = 'on12-spatial-build.json'
 WINDOWS_ON12 = '8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a'
 SOURCE_ON12 = '24aceac4aa280d09f1ec2c4c9a2b3d784bf158fe1f0f23292ab1072db9187364'
@@ -35,13 +36,22 @@ def verify_build(directory):
     return directory, value
 
 
-def configuration(report):
+def configuration(report, *, render_size=None, output_size=None):
     report = recover.lab(report)
     text = str(report)
     raw = text.encode('utf-16le')
     if report.name != 'on12-spatial-live.private.json' or '\0' in text or len(raw) > 1022 or report.exists():
         raise ValueError('Use a fresh native On12 spatial report below work/.')
-    return struct.pack('<3I', 1036, 1, 1) + raw.ljust(1024, b'\0')
+    if render_size is None and output_size is None:
+        return struct.pack('<3I', 1036, 1, 1) + raw.ljust(1024, b'\0')
+    if (type(render_size) is not tuple or type(output_size) is not tuple or len(render_size) != 2 or len(output_size) != 2
+            or any(type(x) is not int for x in (*render_size, *output_size))):
+        raise ValueError('Upscaling requires explicit integer render and output extents.')
+    sw, sh = render_size
+    ow, oh = output_size
+    if not (640 <= sw < ow <= 4096 and 360 <= sh < oh <= 4096 and ow <= sw * 2 and oh <= sh * 2 and sw * oh == sh * ow):
+        raise ValueError('Use an aspect-matched upscale of at most twice the internal resolution.')
+    return struct.pack('<7I', 1052, 2, 2, sw, sh, ow, oh) + raw.ljust(1024, b'\0')
 
 
 def command(case, sequence, enabled):
@@ -53,7 +63,7 @@ def command(case, sequence, enabled):
 
 class Session:
     """Attach only after the source-bound water observer detached every hook."""
-    def __init__(self, build, executable, case):
+    def __init__(self, build, executable, case, *, render_size=None, output_size=None):
         self.directory, self.build = verify_build(build)
         self.executable, self.case = recover.lab(executable), recover.lab(case)
         if loader.digest(self.executable) != loader.UBI:
@@ -61,7 +71,8 @@ class Session:
         if any(a.is_relative_to(b) or b.is_relative_to(a) for a, b in
                ((self.directory, self.case), (self.directory, self.executable.parent))):
             raise ValueError('Keep spatial builds, game and diagnostic output separate.')
-        self.config = configuration(self.case / 'on12-spatial-live.private.json')
+        self.config = configuration(self.case / 'on12-spatial-live.private.json', render_size=render_size, output_size=output_size)
+        self.protocol = 'on12_upscale' if output_size is not None else 'on12_spatial'
         self.leases = ExitStack()
         self.prepared = self.initialized = False
 
@@ -98,7 +109,7 @@ class Session:
                 or report.get('snapshot_once') is not True or report.get('hooks_detached') is not True
                 or report.get('pow_cap_requested') is not False or report.get('caps_applied') != 0):
             raise RuntimeError('Spatial host requires the fully detached read-only On12 water observer.')
-        receipt = loader._invoke_fixed(owned, self.directory / DLL, self.config, 'on12_spatial')
+        receipt = loader._invoke_fixed(owned, self.directory / DLL, self.config, self.protocol)
         receipt.update(format='s7-on12-spatial-init-v1', dll_sha256=self.build['files'][DLL], water_hooks_detached=True)
         recover._write_new(self.case / 'on12-spatial-initialized.private.json', json.dumps(receipt, indent=2).encode())
         self.initialized = True

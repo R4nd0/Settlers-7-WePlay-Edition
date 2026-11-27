@@ -34,7 +34,8 @@ float4 ReconstructColor(float2 uv) {
     return clamp(result, low, high);
 }
 float4 PS(Vertex input) : SV_Target {
-    float4 center = Reconstruct != 0 ? ReconstructColor(input.uv) : Scene.SampleLevel(LinearClamp, input.uv, 0);
+    if (Reconstruct != 0) return ReconstructColor(input.uv);
+    float4 center = Scene.SampleLevel(LinearClamp, input.uv, 0);
     if (Strength == 0) return center;
     float3 nw = Scene.SampleLevel(LinearClamp, input.uv + float2(-1, -1) * InvSourceSize, 0).rgb;
     float3 ne = Scene.SampleLevel(LinearClamp, input.uv + float2( 1, -1) * InvSourceSize, 0).rgb;
@@ -44,6 +45,15 @@ float4 PS(Vertex input) : SV_Target {
     float low = min(m, min(min(a, b), min(c, d)));
     float high = max(m, max(max(a, b), max(c, d)));
     if (high - low < max(0.03125, high * 0.125)) return center;
+    float north = Luma(Scene.SampleLevel(LinearClamp, input.uv + float2(0, -1) * InvSourceSize, 0).rgb);
+    float south = Luma(Scene.SampleLevel(LinearClamp, input.uv + float2(0,  1) * InvSourceSize, 0).rgb);
+    float west = Luma(Scene.SampleLevel(LinearClamp, input.uv + float2(-1, 0) * InvSourceSize, 0).rgb);
+    float east = Luma(Scene.SampleLevel(LinearClamp, input.uv + float2( 1, 0) * InvSourceSize, 0).rgb);
+    // A narrow local peak/trough is a thin feature, not a wide stair-step
+    // edge. Directional averaging can erase the crossbar of a bitmap glyph.
+    float thin = max(0.03125, high * 0.0625);
+    if ((m > north + thin && m > south + thin) || (m > west + thin && m > east + thin)
+        || (m + thin < north && m + thin < south) || (m + thin < west && m + thin < east)) return center;
     float2 direction = float2(-((a + b) - (c + d)), (a + c) - (b + d));
     float reduce = max((a + b + c + d) * 0.03125, 0.0078125);
     direction = clamp(direction / (min(abs(direction.x), abs(direction.y)) + reduce), -8, 8) * InvSourceSize;
