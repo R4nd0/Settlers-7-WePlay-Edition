@@ -97,7 +97,7 @@ class AlteredRoomBroker(CrossplayRoomBroker):
                 raise ValueError('Unknown mutation')
         return bytes(body)
 
-def run_room(executable, editions, host_slot, mutation=None, *, admission=False, delay=False):
+def run_room(executable, editions, host_slot, mutation=None, *, admission=False, delay=False, stall_readback=False):
     launches=tuple(Launch(int(edition), secrets.token_bytes(32),
                           bytes([42+i])+bytes(15) if edition=='1' else bytes([42+i])*16,
                           bytes([0x51])*32)
@@ -110,7 +110,7 @@ def run_room(executable, editions, host_slot, mutation=None, *, admission=False,
         for slot,launch in enumerate(launches,1):
             environment[f'WEPLAY_CROSSPLAY_ROOM_KEY_{slot}']=launch.key.hex()
             environment[f'WEPLAY_CROSSPLAY_ROOM_EXE_{slot}']=PINS[launch.edition].hex()
-        scenario = 'room-delayed' if delay else 'room-reject' if mutation else 'room'
+        scenario = 'room-timeout' if stall_readback else 'room-delayed' if delay else 'room-reject' if mutation else 'room'
         with subprocess.Popen([str(executable),str(broker.port),editions,str(host_slot),scenario],
                               env=environment,stderr=subprocess.PIPE) as child:
             try:
@@ -123,7 +123,7 @@ def run_room(executable, editions, host_slot, mutation=None, *, admission=False,
                 if child.returncode:
                     raise RuntimeError('Native room test failed: '+errors.decode('utf-8',errors='replace'))
                 relay_count=len(editions)*(len(editions)-1)
-                expected=2*relay_count if admission else relay_count+1
+                expected=relay_count if stall_readback else 2*relay_count if admission else relay_count+1
                 if mutation is None and (broker.relayed!=expected or broker.rejections):
                     raise RuntimeError('Unexpected room relay or rejection count')
             finally:
@@ -159,7 +159,8 @@ def main():
     if args.room_admission:
         for editions,host in cases:
             run_room(args.room_admission.resolve(),editions,host,admission=True)
-        print(f'PASS {len(cases)} complete room admissions through WPX2 with modeled game callbacks.')
+        run_room(args.room_admission.resolve(),'123',2,admission=True,stall_readback=True)
+        print(f'PASS {len(cases)} delayed WPX2 admissions and the bounded native readback through modeled game callbacks.')
 
 
 if __name__ == '__main__':

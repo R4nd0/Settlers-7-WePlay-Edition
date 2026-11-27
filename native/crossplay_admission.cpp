@@ -111,6 +111,9 @@ struct LobbyAdmission::Impl {
         if(type==Message::Hello) {
             if(state!=AdmissionState::AwaitingPeer || received_hello || !ReadHello(bytes,peer.edition,remote_hello)) return Fail();
             received_hello=true;
+            // The peer has finished its original profile and lobby setup.
+            // Bound the native roster exchange from this point.
+            started=GetTickCount64();
             // Preserve the actual source scalar used by original preparation
             // setters. This is neither a vendor login nor a routing CID. Zero
             // remains zero: original code uses the common assigned slot then.
@@ -163,7 +166,7 @@ bool LobbyAdmission::Begin(Crossplay::Channel& channel,Crossplay::Edition editio
     impl->own.host=host;impl->own.slot=host?1u:2u;
     auto bytes=Frame(Message::Hello,host,*peer);
     if(!AppendHello(bytes,impl->hello) || !channel.Send(bytes)) return impl->Fail();
-    impl->started=GetTickCount64();impl->state=AdmissionState::AwaitingPeer;return true;
+    impl->state=AdmissionState::AwaitingPeer;return true;
 }
 bool LobbyAdmission::Poll() {
     if(!impl->Owned()) return false;
@@ -171,7 +174,8 @@ bool LobbyAdmission::Poll() {
     if(!impl->channel->Poll() || impl->channel->GetState()!=Crossplay::State::Connected) return impl->Fail();
     const auto* peer=impl->channel->GetPeer();
     if(!peer || peer->local_id!=impl->peer.local_id || peer->remote_id!=impl->peer.remote_id || peer->edition!=impl->peer.edition) return impl->Fail();
-    if(impl->state!=AdmissionState::RosterBound && GetTickCount64()-impl->started>120000) return impl->Fail();
+    if(impl->state!=AdmissionState::RosterBound && impl->received_hello
+        && GetTickCount64()-impl->started>120000) return impl->Fail();
     LobbySnapshot snapshot;
     if(!impl->native.CaptureLobby(snapshot) || snapshot.instance!=impl->instance) return impl->Fail();
     // Once the roster transaction finishes, the session's event dispatcher
@@ -430,19 +434,22 @@ bool RoomLobbyAdmission::Begin(Crossplay::Channel& channel,unsigned char local,
     auto frame=RoomHelloHeader(*room,slots,local);
     if(!AppendHello(frame,hello) || !channel.BroadcastRoom(frame))return s.Fail();
     s.offered=1u<<(local-1);
-    s.started=GetTickCount64();
     s.state=AdmissionState::AwaitingPeer;
     return true;
 }
 
 bool RoomLobbyAdmission::Poll() {
+    return Poll(GetTickCount64());
+}
+
+bool RoomLobbyAdmission::Poll(uint64_t now) {
     auto& s=*impl;
     if(!s.Owned() || s.state==AdmissionState::New || s.state==AdmissionState::Failed)return false;
     if(!s.channel->Poll() || !s.Connected())return s.Fail();
     LobbySnapshot snapshot;
     if(!s.native.CaptureLobby(snapshot) || snapshot.instance!=s.instance)return s.Fail();
     if(s.state==AdmissionState::RosterBound)return s.Matches(snapshot) || s.Fail();
-    if(GetTickCount64()-s.started>120000)return s.Fail();
+    if(s.state!=AdmissionState::AwaitingPeer && now-s.started>120000)return s.Fail();
     if(s.state==AdmissionState::Applying) {
         if(!RoomReadbackPending(snapshot,s.players,s.room.member_count))return s.Fail();
         if(s.Matches(snapshot)) {
@@ -460,8 +467,12 @@ bool RoomLobbyAdmission::Poll() {
         if(!s.channel->ReceiveRoom(event))break;
         if(!s.Record(event))return s.Fail();
     }
-    if(s.state==AdmissionState::AwaitingPeer && s.offered==s.AllMembers()
-        && (!s.Prepare() || !s.Apply()))return s.Fail();
+    if(s.state==AdmissionState::AwaitingPeer && s.offered==s.AllMembers()) {
+        // A guest can create its local lobby while the host still chooses a
+        // map or save. Start the readback deadline when everyone has offered.
+        s.started=now;
+        if(!s.Prepare() || !s.Apply())return s.Fail();
+    }
     return true;
 }
 

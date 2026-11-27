@@ -129,8 +129,12 @@ struct Runtime {
     bool neo_world_queued=false;
     uintptr_t neo_world_session=0;
     UINT_PTR timer=0;
+    bool lobby_end_notice=false;
     explicit Runtime(const Launch& input):launch(input){}
-    bool Fail(){phase=Phase::Failed;channel.Close();original.Reset();return false;}
+    bool Fail(){
+        if(phase==Phase::Connecting || phase==Phase::Admitting)lobby_end_notice=true;
+        phase=Phase::Failed;channel.Close();original.Reset();return false;
+    }
     bool Owned()const{return owner==GetCurrentThreadId() && CurrentLaunch() && CurrentLaunch()->mixed;}
 #include "crossplay_production_start_setup.inc"
 #include "crossplay_production_ai_setup.inc"
@@ -515,10 +519,26 @@ struct Runtime {
         return true;
     }
     void Pump(){
-        if(!Owned() || phase==Phase::Dormant || phase==Phase::Closed || phase==Phase::Failed)return;
+        if(!Owned() || phase==Phase::Dormant || phase==Phase::Closed)return;
+        if(phase==Phase::Failed){
+            if(lobby_end_notice){
+                // The timer displays this once, after unwinding any native
+                // participant callback and retiring the authenticated channel.
+                lobby_end_notice=false;
+                const bool german=PRIMARYLANGID(GetUserDefaultUILanguage())==LANG_GERMAN;
+                MessageBoxW(GetActiveWindow(),german
+                    ?L"Die Verbindung wurde beim Aufbau der Crossplay-Lobby beendet. Schlie\u00dfe das Spiel und \u00f6ffne den Raum in WePlay neu oder tritt erneut bei."
+                    :L"The connection ended while setting up the crossplay lobby. Close the game and reopen or rejoin the room in WePlay.",
+                    L"WePlay Crossplay",MB_OK|MB_ICONWARNING);
+            }
+            return;
+        }
         if(!channel.Poll() || (outgoing_installed && OutgoingObserver::failed)
             || (gold_local_installed && CrossplayNativeObserver::GoldLocalObserver::Current().failed)
              || (start_hold_installed && StartHoldFailed())){Fail();return;}
+        // Closing before the local lobby exists can leave a peer's offer
+        // buffered. There is no admission consumer yet to finish draining it.
+        if(phase==Phase::Connecting && channel.GetState()==Crossplay::State::Draining){Fail();return;}
 #ifdef S7_CROSSPLAY_ROOM_LOBBY
         if(launch.IsRoom()){
             if((room_gold_sdk_ready_installed && CrossplayNativeReady::GoldSdkReadyHold::Current().failed) || !PumpRoomLobby())Fail();

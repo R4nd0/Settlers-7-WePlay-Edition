@@ -102,7 +102,8 @@ bool ParticipantEvent::Reset(){impl->constructed={};return true;}
 }
 
 int main(int argc,char** argv) {
-    Check(argc==5 && !std::strcmp(argv[4],"room"),"fixture command line");
+    Check(argc==5 && (!std::strcmp(argv[4],"room") || !std::strcmp(argv[4],"room-timeout")),"fixture command line");
+    const bool stall_readback=!std::strcmp(argv[4],"room-timeout");
     const size_t count=std::strlen(argv[2]);
     const auto port=std::strtoul(argv[1],nullptr,10);
     const auto host=std::strtoul(argv[3],nullptr,10);
@@ -143,15 +144,40 @@ int main(int argc,char** argv) {
         Sleep(1);
     }
     const CrossplayCastleSetup::Value castle{{"woodland",{{"Keep",UINT32_MAX,0}}},"Default"};
-    for(size_t i=0;i<count;++i)
+    for(size_t i=0;i<count-1;++i)
         Check(admissions[i].Begin(channels[i],static_cast<unsigned char>(i+1),slots,&castle,0),"begin in local lobby");
+    const auto after_selection=GetTickCount64()+120001;
+    for(size_t i=0;i<count-1;++i){
+        Check(admissions[i].Poll(after_selection),"late profile or map selection does not expire the room");
+        Check(admissions[i].GetState()==AdmissionState::AwaitingPeer && models[i].queued.empty(),
+            "waiting never queues unconfirmed native participants");
+    }
+    Check(admissions[count-1].Begin(channels[count-1],static_cast<unsigned char>(count),slots,&castle,0),
+        "last member finishes selecting the profile or map");
+    if(stall_readback){
+        while(GetTickCount64()<deadline){
+            size_t applying=0;
+            for(size_t i=0;i<count;++i){
+                Check(admissions[i].Poll(after_selection),"rest of the peers offer their native lobby");
+                if(admissions[i].GetState()==AdmissionState::Applying)++applying;
+            }
+            if(applying==count)break;
+            Sleep(1);
+        }
+        Check(admissions[0].GetState()==AdmissionState::Applying,"complete roster has started the readback deadline");
+        Check(admissions[0].Poll(after_selection+120000),"readback may use the full deadline");
+        Check(!admissions[0].Poll(after_selection+120001)
+            && admissions[0].GetState()==AdmissionState::Failed,"stalled native readback retires the room");
+        Check(channels[0].GetState()!=State::Connected,"stalled readback closes its authenticated channel");
+        return 0;
+    }
     unsigned ticks=0;
     while(GetTickCount64()<deadline) {
         size_t bound=0;
         for(size_t i=0;i<count;++i) {
             // Leave one client's native roster pending for several pumps.
             if(i!=count-1 || ticks>30)Consume(models[i]);
-            Check(admissions[i].Poll(),"admission poll");
+            Check(admissions[i].Poll(after_selection+ticks),"admission poll");
             if(admissions[i].GetState()==AdmissionState::RosterBound)++bound;
         }
         if(ticks<=30)Check(!bound,"cannot complete before last native readback");

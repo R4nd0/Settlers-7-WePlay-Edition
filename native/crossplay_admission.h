@@ -52,6 +52,7 @@ public:
         const std::array<unsigned char,CrossplayGroupRoster::Members>& map_slots,
         const void* own_castle,uint32_t extra);
     bool Poll();
+    bool Poll(uint64_t now);
     AdmissionState GetState() const;
     // A route is usable only in the original session whose full roster still
     // matches. A started session is verified separately from lobby phase.

@@ -769,3 +769,44 @@ History hosting Monhaim Valley, Gold and Steam History as guests, Maid Marielle
 intervals after team commit. All three clients reached the world in windowed
 DXVK mode and agreed on 89 consecutive finished-turn checksums. All processes
 exited with code 0, and the temporary network rules were removed.
+
+### Crossplay lobby setup timeout
+
+With all three local transports authenticated, the Steam History guest
+created its provisional lobby before the other players had finished profile
+and save selection. In two Windows runs its connection stopped 126.91 and
+126.66 seconds after the broker accepted it. The broker had room offers but no
+confirmed shared roster. The original game could still show its provisional
+lobby after the connection ended.
+
+The two-minute native readback window now starts when the peer's authenticated
+offer arrives in a two-client lobby, or when all authenticated offers arrive in
+a group lobby. The native protocol tests delay the last participant beyond
+the old limit in eleven rooms, then complete each original-shaped roster.
+An additional test confirms that the room closes if the original game fails
+to confirm the roster within the two-minute readback window.
+
+When the channel ends during lobby setup, the running game displays a
+one-time German or English message with the steps for opening or joining a
+new room. In a Windows test, closing the Steam History guest before the roster
+formed showed the message on both the Ubisoft History host and the Gold guest.
+All three exited normally. A fresh room then kept all three clients connected
+for more than 168 seconds after the first provisional offer while Gold was
+still in profile selection.
+
+The same run found a separate limit in the local History matchmaking service.
+Searches consumed its 32-response quota and it rejected the host's Create
+Session request about 248 seconds after the service started. The registered
+peer was still receiving keepalive replies. The local catalogue service now
+renews its bounded response quota every minute. The regression test fills the
+quota with valid searches, checks that Create Session is rate limited within
+that minute, then successfully creates a room in the next window.
+
+The private Windows installer `rc4.13-test.8` was tested with Ubisoft History
+hosting and Gold and Steam History joining at 1024 × 768 in windowed mode.
+The History service accepted Create Session at 285.7 seconds. The broker
+recorded all three native roster confirmations 268.1 seconds after the first
+provisional offer. All three clients displayed the same Monhaim Valley roster
+and the host received both guests' Ready state. All three processes exited
+with code 0 and the temporary network rules were removed. This run covered
+lobby setup and readiness through the host's Start button becoming enabled.

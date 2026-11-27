@@ -41,8 +41,8 @@ def lod_maximum(root):
     adapter=graphics._plain(adapter)
     if not adapter.is_file():return 1
     digest=content.digest(adapter)
-    full_detail=(platform_standalone.GOLD,platform_standalone.GOLD_LOD400) if gold else (
-        platform_standalone.HISTORY_MIXED_START,platform_standalone.HISTORY_LOD400)
+    full_detail=(platform_standalone.GOLD,platform_standalone.GOLD_MIXED_START,platform_standalone.GOLD_LOD400) if gold else (
+        platform_standalone.HISTORY_LOBBY_WAIT,platform_standalone.HISTORY_MIXED_START,platform_standalone.HISTORY_LOD400)
     if digest in full_detail:
         return 5
     supported=(platform_standalone.LOD_GOLD,platform_standalone.GOLD_RC409) if gold else (

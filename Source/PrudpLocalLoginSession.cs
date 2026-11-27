@@ -26,7 +26,7 @@ namespace S7Patcher.Source
         internal const int PingReplyIntervalMilliseconds = 100;
         internal const int LanIdleMilliseconds = 900000;
         internal const int LanMaximumMilliseconds = 86400000;
-        internal const int LanResponseWindowMilliseconds = 60000;
+        internal const int ResponseWindowMilliseconds = 60000;
         internal const int LanResponsesPerWindow = 512;
         private readonly PrudpProbePeer peer;
         private readonly ReliableMessageAssembler assembler;
@@ -161,11 +161,6 @@ namespace S7Patcher.Source
                     // and create/update/leave requests, sharing the same post-login budget.
                     if (search)
                     {
-                        // Only an explicitly configured two-address LAN uses
-                        // renewable fixed-window budgets. Pending ciphertext,
-                        // retries, peer allowlisting and idle expiry stay bounded.
-                        if (lanKeepAlive && now.HasValue && now.Value - responseWindowAt >= LanResponseWindowMilliseconds)
-                        { responseWindowAt = now.Value; postLoginResponseCount = 0; }
                         if (!keepAlive || !registrationAcknowledged)
                         {
                             Emit(emit, new() { Event = "local-login-message-rejected", Reason = "response-budget-exhausted" });
@@ -191,6 +186,11 @@ namespace S7Patcher.Source
                                 Emit(emit, new() { Event = "local-session-join-failure-reservation-released", Reason = reason });
                             continue;
                         }
+                        // Background catalogue searches must not use up a live
+                        // connection's ability to create or join a room permanently.
+                        if ((lanKeepAlive || sessions.CatalogueProbe) && now.HasValue
+                            && now.Value - responseWindowAt >= ResponseWindowMilliseconds)
+                        { responseWindowAt = now.Value; postLoginResponseCount = 0; }
                         int responseLimit = lanKeepAlive ? LanResponsesPerWindow : MaximumPostLoginResponses;
                         if (postLoginResponseCount >= responseLimit)
                         {

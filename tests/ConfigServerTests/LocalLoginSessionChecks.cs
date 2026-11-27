@@ -334,7 +334,7 @@ internal static class LocalLoginSessionChecks
             fixture.Session.ProcessData(fixture.Data(requestSequence++,0,LocalSessionSearchChecks.Request()),fixture.Events.Add,2000);
             Check(fixture.Session.TakeDue(2000,fixture.Events.Add).Count==0
                 && fixture.Events.Any(e=>e.Reason=="response-budget-exhausted"), "LAN reply rate limit missing");
-            long reopened=100+PrudpLocalLoginSession.LanResponseWindowMilliseconds;
+            long reopened=100+PrudpLocalLoginSession.ResponseWindowMilliseconds;
             fixture.Session.ProcessData(fixture.Data(requestSequence++,0,LocalSessionSearchChecks.Request()),fixture.Events.Add,reopened);
             Check(fixture.Session.TakeDue(reopened,fixture.Events.Add).Count==1
                 && fixture.Session.TryAcknowledge(Ack(ServerCookie,replySequence++)), "LAN reply window never reopened");
@@ -901,6 +901,27 @@ internal static class LocalLoginSessionChecks
             Check(visitor.Session.PendingCount == 0, "Failure report generated a response above quota");
             visitor.Session.ProcessData(visitor.Data((ushort)(9 + limit), 0, LocalSessionDisplayChecks.Search()), visitor.Events.Add);
             Check(visitor.Session.PendingCount == 0, "Releasing the reservation reopened the reply quota");
+        }
+        using (LocalSessionRegistry registry = new(catalogueProbe: true))
+        using (Fixture fixture = new(keepAlive: true, sessions: registry))
+        {
+            fixture.Register();
+            ushort requestSequence = 8, replySequence = 3;
+            long reopened = 100 + PrudpLocalLoginSession.ResponseWindowMilliseconds;
+            for (int i = 0; i < PrudpLocalLoginSession.MaximumPostLoginResponses; ++i)
+            {
+                long now = 200 + i;
+                fixture.Session.ProcessData(fixture.Data(requestSequence++, 0, LocalSessionDisplayChecks.Search()), fixture.Events.Add, now);
+                Check(fixture.Session.TakeDue(now, fixture.Events.Add).Count == 1
+                    && fixture.Session.TryAcknowledge(Ack(ServerCookie, replySequence++)), "Catalogue search was not answered within budget");
+            }
+            byte[] create = LocalSessionCreationChecks.Request(body: LocalSessionCatalogueChecks.PublicBody());
+            fixture.Session.ProcessData(fixture.Data(requestSequence++, 0, create), fixture.Events.Add, reopened - 1);
+            Check(registry.Count == 0 && fixture.Session.TakeDue(reopened - 1, fixture.Events.Add).Count == 0
+                && fixture.Events.Any(e => e.Reason == "response-budget-exhausted"), "Catalogue bypassed its current response budget");
+            fixture.Session.ProcessData(fixture.Data(requestSequence, 0, create), fixture.Events.Add, reopened);
+            Check(registry.Count == 1 && fixture.Session.TakeDue(reopened, fixture.Events.Add).Count == 1
+                && fixture.Session.TryAcknowledge(Ack(ServerCookie, replySequence)), "Catalogue could not create a room after its response window renewed");
         }
         // Two independently encrypted peers, in both host directions. This tests
         // discovery/Get/reservation/confirmation, not native peer admission or gameplay.
