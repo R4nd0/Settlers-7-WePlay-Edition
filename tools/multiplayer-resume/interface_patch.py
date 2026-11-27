@@ -180,13 +180,27 @@ if (panel == t or panel == o) and opened == false then
 elseif(l.bottomBar.clickedButtonKey==t)then''')
 
 
-def guard_boards(raw):
+def guard_boards(raw, *, legacy=False):
     archive = Archive(raw)
     changes = {
         'Script/local/menu/panel/' + name: patch(archive.read('Script/local/menu/panel/' + name))
         for name, patch in (('techBoardPanel.lua', guard_research_panel), ('tradeBoard.lua', guard_trade_panel),
                             ('bottomBar.lua', guard_toolbar))
     }
+    if not legacy:
+        # The retail LuaJIT builtin pcall/xpcall errors in these History UI
+        # callbacks. Resume synchronously and treat a yield as a failed build.
+        research = 'Script/local/menu/panel/techBoardPanel.lua'
+        trade = 'Script/local/menu/panel/tradeBoard.lua'
+        for member in (research, trade):
+            changes[member] = replace_lua(changes[member], 'local ok, board = _G.pcall(weplayCreate)',
+                '''local worker = _G.coroutine.create(weplayCreate)
+local ok, board = _G.coroutine.resume(worker)
+ok = ok and _G.coroutine.status(worker) == "dead"''')
+        changes[trade] = replace_lua(changes[trade], 'local ok = _G.pcall(u.show, visible)',
+            '''local worker = _G.coroutine.create(function() u.show(visible) end)
+    local ok = _G.coroutine.resume(worker)
+    ok = ok and _G.coroutine.status(worker) == "dead"''')
     return archive.replace(changes)
 
 

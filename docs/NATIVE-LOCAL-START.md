@@ -689,3 +689,21 @@ lifecycle, fixing the prior stuck load overlay. The portable debugger prepares
 Frida before the bounded original-entry release wait; no protection is weakened.
 This supersedes older unknown-Steam/single-player-start notes for these exact
 standalone families only. It establishes no multiplayer or crossplay world.
+
+## History loading overlay regression, 2026-11-27
+
+On Thron von Tandriën, three windowed Ubisoft History clients and one normal
+AI reproduced the full loading overlay with the RC4.13 interface archive.
+All three clients reached command turn 5021 while the overlay still covered
+the running world. The same map reproduced the symptom in a single-player
+control, where retail Lua reported `bad argument #187 to 'pcall'` at
+`tradeBoard.lua:774` during board creation. `xpcall` produced the same error.
+
+The corrected archive uses a synchronous Lua coroutine to preserve cleanup
+when a board throws or fails to finish. In the equivalent three-client local
+run, all clients entered the world and their command turns advanced together.
+A guest opened and closed both Handelsrouten and Forschung. All three clients
+exited with code 0. These observations used a loopback laboratory service and
+native D3D9. They establish the UI regression and its correction independently
+of the network transport. Gold, Steam History and mixed save/reload require
+separate installed-package evidence.

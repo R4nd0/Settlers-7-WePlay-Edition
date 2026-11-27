@@ -48,7 +48,9 @@ def copy_documents(app,*,platform_independent=False):
 
 
 def update_board_catalog(package, manifest):
-    if not manifest.get('crossplay_mixed') or manifest.get('patched_archive_sha256') != install.BOARD_RECOVERY_SOURCE:
+    previous_archive = manifest.get('patched_archive_sha256')
+    if not manifest.get('crossplay_mixed') or previous_archive not in (
+            install.BOARD_RECOVERY_SOURCE, install.BOARD_RECOVERY_LEGACY_ARCHIVE):
         return
     import crossplay_content
     path = package / crossplay_content.PACKAGE_CATALOG
@@ -58,7 +60,7 @@ def update_board_catalog(package, manifest):
     data = json.loads(catalog.canonical)
     for profile in data['editions'][1:]:
         rows = [row for row in profile['files'] if row['id'] == 'Base/BBA/Interface.bba']
-        if len(rows) != 1 or rows[0]['sha256'] != install.BOARD_RECOVERY_SOURCE:
+        if len(rows) != 1 or rows[0]['sha256'] != previous_archive:
             raise ValueError('crossplay_content_changed')
         rows[0]['sha256'] = install.BOARD_RECOVERY_ARCHIVE
     raw = json.dumps(data, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode('utf-8')
@@ -110,8 +112,10 @@ def build(stage,output,desktop_publish,dotnet,probe,compiler,*,base_package=None
                        else build_package.MIXED_DIRECTORY_ARCHIVE_SHA256)
         mixed_gold=gold_support.module(gold_package,source_root=REPO).gold.MIXED_MENU_SHA256
         gold_files,ubisoft_files,steam_files=map(dict,catalog.profiles)
-        if (midsummer_profile and ubisoft_files.get('Base/BBA/Interface.bba') == install.BOARD_RECOVERY_ARCHIVE):
-            mixed_history = install.BOARD_RECOVERY_ARCHIVE
+        catalog_history = ubisoft_files.get('Base/BBA/Interface.bba')
+        if midsummer_profile and catalog_history in (install.BOARD_RECOVERY_LEGACY_ARCHIVE,
+                                                     install.BOARD_RECOVERY_ARCHIVE):
+            mixed_history = catalog_history
         if (gold_files.get('Data/Base/BBA/Interface.bba')!=mixed_gold
                 or any(profile.get('Base/BBA/Interface.bba')!=mixed_history
                        for profile in (ubisoft_files,steam_files))):

@@ -24,7 +24,9 @@ EXERCISE = b'''function(source, trade, scenario)
     local function noop() end
     env._G = env
     env.assert, env.module, env.getfenv = assert, noop, getfenv
-    env.type, env.pcall, env.next, env.pairs, env.ipairs = type, pcall, next, pairs, ipairs
+    env.type, env.next, env.pairs, env.ipairs = type, next, pairs, ipairs
+    env.pcall = function() error('retail pcall is unavailable here') end
+    env.coroutine = coroutine
     env.table, env.string, env.math, env.package = table, string, math, {seeall=noop}
     env.require = function() return {create=function() return {} end} end
     env.iconFactory={keys={}, sizes={32,64}, textureKeys={}, specialTypes={}, getGroupTexture=function()return{}end}
@@ -41,6 +43,7 @@ EXERCISE = b'''function(source, trade, scenario)
             return {root=true}
         end
         if scenario=='late' then error('fixture: widget allocation failed') end
+        if scenario=='yield' then coroutine.yield() end
         return {}
     end, destroy=function(frame) if frame.root then live=live-1 end end}
     env.UI={Anchor={}}; env.image={create=function() return {} end}
@@ -78,6 +81,8 @@ class BoardRecoveryTests(unittest.TestCase):
     def setUpClass(cls):
         raw = Path(FIXTURE).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == install.BOARD_RECOVERY_SOURCE
+        legacy = interface_patch.guard_boards(raw, legacy=True)
+        assert hashlib.sha256(legacy).hexdigest() == install.BOARD_RECOVERY_LEGACY_ARCHIVE
         updated = interface_patch.guard_boards(raw)
         assert hashlib.sha256(updated).hexdigest() == install.BOARD_RECOVERY_ARCHIVE
         cls.before = interface_patch.Archive(raw)
@@ -108,6 +113,7 @@ class BoardRecoveryTests(unittest.TestCase):
             with self.subTest(board=name):
                 self.assertEqual(run(self.before.read(PANEL+name), trade, b'late'), (False, False, 1, 1))
                 self.assertEqual(run(self.after.read(PANEL+name), trade, b'late'), (True, False, 0, 1))
+                self.assertEqual(run(self.after.read(PANEL+name), trade, b'yield'), (True, False, 0, 1))
 
     def test_opening_can_be_retried_when_the_layout_arrives(self):
         run = LuaRuntime(encoding=None).eval(EXERCISE)

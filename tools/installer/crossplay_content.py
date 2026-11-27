@@ -19,6 +19,8 @@ APPROVED_DIGESTS = frozenset({
     '4ef33244ee5a6ed86c37f26b4629a3477c6aeeeb511ca81e59d897b52cdfb6b8',
     # Same input inventory with the verified History board recovery patch.
     '2e3e58624335713d7011914c89c167fdacae492784aa4ca16e18049d83e4e85a',
+    # History board recovery using the synchronous coroutine guard.
+    'e92606587a4be9d711ffa882cc460af010c7afd9c5bcf7cb08c6cf18469076ee',
 })
 PACKAGE_CATALOG = 'Payload/Crossplay/catalog.json'
 REQUIRED = {

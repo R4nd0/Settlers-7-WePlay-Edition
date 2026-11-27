@@ -53,7 +53,8 @@ CARTOGRAPHER_PACKAGE_TOOLS = ('installer/cartographer_context.py','offline-ui/ca
 MULTIPLAYER_RESUME_TOOLS = tuple('multiplayer-resume/' + name for name in
     ('interface_patch.py', 'runtime.lua', 'session_list.lua', 'host_lobby.lua'))
 BOARD_RECOVERY_SOURCE = '6308bcedbe4f3399b6ab192a2a131cec9f276e00659f81e394a8c6b12e16822e'
-BOARD_RECOVERY_ARCHIVE = '2bb84454cb4bd2224018a13ef16b15d6c49d92bb84f17ba69e271258ae5158b6'
+BOARD_RECOVERY_LEGACY_ARCHIVE = '2bb84454cb4bd2224018a13ef16b15d6c49d92bb84f17ba69e271258ae5158b6'
+BOARD_RECOVERY_ARCHIVE = '953f182f3f2f9a594fceebe52e0f501fa668d83112e43e63c02f30f5c3cd8e7c'
 NEO_LOGISTICS_TOOLS=tuple('neo-logistics/'+name for name in
     ('interface_patch.py','runtime.lua','map_setup.lua','session_creation.lua','lobby_ui.lua','logistics_ui.lua'))
 MIDSUMMER_PACKAGE_TOOLS = tuple('midsummer/' + name for name in
@@ -264,10 +265,10 @@ def package_manifest(root):
         from crossplay_content import package_catalog
         catalog = package_catalog(root,manifest)
         expected_archive = manifest.get('patched_archive_sha256')
-        if expected_archive in (BOARD_RECOVERY_SOURCE, BOARD_RECOVERY_ARCHIVE) and any(
+        if expected_archive in (BOARD_RECOVERY_SOURCE, BOARD_RECOVERY_LEGACY_ARCHIVE, BOARD_RECOVERY_ARCHIVE) and any(
                 dict(profile).get('Base/BBA/Interface.bba') != expected_archive for profile in catalog.profiles[1:]):
             raise ValueError('crossplay_content_changed')
-    elif manifest.get('patched_archive_sha256') == BOARD_RECOVERY_ARCHIVE:
+    elif manifest.get('patched_archive_sha256') in (BOARD_RECOVERY_LEGACY_ARCHIVE, BOARD_RECOVERY_ARCHIVE):
         raise ValueError('crossplay_package_invalid')
     if manifest.get('midsummer_profile',False) and (not manifest.get('neo_logistics',False)
             or not manifest.get('graphics_choice',False)
@@ -728,13 +729,14 @@ def prepare(package, source, destination, emit=print, *, progress=None, publish_
         finally:
             sys.path[:]=previous
         record_archive()
-    if manifest.get('patched_archive_sha256') == BOARD_RECOVERY_ARCHIVE:
+    board_archive = manifest.get('patched_archive_sha256')
+    if board_archive in (BOARD_RECOVERY_LEGACY_ARCHIVE, BOARD_RECOVERY_ARCHIVE):
         target = destination / 'Base/BBA/Interface.bba'
         raw = target.read_bytes()
         if hashlib.sha256(raw).hexdigest() != BOARD_RECOVERY_SOURCE:
             raise ValueError('crossplay_content_changed')
-        repaired = resume.guard_boards(raw)
-        if hashlib.sha256(repaired).hexdigest() != BOARD_RECOVERY_ARCHIVE:
+        repaired = resume.guard_boards(raw, legacy=board_archive == BOARD_RECOVERY_LEGACY_ARCHIVE)
+        if hashlib.sha256(repaired).hexdigest() != board_archive:
             raise ValueError('crossplay_content_changed')
         target.write_bytes(repaired)
         record_archive()
