@@ -52,6 +52,14 @@ class Tests(unittest.TestCase):
         for target in (report,self.case/'save.s7s',self.root/'outside/water-probe.private.json'):
             with self.subTest(target=target),self.assertRaises(ValueError):p.configuration(target)
 
+    def test_once_capture_abi_is_explicit_and_excludes_live_correction(self):
+        raw=p.configuration(self.case/'water-probe.private.json',once=True)
+        self.assertEqual(struct.unpack_from('<3I',raw),(1036,1,4))
+        for kwargs in (dict(once=True,pow_cap=True),dict(once=True,benchmark=True),dict(once=1)):
+            with self.subTest(kwargs=kwargs),self.assertRaises(ValueError):p.configuration(self.case/'water-probe.private.json',**kwargs)
+        probe=p.Probe(self.build,self.bundle,self.case,once=True)
+        self.assertTrue(probe.once);self.assertFalse(probe.pow_cap)
+
     def test_owned_isolation_checks_and_source_bound_initialization(self):
         probe=p.Probe(self.build,self.bundle,self.case)
         owned=SimpleNamespace(executable=self.exe,native_initialized=True,kernel_isolation=7)

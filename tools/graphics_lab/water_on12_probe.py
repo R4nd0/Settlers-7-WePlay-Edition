@@ -26,23 +26,25 @@ def verify_build(directory):
     return directory/DLL,value
 
 
-def configuration(report,*,pow_cap=False,benchmark=False):
-    if type(pow_cap)is not bool or type(benchmark)is not bool or (benchmark and not pow_cap):raise ValueError('POW cap/benchmark require explicit booleans.')
+def configuration(report,*,pow_cap=False,benchmark=False,once=False):
+    if (type(pow_cap)is not bool or type(benchmark)is not bool or type(once)is not bool
+            or (benchmark and not pow_cap) or once and (pow_cap or benchmark)):
+        raise ValueError('POW cap/benchmark/one-shot capture require exclusive booleans.')
     report=recover.lab(report);text=str(report);raw=text.encode('utf-16le')
     if report.name!='water-probe.private.json' or '\0' in text or len(raw)>1022 or report.exists():
         raise ValueError('Use a fresh exact-water report in the explicit private case.')
-    return struct.pack('<3I',1036,1,3 if benchmark else int(pow_cap))+raw.ljust(1024,b'\0')
+    return struct.pack('<3I',1036,1,4 if once else 3 if benchmark else int(pow_cap))+raw.ljust(1024,b'\0')
 
 
 class Probe:
-    def __init__(self,build,root,output,*,pow_cap=False,benchmark=False):
+    def __init__(self,build,root,output,*,pow_cap=False,benchmark=False,once=False):
         from . import game
         self.root,self.output=recover.lab(root),recover.lab(output)
         _,self.executable,_=game.platform.load(self.root)
         if loader.digest(self.executable)!=loader.UBI:
             raise ValueError('Exact-water observer currently supports only the original Ubisoft laboratory profile.')
         self.dll,self.build=verify_build(build)
-        self.config=configuration(self.output/'water-probe.private.json',pow_cap=pow_cap,benchmark=benchmark);self.pow_cap=pow_cap;self.benchmark=benchmark
+        self.config=configuration(self.output/'water-probe.private.json',pow_cap=pow_cap,benchmark=benchmark,once=once);self.pow_cap=pow_cap;self.benchmark=benchmark;self.once=once
         self.leases=ExitStack();self.prepared=False
 
     def prepare(self):
@@ -62,7 +64,9 @@ class Probe:
         if (not self.prepared or owned.executable!=self.executable or owned.native_initialized is not True
                 or owned.kernel_isolation!=7):
             raise RuntimeError('Exact-water observer requires the fully isolated owned original child.')
-        initialized=loader.invoke_water(owned,self.dll,self.config,pow_cap=self.pow_cap,benchmark=self.benchmark)
+        kwargs=dict(pow_cap=self.pow_cap,benchmark=self.benchmark)
+        if self.once:kwargs['once']=True
+        initialized=loader.invoke_water(owned,self.dll,self.config,**kwargs)
         initialized.update(dict(format='s7-water-on12-observer-init-v1',read_only=not self.pow_cap,pow_cap=self.pow_cap,benchmark=self.benchmark,
                                 dll_sha256=self.build['files'][DLL]))
         recover._write_new(self.output/'water-probe-initialized.private.json',json.dumps(initialized,indent=2).encode())

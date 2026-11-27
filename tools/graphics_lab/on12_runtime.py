@@ -19,10 +19,10 @@ def pin(value):
 def shape(value,*,current=True):
     keys={'format','variant','configuration','revisions','source_archives','packages','builder_sha256','project_inputs','inputs','files'}
     if (not isinstance(value,dict) or set(value)!=keys or value['format']!='s7-on12-runtime-build-v1'
-            or value['variant']!='stock' or value['configuration']!=build.CONFIG or value['revisions']!=build.REVISIONS
+            or value['variant']not in build.VARIANTS or value['configuration']!=build.CONFIG or value['revisions']!=build.REVISIONS
             or value['source_archives']!=build.SOURCE_PINS or value['packages']!={name:p for name,(_,p) in build.PACKAGES.items()}
             or not pin(value['builder_sha256']) or not isinstance(value['project_inputs'],dict)
-            or set(value['project_inputs'])!=set(build.PROJECT_INPUTS) or not all(pin(x) for x in value['project_inputs'].values())
+            or set(value['project_inputs'])!=set(build.project_inputs(value['variant'])) or not all(pin(x) for x in value['project_inputs'].values())
             or not isinstance(value['files'],dict) or set(value['files'])!=set(build.FILES)
             or not all(pin(x) for x in value['files'].values()) or value['files']['dxbcSigner.dll']!=SIGNER
             or not isinstance(value['inputs'],dict) or not 1<=len(value['inputs'])<=15000):
@@ -40,7 +40,7 @@ def verify_build(directory):
     value=shape(json.loads(raw))
     for name,p in value['files'].items():
         if build.digest(directory/name)!=p:raise ValueError('The local On12 binary changed.')
-    if build.expected_inputs(directory)!=value['inputs'] or build.inputs(directory)!=value['inputs']:
+    if build.expected_inputs(directory,value['variant'])!=value['inputs'] or build.inputs(directory)!=value['inputs']:
         raise ValueError('The local On12 sources or dependencies changed.')
     return directory,value,raw
 
@@ -100,10 +100,15 @@ class Session:
         except (OSError,ValueError):return
         if not report.get('attached'):return
         if report.get('on12_query_hr')!=0 or report.get('failure')!=0:raise RuntimeError('The source-built runtime did not create the admitted On12 device.')
+        if self.manifest['variant']=='water-worker':
+            if not report.get('snapshot_done'):return
+            if (report.get('snapshot_once')is not True or report.get('hooks_detached')is not True
+                    or report.get('pow_cap_requested')is not False or report.get('caps_applied')!=0 or report.get('caps_restored')!=0):
+                raise RuntimeError('The backend water correction requires its detached read-only observer.')
         self.observed=True
         recover._write_new(self.case/'on12-runtime-observed.private.json',json.dumps(dict(
             format='s7-on12-runtime-observed-v1',pid=owned.pid,runtime_sha256=self.manifest['files']['d3d9on12.dll'],
-            d3d9_sha256=RUNTIME,on12_query_hr=0,source_variant='stock'),indent=2).encode())
+            d3d9_sha256=RUNTIME,on12_query_hr=0,source_variant=self.manifest['variant']),indent=2).encode())
 
     def restore(self):
         if (self.case/JOURNAL).exists():return restore(self.case)

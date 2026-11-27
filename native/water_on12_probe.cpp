@@ -28,6 +28,8 @@ using Present=HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*,const RECT*,const R
 using Reset=HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRESENT_PARAMETERS*);
 template<class T> struct Ref {T* value=nullptr;~Ref(){if(value)value->Release();}};
 struct Slot {void** address;void* original;void* replacement;};
+std::vector<Slot> once_device_slots,once_getter_slots;
+bool hooks_detached=false;
 Getter original_getter=nullptr;DrawIndexed original_draw=nullptr;Present original_present=nullptr;
 Reset original_reset=nullptr;
 HMODULE wrapper=nullptr,apphelp=nullptr;IDirect3DDevice9* admitted=nullptr;DWORD owner=0;
@@ -208,7 +210,7 @@ HRESULT STDMETHODCALLTYPE ApiSoftware(IDirect3DDevice9* d,BOOL enabled){
 
 bool Shape(const Config& c) {
     const size_t n=wcsnlen_s(c.report,512);constexpr wchar_t suffix[]=L"\\water-probe.private.json";
-    if(c.size!=sizeof(c)||c.version!=1||(c.flags!=0&&c.flags!=1&&c.flags!=3)||n>=512||n<wcslen(suffix)+3||c.report[1]!=L':'||c.report[2]!=L'\\'
+    if(c.size!=sizeof(c)||c.version!=1||(c.flags!=0&&c.flags!=1&&c.flags!=3&&c.flags!=4)||n>=512||n<wcslen(suffix)+3||c.report[1]!=L':'||c.report[2]!=L'\\'
         ||_wcsicmp(c.report+n-wcslen(suffix),suffix))return false;
     for(size_t i=3;i<n;++i)if(c.report[i]<32||c.report[i]==L':'||c.report[i]==L'/')return false;
     wchar_t full[512]{};const DWORD count=GetFullPathNameW(c.report,512,full,nullptr);
@@ -236,7 +238,7 @@ void Live() {
         <<",\"presentation_interval\":"<<device_info.presentation.PresentationInterval<<",\"swap_effect\":"<<device_info.presentation.SwapEffect
         <<",\"backbuffer_count\":"<<device_info.presentation.BackBufferCount<<",\"windowed\":"<<(device_info.presentation.Windowed?"true":"false")
         <<",\"ex_query_hr\":"<<static_cast<long>(device_info.ex_hr)<<",\"latency_hr\":"<<static_cast<long>(device_info.latency_hr)<<",\"maximum_frame_latency\":"<<device_info.latency<<"}"
-        <<",\"pow_cap_requested\":"<<(config.flags?"true":"false")<<",\"caps_applied\":"<<caps_applied<<",\"caps_restored\":"<<caps_restored
+        <<",\"pow_cap_requested\":"<<((config.flags&1)?"true":"false")<<",\"snapshot_once\":"<<(config.flags==4?"true":"false")<<",\"hooks_detached\":"<<(hooks_detached?"true":"false")<<",\"caps_applied\":"<<caps_applied<<",\"caps_restored\":"<<caps_restored
         <<",\"world_frames\":"<<world_frames<<",\"pixel_gets\":"<<pixel_gets<<",\"pixel_gets_avoided\":"<<pixel_gets_avoided<<",\"passthrough_draws\":"<<passthrough_draws<<",\"pixel_program_reads\":"<<pixel_reads
         <<",\"pixel_hashes\":"<<pixel_hashes<<",\"vertex_program_reads\":"<<vertex_reads<<",\"vertex_hashes\":"<<vertex_hashes
         <<",\"vertex_staging_allocations\":"<<vertex_allocations<<",\"getter_calls\":"<<getter_calls<<",\"getter_guard_calls\":"<<getter_guard_calls
@@ -269,6 +271,12 @@ bool Patch(const Slot& s,bool forward) {
     const bool restored=VirtualProtect(s.address,sizeof(void*),previous,&unused)!=FALSE;
     if(changed&&!restored){InterlockedCompareExchangePointer(reinterpret_cast<void* volatile*>(s.address),before,after);VirtualProtect(s.address,sizeof(void*),previous,&unused);}
     return changed&&restored;
+}
+bool DetachOnce() {
+    if(config.flags!=4||!snapshot||GetCurrentThreadId()!=owner||once_device_slots.empty())return false;
+    for(auto it=once_device_slots.rbegin();it!=once_device_slots.rend();++it)if(!Patch(*it,false))return false;
+    for(auto it=once_getter_slots.rbegin();it!=once_getter_slots.rend();++it)if(!Patch(*it,false))return false;
+    hooks_detached=true;return true;
 }
 bool Import(HMODULE module,std::vector<Slot>& slots) {
     auto* image=reinterpret_cast<unsigned char*>(module);const auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(image);
@@ -358,7 +366,7 @@ void Snapshot(IDirect3DDevice9* device,D3DPRIMITIVETYPE primitive,INT base,UINT 
         ||!Artifact(L"water-vertex.private.bin",vertex.data(),vertex_bytes,vs_hash)
         ||!Artifact(L"water-pixel.private.bin",pixel.data(),pixel_bytes,ps_hash)){failure=302;return;}
     unsigned vs_bad=0,ps_bad=0;for(float value:constants.vs)if(!std::isfinite(value))++vs_bad;for(float value:constants.ps)if(!std::isfinite(value))++ps_bad;
-    std::ostringstream out;out<<"{\"format\":\"s7-on12-water-inputs-v1\",\"input_capture_uses_only_getters\":true,\"pow_cap_requested\":"<<(config.flags?"true":"false")<<",\"draw_replayed\":false,\"draw_skipped\":false,"
+    std::ostringstream out;out<<"{\"format\":\"s7-on12-water-inputs-v1\",\"input_capture_uses_only_getters\":true,\"pow_cap_requested\":"<<((config.flags&1)?"true":"false")<<",\"draw_replayed\":false,\"draw_skipped\":false,"
         <<"\"vertex_sha256\":\""<<vs_hash<<"\",\"pixel_sha256\":\""<<ps_hash<<"\",\"constants_sha256\":\""<<constants_hash
         <<"\",\"vs_nonfinite\":"<<vs_bad<<",\"ps_nonfinite\":"<<ps_bad<<",\"draw\":["<<primitive<<","<<base<<","<<minimum<<","<<vertices<<","<<start<<","<<count<<"],\"samplers\":[";
     DWORD budget=48*1024*1024;const DWORD samplers[]{0,1,4,5,6,7};
@@ -478,7 +486,8 @@ HRESULT STDMETHODCALLTYPE HookDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE p,INT b,
         {Guard guard(benchmark_legacy);Scope scope;
         try{Snapshot(d,p,b,m,v,s,c);}catch(...){failure=304;}
         // Allocation/hash exceptions are handled before any temporary binding.
-        hr=DrawWithCap(d,p,b,m,v,s,c,sample);}
+        hr=DrawWithCap(d,p,b,m,v,s,c,sample);
+        if(config.flags==4&&snapshot&&!failure&&!hooks_detached){if(!DetachOnce())failure=309;Live();}}
         if(sample){++profile_samples;profile_total+=Clock()-begin;}
         if(FAILED(hr))++failed_draws;return hr;
     }
@@ -502,6 +511,7 @@ void Attach(IDirect3DDevice9* device) {
     std::vector<Slot> slots{{&table[82],table[82],reinterpret_cast<void*>(HookDraw)},{&table[17],table[17],reinterpret_cast<void*>(HookPresent)},
                            {&table[16],table[16],reinterpret_cast<void*>(HookReset)}};
     original_draw=reinterpret_cast<DrawIndexed>(table[82]);original_present=reinterpret_cast<Present>(table[17]);original_reset=reinterpret_cast<Reset>(table[16]);
+    if(config.flags==4)once_device_slots=slots;
     if(config.flags==3) {
         if(!InitializeCriticalSectionAndSpinCount(&constants_lock,0)){failure=207;return;}constants_lock_ready=true;
         Ref<IDirect3DStateBlock9> block;
@@ -532,7 +542,7 @@ void Attach(IDirect3DDevice9* device) {
     admitted=device;owner=GetCurrentThreadId();LARGE_INTEGER frequency{};QueryPerformanceFrequency(&frequency);clock_frequency=frequency.QuadPart;Ref<IDirect3DDevice9On12> on12;
     on12_hr=device->QueryInterface(__uuidof(IDirect3DDevice9On12),reinterpret_cast<void**>(&on12.value));
     ObserveDevice(device);
-    if(config.flags&&on12_hr!=S_OK)failure=206;Live();
+    if((config.flags&1)&&on12_hr!=S_OK)failure=206;Live();
 }
 IDirect3DDevice9* __cdecl HookGetter() {
     ++getter_calls;const bool sample=snapshot&&(getter_calls%128==0);const auto begin=sample?Clock():0;
@@ -568,6 +578,7 @@ extern "C" DWORD WINAPI WePlayWaterOn12ProbeInitialize(void* opaque) {
     if(!Import(GetModuleHandleW(nullptr),slots)||!Import(GetModuleHandleW(L"vision90.dll"),slots)||slots.empty())return 105;
     HMODULE self=nullptr;if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,reinterpret_cast<const wchar_t*>(WePlayWaterOn12ProbeInitialize),&self))return 106;
     size_t applied=0;for(auto& slot:slots){slot.replacement=reinterpret_cast<void*>(HookGetter);if(!Patch(slot,true)){for(size_t i=applied;i>0;--i)Patch(slots[i-1],false);return 107;}++applied;}
+    if(config.flags==4)once_getter_slots=std::move(slots);
     Live();return 1;
     }catch(...){return 108;}
 }
@@ -666,6 +677,18 @@ int main(){Config c{};c.size=sizeof(c);c.version=1;wcscpy_s(c.report,L"C:\\work\
     const DWORD render_owner=owner;owner=render_owner+1;RememberPixel(false,true);
     constants_palette.Remember(0,uploaded,1);constants_foreign=false;
     check(HookReset(admitted,nullptr)==D3DERR_DEVICELOST&&!verified_non_target&&constants_foreign&&!constants_palette.Candidate(0,uploaded,1));owner=render_owner;
+    Config once_case{};once_case.size=sizeof(once_case);once_case.version=1;once_case.flags=4;wcscpy_s(once_case.report,L"C:\\work\\case\\water-probe.private.json");check(Shape(once_case));
+    config.flags=4;snapshot=true;hooks_detached=false;
+    void* drawEntry=reinterpret_cast<void*>(HookDraw);void* presentEntry=reinterpret_cast<void*>(HookPresent);void* resetEntry=reinterpret_cast<void*>(HookReset);void* getterEntry=reinterpret_cast<void*>(HookGetter);
+    once_device_slots={{&drawEntry,reinterpret_cast<void*>(FixtureDraw),reinterpret_cast<void*>(HookDraw)},
+        {&presentEntry,reinterpret_cast<void*>(FixtureGetter),reinterpret_cast<void*>(HookPresent)},
+        {&resetEntry,reinterpret_cast<void*>(FixtureReset),reinterpret_cast<void*>(HookReset)}};
+    once_getter_slots={{&getterEntry,reinterpret_cast<void*>(FixtureGetter),reinterpret_cast<void*>(HookGetter)}};
+    owner=render_owner+1;check(!DetachOnce()&&drawEntry==reinterpret_cast<void*>(HookDraw));owner=render_owner;
+    resetEntry=reinterpret_cast<void*>(0x8888);check(!DetachOnce()&&resetEntry==reinterpret_cast<void*>(0x8888)&&drawEntry==reinterpret_cast<void*>(HookDraw));resetEntry=reinterpret_cast<void*>(HookReset);
+    SetLastError(0x2468);_fxsave(before);{Guard guard;check(DetachOnce());}_fxsave(after);
+    check(hooks_detached&&drawEntry==reinterpret_cast<void*>(FixtureDraw)&&presentEntry==reinterpret_cast<void*>(FixtureGetter)&&resetEntry==reinterpret_cast<void*>(FixtureReset)&&getterEntry==reinterpret_cast<void*>(FixtureGetter));
+    check(GetLastError()==0x2468&&!std::memcmp(before,after,4)&&!std::memcmp(before+24,after+24,4));
     DeleteCriticalSection(&constants_lock);constants_lock_ready=false;
     std::printf("{\"cpu_checks\":%u,\"gpu_accessed\":false}\n",checks);return 0;}
 #endif

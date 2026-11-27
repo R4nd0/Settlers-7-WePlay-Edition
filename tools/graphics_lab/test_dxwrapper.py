@@ -69,6 +69,22 @@ class Tests(unittest.TestCase):
                     d.Session(self.bundle,self.case,mode,self.package,on12_runtime_build=self.root/'build')
             load.assert_not_called()
 
+    def test_backend_water_requires_matching_variant_and_detaches_probe(self):
+        from . import on12_runtime
+        kwargs=dict(water_probe=self.root/'probe',on12_runtime_build=self.root/'runtime',water_backend=True)
+        with patch('tools.graphics_lab.water_on12_probe.Probe')as probe,patch.object(on12_runtime,'Session')as runtime:
+            runtime.return_value.manifest={'variant':'water-worker'}
+            session=d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**kwargs)
+            self.assertIsNotNone(session.worker_policy)
+            probe.assert_called_once_with(kwargs['water_probe'],session.root,session.case,pow_cap=False,benchmark=False,once=True)
+            runtime.return_value.manifest={'variant':'stock'}
+            with self.assertRaisesRegex(ValueError,'source variant'):d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**kwargs)
+        with patch.object(game.platform,'load')as load:
+            for change in (dict(water_pow_cap=True),dict(water_benchmark=True),dict(on12_runtime_build=None)):
+                with self.subTest(change=change),self.assertRaises(ValueError):
+                    d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**{**kwargs,**change})
+            load.assert_not_called()
+
     def test_runtime_cleanup_failure_still_restores_original_renderer(self):
         session=self.session();session.apply()
         session.runtime=SimpleNamespace(restore=Mock(side_effect=OSError('authored runtime cleanup failure')))

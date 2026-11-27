@@ -2,7 +2,8 @@
 #include "water_on12_probe.cpp"
 
 int wmain(int argc,wchar_t** argv) {
-    if(argc!=2)return 1;
+    const bool once=argc==3&&!wcscmp(argv[2],L"--once");
+    if(argc!=2&&!once)return 1;
     Config c{};c.size=sizeof(c);c.version=1;
     const std::wstring report=std::wstring(argv[1])+L"\\water-probe.private.json";
     if(wcscpy_s(c.report,report.c_str())||!Shape(c)||!Parents(c.report))return 2;
@@ -61,6 +62,22 @@ int wmain(int argc,wchar_t** argv) {
         const bool matched=(observed_pixel&0xffffffu)==0xff00ffu;
         const HRESULT unlock=staging->UnlockRect();return matched&&SUCCEEDED(unlock);
     };
+    if(once&&okay){
+        config.flags=4;Attach(d);okay=admitted==d&&!failure;auto** table=*reinterpret_cast<void***>(d);
+        // Authored non-target scene: mark the capture complete to exercise the
+        // same detach transition as the exact input capture in a real game.
+        snapshot=true;alignas(16) unsigned char before[512]{},after[512]{};
+        if(okay)okay=SUCCEEDED(d->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0))&&SUCCEEDED(d->BeginScene());
+        SetLastError(0x1357);_fxsave(before);const HRESULT first=d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,3,0,1);_fxsave(after);
+        const DWORD error=GetLastError();okay=okay&&SUCCEEDED(first)&&error==0x1357&&!std::memcmp(before,after,4)&&!std::memcmp(before+24,after+24,4)
+            &&hooks_detached&&draws==1&&table[82]==reinterpret_cast<void*>(original_draw)&&table[17]==reinterpret_cast<void*>(original_present)&&table[16]==reinterpret_cast<void*>(original_reset);
+        if(okay)okay=SUCCEEDED(d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,3,0,1))&&draws==1;
+        const HRESULT ended=d->EndScene();okay=okay&&SUCCEEDED(ended)&&sample();
+        std::printf("{\"once_detached_original_slots\":%s,\"hooked_draws\":%llu,\"pixels_and_fp_preserved\":%s,\"synthetic_only\":true}\n",okay?"true":"false",static_cast<unsigned long long>(draws),okay?"true":"false");
+        d->SetPixelShader(nullptr);d->SetStreamSource(0,nullptr,0,0);d->SetIndices(nullptr);d->SetRenderTarget(0,original_target.value);
+        if(ps)ps->Release();if(ib)ib->Release();if(vb)vb->Release();if(staging)staging->Release();if(target)target->Release();
+        pixel_cache.Clear();vertex_cache.Clear();d->Release();api->Release();DestroyWindow(window);return okay?0:13;
+    }
     // Created before admission: its shared wrapper vtable must also invalidate
     // a later shadow. An interceptor attached only to new blocks is unsafe.
     Ref<IDirect3DStateBlock9> preexisting;

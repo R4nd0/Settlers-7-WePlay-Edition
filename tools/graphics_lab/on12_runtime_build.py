@@ -1,4 +1,4 @@
-"""Build a pinned, unchanged x86 On12 runtime for explicit local experiments."""
+"""Build pinned x86 On12 runtime variants for explicit local experiments."""
 import argparse
 import hashlib
 import json
@@ -31,6 +31,7 @@ PACKAGES={
     'atl-x86':('https://download.visualstudio.microsoft.com/download/pr/eef0996f-4334-4b1a-a344-4d13e27ac052/31401fe8b051ce1cde1610fc6e5baec818e9b13ab335f3b71a323b3b8ba96398/Microsoft.VC.14.50.18.0.ATL.X86.base.vsix','31401fe8b051ce1cde1610fc6e5baec818e9b13ab335f3b71a323b3b8ba96398'),
 }
 PROJECT_INPUTS=('native/on12_constant_reuse_gpu.cpp','native/water_on12_identity.h')
+VARIANTS=('stock','water-worker')
 MANIFEST='on12-runtime-build.json'
 FILES=('d3d9on12.dll','dxbcSigner.dll','on12_runtime_gpu.exe')
 
@@ -53,11 +54,21 @@ def inputs(directory):
             if path.is_file():result[path.relative_to(directory).as_posix()]=digest(path)
     return result
 
-def project_cmake(directory):
+def project_inputs(variant):
+    if variant not in VARIANTS:raise ValueError('Unknown On12 source variant.')
+    if variant=='stock':return PROJECT_INPUTS
+    from . import on12_water_patch
+    return (*PROJECT_INPUTS,*on12_water_patch.INPUTS)
+
+
+def project_cmake(directory,variant='stock'):
+    project_inputs(variant)
     gpu=(ROOT/PROJECT_INPUTS[0]).as_posix();source=(directory/'sources/D3D9On12').as_posix();binary=(directory/'bin').as_posix()
+    extra=f'target_include_directories(d3d9on12 PRIVATE "{(ROOT/"native").as_posix()}")\n' if variant=='water-worker' else ''
     return f'''cmake_minimum_required(VERSION 3.18)
 project(S7On12LocalRuntime)
 add_subdirectory("{source}" on12)
+{extra}
 set_target_properties(d3d9on12 PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "{binary}")
 add_executable(on12_runtime_gpu "{gpu}")
 target_compile_features(on12_runtime_gpu PRIVATE cxx_std_17)
@@ -66,9 +77,10 @@ target_link_libraries(on12_runtime_gpu PRIVATE bcrypt user32)
 set_target_properties(on12_runtime_gpu PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "{binary}")
 '''
 
-def expected_inputs(directory):
+def expected_inputs(directory,variant='stock'):
     """Bind extracted files to the trusted archives, not mutable manifest claims."""
-    result={'project/CMakeLists.txt':hashlib.sha256(project_cmake(directory).encode()).hexdigest()}
+    result={'project/CMakeLists.txt':hashlib.sha256(project_cmake(directory,variant).encode()).hexdigest()}
+    from . import on12_water_patch
     for name,pin,folder,strip in [*( (n,p,'sources/'+n,True) for n,p in SOURCE_PINS.items()),
                                *( (n,p,'dependencies/'+n,False) for n,(_,p) in PACKAGES.items())]:
         archive=directory/'archives'/(name+'.zip')
@@ -84,7 +96,12 @@ def expected_inputs(directory):
                 if not parts or entry.is_dir():continue
                 key=folder+'/'+str(PurePosixPath(*parts))
                 if key in result:raise ValueError('Duplicate archive input.')
-                result[key]=hashlib.sha256(source.read(entry)).hexdigest()
+                raw=source.read(entry)
+                if variant=='water-worker' and folder=='sources/D3D9On12' and str(PurePosixPath(*parts)) in on12_water_patch.EDITS:
+                    raw=on12_water_patch.patched(str(PurePosixPath(*parts)),raw)
+                result[key]=hashlib.sha256(raw).hexdigest()
+    if variant=='water-worker':
+        for name,path in on12_water_patch.ADDED.items():result['sources/D3D9On12/'+name]=digest(ROOT/path)
     return result
 
 def download(url,pin,path):
@@ -113,7 +130,8 @@ def unpack(archive,destination,*,strip_root=False):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 recover._write_new(target,source.read(entry))
 
-def build(directory):
+def build(directory,*,variant='stock'):
+    project_inputs(variant)
     if os.name!='nt':raise ValueError('The x86 runtime build requires Windows and VS 2026 Build Tools.')
     directory=recover.lab(directory)
     if directory.exists():raise ValueError('Use a fresh directory below work/.')
@@ -128,16 +146,19 @@ def build(directory):
         unpack(archive,directory/'sources'/name,strip_root=True)
     for name,(url,pin) in PACKAGES.items():
         archive=archives/(name+'.zip');download(url,pin,archive);unpack(archive,directory/'dependencies'/name)
+    if variant=='water-worker':
+        from . import on12_water_patch
+        on12_water_patch.apply(directory)
     project=directory/'project';project.mkdir();output=directory/'build'
     output.mkdir();packages=output/'packages';packages.mkdir()
     shutil.copytree(directory/'dependencies/signer',packages/'Microsoft.Direct3D.DxbcSigner.1.0.0')
     shutil.copytree(directory/'dependencies/pix',packages/'WinPixEventRuntime.1.0.190604001')
-    recover._write_new(project/'CMakeLists.txt',project_cmake(directory).encode())
+    recover._write_new(project/'CMakeLists.txt',project_cmake(directory,variant).encode())
     include=next((directory/'dependencies/atl-headers').rglob('atlstr.h')).parent
     library=next((directory/'dependencies/atl-x86').rglob('atls.lib')).parent
     wdk=directory/'dependencies/wdk/c/Include/10.0.26100.0'
-    before=inputs(directory);project_pins={name:digest(ROOT/name) for name in PROJECT_INPUTS}
-    if before!=expected_inputs(directory):raise RuntimeError('Extracted build inputs differ from their pinned archives.')
+    before=inputs(directory);project_pins={name:digest(ROOT/name) for name in project_inputs(variant)}
+    if before!=expected_inputs(directory,variant):raise RuntimeError('Extracted build inputs differ from their pinned archives and exact variant.')
     arguments=[str(cmake),'-S',str(project),'-B',str(output),'-G','Visual Studio 18 2026','-A','Win32','-T','version='+CONFIG['toolset'],
         '-DCMAKE_SYSTEM_VERSION='+CONFIG['sdk'],f'-DFETCHCONTENT_SOURCE_DIR_D3D12TRANSLATIONLAYER={(directory/"sources/D3D12TranslationLayer").as_posix()}',
         f'-DFETCHCONTENT_SOURCE_DIR_DIRECTX-HEADERS={(directory/"sources/DirectX-Headers").as_posix()}',
@@ -151,7 +172,7 @@ def build(directory):
         raise RuntimeError('Build inputs changed during compilation.')
     for name in ('d3d9on12.dll','on12_runtime_gpu.exe'):shutil.copyfile(directory/'bin'/name,directory/name)
     shutil.copyfile(directory/'dependencies/signer/build/native/bin/win32/dxbcSigner.dll',directory/'dxbcSigner.dll')
-    record=dict(format='s7-on12-runtime-build-v1',variant='stock',configuration=CONFIG,revisions=REVISIONS,
+    record=dict(format='s7-on12-runtime-build-v1',variant=variant,configuration=CONFIG,revisions=REVISIONS,
         source_archives=SOURCE_PINS,packages={name:pin for name,(_,pin) in PACKAGES.items()},builder_sha256=digest(Path(__file__)),
         project_inputs=project_pins,inputs=before,files={name:digest(directory/name) for name in FILES})
     recover._write_new(directory/MANIFEST,json.dumps(record,indent=2).encode())
@@ -159,6 +180,7 @@ def build(directory):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('output',type=Path)
-    args=parser.parse_args();print(json.dumps({'build':str(build(args.output))}))
+    parser.add_argument('--variant',choices=VARIANTS,default='stock')
+    args=parser.parse_args();print(json.dumps({'build':str(build(args.output,variant=args.variant))}))
 
 if __name__=='__main__':main()

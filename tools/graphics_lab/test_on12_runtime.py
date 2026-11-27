@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import Mock,patch
 import zipfile
 
-from . import on12_runtime as r,on12_runtime_build as b,recover,game,water_on12_probe
+from . import on12_runtime as r,on12_runtime_build as b,recover,game,water_on12_probe,on12_water_patch as water
 
 class Tests(unittest.TestCase):
     def setUp(self):
@@ -63,6 +63,36 @@ class Tests(unittest.TestCase):
         name='sources/D3D9On12/test.h';path=self.directory/name;path.write_bytes(b'modified upstream code')
         self.manifest['inputs'][name]=b.digest(path);self.write_manifest()
         with self.assertRaisesRegex(ValueError,'sources or dependencies'):r.verify_build(self.directory)
+
+    def test_water_variant_remains_bound_to_exact_patch_and_rejects_self_consistent_source_drift(self):
+        raw=b'authored source D3D9On12'
+        edits={'test.h':(hashlib.sha256(raw).hexdigest(),[(0,'authored','patched')])}
+        with patch.object(water,'EDITS',edits),patch.object(water,'ROOT',self.root):
+            for name in water.INPUTS:
+                path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'authored variant input')
+            for name in water.ADDED:(self.directory/'sources/D3D9On12'/name).parent.mkdir(parents=True,exist_ok=True)
+            water.apply(self.directory)
+            self.manifest['variant']='water-worker'
+            self.manifest['project_inputs']={name:b.digest(self.root/name)for name in b.project_inputs('water-worker')}
+            (self.directory/'project/CMakeLists.txt').write_bytes(b.project_cmake(self.directory,'water-worker').encode())
+            self.manifest['inputs']=b.inputs(self.directory);self.write_manifest();r.verify_build(self.directory)
+            path=self.directory/'sources/D3D9On12/test.h';path.write_bytes(b'other shader behavior')
+            self.manifest['inputs']['sources/D3D9On12/test.h']=b.digest(path);self.write_manifest()
+            with self.assertRaisesRegex(ValueError,'sources or dependencies'):r.verify_build(self.directory)
+        with self.assertRaisesRegex(ValueError,'exact pinned'):water.patched('src/9on12Shader.cpp',b'unknown upstream revision')
+
+    def test_backend_observation_requires_complete_read_only_detachment(self):
+        session=self.session();session.apply();session.manifest['variant']='water-worker'
+        owned=SimpleNamespace(pid=17,owned=Mock());report=self.case/'water-probe-live.private.json'
+        good=dict(attached=True,on12_query_hr=0,failure=0,snapshot_done=True,snapshot_once=True,
+                  hooks_detached=True,pow_cap_requested=False,caps_applied=0,caps_restored=0)
+        for change in (dict(hooks_detached=False),dict(pow_cap_requested=True),dict(caps_applied=1,caps_restored=1)):
+            report.write_text(json.dumps({**good,**change}))
+            with self.subTest(change=change),self.assertRaisesRegex(RuntimeError,'read-only observer'):
+                session.observe(owned,[self.exe.with_name('d3d9on12.dll')])
+            self.assertFalse(session.observed)
+        report.write_text(json.dumps(good));session.observe(owned,[self.exe.with_name('d3d9on12.dll')])
+        self.assertEqual(json.loads((self.case/'on12-runtime-observed.private.json').read_text())['source_variant'],'water-worker')
 
     def test_unknown_variant_target_and_traversal_are_rejected(self):
         for key,value in [('variant','patched'),('files',{**self.manifest['files'],'../save.s7s':'a'*64}),
