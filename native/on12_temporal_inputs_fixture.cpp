@@ -10,7 +10,7 @@ namespace {unsigned checks=0;bool Check(bool value,unsigned line){++checks;if(!v
 int main(){
     TemporalInputProbe probe;unsigned reads=0;
     auto read=[&]{++reads;TemporalBoundaryInputs value;value.logical.viewport.Width=1920;value.physical.viewport.Width=1280;
-        value.logical.candidate_view_projection[0]=(std::numeric_limits<float>::quiet_NaN)();return value;};
+        value.logical.candidate_view_projection[0]=(std::numeric_limits<float>::quiet_NaN)();value.physical.candidate_camera={1,2,3,4000};return value;};
     REQUIRE(!probe.Composite(1,read)&&!probe.Ui(1,read)&&!reads);
     TemporalInputCommand command;command.sequence=1;command.frames=2;
     REQUIRE(probe.Arm(command)&&probe.Active()&&!probe.Count());
@@ -26,6 +26,7 @@ int main(){
     REQUIRE(text.find("\"proofs\":0")!=std::string::npos&&text.find("\"game_taa_enabled\":false")!=std::string::npos);
     REQUIRE(text.find("\"discarded\":1")!=std::string::npos&&text.find("\"candidate_c12\":[null,")!=std::string::npos);
     REQUIRE(text.find("\"frame\":10")!=std::string::npos&&text.find("\"frame\":12")!=std::string::npos);
+    REQUIRE(text.find("\"candidate_c17\":[1,2,3,4000]")!=std::string::npos);
     REQUIRE(text.find("\"viewport\":[0,0,1920,0]")!=std::string::npos&&text.find("\"viewport\":[0,0,1280,0]")!=std::string::npos);
     REQUIRE(!probe.Arm(command)&&probe.Count()==2);
     for(unsigned test=0;test<4;++test){auto invalid=command;invalid.sequence=2;if(test==0)invalid.size=20;if(test==1)invalid.version=2;if(test==2)invalid.frames=0;if(test==3)invalid.frames=5;

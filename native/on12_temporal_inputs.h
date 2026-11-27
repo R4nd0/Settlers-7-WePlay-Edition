@@ -2,6 +2,7 @@
 #include <d3d9.h>
 #include <wrl/client.h>
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -18,6 +19,7 @@ struct TemporalSurfaceInfo {
 struct TemporalDeviceInputs {
     HRESULT matrix_result=E_FAIL,viewport_result=E_FAIL;
     std::array<float,16> candidate_view_projection{};
+    std::array<float,4> candidate_eye{},candidate_camera{},candidate_screen_size{};
     D3DVIEWPORT9 viewport{};
     std::array<TemporalSurfaceInfo,4> targets{};
     TemporalSurfaceInfo depth;
@@ -43,7 +45,10 @@ inline TemporalDeviceInputs ReadTemporalDeviceInputs(IDirect3DDevice9* device){
     TemporalDeviceInputs value;if(!device)return value;
     // c12-c15 are candidates from the original scene shader's CTAB. A read
     // here does not establish that a fullscreen shader still uses them.
-    value.matrix_result=device->GetVertexShaderConstantF(12,value.candidate_view_projection.data(),4);
+    std::array<float,28> constants{};value.matrix_result=device->GetVertexShaderConstantF(12,constants.data(),7);
+    std::copy_n(constants.begin(),16,value.candidate_view_projection.begin());
+    std::copy_n(constants.begin()+16,4,value.candidate_eye.begin());std::copy_n(constants.begin()+20,4,value.candidate_camera.begin());
+    std::copy_n(constants.begin()+24,4,value.candidate_screen_size.begin());
     value.viewport_result=device->GetViewport(&value.viewport);
     for(DWORD i=0;i<4;++i){ComPtr<IDirect3DSurface9> surface;const HRESULT hr=device->GetRenderTarget(i,&surface);value.targets[i]=TemporalDescribe(surface.Get(),hr);}
     {ComPtr<IDirect3DSurface9> surface;const HRESULT hr=device->GetDepthStencilSurface(&surface);value.depth=TemporalDescribe(surface.Get(),hr);}
@@ -87,10 +92,13 @@ private:
     static void DeviceJson(std::ostream& out,const TemporalDeviceInputs& d){
         out<<"{\"matrix_hr\":"<<static_cast<long>(d.matrix_result)<<",\"candidate_c12\":[";
         for(UINT i=0;i<16;++i){if(i)out<<',';if(std::isfinite(d.candidate_view_projection[i]))out<<d.candidate_view_projection[i];else out<<"null";}
-        out<<"],\"viewport_hr\":"<<static_cast<long>(d.viewport_result)<<",\"viewport\":["<<d.viewport.X<<','<<d.viewport.Y<<','<<d.viewport.Width<<','<<d.viewport.Height<<"],\"targets\":[";
+        out<<"],\"candidate_c16\":";VectorJson(out,d.candidate_eye);out<<",\"candidate_c17\":";VectorJson(out,d.candidate_camera);
+        out<<",\"candidate_c18\":";VectorJson(out,d.candidate_screen_size);
+        out<<",\"viewport_hr\":"<<static_cast<long>(d.viewport_result)<<",\"viewport\":["<<d.viewport.X<<','<<d.viewport.Y<<','<<d.viewport.Width<<','<<d.viewport.Height<<"],\"targets\":[";
         for(UINT i=0;i<4;++i){if(i)out<<',';SurfaceJson(out,d.targets[i]);}out<<"],\"depth\":";SurfaceJson(out,d.depth);out<<",\"textures\":[";
         for(UINT i=0;i<16;++i){if(i)out<<',';SurfaceJson(out,d.textures[i]);}out<<"]}";
     }
+    static void VectorJson(std::ostream& out,const std::array<float,4>& v){out<<'[';for(UINT i=0;i<4;++i){if(i)out<<',';if(std::isfinite(v[i]))out<<v[i];else out<<"null";}out<<']';}
     static void BoundaryJson(std::ostream& out,const TemporalBoundaryInputs& b){out<<"{\"logical\":";DeviceJson(out,b.logical);out<<",\"physical\":";DeviceJson(out,b.physical);out<<'}';}
     std::array<TemporalInputPair,4> pairs_{};TemporalInputPair pending_{};
     DWORD sequence_=0;UINT requested_=0,count_=0;std::uint64_t discarded_=0,rejected_=0;bool pending_valid_=false;
