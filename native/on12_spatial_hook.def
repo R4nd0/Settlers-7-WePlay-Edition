@@ -1,0 +1,3 @@
+LIBRARY WePlayOn12SpatialLab
+EXPORTS
+    WePlayOn12SpatialInitialize=_WePlayOn12SpatialInitialize@4

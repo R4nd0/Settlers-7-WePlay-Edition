@@ -42,7 +42,8 @@ def _invoke_fixed(owned,dll,config,kind):
     protocols={'water_observe':('WePlayWaterOn12Probe.dll',1036,0,b'WePlayWaterOn12ProbeInitialize\0'),
                'water_once':('WePlayWaterOn12Probe.dll',1036,4,b'WePlayWaterOn12ProbeInitialize\0'),
                'water_pow_cap':('WePlayWaterOn12Probe.dll',1036,1,b'WePlayWaterOn12ProbeInitialize\0'),
-               'water_benchmark':('WePlayWaterOn12Probe.dll',1036,3,b'WePlayWaterOn12ProbeInitialize\0')}
+               'water_benchmark':('WePlayWaterOn12Probe.dll',1036,3,b'WePlayWaterOn12ProbeInitialize\0'),
+               'on12_spatial':('WePlayOn12SpatialLab.dll',1036,1,b'WePlayOn12SpatialInitialize\0')}
     if kind not in protocols:raise ValueError('Unknown fixed laboratory initializer.')
     name,size,flags,export=protocols[kind]
     owned.owned()

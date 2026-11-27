@@ -59,11 +59,13 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None,water_backend=False,on12_spatial_build=None):
         from . import game
         if type(water_backend)is not bool or (water_backend and (on12_runtime_build is None or water_probe is None
                 or mode!='dxwrapper-d3d9on12' or water_pow_cap or water_benchmark)):
             raise ValueError('Backend water correction requires its explicit source build and exclusive read-only capture.')
+        if on12_spatial_build is not None and not water_backend:
+            raise ValueError('Native spatial AA requires the source-built On12 path and detached water capture.')
         if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
             raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
         if type(water_benchmark)is not bool or (water_benchmark and not water_pow_cap):raise ValueError('Water benchmark requires the explicit On12 correction.')
@@ -98,6 +100,10 @@ class Session:
             self.runtime=RuntimeSession(self.root,self.case,on12_runtime_build)
             expected='water-worker' if water_backend else 'stock'
             if self.runtime.manifest['variant']!=expected:raise ValueError('The On12 source variant does not match the requested water correction.')
+        self.spatial = None
+        if on12_spatial_build is not None:
+            from .on12_spatial import Session as SpatialSession
+            self.spatial = SpatialSession(on12_spatial_build, self.executable, self.case)
         if current(self.executable.with_name('d3d9.dll')) is None or digest(
                 current(self.executable.with_name('d3d9.dll'))) != recover.DXVK:
             raise ValueError('The laboratory must begin with the original pinned DXVK renderer.')
@@ -136,6 +142,7 @@ class Session:
         if self.probe is not None:
             self.probe.prepare()
         if self.runtime is not None:self.runtime.apply()
+        if self.spatial is not None:self.spatial.prepare()
 
     def observe(self, owned):
         """Inventory modules; the separate native probe must prove On12 identity."""
@@ -148,6 +155,7 @@ class Session:
         native = Native()
         paths = native.modules(owned.pid)
         if self.runtime is not None:self.runtime.observe(owned,paths)
+        if self.spatial is not None and self.runtime.observed:self.spatial.observe(owned)
         selected = [p for p in paths if p.name.casefold() in
                     ('d3d9.dll', 'd3d9on12.dll', 'd3d12.dll', 'd3d12core.dll', 'dxwrapper.dll')]
         owned.owned()
@@ -175,9 +183,12 @@ class Session:
                 if self.probe is not None:self.probe.close()
             finally:
                 try:
-                    if self.runtime is not None:self.runtime.restore()
+                    if self.spatial is not None:self.spatial.close()
                 finally:
-                    if (self.case / JOURNAL).exists():restore(self.case)
+                    try:
+                        if self.runtime is not None:self.runtime.restore()
+                    finally:
+                        if (self.case / JOURNAL).exists():restore(self.case)
 
 
 def restore(case):
