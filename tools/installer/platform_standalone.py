@@ -20,19 +20,20 @@ HISTORY_RC405 = '847378000abeabd83b1d7a459db19e54b734c84b5694a9b3b797704ef422501
 LOD_HISTORY = '1fbe68497696309900ee6306eb2cfd6cb0cbaf036b9a30ec322f7efb4e749ace'
 HISTORY_RC409 = '6fd41b706088112672d7a8c196f20ddbf45945ec25a4c0acf26d133c692b3be9'
 HISTORY_LOD400 = '58937e7c61ab38045352908cb857ce9d76acb3d2031881f8130c6312276cd02e'
+HISTORY_MIXED_START = 'd38efad35f70d428b5222ec730c804a74b85bfeb86d89abe8acc0833e0c3958e'
 HISTORY_PINS = {(False,False):HISTORY,
                 (True,False):'6386ddfbb3e91fccd19d858b39c21fb31dee9bb5a7dfb07efc1fcd9ca35c16b4',
                 (False,True):'393b1cb398b09c47aa93839b512222afdb7375dbe31e373fd6dad2c91ccf895a',
-                (True,True):HISTORY_LOD400}
+                (True,True):HISTORY_MIXED_START}
 GOLD_RC405 = '72fa857ebcef73b35f611873c6daf1535dadfe24034e05b4ac3279500023b989'
 LOD_GOLD = '92bd952f0efde03ae2e1357c019102854fb14df006b2fd7f0a91a11997a66dcd'
 GOLD_RC409 = '49a8db97405f805ac02e57b98df9e6dea5603b292e5ddf23869249c6c6424798'
 GOLD_LOD400 = '0b5e2d37040bd707ff44d954bc7644fb6115640852424108a8321d4e126a357e'
-GOLD = GOLD_LOD400
+GOLD = 'ac9adcb36c09bf713d47f1b0d185b029a7b0e9eed9915125294a7484aee7ba89'
 GOLD_RC403 = 'a5e511148b04f99d05b99ea1605f435c805988ab1f2a1fc23d250769ae9d3453'
 # Known previous release adapters remain readable for safe upgrade/repair.
 # New preparation still requires GOLD/HISTORY_PINS, never this legacy set.
-LEGACY_HISTORY_PINS = (HISTORY_RC409,LOD_HISTORY,HISTORY_RC405,'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',
+LEGACY_HISTORY_PINS = (HISTORY_LOD400,HISTORY_RC409,LOD_HISTORY,HISTORY_RC405,'f4f2db08e92cd0229c2ac749a3cede76724955277c0c3ba68b5fdc8e76e33112',
                        '6193d8af149182a4d54909ac514acdc4bc47c85e054dd557ee4699d88363ab14',
                        '597803dccfc37885a7d60f0530f36130cfcb0c3adeef259c22aaa5ff853b0ed4')
 LEGACY_GOLD_PINS = ('fcd996c475585a3cae61180d883a5405d4b519414da6f17ea7a41b51da120ba2',
@@ -61,7 +62,7 @@ def tool_sources():
 
 
 def adapter_pins(*, gold=False):
-    current = (GOLD,GOLD_RC409,LOD_GOLD,GOLD_RC405,GOLD_RC403) if gold else tuple(HISTORY_PINS.values())
+    current = (GOLD,GOLD_LOD400,GOLD_RC409,LOD_GOLD,GOLD_RC405,GOLD_RC403) if gold else tuple(HISTORY_PINS.values())
     legacy = LEGACY_GOLD_PINS if gold else LEGACY_HISTORY_PINS
     return tuple(dict.fromkeys((*current, *legacy)))
 
@@ -234,7 +235,7 @@ def launch(root, *, environment=None, arguments=(),lan=None,on_initialized=None,
             mode,package=renderer
             if mode not in (*graphics.ASYNC_RENDERERS,'native'):
                 raise ValueError('renderer_payload_invalid')
-            if value['edition']=='gold' and value['files'][adapter.relative_to(root).as_posix()] not in (GOLD,GOLD_RC409,LOD_GOLD,GOLD_RC405):
+            if value['edition']=='gold' and value['files'][adapter.relative_to(root).as_posix()] not in (GOLD,GOLD_LOD400,GOLD_RC409,LOD_GOLD,GOLD_RC405):
                 raise ValueError('update_required')
             config = (graphics.prepare_async_config(root / 'LocalData')
                       if mode=='async' else executable.with_name('dxvk.conf'))

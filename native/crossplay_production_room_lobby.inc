@@ -8,6 +8,7 @@
     bool room_primed=false;
     bool room_gold_sdk_ready_installed=false;
     bool room_gold_ready_enqueued=false;
+    bool room_gold_guest_rows_bound=false;
     bool room_history_rows_confirmed=false;
     ULONGLONG room_configuration_started=0;
     unsigned char room_changed_ready_slot=0;
@@ -15,6 +16,7 @@
     std::vector<unsigned char> room_ready_before,room_ready_after;
     std::vector<unsigned char> room_held_start;
     std::vector<unsigned char> room_held_setup;
+    ULONGLONG room_held_start_at=0;
     ULONGLONG room_ready_started=0;
     enum class TeamPhase { Idle, AwaitingReceipts, Applying, AwaitingCommit, Confirmed, GoldConfirmingPlayers, GoldRestoringReady };
     TeamPhase room_team_phase=TeamPhase::Idle;
@@ -198,7 +200,8 @@
         room_team_started=GetTickCount64();
 #ifdef S7_CROSSPLAY_ROOM_WORLD
         if(launch.channel.edition==Crossplay::Edition::Gold){
-            if(!CrossplayRoomGoldPreparation::Apply(original,room_admission,room_local_routes,session))return false;
+            if(!CrossplayRoomGoldPreparation::Apply(original,room_admission,room_local_routes,session,
+                CrossplayRoomGoldPreparation::Completion::QueueConfirmations))return false;
             room_team_phase=TeamPhase::GoldConfirmingPlayers;
             return true;
         }
@@ -332,6 +335,18 @@
             || !Same(preparation,owned))return false;
         room_history_rows_confirmed=true;return true;
     }
+
+#ifdef S7_CROSSPLAY_ROOM_WORLD
+    bool BindRoomGoldGuestRows(){
+        if(launch.host || launch.channel.edition!=Crossplay::Edition::Gold || room_gold_guest_rows_bound)return true;
+        // The original Gold lobby reads these rows to label human seats and
+        // display its Ready button. Confirmations can reset Ready and belong
+        // to the existing team handshake after the original Ready actions.
+        if(!CrossplayRoomGoldPreparation::Apply(original,room_admission,room_local_routes,session,
+            CrossplayRoomGoldPreparation::Completion::BindRows))return false;
+        room_gold_guest_rows_bound=true;return true;
+    }
+#endif
 
     bool RoomGoldReadyIntent(uint32_t source,uint32_t original_slot,const void* event,std::vector<unsigned char>& wire){
         using namespace CrossplayNativeCodec;
@@ -517,6 +532,7 @@
         if(needs_root && !deferred && !CrossplaySetupRootCapture::CaptureRoom(launch.channel.edition,room_local_routes.capacity,
             [&]{return RoomTeamsConfirmed() && RoomAllHumansReadyObserved();},room_held_setup))return false;
         room_held_start=std::move(wire);
+        room_held_start_at=GetTickCount64();
         return true;
     }
 
@@ -540,7 +556,7 @@
         if(room_team_phase!=TeamPhase::Idle)return PumpRoomTeams(room);
         if(!ReadyRoomSupported(room))return true;
 #ifdef S7_CROSSPLAY_ROOM_WORLD
-        if(!PrepareRoomHistoryRows())return false;
+        if(!BindRoomGoldGuestRows() || !PrepareRoomHistoryRows())return false;
 #endif
 #ifdef S7_CROSSPLAY_ROOM_WORLD
         if(!SendRoomLobbyNeo(room))return false;

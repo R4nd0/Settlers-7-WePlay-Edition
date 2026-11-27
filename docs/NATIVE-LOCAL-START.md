@@ -743,3 +743,29 @@ DXVK 3.1.1. The room used the package's local mixed-room transport.
 Every test process exited with code 0. The temporary Windows network rules
 were removed successfully. Both History host roles remain open for release
 qualification.
+
+### Gold guest readiness and delayed History host start
+
+Gold's original Join Match panel displays a human seat only when the original
+network-slot lookup returns a player name. The old room adapter populated
+Gold's preparation rows during the team handshake, which starts after all
+guests have pressed Ready. The guest now binds the authenticated names and
+native seat assignments before opening that panel. The later team handshake
+still sends and checks the original player confirmations and Ready events.
+
+With Ubisoft History hosting, the development build `rc4.13-test.3` displayed
+the correct roster and Gold's original Ready button. The Ubisoft host received
+both guests' Ready events and completed team synchronization. After waiting in
+the ready lobby, the host closed its room channel on Start before sending any
+world start. The native deadline for persisting the History host's resume
+roster was anchored to the earlier team handshake. It now starts when the
+adapter captures the original Start action, retaining the ten-second limit.
+
+Private Windows development build `rc4.13-test.4`, package ID
+`c08c371865ccc527c609c815c3787ffd6b13fe39173c0c9e1644b1de7fca6408`, used the
+verified package delta on the existing three private copies. With Ubisoft
+History hosting Monhaim Valley, Gold and Steam History as guests, Maid Marielle
+(Normal) and NEO disabled, the world start arrived 28 one-second sampling
+intervals after team commit. All three clients reached the world in windowed
+DXVK mode and agreed on 89 consecutive finished-turn checksums. All processes
+exited with code 0, and the temporary network rules were removed.

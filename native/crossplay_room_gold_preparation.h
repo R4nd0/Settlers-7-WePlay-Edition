@@ -2,8 +2,10 @@
 #include "crossplay_human_profile_selection.h"
 
 namespace CrossplayRoomGoldPreparation {
+enum class Completion { BindRows, QueueConfirmations };
+
 inline bool Apply(const CrossplayNative::ParticipantEvent& binding,const CrossplayNative::RoomLobbyAdmission& admission,
-                  const CrossplaySessionConfig::RoomConnections& routes,uintptr_t session) {
+                  const CrossplaySessionConfig::RoomConnections& routes,uintptr_t session,Completion completion) {
     using namespace CrossplayNative;
     using namespace GoldGuestIdentityDetail;
     using CrossplayNativeCodec::Detail::Readable;
@@ -45,7 +47,7 @@ inline bool Apply(const CrossplayNative::ParticipantEvent& binding,const Crosspl
             if(i!=slot && *reinterpret_cast<const char* const*>(view.rows+i*stride+0x1c)==previous.data)return false;
     }
     ParticipantEvent confirmed;
-    if(!view.Stable() || !confirmed.Bind(edition))return false;
+    if(!view.Stable() || (completion==Completion::QueueConfirmations && !confirmed.Bind(edition)))return false;
     const std::vector<unsigned char> original(view.rows,view.rows+bytes);
     for(const auto& entry:entries){
         if(!entry.id)continue;
@@ -74,6 +76,7 @@ inline bool Apply(const CrossplayNative::ParticipantEvent& binding,const Crosspl
             && ((field>=0x18 && field<0x2c) || (field>=0x5c && field<0x64)))continue;
         if(original[i]!=view.rows[i])return false;
     }
+    if(completion==Completion::BindRows)return true;
     for(const auto& entry:entries)
         if(entry.id && (!confirmed.ConstructConfirmedSetup(entry.player,entry.castle,entry.extra)
             || !confirmed.EnqueueLocal() || !confirmed.Reset()))return false;

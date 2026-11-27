@@ -162,7 +162,7 @@
         if(!room_saved_guest_prepared){
             if(!PumpRoomSavedGuestRows(true))return false;
             if(room_saved_ready_slot<=room_local_routes.capacity)return true;
-            if(!PrepareRoomHistoryRows(true))return false;
+            if(!BindRoomGoldGuestRows() || !PrepareRoomHistoryRows(true))return false;
             room_saved_guest_prepared=true;room_saved_ready_slot=1;
         }
         CrossplayNative::RoomRoute host,own;

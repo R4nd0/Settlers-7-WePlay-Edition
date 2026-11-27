@@ -75,7 +75,9 @@
             if(room_held_start.empty())return true;
 #ifdef S7_CROSSPLAY_ROOM_WORLD
             if(launch.channel.edition!=Crossplay::Edition::Gold && !room_history_save_roster)
-                return GetTickCount64()-room_team_started<=10000;
+                // The roster can be persisted only after an original Start.
+                // Time spent in the ready lobby belongs to the host.
+                return GetTickCount64()-room_held_start_at<=10000;
 #endif
             if(room_held_setup.empty() && !CaptureCurrentRoomRoot(room_held_setup))return false;
             return SendRoomRoot(room);
