@@ -1,6 +1,7 @@
 // Authored GPU scenes only. Exercises the real D3D9On12 resource handoff.
 #include "on12_frame_context.h"
 #include "on12_scene_targets.h"
+#include "on12_depth_capture.h"
 #include "water_on12_identity.h"
 #include <d3dcompiler.h>
 #include <d3d9on12.h>
@@ -82,6 +83,24 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(device->CreateRenderTarget(8, 8, D3DFMT_A8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &wrapped_surface, nullptr)));
     REQUIRE(context.Render(wrapped_surface.Get(), wrapped_surface.Get(), config) == E_INVALIDARG && context.SafeForD3D9() && !context.Stats().checkouts);
     wrapped_surface.Reset(); wrapped_device = device; device = context.NativeDevice(); REQUIRE(device);
+    // Native R32F render-target readback, including the same no-state-change
+    // helper used by the explicit scene depth diagnostic.
+    {
+        ComPtr<IDirect3DTexture9> float_texture;ComPtr<IDirect3DSurface9> float_target,previous_target,previous_depth;
+        D3DVIEWPORT9 previous_viewport{};
+        REQUIRE(SUCCEEDED(device->CreateTexture(8,8,1,D3DUSAGE_RENDERTARGET,D3DFMT_R32F,D3DPOOL_DEFAULT,&float_texture,nullptr)));
+        REQUIRE(SUCCEEDED(float_texture->GetSurfaceLevel(0,&float_target))&&SUCCEEDED(device->GetRenderTarget(0,&previous_target)));
+        REQUIRE(SUCCEEDED(device->GetDepthStencilSurface(&previous_depth))&&SUCCEEDED(device->GetViewport(&previous_viewport)));
+        REQUIRE(SUCCEEDED(device->SetDepthStencilSurface(nullptr))&&SUCCEEDED(device->SetRenderTarget(0,float_target.Get())));
+        REQUIRE(SUCCEEDED(device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff400000,1,0)));
+        REQUIRE(SUCCEEDED(device->SetRenderTarget(0,previous_target.Get()))&&SUCCEEDED(device->SetDepthStencilSurface(previous_depth.Get()))&&SUCCEEDED(device->SetViewport(&previous_viewport)));
+        On12Graphics::R32DepthCapture captured;REQUIRE(SUCCEEDED(On12Graphics::ReadR32Depth(device.Get(),float_texture.Get(),captured)));
+        REQUIRE(captured.width==8&&captured.height==8&&captured.finite==64&&captured.interior==64);
+        for(float z:captured.pixels)REQUIRE(std::fabs(z-64.0f/255)<1e-5f);
+        D3DVIEWPORT9 current_viewport{};ComPtr<IDirect3DSurface9> current_target;
+        REQUIRE(SUCCEEDED(device->GetViewport(&current_viewport))&&!std::memcmp(&current_viewport,&previous_viewport,sizeof(previous_viewport)));
+        REQUIRE(SUCCEEDED(device->GetRenderTarget(0,&current_target))&&current_target.Get()==previous_target.Get());
+    }
     ComPtr<IDirect3DSurface9> input, output;
     auto make = [&](UINT source, UINT target) {
         return SUCCEEDED(device->CreateRenderTarget(source, source, D3DFMT_A8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &input, nullptr))

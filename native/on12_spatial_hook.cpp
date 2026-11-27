@@ -4,6 +4,7 @@
 #include "on12_scene_targets.h"
 #include "on12_scene_boundary.h"
 #include "on12_temporal_inputs.h"
+#include "on12_depth_capture.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
@@ -116,8 +117,8 @@ void Command() {
     if (value.sequence > sequence) { sequence = value.sequence; settings.enabled = value.enabled; }
 }
 
-// Explicit, bounded, read-only observation. No texture readback, shader change,
-// extra draw or queue submission. Failure cannot change the original draw.
+// Explicit, bounded, read-only observation. V1 is metadata only. V2 explicitly
+// requests one synchronizing R32F readback; never use V2 for FPS measurements.
 void TemporalInputCommand() noexcept {
     if(!scene_mode)return;
     try {
@@ -125,11 +126,36 @@ void TemporalInputCommand() noexcept {
     HANDLE file=CreateFileW((directory+L"\\on12-temporal-inputs.private.command").c_str(),GENERIC_READ,
         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
     if(file==INVALID_HANDLE_VALUE)return;
-    On12Graphics::TemporalInputCommand value{};LARGE_INTEGER size{};BY_HANDLE_FILE_INFORMATION info{};DWORD count=0;
+    std::array<DWORD,6> words{};LARGE_INTEGER size{};BY_HANDLE_FILE_INFORMATION info{};DWORD count=0;
     const bool valid=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)
-        &&GetFileSizeEx(file,&size)&&size.QuadPart==sizeof(value)&&ReadFile(file,&value,sizeof(value),&count,nullptr)&&count==sizeof(value);
-    CloseHandle(file);if(valid&&value.sequence!=temporal_inputs.Sequence())temporal_inputs.Arm(value);
+        &&GetFileSizeEx(file,&size)&&(size.QuadPart==16||size.QuadPart==24)&&ReadFile(file,words.data(),static_cast<DWORD>(size.QuadPart),&count,nullptr)&&count==size.QuadPart;
+    CloseHandle(file);
+    if(valid&&words[2]!=temporal_inputs.Sequence()){
+        if(size.QuadPart==16){On12Graphics::TemporalInputCommand value;std::memcpy(&value,words.data(),sizeof(value));temporal_inputs.Arm(value);}
+        else{On12Graphics::TemporalInputDepthCommand value;std::memcpy(&value,words.data(),sizeof(value));temporal_inputs.Arm(value);}
+    }
     }catch(...){temporal_inputs.Invalidate();}
+}
+void TemporalDepthCapture(){
+    auto result=temporal_inputs.Depth();
+    ComPtr<IDirect3DBaseTexture9> base;ComPtr<IDirect3DTexture9> texture;
+    auto* native=context->NativeDevice();result.result=native->GetTexture(0,&base);
+    if(SUCCEEDED(result.result))result.result=base?base.As(&texture):D3DERR_NOTFOUND;
+    On12Graphics::R32DepthCapture pixels;
+    if(SUCCEEDED(result.result))result.result=On12Graphics::ReadR32Depth(native,texture.Get(),pixels);
+    if(SUCCEEDED(result.result)){
+        result.width=pixels.width;result.height=pixels.height;result.finite=pixels.finite;result.interior=pixels.interior;result.minimum=pixels.minimum;result.maximum=pixels.maximum;
+        On12Graphics::TemporalDepthHeader header;header.width=pixels.width;header.height=pixels.height;header.frame=result.frame;header.normalized_depth_scale=result.scale;
+        const auto path=directory+L"\\on12-temporal-depth-"+std::to_wstring(temporal_inputs.Sequence())+L".private.bin";
+        const bool parents=Parents(path.c_str());
+        HANDLE file=parents?CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_FLAG_OPEN_REPARSE_POINT,nullptr):INVALID_HANDLE_VALUE;
+        if(file==INVALID_HANDLE_VALUE)result.result=parents?HRESULT_FROM_WIN32(GetLastError()):E_ACCESSDENIED;
+        else{DWORD bytes=0;const DWORD count=static_cast<DWORD>(pixels.pixels.size()*sizeof(float));
+            const bool written=WriteFile(file,&header,sizeof(header),&bytes,nullptr)&&bytes==sizeof(header)&&WriteFile(file,pixels.pixels.data(),count,&bytes,nullptr)&&bytes==count;
+            const DWORD error=GetLastError();CloseHandle(file);result.written=written;if(!written)result.result=HRESULT_FROM_WIN32(error?error:ERROR_WRITE_FAULT);
+        }
+    }
+    temporal_inputs.DepthResult(result);
 }
 void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
     if(!temporal_inputs.Active())return;
@@ -137,7 +163,7 @@ void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
     try {
         auto read=[&]{On12Graphics::TemporalBoundaryInputs value;value.logical=On12Graphics::ReadTemporalDeviceInputs(d);
             value.physical=On12Graphics::ReadTemporalDeviceInputs(context->NativeDevice());return value;};
-        if(!ui){temporal_inputs.Composite(presents+1,read);return;}
+        if(!ui){if(temporal_inputs.Composite(presents+1,read)&&temporal_inputs.BeginDepth(presents+1))TemporalDepthCapture();return;}
         if(!temporal_inputs.Ui(presents+1,read))return;
         std::ostringstream out;temporal_inputs.Json(out);const auto bytes=out.str();
         const auto path=directory+L"\\on12-temporal-inputs.private.json",temporary=path+L".tmp";

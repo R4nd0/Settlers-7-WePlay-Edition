@@ -11,7 +11,7 @@ $lines=& $env:ComSpec /d /c "call `"$setup`" x64_x86 >nul && set"
 if ($LASTEXITCODE) {throw 'Cannot initialize the x86 compiler.'}
 foreach ($line in $lines) {$at=$line.IndexOf('=');if($at -gt 0){[Environment]::SetEnvironmentVariable($line.Substring(0,$at),$line.Substring($at+1),'Process')}}
 New-Item -ItemType Directory -Path $output | Out-Null
-$names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','on12_spatial_pass.cpp','on12_spatial_pass.hlsl','on12_spatial_gpu.cpp','on12_spatial_hook.cpp','on12_spatial_hook.def','water_on12_identity.h','on12_output_window.h','on12_output_window.cpp','on12_output_window_fixture.cpp','on12_scene_targets.h','on12_scene_targets.cpp','on12_scene_boundary.h','on12_scene_abi_fixture.cpp','on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp')
+$names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','on12_spatial_pass.cpp','on12_spatial_pass.hlsl','on12_spatial_gpu.cpp','on12_spatial_hook.cpp','on12_spatial_hook.def','water_on12_identity.h','on12_output_window.h','on12_output_window.cpp','on12_output_window_fixture.cpp','on12_scene_targets.h','on12_scene_targets.cpp','on12_scene_boundary.h','on12_scene_abi_fixture.cpp','on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp','on12_depth_capture.h')
 $files=@{}
 foreach($name in $names){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $output;$files[$name]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
 Push-Location $output

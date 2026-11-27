@@ -25,6 +25,7 @@ class Tests(unittest.TestCase):
         self.cpu=dict(passed=True,cpu_only=True,gpu_device_created=False,abi_bytes=64,
                       shader_compiled=True,sharp_edge_preserved=True,reactive_rejection=True)
         self.write_cpu()
+        (self.build/'camera-result.private.json').write_text(json.dumps(dict(passed=True,cpu_only=True,gpu_device_created=False,camera_bytes=96)))
         self.manifest=dict(format='s7-on12-temporal-build-v1',architecture='x86',cpu_only=True,
                            parameter_bytes=64,build_sha256=temporal.loader.digest(temporal.ROOT/'native/on12_temporal_build.ps1'),
                            files={name:temporal.loader.digest(self.build/name) for name in (*temporal.SOURCES,*temporal.ARTIFACTS)})
@@ -103,6 +104,49 @@ class Tests(unittest.TestCase):
             with self.assertRaises(ValueError):temporal.request_inputs(self.case,1,4)
             temporal.request_inputs(self.case,2,4)
             run.assert_not_called()
+
+    def test_depth_pixels_require_explicit_v2_request(self):
+        self.input_host()
+        temporal.request_inputs(self.case,1,1,depth_pixels=True)
+        self.assertEqual((self.case/'on12-temporal-inputs.private.command').read_bytes(),struct.pack('<6I',24,2,1,1,1,0))
+        temporal.request_inputs(self.case,2,2)
+        self.assertEqual((self.case/'on12-temporal-inputs.private.command').read_bytes(),struct.pack('<4I',16,1,2,2))
+        with self.assertRaises(ValueError):temporal.request_inputs(self.case,3,depth_pixels=1)
+
+    def captured_depth(self):
+        values=(0.1,0.25,0.75,1.0)
+        pixels=struct.pack('<4f',*values)
+        actual=struct.unpack('<4f',pixels)
+        physical=dict(matrix_hr=0,viewport=[0,0,2,2],textures=[dict(hr=0,format=114,width=2,height=2)],candidate_c17=[0,0,1,100])
+        info=dict(requested=True,attempted=True,written=True,hr=0,frame=10,width=2,height=2,finite=4,interior=3,
+                  minimum=float(f'{actual[0]:.9g}'),maximum=1,candidate_scale=100)
+        report=dict(format='s7-on12-temporal-inputs-v1',sequence=1,game_taa_enabled=False,depth_capture=info,
+                    pairs=[dict(frame=10,composite=dict(physical=physical),ui={})])
+        (self.case/'on12-temporal-inputs.private.json').write_text(json.dumps(report))
+        path=self.case/'on12-temporal-depth-1.private.bin'
+        path.write_bytes(struct.pack('<8s4IQfI',b'S7D32V1\0',1,2,2,114,10,100,0)+pixels)
+        return report,path
+
+    def test_same_frame_depth_analysis_preserves_unproven_motion_and_jitter(self):
+        self.captured_depth()
+        with patch.object(temporal.subprocess,'run') as run:
+            result=temporal.analyze_depth(self.case,1)
+            self.assertEqual(result['scene_pixels'],3)
+            self.assertAlmostEqual(result['linear_depth_range'][0],10,places=5)
+            self.assertFalse(result['game_taa_enabled'])
+            self.assertFalse(result['dynamic_motion_proven'])
+            self.assertFalse(result['jitter_proven'])
+            run.assert_not_called()
+
+    def test_depth_analysis_rejects_frame_mismatch_or_partial_pixels(self):
+        report,path=self.captured_depth()
+        raw=path.read_bytes()
+        path.write_bytes(raw[:-1])
+        with self.assertRaises(ValueError):temporal.analyze_depth(self.case,1)
+        path.write_bytes(raw)
+        report['pairs'][0]['frame']=11
+        (self.case/'on12-temporal-inputs.private.json').write_text(json.dumps(report))
+        with self.assertRaises(ValueError):temporal.analyze_depth(self.case,1)
 
     def test_input_request_requires_scene_host_and_unfinished_case(self):
         for change in ({'initialized':False},{'scene_only':False},{'stopped':True},{'failure':1},{'format':'unknown'}):

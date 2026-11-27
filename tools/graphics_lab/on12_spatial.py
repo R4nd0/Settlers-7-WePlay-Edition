@@ -16,7 +16,7 @@ SOURCES = ('on12_frame_context.h', 'on12_frame_context.cpp', 'on12_spatial_pass.
            'on12_spatial_hook.def', 'on12_spatial_gpu.cpp', 'water_on12_identity.h',
            'on12_output_window.h', 'on12_output_window.cpp', 'on12_output_window_fixture.cpp',
            'on12_scene_targets.h', 'on12_scene_targets.cpp', 'on12_scene_boundary.h', 'on12_scene_abi_fixture.cpp',
-           'on12_temporal_inputs.h', 'on12_temporal_inputs_fixture.cpp')
+           'on12_temporal_inputs.h', 'on12_temporal_inputs_fixture.cpp','on12_depth_capture.h')
 BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe', 'on12_scene_abi_fixture.exe', 'on12_temporal_inputs_fixture.exe')
 MANIFEST = 'on12-spatial-build.json'
 WINDOWS_ON12 = '8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a'

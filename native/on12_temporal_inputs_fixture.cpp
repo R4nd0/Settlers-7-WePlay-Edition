@@ -37,5 +37,14 @@ int main(){
     for(std::uint64_t i=30;i<34;++i)REQUIRE(probe.Composite(i,read)&&probe.Ui(i,read));
     REQUIRE(!probe.Active()&&probe.Count()==4&&!probe.Composite(34,read));
     const auto missing=ReadTemporalDeviceInputs(nullptr);REQUIRE(FAILED(missing.matrix_result)&&FAILED(missing.viewport_result));
+    TemporalInputDepthCommand depth_command;depth_command.sequence=4;depth_command.frames=2;
+    REQUIRE(probe.Arm(depth_command)&&probe.Depth().requested&&!probe.Depth().attempted);
+    REQUIRE(!probe.BeginDepth(40)&&probe.Composite(40,read)&&probe.BeginDepth(40));
+    REQUIRE(!probe.BeginDepth(40)&&probe.Depth().frame==40&&probe.Depth().scale==4000);
+    auto result=probe.Depth();result.result=S_OK;result.written=true;result.width=8;result.height=8;result.finite=result.interior=64;
+    probe.DepthResult(result);REQUIRE(probe.Ui(40,read)&&probe.Depth().written);
+    REQUIRE(probe.Composite(41,read)&&!probe.BeginDepth(41)&&probe.Ui(41,read));
+    depth_command.sequence=5;depth_command.flags=2;REQUIRE(!probe.Arm(depth_command)&&probe.Sequence()==4);
+    command.sequence=5;command.frames=1;REQUIRE(probe.Arm(command)&&!probe.Depth().requested);
     std::printf("{\"passed\":true,\"checks\":%u,\"cpu_only\":true,\"gpu_device_created\":false,\"command_bytes\":16,\"bounded_pairs\":4}\n",checks);return 0;
 }
