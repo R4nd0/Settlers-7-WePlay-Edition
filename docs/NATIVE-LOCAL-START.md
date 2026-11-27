@@ -707,3 +707,39 @@ exited with code 0. These observations used a loopback laboratory service and
 native D3D9. They establish the UI regression and its correction independently
 of the network transport. Gold, Steam History and mixed save/reload require
 separate installed-package evidence.
+
+### Installed mixed room follow-up
+
+Private Windows candidate `rc4.13-test.2` was built from `b57dbee` with
+package ID `78d7c4381b5858eeb3b4852259f7dbae515ee4326d051fc5a5029fdcd2f18277`.
+The three verified installed copies ran windowed on one Windows machine with
+DXVK 3.1.1. The room used the package's local mixed-room transport.
+
+- **Gold host, Ubisoft History and Steam History guests.** On Monhaim Valley,
+  all three entered the world with Maid Marielle (Normal) and NEO enabled.
+  The original Gold save dialog wrote a multiplayer save. In a fresh room
+  with new processes, both History guests each received 2,974 original file
+  packets and sent native file and saved-start receipts. The same AI appeared
+  in the restored world. The native checksum comparison found 493 common
+  completed turns in the initial room and 835 in the reload, with zero
+  mismatches in either. The reload comparison covered 109.7 seconds. Ubisoft
+  History opened and closed Research after reloading. Steam History opened
+  and closed Trading Routes after reloading. Both runs exited 0 on all three
+  clients.
+- **Ubisoft History host.** The first attempt lost the room connection before
+  the shared configuration. In the repeat, the broker observed all three
+  clients with one AI, and the Steam guest's Ready state reached the host.
+  Gold's lobby showed its own name in the first row and empty human seats.
+  Its highlighted guest row offered no Ready button, so the host remained
+  unable to start. This occurred before entering the world.
+- **Steam History host.** In the first attempt, the Ubisoft guest disconnected
+  after 126.87 seconds, before the shared configuration. The broker recorded
+  socket EOF with zero protocol rejections. With faster lobby creation in the
+  repeat, all three clients and the AI appeared on the host and the Ubisoft
+  guest was able to mark Ready. The Gold guest again showed empty human seats
+  and offered no Ready button. Both History host roles therefore reproduced
+  the same Gold guest symptom with a connected room and no protocol rejection.
+
+Every test process exited with code 0. The temporary Windows network rules
+were removed successfully. Both History host roles remain open for release
+qualification.
