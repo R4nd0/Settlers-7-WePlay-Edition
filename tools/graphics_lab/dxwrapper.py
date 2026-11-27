@@ -59,11 +59,13 @@ def current(path):
 
 
 class Session:
-    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None):
+    def __init__(self, root, case, mode, package=None, *, water_probe=None,water_pow_cap=False,water_benchmark=False,water_worker_priority=None,on12_runtime_build=None):
         from . import game
         if type(water_pow_cap)is not bool or (water_pow_cap and (water_probe is None or mode!='dxwrapper-d3d9on12')):
             raise ValueError('Water POW cap requires the exact probe and D3D9On12 backend.')
         if type(water_benchmark)is not bool or (water_benchmark and not water_pow_cap):raise ValueError('Water benchmark requires the explicit On12 correction.')
+        if on12_runtime_build is not None and (mode!='dxwrapper-d3d9on12' or not water_pow_cap or water_probe is None):
+            raise ValueError('A local runtime requires the explicit corrected On12 laboratory profile.')
         if water_worker_priority is None:water_worker_priority=water_pow_cap and not water_benchmark
         if type(water_worker_priority)is not bool or (water_worker_priority and (not water_pow_cap or water_benchmark)):
             raise ValueError('Worker priority requires its exclusive exact On12 correction.')
@@ -87,6 +89,10 @@ class Session:
             from .water_on12_probe import Probe
             self.probe=Probe(water_probe,self.root,self.case,pow_cap=water_pow_cap,benchmark=water_benchmark)
         self.last_observed = 0.0
+        self.runtime=None
+        if on12_runtime_build is not None:
+            from .on12_runtime import Session as RuntimeSession
+            self.runtime=RuntimeSession(self.root,self.case,on12_runtime_build)
         if current(self.executable.with_name('d3d9.dll')) is None or digest(
                 current(self.executable.with_name('d3d9.dll'))) != recover.DXVK:
             raise ValueError('The laboratory must begin with the original pinned DXVK renderer.')
@@ -124,6 +130,7 @@ class Session:
         recover._atomic(self.case / JOURNAL, json.dumps(value, indent=2).encode())
         if self.probe is not None:
             self.probe.prepare()
+        if self.runtime is not None:self.runtime.apply()
 
     def observe(self, owned):
         """Inventory modules; the separate native probe must prove On12 identity."""
@@ -135,6 +142,7 @@ class Session:
         from .crash_watch import Native
         native = Native()
         paths = native.modules(owned.pid)
+        if self.runtime is not None:self.runtime.observe(owned,paths)
         selected = [p for p in paths if p.name.casefold() in
                     ('d3d9.dll', 'd3d9on12.dll', 'd3d12.dll', 'd3d12core.dll', 'dxwrapper.dll')]
         owned.owned()
@@ -161,7 +169,10 @@ class Session:
             try:
                 if self.probe is not None:self.probe.close()
             finally:
-                if (self.case / JOURNAL).exists():restore(self.case)
+                try:
+                    if self.runtime is not None:self.runtime.restore()
+                finally:
+                    if (self.case / JOURNAL).exists():restore(self.case)
 
 
 def restore(case):
@@ -303,6 +314,7 @@ def main():
     launch.add_argument('--package', type=Path)
     launch.add_argument('--seconds', type=int, default=900)
     launch.add_argument('--water-probe', type=Path)
+    launch.add_argument('--on12-runtime-build',type=Path,help='Explicit source-built local On12 laboratory runtime')
     launch.add_argument('--water-pow-cap',action='store_true')
     launch.add_argument('--water-benchmark',action='store_true')
     worker=launch.add_mutually_exclusive_group()
@@ -316,6 +328,8 @@ def main():
     fixture.add_argument('--package', type=Path, required=True)
     args = parser.parse_args()
     if args.command == 'recover':
+        from . import on12_runtime
+        if (args.case/on12_runtime.JOURNAL).exists():print(json.dumps(on12_runtime.restore(args.case)))
         print(json.dumps(restore(args.case)))
         print(json.dumps(recover.recover(args.case)))
     elif args.command == 'device-fixture':
@@ -325,7 +339,7 @@ def main():
         game.run(args.bundle, args.output, width=1920, height=1080,
                  high_quality=True, seconds=args.seconds,
                  laboratory_renderer=args.mode, dxwrapper_package=args.package,
-                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap,water_benchmark=args.water_benchmark,water_worker_priority=args.water_worker_priority)
+                 water_probe=args.water_probe,water_pow_cap=args.water_pow_cap,water_benchmark=args.water_benchmark,water_worker_priority=args.water_worker_priority,on12_runtime_build=args.on12_runtime_build)
 
 
 if __name__ == '__main__':

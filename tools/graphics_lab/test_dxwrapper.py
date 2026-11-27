@@ -62,6 +62,20 @@ class Tests(unittest.TestCase):
         self.assertEqual((self.bin/'d3d9.dll').read_bytes(),self.original)
         self.assertFalse((self.bin/'dxwrapper.dll').exists())
 
+    def test_runtime_requires_corrected_on12_before_any_platform_access(self):
+        with patch.object(game.platform,'load') as load:
+            for mode in d.MODES:
+                with self.subTest(mode=mode),self.assertRaises(ValueError):
+                    d.Session(self.bundle,self.case,mode,self.package,on12_runtime_build=self.root/'build')
+            load.assert_not_called()
+
+    def test_runtime_cleanup_failure_still_restores_original_renderer(self):
+        session=self.session();session.apply()
+        session.runtime=SimpleNamespace(restore=Mock(side_effect=OSError('authored runtime cleanup failure')))
+        with self.assertRaises(OSError):session.restore()
+        self.assertEqual((self.bin/'d3d9.dll').read_bytes(),self.original)
+        self.assertFalse((self.bin/'dxwrapper.dll').exists())
+
     def test_both_wrappers_and_native_restore_original_and_preserve_saves(self):
         save = self.bundle / 'new-save.s7s'
         save.write_bytes(b'new save, never rolled back')
