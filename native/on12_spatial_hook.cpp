@@ -5,6 +5,8 @@
 #include "on12_scene_boundary.h"
 #include "on12_temporal_inputs.h"
 #include "on12_depth_capture.h"
+#include "on12_native_scope.h"
+#include "on12_projection_jitter.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
@@ -57,6 +59,9 @@ On12Graphics::FrameStats Stats() { return retired_valid ? retired_stats : contex
 std::vector<Slot> getter_slots, device_slots;
 std::wstring report_path, directory;
 On12Graphics::TemporalInputProbe temporal_inputs;
+On12Graphics::NativeTemporalLink* native_temporal=nullptr;
+DWORD native_jitter_remaining=0;bool native_frame_ended=true;HRESULT native_jitter_hr=E_NOINTERFACE;
+On12Graphics::ProjectionJitter* projection_jitter=nullptr;DWORD projection_jitter_remaining=0;HRESULT projection_jitter_hr=E_NOINTERFACE;
 DWORD failure = 0, sequence = 0; HRESULT last_result = S_OK;
 UINT width = 0, height = 0;
 DWORD render_stage = 0, source_present_flags = 0; BOOL source_auto_depth = FALSE;
@@ -94,6 +99,9 @@ void Live() noexcept {
         << ",\"ui_draw_calls\":" << ui_draw_calls << ",\"composite_draw_calls\":" << composite_draw_calls
         << ",\"native_ui_width\":" << (scene?scene->Stats().ui_width:0) << ",\"native_ui_height\":" << (scene?scene->Stats().ui_height:0)
         << ",\"scene_resources\":" << (scene?scene->Stats().resources:0) << ",\"scene_failure\":" << static_cast<long>(scene?scene->Stats().failure:S_OK)
+        << ",\"native_jitter_hr\":" << static_cast<long>(native_jitter_hr) << ",\"native_jitter_remaining\":" << native_jitter_remaining
+        << ",\"native_jitter_status\":" << (native_temporal?native_temporal->Scope().LastStatus():0)
+        << ",\"projection_jitter_hr\":" << static_cast<long>(projection_jitter_hr) << ",\"projection_jitter_remaining\":" << projection_jitter_remaining
         << ",\"applied\":" << stats.applied << ",\"busy\":" << stats.busy
         << ",\"checkouts\":" << stats.checkouts << ",\"returns\":" << stats.returns
         << ",\"failed_returns\":" << stats.failed_returns << ",\"safe_for_d3d9\":" << (!context || context->SafeForD3D9() ? "true" : "false") << "}";
@@ -131,8 +139,12 @@ void TemporalInputCommand() noexcept {
         &&GetFileSizeEx(file,&size)&&(size.QuadPart==16||size.QuadPart==24)&&ReadFile(file,words.data(),static_cast<DWORD>(size.QuadPart),&count,nullptr)&&count==size.QuadPart;
     CloseHandle(file);
     if(valid&&words[2]!=temporal_inputs.Sequence()){
-        if(size.QuadPart==16){On12Graphics::TemporalInputCommand value;std::memcpy(&value,words.data(),sizeof(value));temporal_inputs.Arm(value);}
-        else{On12Graphics::TemporalInputDepthCommand value;std::memcpy(&value,words.data(),sizeof(value));temporal_inputs.Arm(value);}
+        if(size.QuadPart==16){On12Graphics::TemporalInputCommand value;std::memcpy(&value,words.data(),sizeof(value));if(temporal_inputs.Arm(value))native_jitter_remaining=projection_jitter_remaining=0;}
+        else{On12Graphics::TemporalInputDepthCommand value;std::memcpy(&value,words.data(),sizeof(value));
+            if(value.version==3&&(!native_temporal||!native_temporal->Scope().Ready())){native_jitter_hr=E_NOINTERFACE;return;}
+            if(value.version==4&&(!projection_jitter||!projection_jitter->Ready()))return;
+            if(temporal_inputs.Arm(value)){native_jitter_remaining=value.version==3?value.frames:0;projection_jitter_remaining=value.version==4?value.frames:0;}
+        }
     }
     }catch(...){temporal_inputs.Invalidate();}
 }
@@ -162,7 +174,16 @@ void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
     Guard guard;
     try {
         auto read=[&]{On12Graphics::TemporalBoundaryInputs value;value.logical=On12Graphics::ReadTemporalDeviceInputs(d);
-            value.physical=On12Graphics::ReadTemporalDeviceInputs(context->NativeDevice());return value;};
+            value.physical=On12Graphics::ReadTemporalDeviceInputs(context->NativeDevice());
+            if(native_temporal&&native_temporal->Scope().Ready()){
+                const auto& scope=native_temporal->Scope();const auto jitter=scope.Jitter();value.jitter_for_frame=scope.Enabled();value.jitter_x=jitter[0];value.jitter_y=jitter[1];
+                On12NativeTemporal::Query q;value.native_query=scope.Snapshot(q);if(SUCCEEDED(value.native_query))value.native_shifted_resolves=q.shifted_resolves;
+            }
+            if(projection_jitter&&projection_jitter->Ready()){
+                const auto jitter=projection_jitter->Jitter();const auto stats=projection_jitter->Stats();
+                value.jitter_for_frame=projection_jitter->Enabled();value.jitter_x=jitter[0];value.jitter_y=jitter[1];
+                value.projection_applies=stats.applied;value.projection_restores=stats.restored;
+            }return value;};
         if(!ui){if(temporal_inputs.Composite(presents+1,read)&&temporal_inputs.BeginDepth(presents+1))TemporalDepthCapture();return;}
         if(!temporal_inputs.Ui(presents+1,read))return;
         std::ostringstream out;temporal_inputs.Json(out);const auto bytes=out.str();
@@ -178,6 +199,28 @@ void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
 }
 template<class T> T SceneOriginal(UINT slot){return reinterpret_cast<T>(scene_original[slot]);}
 bool SceneOwn(IDirect3DDevice9* d){return scene&&d==admitted&&!internal&&!stopped&&GetCurrentThreadId()==owner;}
+HRESULT NativeUi(){
+    HRESULT hr=S_OK;
+    if(projection_jitter){projection_jitter_hr=projection_jitter->Ui();if(FAILED(projection_jitter_hr))return projection_jitter_hr;}
+    if(native_temporal&&native_temporal->Scope().Ready()){hr=native_temporal->Scope().Ui();native_jitter_hr=hr;}
+    if(!native_frame_ended){native_frame_ended=true;if(native_jitter_remaining)--native_jitter_remaining;if(projection_jitter_remaining)--projection_jitter_remaining;}
+    return hr;
+}
+HRESULT NativeBegin(){
+    native_frame_ended=false;
+    if(projection_jitter){projection_jitter_hr=projection_jitter->Begin(presents+1,render_width,render_height,projection_jitter_remaining!=0);if(FAILED(projection_jitter_hr))return projection_jitter_hr;}
+    if(!native_temporal||!native_temporal->Scope().Ready())return S_OK;
+    native_jitter_hr=native_temporal->Scope().Begin(presents+1,render_width,render_height,native_jitter_remaining!=0);return native_jitter_hr;
+}
+HRESULT NativeSuspend(){
+    if(projection_jitter){const auto hr=projection_jitter->Suspend();if(FAILED(hr))return hr;}
+    return native_temporal&&native_temporal->Scope().Ready()?native_temporal->Scope().Suspend():S_OK;
+}
+HRESULT NativeResume(){
+    if(projection_jitter){const auto hr=projection_jitter->Resume();if(FAILED(hr))return hr;}
+    if(!native_temporal||!native_temporal->Scope().Ready())return S_OK;
+    auto hr=native_temporal->Scope().Geometry(!scene->Ui()&&boundary->Geometry());if(SUCCEEDED(hr))hr=native_temporal->Scope().Resume();return hr;
+}
 template<class Call> HRESULT SceneAccess(Call call){Guard guard;Scope scope;try{return call();}catch(...){failure=403;return E_OUTOFMEMORY;}}
 HRESULT STDMETHODCALLTYPE SceneSetTarget(IDirect3DDevice9* d,DWORD i,IDirect3DSurface9* s){return SceneOwn(d)?SceneAccess([&]{return scene->SetTarget(i,s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9*)>(37)(d,i,s);}
 HRESULT STDMETHODCALLTYPE SceneGetTarget(IDirect3DDevice9* d,DWORD i,IDirect3DSurface9** s){return SceneOwn(d)?SceneAccess([&]{return scene->GetTarget(i,s);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9**)>(38)(d,i,s);}
@@ -194,14 +237,33 @@ HRESULT STDMETHODCALLTYPE SceneFill(IDirect3DDevice9* d,IDirect3DSurface9* s,con
 HRESULT STDMETHODCALLTYPE SceneClear(IDirect3DDevice9* d,DWORD n,const D3DRECT* r,DWORD flags,D3DCOLOR c,float z,DWORD stencil){return SceneOwn(d)?SceneAccess([&]{return scene->Clear(n,r,flags,c,z,stencil);}):SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,const D3DRECT*,DWORD,D3DCOLOR,float,DWORD)>(43)(d,n,r,flags,c,z,stencil);}
 HRESULT STDMETHODCALLTYPE SceneVertex(IDirect3DDevice9* d,IDirect3DVertexShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DVertexShader9*)>(92)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedVertex(shader))SceneAccess([&]{boundary->Vertex(shader);return S_OK;});return hr;}
 HRESULT STDMETHODCALLTYPE ScenePixel(IDirect3DDevice9* d,IDirect3DPixelShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DPixelShader9*)>(107)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedPixel(shader))SceneAccess([&]{boundary->Pixel(shader);return S_OK;});return hr;}
+HRESULT STDMETHODCALLTYPE SceneSetConstants(IDirect3DDevice9* d,UINT first,const float* values,UINT count){
+    if(SceneOwn(d)&&projection_jitter)return SceneAccess([&]{return projection_jitter->SetConstants(first,values,count,scene->Suspended());});
+    if(d==admitted&&!internal&&projection_jitter&&GetCurrentThreadId()!=owner)projection_jitter->ForeignMutation();
+    return SceneOriginal<On12Graphics::ProjectionJitter::Set>(94)(d,first,values,count);
+}
+HRESULT STDMETHODCALLTYPE SceneGetConstants(IDirect3DDevice9* d,UINT first,float* values,UINT count){
+    if(SceneOwn(d)&&projection_jitter)return SceneAccess([&]{return projection_jitter->GetConstants(first,values,count);});
+    return SceneOriginal<On12Graphics::ProjectionJitter::Get>(95)(d,first,values,count);
+}
 HRESULT SceneBeforeDraw(IDirect3DDevice9* d){
     if(!SceneOwn(d)||!scene->Active()||scene->Suspended())return S_OK;
     if(!scene->Safe()||!context->SafeForD3D9())return D3DERR_DEVICELOST;
+    if(projection_jitter){
+        const auto viewport=scene->PhysicalViewport();
+        projection_jitter_hr=SceneAccess([&]{return projection_jitter->BeforeDraw(scene->Ui()?0:boundary->ProjectionRegister(),viewport.Width,viewport.Height);});
+        if(FAILED(projection_jitter_hr)){failure=409;return D3DERR_DEVICELOST;}
+    }
+    if(native_temporal&&native_temporal->Scope().Enabled()){
+        Guard guard;native_jitter_hr=native_temporal->Scope().Geometry(!scene->Ui()&&boundary->Geometry());
+        if(FAILED(native_jitter_hr)){failure=408;return D3DERR_DEVICELOST;}
+    }
     const auto role=boundary->Current();
     if(role==On12Graphics::SceneBoundary::Role::Composite){TemporalInputCapture(d,false);return S_OK;}
     if(role!=On12Graphics::SceneBoundary::Role::Ui)return S_OK;
     if(scene->Ui()){++ui_draw_calls;return S_OK;}
     const HRESULT result=SceneAccess([&]{if(!boundary->NativeUi(d,output_width,output_height)){failure=404;return D3DERR_INVALIDCALL;}
+        if(FAILED(NativeUi())){failure=408;return D3DERR_DEVICELOST;}
         ++ui_draw_calls;auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;
         HRESULT hr=scene->BeginUi(quality);if(FAILED(hr)){last_result=hr;failure=405;}return hr;});
     // Outside SceneAccess's internal scope so wrapped getters retain the
@@ -220,19 +282,22 @@ bool SceneBlockOwn(IDirect3DStateBlock9* block){if(!scene||internal||stopped||Ge
     Guard guard;ComPtr<IDirect3DDevice9> device;return SUCCEEDED(block->GetDevice(&device))&&device.Get()==admitted;}
 HRESULT STDMETHODCALLTYPE SceneCapture(IDirect3DStateBlock9* block){
     if(!SceneBlockOwn(block))return block_capture(block);
-    HRESULT before=SceneAccess([&]{return scene->BeforeCapture();});if(FAILED(before))return before;
-    const HRESULT hr=block_capture(block);HRESULT after=SceneAccess([&]{return scene->AfterCapture();});return FAILED(after)?after:hr;
+    HRESULT before=SceneAccess([&]{auto hr=NativeSuspend();return FAILED(hr)?hr:scene->BeforeCapture();});if(FAILED(before))return before;
+    const HRESULT hr=block_capture(block);HRESULT after=SceneAccess([&]{auto result=scene->AfterCapture();return FAILED(result)?result:NativeResume();});return FAILED(after)?after:hr;
 }
-HRESULT STDMETHODCALLTYPE SceneApply(IDirect3DStateBlock9* block){const HRESULT hr=block_apply(block);
-    if(SUCCEEDED(hr)&&SceneBlockOwn(block)){HRESULT after=SceneAccess([&]{boundary->Refresh(admitted);return scene->AfterApply();});if(FAILED(after))return after;}return hr;}
+HRESULT STDMETHODCALLTYPE SceneApply(IDirect3DStateBlock9* block){
+    const bool own=SceneBlockOwn(block);
+    if(own){const auto before=SceneAccess([&]{return NativeSuspend();});if(FAILED(before))return before;}
+    const HRESULT hr=block_apply(block);
+    if(own){HRESULT after=SceneAccess([&]{boundary->Refresh(admitted);auto result=SUCCEEDED(hr)?scene->AfterApply():S_OK;return FAILED(result)?result:NativeResume();});if(FAILED(after))return after;}return hr;}
 HRESULT STDMETHODCALLTYPE SceneBeginBlock(IDirect3DDevice9* d){
     using Call=HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*);if(!SceneOwn(d)||!scene->Active())return SceneOriginal<Call>(60)(d);
-    HRESULT hr=SceneAccess([&]{return scene->BeforeCapture();});if(FAILED(hr))return hr;const HRESULT original=SceneOriginal<Call>(60)(d);
-    if(FAILED(original))SceneAccess([&]{return scene->AfterCapture();});return original;
+    HRESULT hr=SceneAccess([&]{auto result=NativeSuspend();return FAILED(result)?result:scene->BeforeCapture();});if(FAILED(hr))return hr;const HRESULT original=SceneOriginal<Call>(60)(d);
+    if(FAILED(original))SceneAccess([&]{auto result=scene->AfterCapture();return FAILED(result)?result:NativeResume();});return original;
 }
 HRESULT STDMETHODCALLTYPE SceneEndBlock(IDirect3DDevice9* d,IDirect3DStateBlock9** block){
     const HRESULT original=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DStateBlock9**)>(61)(d,block);
-    if(SceneOwn(d)&&scene->Suspended()){HRESULT after=SceneAccess([&]{boundary->Refresh(d);return scene->AfterCapture();});if(FAILED(after))return after;}return original;
+    if(SceneOwn(d)&&scene->Suspended()){HRESULT after=SceneAccess([&]{boundary->Refresh(d);auto result=scene->AfterCapture();return FAILED(result)?result:NativeResume();});if(FAILED(after))return after;}return original;
 }
 HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const RECT* b, HWND window, const RGNDATA* region) {
     RenderCall render_call; bool use_output = false;
@@ -242,7 +307,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
             try {
                 if (presents == 1 || presents % 60 == 0) {Command();TemporalInputCommand();}
                 if(scene_mode&&scene&&!stopped&&!failure){
-                    if(scene->Active()&&!scene->Ui()){auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;last_result=scene->BeginUi(quality);if(FAILED(last_result))failure=406;}
+                    if(scene->Active()&&!scene->Ui()){auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;last_result=NativeUi();if(SUCCEEDED(last_result))last_result=scene->BeginUi(quality);if(FAILED(last_result))failure=406;}
                     width=output_width;height=output_height;
                 } else if (!scene_mode && context && !stopped && !failure && (settings.enabled || output_width)) {
                     ComPtr<IDirect3DSurface9> backbuffer;
@@ -305,7 +370,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
     // Exactly one presentation per frame, including fallback when the native
     // queue's optional slot is busy. Never present a stale output texture.
     const HRESULT presented=use_output?output_chain->Present(nullptr,nullptr,nullptr,nullptr,0):original_present(d,a,b,window,region);
-    if(SUCCEEDED(presented)&&SceneOwn(d)&&!failure)SceneAccess([&]{last_result=scene->BeginFrame();if(FAILED(last_result))failure=407;return last_result;});
+    if(SUCCEEDED(presented)&&SceneOwn(d)&&!failure)SceneAccess([&]{last_result=scene->BeginFrame();if(SUCCEEDED(last_result))last_result=NativeBegin();if(FAILED(last_result))failure=407;return last_result;});
     return presented;
 }
 HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* parameters) {
@@ -314,13 +379,16 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* 
         Guard guard; Scope scope;
         if (GetCurrentThreadId() != owner) return D3DERR_INVALIDCALL;
         if (context) { const HRESULT drained = context->Drain(5000); if (FAILED(drained)) { ++errors; last_result = drained; Live(); return D3DERR_DEVICELOST; } }
+        native_jitter_remaining=projection_jitter_remaining=0;
+        if(projection_jitter&&FAILED(projection_jitter->Stop()))return D3DERR_DEVICELOST;
+        if(native_temporal&&FAILED(native_temporal->Scope().Stop()))return D3DERR_DEVICELOST;
         temporal_inputs.Invalidate();
         if(scene){HRESULT released=scene->ReleaseForReset();if(FAILED(released))return D3DERR_DEVICELOST;boundary->Reset();}
         DropOutput();
         ++resets;
     }
     const HRESULT result=original_reset(d,parameters);
-    if(SUCCEEDED(result)&&SceneOwn(d))SceneAccess([&]{scene->ResetSucceeded();boundary->Refresh(d);failure=0;last_result=S_OK;return S_OK;});
+    if(SUCCEEDED(result)&&SceneOwn(d))SceneAccess([&]{if(projection_jitter)projection_jitter->Resume();scene->ResetSucceeded();boundary->Refresh(d);failure=0;last_result=S_OK;return S_OK;});
     return result;
 }
 bool Stop() {
@@ -329,6 +397,9 @@ bool Stop() {
     struct Stopping { Stopping() { stopping = true; } ~Stopping() { stopping = false; } } stopping_scope;
     if (FAILED(context->Drain(5000))) { failure = 501; Live(); return false; }
     retired_stats = context->Stats(); retired_valid = true;
+    native_jitter_remaining=projection_jitter_remaining=0;
+    if(projection_jitter&&FAILED(projection_jitter->Stop())){failure=506;Live();return false;}
+    if(native_temporal&&FAILED(native_temporal->Shutdown())){failure=505;Live();return false;}
     if(scene&&FAILED(scene->Shutdown())){failure=504;Live();return false;}
     temporal_inputs.Invalidate();if(boundary)boundary->Reset();
     DropOutput();
@@ -356,6 +427,8 @@ HRESULT Attach(IDirect3DDevice9* device) {
             || (memory.AllocationBase != wrapper && !(apphelp && memory.AllocationBase == apphelp && (i == 0 || i == 2 || i == 13 || i == 16)))) return E_NOINTERFACE;
     }
     if (!Module(GetModuleHandleW(L"d3d9on12.dll"), "24aceac4aa280d09f1ec2c4c9a2b3d784bf158fe1f0f23292ab1072db9187364")
+        && !Module(GetModuleHandleW(L"d3d9on12.dll"), "92e35a81c6328ce174f93bdbbb638d4fbdb72a598a3b064458a3658cf70f90c1")
+        && !Module(GetModuleHandleW(L"d3d9on12.dll"), "d2e9c5e28d0ddd42dbdf650ec76b9935ddb69b756c4e6a301272169fac0d465e")
         && !Module(GetModuleHandleW(L"d3d9on12.dll"), "8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a")) return E_NOINTERFACE;
     ComPtr<ID3DBlob> vs, ps, compiler_error;
     constexpr UINT flags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_OPTIMIZATION_LEVEL3;
@@ -404,7 +477,8 @@ HRESULT Attach(IDirect3DDevice9* device) {
             {75,reinterpret_cast<void*>(SceneSetScissor)},{76,reinterpret_cast<void*>(SceneGetScissor)},
             {81,reinterpret_cast<void*>(SceneDraw)},{82,reinterpret_cast<void*>(SceneDrawIndexed)},
             {83,reinterpret_cast<void*>(SceneDrawUp)},{84,reinterpret_cast<void*>(SceneDrawIndexedUp)},
-            {92,reinterpret_cast<void*>(SceneVertex)},{107,reinterpret_cast<void*>(ScenePixel)}};
+            {92,reinterpret_cast<void*>(SceneVertex)},{94,reinterpret_cast<void*>(SceneSetConstants)},
+            {95,reinterpret_cast<void*>(SceneGetConstants)},{107,reinterpret_cast<void*>(ScenePixel)}};
         for(const auto& hook:hooks)device_slots.push_back({&table[hook.first],table[hook.first],hook.second});
         ComPtr<IDirect3DStateBlock9> block;hr=device->CreateStateBlock(D3DSBT_ALL,&block);if(FAILED(hr))return hr;
         auto** block_table=*reinterpret_cast<void***>(block.Get());
@@ -419,6 +493,8 @@ HRESULT Attach(IDirect3DDevice9* device) {
     for (const auto& slot : device_slots) { if (!Patch(slot, true)) { while (patched) Patch(device_slots[--patched], false); device_slots.clear(); if (output_width&&!scene_mode) output_window.Shutdown(); return E_FAIL; } ++patched; }
     admitted = device; owner = GetCurrentThreadId(); context = candidate.release(); settings.enabled = 1;
     scene=next_scene.release();boundary=next_boundary.release();
+    if(scene_mode){native_temporal=new On12Graphics::NativeTemporalLink;native_jitter_hr=native_temporal->Initialize(context->NativeDevice(),GetModuleHandleW(L"d3d9on12.dll"));
+        projection_jitter=new On12Graphics::ProjectionJitter;projection_jitter_hr=projection_jitter->Initialize(admitted,SceneOriginal<On12Graphics::ProjectionJitter::Set>(94),SceneOriginal<On12Graphics::ProjectionJitter::Get>(95));}
     for (auto it = getter_slots.rbegin(); it != getter_slots.rend(); ++it) if (!Patch(*it, false)) { failure = 203; return E_FAIL; }
     Live(); return S_OK;
 }
@@ -538,7 +614,8 @@ extern "C" bool On12SpatialFixtureClose() {
     if (!Stop()) return false;
     for (auto it = device_slots.rbegin(); it != device_slots.rend(); ++it) if (!Patch(*it, false)) return false;
     delete context; context = nullptr; admitted = nullptr; owner = 0; presents = original_calls = output_calls = resets = 0; stopped = false;
-    delete scene;scene=nullptr;delete boundary;boundary=nullptr;scene_mode=false;ui_draw_calls=composite_draw_calls=0;
+    delete scene;scene=nullptr;delete boundary;boundary=nullptr;delete native_temporal;native_temporal=nullptr;
+    delete projection_jitter;projection_jitter=nullptr;projection_jitter_remaining=0;scene_mode=false;ui_draw_calls=composite_draw_calls=0;
     retired_valid = false; retired_stats = {}; stop_pending = false;
     render_width = render_height = output_width = output_height = 0; return true;
 }

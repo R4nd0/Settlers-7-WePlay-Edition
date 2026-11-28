@@ -1,6 +1,7 @@
 // Prepared during CPU work. No graphics calls unless explicitly run --gpu.
 #include "on12_temporal_pass.h"
 #include "on12_temporal_camera_pass.h"
+#include "on12_temporal_graph.h"
 #include <dxgi1_4.h>
 #include <vector>
 #include <cstdio>
@@ -75,11 +76,13 @@ int CameraGpu(ID3D12Device* device){
         readback[t]->Unmap(0,nullptr);
     }return 0;
 }
+#include "on12_temporal_graph_gpu.h"
 }
 int wmain(int argc,wchar_t** argv){
     if(argc!=2||wcscmp(argv[1],L"--gpu")){std::fputs("Explicit --gpu is required; no GPU was created.\n",stderr);return 2;}
     ComPtr<ID3D12Device> device;REQUIRE(SUCCEEDED(D3D12CreateDevice(nullptr,D3D_FEATURE_LEVEL_11_0,IID_PPV_ARGS(&device))));
     REQUIRE(CameraGpu(device.Get())==0);
+    REQUIRE(GraphGpu(device.Get())==0);
     ComPtr<ID3D12CommandQueue> queue;D3D12_COMMAND_QUEUE_DESC q{};q.Type=D3D12_COMMAND_LIST_TYPE_DIRECT;REQUIRE(SUCCEEDED(device->CreateCommandQueue(&q,IID_PPV_ARGS(&queue))));
     ComPtr<ID3D12CommandAllocator> allocator;ComPtr<ID3D12GraphicsCommandList> list;
     REQUIRE(SUCCEEDED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&allocator))));
@@ -138,5 +141,5 @@ int wmain(int argc,wchar_t** argv){
             if(target==2){float z=0;std::memcpy(&z,row+x*4,4);REQUIRE(std::fabs(z-expected_history.depth[i])<1e-5f);}}
         readback[target]->Unmap(0,nullptr);
     }
-    const auto luid=device->GetAdapterLuid();std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"gpu_device_created\":true,\"cpu_reference_matched\":true,\"camera_reference_matched\":true,\"adapter_luid_low\":%lu,\"adapter_luid_high\":%ld}\n",checks,luid.LowPart,luid.HighPart);return 0;
+    const auto luid=device->GetAdapterLuid();std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"gpu_device_created\":true,\"cpu_reference_matched\":true,\"camera_reference_matched\":true,\"temporal_graph_matched\":true,\"adapter_luid_low\":%lu,\"adapter_luid_high\":%ld}\n",checks,luid.LowPart,luid.HighPart);return 0;
 }

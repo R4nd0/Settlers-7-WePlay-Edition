@@ -102,8 +102,8 @@ class Session:
         if on12_runtime_build is not None:
             from .on12_runtime import Session as RuntimeSession
             self.runtime=RuntimeSession(self.root,self.case,on12_runtime_build)
-            expected='water-worker' if water_backend else 'stock'
-            if self.runtime.manifest['variant']!=expected:raise ValueError('The On12 source variant does not match the requested water correction.')
+            expected=('water-worker','temporal-worker') if water_backend else ('stock',)
+            if self.runtime.manifest['variant']not in expected:raise ValueError('The On12 source variant does not match the requested water correction.')
         self.spatial = None
         if on12_spatial_build is not None:
             from .on12_spatial import Session as SpatialSession

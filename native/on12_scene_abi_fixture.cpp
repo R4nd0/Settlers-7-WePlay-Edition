@@ -9,6 +9,7 @@ SLOT(Clear,43);SLOT(SetViewport,47);SLOT(GetViewport,48);SLOT(GetTexture,64);SLO
 SLOT(BeginStateBlock,60);SLOT(EndStateBlock,61);
 SLOT(SetScissorRect,75);SLOT(GetScissorRect,76);SLOT(DrawPrimitive,81);SLOT(DrawIndexedPrimitive,82);
 SLOT(DrawPrimitiveUP,83);SLOT(DrawIndexedPrimitiveUP,84);SLOT(SetVertexShader,92);SLOT(SetPixelShader,107);
+SLOT(SetVertexShaderConstantF,94);SLOT(GetVertexShaderConstantF,95);
 static_assert(offsetof(IDirect3DStateBlock9Vtbl,Capture)==4*sizeof(void*),"StateBlock Capture ABI");
 static_assert(offsetof(IDirect3DStateBlock9Vtbl,Apply)==5*sizeof(void*),"StateBlock Apply ABI");
-int main(){std::puts("{\"passed\":true,\"sdk_abi_checks\":25,\"synthetic_only\":true}");}
+int main(){std::puts("{\"passed\":true,\"sdk_abi_checks\":27,\"synthetic_only\":true}");}

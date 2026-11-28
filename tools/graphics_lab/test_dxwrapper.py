@@ -77,6 +77,8 @@ class Tests(unittest.TestCase):
             session=d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**kwargs)
             self.assertIsNotNone(session.worker_policy)
             probe.assert_called_once_with(kwargs['water_probe'],session.root,session.case,pow_cap=False,benchmark=False,once=True)
+            runtime.return_value.manifest={'variant':'temporal-worker'}
+            self.assertIsNotNone(d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**kwargs).runtime)
             runtime.return_value.manifest={'variant':'stock'}
             with self.assertRaisesRegex(ValueError,'source variant'):d.Session(self.bundle,self.case,'dxwrapper-d3d9on12',self.package,**kwargs)
         with patch.object(game.platform,'load')as load:

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 namespace On12NativeTemporal {
+enum Status : DWORD {Rejected=0,Accepted=1,Malformed=2,NoDevice=3,WrongOwner=4,AmbiguousDevice=5,StaleSequence=6,InvalidRange=7,Unreadable=8};
 struct Control {
     // flags=1 is an explicit, verified scene scope supplied by the original
     // API-level shader observer. The frontend must disable it for UI/post FX.
@@ -27,8 +28,9 @@ public:
     bool Adjust(bool scene,float width,float height,float& x_scale,float& y_scale);
 private:
     friend bool Configure(const Control&);
+    friend DWORD ConfigureStatus(const Control&);
     friend bool Snapshot(Query&);
-    bool Set(const Control&);
+    DWORD Set(const Control&);
     void Get(Query&)const;
     std::uint64_t key_=0;
     void* cookie_=nullptr;void(*dirty_)(void*)=nullptr;
@@ -41,5 +43,6 @@ private:
     std::atomic<std::uint64_t> resolves_{0};std::atomic<DWORD> resolver_thread_{0},metadata_scene_{0};
 };
 bool Configure(const Control&);
+DWORD ConfigureStatus(const Control&);
 bool Snapshot(Query&);
 }

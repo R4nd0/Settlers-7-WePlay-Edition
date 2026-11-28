@@ -46,5 +46,8 @@ int main(){
     REQUIRE(probe.Composite(41,read)&&!probe.BeginDepth(41)&&probe.Ui(41,read));
     depth_command.sequence=5;depth_command.flags=2;REQUIRE(!probe.Arm(depth_command)&&probe.Sequence()==4);
     command.sequence=5;command.frames=1;REQUIRE(probe.Arm(command)&&!probe.Depth().requested);
+    depth_command.version=3;depth_command.sequence=6;depth_command.flags=2;REQUIRE(probe.Arm(depth_command)&&!probe.Depth().requested);
+    depth_command.sequence=7;depth_command.flags=3;REQUIRE(probe.Arm(depth_command)&&probe.Depth().requested);
+    depth_command.version=4;depth_command.sequence=8;REQUIRE(probe.Arm(depth_command)&&probe.Depth().requested);
     std::printf("{\"passed\":true,\"checks\":%u,\"cpu_only\":true,\"gpu_device_created\":false,\"command_bytes\":16,\"bounded_pairs\":4}\n",checks);return 0;
 }

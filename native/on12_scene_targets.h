@@ -30,6 +30,7 @@ public:
     bool Safe() const;
     bool MapsTexture(IDirect3DBaseTexture9*) const;
     SceneStats Stats() const;
+    D3DVIEWPORT9 PhysicalViewport()const;
     HRESULT SetTarget(DWORD, IDirect3DSurface9*);
     HRESULT GetTarget(DWORD, IDirect3DSurface9**);
     HRESULT SetDepth(IDirect3DSurface9*);

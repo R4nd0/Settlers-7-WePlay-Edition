@@ -2,6 +2,9 @@
 #include "on12_native_temporal.h"
 #include "on12_scene_projection.h"
 #include "on12_jitter_program.h"
+#ifdef S7_ORDERED_PROJECTION_GPU_FIXTURE
+#include "on12_projection_jitter.h"
+#endif
 #include "water_on12_identity.h"
 #include <d3d12.h>
 #include <d3d9on12.h>
@@ -44,7 +47,11 @@ int wmain(int argc,wchar_t** argv){
     ComPtr<IDirect3DDevice9On12> bridge;ComPtr<ID3D12Device> d12;
     REQUIRE(SUCCEEDED(wrapped.As(&bridge))&&SUCCEEDED(bridge.As(&device))&&SUCCEEDED(bridge->GetD3D12Device(IID_PPV_ARGS(&d12))));
     using Call=DWORD(WINAPI*)(void*);const auto control=reinterpret_cast<Call>(GetProcAddress(runtime,"WePlayOn12TemporalControl")),query=reinterpret_cast<Call>(GetProcAddress(runtime,"WePlayOn12TemporalQuery"));
+#ifndef S7_ORDERED_PROJECTION_GPU_FIXTURE
     REQUIRE(control&&query&&WaterOn12Identity::Belongs(reinterpret_cast<void*>(control),runtime)&&WaterOn12Identity::Belongs(reinterpret_cast<void*>(query),runtime));
+#else
+    (void)control;(void)query;
+#endif
     const char* vs_source="float4x4 g_VSMainViewProjectionMatrix:register(c12);struct I{float4 p:POSITION0;float4 c:COLOR0;};struct O{float4 p:POSITION0;float4 c:COLOR0;};O VS(I i){O o;o.p=mul(g_VSMainViewProjectionMatrix,i.p);o.c=i.c;return o;}";
     auto vs=Compile(vs_source,"VS","vs_3_0"),ps=Compile("float4 PS(float4 c:COLOR0):COLOR0{return c;}","PS","ps_3_0");REQUIRE(vs&&ps);
     ComPtr<IDirect3DVertexShader9> original,reference,ui;ComPtr<IDirect3DPixelShader9> pixel;
@@ -63,6 +70,31 @@ int wmain(int argc,wchar_t** argv){
     auto draw=[&](std::vector<DWORD>& pixels){if(FAILED(device->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0))||FAILED(device->BeginScene()))return false;
         const auto result=device->DrawPrimitiveUP(D3DPT_TRIANGLELIST,1,vertices,sizeof(Vertex));const auto ended=device->EndScene();return SUCCEEDED(result)&&SUCCEEDED(ended)&&Pixels(device.Get(),pixels);};
     std::vector<DWORD> baseline,shifted,comparison,ui_off,ui_on,shadow_off,shadow_on;REQUIRE(draw(baseline));
+#ifdef S7_ORDERED_PROJECTION_GPU_FIXTURE
+    On12Graphics::ProjectionJitter ordered;
+    auto** table=*reinterpret_cast<void***>(device.Get());
+    REQUIRE(SUCCEEDED(ordered.Initialize(device.Get(),reinterpret_cast<On12Graphics::ProjectionJitter::Set>(table[94]),reinterpret_cast<On12Graphics::ProjectionJitter::Get>(table[95]))));
+    REQUIRE(SUCCEEDED(ordered.Begin(2,64,64,true))&&SUCCEEDED(ordered.BeforeDraw(12,64,64))&&draw(shifted));
+    float logical[16]{};REQUIRE(SUCCEEDED(ordered.GetConstants(12,logical,4))&&!std::memcmp(matrix,logical,sizeof(matrix)));
+    REQUIRE(SUCCEEDED(ordered.Ui()));
+    const auto offset=ordered.Jitter();const float jitter[]{2*offset[0]/64,-2*offset[1]/64,0,0};
+    REQUIRE(SUCCEEDED(device->SetVertexShader(reference.Get()))&&SUCCEEDED(device->SetVertexShaderConstantF(patch.constant,jitter,1))&&draw(comparison));
+    unsigned differences=0;REQUIRE(shifted==comparison);for(size_t i=0;i<shifted.size();++i)if(shifted[i]!=baseline[i])++differences;REQUIRE(differences>0);
+    REQUIRE(SUCCEEDED(device->SetVertexShader(ui.Get()))&&draw(ui_off));
+    REQUIRE(SUCCEEDED(ordered.Begin(3,64,64,true))&&SUCCEEDED(ordered.BeforeDraw(0,64,64))&&draw(ui_on)&&ui_on==ui_off);
+    REQUIRE(SUCCEEDED(device->SetVertexShader(original.Get())));
+    D3DVIEWPORT9 shadow_viewport{0,0,32,32,0,1};REQUIRE(SUCCEEDED(device->SetViewport(&shadow_viewport))&&draw(shadow_off));
+    REQUIRE(SUCCEEDED(ordered.BeforeDraw(12,32,32))&&draw(shadow_on)&&shadow_on==shadow_off);
+    D3DVIEWPORT9 full{0,0,64,64,0,1};REQUIRE(SUCCEEDED(device->SetViewport(&full))&&SUCCEEDED(ordered.BeforeDraw(12,64,64)));
+    REQUIRE(SUCCEEDED(ordered.Suspend()));ComPtr<IDirect3DStateBlock9> block;REQUIRE(SUCCEEDED(device->CreateStateBlock(D3DSBT_ALL,&block)));
+    float changed[16];std::memcpy(changed,matrix,sizeof(matrix));changed[12]=0.1f;
+    REQUIRE(SUCCEEDED(device->SetVertexShaderConstantF(12,changed,4))&&SUCCEEDED(block->Apply())&&SUCCEEDED(ordered.Resume()));
+    REQUIRE(SUCCEEDED(ordered.BeforeDraw(12,64,64))&&SUCCEEDED(ordered.Stop()));
+    REQUIRE(SUCCEEDED(device->GetVertexShaderConstantF(12,logical,4))&&!std::memcmp(matrix,logical,sizeof(matrix)));
+    const auto stats=ordered.Stats();REQUIRE(stats.applied==stats.restored&&stats.applied==3);
+    std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"ordered_projection\":true,\"reference_matched\":true,\"ui_unchanged\":true,\"shadow_unchanged\":true,\"logical_constants_unchanged\":true,\"stateblock_restored\":true,\"shifted_pixels\":%u}\n",checks,differences);
+    device->SetVertexShader(nullptr);device->SetPixelShader(nullptr);block.Reset();original.Reset();reference.Reset();ui.Reset();pixel.Reset();declaration.Reset();device.Reset();bridge.Reset();wrapped.Reset();d12.Reset();api.Reset();DestroyWindow(window);return 0;
+#else
     auto scope_for=[&](IDirect3DVertexShader9* shader,DWORD sequence){
         On12NativeTemporal::Control value;value.device12=reinterpret_cast<std::uintptr_t>(d12.Get());value.sequence=sequence;
         UINT bytes=0;std::vector<unsigned char> code;
@@ -88,7 +120,8 @@ int wmain(int argc,wchar_t** argv){
     off.sequence=4;REQUIRE(control(&off)==1&&SUCCEEDED(device->SetVertexShader(original.Get())));
     D3DVIEWPORT9 shadow_viewport{0,0,32,32,0,1};REQUIRE(SUCCEEDED(device->SetViewport(&shadow_viewport))&&draw(shadow_off));c.sequence=5;REQUIRE(control(&c)==1&&draw(shadow_on)&&shadow_on==shadow_off);
     off.sequence=6;REQUIRE(control(&off)==1);On12NativeTemporal::Query q;q.device12=c.device12;REQUIRE(query(&q)==1&&q.enabled==0&&q.shifted_resolves>0&&q.configurations==6);
-    REQUIRE(control(&c)==0); // Replaying an older frame cannot reactivate jitter.
+    REQUIRE(control(&c)==On12NativeTemporal::StaleSequence); // Replaying an older frame cannot reactivate jitter.
     std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"native_jitter\":true,\"reference_matched\":true,\"ui_unchanged\":true,\"shadow_unchanged\":true,\"app_constants_unchanged\":true,\"shifted_pixels\":%u,\"shifted_resolves\":%llu}\n",checks,differences,static_cast<unsigned long long>(q.shifted_resolves));
     device->SetVertexShader(nullptr);device->SetPixelShader(nullptr);original.Reset();reference.Reset();ui.Reset();pixel.Reset();declaration.Reset();device.Reset();bridge.Reset();wrapped.Reset();d12.Reset();api.Reset();DestroyWindow(window);return 0;
+#endif
 }

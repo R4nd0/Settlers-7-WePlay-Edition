@@ -115,6 +115,15 @@ class Tests(unittest.TestCase):
         self.assertEqual((self.case/'on12-temporal-inputs.private.command').read_bytes(),struct.pack('<4I',16,1,2,2))
         with self.assertRaises(ValueError):temporal.request_inputs(self.case,3,depth_pixels=1)
 
+    def test_jitter_request_requires_projection_ready_host_and_bounded_v4_packet(self):
+        self.input_host()
+        with self.assertRaises(ValueError):temporal.request_inputs(self.case,1,jitter=True)
+        self.input_host(projection_jitter_hr=0)
+        temporal.request_inputs(self.case,1,4,jitter=True,depth_pixels=True)
+        self.assertEqual((self.case/'on12-temporal-inputs.private.command').read_bytes(),struct.pack('<6I',24,4,1,4,3,0))
+        temporal.request_inputs(self.case,2,2)
+        with self.assertRaises(ValueError):temporal.request_inputs(self.case,3,jitter=1)
+
     def captured_depth(self):
         values=(0.1,0.25,0.75,1.0)
         pixels=struct.pack('<4f',*values)

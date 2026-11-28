@@ -15,15 +15,17 @@ bool State::Register(void* key,void* cookie,void(*dirty)(void*)){
     std::lock_guard<std::mutex> lock(mutex);for(auto& state:states)if(!state){key_=reinterpret_cast<std::uintptr_t>(key);cookie_=cookie;dirty_=dirty;state=this;return true;}return false;
 }
 void State::ObserveOwner(){const DWORD thread=GetCurrentThreadId();if(last_owner_.load(std::memory_order_relaxed)!=thread)last_owner_.store(thread,std::memory_order_relaxed);}
-bool State::Set(const Control& c){
-    if(c.size!=sizeof(c)||c.version!=2||c.device12!=key_||!c.sequence||c.sequence<=control_.sequence||c.flags>1
-        ||GetCurrentThreadId()!=last_owner_.load(std::memory_order_relaxed)||!std::isfinite(c.jitter_x)||!std::isfinite(c.jitter_y))return false;
-    if(c.flags){if(!c.width||!c.height||c.width>4096||c.height>4096||std::fabs(c.jitter_x)>0.5f||std::fabs(c.jitter_y)>0.5f)return false;}
-    else if(c.width||c.height||c.jitter_x!=0||c.jitter_y!=0)return false;
+DWORD State::Set(const Control& c){
+    if(c.size!=sizeof(c)||c.version!=2||c.device12!=key_||!c.sequence||c.flags>1)return Malformed;
+    if(GetCurrentThreadId()!=last_owner_.load(std::memory_order_relaxed))return WrongOwner;
+    if(c.sequence<=control_.sequence)return StaleSequence;
+    if(!std::isfinite(c.jitter_x)||!std::isfinite(c.jitter_y))return InvalidRange;
+    if(c.flags){if(!c.width||!c.height||c.width>4096||c.height>4096||std::fabs(c.jitter_x)>0.5f||std::fabs(c.jitter_y)>0.5f)return InvalidRange;}
+    else if(c.width||c.height||c.jitter_x!=0||c.jitter_y!=0)return InvalidRange;
     enabled_.store(false,std::memory_order_release);configured_owner_.store(GetCurrentThreadId(),std::memory_order_relaxed);
     control_=c;width_.store(c.width,std::memory_order_relaxed);height_.store(c.height,std::memory_order_relaxed);
     jitter_x_.store(c.jitter_x,std::memory_order_relaxed);jitter_y_.store(c.jitter_y,std::memory_order_relaxed);
-    enabled_.store(c.flags!=0,std::memory_order_release);++configurations_;dirty_(cookie_);return true;
+    enabled_.store(c.flags!=0,std::memory_order_release);++configurations_;dirty_(cookie_);return Accepted;
 }
 bool State::Adjust(bool scene,float width,float height,float& x,float& y){
     resolves_.fetch_add(1,std::memory_order_relaxed);resolver_thread_.store(GetCurrentThreadId(),std::memory_order_relaxed);metadata_scene_.store(scene?1u:0u,std::memory_order_relaxed);
@@ -42,12 +44,14 @@ void State::Get(Query& q)const{
     q.eligible_resolves=eligible_.load(std::memory_order_relaxed);q.shifted_resolves=shifted_.load(std::memory_order_relaxed);q.configurations=configurations_;
     q.resolves=resolves_.load(std::memory_order_relaxed);q.resolver_thread=resolver_thread_.load(std::memory_order_relaxed);q.metadata_scene=metadata_scene_.load(std::memory_order_relaxed);q.control_owner=configured_owner_.load(std::memory_order_relaxed);q.supported=1;
 }
-bool Configure(const Control& c){
-    std::lock_guard<std::mutex> lock(mutex);State* candidate=nullptr;
+DWORD ConfigureStatus(const Control& c){
+    std::lock_guard<std::mutex> lock(mutex);State* candidate=nullptr;bool device=false;
+    for(auto* state:states)if(state&&state->key_==c.device12)device=true;
     for(auto* state:states)if(state&&state->key_==c.device12&&state->last_owner_.load(std::memory_order_relaxed)==GetCurrentThreadId()){
-        if(candidate)return false;candidate=state;
-    }return candidate&&candidate->Set(c);
+        if(candidate)return AmbiguousDevice;candidate=state;
+    }return candidate?candidate->Set(c):device?WrongOwner:NoDevice;
 }
+bool Configure(const Control& c){return ConfigureStatus(c)==Accepted;}
 bool Snapshot(Query& q){
     if(q.size!=sizeof(q)||q.version!=2)return false;
     std::lock_guard<std::mutex> lock(mutex);State* candidate=nullptr;
@@ -59,7 +63,8 @@ bool Snapshot(Query& q){
 extern "C" DWORD WINAPI WePlayOn12TemporalControl(void* opaque){
     WaterOn12Identity::Guard guard;
     On12NativeTemporal::Control c;SIZE_T count=0;
-    return opaque&&ReadProcessMemory(GetCurrentProcess(),opaque,&c,sizeof(c),&count)&&count==sizeof(c)&&On12NativeTemporal::Configure(c)?1u:0u;
+    if(!opaque||!ReadProcessMemory(GetCurrentProcess(),opaque,&c,sizeof(c),&count)||count!=sizeof(c))return On12NativeTemporal::Unreadable;
+    return On12NativeTemporal::ConfigureStatus(c);
 }
 extern "C" DWORD WINAPI WePlayOn12TemporalQuery(void* opaque){
     WaterOn12Identity::Guard guard;

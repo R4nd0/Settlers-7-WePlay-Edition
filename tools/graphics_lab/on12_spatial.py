@@ -16,11 +16,16 @@ SOURCES = ('on12_frame_context.h', 'on12_frame_context.cpp', 'on12_spatial_pass.
            'on12_spatial_hook.def', 'on12_spatial_gpu.cpp', 'water_on12_identity.h',
            'on12_output_window.h', 'on12_output_window.cpp', 'on12_output_window_fixture.cpp',
            'on12_scene_targets.h', 'on12_scene_targets.cpp', 'on12_scene_boundary.h', 'on12_scene_abi_fixture.cpp',
-           'on12_temporal_inputs.h', 'on12_temporal_inputs_fixture.cpp','on12_depth_capture.h')
-BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe', 'on12_scene_abi_fixture.exe', 'on12_temporal_inputs_fixture.exe')
+           'on12_temporal_inputs.h', 'on12_temporal_inputs_fixture.cpp','on12_depth_capture.h',
+           'on12_native_scope.h','on12_native_scope_fixture.cpp','on12_native_temporal.h','on12_native_temporal.cpp',
+           'on12_scene_projection.h','on12_temporal.h','on12_temporal.cpp',
+           'on12_projection_binding.h','on12_projection_jitter.h','on12_projection_jitter_fixture.cpp','on12_native_temporal_gpu.cpp','on12_jitter_program.h')
+BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe', 'on12_scene_abi_fixture.exe', 'on12_temporal_inputs_fixture.exe','on12_native_scope_fixture.exe')
+BINARIES += ('on12_projection_jitter_fixture.exe','on12_projection_jitter_gpu.exe')
 MANIFEST = 'on12-spatial-build.json'
 WINDOWS_ON12 = '8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a'
 SOURCE_ON12 = '24aceac4aa280d09f1ec2c4c9a2b3d784bf158fe1f0f23292ab1072db9187364'
+TEMPORAL_ON12 = 'd2e9c5e28d0ddd42dbdf650ec76b9935ddb69b756c4e6a301272169fac0d465e'
 
 
 def verify_build(directory):
@@ -87,11 +92,13 @@ class Session:
         try:
             for path, pin in ((self.directory / DLL, self.build['files'][DLL]),
                               (self.executable.with_name('d3d9.dll'), dxwrapper.STUB_SHA256),
-                              (self.executable.with_name('dxwrapper.dll'), dxwrapper.DLL_SHA256),
-                              (self.executable.with_name('d3d9on12.dll'), SOURCE_ON12)):
+                              (self.executable.with_name('dxwrapper.dll'), dxwrapper.DLL_SHA256)):
                 self.leases.enter_context(file_lease(path))
                 if loader.digest(path) != pin:
                     raise ValueError('Spatial host deployment identity changed.')
+            runtime=self.executable.with_name('d3d9on12.dll')
+            self.leases.enter_context(file_lease(runtime))
+            if loader.digest(runtime)not in(SOURCE_ON12,TEMPORAL_ON12):raise ValueError('Spatial host runtime identity changed.')
             verify_build(self.directory)
             self.prepared = True
         except BaseException:
@@ -134,7 +141,8 @@ def gpu(build, package, output, runtime=None):
     if runtime is not None:
         local, local_manifest, _ = on12_runtime.verify_build(runtime)
         on12_runtime.validate_runtime()
-        if local_manifest['variant'] != 'water-worker' or local_manifest['files']['d3d9on12.dll'] != SOURCE_ON12:
+        allowed={'water-worker':SOURCE_ON12,'temporal-worker':TEMPORAL_ON12}
+        if allowed.get(local_manifest['variant'])!=local_manifest['files']['d3d9on12.dll']:
             raise ValueError('Use the exact admitted source runtime for spatial GPU tests.')
     payload = {name: dxwrapper.artifacts(package, mode) for name, mode in
                (('native', 'dxwrapper-d3d9'), ('windows-on12', 'dxwrapper-d3d9on12'))}
@@ -159,7 +167,7 @@ def gpu(build, package, output, runtime=None):
             recover._write_new(case / name, raw)
         expected = WINDOWS_ON12
         if label == 'local-on12':
-            expected = SOURCE_ON12
+            expected = local_manifest['files']['d3d9on12.dll']
             for name in on12_runtime.PAYLOAD:
                 if on12_runtime.build.digest(local / name) != local_manifest['files'][name]:
                     raise RuntimeError('Local On12 payload changed.')
@@ -179,14 +187,53 @@ def gpu(build, package, output, runtime=None):
     return results
 
 
+def projection_gpu(build,package,output,runtime):
+    """Compare ordered D3D9 projection jitter with an independent shader reference."""
+    from . import dxwrapper,on12_runtime
+    directory,manifest=verify_build(build)
+    local,local_manifest,_=on12_runtime.verify_build(runtime)
+    if local_manifest['variant']!='water-worker' or local_manifest['files']['d3d9on12.dll']!=SOURCE_ON12:
+        raise ValueError('Use the exact optimized source runtime for ordered projection tests.')
+    output=recover.lab(output)
+    if (output.exists() or not output.parent.is_dir() or output.is_relative_to(directory) or directory.is_relative_to(output)
+            or output.is_relative_to(local) or local.is_relative_to(output)):
+        raise ValueError('Use a fresh separate projection test directory below work/.')
+    on12_runtime.validate_runtime();recover._no_games()
+    payload=dxwrapper.artifacts(package,'dxwrapper-d3d9on12')
+    output.mkdir()
+    executable='on12_projection_jitter_gpu.exe'
+    shutil.copyfile(directory/executable,output/executable)
+    if loader.digest(output/executable)!=manifest['files'][executable]:raise RuntimeError('Projection test binary changed.')
+    for name,raw in payload.items():
+        if name=='dxwrapper.ini':raw=raw.replace(b'IncludeProcess=Settlers7R.exe',b'IncludeProcess='+executable.encode())
+        recover._write_new(output/name,raw)
+    for name in on12_runtime.PAYLOAD:
+        shutil.copyfile(local/name,output/name)
+        if loader.digest(output/name)!=local_manifest['files'][name]:raise RuntimeError('Projection runtime changed.')
+    verify_build(directory);on12_runtime.verify_build(local);recover._no_games()
+    done=subprocess.run([str(output/executable),SOURCE_ON12],cwd=output,capture_output=True,timeout=45,creationflags=subprocess.CREATE_NO_WINDOW)
+    result=dict(exit_code=done.returncode,stdout=done.stdout.decode(errors='replace'),stderr=done.stderr.decode(errors='replace'),synthetic_only=True,game_taa_enabled=False)
+    recover._write_new(output/'result.private.json',json.dumps(result,indent=2).encode())
+    print(json.dumps(result),flush=True)
+    if done.returncode:raise RuntimeError('Ordered projection GPU test failed.')
+    parsed=json.loads(result['stdout'])
+    if any(parsed.get(name)is not True for name in ('passed','synthetic_only','ordered_projection','reference_matched','ui_unchanged','shadow_unchanged','logical_constants_unchanged','stateblock_restored')):
+        raise RuntimeError('Unexpected ordered projection GPU result.')
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--package', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--runtime', type=Path)
+    parser.add_argument('--projection-only',action='store_true',help='Explicit ordered projection GPU conformance; requires --runtime.')
     args = parser.parse_args()
-    gpu(args.build, args.package, args.output, args.runtime)
+    if args.projection_only:
+        if args.runtime is None:parser.error('--projection-only requires --runtime')
+        projection_gpu(args.build,args.package,args.output,args.runtime)
+    else:gpu(args.build, args.package, args.output, args.runtime)
 
 
 if __name__ == '__main__':

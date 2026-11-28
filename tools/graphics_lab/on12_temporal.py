@@ -16,7 +16,8 @@ SOURCES=('on12_temporal.h','on12_temporal.cpp','on12_temporal.hlsl','on12_tempor
          'on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp','on12_temporal_camera.h',
          'on12_temporal_camera.cpp','on12_temporal_camera.hlsl','on12_temporal_camera_fixture.cpp',
          'on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_jitter_program.h','on12_jitter_program_fixture.cpp',
-         'on12_native_temporal.h','on12_native_temporal.cpp','on12_native_temporal_fixture.cpp','on12_scene_projection.h','water_on12_identity.h')
+         'on12_native_temporal.h','on12_native_temporal.cpp','on12_native_temporal_fixture.cpp','on12_scene_projection.h','water_on12_identity.h',
+         'on12_temporal_graph.h','on12_temporal_graph.cpp','on12_temporal_graph_gpu.h')
 ARTIFACTS=('on12_temporal_fixture.exe','on12_temporal_gpu.exe','on12_temporal_vs.bin',
            'on12_temporal_ps.bin','cpu-result.private.json','on12_temporal_inputs_fixture.exe',
            'on12_temporal_camera_fixture.exe','on12_temporal_camera_vs.bin','on12_temporal_camera_ps.bin','camera-result.private.json',
@@ -31,9 +32,9 @@ def same_float32(a,b):
     except (OverflowError,struct.error):return False
 
 
-def request_inputs(case,sequence,frames=2,*,depth_pixels=False):
+def request_inputs(case,sequence,frames=2,*,depth_pixels=False,jitter=False):
     """Request bounded metadata on an initialized scene-only host, never enable TAA."""
-    if type(sequence)is not int or not 1<=sequence<=0xffffffff or type(frames)is not int or not 1<=frames<=4 or type(depth_pixels)is not bool:
+    if type(sequence)is not int or not 1<=sequence<=0xffffffff or type(frames)is not int or not 1<=frames<=4 or type(depth_pixels)is not bool or type(jitter)is not bool:
         raise ValueError('Use a positive sequence and one to four scene input pairs.')
     case=recover.lab(case)
     if (case/'result.private.json').exists():
@@ -43,14 +44,17 @@ def request_inputs(case,sequence,frames=2,*,depth_pixels=False):
             or value.get('initialized')is not True or value.get('scene_only')is not True
             or value.get('stopped')is not False or value.get('failure')!=0):
         raise ValueError('Temporal input observation requires the initialized scene-only host.')
+    if jitter and value.get('projection_jitter_hr')!=0:raise ValueError('The ordered projection jitter is not ready for this scene host.')
     command=case/'on12-temporal-inputs.private.command'
     if command.exists():
         raw,_=recover._read(command,24)
         fields=struct.unpack('<'+'I'*(len(raw)//4),raw) if len(raw)in(16,24) else ()
-        shape=fields and (fields[:2]==(16,1) or fields[:2]==(24,2) and fields[4:]==(1,0))
+        shape=fields and (fields[:2]==(16,1) or fields[:2]==(24,2) and fields[4:]==(1,0)
+                         or fields[:2]in((24,3),(24,4)) and fields[4]in(2,3) and fields[5]==0)
         if not shape or not 1<=fields[3]<=4 or fields[2]>=sequence:
             raise ValueError('Use a fresh temporal input sequence.')
-    payload=struct.pack('<6I',24,2,sequence,frames,1,0) if depth_pixels else struct.pack('<4I',16,1,sequence,frames)
+    payload=(struct.pack('<6I',24,4,sequence,frames,2|int(depth_pixels),0) if jitter else
+             struct.pack('<6I',24,2,sequence,frames,1,0) if depth_pixels else struct.pack('<4I',16,1,sequence,frames))
     recover._atomic(command,payload)
 
 
@@ -149,7 +153,7 @@ def gpu(build,output):
         raise RuntimeError('Temporal GPU conformance failed; retain the private diagnostic output.')
     parsed=json.loads(result['stdout'])
     if (parsed.get('passed')is not True or parsed.get('cpu_reference_matched')is not True
-            or parsed.get('camera_reference_matched')is not True or parsed.get('synthetic_only')is not True):
+            or parsed.get('camera_reference_matched')is not True or parsed.get('temporal_graph_matched')is not True or parsed.get('synthetic_only')is not True):
         raise RuntimeError('Unexpected temporal GPU conformance result.')
     return result
 
@@ -162,17 +166,18 @@ def main():
     parser.add_argument('--inputs-case',type=Path,help='Only request metadata from an already initialized scene host.')
     parser.add_argument('--depth-case',type=Path,help='Analyze one already captured R32F depth image; no GPU launch.')
     parser.add_argument('--depth-pixels',action='store_true',help='Explicit one-shot GPU depth readback; exclude this run from FPS comparisons.')
+    parser.add_argument('--jitter',action='store_true',help='Explicit bounded geometry jitter diagnostic (one to four frames); TAA remains off.')
     parser.add_argument('--sequence',type=int,default=1)
     parser.add_argument('--frames',type=int,default=2)
     args=parser.parse_args()
     if args.depth_case is not None:
-        if args.inputs_case is not None or args.build is not None or args.gpu or args.output is not None or args.depth_pixels:parser.error('--depth-case only analyzes existing pixels')
+        if args.inputs_case is not None or args.build is not None or args.gpu or args.output is not None or args.depth_pixels or args.jitter:parser.error('--depth-case only analyzes existing pixels')
         print(json.dumps(analyze_depth(args.depth_case,args.sequence)))
     elif args.inputs_case is not None:
         if args.build is not None or args.gpu or args.output is not None:parser.error('--inputs-case cannot build or run GPU fixtures')
-        request_inputs(args.inputs_case,args.sequence,args.frames,depth_pixels=args.depth_pixels)
+        request_inputs(args.inputs_case,args.sequence,args.frames,depth_pixels=args.depth_pixels,jitter=args.jitter)
         print(json.dumps(dict(requested_input_pairs=args.frames,game_taa_enabled=False)))
-    elif args.depth_pixels:parser.error('--depth-pixels requires --inputs-case')
+    elif args.depth_pixels or args.jitter:parser.error('--depth-pixels/--jitter requires --inputs-case')
     elif args.build is None:parser.error('--build, --inputs-case or --depth-case is required')
     elif args.gpu:
         if args.output is None:parser.error('--gpu requires a fresh --output')

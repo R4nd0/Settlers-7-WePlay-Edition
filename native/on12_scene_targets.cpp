@@ -48,12 +48,13 @@ struct SceneTargets::Impl {
     UINT sw=0,sh=0,nw=0,nh=0;DWORD thread=0;
     bool active=false,ui=false,physical_high=false,unsafe=false,suspended=false;
     SceneStats stats;
+    D3DVIEWPORT9 physical_viewport{};
     template<class F> F Fn(UINT slot) const {return reinterpret_cast<F>(functions[slot]);}
     HRESULT SetRT(DWORD i,IDirect3DSurface9* s){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9*)>(37)(wrapped.Get(),i,s);}
     HRESULT GetRT(DWORD i,IDirect3DSurface9** s){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DSurface9**)>(38)(wrapped.Get(),i,s);}
     HRESULT SetDS(IDirect3DSurface9* s){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9*)>(39)(wrapped.Get(),s);}
     HRESULT GetDS(IDirect3DSurface9** s){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DSurface9**)>(40)(wrapped.Get(),s);}
-    HRESULT SetVP(const D3DVIEWPORT9* v){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,const D3DVIEWPORT9*)>(47)(wrapped.Get(),v);}
+    HRESULT SetVP(const D3DVIEWPORT9* v){const auto hr=Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,const D3DVIEWPORT9*)>(47)(wrapped.Get(),v);if(SUCCEEDED(hr)&&v)physical_viewport=*v;return hr;}
     HRESULT GetVP(D3DVIEWPORT9* v){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DVIEWPORT9*)>(48)(wrapped.Get(),v);}
     HRESULT SetTX(DWORD i,IDirect3DBaseTexture9* t){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DBaseTexture9*)>(65)(wrapped.Get(),i,t);}
     HRESULT GetTX(DWORD i,IDirect3DBaseTexture9** t){return Fn<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,DWORD,IDirect3DBaseTexture9**)>(64)(wrapped.Get(),i,t);}
@@ -143,6 +144,7 @@ bool SceneTargets::Suspended()const{return impl_->suspended;}
 bool SceneTargets::Safe()const{return !impl_->unsafe;}
 bool SceneTargets::MapsTexture(IDirect3DBaseTexture9* texture)const{if(!texture||!impl_->active)return false;for(const auto& t:impl_->targets)if(t->high_texture.Get()==texture)return true;return false;}
 SceneStats SceneTargets::Stats()const{return impl_->stats;}
+D3DVIEWPORT9 SceneTargets::PhysicalViewport()const{return impl_->physical_viewport;}
 HRESULT SceneTargets::BeginFrame(){auto& p=*impl_;if(GetCurrentThreadId()!=p.thread)return RPC_E_WRONG_THREAD;if(p.unsafe)return p.stats.failure;
     if(!p.main){HRESULT hr=p.wrapped->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&p.main);if(FAILED(hr))return p.Fail(hr);}
     Impl::Bindings b;HRESULT hr=p.Read(b);if(FAILED(hr))return p.Fail(hr);p.ui=false;p.active=true;hr=p.Bind(b,true);if(SUCCEEDED(hr))hr=p.Textures(true);if(SUCCEEDED(hr))++p.stats.frames;return hr;}

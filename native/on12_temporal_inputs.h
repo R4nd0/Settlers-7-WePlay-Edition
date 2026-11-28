@@ -25,7 +25,12 @@ struct TemporalDeviceInputs {
     TemporalSurfaceInfo depth;
     std::array<TemporalSurfaceInfo,16> textures{};
 };
-struct TemporalBoundaryInputs {TemporalDeviceInputs logical,physical;};
+struct TemporalBoundaryInputs {
+    TemporalDeviceInputs logical,physical;
+    bool jitter_for_frame=false;float jitter_x=0,jitter_y=0;
+    HRESULT native_query=E_NOINTERFACE;std::uint64_t native_shifted_resolves=0;
+    std::uint64_t projection_applies=0,projection_restores=0;
+};
 struct TemporalInputPair {
     std::uint64_t frame=0;
     TemporalBoundaryInputs composite,ui;
@@ -79,9 +84,9 @@ public:
         sequence_=c.sequence;requested_=c.frames;count_=0;pending_={};pairs_={};pending_valid_=false;depth_={};return true;
     }
     bool Arm(const TemporalInputDepthCommand& c){
-        if(c.size!=sizeof(c)||c.version!=2||c.flags!=1||c.reserved){++rejected_;return false;}
+        if(c.size!=sizeof(c)||c.reserved||!((c.version==2&&c.flags==1)||((c.version==3||c.version==4)&&(c.flags==2||c.flags==3)))){++rejected_;return false;}
         TemporalInputCommand base;base.sequence=c.sequence;base.frames=c.frames;
-        if(!Arm(base))return false;depth_.requested=true;return true;
+        if(!Arm(base))return false;depth_.requested=(c.flags&1)!=0;return true;
     }
     bool BeginDepth(std::uint64_t frame){
         if(!Active()||!pending_valid_||pending_.frame!=frame||!depth_.requested||depth_.attempted)return false;
@@ -126,7 +131,9 @@ private:
         for(UINT i=0;i<16;++i){if(i)out<<',';SurfaceJson(out,d.textures[i]);}out<<"]}";
     }
     static void VectorJson(std::ostream& out,const std::array<float,4>& v){out<<'[';for(UINT i=0;i<4;++i){if(i)out<<',';if(std::isfinite(v[i]))out<<v[i];else out<<"null";}out<<']';}
-    static void BoundaryJson(std::ostream& out,const TemporalBoundaryInputs& b){out<<"{\"logical\":";DeviceJson(out,b.logical);out<<",\"physical\":";DeviceJson(out,b.physical);out<<'}';}
+    static void BoundaryJson(std::ostream& out,const TemporalBoundaryInputs& b){out<<"{\"logical\":";DeviceJson(out,b.logical);out<<",\"physical\":";DeviceJson(out,b.physical);
+        out<<",\"jitter_for_frame\":"<<(b.jitter_for_frame?"true":"false")<<",\"jitter\":["<<b.jitter_x<<','<<b.jitter_y<<"],\"native_query_hr\":"<<static_cast<long>(b.native_query)<<",\"native_shifted_resolves\":"<<b.native_shifted_resolves
+           <<",\"projection_applies\":"<<b.projection_applies<<",\"projection_restores\":"<<b.projection_restores<<'}';}
     std::array<TemporalInputPair,4> pairs_{};TemporalInputPair pending_{};
     TemporalDepthInfo depth_{};
     DWORD sequence_=0;UINT requested_=0,count_=0;std::uint64_t discarded_=0,rejected_=0;bool pending_valid_=false;
