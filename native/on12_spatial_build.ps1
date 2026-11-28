@@ -14,6 +14,8 @@ New-Item -ItemType Directory -Path $output | Out-Null
 $names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','on12_spatial_pass.cpp','on12_spatial_pass.hlsl','on12_spatial_gpu.cpp','on12_spatial_hook.cpp','on12_spatial_hook.def','water_on12_identity.h','on12_output_window.h','on12_output_window.cpp','on12_output_window_fixture.cpp','on12_scene_targets.h','on12_scene_targets.cpp','on12_scene_boundary.h','on12_scene_abi_fixture.cpp','on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp','on12_depth_capture.h','on12_native_scope.h','on12_native_scope_fixture.cpp','on12_native_temporal.h','on12_native_temporal.cpp','on12_scene_projection.h','on12_temporal.h','on12_temporal.cpp')
 $files=@{}
 $names+=@('on12_projection_binding.h','on12_projection_jitter.h','on12_projection_jitter_fixture.cpp','on12_native_temporal_gpu.cpp','on12_jitter_program.h')
+$names+=@('on12_frame_temporal_gpu.h','on12_temporal_camera.h','on12_temporal_camera.cpp','on12_temporal_camera.hlsl','on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_temporal_pass.h','on12_temporal_pass.cpp','on12_temporal.hlsl','on12_temporal_graph.h','on12_temporal_graph.cpp','on12_temporal_pipeline.h','on12_temporal_pipeline.cpp')
+$temporalSources=@('on12_temporal_camera.cpp','on12_temporal_camera_pass.cpp','on12_temporal_pass.cpp','on12_temporal_graph.cpp','on12_temporal_pipeline.cpp')
 foreach($name in $names){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $output;$files[$name]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
 Push-Location $output
 try {
@@ -42,9 +44,9 @@ try {
     if($LASTEXITCODE){throw 'On12 output window fixture compile failed.'}
     & .\on12_output_window_fixture.exe
     if($LASTEXITCODE){throw 'On12 output window fixture failed.'}
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict /LD on12_frame_context.cpp on12_spatial_pass.cpp on12_spatial_hook.cpp on12_output_window.cpp on12_scene_targets.cpp on12_temporal.cpp /Fe:WePlayOn12SpatialLab.dll /link /DEF:on12_spatial_hook.def d3d12.lib d3dcompiler.lib bcrypt.lib user32.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict /LD on12_frame_context.cpp on12_spatial_pass.cpp on12_spatial_hook.cpp on12_output_window.cpp on12_scene_targets.cpp on12_temporal.cpp @temporalSources /Fe:WePlayOn12SpatialLab.dll /link /DEF:on12_spatial_hook.def d3d12.lib d3dcompiler.lib bcrypt.lib user32.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'On12 spatial host compile failed.'}
-    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict /DS7_ON12_SPATIAL_GPU_FIXTURE on12_frame_context.cpp on12_spatial_pass.cpp on12_spatial_hook.cpp on12_output_window.cpp on12_scene_targets.cpp on12_spatial_gpu.cpp on12_temporal.cpp /Fe:on12_spatial_gpu.exe /link d3d12.lib d3dcompiler.lib user32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 /fp:strict /DS7_ON12_SPATIAL_GPU_FIXTURE on12_frame_context.cpp on12_spatial_pass.cpp on12_spatial_hook.cpp on12_output_window.cpp on12_scene_targets.cpp on12_spatial_gpu.cpp on12_temporal.cpp @temporalSources /Fe:on12_spatial_gpu.exe /link d3d12.lib d3dcompiler.lib user32.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'On12 spatial GPU fixture compile failed.'}
     foreach($name in $names){if((Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $files[$name]){throw 'Spatial source changed during compilation.'}}
     $files['on12_spatial_gpu.exe']=(Get-FileHash -LiteralPath 'on12_spatial_gpu.exe' -Algorithm SHA256).Hash.ToLowerInvariant()

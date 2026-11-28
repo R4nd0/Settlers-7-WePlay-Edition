@@ -1,5 +1,6 @@
 #include "on12_frame_context.h"
 #include "on12_spatial_pass.h"
+#include "on12_temporal_pipeline.h"
 #include <d3d9on12.h>
 #include <array>
 #include <vector>
@@ -42,12 +43,14 @@ void Transition(ID3D12GraphicsCommandList* list, ID3D12Resource* resource, D3D12
 }
 struct FrameContext::Impl {
     struct Frame {
+        struct Extra {ComPtr<IDirect3DSurface9> surface;ComPtr<ID3D12Resource> resource;bool out=false;};
         ComPtr<ID3D12CommandAllocator> allocator;
         ComPtr<ID3D12GraphicsCommandList> list;
         ComPtr<ID3D12Resource> input, antialiased, source12, target12;
         ComPtr<IDirect3DSurface9> source9, target9;
         ComPtr<ID3D12DescriptorHeap> srv, rtv, aa_srv, aa_rtv;
         UINT64 done = 0; bool source_out = false, target_out = false, submitted = false, signaled = false;
+        std::array<Extra,3> extra;
     };
     DWORD owner = 0; UINT next = 0; UINT64 serial = 0; bool poisoned = false;
     ComPtr<IDirect3DDevice9> original;
@@ -61,21 +64,23 @@ struct FrameContext::Impl {
     std::array<SpatialPass, 3> passes;
     std::array<bool, 3> pass_ready{};
     std::vector<unsigned char> vertex, pixel;
+    std::array<std::vector<unsigned char>,4> temporal_shaders;
+    std::array<std::unique_ptr<TemporalPipeline>,3> temporal;
     FrameStats stats;
-    bool Safe() const { for (const auto& f : frames) if (f.source_out || f.target_out) return false; return true; }
+    bool Safe() const { for (const auto& f : frames) {if (f.source_out || f.target_out) return false;for(const auto& e:f.extra)if(e.out)return false;} return true; }
     HRESULT Return(Frame& f) {
         HRESULT first = S_OK;
         UINT count = f.submitted && f.signaled ? 1u : 0u;
         ID3D12Fence* signal = fence.Get();
         if (f.submitted && !f.signaled && SUCCEEDED(device->GetDeviceRemovedReason())) return E_UNEXPECTED;
-        for (auto which : {false, true}) {
-            bool& out = which ? f.source_out : f.target_out;
-            auto* surface = which ? f.source9.Get() : f.target9.Get();
-            if (!out) continue;
+        auto give_back=[&](IDirect3DSurface9* surface,bool& out){
+            if (!out) return;
             HRESULT hr = bridge->ReturnUnderlyingResource(surface, count, count ? &f.done : nullptr, count ? &signal : nullptr);
             if (SUCCEEDED(hr)) { out = false; ++stats.returns; }
             else { ++stats.failed_returns; if (SUCCEEDED(first)) first = hr; }
-        }
+        };
+        give_back(f.target9.Get(),f.target_out);give_back(f.source9.Get(),f.source_out);
+        for(auto& e:f.extra)give_back(e.surface.Get(),e.out);
         return first;
     }
 };
@@ -126,13 +131,29 @@ HRESULT FrameContext::Initialize(IDirect3DDevice9* original, const void* vs, siz
     prepared->original = original; prepared->owner = GetCurrentThreadId(); impl_.swap(prepared); return S_OK;
 }
 
-HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* target, const SpatialSettings& config) {
+HRESULT FrameContext::PrepareTemporal(const void* vs,size_t vb,const void* ps,size_t pb,const void* cv,size_t cb,const void* cp,size_t cpb){
+    ControlState control;auto& p=*impl_;if(!p.original||p.poisoned||!p.Safe()||!p.temporal_shaders[0].empty())return E_UNEXPECTED;
+    if(GetCurrentThreadId()!=p.owner)return RPC_E_WRONG_THREAD;
+    const void* shaders[]{vs,ps,cv,cp};const size_t sizes[]{vb,pb,cb,cpb};std::array<std::vector<unsigned char>,4> next;
+    for(UINT i=0;i<4;++i){if(!shaders[i]||!sizes[i]||sizes[i]>1024*1024)return E_INVALIDARG;
+        try{const auto* data=static_cast<const unsigned char*>(shaders[i]);next[i].assign(data,data+sizes[i]);}catch(...){return E_OUTOFMEMORY;}}
+    p.temporal_shaders=std::move(next);return S_OK;
+}
+HRESULT FrameContext::Render(IDirect3DSurface9* source,IDirect3DSurface9* target,const SpatialSettings& config){return RenderScene(source,target,config,nullptr);}
+HRESULT FrameContext::RenderTemporal(IDirect3DSurface9* source,IDirect3DSurface9* target,const SpatialSettings& config,const TemporalSceneSettings& temporal){return RenderScene(source,target,config,&temporal);}
+HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* target, const SpatialSettings& config,const TemporalSceneSettings* temporal) {
     ControlState control; auto& p = *impl_;
     if (config.size != sizeof(config) || config.version != 1 || config.enabled > 1 || !std::isfinite(config.antialiasing)
         || config.antialiasing < 0 || config.antialiasing > 1) return E_INVALIDARG;
     if (p.owner && GetCurrentThreadId() != p.owner) return RPC_E_WRONG_THREAD;
     if (!config.enabled) { ++p.stats.disabled; return S_FALSE; }
     if (!p.original || !source || !target || p.poisoned || !p.Safe()) return E_UNEXPECTED;
+    if(temporal){
+        Temporal::HistoryState gate;
+        if(!gate.Prepare(temporal->frame,temporal->quality).dispatch){for(auto& pipeline:p.temporal)if(pipeline)pipeline->Abort();++p.stats.temporal_rejected;return S_FALSE;}
+        if(p.temporal_shaders[0].empty()||!Temporal::ValidCamera(temporal->camera)||temporal->camera.width!=temporal->frame.width||temporal->camera.height!=temporal->frame.height
+            ||temporal->camera.jitter_x!=temporal->frame.jitter_x||temporal->camera.jitter_y!=temporal->frame.jitter_y)return E_INVALIDARG;
+    }
     if (InterfaceModule(source, 3) != p.native_module || InterfaceModule(target, 3) != p.native_module) return E_INVALIDARG;
     ComPtr<IDirect3DDevice9> sd, td; HRESULT hr = source->GetDevice(&sd); if (FAILED(hr)) return hr;
     hr = target->GetDevice(&td); if (FAILED(hr)) return hr;
@@ -148,6 +169,19 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     if (!supported9(source_desc) || !supported9(target_desc) || !(target_desc.Usage & D3DUSAGE_RENDERTARGET)) {
         ++p.stats.unsupported; return DXGI_ERROR_UNSUPPORTED;
     }
+    std::array<IDirect3DSurface9*,3> extra{};
+    if(temporal){
+        if(temporal->frame.width!=source_desc.Width||temporal->frame.height!=source_desc.Height)return E_INVALIDARG;
+        extra={temporal->normalized_depth,temporal->static_confidence,temporal->reactive};
+        for(UINT i=0;i<3;++i){auto* surface=extra[i];if(!surface||surface==source||surface==target||InterfaceModule(surface,3)!=p.native_module)return E_INVALIDARG;
+            for(UINT j=0;j<i;++j)if(surface==extra[j])return E_INVALIDARG;
+            D3DSURFACE_DESC d{};ComPtr<IDirect3DDevice9> owner;
+            hr=surface->GetDevice(&owner);if(FAILED(hr))return hr;if(owner.Get()!=p.native.Get())return E_INVALIDARG;
+            hr=surface->GetDesc(&d);if(FAILED(hr))return hr;
+            if(d.Pool!=D3DPOOL_DEFAULT||d.MultiSampleType!=D3DMULTISAMPLE_NONE||d.Width!=source_desc.Width||d.Height!=source_desc.Height
+                ||(i==0?d.Format!=D3DFMT_R32F:d.Format!=D3DFMT_R32F&&d.Format!=D3DFMT_L8))return E_INVALIDARG;
+        }
+    }
     ComPtr<IUnknown> si, ti; hr = source->QueryInterface(IID_PPV_ARGS(&si)); if (FAILED(hr)) return hr;
     hr = target->QueryInterface(IID_PPV_ARGS(&ti)); if (FAILED(hr)) return hr;
     const bool same = si.Get() == ti.Get();
@@ -157,12 +191,15 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     if (f.done > completed) { ++p.stats.busy; return S_FALSE; }
     f.source12.Reset(); f.target12.Reset(); f.source9 = source; f.target9 = target;
     f.source_out = f.target_out = f.submitted = f.signaled = false;
+    for(UINT i=0;i<3;++i){f.extra[i].resource.Reset();f.extra[i].surface=extra[i];f.extra[i].out=false;}
     hr = f.allocator->Reset(); if (FAILED(hr)) return hr;
     hr = f.list->Reset(f.allocator.Get(), nullptr); if (FAILED(hr)) return hr;
     hr = p.bridge->UnwrapUnderlyingResource(source, p.queue.Get(), IID_PPV_ARGS(&f.source12));
     if (FAILED(hr)) { f.list->Close(); return hr; }
     f.source_out = true; ++p.stats.checkouts;
+    TemporalPipeline* processor=nullptr;
     auto finish_error = [&](HRESULT error) {
+        if(processor)processor->Abort();
         f.list->Close(); HRESULT returned = p.Return(f); if (FAILED(returned)) { p.poisoned = true; return returned; } return error;
     };
     if (same) f.target12 = f.source12;
@@ -170,6 +207,12 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
         hr = p.bridge->UnwrapUnderlyingResource(target, p.queue.Get(), IID_PPV_ARGS(&f.target12)); if (FAILED(hr)) return finish_error(hr);
         f.target_out = true; ++p.stats.checkouts;
         if (f.target12.Get() == f.source12.Get()) return finish_error(E_INVALIDARG);
+    }
+    if(temporal)for(auto& e:f.extra){
+        hr=p.bridge->UnwrapUnderlyingResource(e.surface.Get(),p.queue.Get(),IID_PPV_ARGS(&e.resource));if(FAILED(hr))return finish_error(hr);
+        e.out=true;++p.stats.checkouts;
+        if(e.resource.Get()==f.source12.Get()||e.resource.Get()==f.target12.Get())return finish_error(E_INVALIDARG);
+        for(const auto& previous:f.extra){if(&previous==&e)break;if(previous.resource.Get()==e.resource.Get())return finish_error(E_INVALIDARG);}
     }
     const auto input_desc = f.source12->GetDesc(), output_desc = f.target12->GetDesc();
     if (!Texture(input_desc) || !Texture(output_desc) || !(output_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)) {
@@ -181,7 +224,7 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     if (source_device.Get() != p.device.Get() || target_device.Get() != p.device.Get()) return finish_error(E_INVALIDARG);
     const auto index = [](DXGI_FORMAT format) { return format == DXGI_FORMAT_R8G8B8A8_UNORM ? 0u : format == DXGI_FORMAT_B8G8R8A8_UNORM ? 1u : 2u; };
     const unsigned format_index = index(output_desc.Format), source_index = index(input_desc.Format);
-    const bool separate_aa = config.antialiasing > 0 && (input_desc.Width != output_desc.Width || input_desc.Height != output_desc.Height);
+    const bool separate_aa = temporal || (config.antialiasing > 0 && (input_desc.Width != output_desc.Width || input_desc.Height != output_desc.Height));
     auto prepare_pass = [&](DXGI_FORMAT format) {
         const auto i = index(format); if (p.pass_ready[i]) return S_OK;
         const HRESULT result = p.passes[i].Initialize(p.device.Get(), format, p.vertex.data(), p.vertex.size(), p.pixel.data(), p.pixel.size());
@@ -189,6 +232,13 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     };
     hr = prepare_pass(output_desc.Format); if (FAILED(hr)) return finish_error(hr);
     if (separate_aa) { hr = prepare_pass(input_desc.Format); if (FAILED(hr)) return finish_error(hr); }
+    if(temporal){
+        if(!p.temporal[source_index]){
+            auto pipeline=std::make_unique<TemporalPipeline>();const auto& s=p.temporal_shaders;
+            hr=pipeline->Initialize(p.device.Get(),p.fence.Get(),input_desc.Format,s[0].data(),s[0].size(),s[1].data(),s[1].size(),s[2].data(),s[2].size(),s[3].data(),s[3].size());
+            if(FAILED(hr))return finish_error(hr);p.temporal[source_index]=std::move(pipeline);
+        }processor=p.temporal[source_index].get();
+    }
     auto scratch = input_desc; scratch.Alignment = 0; scratch.Flags = D3D12_RESOURCE_FLAG_NONE; scratch.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     bool create = !f.input;
     if (f.input) { auto old = f.input->GetDesc(); create = old.Width != scratch.Width || old.Height != scratch.Height || old.Format != scratch.Format; }
@@ -223,9 +273,17 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
         // AA directions and contrast tests must use source texels. Mixing a
         // cubic center with bilinear AA taps at output resolution damages text.
         Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        hr = p.passes[source_index].Record(f.list.Get(), f.srv.Get(), f.srv->GetGPUDescriptorHandleForHeapStart(), f.aa_rtv->GetCPUDescriptorHandleForHeapStart(),
-            static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(input_desc.Width), input_desc.Height, config.antialiasing);
-        if (FAILED(hr)) return finish_error(hr);
+        if(temporal){
+            for(auto& e:f.extra)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            TemporalPipelineInput in;in.color=f.input.Get();in.normalized_depth=f.extra[0].resource.Get();in.static_confidence=f.extra[1].resource.Get();in.reactive=f.extra[2].resource.Get();
+            in.output=f.antialiased.Get();in.camera=temporal->camera;in.frame=temporal->frame;in.quality=temporal->quality;
+            hr=processor->Record(f.list.Get(),p.next,in);if(hr!=S_OK)return finish_error(hr);
+            for(auto& e:f.extra)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON);
+        }else{
+            hr = p.passes[source_index].Record(f.list.Get(), f.srv.Get(), f.srv->GetGPUDescriptorHandleForHeapStart(), f.aa_rtv->GetCPUDescriptorHandleForHeapStart(),
+                static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(input_desc.Width), input_desc.Height, config.antialiasing);
+            if (FAILED(hr)) return finish_error(hr);
+        }
         Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     }
     Transition(f.list.Get(), f.source12.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, same ? D3D12_RESOURCE_STATE_RENDER_TARGET : D3D12_RESOURCE_STATE_COMMON);
@@ -241,7 +299,10 @@ HRESULT FrameContext::Render(IDirect3DSurface9* source, IDirect3DSurface9* targe
     ID3D12CommandList* lists[]{f.list.Get()}; p.queue->ExecuteCommandLists(1, lists); f.submitted = true; f.done = ++p.serial;
     hr = p.queue->Signal(p.fence.Get(), f.done);
     if (FAILED(hr)) { p.poisoned = true; return hr; }
-    f.signaled = true; hr = p.Return(f); if (FAILED(hr)) { p.poisoned = true; return hr; }
+    f.signaled = true;
+    if(processor&&!processor->Commit(temporal->frame,f.done)){p.poisoned=true;return E_UNEXPECTED;}
+    hr = p.Return(f); if (FAILED(hr)) { p.poisoned = true; return hr; }
+    if(temporal)++p.stats.temporal_applied;
     ++p.stats.applied; p.next = (p.next + 1) % static_cast<UINT>(p.frames.size()); return S_OK;
 }
 
@@ -257,7 +318,8 @@ HRESULT FrameContext::Drain(DWORD timeout_ms) {
         if (FAILED(hr)) return hr;
         if (waited != WAIT_OBJECT_0) return waited == WAIT_TIMEOUT ? DXGI_ERROR_WAS_STILL_DRAWING : E_FAIL;
     }
-    for (auto& f : p.frames) { f.source12.Reset(); f.target12.Reset(); f.source9.Reset(); f.target9.Reset(); f.input.Reset(); f.antialiased.Reset(); f.done = 0; }
+    for(auto& pipeline:p.temporal)if(pipeline){const auto hr=pipeline->Shutdown();if(FAILED(hr))return hr;pipeline.reset();}
+    for (auto& f : p.frames) { f.source12.Reset(); f.target12.Reset(); f.source9.Reset(); f.target9.Reset(); f.input.Reset(); f.antialiased.Reset(); f.done = 0;for(auto& e:f.extra){e.resource.Reset();e.surface.Reset();} }
     return S_OK;
 }
 HRESULT FrameContext::Shutdown(DWORD timeout_ms) {

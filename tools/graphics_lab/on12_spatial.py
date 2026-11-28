@@ -22,6 +22,9 @@ SOURCES = ('on12_frame_context.h', 'on12_frame_context.cpp', 'on12_spatial_pass.
            'on12_projection_binding.h','on12_projection_jitter.h','on12_projection_jitter_fixture.cpp','on12_native_temporal_gpu.cpp','on12_jitter_program.h')
 BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe', 'on12_scene_abi_fixture.exe', 'on12_temporal_inputs_fixture.exe','on12_native_scope_fixture.exe')
 BINARIES += ('on12_projection_jitter_fixture.exe','on12_projection_jitter_gpu.exe')
+SOURCES += ('on12_frame_temporal_gpu.h','on12_temporal_camera.h','on12_temporal_camera.cpp','on12_temporal_camera.hlsl',
+            'on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_temporal_pass.h','on12_temporal_pass.cpp',
+            'on12_temporal.hlsl','on12_temporal_graph.h','on12_temporal_graph.cpp','on12_temporal_pipeline.h','on12_temporal_pipeline.cpp')
 MANIFEST = 'on12-spatial-build.json'
 WINDOWS_ON12 = '8d79e366f97ea0236e57b3d597626c7072b67adc182a9780548e9e3926aaff9a'
 SOURCE_ON12 = '24aceac4aa280d09f1ec2c4c9a2b3d784bf158fe1f0f23292ab1072db9187364'
@@ -157,7 +160,7 @@ def gpu(build, package, output, runtime=None):
         case = output / label
         case.mkdir()
         verify_build(directory)
-        for name in ('on12_spatial_gpu.exe', 'on12_spatial_pass.hlsl'):
+        for name in ('on12_spatial_gpu.exe', 'on12_spatial_pass.hlsl','on12_temporal.hlsl','on12_temporal_camera.hlsl'):
             shutil.copyfile(directory / name, case / name)
             if loader.digest(case / name) != manifest['files'][name]:
                 raise RuntimeError('Spatial GPU fixture changed during copying.')
@@ -184,6 +187,8 @@ def gpu(build, package, output, runtime=None):
         parsed = json.loads(result['stdout'])
         if parsed.get('passed') is not True or parsed.get('synthetic_only') is not True:
             raise RuntimeError('Invalid spatial GPU result.')
+        if label!='native' and parsed.get('temporal_handoff')is not True:
+            raise RuntimeError('The D3D9 temporal resource handoff was not verified.')
     return results
 
 

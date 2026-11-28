@@ -46,6 +46,7 @@ bool ValidateOutput(IDirect3DDevice9* device, IDirect3DSurface9* target) {
     return true;
 }
 }
+#include "on12_frame_temporal_gpu.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 3 || (wcscmp(argv[2], L"on12") && wcscmp(argv[2], L"native"))) return 1;
     const bool on12 = !wcscmp(argv[2], L"on12"); std::string expected;
@@ -214,6 +215,7 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(device->ColorFill(input.Get(), nullptr, 0xffa04020)));
     REQUIRE(context.Render(input.Get(), output.Get(), config) == S_OK && Read(device.Get(), output.Get(), 8, 8, filtered));
     for (DWORD p : filtered) REQUIRE(Color(p, 0xffa04020));
+    REQUIRE(TemporalHandoffGpu(device.Get(),vs.Get(),ps.Get())==0);
     REQUIRE(SUCCEEDED(context.Drain(5000))); input.Reset(); output.Reset(); const auto stats = context.Stats();
     REQUIRE(stats.applied == 9 && stats.checkouts == stats.returns && !stats.failed_returns && context.SafeForD3D9());
     device.Reset(); REQUIRE(SUCCEEDED(context.Shutdown(5000)));
@@ -314,7 +316,7 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr,nullptr,nullptr,nullptr)));
     REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
     REQUIRE(On12SpatialFixtureClose());ui_vertex.Reset();ui_pixel.Reset();
-    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"native_ui_one_pixel\":true,\"scene_targets_smaller\":true,\"state_block_mapping\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"synthetic_only\":true}\n",
+    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"native_ui_one_pixel\":true,\"scene_targets_smaller\":true,\"state_block_mapping\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"temporal_handoff\":true,\"synthetic_only\":true}\n",
         checks, static_cast<unsigned long long>(stats.applied), static_cast<unsigned long long>(stats.checkouts), static_cast<unsigned long long>(stats.returns), softened);
     wrapped_device.Reset(); api.Reset(); DestroyWindow(window); return 0;
 }
