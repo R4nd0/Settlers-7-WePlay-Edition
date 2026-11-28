@@ -1,7 +1,7 @@
 """Compose original SM3 geometry with a separately compiled previous position.
 
-Current-frame instructions remain byte-identical. The appended program reads
-previous constants through a vertex texture and exposes one new TEXCOORD.
+Original instructions remain byte-identical. Position writes are mirrored to
+a current-clip TEXCOORD; the appended previous program exposes a second one.
 This does not establish temporal draw identity or bind any game resources.
 """
 from dataclasses import dataclass
@@ -29,6 +29,10 @@ class MotionVertexProgram:
     texcoord:int
     previous_sampler:int
     relocated_float_constants:tuple
+    current_output:int
+    current_texcoord:int
+    current_components:tuple
+    original_execution_offsets:tuple
 
 
 def parameters(instruction):
@@ -65,17 +69,46 @@ def declarations(instructions):
     return inputs,outputs,samplers
 
 
-def merge_vertex(current,previous,*,previous_sampler=3):
+def merge_vertex(current,previous,*,previous_sampler=3,pixel_program=None):
     if type(previous_sampler)is not int or not 0<=previous_sampler<4:raise ValueError('Invalid previous-constant sampler.')
     original=checked(current);prior=checked(previous)
     inputs,outputs,samplers=declarations(original);old_inputs,old_outputs,old_samplers=declarations(prior)
     if previous_sampler in samplers or previous_sampler not in old_samplers:raise ValueError('Previous-constant sampler collision or missing declaration.')
     if len(old_outputs)!=1 or semantic(next(iter(old_outputs.values()))[0])!=(0,0):raise ValueError('Expected a previous POSITION0-only program.')
     if sum(semantic(value[0])==(0,0)for value in outputs.values())!=1:raise ValueError('Expected a current POSITION0 declaration.')
-    output=next((n for n in reversed(range(12))if n not in outputs),None)
+    free_outputs=[n for n in reversed(range(12))if n not in outputs]
     used_semantics={semantic(value[0])for value in outputs.values()}
-    texcoord=next((n for n in range(16)if(5,n)not in used_semantics),None)
-    if output is None or texcoord is None:raise ValueError('No previous-position interpolant available.')
+    free_semantics=[n for n in range(16)if(5,n)not in used_semantics]
+    compact=len(free_outputs)<2;pixel_inputs={};carriers=[];temporary=None
+    if pixel_program is not None:
+        for ins in decode(pixel_program,stage='pixel'):
+            if ins.opcode==DCL and register_type(ins.words[2])==INPUT:
+                key=semantic(ins.words[1])
+                if key in pixel_inputs:raise ValueError('Ambiguous paired pixel input.')
+                pixel_inputs[key]=ins.words[2]&MASK
+        compact=compact or len(pixel_inputs)>8
+    if compact:
+        if pixel_program is None:raise ValueError('A packed position layout requires the original pixel program.')
+        for reg,value in outputs.items():
+            usage,index=semantic(value[0]);used=pixel_inputs.get((usage,index))
+            if usage==5 and used is not None:
+                for component in range(4):
+                    if not used&(1<<(16+component)):carriers.append((reg,index,component))
+        if len(carriers)<3:raise ValueError('No safe channels for current clip x/y/w.')
+        carriers=carriers[:3]
+        reusable=[(reg,semantic(value[0])[1])for reg,value in outputs.items()if semantic(value[0])[0]==5 and semantic(value[0])not in pixel_inputs]
+        if reusable:output,texcoord=reusable[0]
+        elif free_outputs and free_semantics:output,texcoord=free_outputs[0],free_semantics[0]
+        else:raise ValueError('No safe previous-position output.')
+        used_temps={ins.words[at]&INDEX for ins in original for at in parameters(ins)if register_type(ins.words[at])==TEMP}
+        temporary=next((n for n in reversed(range(32))if n not in used_temps),None)
+        if temporary is None:raise ValueError('No safe current-position shadow temporary.')
+        current_output=current_texcoord=-1
+        current_components=tuple((index,component)for _,index,component in carriers)
+    else:
+        if len(free_outputs)<2 or len(free_semantics)<2:raise ValueError('No paired clip-position interpolants available.')
+        output,current_output=free_outputs[:2];texcoord,current_texcoord=free_semantics[:2]
+        current_components=((current_texcoord,0),(current_texcoord,1),(current_texcoord,3))
     by_semantic={semantic(value[0]):(index,value[1])for index,value in inputs.items()}
     if len(by_semantic)!=len(inputs):raise ValueError('Duplicate input semantic.')
     input_map={}
@@ -123,7 +156,11 @@ def merge_vertex(current,previous,*,previous_sampler=3):
     if any(b['register_set']!='sampler'for b in reflect(previous)):raise ValueError('Previous geometry still depends on current external constants.')
     for index,value in old_samplers.items():
         if index!=previous_sampler and samplers.get(index)!=value:raise ValueError('Previous geometry requires an unbound vertex texture.')
-    setup=[DCL|(2<<24),PARAMETER|5|(texcoord<<16),register(OUTPUT,output)|MASK]
+    setup=[];extensions={}
+    if output not in outputs:setup.extend((DCL|(2<<24),PARAMETER|5|(texcoord<<16),register(OUTPUT,output)|MASK))
+    else:extensions[output]=MASK
+    if not compact:setup.extend((DCL|(2<<24),PARAMETER|5|(current_texcoord<<16),register(OUTPUT,current_output)|MASK))
+    for reg,_,component in carriers:extensions[reg]=extensions.get(reg,0)|(1<<(16+component))
     for index,value in old_samplers.items():
         if index not in samplers:setup.extend((DCL|(2<<24),value[0],register(SAMPLER,index)|value[1]))
     tail=[]
@@ -140,13 +177,23 @@ def merge_vertex(current,previous,*,previous_sampler=3):
                 words[at]=replaced(token,kind,input_map[index])
             elif kind==OUTPUT:words[at]=replaced(token,OUTPUT,output)
         (setup if ins.opcode in(DEF,DEFI,DEFB)else tail).extend(words)
-    result=[0xfffe0300];inserted=False
+    position=next(index for index,value in outputs.items()if semantic(value[0])==(0,0))
+    result=[0xfffe0300];inserted=False;mirrored=0;original_offsets=[]
     for ins in original:
         if not inserted and ins.opcode not in SETUP:result.extend(setup);inserted=True
-        result.extend(ins.words)
+        words=list(ins.words)
+        if ins.opcode==DCL and register_type(words[2])==OUTPUT and words[2]&INDEX in extensions:words[2]|=extensions[words[2]&INDEX]
+        if ins.opcode not in SETUP:original_offsets.append(len(result)*4)
+        result.extend(words)
+        if ins.opcode not in SETUP and len(ins.words)>1 and register_type(ins.words[1])==OUTPUT and ins.words[1]&INDEX==position:
+            duplicate=list(ins.words);mirrored|=duplicate[1]&MASK;duplicate[1]=replaced(duplicate[1],TEMP if compact else OUTPUT,temporary if compact else current_output);result.extend(duplicate)
     if not inserted:raise ValueError('Current shader has no executable instructions.')
+    if mirrored!=MASK:raise ValueError('Current clip position is not fully defined.')
+    if compact:
+        for (reg,_,component),source in zip(carriers,(0,1,3)):
+            result.extend((1|(2<<24),register(OUTPUT,reg)|(1<<(16+component)),register(TEMP,temporary)|(source*0x55<<16)))
     result.extend(tail);result.append(0xffff)
     code=struct.pack('<'+str(len(result))+'I',*result)
     if len(code)>65536:raise ValueError('Merged vertex shader exceeds its bound.')
     checked(code)
-    return MotionVertexProgram(code,output,texcoord,previous_sampler,tuple(sorted(definitions[FLOAT].items())))
+    return MotionVertexProgram(code,output,texcoord,previous_sampler,tuple(sorted(definitions[FLOAT].items())),current_output,current_texcoord,current_components,tuple(original_offsets))

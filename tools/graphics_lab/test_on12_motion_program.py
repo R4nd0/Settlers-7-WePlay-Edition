@@ -18,8 +18,10 @@ class Tests(unittest.TestCase):
         merged=motion.merge_vertex(self.current,self.previous)
         old=motion.checked(self.current);new=motion.checked(merged.code)
         expected=[i.words for i in old if i.opcode not in motion.SETUP]
-        observed=[i.words for i in new if i.opcode not in motion.SETUP]
+        observed=[i.words for i in new if i.opcode not in motion.SETUP and not(len(i.words)>1 and motion.register_type(i.words[1])==motion.OUTPUT and i.words[1]&motion.INDEX==merged.current_output)]
         self.assertEqual(observed[:len(expected)],expected)
+        self.assertEqual(len(merged.original_execution_offsets),len(expected))
+        for at,words in zip(merged.original_execution_offsets,expected):self.assertEqual(struct.unpack_from('<'+str(len(words))+'I',merged.code,at),words)
         inputs,outputs,samplers=motion.declarations(old)
         ni,no,ns=motion.declarations(new)
         self.assertEqual(ni,inputs)
