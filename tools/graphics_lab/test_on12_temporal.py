@@ -26,6 +26,8 @@ class Tests(unittest.TestCase):
                       shader_compiled=True,sharp_edge_preserved=True,reactive_rejection=True)
         self.write_cpu()
         (self.build/'camera-result.private.json').write_text(json.dumps(dict(passed=True,cpu_only=True,gpu_device_created=False,camera_bytes=96)))
+        (self.build/'jitter-result.private.json').write_text(json.dumps(dict(passed=True,cpu_only=True,gpu_device_created=False,bone_palette_preserved=True)))
+        (self.build/'native-jitter-result.private.json').write_text(json.dumps(dict(passed=True,cpu_only=True,gpu_device_created=False,control_version=2,control_bytes=40,query_bytes=96)))
         self.manifest=dict(format='s7-on12-temporal-build-v1',architecture='x86',cpu_only=True,
                            parameter_bytes=64,build_sha256=temporal.loader.digest(temporal.ROOT/'native/on12_temporal_build.ps1'),
                            files={name:temporal.loader.digest(self.build/name) for name in (*temporal.SOURCES,*temporal.ARTIFACTS)})

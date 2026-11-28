@@ -15,10 +15,13 @@ SOURCES=('on12_temporal.h','on12_temporal.cpp','on12_temporal.hlsl','on12_tempor
          'on12_temporal_pass.cpp','on12_temporal_fixture.cpp','on12_temporal_gpu.cpp',
          'on12_temporal_inputs.h','on12_temporal_inputs_fixture.cpp','on12_temporal_camera.h',
          'on12_temporal_camera.cpp','on12_temporal_camera.hlsl','on12_temporal_camera_fixture.cpp',
-         'on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp')
+         'on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_jitter_program.h','on12_jitter_program_fixture.cpp',
+         'on12_native_temporal.h','on12_native_temporal.cpp','on12_native_temporal_fixture.cpp','on12_scene_projection.h','water_on12_identity.h')
 ARTIFACTS=('on12_temporal_fixture.exe','on12_temporal_gpu.exe','on12_temporal_vs.bin',
            'on12_temporal_ps.bin','cpu-result.private.json','on12_temporal_inputs_fixture.exe',
-           'on12_temporal_camera_fixture.exe','on12_temporal_camera_vs.bin','on12_temporal_camera_ps.bin','camera-result.private.json')
+           'on12_temporal_camera_fixture.exe','on12_temporal_camera_vs.bin','on12_temporal_camera_ps.bin','camera-result.private.json',
+           'on12_jitter_program_fixture.exe','jitter-original.private.bin','jitter-patched.private.bin','jitter-result.private.json',
+           'on12_native_temporal_fixture.exe','native-jitter-result.private.json')
 MANIFEST='on12-temporal-build.json'
 
 
@@ -112,6 +115,14 @@ def verify_build(directory):
     if (not isinstance(camera,dict) or camera.get('passed')is not True or camera.get('cpu_only')is not True
             or camera.get('gpu_device_created')is not False or camera.get('camera_bytes')!=96):
         raise ValueError('The camera reprojection preparation was not verified.')
+    jitter=json.loads(recover._read(directory/'jitter-result.private.json',16384)[0].decode('utf-8-sig'))
+    if (not isinstance(jitter,dict) or jitter.get('passed')is not True or jitter.get('cpu_only')is not True
+            or jitter.get('gpu_device_created')is not False or jitter.get('bone_palette_preserved')is not True):
+        raise ValueError('The geometry jitter preparation was not verified.')
+    native=json.loads(recover._read(directory/'native-jitter-result.private.json',16384)[0].decode('utf-8-sig'))
+    if (not isinstance(native,dict) or native.get('passed')is not True or native.get('cpu_only')is not True
+            or native.get('gpu_device_created')is not False or native.get('control_version')!=2 or native.get('control_bytes')!=40 or native.get('query_bytes')!=96):
+        raise ValueError('The native jitter control preparation was not verified.')
     return directory,value,result
 
 

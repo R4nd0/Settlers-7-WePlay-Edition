@@ -12,6 +12,7 @@ JOURNAL='on12-runtime.private.json'
 SNAPSHOT='on12-runtime-build.private.json'
 SIGNER='5f291153682f021e88bffcdb350949153188bac22b7342041a489c86455aeb14'
 RUNTIME='da332f721a59dc73f8fdb32acd6755dd0ddae726f78342d8d73c32b14abb21e5'
+LEGACY_WATER_BUILDER='3cefe423addd9a419af053537957f0bb9d4ee3f0fe917adf0aeea1019caa310a'
 
 def pin(value):
     return isinstance(value,str) and re.fullmatch('[0-9a-f]{64}',value) is not None
@@ -30,7 +31,9 @@ def shape(value,*,current=True):
     for name,p in value['inputs'].items():
         parts=build.relative(name).parts
         if parts[0] not in ('sources','dependencies','project') or not pin(p):raise ValueError('Invalid On12 build input.')
-    if current and (value['builder_sha256']!=build.digest(Path(build.__file__))
+    builders={build.digest(Path(build.__file__))}
+    if value['variant']=='water-worker':builders.add(LEGACY_WATER_BUILDER)
+    if current and (value['builder_sha256']not in builders
             or any(build.digest(ROOT/name)!=p for name,p in value['project_inputs'].items())):
         raise ValueError('The local On12 builder or GPU fixture changed; rebuild.')
     return value
@@ -100,7 +103,7 @@ class Session:
         except (OSError,ValueError):return
         if not report.get('attached'):return
         if report.get('on12_query_hr')!=0 or report.get('failure')!=0:raise RuntimeError('The source-built runtime did not create the admitted On12 device.')
-        if self.manifest['variant']=='water-worker':
+        if self.manifest['variant']in('water-worker','temporal-worker'):
             if not report.get('snapshot_done'):return
             if (report.get('snapshot_once')is not True or report.get('hooks_detached')is not True
                     or report.get('pow_cap_requested')is not False or report.get('caps_applied')!=0 or report.get('caps_restored')!=0):

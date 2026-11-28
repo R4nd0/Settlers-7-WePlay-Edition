@@ -31,7 +31,7 @@ PACKAGES={
     'atl-x86':('https://download.visualstudio.microsoft.com/download/pr/eef0996f-4334-4b1a-a344-4d13e27ac052/31401fe8b051ce1cde1610fc6e5baec818e9b13ab335f3b71a323b3b8ba96398/Microsoft.VC.14.50.18.0.ATL.X86.base.vsix','31401fe8b051ce1cde1610fc6e5baec818e9b13ab335f3b71a323b3b8ba96398'),
 }
 PROJECT_INPUTS=('native/on12_constant_reuse_gpu.cpp','native/water_on12_identity.h')
-VARIANTS=('stock','water-worker')
+VARIANTS=('stock','water-worker','temporal-worker')
 MANIFEST='on12-runtime-build.json'
 FILES=('d3d9on12.dll','dxbcSigner.dll','on12_runtime_gpu.exe')
 
@@ -58,13 +58,17 @@ def project_inputs(variant):
     if variant not in VARIANTS:raise ValueError('Unknown On12 source variant.')
     if variant=='stock':return PROJECT_INPUTS
     from . import on12_water_patch
+    if variant=='temporal-worker':
+        from . import on12_temporal_patch
+        return (*PROJECT_INPUTS,*on12_water_patch.INPUTS,*on12_temporal_patch.INPUTS)
     return (*PROJECT_INPUTS,*on12_water_patch.INPUTS)
 
 
 def project_cmake(directory,variant='stock'):
     project_inputs(variant)
-    gpu=(ROOT/PROJECT_INPUTS[0]).as_posix();source=(directory/'sources/D3D9On12').as_posix();binary=(directory/'bin').as_posix()
-    extra=f'target_include_directories(d3d9on12 PRIVATE "{(ROOT/"native").as_posix()}")\n' if variant=='water-worker' else ''
+    gpu=(ROOT/('native/on12_native_temporal_gpu.cpp' if variant=='temporal-worker' else PROJECT_INPUTS[0])).as_posix();source=(directory/'sources/D3D9On12').as_posix();binary=(directory/'bin').as_posix()
+    extra=f'target_include_directories(d3d9on12 PRIVATE "{(ROOT/"native").as_posix()}")\n' if variant!='stock' else ''
+    libraries='bcrypt user32 d3dcompiler d3d12 dxguid' if variant=='temporal-worker' else 'bcrypt user32'
     return f'''cmake_minimum_required(VERSION 3.18)
 project(S7On12LocalRuntime)
 add_subdirectory("{source}" on12)
@@ -73,7 +77,7 @@ set_target_properties(d3d9on12 PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "{bin
 add_executable(on12_runtime_gpu "{gpu}")
 target_compile_features(on12_runtime_gpu PRIVATE cxx_std_17)
 target_compile_options(on12_runtime_gpu PRIVATE /W4 /WX /O2 /fp:strict)
-target_link_libraries(on12_runtime_gpu PRIVATE bcrypt user32)
+target_link_libraries(on12_runtime_gpu PRIVATE {libraries})
 set_target_properties(on12_runtime_gpu PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "{binary}")
 '''
 
@@ -97,11 +101,18 @@ def expected_inputs(directory,variant='stock'):
                 key=folder+'/'+str(PurePosixPath(*parts))
                 if key in result:raise ValueError('Duplicate archive input.')
                 raw=source.read(entry)
-                if variant=='water-worker' and folder=='sources/D3D9On12' and str(PurePosixPath(*parts)) in on12_water_patch.EDITS:
-                    raw=on12_water_patch.patched(str(PurePosixPath(*parts)),raw)
+                if variant!='stock' and folder=='sources/D3D9On12':
+                    name=str(PurePosixPath(*parts))
+                    if name in on12_water_patch.EDITS:raw=on12_water_patch.patched(name,raw)
+                    if variant=='temporal-worker':
+                        from . import on12_temporal_patch
+                        if name in on12_temporal_patch.EDITS:raw=on12_temporal_patch.patched(name,raw)
                 result[key]=hashlib.sha256(raw).hexdigest()
-    if variant=='water-worker':
+    if variant!='stock':
         for name,path in on12_water_patch.ADDED.items():result['sources/D3D9On12/'+name]=digest(ROOT/path)
+    if variant=='temporal-worker':
+        from . import on12_temporal_patch
+        for name,path in on12_temporal_patch.ADDED.items():result['sources/D3D9On12/'+name]=digest(ROOT/path)
     return result
 
 def download(url,pin,path):
@@ -130,7 +141,7 @@ def unpack(archive,destination,*,strip_root=False):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 recover._write_new(target,source.read(entry))
 
-def build(directory,*,variant='stock'):
+def build(directory,*,variant='stock',archive_cache=None,dependency_cache=None):
     project_inputs(variant)
     if os.name!='nt':raise ValueError('The x86 runtime build requires Windows and VS 2026 Build Tools.')
     directory=recover.lab(directory)
@@ -140,15 +151,30 @@ def build(directory,*,variant='stock'):
     cmake=installation/'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
     if not cmake.is_file() or not (installation/'VC/Tools/MSVC'/CONFIG['toolset']).is_dir():
         raise ValueError('The pinned VS 2026 x86 toolset is unavailable.')
+    cache=recover.lab(archive_cache) if archive_cache is not None else None
+    dependency_source=recover.lab(dependency_cache) if dependency_cache is not None else None
     directory.mkdir();archives=directory/'archives';archives.mkdir()
+    def acquire(url,pin,path):
+        candidate=cache/path.name if cache is not None else None
+        if candidate is not None and candidate.is_file():
+            if digest(candidate)!=pin:raise ValueError('Cached On12 archive changed.')
+            shutil.copyfile(candidate,path)
+        else:download(url,pin,path)
     for name,revision in REVISIONS.items():
-        archive=archives/(name+'.zip');download(f'https://codeload.github.com/microsoft/{name}/zip/{revision}',SOURCE_PINS[name],archive)
+        archive=archives/(name+'.zip');acquire(f'https://codeload.github.com/microsoft/{name}/zip/{revision}',SOURCE_PINS[name],archive)
         unpack(archive,directory/'sources'/name,strip_root=True)
     for name,(url,pin) in PACKAGES.items():
-        archive=archives/(name+'.zip');download(url,pin,archive);unpack(archive,directory/'dependencies'/name)
-    if variant=='water-worker':
+        archive=archives/(name+'.zip');acquire(url,pin,archive)
+        cached=dependency_source/name if dependency_source is not None else None
+        if cached is not None and cached.is_dir():
+            shutil.copytree(cached,directory/'dependencies'/name,copy_function=lambda source,target:shutil.copyfile(recover.plain(Path(source)),target))
+        else:unpack(archive,directory/'dependencies'/name)
+    if variant!='stock':
         from . import on12_water_patch
         on12_water_patch.apply(directory)
+    if variant=='temporal-worker':
+        from . import on12_temporal_patch
+        on12_temporal_patch.apply(directory)
     project=directory/'project';project.mkdir();output=directory/'build'
     output.mkdir();packages=output/'packages';packages.mkdir()
     shutil.copytree(directory/'dependencies/signer',packages/'Microsoft.Direct3D.DxbcSigner.1.0.0')
@@ -178,9 +204,46 @@ def build(directory,*,variant='stock'):
     recover._write_new(directory/MANIFEST,json.dumps(record,indent=2).encode())
     return directory
 
+def resume(directory,*,variant):
+    """Recompile a failed private build after rechecking all source/dependency pins."""
+    project_inputs(variant);directory=recover.lab(directory)
+    if (directory/MANIFEST).exists() or not (directory/'build.private.log').is_file():
+        raise ValueError('Only an unfinished private source build can be resumed.')
+    before=inputs(directory)
+    if before!=expected_inputs(directory,variant):raise ValueError('Resume sources/dependencies differ from the exact pinned variant.')
+    project_pins={name:digest(ROOT/name) for name in project_inputs(variant)}
+    finder=Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
+    installation=Path(subprocess.check_output([str(finder),'-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath'],text=True).strip())
+    cmake=installation/'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+    library=next((directory/'dependencies/atl-x86').rglob('atls.lib')).parent
+    index=1
+    while (directory/f'resume-{index}.private.log').exists():index+=1
+    with (directory/f'resume-{index}.private.log').open('xb') as log:
+        subprocess.run([str(cmake),'--build',str(directory/'build'),'--config','Release','--parallel','1','--','/nr:false',
+                        f'/p:ATL_KeyFile={library.as_posix()}/atls.lib','/p:DirectXPlatform=win32'],stdout=log,stderr=subprocess.STDOUT,
+                       env=dict(os.environ,MSBUILDDISABLENODEREUSE='1'),check=True)
+    if inputs(directory)!=before or any(digest(ROOT/name)!=pin for name,pin in project_pins.items()):
+        raise RuntimeError('Resume inputs changed while compiling.')
+    for name in ('d3d9on12.dll','on12_runtime_gpu.exe'):shutil.copyfile(directory/'bin'/name,directory/name)
+    shutil.copyfile(directory/'dependencies/signer/build/native/bin/win32/dxbcSigner.dll',directory/'dxbcSigner.dll')
+    record=dict(format='s7-on12-runtime-build-v1',variant=variant,configuration=CONFIG,revisions=REVISIONS,
+                source_archives=SOURCE_PINS,packages={name:p for name,(_,p) in PACKAGES.items()},builder_sha256=digest(Path(__file__)),
+                project_inputs=project_pins,inputs=before,files={name:digest(directory/name) for name in FILES})
+    recover._write_new(directory/MANIFEST,json.dumps(record,indent=2).encode())
+    return directory
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('output',type=Path)
     parser.add_argument('--variant',choices=VARIANTS,default='stock')
-    args=parser.parse_args();print(json.dumps({'build':str(build(args.output,variant=args.variant))}))
+    parser.add_argument('--archive-cache',type=Path)
+    parser.add_argument('--dependency-cache',type=Path)
+    parser.add_argument('--resume',action='store_true')
+    args=parser.parse_args()
+    if args.resume:
+        if args.archive_cache is not None or args.dependency_cache is not None:parser.error('--resume uses the already verified inputs')
+        result=resume(args.output,variant=args.variant)
+    else:result=build(args.output,variant=args.variant,archive_cache=args.archive_cache,dependency_cache=args.dependency_cache)
+    print(json.dumps({'build':str(result)}))
 
 if __name__=='__main__':main()
