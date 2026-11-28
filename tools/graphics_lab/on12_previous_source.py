@@ -187,18 +187,21 @@ def blob_bytes(blob):
     finally:C.WINFUNCTYPE(C.c_ulong,C.c_void_p)(table[2])(blob)
 
 
-def compile_vertex(source,entry):
+def compile_shader(source,entry,profile):
     raw=source.encode('utf-8')
-    if not 0<len(raw)<=MAX_SOURCE*4 or not re.fullmatch(IDENT,entry):raise ValueError('Invalid generated HLSL request.')
+    if not 0<len(raw)<=MAX_SOURCE*4 or not re.fullmatch(IDENT,entry)or profile not in('vs_3_0','ps_3_0'):raise ValueError('Invalid generated HLSL request.')
     # Includes are deliberately disabled. No compiler filesystem reads.
     function=compiler().D3DCompile
     function.argtypes=[C.c_void_p,C.c_size_t,C.c_char_p,C.c_void_p,C.c_void_p,C.c_char_p,C.c_char_p,C.c_uint,C.c_uint,C.POINTER(C.c_void_p),C.POINTER(C.c_void_p)]
     function.restype=C.c_long;code=C.c_void_p();errors=C.c_void_p();buffer=C.create_string_buffer(raw)
-    hr=function(buffer,len(raw),b'authored-temporal-previous',None,None,entry.encode('ascii'),b'vs_3_0',1|(1<<15),0,C.byref(code),C.byref(errors))
+    hr=function(buffer,len(raw),b'authored-temporal-previous',None,None,entry.encode('ascii'),profile.encode('ascii'),1|(1<<15),0,C.byref(code),C.byref(errors))
     result=blob_bytes(code);diagnostic=blob_bytes(errors).decode('utf-8',errors='replace')
     if hr<0:raise ValueError('Previous-position shader compilation failed: '+diagnostic[:4000])
     if not result or len(result)>65536:raise ValueError('Invalid previous-position program size.')
     return result
+
+
+def compile_vertex(source,entry):return compile_shader(source,entry,'vs_3_0')
 
 
 def compile_previous(source):
