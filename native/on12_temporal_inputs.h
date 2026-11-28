@@ -30,6 +30,7 @@ struct TemporalBoundaryInputs {
     bool jitter_for_frame=false;float jitter_x=0,jitter_y=0;
     HRESULT native_query=E_NOINTERFACE;std::uint64_t native_shifted_resolves=0;
     std::uint64_t projection_applies=0,projection_restores=0;
+    std::uint64_t projection_verified_frame=0;UINT projection_verified_banks=0;HRESULT projection_readback=E_PENDING;
 };
 struct TemporalInputPair {
     std::uint64_t frame=0;
@@ -133,7 +134,9 @@ private:
     static void VectorJson(std::ostream& out,const std::array<float,4>& v){out<<'[';for(UINT i=0;i<4;++i){if(i)out<<',';if(std::isfinite(v[i]))out<<v[i];else out<<"null";}out<<']';}
     static void BoundaryJson(std::ostream& out,const TemporalBoundaryInputs& b){out<<"{\"logical\":";DeviceJson(out,b.logical);out<<",\"physical\":";DeviceJson(out,b.physical);
         out<<",\"jitter_for_frame\":"<<(b.jitter_for_frame?"true":"false")<<",\"jitter\":["<<b.jitter_x<<','<<b.jitter_y<<"],\"native_query_hr\":"<<static_cast<long>(b.native_query)<<",\"native_shifted_resolves\":"<<b.native_shifted_resolves
-           <<",\"projection_applies\":"<<b.projection_applies<<",\"projection_restores\":"<<b.projection_restores<<'}';}
+           <<",\"projection_applies\":"<<b.projection_applies<<",\"projection_restores\":"<<b.projection_restores
+           <<",\"projection_verified_frame\":"<<b.projection_verified_frame<<",\"projection_verified_banks\":"<<b.projection_verified_banks
+           <<",\"projection_readback_hr\":"<<static_cast<long>(b.projection_readback)<<'}';}
     std::array<TemporalInputPair,4> pairs_{};TemporalInputPair pending_{};
     TemporalDepthInfo depth_{};
     DWORD sequence_=0;UINT requested_=0,count_=0;std::uint64_t discarded_=0,rejected_=0;bool pending_valid_=false;

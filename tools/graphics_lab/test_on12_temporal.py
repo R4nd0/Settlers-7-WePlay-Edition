@@ -124,6 +124,24 @@ class Tests(unittest.TestCase):
         temporal.request_inputs(self.case,2,2)
         with self.assertRaises(ValueError):temporal.request_inputs(self.case,3,jitter=1)
 
+    def test_projection_analysis_requires_same_frame_readback_and_native_ui(self):
+        self.input_host(projection_jitter_hr=0)
+        temporal.request_inputs(self.case,1,1,jitter=True)
+        composite=dict(jitter_for_frame=True,jitter=[0,-1/6],projection_verified_frame=8,projection_verified_banks=1,
+            projection_readback_hr=0,projection_applies=3,projection_restores=3,
+            logical=dict(viewport=[0,0,1920,1080]),physical=dict(viewport=[0,0,1280,720]))
+        ui={**composite,'physical':dict(viewport=[0,0,1920,1080])}
+        report=dict(format='s7-on12-temporal-inputs-v1',sequence=1,game_taa_enabled=False,proofs=0,captured=1,pairs=[dict(frame=8,composite=composite,ui=ui)])
+        path=self.case/'on12-temporal-inputs.private.json'
+        path.write_text(json.dumps(report));result=temporal.analyze_projection(self.case,1)
+        self.assertTrue(result['ordered_projection_transport_verified']);self.assertFalse(result['game_taa_enabled']);self.assertFalse(result['gpu_pixels_checked'])
+        for field,value in (('projection_verified_frame',7),('projection_readback_hr',-1),('projection_restores',2),('jitter',[0,0])):
+            original=composite[field];composite[field]=value;path.write_text(json.dumps(report))
+            with self.subTest(field=field),self.assertRaises(ValueError):temporal.analyze_projection(self.case,1)
+            composite[field]=original
+        ui['physical']['viewport']=[0,0,1280,720];path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError):temporal.analyze_projection(self.case,1)
+
     def captured_depth(self):
         values=(0.1,0.25,0.75,1.0)
         pixels=struct.pack('<4f',*values)

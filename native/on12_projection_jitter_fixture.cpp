@@ -24,6 +24,7 @@ int main(){
     std::array<float,16> logical{};REQUIRE(SUCCEEDED(jitter.GetConstants(12,logical.data(),4))&&logical==matrix);
     const auto writes=device.sets;for(unsigned i=0;i<1000;++i)REQUIRE(SUCCEEDED(jitter.BeforeDraw(12,1280,720)));
     REQUIRE(device.sets==writes);
+    REQUIRE(jitter.Stats().verified_frame==1&&jitter.Stats().verified_banks==1&&jitter.Stats().readbacks==1&&jitter.Stats().readback_result==S_OK);
     const float update[]{0.2f,0.4f,0.6f,0.8f};REQUIRE(SUCCEEDED(jitter.SetConstants(13,update,1,false)));
     REQUIRE(SUCCEEDED(jitter.GetConstants(13,logical.data(),1))&&!std::memcmp(update,logical.data(),16));
     auto expected=matrix;std::memcpy(expected.data()+4,update,16);

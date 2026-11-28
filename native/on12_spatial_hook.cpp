@@ -183,6 +183,7 @@ void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
                 const auto jitter=projection_jitter->Jitter();const auto stats=projection_jitter->Stats();
                 value.jitter_for_frame=projection_jitter->Enabled();value.jitter_x=jitter[0];value.jitter_y=jitter[1];
                 value.projection_applies=stats.applied;value.projection_restores=stats.restored;
+                value.projection_verified_frame=stats.verified_frame;value.projection_verified_banks=stats.verified_banks;value.projection_readback=stats.readback_result;
             }return value;};
         if(!ui){if(temporal_inputs.Composite(presents+1,read)&&temporal_inputs.BeginDepth(presents+1))TemporalDepthCapture();return;}
         if(!temporal_inputs.Ui(presents+1,read))return;

@@ -58,6 +58,48 @@ def request_inputs(case,sequence,frames=2,*,depth_pixels=False,jitter=False):
     recover._atomic(command,payload)
 
 
+def analyze_projection(case,sequence):
+    """Verify ordered constant transport and native UI extents, not game TAA."""
+    if type(sequence)is not int or not 1<=sequence<=0xffffffff:raise ValueError('Invalid projection sequence.')
+    case=recover.lab(case)
+    command=recover._read(case/'on12-temporal-inputs.private.command',24)[0]
+    fields=struct.unpack('<6I',command) if len(command)==24 else ()
+    if not fields or fields[:3]!=(24,4,sequence) or not 1<=fields[3]<=4 or fields[4]not in(2,3) or fields[5]:
+        raise ValueError('Projection analysis requires the bounded ordered jitter request.')
+    value=json.loads(recover._read(case/'on12-temporal-inputs.private.json',128*1024)[0])
+    if (not isinstance(value,dict) or value.get('format')!='s7-on12-temporal-inputs-v1' or value.get('sequence')!=sequence
+            or value.get('game_taa_enabled')is not False or value.get('proofs')!=0 or value.get('captured')!=fields[3]
+            or not isinstance(value.get('pairs'),list) or len(value['pairs'])!=fields[3]):
+        raise ValueError('The ordered projection capture is incomplete.')
+    last=0
+    for pair in value['pairs']:
+        frame=pair.get('frame')
+        if type(frame)is not int or frame<=last or last and frame!=last+1:raise ValueError('Projection frames are not contiguous.')
+        last=frame
+        for boundary in ('composite','ui'):
+            b=pair.get(boundary,{})
+            if (b.get('jitter_for_frame')is not True or b.get('projection_verified_frame')!=frame or b.get('projection_readback_hr')!=0
+                    or type(b.get('projection_verified_banks'))is not int or not b['projection_verified_banks']&1
+                    or type(b.get('projection_applies'))is not int or b['projection_applies']<=0 or b.get('projection_restores')!=b['projection_applies']):
+                raise ValueError('Physical projection readback or restoration was not verified.')
+            phase=frame%8+1
+            def radical(index,base):
+                result=0.0;factor=1.0
+                while index:factor/=base;result+=factor*(index%base);index//=base
+                return result-0.5
+            expected=[radical(phase,2),radical(phase,3)]
+            observed=b.get('jitter',[])
+            if len(observed)!=2 or any(type(v)not in(int,float) or not math.isfinite(v) or abs(v-e)>1e-6 for v,e in zip(observed,expected)):
+                raise ValueError('Projection jitter phase is inconsistent.')
+        composite,ui=pair['composite'],pair['ui']
+        logical=composite['logical']['viewport'];physical=composite['physical']['viewport'];native=ui['physical']['viewport']
+        if (len(logical)!=4 or len(physical)!=4 or native!=logical or ui['logical']['viewport']!=logical
+                or logical[:2]!=[0,0] or physical[:2]!=[0,0] or not 0<physical[2]<logical[2] or not 0<physical[3]<logical[3]):
+            raise ValueError('Scene/UI viewport separation was not preserved.')
+    return dict(sequence=sequence,captured=fields[3],ordered_projection_transport_verified=True,native_ui_extent_verified=True,
+                gpu_pixels_checked=False,dynamic_motion_proven=False,game_taa_enabled=False)
+
+
 def analyze_depth(case,sequence):
     """Inspect captured pixels; this never grants motion/jitter or TAA proof."""
     if type(sequence)is not int or not 1<=sequence<=0xffffffff:raise ValueError('Invalid depth sequence.')

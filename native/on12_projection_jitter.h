@@ -6,7 +6,10 @@
 #include <atomic>
 
 namespace On12Graphics {
-struct ProjectionJitterStats {std::uint64_t applied=0,restored=0,translated_sets=0,logical_gets=0;};
+struct ProjectionJitterStats {
+    std::uint64_t applied=0,restored=0,translated_sets=0,logical_gets=0,readbacks=0,verified_frame=0;
+    UINT verified_banks=0;HRESULT readback_result=E_PENDING;
+};
 // Ordered API-level projection updates. Only the current projection bank is
 // translated; applications continue to read their original logical constants.
 class ProjectionJitter {
@@ -17,7 +20,7 @@ public:
     HRESULT Begin(std::uint64_t frame,UINT w,UINT h,bool enabled){
         if(Foreign())return RPC_E_WRONG_THREAD;if(!device_||!frame||frame<=frame_||!w||!h||w>4096||h>4096)return E_INVALIDARG;
         auto hr=Restore();if(FAILED(hr))return hr;frame_=frame;width_=w;height_=h;jitter_=Temporal::Jitter(frame);enabled_=enabled;armed_.store(enabled,std::memory_order_release);
-        for(auto& bank:banks_)bank.known=false;ui_=false;return S_OK;
+        for(auto& bank:banks_)bank.known=false;stats_.verified_banks=0;stats_.readback_result=E_PENDING;ui_=false;return S_OK;
     }
     HRESULT BeforeDraw(UINT projection,UINT physical_width,UINT physical_height){
         if(Foreign())return RPC_E_WRONG_THREAD;if(!enabled_&&applied_<0)return S_OK;
@@ -29,7 +32,16 @@ public:
         if(!bank.known){hr=get_(device_,Slot(index),bank.logical.data(),4);if(FAILED(hr))return hr;bank.known=true;}
         auto physical=bank.logical;for(UINT c=0;c<4;++c){physical[c*4]+=2*jitter_[0]/width_*physical[c*4+3];physical[c*4+1]-=2*jitter_[1]/height_*physical[c*4+3];}
         applied_=index;hr=set_(device_,Slot(index),physical.data(),4);
-        if(FAILED(hr)){const auto restored=Restore();return FAILED(restored)?restored:hr;}++stats_.applied;return S_OK;
+        if(FAILED(hr)){const auto restored=Restore();return FAILED(restored)?restored:hr;}++stats_.applied;
+        // Explicit short diagnostics only: verify each bank once per frame,
+        // before drawing, through the original physical constant getter.
+        if(!(stats_.verified_banks&(1u<<index))){
+            std::array<float,16> readback{};++stats_.readbacks;hr=get_(device_,Slot(index),readback.data(),4);
+            if(SUCCEEDED(hr)&&std::memcmp(readback.data(),physical.data(),sizeof(physical)))hr=E_FAIL;
+            stats_.readback_result=hr;
+            if(FAILED(hr)){const auto restored=Restore();return FAILED(restored)?restored:hr;}
+            stats_.verified_frame=frame_;stats_.verified_banks|=1u<<index;
+        }return S_OK;
     }
     HRESULT SetConstants(UINT first,const float* values,UINT count,bool recording){
         if(Foreign()){ForeignMutation();return set_(device_,first,values,count);}
