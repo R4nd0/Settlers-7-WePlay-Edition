@@ -1,5 +1,6 @@
 // Authored geometry only: current bytecode plus previous bones/wind/world data.
 #include "water_on12_identity.h"
+#include "on12_pose_history.h"
 #include <d3d9.h>
 #include <d3d9on12.h>
 #include <wrl/client.h>
@@ -74,6 +75,7 @@ int wmain(int argc,wchar_t** argv){
     };
     unsigned total_pixels=0,changed_previous=0,motion_pixels=0;float maximum_error=0,maximum_motion_error=0,maximum_static_motion=0;std::vector<V4> baseline;
     constexpr float jx=.25f,jy=-.375f;
+    On12Graphics::PoseHistory poses(1);
     for(UINT test=0;test<6;++test){Bank current{};Identity(current,12);Identity(current,68);current[14][2]=.3f;current[71][0]=.05f;
         Bones(current,.02f,.04f);current[43]={.08f,0,0,0};current[63]={.4f,0,0,0};
         if(test==4){current[12][0]=1.1f;current[13][1]=1.2f;current[14]={0,0,.9f,1};current[15]={0,0,-.1f,0};}
@@ -83,12 +85,18 @@ int wmain(int argc,wchar_t** argv){
         if(test>=3){before[43][0]=.14f;before[63][0]=1.15f;}
         if(test==4){before[12][0]=1.05f;before[15][0]=-.06f;}
         if(test==5)before[15][3]=-1;
+        const auto logical_current=current;
         for(UINT c=0;c<4;++c){current[12+c][0]+=2*jx/64*current[12+c][3];current[12+c][1]-=2*jy/64*current[12+c][3];}
         REQUIRE(SUCCEEDED(device->SetVertexShaderConstantF(0,current[0].data(),256)));
         REQUIRE(SUCCEEDED(device->SetVertexShaderConstantF(232,before[12].data(),4))&&SUCCEEDED(device->SetVertexShaderConstantF(236,before[68].data(),4))
             &&SUCCEEDED(device->SetVertexShaderConstantF(240,before[80].data(),6))&&SUCCEEDED(device->SetVertexShaderConstantF(246,before[43].data(),1))&&SUCCEEDED(device->SetVertexShaderConstantF(247,before[63].data(),1)));
-        std::array<V4,288> snapshot{};std::copy(before.begin(),before.end(),snapshot.begin());D3DLOCKED_RECT lock{};
-        REQUIRE(SUCCEEDED(previous->LockRect(0,&lock,nullptr,D3DLOCK_DISCARD)));std::memcpy(lock.pBits,snapshot.data(),sizeof(snapshot));REQUIRE(SUCCEEDED(previous->UnlockRect(0)));
+        On12Graphics::ShaderPose prior_pose,current_pose;std::memcpy(prior_pose.floats.data(),before.data(),sizeof(before));std::memcpy(current_pose.floats.data(),logical_current.data(),sizeof(logical_current));
+        const On12Graphics::PoseKey pose_key{1,1,1,1};
+        REQUIRE(poses.Begin(1,test+1)&&poses.Observe(pose_key,prior_pose,On12Graphics::AllPoseProofs).status==On12Graphics::PoseStatus::FirstSeen&&poses.Commit());
+        REQUIRE(poses.Begin(2,test+1));const auto prior_result=poses.Observe(pose_key,current_pose,On12Graphics::AllPoseProofs);
+        REQUIRE(prior_result.status==On12Graphics::PoseStatus::Previous&&prior_result.previous);
+        D3DLOCKED_RECT lock{};
+        REQUIRE(SUCCEEDED(previous->LockRect(0,&lock,nullptr,D3DLOCK_DISCARD)));std::memcpy(lock.pBits,prior_result.previous->data(),sizeof(*prior_result.previous));REQUIRE(SUCCEEDED(previous->UnlockRect(0)));
         std::vector<DWORD> original,combined;REQUIRE(draw(0,0,color.Get())&&Read(device.Get(),color.Get(),D3DFMT_A8R8G8B8,original));
         REQUIRE(draw(1,0,color.Get())&&Read(device.Get(),color.Get(),D3DFMT_A8R8G8B8,combined)&&combined==original);
         std::vector<V4> actual,reference;REQUIRE(draw(1,1,positions.Get())&&Read(device.Get(),positions.Get(),D3DFMT_A32B32G32R32F,actual));
@@ -118,6 +126,7 @@ int wmain(int argc,wchar_t** argv){
             }
             }
         }
+        REQUIRE(poses.Commit());
     }
     REQUIRE(changed_previous>200&&motion_pixels>200);
     std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"current_image_unchanged\":true,\"previous_reference_matched\":true,\"bone_wind_rigid_perspective\":true,\"motion_pixels_matched\":true,\"static_jitter_excluded\":true,\"invalid_previous_rejected\":true,\"alpha_discard_preserved\":true,\"all_alpha_functions_preserved\":true,\"cases\":6,\"covered_pixels\":%u,\"motion_pixels\":%u,\"changed_previous_pixels\":%u,\"maximum_error\":%.9f,\"maximum_motion_error\":%.9f,\"maximum_static_motion\":%.9f}\n",checks,total_pixels,motion_pixels,changed_previous,maximum_error,maximum_motion_error,maximum_static_motion);

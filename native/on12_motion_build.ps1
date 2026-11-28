@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if(!$output.StartsWith((Join-Path $repository 'work')+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $output)){throw 'Use a fresh motion build below work/.'}
-$names=@('native/on12_motion_gpu.cpp','native/water_on12_identity.h','tools/graphics_lab/on12_previous_source.py','tools/graphics_lab/on12_motion_program.py','tools/graphics_lab/on12_motion.py','tools/graphics_lab/on12_motion_pixel.py')
+$names=@('native/on12_motion_gpu.cpp','native/on12_pose_history.h','native/water_on12_identity.h','tools/graphics_lab/on12_previous_source.py','tools/graphics_lab/on12_motion_program.py','tools/graphics_lab/on12_motion.py','tools/graphics_lab/on12_motion_pixel.py')
 $files=@{}
 foreach($name in $names){$files[$name]=(Get-FileHash -LiteralPath (Join-Path $repository $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
 $arguments=@('--prepare',$output);if($Packed){$arguments+='--packed'}

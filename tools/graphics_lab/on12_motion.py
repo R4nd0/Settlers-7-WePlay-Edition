@@ -10,7 +10,7 @@ from . import on12_previous_source as source,on12_motion_program as program,on12
 from . import on12_motion_pixel as pixel
 
 ROOT=on12_spatial.ROOT
-SOURCES=('native/on12_motion_gpu.cpp','native/water_on12_identity.h','tools/graphics_lab/on12_previous_source.py',
+SOURCES=('native/on12_motion_gpu.cpp','native/on12_pose_history.h','native/water_on12_identity.h','tools/graphics_lab/on12_previous_source.py',
          'tools/graphics_lab/on12_motion_program.py','tools/graphics_lab/on12_motion.py','tools/graphics_lab/on12_motion_pixel.py')
 ARTIFACTS=('current.vs.bin','combined.vs.bin','reference.vs.bin','color.ps.bin','previous.ps.bin',
            'combined.ps.bin','motion-reference.ps.bin','motion-layout.bin','on12_motion_gpu.exe')
