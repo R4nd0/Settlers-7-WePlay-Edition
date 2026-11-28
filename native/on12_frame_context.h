@@ -21,6 +21,8 @@ struct TemporalSceneSettings {
     IDirect3DSurface9* normalized_depth=nullptr;
     IDirect3DSurface9* static_confidence=nullptr;
     IDirect3DSurface9* reactive=nullptr;
+    IDirect3DSurface9* geometry_motion=nullptr;
+    std::uint64_t geometry_motion_frame=0;
     Temporal::Frame frame;Temporal::CameraParameters camera;Temporal::Parameters quality;
 };
 // One owner thread. All D3D9 state queries happen before checkout; native work

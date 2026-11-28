@@ -51,6 +51,11 @@ HRESULT TemporalPipeline::Record(ID3D12GraphicsCommandList* list,UINT index,cons
         const auto d=inputs[i]->GetDesc();if(device.Get()!=p.device.Get()||!PipelineImage(d,in.frame.width,in.frame.height)||(d.Flags&D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)
             ||(i==0?d.Format!=DXGI_FORMAT_R32_FLOAT:d.Format!=DXGI_FORMAT_R32_FLOAT&&d.Format!=DXGI_FORMAT_R8_UNORM))return E_INVALIDARG;
     }
+    if(in.geometry_motion){if(in.geometry_motion_frame!=in.frame.sequence)return E_INVALIDARG;
+        ComPtr<ID3D12Device> device;hr=in.geometry_motion->GetDevice(IID_PPV_ARGS(&device));if(FAILED(hr))return hr;
+        const auto d=in.geometry_motion->GetDesc();if(device.Get()!=p.device.Get()||in.geometry_motion==in.output||!PipelineImage(d,in.frame.width,in.frame.height)
+            ||d.Format!=DXGI_FORMAT_R32G32B32A32_FLOAT||(d.Flags&D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))return E_INVALIDARG;
+    }
     hr=p.Images(slot,in.frame.width,in.frame.height);if(FAILED(hr))return hr;
     slot.source=in.normalized_depth;slot.confidence=in.static_confidence;
     const auto srv=slot.srv->GetCPUDescriptorHandleForHeapStart();const UINT ss=p.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -62,7 +67,7 @@ HRESULT TemporalPipeline::Record(ID3D12GraphicsCommandList* list,UINT index,cons
     for(UINT i=0;i<2;++i){targets[i]=rtv;targets[i].ptr+=static_cast<SIZE_T>(i)*rs;p.device->CreateRenderTargetView(outputs[i],nullptr,targets[i]);PipelineBarrier(list,outputs[i],slot.state,D3D12_RESOURCE_STATE_RENDER_TARGET);}
     hr=p.camera.Record(list,slot.srv.Get(),targets,in.camera);if(FAILED(hr)){p.graph.Abort();return hr;}
     for(auto* resource:outputs)PipelineBarrier(list,resource,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    TemporalGraphInput graph;graph.color=in.color;graph.motion=slot.motion.Get();graph.depth=slot.depth.Get();graph.reactive=in.reactive;graph.output=in.output;graph.frame=in.frame;graph.quality=in.quality;
+    TemporalGraphInput graph;graph.color=in.color;graph.motion=in.geometry_motion?in.geometry_motion:slot.motion.Get();graph.depth=slot.depth.Get();graph.reactive=in.reactive;graph.output=in.output;graph.frame=in.frame;graph.quality=in.quality;
     hr=p.graph.Record(list,index,graph);if(hr!=S_OK){p.graph.Abort();return hr;}
     p.pending_slot=index;p.pending=true;return S_OK;
 }

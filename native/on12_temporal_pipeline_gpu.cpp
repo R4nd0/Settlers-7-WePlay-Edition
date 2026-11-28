@@ -15,8 +15,8 @@ int wmain(int argc,wchar_t** argv){
     REQUIRE(SUCCEEDED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&allocator)))
         &&SUCCEEDED(device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT,allocator.Get(),nullptr,IID_PPV_ARGS(&list)))
         &&SUCCEEDED(list->Close())&&SUCCEEDED(device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(&fence))));
-    std::array<ComPtr<ID3D12Resource>,4> inputs,uploads;std::array<D3D12_PLACED_SUBRESOURCE_FOOTPRINT,4> footprints{};
-    for(UINT i=0;i<4;++i){auto d=Texture(w,h,i?DXGI_FORMAT_R32_FLOAT:DXGI_FORMAT_R8G8B8A8_UNORM,false);auto heap=Heap(D3D12_HEAP_TYPE_DEFAULT);
+    std::array<ComPtr<ID3D12Resource>,5> inputs,uploads;std::array<D3D12_PLACED_SUBRESOURCE_FOOTPRINT,5> footprints{};
+    for(UINT i=0;i<5;++i){auto d=Texture(w,h,i==4?DXGI_FORMAT_R32G32B32A32_FLOAT:i?DXGI_FORMAT_R32_FLOAT:DXGI_FORMAT_R8G8B8A8_UNORM,false);auto heap=Heap(D3D12_HEAP_TYPE_DEFAULT);
         REQUIRE(SUCCEEDED(device->CreateCommittedResource(&heap,D3D12_HEAP_FLAG_NONE,&d,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,nullptr,IID_PPV_ARGS(&inputs[i]))));
         UINT64 bytes=0;device->GetCopyableFootprints(&d,0,1,0,&footprints[i],nullptr,nullptr,&bytes);auto b=Buffer(bytes);heap=Heap(D3D12_HEAP_TYPE_UPLOAD);
         REQUIRE(SUCCEEDED(device->CreateCommittedResource(&heap,D3D12_HEAP_FLAG_NONE,&b,D3D12_RESOURCE_STATE_GENERIC_READ,nullptr,IID_PPV_ARGS(&uploads[i]))));
@@ -32,6 +32,8 @@ int wmain(int argc,wchar_t** argv){
     for(UINT frame=1;frame<=8;++frame){
         REQUIRE(SUCCEEDED(allocator->Reset())&&SUCCEEDED(list->Reset(allocator.Get(),nullptr)));
         TemporalPipelineInput in;in.color=inputs[0].Get();in.normalized_depth=inputs[1].Get();in.static_confidence=inputs[2].Get();in.reactive=inputs[3].Get();in.output=output.Get();
+        in.geometry_motion=frame>=5?inputs[4].Get():nullptr;
+        in.geometry_motion_frame=in.geometry_motion?frame:0;
         in.frame.enabled=true;in.frame.sequence=frame;in.frame.projection_epoch=1;in.frame.width=w;in.frame.height=h;in.frame.proofs=Temporal::AllProofs;
         const auto jitter=Temporal::Jitter(frame);in.frame.jitter_x=jitter[0];in.frame.jitter_y=jitter[1];
         REQUIRE(Temporal::BuildCamera(camera,camera,100,w,h,jitter[0],jitter[1],0,in.camera));
@@ -39,10 +41,12 @@ int wmain(int argc,wchar_t** argv){
         for(UINT y=0;y<h;++y)for(UINT x=0;x<w;++x){const auto i=y*w+x;const float value=((x+y+frame)&1)?1.0f:0.0f;
             image.color[i]={value,value,value,77.0f/255};image.reactive[i]=x>=6?1.0f:0.0f;
             REQUIRE(Temporal::CameraMotion(in.camera,x,y,0.1f,x<2?0.0f:1.0f,image.motion[i],image.depth[i]));
+            if(in.geometry_motion)image.motion[i]={.5f,0,10,1};
         }
-        for(UINT k=0;k<4;++k){void* mapped=nullptr;D3D12_RANGE empty{};REQUIRE(SUCCEEDED(uploads[k]->Map(0,&empty,&mapped)));
-            for(UINT y=0;y<h;++y)for(UINT x=0;x<w;++x){auto* destination=static_cast<unsigned char*>(mapped)+footprints[k].Offset+y*footprints[k].Footprint.RowPitch+x*4;
+        for(UINT k=0;k<5;++k){void* mapped=nullptr;D3D12_RANGE empty{};REQUIRE(SUCCEEDED(uploads[k]->Map(0,&empty,&mapped)));
+            for(UINT y=0;y<h;++y)for(UINT x=0;x<w;++x){auto* destination=static_cast<unsigned char*>(mapped)+footprints[k].Offset+y*footprints[k].Footprint.RowPitch+x*(k==4?16:4);
                 if(k==0){const unsigned char value=image.color[y*w+x].r>0.5f?255:0;const unsigned char rgba[]{value,value,value,77};std::memcpy(destination,rgba,4);}
+                else if(k==4){const float value[]{.5f,0,10,1};std::memcpy(destination,value,16);}
                 else{const float value=k==1?0.1f:k==2?(x<2?0.0f:1.0f):image.reactive[y*w+x];std::memcpy(destination,&value,4);}
             }uploads[k]->Unmap(0,nullptr);
             Barrier(list.Get(),inputs[k].Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COPY_DEST);
@@ -64,9 +68,9 @@ int wmain(int argc,wchar_t** argv){
         void* mapped=nullptr;REQUIRE(SUCCEEDED(readback->Map(0,nullptr,&mapped)));
         for(UINT y=0;y<h;++y)for(UINT x=0;x<w;++x){const auto* pixel=static_cast<const unsigned char*>(mapped)+fp.Offset+y*fp.Footprint.RowPitch+x*4;const auto& e=expected.color[y*w+x];
             REQUIRE(std::fabs(pixel[0]/255.0f-e.r)<=2.0f/255&&std::fabs(pixel[1]/255.0f-e.g)<=2.0f/255&&std::fabs(pixel[2]/255.0f-e.b)<=2.0f/255&&pixel[3]==77);
-            if(x<2||x>=6)REQUIRE(pixel[0]==static_cast<unsigned char>(image.color[y*w+x].r*255));
+            if((!in.geometry_motion&&x<2)||x>=6)REQUIRE(pixel[0]==static_cast<unsigned char>(image.color[y*w+x].r*255));
         }readback->Unmap(0,nullptr);history=std::move(next);
     }
     const auto stats=pipeline.Stats();REQUIRE(stats.committed==8&&stats.reused==7&&SUCCEEDED(pipeline.Shutdown()));
-    std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"pipeline_reference_matched\":true,\"unclassified_rejected\":true,\"reactive_rejected\":true,\"game_taa_enabled\":false}\n",checks);return 0;
+    std::printf("{\"passed\":true,\"checks\":%u,\"synthetic_only\":true,\"pipeline_reference_matched\":true,\"geometry_motion_matched\":true,\"unclassified_rejected\":true,\"reactive_rejected\":true,\"game_taa_enabled\":false}\n",checks);return 0;
 }

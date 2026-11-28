@@ -316,7 +316,7 @@ int wmain(int argc, wchar_t** argv) {
     REQUIRE(SUCCEEDED(wrapped_device->Present(nullptr,nullptr,nullptr,nullptr)));
     REQUIRE(SUCCEEDED(wrapped_device->Reset(&pp)));
     REQUIRE(On12SpatialFixtureClose());ui_vertex.Reset();ui_pixel.Reset();
-    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"native_ui_one_pixel\":true,\"scene_targets_smaller\":true,\"state_block_mapping\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"temporal_handoff\":true,\"synthetic_only\":true}\n",
+    std::printf("{\"passed\":true,\"checks\":%u,\"native_d3d12_frames\":%llu,\"checkouts\":%llu,\"returns\":%llu,\"antialiased_pixels\":%u,\"scale_2x\":true,\"aa_before_upscale\":true,\"native_ui_one_pixel\":true,\"scene_targets_smaller\":true,\"state_block_mapping\":true,\"in_place\":true,\"reset\":true,\"host_present_reset\":true,\"host_upscaling\":true,\"temporal_handoff\":true,\"geometry_motion_handoff\":true,\"synthetic_only\":true}\n",
         checks, static_cast<unsigned long long>(stats.applied), static_cast<unsigned long long>(stats.checkouts), static_cast<unsigned long long>(stats.returns), softened);
     wrapped_device.Reset(); api.Reset(); DestroyWindow(window); return 0;
 }

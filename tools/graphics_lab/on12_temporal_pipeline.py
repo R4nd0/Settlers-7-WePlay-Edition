@@ -50,7 +50,7 @@ def gpu(build,output):
     recover._write_new(output/'result.private.json',json.dumps(result,indent=2).encode());print(json.dumps(result),flush=True)
     if done.returncode:raise RuntimeError('Temporal pipeline GPU conformance failed.')
     lines=[json.loads(line) for line in result['stdout'].splitlines() if line.strip()]
-    if len(lines)!=2 or any(lines[0].get(key)is not True for key in ('passed','synthetic_only','temporal_graph_matched')) or any(lines[1].get(key)is not True for key in ('passed','synthetic_only','pipeline_reference_matched','unclassified_rejected','reactive_rejected')):
+    if len(lines)!=2 or any(lines[0].get(key)is not True for key in ('passed','synthetic_only','temporal_graph_matched')) or any(lines[1].get(key)is not True for key in ('passed','synthetic_only','pipeline_reference_matched','geometry_motion_matched','unclassified_rejected','reactive_rejected')):
         raise RuntimeError('Unexpected temporal pipeline GPU result.')
     return result
 

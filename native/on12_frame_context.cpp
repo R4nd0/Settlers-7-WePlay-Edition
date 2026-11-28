@@ -50,7 +50,7 @@ struct FrameContext::Impl {
         ComPtr<IDirect3DSurface9> source9, target9;
         ComPtr<ID3D12DescriptorHeap> srv, rtv, aa_srv, aa_rtv;
         UINT64 done = 0; bool source_out = false, target_out = false, submitted = false, signaled = false;
-        std::array<Extra,3> extra;
+        std::array<Extra,4> extra;
     };
     DWORD owner = 0; UINT next = 0; UINT64 serial = 0; bool poisoned = false;
     ComPtr<IDirect3DDevice9> original;
@@ -153,6 +153,7 @@ HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* 
         if(!gate.Prepare(temporal->frame,temporal->quality).dispatch){for(auto& pipeline:p.temporal)if(pipeline)pipeline->Abort();++p.stats.temporal_rejected;return S_FALSE;}
         if(p.temporal_shaders[0].empty()||!Temporal::ValidCamera(temporal->camera)||temporal->camera.width!=temporal->frame.width||temporal->camera.height!=temporal->frame.height
             ||temporal->camera.jitter_x!=temporal->frame.jitter_x||temporal->camera.jitter_y!=temporal->frame.jitter_y)return E_INVALIDARG;
+        if(temporal->geometry_motion&&temporal->geometry_motion_frame!=temporal->frame.sequence)return E_INVALIDARG;
     }
     if (InterfaceModule(source, 3) != p.native_module || InterfaceModule(target, 3) != p.native_module) return E_INVALIDARG;
     ComPtr<IDirect3DDevice9> sd, td; HRESULT hr = source->GetDevice(&sd); if (FAILED(hr)) return hr;
@@ -169,17 +170,17 @@ HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* 
     if (!supported9(source_desc) || !supported9(target_desc) || !(target_desc.Usage & D3DUSAGE_RENDERTARGET)) {
         ++p.stats.unsupported; return DXGI_ERROR_UNSUPPORTED;
     }
-    std::array<IDirect3DSurface9*,3> extra{};
+    std::array<IDirect3DSurface9*,4> extra{};
     if(temporal){
         if(temporal->frame.width!=source_desc.Width||temporal->frame.height!=source_desc.Height)return E_INVALIDARG;
-        extra={temporal->normalized_depth,temporal->static_confidence,temporal->reactive};
-        for(UINT i=0;i<3;++i){auto* surface=extra[i];if(!surface||surface==source||surface==target||InterfaceModule(surface,3)!=p.native_module)return E_INVALIDARG;
+        extra={temporal->normalized_depth,temporal->static_confidence,temporal->reactive,temporal->geometry_motion};
+        for(UINT i=0;i<4;++i){auto* surface=extra[i];if(i==3&&!surface)continue;if(!surface||surface==source||surface==target||InterfaceModule(surface,3)!=p.native_module)return E_INVALIDARG;
             for(UINT j=0;j<i;++j)if(surface==extra[j])return E_INVALIDARG;
             D3DSURFACE_DESC d{};ComPtr<IDirect3DDevice9> owner;
             hr=surface->GetDevice(&owner);if(FAILED(hr))return hr;if(owner.Get()!=p.native.Get())return E_INVALIDARG;
             hr=surface->GetDesc(&d);if(FAILED(hr))return hr;
             if(d.Pool!=D3DPOOL_DEFAULT||d.MultiSampleType!=D3DMULTISAMPLE_NONE||d.Width!=source_desc.Width||d.Height!=source_desc.Height
-                ||(i==0?d.Format!=D3DFMT_R32F:d.Format!=D3DFMT_R32F&&d.Format!=D3DFMT_L8))return E_INVALIDARG;
+                ||(i==3?d.Format!=D3DFMT_A32B32G32R32F:i==0?d.Format!=D3DFMT_R32F:d.Format!=D3DFMT_R32F&&d.Format!=D3DFMT_L8))return E_INVALIDARG;
         }
     }
     ComPtr<IUnknown> si, ti; hr = source->QueryInterface(IID_PPV_ARGS(&si)); if (FAILED(hr)) return hr;
@@ -191,7 +192,7 @@ HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* 
     if (f.done > completed) { ++p.stats.busy; return S_FALSE; }
     f.source12.Reset(); f.target12.Reset(); f.source9 = source; f.target9 = target;
     f.source_out = f.target_out = f.submitted = f.signaled = false;
-    for(UINT i=0;i<3;++i){f.extra[i].resource.Reset();f.extra[i].surface=extra[i];f.extra[i].out=false;}
+    for(UINT i=0;i<4;++i){f.extra[i].resource.Reset();f.extra[i].surface=extra[i];f.extra[i].out=false;}
     hr = f.allocator->Reset(); if (FAILED(hr)) return hr;
     hr = f.list->Reset(f.allocator.Get(), nullptr); if (FAILED(hr)) return hr;
     hr = p.bridge->UnwrapUnderlyingResource(source, p.queue.Get(), IID_PPV_ARGS(&f.source12));
@@ -209,6 +210,7 @@ HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* 
         if (f.target12.Get() == f.source12.Get()) return finish_error(E_INVALIDARG);
     }
     if(temporal)for(auto& e:f.extra){
+        if(!e.surface)continue;
         hr=p.bridge->UnwrapUnderlyingResource(e.surface.Get(),p.queue.Get(),IID_PPV_ARGS(&e.resource));if(FAILED(hr))return finish_error(hr);
         e.out=true;++p.stats.checkouts;
         if(e.resource.Get()==f.source12.Get()||e.resource.Get()==f.target12.Get())return finish_error(E_INVALIDARG);
@@ -274,11 +276,12 @@ HRESULT FrameContext::RenderScene(IDirect3DSurface9* source, IDirect3DSurface9* 
         // cubic center with bilinear AA taps at output resolution damages text.
         Transition(f.list.Get(), f.antialiased.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_RENDER_TARGET);
         if(temporal){
-            for(auto& e:f.extra)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            for(auto& e:f.extra)if(e.resource)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_COMMON,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             TemporalPipelineInput in;in.color=f.input.Get();in.normalized_depth=f.extra[0].resource.Get();in.static_confidence=f.extra[1].resource.Get();in.reactive=f.extra[2].resource.Get();
+            in.geometry_motion=f.extra[3].resource.Get();in.geometry_motion_frame=temporal->geometry_motion_frame;
             in.output=f.antialiased.Get();in.camera=temporal->camera;in.frame=temporal->frame;in.quality=temporal->quality;
             hr=processor->Record(f.list.Get(),p.next,in);if(hr!=S_OK)return finish_error(hr);
-            for(auto& e:f.extra)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON);
+            for(auto& e:f.extra)if(e.resource)Transition(f.list.Get(),e.resource.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_COMMON);
         }else{
             hr = p.passes[source_index].Record(f.list.Get(), f.srv.Get(), f.srv->GetGPUDescriptorHandleForHeapStart(), f.aa_rtv->GetCPUDescriptorHandleForHeapStart(),
                 static_cast<UINT>(input_desc.Width), input_desc.Height, static_cast<UINT>(input_desc.Width), input_desc.Height, config.antialiasing);

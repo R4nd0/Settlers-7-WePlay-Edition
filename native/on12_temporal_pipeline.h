@@ -10,6 +10,11 @@ struct TemporalPipelineInput {
     // motion alone cannot describe animated geometry. Reactive marks unstable
     // shading/transparency separately; this class never manufactures proofs.
     ID3D12Resource* static_confidence=nullptr;ID3D12Resource* reactive=nullptr;
+    // Optional qualified per-pixel geometry motion: unjittered previous-current
+    // render pixels, previous-view clipW and confidence. It replaces camera-only
+    // motion, including on animated surfaces; all frame proofs remain required.
+    ID3D12Resource* geometry_motion=nullptr;
+    std::uint64_t geometry_motion_frame=0;
     ID3D12Resource* output=nullptr;
     Temporal::CameraParameters camera;Temporal::Frame frame;Temporal::Parameters quality;
 };

@@ -187,7 +187,7 @@ def gpu(build, package, output, runtime=None):
         parsed = json.loads(result['stdout'])
         if parsed.get('passed') is not True or parsed.get('synthetic_only') is not True:
             raise RuntimeError('Invalid spatial GPU result.')
-        if label!='native' and parsed.get('temporal_handoff')is not True:
+        if label!='native' and (parsed.get('temporal_handoff')is not True or parsed.get('geometry_motion_handoff')is not True):
             raise RuntimeError('The D3D9 temporal resource handoff was not verified.')
     return results
 
