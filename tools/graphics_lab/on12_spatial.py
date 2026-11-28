@@ -22,6 +22,8 @@ SOURCES = ('on12_frame_context.h', 'on12_frame_context.cpp', 'on12_spatial_pass.
            'on12_projection_binding.h','on12_projection_jitter.h','on12_projection_jitter_fixture.cpp','on12_native_temporal_gpu.cpp','on12_jitter_program.h')
 BINARIES = (DLL, 'on12_spatial_gpu.exe', 'on12_output_window_fixture.exe', 'on12_scene_abi_fixture.exe', 'on12_temporal_inputs_fixture.exe','on12_native_scope_fixture.exe')
 BINARIES += ('on12_projection_jitter_fixture.exe','on12_projection_jitter_gpu.exe')
+BINARIES += ('on12_motion_pose_fixture.exe',)
+SOURCES += ('on12_motion_pose.h','on12_motion_pose_fixture.cpp')
 SOURCES += ('on12_frame_temporal_gpu.h','on12_temporal_camera.h','on12_temporal_camera.cpp','on12_temporal_camera.hlsl',
             'on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_temporal_pass.h','on12_temporal_pass.cpp',
             'on12_temporal.hlsl','on12_temporal_graph.h','on12_temporal_graph.cpp','on12_temporal_pipeline.h','on12_temporal_pipeline.cpp')

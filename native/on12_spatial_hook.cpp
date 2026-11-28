@@ -7,6 +7,7 @@
 #include "on12_depth_capture.h"
 #include "on12_native_scope.h"
 #include "on12_projection_jitter.h"
+#include "on12_motion_pose.h"
 #include "water_on12_identity.h"
 #include "on12_spatial_shader.generated.h"
 #include <d3dcompiler.h>
@@ -62,6 +63,7 @@ On12Graphics::TemporalInputProbe temporal_inputs;
 On12Graphics::NativeTemporalLink* native_temporal=nullptr;
 DWORD native_jitter_remaining=0;bool native_frame_ended=true;HRESULT native_jitter_hr=E_NOINTERFACE;
 On12Graphics::ProjectionJitter* projection_jitter=nullptr;DWORD projection_jitter_remaining=0;HRESULT projection_jitter_hr=E_NOINTERFACE;
+On12Graphics::MotionPoseProbe* motion_pose=nullptr;
 DWORD failure = 0, sequence = 0; HRESULT last_result = S_OK;
 UINT width = 0, height = 0;
 DWORD render_stage = 0, source_present_flags = 0; BOOL source_auto_depth = FALSE;
@@ -102,6 +104,8 @@ void Live() noexcept {
         << ",\"native_jitter_hr\":" << static_cast<long>(native_jitter_hr) << ",\"native_jitter_remaining\":" << native_jitter_remaining
         << ",\"native_jitter_status\":" << (native_temporal?native_temporal->Scope().LastStatus():0)
         << ",\"projection_jitter_hr\":" << static_cast<long>(projection_jitter_hr) << ",\"projection_jitter_remaining\":" << projection_jitter_remaining
+        << ",\"motion_pose_ready\":" << (motion_pose?"true":"false") << ",\"motion_pose_sequence\":" << (motion_pose?motion_pose->Sequence():0)
+        << ",\"motion_pose_captured\":" << (motion_pose?motion_pose->Captured():0) << ",\"motion_pose_requested\":" << (motion_pose?motion_pose->Requested():0)
         << ",\"applied\":" << stats.applied << ",\"busy\":" << stats.busy
         << ",\"checkouts\":" << stats.checkouts << ",\"returns\":" << stats.returns
         << ",\"failed_returns\":" << stats.failed_returns << ",\"safe_for_d3d9\":" << (!context || context->SafeForD3D9() ? "true" : "false") << "}";
@@ -147,6 +151,27 @@ void TemporalInputCommand() noexcept {
         }
     }
     }catch(...){temporal_inputs.Invalidate();}
+}
+void MotionPoseCommand() noexcept {
+    if(!motion_pose)return;
+    try{On12Graphics::MotionPoseCommand command{};
+        HANDLE file=CreateFileW((directory+L"\\on12-motion-pose.private.command").c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+        if(file==INVALID_HANDLE_VALUE)return;BY_HANDLE_FILE_INFORMATION info{};LARGE_INTEGER size{};DWORD count=0;
+        const bool valid=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)&&GetFileSizeEx(file,&size)&&size.QuadPart==sizeof(command)
+            &&ReadFile(file,&command,sizeof(command),&count,nullptr)&&count==sizeof(command);CloseHandle(file);
+        if(valid&&command.sequence>motion_pose->Sequence())motion_pose->Arm(command);
+    }catch(...){motion_pose->Stop();}
+}
+void MotionPoseEnd() noexcept {
+    if(!motion_pose||!motion_pose->End())return;
+    try{const auto header=motion_pose->Header();const auto path=directory+L"\\on12-motion-pose-"+std::to_wstring(header.sequence)+L".private.bin",temporary=path+L".tmp";
+        if(!Parents(temporary.c_str()))return;
+        HANDLE file=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);if(file==INVALID_HANDLE_VALUE)return;
+        BY_HANDLE_FILE_INFORMATION info{};DWORD bytes=0;const auto& records=motion_pose->Records();const auto data_bytes=static_cast<DWORD>(records.size()*sizeof(On12Graphics::MotionPoseRecord));
+        const bool good=GetFileInformationByHandle(file,&info)&&!(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)&&WriteFile(file,&header,sizeof(header),&bytes,nullptr)&&bytes==sizeof(header)
+            &&(!data_bytes||(WriteFile(file,records.data(),data_bytes,&bytes,nullptr)&&bytes==data_bytes));CloseHandle(file);
+        if(good)MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING);
+    }catch(...){motion_pose->Stop();}
 }
 void TemporalDepthCapture(){
     auto result=temporal_inputs.Depth();
@@ -200,7 +225,38 @@ void TemporalInputCapture(IDirect3DDevice9* d,bool ui) noexcept {
 }
 template<class T> T SceneOriginal(UINT slot){return reinterpret_cast<T>(scene_original[slot]);}
 bool SceneOwn(IDirect3DDevice9* d){return scene&&d==admitted&&!internal&&!stopped&&GetCurrentThreadId()==owner;}
+__declspec(noinline) void ObserveMotionPose(IDirect3DDevice9* d,const On12Graphics::MotionPoseKey& draw_key)noexcept{
+    if(!motion_pose||!motion_pose->CanObserve()||!SceneOwn(d)||scene->Ui()||!boundary->Geometry())return;
+    Guard guard;Scope scope;
+    try{
+        On12Graphics::MotionPoseRecord key;key.kind=draw_key.kind;key.primitive=draw_key.primitive;key.base_vertex=draw_key.base_vertex;
+        key.minimum=draw_key.minimum;key.vertices=draw_key.vertices;key.start=draw_key.start;key.primitives=draw_key.primitives;
+        auto* raw=context->NativeDevice();ComPtr<IDirect3DSurface9> target;D3DSURFACE_DESC desc{};
+        if(!raw||FAILED(raw->GetRenderTarget(0,&target))||!target||FAILED(target->GetDesc(&desc))||desc.Format!=D3DFMT_R32F||desc.Width!=render_width||desc.Height!=render_height)return;
+        ComPtr<IDirect3DVertexShader9> vs;ComPtr<IDirect3DPixelShader9> ps;
+        if(FAILED(d->GetVertexShader(&vs))||!motion_pose->Skinning(vs.Get()))return;
+        d->GetPixelShader(&ps);key.vertex_shader=reinterpret_cast<std::uintptr_t>(vs.Get());key.pixel_shader=reinterpret_cast<std::uintptr_t>(ps.Get());
+        motion_pose->Observe(key,[&](On12Graphics::MotionPoseRecord& record){
+            if(FAILED(projection_jitter->GetConstants(0,record.constants.data(),256))||FAILED(d->GetVertexShaderConstantI(0,record.integers.data(),16))
+                ||FAILED(d->GetVertexShaderConstantB(0,record.booleans.data(),16)))return false;
+            ComPtr<IDirect3DVertexBuffer9> vertices;ComPtr<IDirect3DIndexBuffer9> indices;UINT offset=0,stride=0,frequency=0;
+            if(SUCCEEDED(d->GetStreamSource(0,&vertices,&offset,&stride))&&vertices){D3DVERTEXBUFFER_DESC info{};
+                record.vertex_buffer=reinterpret_cast<std::uintptr_t>(vertices.Get());record.offset=offset;record.stride=stride;
+                if(SUCCEEDED(vertices->GetDesc(&info))){record.vb_usage=info.Usage;record.vb_bytes=info.Size;}}
+            if(SUCCEEDED(d->GetStreamSourceFreq(0,&frequency)))record.frequency=frequency;
+            if(SUCCEEDED(d->GetIndices(&indices))&&indices){D3DINDEXBUFFER_DESC info{};record.index_buffer=reinterpret_cast<std::uintptr_t>(indices.Get());if(SUCCEEDED(indices->GetDesc(&info)))record.index_format=info.Format;}
+            using Stack=void(WINAPI*)(PULONG_PTR,PULONG_PTR);const auto stack=reinterpret_cast<Stack>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"GetCurrentThreadStackLimits"));
+            ULONG_PTR low=0,high=0;if(stack)stack(&low,&high);
+            auto describe=[&](std::uint64_t source,std::uint32_t& type,std::uint32_t& local){if(!source)return;MEMORY_BASIC_INFORMATION info{};
+                if(VirtualQuery(reinterpret_cast<void*>(static_cast<std::uintptr_t>(source)),&info,sizeof(info))==sizeof(info))type=info.Type;
+                local=source>=low&&source<high?1u:0u;};
+            describe(record.source,record.source_type,record.source_stack);describe(record.bone_source,record.bone_source_type,record.bone_source_stack);
+            return true;
+        });
+    }catch(...){motion_pose->Stop();}
+}
 HRESULT NativeUi(){
+    MotionPoseEnd();
     HRESULT hr=S_OK;
     if(projection_jitter){projection_jitter_hr=projection_jitter->Ui();if(FAILED(projection_jitter_hr))return projection_jitter_hr;}
     if(native_temporal&&native_temporal->Scope().Ready()){hr=native_temporal->Scope().Ui();native_jitter_hr=hr;}
@@ -209,6 +265,7 @@ HRESULT NativeUi(){
 }
 HRESULT NativeBegin(){
     native_frame_ended=false;
+    if(motion_pose)motion_pose->Begin(presents+1);
     if(projection_jitter){projection_jitter_hr=projection_jitter->Begin(presents+1,render_width,render_height,projection_jitter_remaining!=0);if(FAILED(projection_jitter_hr))return projection_jitter_hr;}
     if(!native_temporal||!native_temporal->Scope().Ready())return S_OK;
     native_jitter_hr=native_temporal->Scope().Begin(presents+1,render_width,render_height,native_jitter_remaining!=0);return native_jitter_hr;
@@ -218,6 +275,7 @@ HRESULT NativeSuspend(){
     return native_temporal&&native_temporal->Scope().Ready()?native_temporal->Scope().Suspend():S_OK;
 }
 HRESULT NativeResume(){
+    if(motion_pose)motion_pose->InvalidateSource();
     if(projection_jitter){const auto hr=projection_jitter->Resume();if(FAILED(hr))return hr;}
     if(!native_temporal||!native_temporal->Scope().Ready())return S_OK;
     auto hr=native_temporal->Scope().Geometry(!scene->Ui()&&boundary->Geometry());if(SUCCEEDED(hr))hr=native_temporal->Scope().Resume();return hr;
@@ -239,8 +297,11 @@ HRESULT STDMETHODCALLTYPE SceneClear(IDirect3DDevice9* d,DWORD n,const D3DRECT* 
 HRESULT STDMETHODCALLTYPE SceneVertex(IDirect3DDevice9* d,IDirect3DVertexShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DVertexShader9*)>(92)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedVertex(shader))SceneAccess([&]{boundary->Vertex(shader);return S_OK;});return hr;}
 HRESULT STDMETHODCALLTYPE ScenePixel(IDirect3DDevice9* d,IDirect3DPixelShader9* shader){const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,IDirect3DPixelShader9*)>(107)(d,shader);if(SUCCEEDED(hr)&&SceneOwn(d)&&!boundary->CachedPixel(shader))SceneAccess([&]{boundary->Pixel(shader);return S_OK;});return hr;}
 HRESULT STDMETHODCALLTYPE SceneSetConstants(IDirect3DDevice9* d,UINT first,const float* values,UINT count){
-    if(SceneOwn(d)&&projection_jitter)return SceneAccess([&]{return projection_jitter->SetConstants(first,values,count,scene->Suspended());});
+    const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    if(SceneOwn(d)&&projection_jitter)return SceneAccess([&]{const auto hr=projection_jitter->SetConstants(first,values,count,scene->Suspended());
+        if(SUCCEEDED(hr)&&motion_pose&&motion_pose->Active()&&!scene->Suspended())motion_pose->Upload(first,values,count,caller);return hr;});
     if(d==admitted&&!internal&&projection_jitter&&GetCurrentThreadId()!=owner)projection_jitter->ForeignMutation();
+    if(d==admitted&&!internal&&motion_pose&&GetCurrentThreadId()!=owner)motion_pose->ForeignUpdate();
     return SceneOriginal<On12Graphics::ProjectionJitter::Set>(94)(d,first,values,count);
 }
 HRESULT STDMETHODCALLTYPE SceneGetConstants(IDirect3DDevice9* d,UINT first,float* values,UINT count){
@@ -271,9 +332,12 @@ HRESULT SceneBeforeDraw(IDirect3DDevice9* d){
     // engine's virtual native view. Physical getters use the raw On12 device.
     if(SUCCEEDED(result))TemporalInputCapture(d,true);return result;
 }
-HRESULT STDMETHODCALLTYPE SceneDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT)>(81)(d,t,first,count);}
+HRESULT STDMETHODCALLTYPE SceneDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;
+    const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT)>(81)(d,t,first,count);
+    if(SUCCEEDED(hr)&&motion_pose&&motion_pose->Enabled()&&SceneOwn(d)&&motion_pose->CanObserve()){On12Graphics::MotionPoseKey key;key.kind=1;key.primitive=t;key.start=first;key.primitives=count;ObserveMotionPose(d,key);}return hr;}
 HRESULT STDMETHODCALLTYPE SceneDrawIndexed(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,INT base,UINT minimum,UINT vertices,UINT first,UINT count){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;
     const HRESULT hr=SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,INT,UINT,UINT,UINT,UINT)>(82)(d,t,base,minimum,vertices,first,count);
+    if(SUCCEEDED(hr)&&motion_pose&&motion_pose->Enabled()&&SceneOwn(d)&&motion_pose->CanObserve()){On12Graphics::MotionPoseKey key;key.kind=2;key.primitive=t;key.base_vertex=base;key.minimum=minimum;key.vertices=vertices;key.start=first;key.primitives=count;ObserveMotionPose(d,key);}
     if(SUCCEEDED(hr)&&SceneOwn(d)&&boundary->Current()==On12Graphics::SceneBoundary::Role::Composite)++composite_draw_calls;return hr;}
 HRESULT STDMETHODCALLTYPE SceneDrawUp(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT n,const void* data,UINT stride){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,const void*,UINT)>(83)(d,t,n,data,stride);}
 HRESULT STDMETHODCALLTYPE SceneDrawIndexedUp(IDirect3DDevice9* d,D3DPRIMITIVETYPE t,UINT minimum,UINT vertices,UINT n,const void* indices,D3DFORMAT format,const void* data,UINT stride){const HRESULT before=SceneBeforeDraw(d);if(FAILED(before))return before;return SceneOriginal<HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*,D3DPRIMITIVETYPE,UINT,UINT,UINT,const void*,D3DFORMAT,const void*,UINT)>(84)(d,t,minimum,vertices,n,indices,format,data,stride);}
@@ -306,7 +370,7 @@ HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d, const RECT* a, const 
         {
             Guard guard; Scope scope; ++presents;
             try {
-                if (presents == 1 || presents % 60 == 0) {Command();TemporalInputCommand();}
+                if (presents == 1 || presents % 60 == 0) {Command();TemporalInputCommand();MotionPoseCommand();}
                 if(scene_mode&&scene&&!stopped&&!failure){
                     if(scene->Active()&&!scene->Ui()){auto quality=settings;quality.enabled=1;quality.antialiasing=settings.enabled?1.0f:0.0f;last_result=NativeUi();if(SUCCEEDED(last_result))last_result=scene->BeginUi(quality);if(FAILED(last_result))failure=406;}
                     width=output_width;height=output_height;
@@ -381,6 +445,7 @@ HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d, D3DPRESENT_PARAMETERS* 
         if (GetCurrentThreadId() != owner) return D3DERR_INVALIDCALL;
         if (context) { const HRESULT drained = context->Drain(5000); if (FAILED(drained)) { ++errors; last_result = drained; Live(); return D3DERR_DEVICELOST; } }
         native_jitter_remaining=projection_jitter_remaining=0;
+        if(motion_pose){motion_pose->Stop();motion_pose->InvalidateSource();}
         if(projection_jitter&&FAILED(projection_jitter->Stop()))return D3DERR_DEVICELOST;
         if(native_temporal&&FAILED(native_temporal->Scope().Stop()))return D3DERR_DEVICELOST;
         temporal_inputs.Invalidate();
@@ -399,6 +464,7 @@ bool Stop() {
     if (FAILED(context->Drain(5000))) { failure = 501; Live(); return false; }
     retired_stats = context->Stats(); retired_valid = true;
     native_jitter_remaining=projection_jitter_remaining=0;
+    if(motion_pose)motion_pose->Stop();
     if(projection_jitter&&FAILED(projection_jitter->Stop())){failure=506;Live();return false;}
     if(native_temporal&&FAILED(native_temporal->Shutdown())){failure=505;Live();return false;}
     if(scene&&FAILED(scene->Shutdown())){failure=504;Live();return false;}
@@ -495,7 +561,8 @@ HRESULT Attach(IDirect3DDevice9* device) {
     admitted = device; owner = GetCurrentThreadId(); context = candidate.release(); settings.enabled = 1;
     scene=next_scene.release();boundary=next_boundary.release();
     if(scene_mode){native_temporal=new On12Graphics::NativeTemporalLink;native_jitter_hr=native_temporal->Initialize(context->NativeDevice(),GetModuleHandleW(L"d3d9on12.dll"));
-        projection_jitter=new On12Graphics::ProjectionJitter;projection_jitter_hr=projection_jitter->Initialize(admitted,SceneOriginal<On12Graphics::ProjectionJitter::Set>(94),SceneOriginal<On12Graphics::ProjectionJitter::Get>(95));}
+        projection_jitter=new On12Graphics::ProjectionJitter;projection_jitter_hr=projection_jitter->Initialize(admitted,SceneOriginal<On12Graphics::ProjectionJitter::Set>(94),SceneOriginal<On12Graphics::ProjectionJitter::Get>(95));
+        motion_pose=new On12Graphics::MotionPoseProbe;motion_pose->Initialize();}
     for (auto it = getter_slots.rbegin(); it != getter_slots.rend(); ++it) if (!Patch(*it, false)) { failure = 203; return E_FAIL; }
     Live(); return S_OK;
 }
@@ -617,6 +684,7 @@ extern "C" bool On12SpatialFixtureClose() {
     delete context; context = nullptr; admitted = nullptr; owner = 0; presents = original_calls = output_calls = resets = 0; stopped = false;
     delete scene;scene=nullptr;delete boundary;boundary=nullptr;delete native_temporal;native_temporal=nullptr;
     delete projection_jitter;projection_jitter=nullptr;projection_jitter_remaining=0;scene_mode=false;ui_draw_calls=composite_draw_calls=0;
+    delete motion_pose;motion_pose=nullptr;
     retired_valid = false; retired_stats = {}; stop_pending = false;
     render_width = render_height = output_width = output_height = 0; return true;
 }

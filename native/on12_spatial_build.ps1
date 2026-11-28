@@ -15,10 +15,15 @@ $names=@('on12_frame_context.h','on12_frame_context.cpp','on12_spatial_pass.h','
 $files=@{}
 $names+=@('on12_projection_binding.h','on12_projection_jitter.h','on12_projection_jitter_fixture.cpp','on12_native_temporal_gpu.cpp','on12_jitter_program.h')
 $names+=@('on12_frame_temporal_gpu.h','on12_temporal_camera.h','on12_temporal_camera.cpp','on12_temporal_camera.hlsl','on12_temporal_camera_pass.h','on12_temporal_camera_pass.cpp','on12_temporal_pass.h','on12_temporal_pass.cpp','on12_temporal.hlsl','on12_temporal_graph.h','on12_temporal_graph.cpp','on12_temporal_pipeline.h','on12_temporal_pipeline.cpp')
+$names+=@('on12_motion_pose.h','on12_motion_pose_fixture.cpp')
 $temporalSources=@('on12_temporal_camera.cpp','on12_temporal_camera_pass.cpp','on12_temporal_pass.cpp','on12_temporal_graph.cpp','on12_temporal_pipeline.cpp')
 foreach($name in $names){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $output;$files[$name]=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()}
 Push-Location $output
 try {
+    & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 on12_motion_pose_fixture.cpp /Fe:on12_motion_pose_fixture.exe /link d3dcompiler.lib /DYNAMICBASE /NXCOMPAT /Brepro
+    if($LASTEXITCODE){throw 'Motion pose fixture compile failed.'}
+    & .\on12_motion_pose_fixture.exe
+    if($LASTEXITCODE){throw 'Motion pose fixture failed.'}
     & cl.exe /nologo /std:c++17 /EHsc /MT /W4 /WX /O2 on12_temporal.cpp on12_projection_jitter_fixture.cpp /Fe:on12_projection_jitter_fixture.exe /link d3dcompiler.lib bcrypt.lib /DYNAMICBASE /NXCOMPAT /Brepro
     if($LASTEXITCODE){throw 'Ordered projection fixture compile failed.'}
     & .\on12_projection_jitter_fixture.exe
@@ -56,6 +61,7 @@ try {
     $files['on12_temporal_inputs_fixture.exe']=(Get-FileHash -LiteralPath 'on12_temporal_inputs_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
     $files['on12_native_scope_fixture.exe']=(Get-FileHash -LiteralPath 'on12_native_scope_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
     foreach($name in @('on12_projection_jitter_fixture.exe','on12_projection_jitter_gpu.exe')){$files[$name]=(Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant()}
+    $files['on12_motion_pose_fixture.exe']=(Get-FileHash -LiteralPath 'on12_motion_pose_fixture.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest=@{format='s7-on12-spatial-build-v1';settings_bytes=16;build_sha256=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant();files=$files}
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath 'on12-spatial-build.json' -Encoding utf8
     $manifest | ConvertTo-Json -Depth 4 -Compress
